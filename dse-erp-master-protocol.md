@@ -122,7 +122,7 @@ All verified IP addresses, DNS mappings, ports, databases, and SSH credentials a
 | :--- | :--- | :--- |
 | **Server Public IP** | `130.210.35.1` | `144.24.109.1` |
 | **SSH User** | `opc` | `opc` |
-| **SSH Private Key (Local)** | `~/.ssh/dse-erp-github-prod` | `~/.ssh/dse-erp-github-uat` |
+| **SSH Private Key (Local)** | `~/.ssh/dse-erp-github-prod-ci` | `~/.ssh/dse-erp-github-uat` |
 | **Spring Server Port** | `8080` | `8081` |
 | **Target Database** | `dse_erp` (PostgreSQL 16+) | `dse_erp_uat` (PostgreSQL 16+) |
 | **Public Showcase Root** | `/srv/dse-erp/web/public` | `/srv/dse-erp/web/public` |
