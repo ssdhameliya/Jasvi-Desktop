@@ -45,11 +45,11 @@ public final class ErpAgentService {
     ) {}
 
     private Agent agent;
-    private boolean initialized = false;
-    private boolean aiAvailable = false;
+    private volatile boolean initialized = false;
+    private volatile boolean aiAvailable = false;
 
     private ErpAgentService() {
-        initAgent();
+        CompletableFuture.runAsync(this::initAgent);
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
     }
 
@@ -71,6 +71,9 @@ public final class ErpAgentService {
             if (apiKey == null || apiKey.isBlank()) {
                 apiKey = System.getProperty("gemini.api.key", "");
             }
+            if (apiKey.isBlank()) {
+                apiKey = System.getenv("DSE_GEMINI_API_KEY");
+            }
 
             AgentConfig.Builder builder = AgentConfig.builder()
                     .instructions("""
@@ -79,6 +82,10 @@ public final class ErpAgentService {
                             and business logic defects in ERP documents (Sales, Purchases, Quotations, Returns, Tax allocations).
                             Return concise, highly accurate, and actionable guidance without fluff.
                             """);
+
+            if (apiKey != null && !apiKey.isBlank()) {
+                builder.addEnvironmentVariable("GEMINI_API_KEY", apiKey);
+            }
 
             AgentConfig config = builder.build();
             this.agent = new Agent(config);
@@ -111,67 +118,94 @@ public final class ErpAgentService {
                 ? DefectSeverity.CRITICAL
                 : "WARN".equalsIgnoreCase(row.level()) ? DefectSeverity.WARNING : DefectSeverity.INFO;
 
-        if (!isAiAvailable()) {
-            return CompletableFuture.completedFuture(buildDeterministicDiagnosis(row, severity));
-        }
+        return CompletableFuture.supplyAsync(() -> {
+            if (!isAiAvailable()) {
+                return buildDeterministicDiagnosis(row, severity);
+            }
 
-        String prompt = String.format("""
-                Analyze this enterprise ERP diagnostic event:
-                - Level: %s
-                - Source: %s
-                - Component: %s
-                - Event: %s
-                - User-Facing Title: %s
-                - Technical Detail: %s
-                - Stack Trace: %s
+            String prompt = String.format("""
+                    Analyze this enterprise ERP diagnostic event:
+                    - Level: %s
+                    - Source: %s
+                    - Component: %s
+                    - Event: %s
+                    - User-Facing Title: %s
+                    - Technical Detail: %s
+                    - Stack Trace: %s
 
-                Provide:
-                1. Concise Root Cause (1-2 sentences)
-                2. Recommended Solution / Fix (1-2 bullet points)
-                """,
-                row.level(), row.source(), row.component(), row.event(),
-                row.friendlyTitle(), row.technicalDetail(), row.rawFailure()
+                    Provide:
+                    1. Concise Root Cause (1-2 sentences)
+                    2. Recommended Solution / Fix (1-2 bullet points)
+                    """,
+                    row.level(), row.source(), row.component(), row.event(),
+                    row.friendlyTitle(), row.technicalDetail(), row.rawFailure()
+            );
+
+            try {
+                AgentResponse response = agent.chat(prompt).get(15, TimeUnit.SECONDS);
+                String text = response != null ? response.text() : "";
+                String cause = extractSection(text, "Root Cause", row.friendlyExplanation());
+                String fix = extractSection(text, "Recommended Solution", row.actionableGuidance());
+                return new DefectDiagnosis(severity, row.friendlyTitle(), cause, fix, true);
+            } catch (Throwable t) {
+                log.warn("Agent chat timed out or failed, using heuristic fallback: {}", t.getMessage());
+                return buildDeterministicDiagnosis(row, severity);
+            }
+        });
+    }
+
+    /**
+     * Analyzes any arbitrary exception thrown during UI operations across any ERP screen.
+     */
+    public CompletableFuture<DefectDiagnosis> diagnoseException(String scope, String event, String detail, Throwable failure) {
+        String failureText = failure == null ? "" : failure.getClass().getSimpleName() + ": " + failure.getMessage();
+        DiagnosticRow row = new DiagnosticRow(
+                0, java.time.Instant.now().toString(), "Now", "ERROR", "DESKTOP",
+                scope, event, "USER", scope + " Failure", detail, "Please retry or review inputs.", detail, failureText
         );
-
-        CompletableFuture<DefectDiagnosis> future = new CompletableFuture<>();
-
-        try {
-            agent.chat(prompt)
-                    .orTimeout(20, TimeUnit.SECONDS)
-                    .thenAccept(response -> {
-                        String text = response != null ? response.text() : "";
-                        String cause = extractSection(text, "Root Cause", row.friendlyExplanation());
-                        String fix = extractSection(text, "Recommended Solution", row.actionableGuidance());
-                        future.complete(new DefectDiagnosis(severity, row.friendlyTitle(), cause, fix, true));
-                    })
-                    .exceptionally(ex -> {
-                        log.warn("Agent chat timed out or failed, using heuristic fallback: {}", ex.getMessage());
-                        future.complete(buildDeterministicDiagnosis(row, severity));
-                        return null;
-                    });
-        } catch (Throwable t) {
-            future.complete(buildDeterministicDiagnosis(row, severity));
-        }
-
-        return future;
+        return diagnoseDiagnosticRow(row);
     }
 
     private DefectDiagnosis buildDeterministicDiagnosis(DiagnosticRow row, DefectSeverity severity) {
-        String detail = row.technicalDetail();
-        String failure = row.rawFailure();
+        String detail = row.technicalDetail() != null ? row.technicalDetail() : "";
+        String failure = row.rawFailure() != null ? row.rawFailure() : "";
+        String combined = (detail + " " + failure).toLowerCase(java.util.Locale.ROOT);
 
         String cause = row.friendlyExplanation();
         String fix = row.actionableGuidance();
 
-        if (failure.contains("ClosedChannelException") || detail.contains("ClosedChannelException")) {
+        if (combined.contains("server resource not found") || combined.contains("illegalargumentexception: server resource")) {
+            cause = "Backend Spring service route could not locate the requested enterprise resource or endpoint.";
+            fix = "Verify server deployment version or check route mapping in Server Administration.";
+        } else if (combined.contains("does not exist") && (combined.contains("column") || combined.contains("relation"))) {
+            cause = "Database schema mismatch: a required column or table does not exist in PostgreSQL.";
+            fix = "Run pending Flyway database migrations or apply the latest database upgrade package.";
+        } else if (combined.contains("no proof is attached") || combined.contains("attachmentunavailableexception")) {
+            cause = "A required payment receipt or proof document has not been uploaded to this voucher.";
+            fix = "Attach the payment confirmation or receipt file before approving or submitting.";
+        } else if (combined.contains("closedchannelexception")) {
             cause = "Backend server socket closed unexpectedly while handling the HTTP request.";
             fix = "Verify server port 58080 is active. The desktop client will automatically retry with exponential backoff.";
-        } else if (failure.contains("ConnectException") || detail.contains("Connection refused")) {
+        } else if (combined.contains("connectexception") || combined.contains("connection refused")) {
             cause = "Desktop client could not establish TCP connection with Spring REST backend on localhost:58080.";
             fix = "Ensure the DSE ERP Spring server process is running and PostgreSQL port 55432 is healthy.";
-        } else if (failure.contains("OptimisticLockingFailureException")) {
-            cause = "Concurrent update detected: another workstation modified this document simultaneously.";
+        } else if (combined.contains("optimisticlockingfailureexception") || combined.contains("row_version")) {
+            cause = "Concurrent update detected: another operator modified this document simultaneously.";
             fix = "Refresh the table view to load the latest revision before re-submitting your changes.";
+        } else if (combined.contains("compatibility policy is invalid") || combined.contains("minimum supported desktop")) {
+            cause = "Version policy mismatch: minimum supported desktop version is incompatible with current server.";
+            fix = "Update the server package or adjust the minimum desktop compatibility policy in Master Settings.";
+        } else if (combined.contains("hikaripool") || combined.contains("08003") || combined.contains("timed out after")) {
+            cause = "PostgreSQL database connection pool exhausted or timed out under heavy load.";
+            fix = "Check PostgreSQL service on port 55432 or adjust database max connection pool settings.";
+        } else if (combined.contains("nullpointerexception")) {
+            cause = "An unexpected null reference was encountered during document validation.";
+            fix = "Review all required document lines and header fields before saving.";
+        } else if (cause == null || cause.isBlank() || cause.startsWith("The ERP could not complete")) {
+            if (!detail.isBlank()) {
+                cause = detail;
+                fix = "Review the failure details above or contact system administration.";
+            }
         }
 
         return new DefectDiagnosis(severity, row.friendlyTitle(), cause, fix, false);

@@ -21,6 +21,7 @@ import org.example.config.WorkspaceManager;
 import org.example.service.SessionService;
 import org.example.theme.ThemeManager;
 import org.example.ai.ErpAgentService;
+import org.example.service.DiagnosticAutoScanner;
 
 import java.io.File;
 import java.io.IOException;
@@ -106,7 +107,17 @@ public final class SystemDiagnosticsDialog {
 
     private SystemDiagnosticsDialog() {}
 
+    public static int getUninspectedErrorCount() {
+        return DiagnosticAutoScanner.getUninspectedCount();
+    }
+
+    public static void markAsInspected() {
+        DiagnosticAutoScanner.markAllInspected();
+    }
+
     public static void show(Node owner) {
+        if (owner == null) return;
+        markAsInspected();
         if (owner == null) return;
 
         Dialog<ButtonType> dialog = new OwnedDialog<>(owner);
@@ -789,21 +800,50 @@ public final class SystemDiagnosticsDialog {
             btnAiDiagnose.setText("Analyzing with AI Agent…");
             aiCard.setVisible(true);
             aiCard.setManaged(true);
-            lblAiBody.setText("Interfacing with Antigravity AI Agent… scanning stack trace & exception context…");
+            aiCard.getChildren().clear();
+
+            Label lblAiStatus = new Label("⚡ Step 1/3: Parsing server stack trace & exception context…");
+            Node scannerCard = Classy3DLoadingView.createAiScannerCard(lblAiStatus);
+            aiCard.getChildren().add(scannerCard);
+
+            javafx.animation.Timeline progressTimeline = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(javafx.util.Duration.millis(400), ev1 -> lblAiStatus.setText("🧠 Step 2/3: Google Antigravity Agent evaluating defect root cause…")),
+                    new javafx.animation.KeyFrame(javafx.util.Duration.millis(900), ev2 -> lblAiStatus.setText("💡 Step 3/3: Synthesizing actionable enterprise resolution…"))
+            );
+            progressTimeline.play();
 
             ErpAgentService.getInstance().diagnoseDiagnosticRow(row).thenAccept(diag -> {
                 Platform.runLater(() -> {
+                    progressTimeline.stop();
                     btnAiDiagnose.setDisable(false);
                     btnAiDiagnose.setText("Re-analyze with AI");
+
+                    VBox resultCard = new VBox(8);
+                    resultCard.setStyle("-fx-padding: 12; -fx-background-color: rgba(56, 189, 248, 0.08); -fx-border-color: rgba(56, 189, 248, 0.35); -fx-border-radius: 10; -fx-background-radius: 10;");
+
                     String badge = diag.isAiGenerated() ? " [Google Antigravity Agent]" : " [Deterministic Engine]";
-                    lblAiTitle.setText("AI Diagnosis" + badge + ":");
-                    lblAiBody.setText("Root Cause: " + diag.rootCause() + "\n\nRecommended Fix: " + diag.recommendedFix());
+                    Label title = new Label("AI Diagnosis" + badge);
+                    title.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #38bdf8;");
+
+                    Label cause = new Label("🔍 Root Cause:\n" + diag.rootCause());
+                    cause.setWrapText(true);
+                    cause.setStyle(isDark ? "-fx-font-size: 12px; -fx-text-fill: #f8fafc;" : "-fx-font-size: 12px; -fx-text-fill: #0f172a;");
+
+                    Label fix = new Label("💡 Recommended Resolution:\n" + diag.recommendedFix());
+                    fix.setWrapText(true);
+                    fix.setStyle(isDark ? "-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #34d399;" : "-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #059669;");
+
+                    resultCard.getChildren().addAll(title, cause, fix);
+                    aiCard.getChildren().setAll(resultCard);
                 });
             }).exceptionally(ex -> {
                 Platform.runLater(() -> {
+                    progressTimeline.stop();
                     btnAiDiagnose.setDisable(false);
                     btnAiDiagnose.setText("AI Defect Analysis");
-                    lblAiBody.setText("Analysis failed: " + ex.getMessage());
+                    Label err = new Label("Analysis could not complete: " + ex.getMessage());
+                    err.setStyle("-fx-font-size: 12px; -fx-text-fill: #f87171;");
+                    aiCard.getChildren().setAll(err);
                 });
                 return null;
             });
@@ -872,10 +912,10 @@ public final class SystemDiagnosticsDialog {
                         String detail = extractJson(line, "detail");
                         String failure = extractJson(line, "failure");
 
-                        String rawToMap = !failure.isBlank() ? failure : detail;
-                        String fTitle = UserFacingErrorMapper.title(rawToMap);
-                        String fMsg = UserFacingErrorMapper.message(rawToMap);
-                        String fAction = UserFacingErrorMapper.action(rawToMap);
+                        DiagnosticsInterpretation interp = interpretDiagnostic("DESKTOP", level, comp, event, user, detail, failure);
+                        String fTitle = interp.title();
+                        String fMsg = interp.explanation();
+                        String fAction = interp.action();
 
                         rows.add(new DiagnosticRow(
                                 counter++,
@@ -923,10 +963,10 @@ public final class SystemDiagnosticsDialog {
                         if (open >= 0) simpleLogger = simpleLogger.substring(open + 1, simpleLogger.length() - 1);
                     }
 
-                    String rawToMap = !rawFailure.isBlank() ? rawFailure : sMsg;
-                    String fTitle = UserFacingErrorMapper.title(rawToMap);
-                    String fMsg = UserFacingErrorMapper.message(rawToMap);
-                    String fAction = UserFacingErrorMapper.action(rawToMap);
+                    DiagnosticsInterpretation interp = interpretDiagnostic("SERVER", sLevel, simpleLogger, "SERVER_EVENT", "SYSTEM", sMsg, rawFailure);
+                    String fTitle = interp.title();
+                    String fMsg = interp.explanation();
+                    String fAction = interp.action();
 
                     rows.add(new DiagnosticRow(
                             counter++,
@@ -1004,10 +1044,10 @@ public final class SystemDiagnosticsDialog {
                                 if (open >= 0) simpleLogger = simpleLogger.substring(open + 1, simpleLogger.length() - 1);
                             }
 
-                            String rawToMap = !rawFailure.isBlank() ? rawFailure : sMsg;
-                            String fTitle = UserFacingErrorMapper.title(rawToMap);
-                            String fMsg = UserFacingErrorMapper.message(rawToMap);
-                            String fAction = UserFacingErrorMapper.action(rawToMap);
+                            DiagnosticsInterpretation interp = interpretDiagnostic("SERVER", sLevel, simpleLogger, "SERVER_EVENT", "SYSTEM", sMsg, rawFailure);
+                            String fTitle = interp.title();
+                            String fMsg = interp.explanation();
+                            String fAction = interp.action();
 
                             rows.add(new DiagnosticRow(
                                     counter++,
@@ -1109,5 +1149,117 @@ public final class SystemDiagnosticsDialog {
 
     private static String safe(String s) {
         return s == null ? "" : s.trim();
+    }
+
+    private record DiagnosticsInterpretation(String title, String explanation, String action) {}
+
+    private static DiagnosticsInterpretation interpretDiagnostic(String source, String level, String component, String event, String user, String detail, String failure) {
+        String cleanDetail = detail != null ? detail.trim() : "";
+        String cleanFailure = failure != null ? failure.trim() : "";
+        String combined = (cleanDetail + " " + cleanFailure).toLowerCase(Locale.ROOT);
+
+        if (combined.contains("duplicate key") || combined.contains("23505") || combined.contains("unique constraint")) {
+            return new DiagnosticsInterpretation("Duplicate Identifier Conflict", "A record with this reference code or identifier already exists in the database.", "Review reference sequences or enter an alternative unique code.");
+        }
+        if (combined.contains("foreign key") || combined.contains("23503") || combined.contains("referenced by")) {
+            return new DiagnosticsInterpretation("Linked Record Dependency", "This record cannot be deleted or modified because dependent vouchers or lines exist.", "Remove linked transactions or dependent line items first.");
+        }
+        if (combined.contains("concurrentedit") || combined.contains("optimistic locking") || combined.contains("row_version")) {
+            return new DiagnosticsInterpretation("Simultaneous Edit Conflict", "Another operator updated this record simultaneously.", "Click Refresh to load latest values and re-apply changes.");
+        }
+        if (combined.contains("lock timeout") || combined.contains("could not obtain lock") || combined.contains("deadlock")) {
+            return new DiagnosticsInterpretation("Database Lock Wait Timeout", "The database is currently synchronizing another transaction on this record.", "Wait a moment for the database lock to release, then retry.");
+        }
+        if (combined.contains("server resource not found") || combined.contains("illegalargumentexception: server resource")) {
+            return new DiagnosticsInterpretation("Server Resource Missing", "Requested backend route or endpoint could not be found on the server engine.", "Verify server deployment version or route mapping in Server Administration.");
+        }
+        if (combined.contains("does not exist") && (combined.contains("column") || combined.contains("relation"))) {
+            String colName = extractColumnName(cleanDetail, cleanFailure);
+            return new DiagnosticsInterpretation("Database Schema Mismatch" + (colName.isBlank() ? "" : " (" + colName + ")"), "PostgreSQL schema is missing a required table or column: " + (colName.isBlank() ? cleanDetail : colName), "Run pending Flyway database migrations or apply the database upgrade package.");
+        }
+        if (combined.contains("no proof is attached") || combined.contains("attachmentunavailableexception")) {
+            return new DiagnosticsInterpretation("Payment Proof Attachment Required", "Payment voucher requires an uploaded receipt or proof document before submission.", "Attach a receipt or payment document file before approving the voucher.");
+        }
+        if (combined.contains("closedchannelexception")) {
+            return new DiagnosticsInterpretation("Backend Channel Interrupted", "Communication channel to the Spring backend was closed unexpectedly.", "Verify server port 58080 is active. The client will retry automatically.");
+        }
+        if (combined.contains("connectexception") || combined.contains("connection refused")) {
+            return new DiagnosticsInterpretation("Server Connection Unavailable", "Desktop client could not establish connection to the backend server.", "Check network connection or ensure the Spring REST server is running on port 58080.");
+        }
+        if (combined.contains("compatibility policy is invalid") || combined.contains("minimum supported desktop")) {
+            return new DiagnosticsInterpretation("Version Policy Incompatible", "The company server compatibility policy does not match this desktop version.", "Update the server deployment or adjust compatibility policy in Settings.");
+        }
+        if (combined.contains("hikaripool") || combined.contains("08003") || combined.contains("timed out after")) {
+            return new DiagnosticsInterpretation("Database Pool Timeout", "PostgreSQL database connection pool timed out under heavy load.", "Check PostgreSQL service status on port 55432.");
+        }
+
+        String title = "Application Diagnostic Event";
+        String explanation = cleanDetail;
+        String action = "Review the failure details above or retry the operation.";
+
+        if ("SERVER_START_FAILED".equalsIgnoreCase(event)) {
+            title = "Backend Server Startup Failed";
+            action = "Check server log in DSE Production\\Logs\\Server\\dse-erp-server.log.";
+        } else if ("POSTGRES_START_FAILED".equalsIgnoreCase(event)) {
+            title = "PostgreSQL Startup Failed";
+            action = "Verify PostgreSQL data folder and port 55432.";
+        } else if ("RESTORE_FAILED".equalsIgnoreCase(event)) {
+            title = "Database Restore Failed";
+            action = "Ensure valid backup file format and adequate disk permissions.";
+        } else if (cleanDetail.contains(" | ")) {
+            int pipe = cleanDetail.indexOf(" | ");
+            String key = cleanDetail.substring(0, pipe).trim();
+            explanation = cleanDetail.substring(pipe + 3).trim();
+            title = formatActionKey(key);
+        } else if ("ERROR".equalsIgnoreCase(level)) {
+            if (!component.equalsIgnoreCase("Server") && !component.equalsIgnoreCase("General")) {
+                title = component + " Operation Failed";
+            } else {
+                title = "Internal Application Error";
+            }
+        } else if ("WARN".equalsIgnoreCase(level)) {
+            title = component + " System Warning";
+        } else {
+            title = event.replace("_", " ");
+        }
+
+        if (explanation.isBlank() && !cleanFailure.isBlank()) {
+            explanation = cleanFailure;
+        }
+        if (explanation.isBlank()) {
+            explanation = "Event occurred in component " + component + ".";
+        }
+
+        if (explanation.contains("threw exception [Request processing failed:")) {
+            int start = explanation.indexOf("Request processing failed:");
+            int end = explanation.lastIndexOf("]");
+            if (start != -1 && end > start) {
+                explanation = explanation.substring(start + 26, end).trim();
+            }
+        }
+
+        return new DiagnosticsInterpretation(title, explanation, action);
+    }
+
+    private static String formatActionKey(String key) {
+        if (key == null || key.isBlank()) return "Operation Failed";
+        String[] parts = key.split("-");
+        StringBuilder sb = new StringBuilder();
+        for (String p : parts) {
+            if (p.length() > 4 && p.matches(".*\\d.*")) continue;
+            if (!p.isBlank()) {
+                sb.append(Character.toUpperCase(p.charAt(0))).append(p.substring(1).toLowerCase(Locale.ROOT)).append(" ");
+            }
+        }
+        String res = sb.toString().trim();
+        return res.isBlank() ? key : res + " Failed";
+    }
+
+    private static String extractColumnName(String detail, String failure) {
+        String comb = detail + " " + failure;
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("column\\s+([A-Za-z0-9_.]+)\\s+does not exist", java.util.regex.Pattern.CASE_INSENSITIVE);
+        java.util.regex.Matcher m = p.matcher(comb);
+        if (m.find()) return m.group(1);
+        return "";
     }
 }

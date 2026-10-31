@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Small structured desktop log that is independent of external logging configuration.
@@ -17,6 +18,7 @@ public final class DesktopLog {
     private static final long MAX_BYTES = 8L * 1024L * 1024L;
     private static final Object LOCK = new Object();
     private static volatile Path file;
+    private static final AtomicInteger UNINSPECTED_ERRORS = new AtomicInteger(0);
 
     private DesktopLog() { }
 
@@ -39,7 +41,25 @@ public final class DesktopLog {
     public static Path path() { return file; }
     public static void info(String component, String event, String detail) { write("INFO", component, event, detail, null); }
     public static void warn(String component, String event, String detail) { write("WARN", component, event, detail, null); }
-    public static void error(String component, String event, String detail, Throwable failure) { write("ERROR", component, event, detail, failure); }
+    public static void error(String component, String event, String detail, Throwable failure) {
+        write("ERROR", component, event, detail, failure);
+        UNINSPECTED_ERRORS.incrementAndGet();
+        ShellIndicatorBus.publish();
+    }
+
+    public static int getUninspectedErrorCount() {
+        return UNINSPECTED_ERRORS.get();
+    }
+
+    public static void clearUninspectedErrors() {
+        UNINSPECTED_ERRORS.set(0);
+        ShellIndicatorBus.publish();
+    }
+
+    public static void recordErrorDiscovered() {
+        UNINSPECTED_ERRORS.incrementAndGet();
+        ShellIndicatorBus.publish();
+    }
 
     private static void write(String level, String component, String event, String detail, Throwable failure) {
         Path target = file;

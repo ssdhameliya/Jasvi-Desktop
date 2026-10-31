@@ -52,7 +52,16 @@ public final class AppDialogService {
     public static void error(Node owner, String title, String heading, String message) {
         String visible = UserFacingErrorMapper.message(message);
         String detail = UserFacingErrorMapper.reference(message);
-        show(owner, "error", title, heading, visible, detail, new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE));
+        if (message != null && !message.isBlank() && !visible.contains(message.trim())
+                && !message.toLowerCase().contains("stacktrace") && !message.toLowerCase().contains("exception")) {
+            detail = (detail != null && !detail.isBlank()) ? detail + " • " + message : message;
+        }
+        ButtonType btnDiagnose = new ButtonType("AI Diagnose", ButtonBar.ButtonData.OTHER);
+        ButtonType btnClose = new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
+        Optional<ButtonType> res = show(owner, "error", title, heading, visible, detail, btnDiagnose, btnClose);
+        if (res.isPresent() && res.get() == btnDiagnose) {
+            SystemDiagnosticsDialog.show(owner);
+        }
     }
 
     public static void success(Node owner, String title, String message) {

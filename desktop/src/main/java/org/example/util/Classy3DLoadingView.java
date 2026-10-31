@@ -98,6 +98,64 @@ public final class Classy3DLoadingView extends VBox {
         table.setPlaceholder(view);
     }
 
+    /**
+     * Creates an ultra-sleek 3D Glassmorphic AI Diagnostic Scanner Card with live status updates.
+     */
+    public static VBox createAiScannerCard(Label statusLabel) {
+        VBox box = new VBox(10);
+        box.setAlignment(Pos.CENTER_LEFT);
+        box.setPadding(new Insets(12, 16, 12, 16));
+        box.getStyleClass().addAll("glass-card", "skeleton-pill-hero");
+        box.setStyle("-fx-background-color: rgba(56, 189, 248, 0.08); -fx-border-color: rgba(56, 189, 248, 0.35); -fx-border-radius: 10; -fx-background-radius: 10;");
+
+        Circle pulseDot = new Circle(5.0);
+        pulseDot.setFill(Color.web("#38bdf8"));
+        pulseDot.setEffect(new DropShadow(10, Color.web("#38bdf8", 0.7)));
+
+        Timeline dotAnim = new Timeline(
+                new KeyFrame(Duration.ZERO, new KeyValue(pulseDot.opacityProperty(), 0.35, Interpolator.EASE_BOTH), new KeyValue(pulseDot.radiusProperty(), 4.5)),
+                new KeyFrame(Duration.millis(550), new KeyValue(pulseDot.opacityProperty(), 1.0, Interpolator.EASE_BOTH), new KeyValue(pulseDot.radiusProperty(), 6.0))
+        );
+        dotAnim.setAutoReverse(true);
+        dotAnim.setCycleCount(Animation.INDEFINITE);
+        dotAnim.play();
+
+        Label hero = new Label("Google Antigravity AI Defect Scanner");
+        hero.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #38bdf8;");
+
+        HBox top = new HBox(8, pulseDot, hero);
+        top.setAlignment(Pos.CENTER_LEFT);
+
+        Region shimmerBar = new Region();
+        shimmerBar.setPrefHeight(4);
+        shimmerBar.setMaxWidth(Double.MAX_VALUE);
+        shimmerBar.setStyle("-fx-background-color: linear-gradient(to right, #38bdf8, #818cf8, #38bdf8); -fx-background-radius: 2;");
+
+        Timeline barAnim = new Timeline(
+                new KeyFrame(Duration.ZERO, new KeyValue(shimmerBar.opacityProperty(), 0.3, Interpolator.EASE_BOTH)),
+                new KeyFrame(Duration.millis(700), new KeyValue(shimmerBar.opacityProperty(), 1.0, Interpolator.EASE_BOTH))
+        );
+        barAnim.setAutoReverse(true);
+        barAnim.setCycleCount(Animation.INDEFINITE);
+        barAnim.play();
+
+        if (statusLabel != null) {
+            statusLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #94a3b8;");
+            box.getChildren().addAll(top, shimmerBar, statusLabel);
+        } else {
+            box.getChildren().addAll(top, shimmerBar);
+        }
+
+        box.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene == null) {
+                dotAnim.stop();
+                barAnim.stop();
+            }
+        });
+
+        return box;
+    }
+
     private HBox buildStatusHero(String headerTitle, String subTitle) {
         Circle pulseDot = new Circle(5.0);
         pulseDot.getStyleClass().add("skeleton-pulse-dot");

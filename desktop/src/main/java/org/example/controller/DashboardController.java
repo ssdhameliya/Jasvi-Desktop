@@ -57,6 +57,7 @@ import org.example.theme.ThemeManager;
 import org.example.util.ClockService;
 import org.example.util.PerformanceMonitor;
 import org.example.util.UiTaskExecutor;
+import org.example.service.DiagnosticAutoScanner;
 import org.example.util.ShellIndicatorBus;
 import org.example.util.PlatformUiSupport;
 
@@ -234,7 +235,8 @@ public class DashboardController implements ScreenLifecycle {
         DashboardController previous = CURRENT;
         if (previous != null && previous != this) previous.stopRecurringTasks();
         CURRENT = this;
-        applyBadge(lblDiagnosticsBadge, 0);
+        DiagnosticAutoScanner.start();
+        applyBadge(lblDiagnosticsBadge, DiagnosticAutoScanner.getUninspectedCount());
         ShellIndicatorBus.subscribe(shellIndicatorListener);
         PermissionService.addChangeListener(permissionChangeListener);
 
@@ -410,7 +412,7 @@ public class DashboardController implements ScreenLifecycle {
                     applyBadge(lblEmailBadge, counts[1]);
                     applyBadge(lblWhatsappBadge, counts[2]);
                     applyBadge(lblReminderBadge, counts[3]);
-                    applyBadge(lblDiagnosticsBadge, 0);
+                    applyBadge(lblDiagnosticsBadge, DiagnosticAutoScanner.getUninspectedCount());
                 }
             } finally { indicatorRefreshRunning.set(false); }
         }));
@@ -425,6 +427,7 @@ public class DashboardController implements ScreenLifecycle {
 
     /** Stops timers owned by an ERP shell that is no longer visible. */
     private void stopRecurringTasks() {
+        DiagnosticAutoScanner.stop();
         ShellIndicatorBus.unsubscribe(shellIndicatorListener);
         PermissionService.removeChangeListener(permissionChangeListener);
         if (shortcutScene != null) {
@@ -1509,6 +1512,8 @@ public class DashboardController implements ScreenLifecycle {
     /** Opens authoritative Enterprise System Logs & Application Diagnostics viewer. */
     @FXML private void openSystemDiagnostics() {
         Node owner = btnSystemDiagnostics != null ? btnSystemDiagnostics : (btnSystemDiagnosticsNav != null ? btnSystemDiagnosticsNav : shellRoot);
+        DiagnosticAutoScanner.markAllInspected();
+        applyBadge(lblDiagnosticsBadge, 0);
         org.example.util.SystemDiagnosticsDialog.show(owner);
     }
 
