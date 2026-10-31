@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for the unified Jasvi ERP ecosystem (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, `Jasvi-Mobile`): Architecture, Workspace Boundaries, Desktop-Web Parity Inspection, Automation Scripts, Server Infrastructure, and Cloud Deployment.
 > **Antigravity Enforcement:** This document is automatically loaded by Antigravity on every conversation. All rules, boundaries, and checklists herein are strictly binding.
-> **Last Updated:** 2026-11-01 — Unified 4-tier ecosystem layout (`D:\Antigravity-Dev\`, `D:\JavaProject\`, `D:\GitHub\ReleaseSource-*`, `D:\GitHub\Jasvi-*`). Strict Markdown Hygiene Mandate: Non-application `.md` files permanently banned across all copies.
+> **Last Updated:** 2026-11-01 — Codified Strict Operating Protocol: Zero extraneous files (.md, .txt, logs), mandatory user confirmation before build/code updates, root-cause investigation before planning, and zero-assumptions rule.
 
 ---
 
@@ -81,12 +81,15 @@ D:\DSE Production (PostgreSQL 16 on port 55432)
 4. **Mobile GitHub Target Repository:** `D:\GitHub\Jasvi-Mobile` (`https://github.com/ssdhameliya/Jasvi-Mobile`)
 5. **Live Mobile PWA Gateway:** `https://mobile-uat.jasviindustries.in/`
 
-### 1.5 Strict Repository Cleanliness & Markdown Hygiene Policy
+### 1.5 Strict Repository Cleanliness & Zero Extraneous Files Policy
 > **MANDATORY CLEANLINESS ENFORCEMENT ACROSS ALL 4 TIERS:**
 > To ensure all working directories remain clean, uncluttered, and production-ready:
-> 1. **Never add, generate, commit, or sync any `.md` (Markdown) file that is not an essential, integral part of the application itself.**
-> 2. **Strictly Prohibited:**
->    - Scratch files, brainstorm documents, audit transcripts, bug investigation writeups, temporary checklists, meeting logs, or AI conversation dumps must **NEVER** be saved into any project folder.
+> 1. **Never add, generate, commit, or sync any extraneous file that is not directly part of the application itself.**
+> 2. **Strictly Prohibited Across All Workspaces:**
+>    - NO defect logs (e.g. `defect.txt`, `issues.md`, `scan.log`).
+>    - NO scratch files, test dumps, or miscellaneous `.txt` files.
+>    - NO arbitrary Markdown files (`.md`) outside the strict whitelist.
+>    - Scratch files, brainstorm notes, audit transcripts, bug investigation writeups, temporary checklists, meeting logs, or AI conversation dumps must **NEVER** be saved into any project folder.
 >    - All temporary notes and AI analysis MUST be kept exclusively within Antigravity's artifact directory (`<appDataDir>\brain\<conversation-id>`) or scratch directory, never in the codebase.
 > 3. **Whitelisted `.md` Files Only (Strict Whitelist):**
 >    - `README.md` (Repository root overview).
@@ -97,7 +100,21 @@ D:\DSE Production (PostgreSQL 16 on port 55432)
 >    - Root `CHANGELOG-*.md` files are strictly banned.
 >    - Arbitrary root `.md` files outside the whitelist are strictly banned.
 > 5. **Sync Protection:**
->    - Automated robocopy sync scripts must never introduce extraneous `.md` files into `D:\JavaProject\` or `D:\GitHub\`.
+>    - Automated robocopy sync scripts must never introduce extraneous files into `D:\JavaProject\` or `D:\GitHub\`.
+
+### 1.6 Mandatory Investigation, Confirmation & Zero-Assumption Protocol
+> **BINDING OPERATING RULES FOR ALL AGENTIC ASSISTANCE:**
+> 1. **No Code Modifications or Builds Without Confirmation:**
+>    - When the user asks a question, reports an issue, or requests help, Antigravity must **NEVER build, modify, or update code until the user has explicitly confirmed and approved the plan**.
+>    - Never execute premature edits or automated builds without prior agreement.
+> 2. **Structured 3-Stage Investigation & Plan Sequence:**
+>    - **Stage 1 (Deep Investigation):** Thoroughly inspect the code, logic, database schemas, and contracts. Ground every statement in concrete code references.
+>    - **Stage 2 (Root Cause Analysis - "The Why"):** Clearly explain precisely *why* the issue or defect exists with verified evidence.
+>    - **Stage 3 (Proposed Fix Plan - "The How"):** Outline the exact plan showing which files, lines, and logic will be modified, and what verification will be executed.
+> 3. **Zero Assumptions Policy:**
+>    - Never guess, extrapolate, or assume user intentions, business logic, or system behavior.
+> 4. **Ask If in Doubt:**
+>    - If any requirement, parameter, or detail is ambiguous, stop immediately and ask the user clarifying questions before taking any action.
 
 ---
 
