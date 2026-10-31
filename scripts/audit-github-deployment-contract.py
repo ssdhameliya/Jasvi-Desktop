@@ -28,8 +28,8 @@ need('Upload canonical server directly to GitHub prerelease' in release and 'DSE
      'release workflow does not build/upload one canonical server artifact directly to GitHub Release')
 need('deploy-uat:' in release and 'environment: uat' in release,
      'release workflow does not automatically deploy the release artifact to the UAT environment')
-need("if: github.repository == 'ssdhameliya/DSE-ERP'" in release,
-     'UAT auto-deploy is not restricted to the canonical DSE-ERP repository')
+need(("github.repository == 'ssdhameliya/Jasvi-Desktop'" in release or "github.repository == 'ssdhameliya/DSE-ERP'" in release),
+     'UAT auto-deploy is not restricted to the canonical repository')
 need('StrictHostKeyChecking=yes' in release and 'DSE_SSH_KNOWN_HOSTS' in release,
      'UAT workflow does not pin SSH host identity')
 need('deploy-oracle-release.sh uat' in release and 'UAT_DEPLOYMENT_OK' in release and 'PUBLIC_HEALTH_URL' in release and 'compatibility_baseline' in release and 'minimumSupportedDesktopVersion' in release,
@@ -110,8 +110,8 @@ need("asset.get('downloadUrl','')" in release and "asset.get('url','')" not in r
 need('deploy-prod:' in release and 'needs: [validate, server, release, deploy-uat]' in release
      and 'environment: production' in release and 'group: dse-erp-production' in release,
      'tag release does not sequence protected PROD after successful UAT in the same workflow run')
-need(release.count("if: github.repository == 'ssdhameliya/DSE-ERP'") >= 2,
-     'both automatic deployment jobs are not restricted to the canonical DSE-ERP repository')
+need((release.count("github.repository == 'ssdhameliya/Jasvi-Desktop'") >= 2 or release.count("github.repository == 'ssdhameliya/DSE-ERP'") >= 2),
+     'both automatic deployment jobs are not restricted to the canonical repository')
 need('Verify the same version is currently healthy in UAT' in release and 'UAT_GATE_OK' in release
      and "r.get('environment')=='UAT'" in release,
      'same-run PROD job does not re-verify the exact version is healthy in UAT')
