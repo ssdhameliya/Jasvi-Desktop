@@ -1,9 +1,13 @@
 package org.example.service;
 
 import javafx.application.Platform;
+import javafx.scene.Node;
+import org.example.api.ApiSession;
+import org.example.api.admin.AdminApiClient;
 import org.example.config.WorkspaceManager;
 import org.example.util.DesktopLog;
 import org.example.util.ShellIndicatorBus;
+import org.example.util.ToastManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,10 +15,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
@@ -30,7 +37,12 @@ import java.util.regex.Pattern;
 public final class DiagnosticAutoScanner {
 
     private static final Logger log = LoggerFactory.getLogger(DiagnosticAutoScanner.class);
-    private static final Pattern SPRING_ERROR_PATTERN = Pattern.compile("^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]+[+-][0-9]{2}:[0-9]{2})\\s+ERROR\\b");
+    private static final Pattern SPRING_BOOT_LOG_PATTERN = Pattern.compile(
+            "^(\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?)\\s+(\\w+)\\s+(?:\\d+\\s+---\\s+)?(?:\\[(.*?)\\]\\s+)?\\[(.*?)\\]\\s+([^:]+?)\\s+:\\s+(.*)$"
+    );
+    private static final Pattern LEGACY_SERVER_LOG_PATTERN = Pattern.compile(
+            "^(\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?)\\s+\\[(.*?)\\]\\s+(\\w+)\\s+([\\w\\.]+)\\s+-\\s+(.*)$"
+    );
     private static final Pattern JSON_TIME_PATTERN = Pattern.compile("\"time\":\"([^\"]+)\"");
     private static final Pattern JSON_LEVEL_PATTERN = Pattern.compile("\"level\":\"([^\"]+)\"");
 
@@ -38,6 +50,7 @@ public final class DiagnosticAutoScanner {
     private static final String PREF_KEY_LAST_INSPECTED = "dse.diagnostics.last_inspected_time";
 
     private static final AtomicInteger UNINSPECTED_COUNT = new AtomicInteger(0);
+    private static final AtomicBoolean INITIAL_SCAN_DONE = new AtomicBoolean(false);
     private static volatile ScheduledExecutorService scheduler;
     private static volatile Instant lastInspectedInstant = loadLastInspected();
     private static volatile int lastAlertedCount = 0;
@@ -96,9 +109,27 @@ public final class DiagnosticAutoScanner {
 
             UNINSPECTED_COUNT.set(total);
 
-            if (total > lastAlertedCount) {
+            if (!INITIAL_SCAN_DONE.getAndSet(true)) {
                 lastAlertedCount = total;
                 Platform.runLater(ShellIndicatorBus::publish);
+            } else if (total > lastAlertedCount) {
+                int newErrors = total - lastAlertedCount;
+                lastAlertedCount = total;
+                Platform.runLater(() -> {
+                    ShellIndicatorBus.publish();
+                    ToastManager.error((Node) null, "System Diagnostic Alert",
+                            "Detected " + newErrors + " new system/server error(s). Click Diagnostics icon to inspect.");
+                });
+                try {
+                    NotificationService.createNotification(
+                            NotificationService.Category.SYSTEM,
+                            "System Diagnostic Alert",
+                            "Autonomous scanner detected " + newErrors + " new uninspected system/server error(s). Click the Diagnostics icon to inspect root cause.",
+                            "ERROR",
+                            null,
+                            null
+                    );
+                } catch (Exception ignored) {}
             }
         } catch (Throwable t) {
             log.debug("DiagnosticAutoScanner: Scan tick skipped: {}", t.getMessage());
@@ -128,7 +159,7 @@ public final class DiagnosticAutoScanner {
                     Matcher mTime = JSON_TIME_PATTERN.matcher(line);
                     if (mTime.find()) {
                         try {
-                            Instant eventTime = Instant.parse(mTime.group(1));
+                            Instant eventTime = parseTimestamp(mTime.group(1));
                             if (eventTime.isAfter(lastInspectedInstant)) {
                                 count++;
                             }
@@ -147,6 +178,36 @@ public final class DiagnosticAutoScanner {
     }
 
     private static int scanServerLog() {
+        // 1. Live server diagnostic REST polling when authenticated
+        if (ApiSession.isEstablished()) {
+            try {
+                AdminApiClient adminApi = new AdminApiClient();
+                List<AdminApiClient.ServerLogEntry> remote = adminApi.serverDiagnostics(50);
+                if (remote != null && !remote.isEmpty()) {
+                    int count = 0;
+                    for (AdminApiClient.ServerLogEntry entry : remote) {
+                        if ("ERROR".equalsIgnoreCase(entry.level())) {
+                            String sTime = entry.time();
+                            if (sTime != null && !sTime.isBlank()) {
+                                try {
+                                    Instant t = parseTimestamp(sTime);
+                                    if (t.isAfter(lastInspectedInstant)) count++;
+                                } catch (Exception ignored) {
+                                    count++;
+                                }
+                            } else {
+                                count++;
+                            }
+                        }
+                    }
+                    return count;
+                }
+            } catch (Exception ignored) {
+                // Fall back to local file
+            }
+        }
+
+        // 2. Local file fallback
         try {
             Path serverLog = WorkspaceManager.isConfigured()
                     ? WorkspaceManager.getServerLogsFolder().resolve("dse-erp-server.log")
@@ -162,21 +223,43 @@ public final class DiagnosticAutoScanner {
                 String line = lines.get(i).trim();
                 if (!line.contains(" ERROR ")) continue;
 
-                Matcher m = SPRING_ERROR_PATTERN.matcher(line);
-                if (m.find()) {
-                    try {
-                        Instant time = Instant.parse(m.group(1));
-                        if (time.isAfter(lastInspectedInstant)) {
+                Matcher mSpring = SPRING_BOOT_LOG_PATTERN.matcher(line);
+                Matcher mLegacy = !mSpring.matches() ? LEGACY_SERVER_LOG_PATTERN.matcher(line) : null;
+                if (mSpring.matches() || (mLegacy != null && mLegacy.matches())) {
+                    String sTime = mSpring.matches() ? mSpring.group(1) : mLegacy.group(1);
+                    String sLevel = mSpring.matches() ? mSpring.group(2) : mLegacy.group(3);
+                    if ("ERROR".equalsIgnoreCase(sLevel)) {
+                        try {
+                            Instant time = parseTimestamp(sTime);
+                            if (time.isAfter(lastInspectedInstant)) {
+                                count++;
+                            }
+                        } catch (Exception ignored) {
                             count++;
                         }
-                    } catch (Exception ignored) {
-                        count++;
                     }
                 }
             }
             return count;
         } catch (Exception e) {
             return 0;
+        }
+    }
+
+    private static Instant parseTimestamp(String raw) {
+        if (raw == null || raw.isBlank()) return Instant.EPOCH;
+        try {
+            return Instant.parse(raw);
+        } catch (Exception e1) {
+            try {
+                String iso = raw.trim().replace(' ', 'T');
+                if (!iso.contains("+") && !iso.endsWith("Z") && !iso.matches(".*-\\d{2}:\\d{2}$")) {
+                    return LocalDateTime.parse(iso).atZone(ZoneId.systemDefault()).toInstant();
+                }
+                return Instant.parse(iso);
+            } catch (Exception e2) {
+                return Instant.now();
+            }
         }
     }
 }

@@ -11,14 +11,14 @@ public final class ReleaseHighlights {
 
     public static String forVersion(String version) {
         if (BuildInfo.version().equals(version)) {
-            return BrandingService.applicationName() + " " + version + " — Enterprise Settings Studio, Server Sync & MFA Recovery Parity\n\n" + """
-                    • Unified Enterprise Settings Studio: Complete 1:1 FXML parity and synchronization across all 7 core settings screens (Company & Billing, Payment & Bank, Invoice & Print, Notifications, Email/SMTP, Security & Session, and Module Management).
+            return BrandingService.applicationName() + " " + version + " — Autonomous Server Diagnostic Alerts & Resource 404 Resiliency\n\n" + """
+                    • Autonomous Diagnostic Scanner & User Notifications: DiagnosticAutoScanner now actively polls the live server diagnostics API (/api/admin/diagnostics/server-logs) on a background 30-second cadence and triggers immediate top-right error toasts and system notifications when uninspected critical server or desktop errors are detected.
+                    • Comprehensive Log Pattern Parsing: Modernized error log regex across both desktop and server engines to support all ISO-8601 timestamps (UTC 'Z' and offset-based) across Spring Boot and legacy server log formats.
+                    • Server Resource 404 Resiliency: Hardened ServerResourceController to catch missing resource queries and return standard HTTP 404 Not Found instead of throwing unhandled 500 exceptions into dispatcherServlet.
+                    • Graceful Client Asset Fallback: ServerResourceClient now cleanly handles 404 Not Found responses with empty payload rather than throwing failure exceptions, allowing missing business assets to resolve gracefully.
+                    • Unified Enterprise Settings Studio: Complete 1:1 FXML parity and synchronization across all 7 core settings screens.
+                    • Operational Navigation Parity: Direct shortcut routing to Sales Register, Purchase Register, Item Master, and Diagnostics ledger with real-time status indicators.
                     • Server-Authoritative Configuration Sync: Enhanced ConfigManager to persist and load all shared enterprise settings directly to/from PostgreSQL `application_setting` table via `/api/support/settings`.
-                    • Authenticator MFA Recovery & Transition Parity: Streamlined desktop and web MFA recovery workflow with real-time transition guidance from Email OTP verification directly to new Authenticator QR code enrollment.
-                    • Intelligent Re-enrollment Handling: Preserves pending enrollment setup in the UI state and enables one-click reopening of QR code setup modal if OTP is left blank.
-                    • Hardened Web Authentication & Role Parity: Auto-detects and aligns user roles from server credentials, restores "Remember Me" credentials, and prevents false MFA failure alerts during post-login data loading.
-                    • Role-Based Landing Navigation: Automatically routes authenticated users to their authorized operational dashboard (Sales Register, Purchase Register, Item Master, General Ledger, or Profile).
-                    • Non-Admin Permission & Login Stabilization: Authenticated users seamlessly read application metadata and time zone settings via /api/support/settings without 403 authorization rejections; hardened ConfigManager and SceneManager to prevent UI thread lockups during login.
                     • Customer-facing branding follows Company Name centrally across the application shell, reports, PDFs and email surfaces while technical DSE package/API/database identifiers remain unchanged.
                     """;
         }

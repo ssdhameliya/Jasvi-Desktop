@@ -17,7 +17,14 @@ public class ServerResourceController {
     public ServerResourceController(ServerResourceService service,PdfStudioDefaultAuthorityService defaults){this.service=service;this.defaults=defaults;}
     @GetMapping("/{type}") public List<ServerResourceService.ResourceMeta> list(@PathVariable String type){return service.apiList(type);}
     @GetMapping(value="/{type}/{key}",produces=MediaType.APPLICATION_OCTET_STREAM_VALUE)
-    public ResponseEntity<byte[]> get(@PathVariable String type,@PathVariable String key){var f=service.apiGet(type,key);return ResponseEntity.ok().contentType(MediaType.parseMediaType(f.contentType())).header("X-Resource-Name",java.net.URLEncoder.encode(f.fileName(),StandardCharsets.UTF_8)).header("X-Resource-SHA256",f.checksum()).body(f.content());}
+    public ResponseEntity<byte[]> get(@PathVariable String type,@PathVariable String key){
+        try {
+            var f=service.apiGet(type,key);
+            return ResponseEntity.ok().contentType(MediaType.parseMediaType(f.contentType())).header("X-Resource-Name",java.net.URLEncoder.encode(f.fileName(),StandardCharsets.UTF_8)).header("X-Resource-SHA256",f.checksum()).body(f.content());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+    }
     @PutMapping(value="/{type}/{key}",consumes=MediaType.APPLICATION_OCTET_STREAM_VALUE,produces=MediaType.APPLICATION_JSON_VALUE)
     public ServerResourceService.ResourceMeta put(@PathVariable String type,@PathVariable String key,@RequestParam(defaultValue="resource") String filename,@RequestParam(defaultValue="application/octet-stream") String contentType,@RequestParam(defaultValue="") String expectedChecksum,HttpServletRequest request) throws IOException {
         byte[] content=BoundedUpload.read(request,MAX_RESOURCE_BYTES,"Server resource");

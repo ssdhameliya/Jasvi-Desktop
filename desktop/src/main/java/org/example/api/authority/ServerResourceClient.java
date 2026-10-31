@@ -17,7 +17,17 @@ public final class ServerResourceClient {
     private final ObjectMapper json=new ObjectMapper();
     private final String base=ConfigManager.getDataApiBaseUrl().replaceAll("/+$","");
     public List<ResourceMeta> list(String type){try{var r=send("GET",path(type,null),null,"application/json");return json.readValue(r.body(),new TypeReference<>(){});}catch(Exception e){throw failure(e);}}
-    public byte[] get(String type,String key){try{return sendBytes("GET",path(type,key),null).body();}catch(Exception e){throw failure(e);}}
+    public byte[] get(String type,String key){
+        try{
+            HttpRequest.Builder b=HttpRequest.newBuilder(URI.create(base+path(type,key))).timeout(Duration.ofSeconds(90)).header("Accept","application/octet-stream");
+            ApiSession.authorize(b);
+            b.GET();
+            var r=http.send(b.build(),HttpResponse.BodyHandlers.ofByteArray());
+            if(r.statusCode()==404)return new byte[0];
+            requireOk(r.statusCode(),r.body()==null?"":new String(r.body(),StandardCharsets.UTF_8));
+            return r.body();
+        }catch(Exception e){throw failure(e);}
+    }
     public ResourceMeta put(String type,String key,String fileName,byte[] content){return put(type,key,fileName,content,"");}
     public ResourceMeta put(String type,String key,String fileName,byte[] content,String expectedChecksum){
         try{
