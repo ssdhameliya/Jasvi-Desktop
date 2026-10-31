@@ -1148,43 +1148,52 @@ public final class SalesDocumentInspectionDialog {
 
         // 8. Create Sales Return or View Existing Return
         String retStatus = safe(sale.getReturnStatus()).toUpperCase(Locale.ROOT);
-        boolean isAlreadyReturned = "PARTIALLY RETURNED".equals(retStatus) || "FULLY RETURNED".equals(retStatus) || "RETURNED".equals(retStatus);
-        Button btnReturn = new Button();
-        if (isAlreadyReturned) {
-            btnReturn.setText("View Return");
-            btnReturn.setGraphic(IconFactory.compactIcon("view", 14));
-            btnReturn.getStyleClass().addAll("approved-button", "approved-secondary-button");
-            btnReturn.setTooltip(new Tooltip("View Sales Return for " + sale.getInvoiceNo() + " (" + retStatus + ")"));
-            btnReturn.setOnAction(e -> {
+        boolean hasReturn = !"N/A".equals(retStatus) && !retStatus.isBlank();
+        boolean fullyReturned = "FULLY RETURNED".equals(retStatus) || "RETURNED".equals(retStatus);
+        boolean isPartialReturn = "PARTIALLY RETURNED".equals(retStatus);
+
+        Button btnViewReturn = null;
+        if (hasReturn) {
+            btnViewReturn = new Button("View Return");
+            btnViewReturn.setGraphic(IconFactory.compactIcon("view", 14));
+            btnViewReturn.getStyleClass().addAll("approved-button", "approved-secondary-button");
+            btnViewReturn.setTooltip(new Tooltip("View Sales Return for " + sale.getInvoiceNo() + " (" + retStatus + ")"));
+            btnViewReturn.setOnAction(e -> {
                 dialog.close();
                 LinkedRecordContext.open("SALES_RETURN", null, sale.getInvoiceNo(), "VIEW", "Sales Invoice " + sale.getInvoiceNo());
                 NavigationManager.navigateOrReport("/fxml/pages/SalesReturns.fxml");
             });
-        } else {
+        }
+
+        Button btnReturn = null;
+        if (!fullyReturned) {
             boolean returnEligible = isReturnEligible(sale);
-            btnReturn.setText("Create Sales Return");
+            btnReturn = new Button(isPartialReturn ? "Return Balance" : "Create Sales Return");
             btnReturn.setGraphic(IconFactory.compactIcon("return", 14));
             btnReturn.getStyleClass().addAll("approved-button", "approved-coral-button");
             btnReturn.setDisable(!returnEligible);
             if (!returnEligible) {
-                btnReturn.setTooltip(new Tooltip("Sales Returns require an approved, settled invoice."));
+                btnReturn.setTooltip(new Tooltip("Sales Returns require an approved, settled invoice with returnable balance."));
             } else {
-                btnReturn.setTooltip(new Tooltip("Create Sales Return for " + sale.getInvoiceNo()));
+                btnReturn.setTooltip(new Tooltip((isPartialReturn ? "Return remaining balance on " : "Create Sales Return for ") + sale.getInvoiceNo()));
             }
             btnReturn.setOnAction(e -> {
+                Window parentWindow = DialogOwnerResolver.resolve(dialog.getDialogPane());
                 dialog.close();
                 Sales current = resolvedSaleRef != null && resolvedSaleRef.get() != null ? resolvedSaleRef.get() : sale;
-                if (current.getLines() != null && !current.getLines().isEmpty()) {
-                    openSalesReturnModal(dialog, current, onUpdated);
-                } else {
-                    UiTaskExecutor.submitAction("sales-return-load-" + sale.getId(), () -> {
-                        Sales full = (service != null) ? service.getByInvoice(sale.getInvoiceNo()) : null;
-                        return full != null ? full : sale;
-                    }, loaded -> {
-                        if (resolvedSaleRef != null) resolvedSaleRef.set(loaded);
-                        openSalesReturnModal(dialog, loaded, onUpdated);
-                    }, err -> openSalesReturnModal(dialog, sale, onUpdated));
-                }
+                javafx.application.Platform.runLater(() -> {
+                    if (current.getLines() != null && !current.getLines().isEmpty()) {
+                        openSalesReturnModal(parentWindow, current, onUpdated);
+                    } else {
+                        UiTaskExecutor.submitAction("sales-return-load-" + sale.getId(), () -> {
+                            Sales full = (service != null) ? service.getByInvoice(sale.getInvoiceNo()) : null;
+                            return full != null ? full : sale;
+                        }, loaded -> {
+                            if (resolvedSaleRef != null) resolvedSaleRef.set(loaded);
+                            openSalesReturnModal(parentWindow, loaded, onUpdated);
+                        }, err -> openSalesReturnModal(parentWindow, sale, onUpdated));
+                    }
+                });
             });
         }
 
@@ -1198,7 +1207,10 @@ public final class SalesDocumentInspectionDialog {
         boolean isPendingApproval = "PENDING APPROVAL".equalsIgnoreCase(safe(sale.getDocumentStatus()).trim());
         boolean isAdmin = SessionService.isAdmin();
 
-        dock.getChildren().addAll(btnEdit, btnDuplicate, btnPrint, btnBarcode, btnExcel, btnEmail, btnRecordPayment, btnReturn, btnAudit);
+        dock.getChildren().addAll(btnEdit, btnDuplicate, btnPrint, btnBarcode, btnExcel, btnEmail, btnRecordPayment);
+        if (btnViewReturn != null) dock.getChildren().add(btnViewReturn);
+        if (btnReturn != null) dock.getChildren().add(btnReturn);
+        dock.getChildren().add(btnAudit);
 
         if (isPendingApproval && isAdmin) {
             Button btnApprove = new Button("Approve Sale");
@@ -1273,25 +1285,28 @@ public final class SalesDocumentInspectionDialog {
         }
     }
 
-    private static void openSalesReturnModal(Dialog<?> dialog, Sales full, Runnable onUpdated) {
-        List<ReturnEditorService.InvoiceItem> items = (full.getLines() != null ? full.getLines() : List.<SalesLine>of()).stream()
-                .map(line -> new ReturnEditorService.InvoiceItem(
-                        line.getItemCode(),
-                        line.getItemDescription(),
-                        line.getQuantity(),
-                        line.getRate(),
-                        line.getDiscountPercent(),
-                        line.getGstPercent()))
-                .toList();
-        Window ownerWindow = dialog.getOwner() != null ? dialog.getOwner() : (dialog.getDialogPane() != null && dialog.getDialogPane().getScene() != null ? dialog.getDialogPane().getScene().getWindow() : null);
-        ReturnEditorService.show(ownerWindow, ReturnEditorService.Type.SALES,
-                full.getInvoiceNo(),
-                full.getCustomer() != null ? full.getCustomer().getName() : "Customer",
-                full.getCustomer() != null ? full.getCustomer().getId() : 0,
-                items).ifPresent(no -> {
-                    if (onUpdated != null) onUpdated.run();
-                    ToastManager.success(dialog.getDialogPane(), "Return Created", "Sales return created: " + no);
-                });
+    private static void openSalesReturnModal(Window ownerWindow, Sales full, Runnable onUpdated) {
+        try {
+            List<ReturnEditorService.InvoiceItem> items = (full.getLines() != null ? full.getLines() : List.<SalesLine>of()).stream()
+                    .map(line -> new ReturnEditorService.InvoiceItem(
+                            line.getItemCode(),
+                            line.getItemDescription(),
+                            line.getQuantity(),
+                            line.getRate(),
+                            line.getDiscountPercent(),
+                            line.getGstPercent()))
+                    .toList();
+            ReturnEditorService.show(ownerWindow, ReturnEditorService.Type.SALES,
+                    full.getInvoiceNo(),
+                    full.getCustomer() != null ? full.getCustomer().getName() : "Customer",
+                    full.getCustomer() != null ? full.getCustomer().getId() : 0,
+                    items).ifPresent(no -> {
+                        if (onUpdated != null) onUpdated.run();
+                        NotificationService.add("Sales return " + no + " created successfully.");
+                    });
+        } catch (Exception ex) {
+            AppDialogService.error(null, "Return Creation Failed", "Unable to create Sales Return", ex.getMessage());
+        }
     }
 
     private static String money(double value) {
@@ -1329,7 +1344,10 @@ public final class SalesDocumentInspectionDialog {
     private static boolean isReturnEligible(Sales sale) {
         if (sale == null || !isFullyPaid(sale)) return false;
         String document = safe(sale.getDocumentStatus()).trim().toUpperCase(Locale.ROOT);
-        String current = safe(sale.getPaymentStatus()).trim().toUpperCase(Locale.ROOT);
-        return "APPROVED".equals(document) && !Set.of("RETURN APPROVAL PENDING", "RETURN PENDING", "RETURN PARTIAL").contains(current);
+        String currentReturnStatus = safe(sale.getReturnStatus()).trim().toUpperCase(Locale.ROOT);
+        if ("FULLY RETURNED".equals(currentReturnStatus) || "RETURNED".equals(currentReturnStatus) || "RETURN APPROVAL PENDING".equals(currentReturnStatus)) {
+            return false;
+        }
+        return "APPROVED".equals(document);
     }
 }

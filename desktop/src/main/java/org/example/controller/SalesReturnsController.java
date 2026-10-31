@@ -252,6 +252,10 @@ public class SalesReturnsController implements ScreenLifecycle {
         if(btnApproveSelected!=null){btnApproveSelected.setManaged(waiting);btnApproveSelected.setVisible(waiting);btnApproveSelected.setDisable(!allowed);}
         if(btnRejectSelected!=null){btnRejectSelected.setManaged(waiting);btnRejectSelected.setVisible(waiting);btnRejectSelected.setDisable(!allowed);}
         if(btnEditReasonSelected!=null)btnEditReasonSelected.setDisable(row==null||isCancelled(row));
+        if(btnRefundSelected!=null){
+            boolean canRefund = row!=null && isApproved(row) && !isCancelled(row);
+            btnRefundSelected.setDisable(!canRefund);
+        }
     }
     private boolean canCancelOrDelete(Row row){return row!=null&&(isPendingApproval(row)||isApproved(row))&&row.refund()<=0.0001;}
 

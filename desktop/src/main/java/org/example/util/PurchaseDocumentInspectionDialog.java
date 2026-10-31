@@ -1138,43 +1138,52 @@ public final class PurchaseDocumentInspectionDialog {
 
         // 8. Create Purchase Return or View Existing Return
         String retStatus = safe(purchase.getReturnStatus()).toUpperCase(Locale.ROOT);
-        boolean isAlreadyReturned = "PARTIALLY RETURNED".equals(retStatus) || "FULLY RETURNED".equals(retStatus) || "RETURNED".equals(retStatus);
-        Button btnReturn = new Button();
-        if (isAlreadyReturned) {
-            btnReturn.setText("View Return");
-            btnReturn.setGraphic(IconFactory.compactIcon("view", 14));
-            btnReturn.getStyleClass().addAll("approved-button", "approved-secondary-button");
-            btnReturn.setTooltip(new Tooltip("View Purchase Return for " + purchase.getInvoiceNo() + " (" + retStatus + ")"));
-            btnReturn.setOnAction(e -> {
+        boolean hasReturn = !"N/A".equals(retStatus) && !retStatus.isBlank();
+        boolean fullyReturned = "FULLY RETURNED".equals(retStatus) || "RETURNED".equals(retStatus);
+        boolean isPartialReturn = "PARTIALLY RETURNED".equals(retStatus);
+
+        Button btnViewReturn = null;
+        if (hasReturn) {
+            btnViewReturn = new Button("View Return");
+            btnViewReturn.setGraphic(IconFactory.compactIcon("view", 14));
+            btnViewReturn.getStyleClass().addAll("approved-button", "approved-secondary-button");
+            btnViewReturn.setTooltip(new Tooltip("View Purchase Return for " + purchase.getInvoiceNo() + " (" + retStatus + ")"));
+            btnViewReturn.setOnAction(e -> {
                 dialog.close();
                 LinkedRecordContext.open("PURCHASE_RETURN", null, purchase.getInvoiceNo(), "VIEW", "Purchase Bill " + purchase.getInvoiceNo());
                 NavigationManager.navigateOrReport("/fxml/pages/PurchaseReturns.fxml");
             });
-        } else {
+        }
+
+        Button btnReturn = null;
+        if (!fullyReturned) {
             boolean returnEligible = isReturnEligible(purchase);
-            btnReturn.setText("Create Purchase Return");
+            btnReturn = new Button(isPartialReturn ? "Return Balance" : "Create Purchase Return");
             btnReturn.setGraphic(IconFactory.compactIcon("return", 14));
             btnReturn.getStyleClass().addAll("approved-button", "approved-secondary-button");
             btnReturn.setDisable(!returnEligible);
             if (!returnEligible) {
-                btnReturn.setTooltip(new Tooltip("Purchase Returns require an approved, settled bill."));
+                btnReturn.setTooltip(new Tooltip("Purchase Returns require an approved, settled bill with returnable balance."));
             } else {
-                btnReturn.setTooltip(new Tooltip("Create Purchase Return for " + purchase.getInvoiceNo()));
+                btnReturn.setTooltip(new Tooltip((isPartialReturn ? "Return remaining balance on " : "Create Purchase Return for ") + purchase.getInvoiceNo()));
             }
             btnReturn.setOnAction(e -> {
+                Window parentWindow = DialogOwnerResolver.resolve(dialog.getDialogPane());
                 dialog.close();
                 Purchase current = resolvedPurchaseRef != null && resolvedPurchaseRef.get() != null ? resolvedPurchaseRef.get() : purchase;
-                if (current.getLines() != null && !current.getLines().isEmpty()) {
-                    openPurchaseReturnModal(dialog, current, onUpdated);
-                } else {
-                    UiTaskExecutor.submitAction("purchase-return-load-" + purchase.getId(), () -> {
-                        Purchase full = (service != null) ? service.getByInvoice(purchase.getInvoiceNo()) : null;
-                        return full != null ? full : purchase;
-                    }, loaded -> {
-                        if (resolvedPurchaseRef != null) resolvedPurchaseRef.set(loaded);
-                        openPurchaseReturnModal(dialog, loaded, onUpdated);
-                    }, err -> openPurchaseReturnModal(dialog, purchase, onUpdated));
-                }
+                javafx.application.Platform.runLater(() -> {
+                    if (current.getLines() != null && !current.getLines().isEmpty()) {
+                        openPurchaseReturnModal(parentWindow, current, onUpdated);
+                    } else {
+                        UiTaskExecutor.submitAction("purchase-return-load-" + purchase.getId(), () -> {
+                            Purchase full = (service != null) ? service.getByInvoice(purchase.getInvoiceNo()) : null;
+                            return full != null ? full : purchase;
+                        }, loaded -> {
+                            if (resolvedPurchaseRef != null) resolvedPurchaseRef.set(loaded);
+                            openPurchaseReturnModal(parentWindow, loaded, onUpdated);
+                        }, err -> openPurchaseReturnModal(parentWindow, purchase, onUpdated));
+                    }
+                });
             });
         }
 
@@ -1187,7 +1196,10 @@ public final class PurchaseDocumentInspectionDialog {
         boolean isPendingApproval = "PENDING APPROVAL".equalsIgnoreCase(safe(purchase.getDocumentStatus()).trim());
         boolean isAdmin = SessionService.isAdmin();
 
-        dock.getChildren().addAll(btnEdit, btnDuplicate, btnPrint, btnBarcode, btnExcel, btnEmail, btnRecordPayment, btnReturn, btnAudit);
+        dock.getChildren().addAll(btnEdit, btnDuplicate, btnPrint, btnBarcode, btnExcel, btnEmail, btnRecordPayment);
+        if (btnViewReturn != null) dock.getChildren().add(btnViewReturn);
+        if (btnReturn != null) dock.getChildren().add(btnReturn);
+        dock.getChildren().add(btnAudit);
 
         if (isPendingApproval && isAdmin) {
             Button btnApprove = new Button("Approve Purchase");
@@ -1262,25 +1274,28 @@ public final class PurchaseDocumentInspectionDialog {
         }
     }
 
-    private static void openPurchaseReturnModal(Dialog<?> dialog, Purchase full, Runnable onUpdated) {
-        List<ReturnEditorService.InvoiceItem> items = (full.getLines() != null ? full.getLines() : List.<PurchaseLine>of()).stream()
-                .map(line -> new ReturnEditorService.InvoiceItem(
-                        line.getItemCode(),
-                        line.getItemDescription(),
-                        line.getQuantity(),
-                        line.getRate(),
-                        line.getDiscountPercent(),
-                        line.getGstPercent()))
-                .toList();
-        Window ownerWindow = dialog.getOwner() != null ? dialog.getOwner() : (dialog.getDialogPane() != null && dialog.getDialogPane().getScene() != null ? dialog.getDialogPane().getScene().getWindow() : null);
-        ReturnEditorService.show(ownerWindow, ReturnEditorService.Type.PURCHASE,
-                full.getInvoiceNo(),
-                full.getSupplier() != null ? full.getSupplier().getName() : "Supplier",
-                full.getSupplier() != null ? full.getSupplier().getId() : 0,
-                items).ifPresent(no -> {
-                    if (onUpdated != null) onUpdated.run();
-                    ToastManager.success(dialog.getDialogPane(), "Return Created", "Purchase return created: " + no);
-                });
+    private static void openPurchaseReturnModal(Window ownerWindow, Purchase full, Runnable onUpdated) {
+        try {
+            List<ReturnEditorService.InvoiceItem> items = (full.getLines() != null ? full.getLines() : List.<PurchaseLine>of()).stream()
+                    .map(line -> new ReturnEditorService.InvoiceItem(
+                            line.getItemCode(),
+                            line.getItemDescription(),
+                            line.getQuantity(),
+                            line.getRate(),
+                            line.getDiscountPercent(),
+                            line.getGstPercent()))
+                    .toList();
+            ReturnEditorService.show(ownerWindow, ReturnEditorService.Type.PURCHASE,
+                    full.getInvoiceNo(),
+                    full.getSupplier() != null ? full.getSupplier().getName() : "Supplier",
+                    full.getSupplier() != null ? full.getSupplier().getId() : 0,
+                    items).ifPresent(no -> {
+                        if (onUpdated != null) onUpdated.run();
+                        NotificationService.add("Purchase return " + no + " created successfully.");
+                    });
+        } catch (Exception ex) {
+            AppDialogService.error(null, "Return Creation Failed", "Unable to create Purchase Return", ex.getMessage());
+        }
     }
 
     private static String money(double value) {
@@ -1319,7 +1334,10 @@ public final class PurchaseDocumentInspectionDialog {
     private static boolean isReturnEligible(Purchase p) {
         if (p == null || !isFullyPaid(p)) return false;
         String document = safe(p.getDocumentStatus()).trim().toUpperCase(Locale.ROOT);
-        String current = safe(p.getPaymentStatus()).trim().toUpperCase(Locale.ROOT);
-        return "APPROVED".equals(document) && !Set.of("RETURN APPROVAL PENDING", "RETURN PENDING", "RETURN PARTIAL").contains(current);
+        String currentReturnStatus = safe(p.getReturnStatus()).trim().toUpperCase(Locale.ROOT);
+        if ("FULLY RETURNED".equals(currentReturnStatus) || "RETURNED".equals(currentReturnStatus) || "RETURN APPROVAL PENDING".equals(currentReturnStatus)) {
+            return false;
+        }
+        return "APPROVED".equals(document);
     }
 }

@@ -124,7 +124,7 @@ public final class ReturnDocumentInspectionDialog {
         tabPane.getTabs().addAll(itemsTab, refundsTab, notesTab);
 
         // Action Dock
-        HBox actionDock = buildActionDock(currentDetails, isSalesReturn, dialog, api, support, onUpdated);
+        HBox actionDock = buildActionDock(currentDetails, isSalesReturn, dialog, host, api, support, onUpdated);
 
         VBox contentBox = new VBox(12, headerHero, metricStrip, tabPane, actionDock);
         contentBox.setPadding(new Insets(16, 20, 16, 20));
@@ -590,7 +590,7 @@ public final class ReturnDocumentInspectionDialog {
         grid.add(valLbl, 1, row);
     }
 
-    private static HBox buildActionDock(ReturnApiClient.Details details, boolean isSales, Dialog<?> dialog, ReturnApiClient api, SupportApiClient support, Runnable onUpdated) {
+    private static HBox buildActionDock(ReturnApiClient.Details details, boolean isSales, Dialog<?> dialog, StackPane host, ReturnApiClient api, SupportApiClient support, Runnable onUpdated) {
         HBox dock = new HBox(8);
         dock.setAlignment(Pos.CENTER_LEFT);
         dock.getStyleClass().add("inspection-action-dock");
@@ -619,12 +619,14 @@ public final class ReturnDocumentInspectionDialog {
             td.showAndWait().map(String::trim).filter(r -> !r.isBlank()).ifPresent(newReason -> {
                 UiTaskExecutor.submitSerial("return-update-reason-" + details.no(), () -> {
                     api.update(details.no(), "reason", newReason, details.rowVersion());
-                    return true;
-                }, ok -> {
+                    return api.details(details.no());
+                }, updatedDetails -> {
                     ScreenRefreshPolicy.invalidate(isSales ? "sales-returns" : "purchase-returns");
                     ToastManager.success(dialog.getDialogPane(), "Reason Updated", "Return reason was updated successfully.");
                     if (onUpdated != null) onUpdated.run();
-                    dialog.close();
+                    if (updatedDetails != null) {
+                        renderContent(dialog, host, updatedDetails, isSales, api, support, onUpdated);
+                    }
                 }, failure -> ToastManager.error(dialog.getDialogPane(), "Update Failed", failure.getMessage()));
             });
         });
@@ -763,16 +765,22 @@ public final class ReturnDocumentInspectionDialog {
             btnApprove.setGraphic(IconFactory.compactIcon("complete", 14));
             btnApprove.getStyleClass().addAll("approved-button", "approved-success-button");
             btnApprove.setOnAction(e -> {
-                try {
+                btnApprove.setDisable(true);
+                UiTaskExecutor.submitAction("return-approve-" + details.no(), () -> {
                     ReturnWorkflowService.approve(details.no());
+                    return api.details(details.no());
+                }, updatedDetails -> {
                     ScreenRefreshPolicy.invalidate(isSales ? "sales-returns" : "purchase-returns");
                     NotificationService.add(details.no() + " approved.");
                     ToastManager.success(dialog.getDialogPane(), "Approved", "Return " + details.no() + " approved successfully.");
                     if (onUpdated != null) onUpdated.run();
-                    dialog.close();
-                } catch (Exception ex) {
+                    if (updatedDetails != null) {
+                        renderContent(dialog, host, updatedDetails, isSales, api, support, onUpdated);
+                    }
+                }, ex -> {
+                    btnApprove.setDisable(false);
                     ToastManager.error(dialog.getDialogPane(), "Approval failed", ex.getMessage());
-                }
+                });
             });
 
             Button btnReject = new Button("Reject Return");
@@ -784,16 +792,22 @@ public final class ReturnDocumentInspectionDialog {
                 td.setHeaderText("Reject " + details.no());
                 td.setContentText("Reason:");
                 td.showAndWait().map(String::trim).filter(r -> !r.isBlank()).ifPresent(reason -> {
-                    try {
+                    btnReject.setDisable(true);
+                    UiTaskExecutor.submitAction("return-reject-" + details.no(), () -> {
                         ReturnWorkflowService.reject(details.no(), reason);
+                        return api.details(details.no());
+                    }, updatedDetails -> {
                         ScreenRefreshPolicy.invalidate(isSales ? "sales-returns" : "purchase-returns");
                         NotificationService.add(details.no() + " rejected.");
                         ToastManager.success(dialog.getDialogPane(), "Rejected", "Return " + details.no() + " was rejected.");
                         if (onUpdated != null) onUpdated.run();
-                        dialog.close();
-                    } catch (Exception ex) {
+                        if (updatedDetails != null) {
+                            renderContent(dialog, host, updatedDetails, isSales, api, support, onUpdated);
+                        }
+                    }, ex -> {
+                        btnReject.setDisable(false);
                         ToastManager.error(dialog.getDialogPane(), "Rejection failed", ex.getMessage());
-                    }
+                    });
                 });
             });
 

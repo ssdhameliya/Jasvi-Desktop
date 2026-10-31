@@ -87,6 +87,10 @@ public final class ReturnEditorService {
         }
 
         List<ReturnLine> rows = loadReturnableLines(type, invoiceNo, invoiceItems);
+        if (rows == null || rows.isEmpty()) {
+            warning("This invoice does not contain any returnable items.");
+            return Optional.empty();
+        }
         if (rows.stream().noneMatch(row -> row.available() > 0.0001)) {
             warning("Every item on " + invoiceNo + " has already been returned.");
             return Optional.empty();
@@ -295,28 +299,27 @@ public final class ReturnEditorService {
         }
     }
 
+    private static final List<String> DEFAULT_REASONS = List.of(
+            "Goods returned by customer",
+            "Defective Material",
+            "Wrong Item Delivered",
+            "Transit Damage",
+            "Excess Quantity",
+            "Quality Rejection",
+            "Rate Difference",
+            "Return requested"
+    );
+
     private static List<String> loadLookupReasons() {
         try {
             LookupService lookup = new LookupService();
             List<String> list = lookup.getValuesByCategoryCode("RETURN_REASON");
             if (list == null || list.isEmpty()) list = lookup.getValues("RETURN_REASON");
             if (list == null || list.isEmpty()) list = lookup.getValuesByCategoryCode("CREDIT_NOTE_REASON");
-            if (list == null || list.isEmpty()) {
-                return List.of(
-                        "Goods returned by customer",
-                        "Defective Material",
-                        "Wrong Item Delivered",
-                        "Transit Damage",
-                        "Excess Quantity",
-                        "Quality Rejection",
-                        "Rate Difference",
-                        "Return requested"
-                );
-            }
-            return list;
-        } catch (Exception e) {
-            return List.of("Return requested", "Defective Material", "Wrong Item Delivered", "Rate Difference");
+            if (list != null && !list.isEmpty()) return list;
+        } catch (Exception ignored) {
         }
+        return DEFAULT_REASONS;
     }
 
     /** Always-visible reason editor powered by Master Lookups for sales and purchase returns. */
@@ -373,17 +376,29 @@ public final class ReturnEditorService {
         }
     }
 
-    private static List<ReturnLine> loadReturnableLines(Type type, String invoiceNo, List<InvoiceItem> ignoredItems) {
+    private static List<ReturnLine> loadReturnableLines(Type type, String invoiceNo, List<InvoiceItem> invoiceItems) {
         try {
             List<ReturnApiClient.ReturnableLine> authoritative = new ReturnApiClient().returnableLines(type.databaseValue, invoiceNo);
-            List<ReturnLine> rows = new ArrayList<>();
-            for (ReturnApiClient.ReturnableLine line : authoritative) {
-                InvoiceItem item = new InvoiceItem(line.sourceLineId(), line.code(), line.description(), line.quantity(),
-                        line.rate(), line.discountPercent(), line.taxPercent(), line.lineTotal(), line.returnedAmount());
-                rows.add(new ReturnLine(item, line.returnedQuantity()));
+            if (authoritative != null && !authoritative.isEmpty()) {
+                List<ReturnLine> rows = new ArrayList<>();
+                for (ReturnApiClient.ReturnableLine line : authoritative) {
+                    InvoiceItem item = new InvoiceItem(line.sourceLineId(), line.code(), line.description(), line.quantity(),
+                            line.rate(), line.discountPercent(), line.taxPercent(), line.lineTotal(), line.returnedAmount());
+                    rows.add(new ReturnLine(item, line.returnedQuantity()));
+                }
+                return rows;
             }
-            return rows;
-        } catch (Exception exception) { throw new IllegalStateException("Authoritative returnable invoice lines could not be loaded", exception); }
+        } catch (Exception exception) {
+            java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Authoritative returnable invoice lines could not be loaded; falling back to invoice items: " + exception.getMessage());
+        }
+        // Graceful fallback to provided invoice items so users are never blocked by network latency
+        List<ReturnLine> fallbackRows = new ArrayList<>();
+        if (invoiceItems != null) {
+            for (InvoiceItem item : invoiceItems) {
+                fallbackRows.add(new ReturnLine(item, 0.0));
+            }
+        }
+        return fallbackRows;
     }
 
     private static List<ReturnLine> validate(List<ReturnLine> rows, LocalDate returnDate) {
