@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 
 @RestController
@@ -41,18 +42,36 @@ public class ServerTelemetryController {
             CurrentUser.requirePermission("SETTINGS.MANAGE", "View server telemetry");
         }
 
-        // 1. RAM / Memory Metrics
+        // 1. RAM / Memory Metrics (checks /proc/meminfo on Linux for true MemAvailable including reclaimable cache)
         long totalRam = 0;
-        long freeRam = 0;
-        java.lang.management.OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
-        if (osBean instanceof OperatingSystemMXBean sunOs) {
-            totalRam = sunOs.getTotalMemorySize();
-            freeRam = sunOs.getFreeMemorySize();
-        } else {
-            totalRam = Runtime.getRuntime().totalMemory();
-            freeRam = Runtime.getRuntime().freeMemory();
+        long availableRam = 0;
+
+        try {
+            File meminfo = new File("/proc/meminfo");
+            if (meminfo.exists() && meminfo.canRead()) {
+                List<String> lines = java.nio.file.Files.readAllLines(meminfo.toPath());
+                for (String line : lines) {
+                    if (line.startsWith("MemTotal:")) {
+                        totalRam = parseMeminfoKb(line) * 1024L;
+                    } else if (line.startsWith("MemAvailable:")) {
+                        availableRam = parseMeminfoKb(line) * 1024L;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        if (totalRam <= 0 || availableRam <= 0) {
+            java.lang.management.OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+            if (osBean instanceof OperatingSystemMXBean sunOs) {
+                if (totalRam <= 0) totalRam = sunOs.getTotalMemorySize();
+                if (availableRam <= 0) availableRam = sunOs.getFreeMemorySize();
+            } else {
+                if (totalRam <= 0) totalRam = Runtime.getRuntime().totalMemory();
+                if (availableRam <= 0) availableRam = Runtime.getRuntime().freeMemory();
+            }
         }
-        long usedRam = Math.max(0, totalRam - freeRam);
+
+        long usedRam = Math.max(0, totalRam - availableRam);
         double ramUsagePercent = totalRam > 0
                 ? Math.round(((double) usedRam / (double) totalRam) * 1000.0) / 10.0
                 : 0.0;
@@ -98,7 +117,7 @@ public class ServerTelemetryController {
                 env,
                 serverIp,
                 totalRam,
-                freeRam,
+                availableRam,
                 ramUsagePercent,
                 totalDisk,
                 freeDisk,
@@ -106,5 +125,15 @@ public class ServerTelemetryController {
                 status,
                 Instant.now().toString()
         );
+    }
+
+    private static long parseMeminfoKb(String line) {
+        try {
+            String[] parts = line.split("\\s+");
+            if (parts.length >= 2) {
+                return Long.parseLong(parts[1].trim());
+            }
+        } catch (Exception ignored) {}
+        return 0L;
     }
 }

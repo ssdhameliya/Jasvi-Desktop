@@ -1,4 +1,4 @@
--- DSE ERP 11.0.27: WhatsApp Sender & Alert Multi-Number Master Lookup
+-- DSE ERP 11.0.28: WhatsApp Sender & Alert Multi-Number Master Lookup
 -- Ensures WHATSAPP_SENDER category exists in master_category and auto-seeds company phone if not present.
 
 INSERT INTO master_category (category_code, category_name, description, display_order, is_active)
