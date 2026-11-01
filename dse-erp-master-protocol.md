@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for the unified Jasvi ERP ecosystem (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, `Jasvi-Mobile`): Architecture, Workspace Boundaries, Desktop-Web Parity Inspection, Automation Scripts, Server Infrastructure, and Cloud Deployment.
 > **Antigravity Enforcement:** This document is automatically loaded by Antigravity on every conversation. All rules, boundaries, and checklists herein are strictly binding.
-> **Last Updated:** 2026-11-01 — Codified Strict Operating Protocol: Zero extraneous files (.md, .txt, logs), mandatory user confirmation before build/code updates, root-cause investigation before planning, and zero-assumptions rule.
+> **Last Updated:** 2026-11-01 — Codified Strict Operating Protocol: Zero extraneous files (.md, .txt, logs), mandatory user confirmation before build/code updates, root-cause investigation before planning, zero-assumptions rule, UserView manual-only PROD deployment, and mandatory plugin accountability across all builds.
 
 ---
 
@@ -115,6 +115,32 @@ D:\DSE Production (PostgreSQL 16 on port 55432)
 >    - Never guess, extrapolate, or assume user intentions, business logic, or system behavior.
 > 4. **Ask If in Doubt:**
 >    - If any requirement, parameter, or detail is ambiguous, stop immediately and ask the user clarifying questions before taking any action.
+
+### 1.7 UserView Strict Deployment Protocol: Push = UAT Only, PROD is 100% Manual
+> **MANDATORY DEPLOYMENT BOUNDARIES FOR JASVI-USERVIEW:**
+> 1. **Zero Automatic Deployments to Production:**
+>    - `Jasvi-UserView` must **NEVER** deploy to the Production environment (`https://jasviindustries.in` / `130.210.35.1`) automatically on code push or git tag.
+>    - Any automated build triggered by a commit, merge, or push to `main` (or tags) deploys **strictly and exclusively to UAT** (`https://web-uat.jasviindustries.in` / `144.24.109.1`).
+> 2. **Production Deployment is Strictly Manual (User Wish Only):**
+>    - Deploying to Production can ONLY be triggered manually by the user via GitHub Actions (`workflow_dispatch`).
+>    - The user must explicitly select the target scope:
+>      - `prod-upcoming-only`: Uploads and preserves the standalone "Launching Soon" page (`upcoming.html`) at `/srv/dse-erp/web/public/index.html`.
+>      - `prod-full-showcase`: Rolls out the full dynamic 3D showcase only when the user explicitly decides to launch publicly.
+> 3. **PROD Default Safeguard:**
+>    - The Production site (`https://jasviindustries.in`) must strictly remain locked to the Upcoming Page until explicit user instruction.
+
+### 1.8 Mandatory Plugin Accountability & Verification Across All Builds
+> **STRICT PLUGIN GOVERNANCE DURING INVESTIGATION, CODING & BUILDS:**
+> 1. **Application Vendor Libraries & Plugins (`jspdf`, `xlsx`, `swiper`):**
+>    - **Strict Zero-Dependency Creep:** Never introduce arbitrary npm packages, external plugins, or third-party CDN scripts into any repository (`Jasvi-Admin`, `Jasvi-UserView`, `Jasvi-Mobile`).
+>    - **Mandatory Guarding & Verification:** All approved vendor plugins (e.g. `jspdf` for client PDF generation, `xlsx` for Excel parsing/export, `swiper` for 3D showcase carousel) must be defensively guarded (`window.jspdf`, `window.XLSX`, `window.Swiper`) to prevent runtime failures or offline breaks.
+>    - **Architectural Determinism:** Core business logic, pricing, tax calculations, and state machines must NEVER be outsourced to external plugins; they belong strictly in internal, deterministic engines (`DocumentCalculationEngine.js`, Java backend) to maintain 100% desktop-web parity.
+> 2. **Agent Plugins & AI Engineering Tooling:**
+>    - **Active Quality & Security Audits on All Builds:** In every investigation and before proposing or confirming any build, Antigravity must actively leverage installed agent plugins:
+>      - `modern-web-guidance`: Verify modern HTML5/CSS3/ES6 standards, responsive layouts, and browser compatibility.
+>      - `cloudflare-security-audit`: Check for vulnerabilities, token leakage, injection flaws, and unsafe patterns.
+>      - `ponytail`: Audit code simplicity, enforce minimal clean diffs, and eliminate bloat or dead code.
+>    - **Zero Contamination:** Agent plugins must strictly adhere to Rule 1.5 — never creating, depositing, or syncing extraneous `.txt`, `.md`, or log artifacts into any project tier.
 
 ---
 
@@ -451,8 +477,8 @@ git push -u origin main
 git push -f origin $Tag
 
 Write-Host "Triggered UserView deployment pipeline via GitHub Actions."
-Write-Host "Live UAT:  https://web-uat.jasviindustries.in/"
-Write-Host "Live PROD: https://jasviindustries.in/"
+Write-Host "Live UAT:  https://web-uat.jasviindustries.in/ (Auto-deployed on push)"
+Write-Host "Live PROD: https://jasviindustries.in/ (MANUAL dispatch required in GitHub Actions)"
 ```
 
 ---

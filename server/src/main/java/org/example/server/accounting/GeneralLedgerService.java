@@ -251,6 +251,13 @@ public class GeneralLedgerService {
 
         try {
             String dated = format
+                    .replaceAll("(?i)\\{?YYYY-YYYY\\}?", String.format(Locale.ROOT, "%04d-%04d", ((d.getMonthValue() >= 4) ? d.getYear() : (d.getYear() - 1)), ((d.getMonthValue() >= 4) ? d.getYear() : (d.getYear() - 1)) + 1))
+                    .replaceAll("(?i)\\{?YY-YYYY\\}?", String.format(Locale.ROOT, "%02d-%04d", ((d.getMonthValue() >= 4) ? d.getYear() : (d.getYear() - 1)) % 100, ((d.getMonthValue() >= 4) ? d.getYear() : (d.getYear() - 1)) + 1))
+                    .replaceAll("(?i)\\{?YYYY-YY\\}?", String.format(Locale.ROOT, "%04d-%02d", ((d.getMonthValue() >= 4) ? d.getYear() : (d.getYear() - 1)), (((d.getMonthValue() >= 4) ? d.getYear() : (d.getYear() - 1)) + 1) % 100))
+                    .replaceAll("(?i)\\{?YY-YY\\}?", String.format(Locale.ROOT, "%02d-%02d", ((d.getMonthValue() >= 4) ? d.getYear() : (d.getYear() - 1)) % 100, (((d.getMonthValue() >= 4) ? d.getYear() : (d.getYear() - 1)) + 1) % 100))
+                    .replaceAll("(?i)\\{?DD-MM-YYYY\\}?", String.format(Locale.ROOT, "%02d-%02d-%04d", d.getDayOfMonth(), d.getMonthValue(), d.getYear()))
+                    .replaceAll("(?i)\\{?DD/MM/YYYY\\}?", String.format(Locale.ROOT, "%02d/%02d/%04d", d.getDayOfMonth(), d.getMonthValue(), d.getYear()))
+                    .replaceAll("(?i)\\{?YYYY-MM-DD\\}?", String.format(Locale.ROOT, "%04d-%02d-%02d", d.getYear(), d.getMonthValue(), d.getDayOfMonth()))
                     .replace("YYYY", String.format(Locale.ROOT, "%04d", d.getYear()))
                     .replace("YY", String.format(Locale.ROOT, "%02d", d.getYear() % 100))
                     .replace("MM", String.format(Locale.ROOT, "%02d", d.getMonthValue()))

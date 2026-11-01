@@ -37,7 +37,8 @@ public final class ImportModuleRegistry {
         "invoice_no", "invoice_date", "party_code", "item_code", "quantity", "rate", "gst_percent", "gst_type",
         "payment_terms", "paid_amount", "remarks",
         "charge_1_type", "charge_1_amount", "charge_1_taxable", "charge_1_gst_percent",
-        "charge_2_type", "charge_2_amount", "charge_2_taxable", "charge_2_gst_percent", "attachment_file"
+        "charge_2_type", "charge_2_amount", "charge_2_taxable", "charge_2_gst_percent",
+        "additional_charges", "attachment_file", "attachment_files"
     );
     private static final List<String> MASTER_FIELDS = List.of(
         "category_code", "category_name", "category_description", "value_code", "value", "value_description", "display_order", "is_active"
@@ -131,8 +132,8 @@ public final class ImportModuleRegistry {
     public static List<List<String>> exampleRows(String module) {
         if ("Sales".equals(module)) {
             return List.of(
-                List.of("SAL-GST-0001", BusinessClock.formatDate(BusinessClock.today()), "CUS-0001", "ITEM-0001", "2", "1500", "18", "GST", "15 Days", "0", "Sample intra-state sale with two optional charges", "Freight", "250", "true", "18", "Packing", "100", "false", "0", ""),
-                List.of("SAL-IGST-0002", BusinessClock.formatDate(BusinessClock.today()), "CUS-0002", "ITEM-0001", "1", "2000", "18", "IGST", "15 Days", "0", "Sample inter-state sale; attachment is optional", "", "", "", "", "", "", "", "", "")
+                List.of("SAL-GST-0001", BusinessClock.formatDate(BusinessClock.today()), "CUS-0001", "ITEM-0001", "2", "1500", "18", "GST", "15 Days", "0", "Sample intra-state sale with optional charges", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "Insurance|75|true|18;Handling|50|false|0", "", ""),
+                List.of("SAL-IGST-0002", BusinessClock.formatDate(BusinessClock.today()), "CUS-0002", "ITEM-0001", "1", "2000", "18", "IGST", "15 Days", "0", "Sample inter-state sale; multiple attachments optional", "", "", "", "", "", "", "", "", "Freight|250|true|18", "", "invoice.pdf;delivery-receipt.pdf")
             );
         }
         if ("Purchases".equals(module)) {

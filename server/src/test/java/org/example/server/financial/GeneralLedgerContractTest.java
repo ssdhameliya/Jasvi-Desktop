@@ -103,4 +103,21 @@ class GeneralLedgerContractTest {
         assertTrue(org.example.shared.ReferenceFormatRules.matches("DDMMYYYY-XXXX", "25102026-0001", date));
         assertTrue(org.example.shared.ReferenceFormatRules.matches("DD-MM-YYYY-XXXX", "25-10-2026-0001", date));
     }
+
+    @Test
+    void testFinancialYearTokens() {
+        var febDate = java.time.LocalDate.of(2026, 2, 15);
+        assertEquals("IN/25-2026/0001", org.example.shared.ReferenceFormatRules.format("IN/YY-YYYY/XXXX", 1, febDate));
+        assertEquals("IN/2025-2026/0001", org.example.shared.ReferenceFormatRules.format("IN/YYYY-YYYY/XXXX", 1, febDate));
+        assertEquals("IN/2025-26/0001", org.example.shared.ReferenceFormatRules.format("IN/YYYY-YY/XXXX", 1, febDate));
+        assertEquals("IN/25-26/0001", org.example.shared.ReferenceFormatRules.format("IN/YY-YY/XXXX", 1, febDate));
+        assertTrue(org.example.shared.ReferenceFormatRules.matches("IN/YY-YYYY/XXXX", "IN/25-2026/0001", febDate));
+
+        var novDate = java.time.LocalDate.of(2026, 11, 1);
+        assertEquals("IN/26-2027/0001", org.example.shared.ReferenceFormatRules.format("IN/YY-YYYY/XXXX", 1, novDate));
+        assertEquals("IN/2026-2027/0001", org.example.shared.ReferenceFormatRules.format("IN/YYYY-YYYY/XXXX", 1, novDate));
+        assertEquals("IN/2026-27/0001", org.example.shared.ReferenceFormatRules.format("IN/YYYY-YY/XXXX", 1, novDate));
+        assertEquals("IN/26-27/0001", org.example.shared.ReferenceFormatRules.format("IN/YY-YY/XXXX", 1, novDate));
+        assertTrue(org.example.shared.ReferenceFormatRules.matches("IN/YY-YYYY/XXXX", "IN/26-2027/0001", novDate));
+    }
 }

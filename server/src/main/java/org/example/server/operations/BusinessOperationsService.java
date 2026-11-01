@@ -760,7 +760,46 @@ private void copySale(OperationDtos.SaleDto d,SalesHeaderEntity h){h.setInvoiceN
   }
   return fmt;
  }
- private String datedReferenceFormat(String fmt){if(fmt==null||fmt.isBlank())return fmt;LocalDate t=BusinessClock.today();return fmt.replace("DD-MM-YYYY",t.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"))).replace("DD/MM/YYYY",t.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))).replace("YYYY-MM-DD",t.toString()).replace("YYYY",String.valueOf(t.getYear())).replace("YY",String.format(Locale.ROOT,"%02d",t.getYear()%100)).replace("MM",String.format(Locale.ROOT,"%02d",t.getMonthValue())).replace("DD",String.format(Locale.ROOT,"%02d",t.getDayOfMonth()));}
+ private String datedReferenceFormat(String fmt){
+  if(fmt==null||fmt.isBlank())return fmt;
+  LocalDate t=BusinessClock.today();
+  int m=t.getMonthValue();
+  int y=t.getYear();
+  int fyStart=(m>=4)?y:(y-1);
+  int fyEnd=fyStart+1;
+  String fyStartYy=String.format(Locale.ROOT,"%02d",fyStart%100);
+  String fyEndYy=String.format(Locale.ROOT,"%02d",fyEnd%100);
+  String fyStartYyyy=String.format(Locale.ROOT,"%04d",fyStart);
+  String fyEndYyyy=String.format(Locale.ROOT,"%04d",fyEnd);
+
+  String res=fmt;
+  res=res.replaceAll("(?i)\\{?YYYY-YYYY\\}?",fyStartYyyy+"-"+fyEndYyyy);
+  res=res.replaceAll("(?i)\\{?YYYY/YYYY\\}?",fyStartYyyy+"/"+fyEndYyyy);
+  res=res.replaceAll("(?i)\\{?YY-YYYY\\}?",fyStartYy+"-"+fyEndYyyy);
+  res=res.replaceAll("(?i)\\{?YY/YYYY\\}?",fyStartYy+"/"+fyEndYyyy);
+  res=res.replaceAll("(?i)\\{?YYYY-YY\\}?",fyStartYyyy+"-"+fyEndYy);
+  res=res.replaceAll("(?i)\\{?YYYY/YY\\}?",fyStartYyyy+"/"+fyEndYy);
+  res=res.replaceAll("(?i)\\{?YY-YY\\}?",fyStartYy+"-"+fyEndYy);
+  res=res.replaceAll("(?i)\\{?YY/YY\\}?",fyStartYy+"/"+fyEndYy);
+  res=res.replaceAll("(?i)\\{YY\\}-\\{YYYY\\}",fyStartYy+"-"+fyEndYyyy);
+  res=res.replaceAll("(?i)\\{YY\\}/\\{YYYY\\}",fyStartYy+"/"+fyEndYyyy);
+  res=res.replaceAll("(?i)\\{YYYY\\}-\\{YYYY\\}",fyStartYyyy+"-"+fyEndYyyy);
+  res=res.replaceAll("(?i)\\{YYYY\\}/\\{YYYY\\}",fyStartYyyy+"/"+fyEndYyyy);
+  res=res.replaceAll("(?i)\\{YYYY\\}-\\{YY\\}",fyStartYyyy+"-"+fyEndYy);
+  res=res.replaceAll("(?i)\\{YYYY\\}/\\{YY\\}",fyStartYyyy+"/"+fyEndYy);
+  res=res.replaceAll("(?i)\\{YY\\}-\\{YY\\}",fyStartYy+"-"+fyEndYy);
+  res=res.replaceAll("(?i)\\{YY\\}/\\{YY\\}",fyStartYy+"/"+fyEndYy);
+
+  res=res.replaceAll("(?i)\\{?DD-MM-YYYY\\}?",t.format(DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+  res=res.replaceAll("(?i)\\{?DD/MM/YYYY\\}?",t.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+  res=res.replaceAll("(?i)\\{?YYYY-MM-DD\\}?",t.toString());
+
+  res=res.replaceAll("(?i)\\{?YYYY\\}?",String.valueOf(t.getYear()));
+  res=res.replaceAll("(?i)\\{?YY\\}?",String.format(Locale.ROOT,"%02d",t.getYear()%100));
+  res=res.replaceAll("(?i)\\{?MM\\}?",String.format(Locale.ROOT,"%02d",t.getMonthValue()));
+  res=res.replaceAll("(?i)\\{?DD\\}?",String.format(Locale.ROOT,"%02d",t.getDayOfMonth()));
+  return res;
+ }
  private static String idCsv(Collection<Integer> ids){if(ids==null||ids.isEmpty())return "";return ids.stream().filter(Objects::nonNull).map(String::valueOf).collect(java.util.stream.Collectors.joining(","));}
  private static String sqlDate(String column){return "dse_safe_date("+column+")";}
  private static String trim(String v){return v==null?"":v.trim();}

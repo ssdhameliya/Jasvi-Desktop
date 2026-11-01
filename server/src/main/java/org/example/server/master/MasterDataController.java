@@ -29,6 +29,7 @@ public class MasterDataController {
  @PostMapping("/items/bulk-delete") public MasterDtos.OperationResponse bulkDelete(@RequestBody MasterDtos.ItemBulkDeleteRequest r){int deleted=service.bulkDeleteItems(r==null?List.of():r.itemCodes());return new MasterDtos.OperationResponse(true,deleted+" item"+(deleted==1?"":"s")+" deleted");}
 
  @GetMapping("/reference-formats") public MasterDtos.ReferenceFormatsResponse referenceFormats(){return new MasterDtos.ReferenceFormatsResponse(service.referenceFormats());}
+ @PostMapping("/reference-formats/sync-all") public MasterDtos.ReferenceFormatsResponse syncAllReferenceFormats(@RequestBody(required=false) java.util.Map<String,String> req){String p=req!=null?req.get("pattern"):null;String d=req!=null?req.get("delimiter"):null;String s=req!=null?req.get("seqWidth"):null;return new MasterDtos.ReferenceFormatsResponse(service.syncAllDocumentReferenceFormats(p,d,s));}
  @GetMapping("/lookups") public List<MasterDtos.LookupDto> lookups(@RequestParam String type){return service.lookups(type);}
  @GetMapping("/lookups/values") public MasterDtos.ValuesResponse values(@RequestParam String type){return new MasterDtos.ValuesResponse(service.values(type));}
  @GetMapping({"/lookups/values-by-category-code", "/lookups/values/category/{code}"}) public MasterDtos.ValuesResponse valuesByCode(@RequestParam(required=false) String code, @PathVariable(required=false, name="code") String pathCode){return new MasterDtos.ValuesResponse(service.valuesByCategoryCode(code!=null&&!code.isBlank()?code:pathCode));}

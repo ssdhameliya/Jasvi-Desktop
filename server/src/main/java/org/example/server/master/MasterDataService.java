@@ -58,19 +58,19 @@ public class MasterDataService {
         ensureLookupValueByCategoryCode("ACCOUNT_TYPE","ACT003","Personal","Personal bank account",30);
         ensureReferenceFormat("REF_SALES","IN/DD-MM-YYYY/XXXX","Sales invoice reference",10);
         ensureReferenceFormat("REF_PURCHASE","PUR/DD-MM-YYYY/XXXX","Purchase invoice reference",20);
-        ensureReferenceFormat("REF_QUOTATION","QT-YYYY-XXXX","Quotation reference",30);
-        ensureReferenceFormat("REF_SALES_RETURN","SAL-RET-YYYY-XXXX","Sales Return reference",40);
-        ensureReferenceFormat("REF_PURCHASE_RETURN","PUR-RET-YYYY-XXXX","Purchase Return reference",50);
+        ensureReferenceFormat("REF_QUOTATION","QT/DD-MM-YYYY/XXXX","Quotation reference",30);
+        ensureReferenceFormat("REF_SALES_RETURN","SRT/DD-MM-YYYY/XXXX","Sales Return reference",40);
+        ensureReferenceFormat("REF_PURCHASE_RETURN","PRT/DD-MM-YYYY/XXXX","Purchase Return reference",50);
         ensureReferenceFormat("REF_ITEM","ITMXXX","Item code reference",60);
         ensureReferenceFormat("REF_CUSTOMER","CUSXXX","Customer reference",70);
         ensureReferenceFormat("REF_SUPPLIER","SUPXXX","Supplier reference",80);
-        ensureReferenceFormat("REF_FINANCE_VOUCHER","VCH-YYYY-XXXXX","Finance voucher reference",90);
+        ensureReferenceFormat("REF_FINANCE_VOUCHER","VCH/DD-MM-YYYY/XXXX","Finance voucher reference",90);
         ensureReferenceFormat("REF_BANK_ENTRY","BE/DD-MM-YYYY/XXXX","Bank Entry voucher reference",92);
-        ensureReferenceFormat("REF_BANK_EXPENSE","EXP-YYYY-XXXXX","Bank Expense voucher reference",93);
-        ensureReferenceFormat("REF_BANK_STATEMENT","BST/XXXXX","Bank Statement reference",94);
-        ensureReferenceFormat("REF_JOURNAL","JV-YYYYMMDD-XXXX","Journal voucher reference",95);
-        ensureReferenceFormat("REF_RECON_SUPPLIER","RSP-YYYY-XXXXX","Recon Supplier reference",100);
-        ensureReferenceFormat("REF_PURCHASE_RECON","PRC-YYYY-XXXXX","Purchase Recon reference",110);
+        ensureReferenceFormat("REF_BANK_EXPENSE","EXP/DD-MM-YYYY/XXXX","Bank Expense voucher reference",93);
+        ensureReferenceFormat("REF_BANK_STATEMENT","BST/DD-MM-YYYY/XXXX","Bank Statement reference",94);
+        ensureReferenceFormat("REF_JOURNAL","JV/DD-MM-YYYY/XXXX","Journal voucher reference",95);
+        ensureReferenceFormat("REF_RECON_SUPPLIER","RSP/DD-MM-YYYY/XXXX","Recon Supplier reference",100);
+        ensureReferenceFormat("REF_PURCHASE_RECON","PRC/DD-MM-YYYY/XXXX","Purchase Recon reference",110);
         ensureReferenceFormat("REF_LOOKUP_CATEGORY","CATXXX","Category Master code reference",210);
         ensureReferenceFormat("REF_LOOKUP_UNIT","UNTXXX","Unit Master code reference",220);
         ensureReferenceFormat("REF_LOOKUP_MATERIAL","MATXXX","Material Master code reference",230);
@@ -468,6 +468,45 @@ public class MasterDataService {
             }
         }
         return Collections.unmodifiableMap(result);
+    }
+
+    @Transactional
+    public Map<String,String> syncAllDocumentReferenceFormats(String pattern, String delimiter, String seqWidth) {
+        String pat = (pattern == null || pattern.isBlank()) ? "DD-MM-YYYY" : pattern.trim();
+        String delim = (delimiter == null || delimiter.isBlank()) ? "/" : delimiter.trim();
+        String seq = (seqWidth == null || seqWidth.isBlank()) ? "XXXX" : seqWidth.trim();
+
+        Map<String, String> prefixMap = Map.ofEntries(
+            Map.entry("REF_SALES", "IN"),
+            Map.entry("REF_PURCHASE", "PUR"),
+            Map.entry("REF_QUOTATION", "QT"),
+            Map.entry("REF_SALES_RETURN", "SRT"),
+            Map.entry("REF_PURCHASE_RETURN", "PRT"),
+            Map.entry("REF_FINANCE_VOUCHER", "VCH"),
+            Map.entry("REF_BANK_ENTRY", "BE"),
+            Map.entry("REF_BANK_EXPENSE", "EXP"),
+            Map.entry("REF_JOURNAL", "JV"),
+            Map.entry("REF_PURCHASE_RECON", "PRC"),
+            Map.entry("REF_RECON_SUPPLIER", "RSP"),
+            Map.entry("REF_BANK_STATEMENT", "BST")
+        );
+
+        MasterCategoryEntity category = categories.findByCategoryCode("REFERENCE_FORMAT").orElse(null);
+        if (category != null) {
+            List<LookupEntity> all = lookups.findByLookupTypeOrderByDisplayOrderAscLookupValueAsc(category.getCategoryName());
+            for (LookupEntity row : all) {
+                String code = row.getLookupCode() != null ? row.getLookupCode().trim().toUpperCase(Locale.ROOT) : "";
+                if ("JOURNAL_VOUCHER".equals(code) || "JOURNAL".equals(code)) code = "REF_JOURNAL";
+                if (prefixMap.containsKey(code)) {
+                    String prefix = prefixMap.get(code);
+                    String newFormat = prefix + delim + pat + delim + seq;
+                    ReferenceFormatRules.requireValidFormat(newFormat);
+                    row.setLookupValue(newFormat);
+                    lookups.save(row);
+                }
+            }
+        }
+        return referenceFormats();
     }
 
     @Transactional(readOnly = true)

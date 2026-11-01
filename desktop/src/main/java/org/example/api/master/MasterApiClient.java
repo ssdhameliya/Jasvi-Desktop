@@ -43,6 +43,7 @@ public final class MasterApiClient {
  public OperationResponse bulkDeleteItems(List<String> codes){return post("/api/master/items/bulk-delete",new ItemBulkDeleteRequest(codes==null?List.of():List.copyOf(codes)),OperationResponse.class);}
 
  public Map<String,String> referenceFormats(){ReferenceFormatsResponse r=get("/api/master/reference-formats",ReferenceFormatsResponse.class);return r==null||r.formats()==null?Map.of():Map.copyOf(r.formats());}
+ public Map<String,String> syncAllReferenceFormats(String pattern,String delimiter,String seqWidth){Map<String,String> body=new java.util.HashMap<>();if(pattern!=null)body.put("pattern",pattern);if(delimiter!=null)body.put("delimiter",delimiter);if(seqWidth!=null)body.put("seqWidth",seqWidth);ReferenceFormatsResponse r=post("/api/master/reference-formats/sync-all",body,ReferenceFormatsResponse.class);return r==null||r.formats()==null?Map.of():Map.copyOf(r.formats());}
  public List<Lookup> lookups(String type){return get("/api/master/lookups?type="+enc(type),new TypeReference<List<LookupDto>>(){}).stream().map(this::lookup).toList();}
  public List<String> lookupValues(String type){return get("/api/master/lookups/values?type="+enc(type),ValuesResponse.class).values();}
  public List<String> lookupValuesByCategoryCode(String code){return get("/api/master/lookups/values-by-category-code?code="+enc(code),ValuesResponse.class).values();}

@@ -859,12 +859,45 @@ public class ImportService {
         return item;
     }
 
+    private List<SalesCharge> parseAdditionalSalesCharges(String text) {
+        List<SalesCharge> out = new ArrayList<>();
+        for (String raw : text.split(";")) {
+            String entry = raw == null ? "" : raw.trim();
+            if (entry.isBlank()) continue;
+            String[] parts = entry.split("\\|", -1);
+            if (parts.length < 2 || parts.length > 4) throw new IllegalArgumentException("additional_charges entry must be Type|Amount|Taxable|GSTPercent: " + entry);
+            String type = parts[0].trim();
+            if (type.isBlank()) throw new IllegalArgumentException("additional_charges charge type is required");
+            double amount;
+            try { amount = Double.parseDouble(parts[1].trim().replace(",", "")); }
+            catch (Exception e) { throw new IllegalArgumentException("additional_charges amount must be a number for " + type); }
+            if (!Double.isFinite(amount) || amount <= 0) throw new IllegalArgumentException("additional_charges amount must be greater than zero for " + type);
+            boolean taxable = parts.length >= 3 && !parts[2].trim().isBlank() ? parseFlexibleBoolean(parts[2], "additional_charges taxable for " + type) : false;
+            double gst = 0;
+            if (parts.length >= 4 && !parts[3].trim().isBlank()) {
+                try { gst = Double.parseDouble(parts[3].trim()); }
+                catch (Exception e) { throw new IllegalArgumentException("additional_charges GST percent must be numeric for " + type); }
+            }
+            if (gst < 0 || gst > 100) throw new IllegalArgumentException("additional_charges GST percent must be between 0 and 100 for " + type);
+            if (!taxable && gst > 0.0001) throw new IllegalArgumentException("additional_charges GST percent requires taxable=true for " + type);
+            out.add(new SalesCharge(type, amount, taxable, taxable ? gst : 0));
+        }
+        return out;
+    }
+
     private SalesImportExtras salesImportExtras(Path workbookFile, List<DocumentImportRow> rows) {
         SalesCharge first = salesCharge(rows, 1);
         SalesCharge second = salesCharge(rows, 2);
         List<SalesCharge> charges = new ArrayList<>();
         if (first != null) charges.add(first);
         if (second != null) charges.add(second);
+        String flexible = consistentText(rows, DocumentImportRow::additionalCharges, "additional_charges", false);
+        if (flexible != null && !flexible.isBlank()) charges.addAll(parseAdditionalSalesCharges(flexible));
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (SalesCharge charge : charges) {
+            String key = charge.getChargeType().trim().toUpperCase(Locale.ROOT);
+            if (!names.add(key)) throw new IllegalArgumentException("Duplicate sales charge type: " + charge.getChargeType());
+        }
 
         String attachment = consistentText(rows, DocumentImportRow::attachmentFile, "attachment_file", false);
         Path source = null;
