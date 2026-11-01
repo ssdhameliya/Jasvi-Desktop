@@ -1,4 +1,10 @@
 package org.example.controller;
+import javafx.geometry.Insets;
+import java.util.Optional;
+import java.time.LocalDate;
+import org.example.shared.ReferenceFormatRules;
+import org.example.util.ToastManager;
+import org.example.util.AppDialogService;
 import javafx.scene.control.Separator;
 import javafx.scene.layout.GridPane;
 import javafx.scene.control.TextFormatter;
@@ -949,6 +955,108 @@ public class SettingsController implements ScreenLifecycle {
 
     @FXML
     private void handleRefFormatSyncAction() {
+        showRefFormatSyncDialog();
+    }
+
+    private void showRefFormatSyncDialog() {
+        OwnedDialog<ButtonType> dlg = new OwnedDialog<>(lblActiveRefFormat);
+        dlg.setTitle("Synchronize Document Reference Formats");
+        dlg.setHeaderText("Standardize All 27 Document & Master Reference Formats");
+        DialogPane pane = dlg.getDialogPane();
+        pane.getStyleClass().addAll("approved-dialog", "erp-screen-root");
+        pane.getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        pane.setPrefWidth(680);
+
+        VBox root = new VBox(12);
+        root.setPadding(new Insets(14));
+
+        Label info = new Label("Select the canonical format scheme to synchronize all 27 reference formats uniformly across Sales, Purchases, Masters, Lookups, and Bank Statements. Existing issued documents remain strictly immutable for statutory compliance.");
+        info.setWrapText(true);
+        info.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 12px;");
+
+        ComboBox<String> cmbScheme = new ComboBox<>();
+        cmbScheme.getItems().addAll(
+            "DD-MM-YYYY",
+            "DD-YYYY-MM",
+            "MM-DD-YYYY",
+            "MM-YYYY-DD",
+            "YYYY-DD-MM",
+            "YYYY-MM-DD",
+            "YY-YYYY",
+            "YYYY-YY",
+            "DD-YYYY",
+            "YYYY-DD",
+            "MM-YYYY",
+            "YYYY-MM",
+            "NONE"
+        );
+        cmbScheme.setValue("DD-MM-YYYY");
+        cmbScheme.setMaxWidth(Double.MAX_VALUE);
+
+        ComboBox<String> cmbDelim = new ComboBox<>();
+        cmbDelim.getItems().addAll("/", "-", " ");
+        cmbDelim.setValue("/");
+        cmbDelim.setPrefWidth(120);
+
+        ComboBox<String> cmbSeq = new ComboBox<>();
+        cmbSeq.getItems().addAll("XXXX (4 Digits)", "XXXXX (5 Digits)", "XXXXXX (6 Digits)");
+        cmbSeq.setValue("XXXX (4 Digits)");
+        cmbSeq.setPrefWidth(180);
+
+        Label lblSample = new Label("Preview: IN/01-11-2026/0001");
+        lblSample.setStyle("-fx-font-family: monospace; -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #38bdf8;");
+
+        Runnable updatePreview = () -> {
+            String sch = cmbScheme.getValue();
+            String del = cmbDelim.getValue();
+            String sq = cmbSeq.getValue() != null && cmbSeq.getValue().startsWith("XXXXXX") ? "XXXXXX" : (cmbSeq.getValue() != null && cmbSeq.getValue().startsWith("XXXXX") ? "XXXXX" : "XXXX");
+            String fmt = "NONE".equalsIgnoreCase(sch) ? "IN" + del + sq : "IN" + del + sch + del + sq;
+            String ex = ReferenceFormatRules.format(fmt, 1, LocalDate.now());
+            lblSample.setText("Preview: " + fmt + " (e.g., " + ex + ")");
+        };
+
+        cmbScheme.setOnAction(e -> updatePreview.run());
+        cmbDelim.setOnAction(e -> updatePreview.run());
+        cmbSeq.setOnAction(e -> updatePreview.run());
+        updatePreview.run();
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.add(new Label("Date / Year Scheme:"), 0, 0);
+        grid.add(cmbScheme, 1, 0, 2, 1);
+        grid.add(new Label("Delimiter:"), 0, 1);
+        grid.add(cmbDelim, 1, 1);
+        grid.add(new Label("Sequence Width:"), 0, 2);
+        grid.add(cmbSeq, 1, 2);
+        grid.add(lblSample, 0, 3, 3, 1);
+
+        root.getChildren().addAll(info, grid);
+        pane.setContent(root);
+
+        Button btnOk = (Button) pane.lookupButton(ButtonType.OK);
+        if (btnOk != null) btnOk.setText("Synchronize All Formats");
+
+        Optional<ButtonType> res = dlg.showAndWait();
+        if (res.isPresent() && res.get() == ButtonType.OK) {
+            try {
+                String sch = cmbScheme.getValue();
+                String del = cmbDelim.getValue();
+                String sq = cmbSeq.getValue() != null && cmbSeq.getValue().startsWith("XXXXXX") ? "XXXXXX" : (cmbSeq.getValue() != null && cmbSeq.getValue().startsWith("XXXXX") ? "XXXXX" : "XXXX");
+                new org.example.api.master.MasterApiClient().syncAllReferenceFormats(sch, del, sq);
+                if (lblActiveRefFormat != null) {
+                    String fmt = "NONE".equalsIgnoreCase(sch) ? "IN" + del + sq : "IN" + del + sch + del + sq;
+                    String ex = ReferenceFormatRules.format(fmt, 1, LocalDate.now());
+                    lblActiveRefFormat.setText(fmt + " (e.g., " + ex + ")");
+                }
+                ToastManager.success(lblActiveRefFormat, "Synchronization Complete", "Synchronized all 27 reference formats to " + sch + " successfully.");
+            } catch (Exception ex) {
+                AppDialogService.error(lblActiveRefFormat, "Sync Error", "Reference Synchronization Failed", "Failed to standardize reference formats: " + ex.getMessage());
+            }
+        }
+    }
+
+    private void legacyHandleRefFormatSyncAction() {
         boolean confirmed = org.example.util.AppDialogService.confirm(
             lblActiveRefFormat,
             "Double Confirmation: Reference Format Modification",

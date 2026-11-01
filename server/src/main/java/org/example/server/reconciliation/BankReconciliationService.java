@@ -41,7 +41,8 @@ public class BankReconciliationService {
    return new BankReconciliationDtos.ImportResult(null,ready,dupes,false);
   }
   String actor=CurrentUser.require().username();
-  BankStatementImportEntity b=new BankStatementImportEntity(); b.setBankName(blank(r.bankName())?"Bank":r.bankName().trim());b.setBankAccount(r.bankAccount().trim());b.setAccountHolder(r.accountHolder());b.setStatementFrom(r.statementFrom());b.setStatementTo(r.statementTo());b.setCurrency(blank(r.currency())?"INR":r.currency());b.setOpeningBalance(r.openingBalance());b.setClosingBalance(r.closingBalance());b.setSourceFingerprint(r.sourceFingerprint());b.setSourceFileName(r.sourceFileName());b.setSourceCsv(r.sourceCsv());b.setImportedBy(actor);b.setTransactionCount(0);b.setTotalDebit(0d);b.setTotalCredit(0d);b.setReconciledCount(0);b.setReconciliationPercent(0d);b=imports.save(b);
+  String statementRef = operations.nextConfiguredReference("REF_BANK_STATEMENT", "BST/DD-MM-YYYY/XXXX", () -> imports.findAll().stream().map(BankStatementImportEntity::getStatementReference).filter(Objects::nonNull).toList());
+   BankStatementImportEntity b=new BankStatementImportEntity(); b.setStatementReference(statementRef); b.setBankName(blank(r.bankName())?"Bank":r.bankName().trim());b.setBankAccount(r.bankAccount().trim());b.setAccountHolder(r.accountHolder());b.setStatementFrom(r.statementFrom());b.setStatementTo(r.statementTo());b.setCurrency(blank(r.currency())?"INR":r.currency());b.setOpeningBalance(r.openingBalance());b.setClosingBalance(r.closingBalance());b.setSourceFingerprint(r.sourceFingerprint());b.setSourceFileName(r.sourceFileName());b.setSourceCsv(r.sourceCsv());b.setImportedBy(actor);b.setTransactionCount(0);b.setTotalDebit(0d);b.setTotalCredit(0d);b.setReconciledCount(0);b.setReconciliationPercent(0d);b=imports.save(b);
   int added=0,dupes=0; double debit=0,credit=0;
   if(r.rows()!=null)for(var row:r.rows()){
    validateStatementRow(row);
@@ -170,7 +171,7 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
  private static final Set<String> GENERIC_PARTY_TOKENS=Set.of("PRIVATE","LIMITED","INDUSTRIES","INDUSTRY","ENTERPRISES","ENTERPRISE","COMPANY","CORPORATION","CORP","PVT","LTD","LLP","TRADERS","TRADING");
  private BankReconciliationDtos.CandidateDto candidate(BankStatementTransactionEntity t,String type,Integer id,String no,String party,String docDate,double total,double paid,double outstanding){double score=0,amount=bankAmount(t);if(Math.abs(outstanding-amount)<=.01)score+=50;String hay=up(safe(t.getOriginalDescription())+" "+safe(t.getOriginalReference()));String normHay=hay.replaceAll("[^A-Z0-9 ]"," ");if(!blank(party)){String[] tokens=up(party).replaceAll("[^A-Z0-9 ]"," ").split("\\s+");long useful=Arrays.stream(tokens).filter(x->x.length()>=4&&!GENERIC_PARTY_TOKENS.contains(x)&&normHay.contains(x)).count();if(useful>0)score+=45;}LocalDate td=date(t.getTransactionDate()),dd=date(docDate);if(td!=null&&dd!=null&&Math.abs(ChronoUnit.DAYS.between(dd,td))<=7)score+=5;return new BankReconciliationDtos.CandidateDto(type,id,no,party,docDate,total,paid,outstanding,Math.min(100,score));}
  private void refreshBatch(Long id){var b=imports.findById(id).orElseThrow();var m=metrics(id);b.setReconciledCount(m.reconciled());b.setReconciliationPercent(m.reconciledPercent());b.setStatus(m.batchStatus());imports.save(b);}
- private BankReconciliationDtos.BatchDto batch(BankStatementImportEntity b){return new BankReconciliationDtos.BatchDto(b.getId(),b.getBankName(),b.getBankAccount(),b.getAccountHolder(),b.getStatementFrom(),b.getStatementTo(),b.getCurrency(),nv(b.getTransactionCount()),n(b.getTotalDebit()),n(b.getTotalCredit()),nv(b.getReconciledCount()),n(b.getReconciliationPercent()),b.getStatus(),b.getSourceFileName(),b.getImportedAt());}
+ private BankReconciliationDtos.BatchDto batch(BankStatementImportEntity b){return new BankReconciliationDtos.BatchDto(b.getId(),b.getStatementReference(),b.getBankName(),b.getBankAccount(),b.getAccountHolder(),b.getStatementFrom(),b.getStatementTo(),b.getCurrency(),nv(b.getTransactionCount()),n(b.getTotalDebit()),n(b.getTotalCredit()),nv(b.getReconciledCount()),n(b.getReconciliationPercent()),b.getStatus(),b.getSourceFileName(),b.getImportedAt());}
  private List<BankReconciliationDtos.TransactionDto> mapTransactions(List<BankStatementTransactionEntity> rows){
   if(rows==null||rows.isEmpty())return List.of();Set<Long> ids=new HashSet<>();for(var t:rows)ids.add(t.getId());Map<Long,List<BankReconciliationAllocationEntity>> byTx=new HashMap<>();Set<Integer> financeIds=new HashSet<>();for(var a:allocations.findByStatementTransactionIdInAndReversedAtIsNull(ids)){byTx.computeIfAbsent(a.getStatementTransactionId(),ignored->new ArrayList<>()).add(a);if(a.getFinanceEntryId()!=null)financeIds.add(a.getFinanceEntryId());}
   Map<Integer,String> financeVouchers=new HashMap<>();if(!financeIds.isEmpty())for(var f:finance.findAllById(financeIds))if(f.getVoucherNo()!=null)financeVouchers.put(f.getId(),f.getVoucherNo());
@@ -188,9 +189,9 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
    if("EXPENSE".equals(targetType))link=fVoucher!=null?fVoucher:"View Expense";else if("BANK_ENTRY".equals(targetType))link=fVoucher!=null?fVoucher:"View Bank Entry";else if(a.size()>1)link=a.size()+" linked transactions";else link=docNo;
   }else if(t.getSuggestedMatchId()!=null){targetType=up(t.getSuggestedMatchType());targetId=t.getSuggestedMatchId();docNo=documentNo(targetType,targetId,saleNos,purchaseNos,purchaseReconNos,returnNos);link="Suggested: "+(docNo==null?targetType+" #"+targetId:docNo);}
   String financeVoucherNo=financeId==null?null:financeVouchers.get(financeId);
-  return new BankReconciliationDtos.TransactionDto(t.getId(),t.getImportBatch().getId(),t.getSourceRowNumber(),t.getTransactionTimestamp(),t.getTransactionDate(),t.getValueDate(),t.getOriginalDescription(),t.getOriginalReference(),n(t.getDebitAmount()),n(t.getCreditAmount()),n(t.getBalance()),t.getStatus(),t.getSuggestedMatchType(),t.getSuggestedMatchId(),t.getSuggestedConfidence(),link,financeId,financeVoucherNo,targetType,targetId,docNo,List.copyOf(linked),t.getRowVersion());
+  return new BankReconciliationDtos.TransactionDto(t.getId(),t.getImportBatch().getId(),t.getImportBatch().getStatementReference(),t.getSourceRowNumber(),t.getTransactionTimestamp(),t.getTransactionDate(),t.getValueDate(),t.getOriginalDescription(),t.getOriginalReference(),n(t.getDebitAmount()),n(t.getCreditAmount()),n(t.getBalance()),t.getStatus(),t.getSuggestedMatchType(),t.getSuggestedMatchId(),t.getSuggestedConfidence(),link,financeId,financeVoucherNo,targetType,targetId,docNo,List.copyOf(linked),t.getRowVersion());
  }
- private String documentNo(String type,Integer id,Map<Integer,String> saleNos,Map<Integer,String> purchaseNos,Map<Integer,String> purchaseReconNos,Map<Integer,String> returnNos){if(id==null)return null;if("SALE".equals(type))return saleNos.getOrDefault(id,"Sale #"+id);if("PURCHASE".equals(type))return purchaseNos.getOrDefault(id,"Purchase #"+id);if("PURCHASE_RECON".equals(type))return purchaseReconNos.getOrDefault(id,"Purchase Recon #"+id);if(Set.of("SALES_RETURN","PURCHASE_RETURN").contains(type))return returnNos.getOrDefault(id,"Return #"+id);if("EXPENSE".equals(type))return "Expense #"+id;if("BANK_ENTRY".equals(type))return "Bank Entry #"+id;return type+" #"+id;}
+ private String documentNo(String type,Integer id,Map<Integer,String> saleNos,Map<Integer,String> purchaseNos,Map<Integer,String> purchaseReconNos,Map<Integer,String> returnNos){if(id==null)return null;if("SALE".equals(type))return saleNos.getOrDefault(id,"Sale #"+id);if("PURCHASE".equals(type))return purchaseNos.getOrDefault(id,"Purchase #"+id);if("PURCHASE_RECON".equals(type))return purchaseReconNos.getOrDefault(id,"Purchase Recon #"+id);if(Set.of("SALES_RETURN","PURCHASE_RETURN").contains(type))return returnNos.getOrDefault(id,"Return #"+id);if("EXPENSE".equals(type)){var f=finance.findById(id).orElse(null);return f!=null&&f.getVoucherNo()!=null?f.getVoucherNo():"Expense #"+id;}if("BANK_ENTRY".equals(type)){var f=finance.findById(id).orElse(null);return f!=null&&f.getVoucherNo()!=null?f.getVoucherNo():"Bank Entry #"+id;}return type+" #"+id;}
 
  @Transactional(readOnly=true) public BankReconciliationDtos.TransactionDto transaction(Long id){return transaction(reqTx(id));}
  private BankReconciliationDtos.TransactionDto transaction(BankStatementTransactionEntity t){return mapTransactions(List.of(t)).getFirst();}
@@ -203,6 +204,115 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
   if(debit<0||credit<0)throw new IllegalArgumentException("Bank statement debit and credit values cannot be negative.");
   boolean hasDebit=money(debit)>0d,hasCredit=money(credit)>0d;
   if(hasDebit==hasCredit)throw new IllegalArgumentException("Each bank statement row must contain exactly one positive Debit or Credit amount.");
+  }
+
+  @Transactional(readOnly=true)
+  public BankReconciliationDtos.DocumentLinkageDto getLinkage(String type, Integer id, String docNo, Long transactionId, Integer financeId) {
+   List<BankReconciliationAllocationEntity> allocs = new ArrayList<>();
+   String activeType = up(type);
+   String activeRef = safe(docNo).trim();
+
+   if (transactionId != null) {
+       allocs.addAll(allocations.findByStatementTransactionIdInAndReversedAtIsNull(Set.of(transactionId)));
+       activeType = "STATEMENT_TX";
+       activeRef = String.valueOf(transactionId);
+   } else if (financeId != null) {
+       allocs.addAll(allocations.findAll().stream().filter(a -> a.getReversedAt() == null && Objects.equals(a.getFinanceEntryId(), financeId)).toList());
+       activeType = "FINANCE";
+       activeRef = String.valueOf(financeId);
+   } else if (!activeType.isBlank()) {
+       Integer targetId = id;
+       final String lookupRef = activeRef;
+       final String lookupType = activeType;
+       if (targetId == null && !lookupRef.isBlank()) {
+           if ("SALE".equals(lookupType)) {
+               var s = sales.findByInvoiceNo(lookupRef).orElse(null);
+               if (s != null) targetId = s.getId();
+           } else if ("PURCHASE".equals(lookupType)) {
+               var p = purchases.findByInvoiceNo(lookupRef).orElse(null);
+               if (p != null) targetId = p.getId();
+           } else if ("PURCHASE_RECON".equals(lookupType)) {
+               var r = purchaseRecons.findAll().stream().filter(x -> lookupRef.equalsIgnoreCase(x.getReconRef())).findFirst().orElse(null);
+               if (r != null) targetId = r.getId();
+           } else if ("EXPENSE".equals(lookupType) || "BANK_ENTRY".equals(lookupType)) {
+               var f = finance.findAll().stream().filter(x -> lookupRef.equalsIgnoreCase(x.getVoucherNo())).findFirst().orElse(null);
+               if (f != null) targetId = f.getId();
+           }
+       }
+       if (targetId != null) {
+           final Integer finalTgtId = targetId;
+           allocs.addAll(allocations.findAll().stream().filter(a -> a.getReversedAt() == null && lookupType.equalsIgnoreCase(a.getTargetType()) && Objects.equals(a.getTargetId(), finalTgtId)).toList());
+       }
+   }
+
+   if (allocs.isEmpty()) {
+       return new BankReconciliationDtos.DocumentLinkageDto(false, activeType, activeRef, List.of());
+   }
+
+   Set<Long> txIds = new HashSet<>();
+   Set<Integer> finIds = new HashSet<>();
+   for (var a : allocs) {
+       if (a.getStatementTransactionId() != null) txIds.add(a.getStatementTransactionId());
+       if (a.getFinanceEntryId() != null) finIds.add(a.getFinanceEntryId());
+   }
+
+   Map<Long, BankStatementTransactionEntity> txMap = new HashMap<>();
+   if (!txIds.isEmpty()) for (var tx : txs.findAllById(txIds)) txMap.put(tx.getId(), tx);
+
+   Map<Integer, FinanceRegisterEntity> finMap = new HashMap<>();
+   if (!finIds.isEmpty()) for (var f : finance.findAllById(finIds)) finMap.put(f.getId(), f);
+
+   List<BankReconciliationDtos.LinkageItemDto> items = new ArrayList<>();
+   for (var a : allocs) {
+       var tx = txMap.get(a.getStatementTransactionId());
+       var f = a.getFinanceEntryId() != null ? finMap.get(a.getFinanceEntryId()) : null;
+
+       String stmtRef = tx != null && tx.getImportBatch() != null ? tx.getImportBatch().getStatementReference() : null;
+       String bName = tx != null && tx.getImportBatch() != null ? tx.getImportBatch().getBankName() : null;
+       String bAcct = tx != null && tx.getImportBatch() != null ? tx.getImportBatch().getBankAccount() : null;
+       String txDate = tx != null ? tx.getTransactionDate() : null;
+       String origRef = tx != null ? tx.getOriginalReference() : null;
+       double dr = tx != null ? n(tx.getDebitAmount()) : 0d;
+       double cr = tx != null ? n(tx.getCreditAmount()) : 0d;
+
+       String fVoucher = f != null ? f.getVoucherNo() : null;
+       String fType = f != null ? f.getVoucherType() : null;
+
+       String docNoResolved = documentNo(a.getTargetType(), a.getTargetId(), Map.of(), Map.of(), Map.of(), Map.of());
+       if (docNoResolved != null && docNoResolved.contains("#")) {
+           if ("SALE".equalsIgnoreCase(a.getTargetType())) {
+               var s = sales.findById(a.getTargetId()).orElse(null);
+               if (s != null) docNoResolved = s.getInvoiceNo();
+           } else if ("PURCHASE".equalsIgnoreCase(a.getTargetType())) {
+               var p = purchases.findById(a.getTargetId()).orElse(null);
+               if (p != null) docNoResolved = p.getInvoiceNo();
+           } else if ("PURCHASE_RECON".equalsIgnoreCase(a.getTargetType())) {
+               var r = purchaseRecons.findById(a.getTargetId()).orElse(null);
+               if (r != null) docNoResolved = r.getReconRef();
+           }
+       }
+
+       items.add(new BankReconciliationDtos.LinkageItemDto(
+           a.getStatementTransactionId(),
+           stmtRef,
+           bName,
+           bAcct,
+           txDate,
+           origRef,
+           dr,
+           cr,
+           a.getFinanceEntryId(),
+           fVoucher,
+           fType,
+           a.getTargetType(),
+           a.getTargetId(),
+           docNoResolved,
+           n(a.getAllocatedAmount()),
+           tx != null ? tx.getStatus() : "LINKED"
+       ));
+   }
+
+   return new BankReconciliationDtos.DocumentLinkageDto(true, activeType, activeRef, items);
  }
 
  private double roundingTolerance(){try{String value=jdbc.queryForObject("SELECT setting_value FROM application_setting WHERE setting_key='payment.bankMatchRoundingTolerance'",String.class);double parsed=Double.parseDouble(value==null?"1.00":value.trim());return Math.max(0d,Math.min(5d,money(parsed)));}catch(Exception ignored){return 1d;}}

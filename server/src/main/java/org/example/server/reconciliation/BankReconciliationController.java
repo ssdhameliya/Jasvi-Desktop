@@ -25,4 +25,5 @@ public class BankReconciliationController {
  @PostMapping("/transactions/{id}/review") public BankReconciliationDtos.OperationResult review(@PathVariable Long id,@RequestBody BankReconciliationDtos.NoteRequest r){return service.review(id,r);}
  @PostMapping("/transactions/{id}/reverse") public BankReconciliationDtos.OperationResult reverse(@PathVariable Long id,@RequestParam(required=false) String user){return service.reverse(id,user);}
  @GetMapping("/transactions/{id}/audit") public List<BankReconciliationDtos.AuditDto> audit(@PathVariable Long id){return service.audit(id);}
+ @GetMapping("/linkage") public BankReconciliationDtos.DocumentLinkageDto getLinkage(@RequestParam(required=false) String type, @RequestParam(required=false) Integer id, @RequestParam(required=false) String docNo, @RequestParam(required=false) Long transactionId, @RequestParam(required=false) Integer financeId){return service.getLinkage(type, id, docNo, transactionId, financeId);}
 }

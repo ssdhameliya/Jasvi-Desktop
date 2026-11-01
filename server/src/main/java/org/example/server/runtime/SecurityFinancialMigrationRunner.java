@@ -179,7 +179,11 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V10_0_37__standardize_reference_formats",
                     "db/migration/V10_0_37__standardize_reference_formats.sql"),
             new Migration("V10_0_38__whatsapp_waha_channel_schema",
-                    "db/migration/V10_0_38__whatsapp_waha_channel_schema.sql")
+                    "db/migration/V10_0_38__whatsapp_waha_channel_schema.sql"),
+            new Migration("V10_0_39__bank_statement_unique_reference",
+                    "db/migration/V10_0_39__bank_statement_unique_reference.sql"),
+            new Migration("V10_0_40__standardize_all_27_references",
+                    "db/migration/V10_0_40__standardize_all_27_references.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

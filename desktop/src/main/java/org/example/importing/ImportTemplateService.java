@@ -13,9 +13,37 @@ import java.util.Set;
 /** Writes import workbooks; no JavaFX or controller state. */
 public final class ImportTemplateService {
     public void write(Path target, String module, String appVersion) throws Exception {
+        if (target.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".csv")) {
+            writeCsv(target, module);
+            return;
+        }
         try (OutputStream output = Files.newOutputStream(target)) {
             writeToStream(output, module, appVersion);
         }
+    }
+
+    public static void writeCsv(Path target, String module) throws Exception {
+        List<String> fields = ImportModuleRegistry.fields(module);
+        Set<String> required = ImportModuleRegistry.requiredFields(module);
+        StringBuilder sb = new StringBuilder();
+        sb.append("# ").append(org.example.service.BrandingService.companyName()).append(" Standard Import Template - ").append(module).append("\n");
+        sb.append("# Mandatory fields (*): ").append(String.join(", ", required)).append("\n");
+        sb.append("# Formats: Date (YYYY-MM-DD or DD/MM/YYYY) | Amounts (decimal numbers) | GST (0, 5, 12, 18, 28)\n");
+        sb.append(String.join(",", fields)).append("\n");
+        List<List<String>> exampleRows = getDynamicExampleRows(module);
+        for (List<String> row : exampleRows) {
+            List<String> escaped = new java.util.ArrayList<>();
+            for (String val : row) {
+                if (val == null) escaped.add("");
+                else if (val.contains(",") || val.contains("\"") || val.contains("\n")) {
+                    escaped.add("\"" + val.replace("\"", "\"\"") + "\"");
+                } else {
+                    escaped.add(val);
+                }
+            }
+            sb.append(String.join(",", escaped)).append("\n");
+        }
+        Files.writeString(target, sb.toString(), java.nio.charset.StandardCharsets.UTF_8);
     }
 
     public static void writeToStream(OutputStream output, String module, String appVersion) throws Exception {

@@ -55,7 +55,11 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
                 "Purchase Recon Records",
                 subtitleText,
                 "");
-        PopupTableWorkspace.prepareDialog(this, 1220);
+        pane.setPrefWidth(1420);
+        pane.setMinWidth(1150);
+        pane.setPrefHeight(820);
+        pane.setMinHeight(600);
+        PopupTableWorkspace.applyInspectionSizing(this, owner != null ? owner.getScene().getRoot() : null);
 
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(10, 14, 14, 14));
@@ -164,8 +168,8 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
         // System Ref
         TableColumn<PurchaseReconApiClient.ReconDto, String> colRef = new TableColumn<>("System Ref");
         colRef.setCellValueFactory(v -> new SimpleStringProperty(safe(v.getValue().reference())));
-        colRef.setMinWidth(120);
-        colRef.setPrefWidth(140);
+        colRef.setMinWidth(190);
+        colRef.setPrefWidth(220);
         colRef.setCellFactory(tc -> new TableCell<>() {
             private final Hyperlink link = new Hyperlink();
             {
@@ -192,66 +196,68 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
         // Supplier Invoice No
         TableColumn<PurchaseReconApiClient.ReconDto, String> colInvoice = new TableColumn<>("Supplier Invoice");
         colInvoice.setCellValueFactory(v -> new SimpleStringProperty(safe(v.getValue().supplierInvoiceNo())));
-        colInvoice.setMinWidth(100);
-        colInvoice.setPrefWidth(115);
+        colInvoice.setMinWidth(130);
+        colInvoice.setPrefWidth(150);
 
         // Invoice Date
         TableColumn<PurchaseReconApiClient.ReconDto, String> colDate = new TableColumn<>("Invoice Date");
         colDate.setCellValueFactory(v -> new SimpleStringProperty(BusinessClock.formatDate(v.getValue().invoiceDate())));
-        colDate.setMinWidth(90);
-        colDate.setPrefWidth(100);
+        colDate.setMinWidth(115);
+        colDate.setPrefWidth(125);
 
         // Taxable Value
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colTaxable = new TableColumn<>("Taxable Value");
         colTaxable.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().taxableValue()));
         colTaxable.setCellFactory(x -> currencyCell());
-        colTaxable.setMinWidth(95);
-        colTaxable.setPrefWidth(110);
+        colTaxable.setMinWidth(125);
+        colTaxable.setPrefWidth(140);
 
         // CGST
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colCgst = new TableColumn<>("CGST");
         colCgst.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().cgst()));
         colCgst.setCellFactory(x -> currencyCell());
-        colCgst.setMinWidth(75);
-        colCgst.setPrefWidth(85);
+        colCgst.setMinWidth(110);
+        colCgst.setPrefWidth(125);
 
         // SGST
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colSgst = new TableColumn<>("SGST");
         colSgst.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().sgst()));
         colSgst.setCellFactory(x -> currencyCell());
-        colSgst.setMinWidth(75);
-        colSgst.setPrefWidth(85);
+        colSgst.setMinWidth(110);
+        colSgst.setPrefWidth(125);
 
         // IGST
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colIgst = new TableColumn<>("IGST");
         colIgst.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().igst()));
         colIgst.setCellFactory(x -> currencyCell());
-        colIgst.setMinWidth(75);
-        colIgst.setPrefWidth(85);
+        colIgst.setMinWidth(110);
+        colIgst.setPrefWidth(125);
 
         // Other Adj
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colOther = new TableColumn<>("Other Adj");
         colOther.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().otherAdjustment()));
         colOther.setCellFactory(x -> currencyCell());
-        colOther.setMinWidth(75);
-        colOther.setPrefWidth(85);
+        colOther.setMinWidth(100);
+        colOther.setPrefWidth(115);
 
         // Total Invoice Value
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colTotal = new TableColumn<>("Total Value");
         colTotal.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().invoiceValue()));
         colTotal.setCellFactory(x -> currencyCell());
-        colTotal.setMinWidth(100);
-        colTotal.setPrefWidth(115);
+        colTotal.setMinWidth(130);
+        colTotal.setPrefWidth(145);
 
         // Status
         TableColumn<PurchaseReconApiClient.ReconDto, String> colStatus = new TableColumn<>("Status");
         colStatus.setCellValueFactory(v -> new SimpleStringProperty(safe(v.getValue().status())));
         colStatus.setCellFactory(x -> SemanticTableCells.status("status"));
-        colStatus.setMinWidth(85);
-        colStatus.setPrefWidth(95);
+        colStatus.setMinWidth(110);
+        colStatus.setPrefWidth(120);
 
         // Multi-link navigation (Bank Statement / Bank Expense)
         TableColumn<PurchaseReconApiClient.ReconDto, Void> colLinks = new TableColumn<>("Linked Documents");
+        colLinks.setMinWidth(210);
+        colLinks.setPrefWidth(240);
         colLinks.setMinWidth(160);
         colLinks.setPrefWidth(190);
         colLinks.setCellFactory(tc -> new TableCell<>() {

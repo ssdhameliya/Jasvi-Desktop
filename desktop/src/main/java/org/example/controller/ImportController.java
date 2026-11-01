@@ -106,7 +106,7 @@ public class ImportController implements ScreenLifecycle {
     @FXML private javafx.scene.layout.Region wizardLine1, wizardLine2, wizardLine3;
     @FXML private StackPane itemChoiceIcon, customerChoiceIcon, supplierChoiceIcon, salesChoiceIcon, purchaseChoiceIcon, purchaseReconChoiceIcon, masterChoiceIcon, bankStatementChoiceIcon, selectedFileExcelIcon;
     @FXML private Button btnDownloadItemTemplate, btnDownloadCustomerTemplate, btnDownloadSupplierTemplate,
-                         btnDownloadSalesTemplate, btnDownloadPurchaseTemplate, btnDownloadPurchaseReconTemplate, btnDownloadMasterTemplate;
+                         btnDownloadSalesTemplate, btnDownloadPurchaseTemplate, btnDownloadPurchaseReconTemplate, btnDownloadMasterTemplate, btnDownloadBankStatementTemplate;
 
     /* =========================================================
        SERVICES AND STATE
@@ -307,7 +307,7 @@ public class ImportController implements ScreenLifecycle {
 
         Button[] templateButtons = {
             btnDownloadItemTemplate, btnDownloadCustomerTemplate, btnDownloadSupplierTemplate,
-            btnDownloadSalesTemplate, btnDownloadPurchaseTemplate, btnDownloadPurchaseReconTemplate, btnDownloadMasterTemplate
+            btnDownloadSalesTemplate, btnDownloadPurchaseTemplate, btnDownloadPurchaseReconTemplate, btnDownloadMasterTemplate, btnDownloadBankStatementTemplate
         };
         for (Button button : templateButtons) {
             if (button != null) button.setGraphic(IconFactory.compactIcon("excel", 16));
@@ -1458,7 +1458,8 @@ public class ImportController implements ScreenLifecycle {
     }
 
     private ImportService.ImportResult importBankStatement(boolean dryRun) throws Exception {
-        var parsed = new org.example.bank.KotakBankStatementCsvParser().parse(selectedFile.toPath());
+        var audit = new org.example.bank.UniversalBankStatementParser().parseWithAudit(selectedFile.toPath());
+        var parsed = audit.statement() != null ? audit.statement() : new org.example.bank.KotakBankStatementCsvParser().parse(selectedFile.toPath());
         updateProgress(parsed.rows().size(), parsed.rows().size());
         return bankStatementImportCoordinator.execute(selectedFile.toPath(), dryRun);
     }
@@ -1698,7 +1699,11 @@ public class ImportController implements ScreenLifecycle {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Save Import Template");
         chooser.setInitialFileName(cmbImportModule.getValue().replaceAll("[^A-Za-z0-9]+", "_") + "_Template.xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel workbook", "*.xlsx"));
+        chooser.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter("Excel workbook (*.xlsx)", "*.xlsx"),
+            new FileChooser.ExtensionFilter("CSV (Comma Delimited) (*.csv)", "*.csv"),
+            new FileChooser.ExtensionFilter("Excel 97-2003 workbook (*.xls)", "*.xls")
+        );
         File target = chooser.showSaveDialog(cmbImportModule.getScene().getWindow());
         if (target == null) return;
 
@@ -1752,6 +1757,11 @@ public class ImportController implements ScreenLifecycle {
     @FXML
     private void downloadPurchaseReconTemplate() {
         downloadTemplateFor("Purchase Recon");
+    }
+
+    @FXML
+    private void downloadBankStatementTemplate() {
+        downloadTemplateFor("Bank Statement");
     }
 
     @FXML

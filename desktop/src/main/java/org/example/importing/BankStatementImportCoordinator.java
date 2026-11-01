@@ -1,7 +1,7 @@
 package org.example.importing;
 
 import org.example.api.bank.BankStatementApiClient;
-import org.example.bank.KotakBankStatementCsvParser;
+import org.example.bank.UniversalBankStatementParser;
 import org.example.service.ImportService;
 import org.example.service.SessionService;
 
@@ -11,19 +11,23 @@ import java.util.List;
 /** Executes Bank Statement imports and normalizes the result for the generic Import wizard. */
 public final class BankStatementImportCoordinator {
     private final BankStatementApiClient api;
-    private final KotakBankStatementCsvParser parser;
+    private final UniversalBankStatementParser parser;
 
     public BankStatementImportCoordinator() {
-        this(new BankStatementApiClient(), new KotakBankStatementCsvParser());
+        this(new BankStatementApiClient(), new UniversalBankStatementParser());
     }
 
-    BankStatementImportCoordinator(BankStatementApiClient api, KotakBankStatementCsvParser parser) {
+    BankStatementImportCoordinator(BankStatementApiClient api, UniversalBankStatementParser parser) {
         this.api = api;
         this.parser = parser;
     }
 
     public ImportService.ImportResult execute(Path file, boolean dryRun) throws Exception {
-        var parsed = parser.parse(file);
+        var auditResult = parser.parseWithAudit(file);
+        if (auditResult.statement() == null) {
+            throw new IllegalArgumentException("No valid bank statement transactions found. Errors encountered: " + auditResult.errorCount());
+        }
+        var parsed = auditResult.statement();
         var current = SessionService.current();
         String user = current == null ? "User" : current.getFullName();
         var request = new BankStatementApiClient.ImportRequest(

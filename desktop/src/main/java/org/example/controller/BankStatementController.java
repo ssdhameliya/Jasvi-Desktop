@@ -1,4 +1,5 @@
 package org.example.controller;
+import org.example.bank.UniversalBankStatementImportDialog;
 
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
@@ -531,7 +532,10 @@ public class BankStatementController implements ScreenLifecycle {
     private String historyAccountFilter(){if(cmbHistoryAccount==null)return "";String text=cmbHistoryAccount.isEditable()?safe(cmbHistoryAccount.getEditor().getText()).trim():safe(cmbHistoryAccount.getValue()).trim();if(text.isBlank())return "";return historyAccountTokens.getOrDefault(text,text);}
     private void updateHistoryFooter(){int shown=tableHistory==null?0:tableHistory.getItems().size();long start=shown==0?0:(long)historyPage*50+1,end=shown==0?0:start+shown-1;if(lblHistoryShowing!=null)lblHistoryShowing.setText(shown==0?"Showing 0 statements":"Showing "+start+"–"+end+" of "+historyTotalRows);if(lblHistoryPage!=null)lblHistoryPage.setText(historyTotalPages<=0?"Page 0 of 0":"Page "+(historyPage+1)+" of "+historyTotalPages);if(btnHistoryPrev!=null)btnHistoryPrev.setDisable(historyPage<=0);if(btnHistoryNext!=null)btnHistoryNext.setDisable(historyTotalPages<=0||historyPage+1>=historyTotalPages);}
     private static String batchBankLabel(BankStatementApiClient.BatchDto b){String account=safe(b.bankAccount());String tail=account.length()>4?"****"+account.substring(account.length()-4):account;return safe(b.bankName())+(tail.isBlank()?"":" • "+tail);}
-    private static String formatBatchLabel(BankStatementApiClient.BatchDto b){return batchBankLabel(b)+" • "+safe(b.statementFrom())+" to "+safe(b.statementTo())+" • "+safe(b.status());}
+    private static String formatBatchLabel(BankStatementApiClient.BatchDto b){
+        String refBadge = b.statementReference() != null && !b.statementReference().isBlank() ? "[" + b.statementReference() + "] " : "";
+        return refBadge + batchBankLabel(b) + " • " + safe(b.statementFrom()) + " to " + safe(b.statementTo()) + " • " + safe(b.status());
+    }
     private static String batchStatusSemantic(String status){String state=up(status);return state.contains("FULL")||state.equals("RECONCILED")?"complete":state.contains("PARTIAL")?"warning":"document";}
 
     record ImportAuditItem(
@@ -564,6 +568,11 @@ public class BankStatementController implements ScreenLifecycle {
     ) {}
 
     @FXML private void importStatement(){
+        configureBankAccountMaster();
+        UniversalBankStatementImportDialog.show(table != null && table.getScene() != null ? table.getScene().getWindow() : null, api, new org.example.api.master.MasterApiClient(), () -> loadBatches(null));
+    }
+
+    private void legacyImportStatement(){
         configureBankAccountMaster();
         FileChooser f = new FileChooser();
         f.setTitle("Import Bank Statement (.xlsx, .xls, .csv)");
