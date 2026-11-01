@@ -37,6 +37,9 @@ public class WahaApiClient {
         while (clean.endsWith("/")) {
             clean = clean.substring(0, clean.length() - 1);
         }
+        if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+            clean = "http://" + clean;
+        }
         return clean;
     }
 
@@ -51,6 +54,20 @@ public class WahaApiClient {
             builder.header("X-Api-Key", apiKey.trim());
         }
         return builder;
+    }
+
+    private void tryAutoStartDocker() {
+        try {
+            Process p = new ProcessBuilder("docker", "--version").start();
+            if (p.waitFor() == 0) {
+                Process inspect = new ProcessBuilder("docker", "inspect", "waha").start();
+                if (inspect.waitFor() == 0) {
+                    new ProcessBuilder("docker", "start", "waha").start();
+                } else {
+                    new ProcessBuilder("docker", "run", "-d", "--name", "waha", "-p", "3000:3000", "--restart", "always", "devlikeapro/waha").start();
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     public WahaDtos.HealthResponse ping(String endpoint, String apiKey) {
@@ -76,8 +93,12 @@ public class WahaApiClient {
             List<WahaDtos.SessionStatus> sessions = getSessions(endpoint, apiKey);
             return new WahaDtos.HealthResponse(true, "WAHA Connected", version, sessions);
         } catch (Exception e) {
-            log.warn("WAHA ping failed for {}: {}", endpoint, e.getMessage());
-            return new WahaDtos.HealthResponse(false, "Cannot connect to WAHA server: " + e.getMessage(), "", List.of());
+            String norm = normalizeBaseUrl(endpoint);
+            if (norm.contains("localhost") || norm.contains("127.0.0.1")) {
+                tryAutoStartDocker();
+            }
+            log.info("WAHA ping notice for {}: {}", endpoint, e.getMessage());
+            return new WahaDtos.HealthResponse(false, "WhatsApp engine is offline at " + endpoint, "", List.of());
         }
     }
 
@@ -100,7 +121,7 @@ public class WahaApiClient {
                 return list;
             }
         } catch (Exception e) {
-            log.warn("Failed to list WAHA sessions: {}", e.getMessage());
+            log.info("WAHA list sessions notice: {}", e.getMessage());
         }
         return List.of();
     }
@@ -171,8 +192,12 @@ public class WahaApiClient {
                 return new WahaDtos.QrResponse(session, null, "ALREADY_CONNECTED", "Session is already connected or QR code is not pending.");
             }
         } catch (Exception e) {
-            log.error("Error retrieving WAHA QR code for {}: {}", session, e.getMessage(), e);
-            return new WahaDtos.QrResponse(session, null, "ERROR", "Failed to retrieve QR code: " + e.getMessage());
+            String norm = normalizeBaseUrl(endpoint);
+            if (norm.contains("localhost") || norm.contains("127.0.0.1")) {
+                tryAutoStartDocker();
+            }
+            log.info("WAHA QR notice for {}: {}", session, e.getMessage());
+            return new WahaDtos.QrResponse(session, null, "OFFLINE", "WhatsApp engine (WAHA) is not running on the server. Please ensure the server container is started.");
         }
         return new WahaDtos.QrResponse(session, null, "UNAVAILABLE", "QR code is currently unavailable. Please check WAHA logs.");
     }

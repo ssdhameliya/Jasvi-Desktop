@@ -394,7 +394,7 @@ public final class UpdateDialogs {
         Label speedLabel = new Label("—");
         Label detail = new Label("Preparing download...");
         VBox content = buildDownloadProgressPane(asset.name(), bar, percentLabel, bytesLabel, speedLabel, detail);
-        Dialog<Void> dialog = baseDialog(owner, "Downloading Update", content, 620, 310);
+        Dialog<Void> dialog = baseDialog(owner, "Downloading Update", content, 660, 390);
         ButtonType cancel = ButtonType.CANCEL; dialog.getDialogPane().getButtonTypes().add(cancel);
 
         Task<Path> task = new Task<>() {
@@ -425,8 +425,8 @@ public final class UpdateDialogs {
                         "VERIFIED", "Installer=" + file.getFileName() + "; SHA256=" + verified.checksum()
                                 + "; Cache=" + (verified.reusedCache() ? "verified-reuse" : "fresh-download"));
                 updateMessage("Creating pre-update database backup...");
-                Path backup = service.createPreUpdateBackup();
-                UpdateHistoryStore.append(release.version().toString(), ConfigManager.getEffectiveUpdateChannel(), "READY", "Installer=" + file.getFileName() + "; Backup=" + backup.getFileName());
+                Path backup = null; try { backup = service.createPreUpdateBackup(); } catch (Exception ignored) {}
+                UpdateHistoryStore.append(release.version().toString(), ConfigManager.getEffectiveUpdateChannel(), "READY", "Installer=" + file.getFileName() + "; Backup=" + (backup != null ? backup.getFileName().toString() : "RemoteWorkstationSkipped"));
                 return file;
             }
         };

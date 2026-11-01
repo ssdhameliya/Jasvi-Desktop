@@ -42,10 +42,10 @@
 
     <VBox spacing="12" styleClass="settings-subcard">
         <HBox alignment="CENTER_LEFT" spacing="8">
-            <Label text="WhatsApp Business Engine (WAHA Docker)" styleClass="section-title"/>
+            <Label text="WhatsApp Business Integration" styleClass="section-title"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnWhatsappTest" text="Test Connection" onAction="#testWhatsappConnection" styleClass="secondary-button"/>
-            <Label text="Container runs locally or on cloud server at port 3000" styleClass="page-subtitle"/>
+            <Button fx:id="btnWhatsappTest" text="Check Status" onAction="#testWhatsappConnection" styleClass="secondary-button"/>
+            <Label text="Managed centrally on the company server" styleClass="page-subtitle"/>
         </HBox>
         <GridPane hgap="18" vgap="14">
             <columnConstraints>

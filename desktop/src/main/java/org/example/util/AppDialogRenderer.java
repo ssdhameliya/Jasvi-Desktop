@@ -264,7 +264,7 @@ public final class AppDialogRenderer {
         } else {
             ScrollPane bodyScroll = new ScrollPane(body);
             bodyScroll.setFitToWidth(true);
-            bodyScroll.setFitToHeight(true);
+            bodyScroll.setFitToHeight(false);
             bodyScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
             bodyScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
             bodyScroll.getStyleClass().addAll("dse-dialog-scroll", "edge-to-edge");
@@ -315,7 +315,13 @@ public final class AppDialogRenderer {
             boolean negative = data == ButtonBar.ButtonData.CANCEL_CLOSE || data == ButtonBar.ButtonData.NO
                     || data == ButtonBar.ButtonData.BACK_PREVIOUS;
 
-            if (affirmative && isGenericAffirmative(label)) label = AppDialogService.inferPrimaryAction(combined);
+            if (affirmative && isGenericAffirmative(label)) {
+                if ("error".equalsIgnoreCase(semantic) || "information".equalsIgnoreCase(semantic)) {
+                    label = "OK";
+                } else {
+                    label = AppDialogService.inferPrimaryAction(combined);
+                }
+            }
             if (negative && (label.equalsIgnoreCase("No") || label.equalsIgnoreCase("Cancel"))) label = safeActionLabel(semantic, combined);
             if (label.isBlank()) label = affirmative ? "Continue" : "Close";
             button.setText(label);

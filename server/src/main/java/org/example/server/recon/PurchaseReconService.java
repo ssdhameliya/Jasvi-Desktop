@@ -235,7 +235,7 @@ public class PurchaseReconService {
 
     @Transactional(readOnly=true)
     public List<PurchaseReconDtos.BankLinkDto> bankLinks(Integer reconId){
-        return jdbc.query("SELECT a.id,a.statement_transaction_id,COALESCE(t.transaction_date,''),COALESCE(NULLIF(BTRIM(b.statement_reference),''),COALESCE(t.original_reference,'')),COALESCE(a.allocated_amount,0),a.finance_entry_id,COALESCE(f.voucher_no,''),COALESCE(a.created_at,'') FROM bank_reconciliation_allocation a JOIN bank_statement_transaction t ON t.id=a.statement_transaction_id LEFT JOIN bank_statement_import b ON b.id=t.import_batch_id LEFT JOIN finance_register f ON f.id=a.finance_entry_id WHERE a.target_type='PURCHASE_RECON' AND a.target_id=? AND a.reversed_at IS NULL ORDER BY a.id DESC",
+        return jdbc.query("SELECT a.id,a.statement_transaction_id,COALESCE(t.transaction_date,''),COALESCE(NULLIF(BTRIM(b.statement_reference),''),COALESCE(t.original_reference,'')),COALESCE(a.allocated_amount,0),a.finance_entry_id,COALESCE(f.voucher_no,''),COALESCE(a.created_at,'') FROM bank_reconciliation_allocation a JOIN bank_statement_transaction t ON t.id=a.statement_transaction_id LEFT JOIN bank_statement_import b ON b.id=t.import_id LEFT JOIN finance_register f ON f.id=a.finance_entry_id WHERE a.target_type='PURCHASE_RECON' AND a.target_id=? AND a.reversed_at IS NULL ORDER BY a.id DESC",
                 (r,i)->new PurchaseReconDtos.BankLinkDto(r.getLong(1),r.getLong(2),r.getString(3),r.getString(4),r.getDouble(5),r.getObject(6)==null?null:r.getInt(6),r.getString(7),r.getString(8)),reconId);
     }
 

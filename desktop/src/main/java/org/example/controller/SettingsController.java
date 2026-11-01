@@ -2644,7 +2644,8 @@ private record AssetPreviewRequest(
         }
         if (SessionService.isAdmin()) {
             try {
-                String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
+                String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null && !txtWahaEndpoint.getText().isBlank() ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
+                if (!ep.startsWith("http://") && !ep.startsWith("https://")) ep = "http://" + ep;
                 boolean on = chkWahaEnabled != null && chkWahaEnabled.isSelected();
                 new org.example.api.whatsapp.BusinessWhatsappApiClient().saveSettings(
                     new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, apiKey, on, null)
@@ -2663,7 +2664,8 @@ private record AssetPreviewRequest(
         UiTaskExecutor.submitAction(
             "test-waha-connection",
             () -> {
-                String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
+                String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null && !txtWahaEndpoint.getText().isBlank() ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
+                if (!ep.startsWith("http://") && !ep.startsWith("https://")) ep = "http://" + ep;
                 String key = txtWahaApiKey != null && txtWahaApiKey.getText() != null ? txtWahaApiKey.getText().trim() : "";
                 boolean on = chkWahaEnabled != null && chkWahaEnabled.isSelected();
                 var api = new org.example.api.whatsapp.BusinessWhatsappApiClient();
@@ -2703,7 +2705,7 @@ private record AssetPreviewRequest(
         content.setPrefWidth(680);
         content.setMinWidth(640);
 
-        Label lblHelp = new Label("Pairs with WAHA (WhatsApp HTTP API) Docker container running on port 3000. Each channel represents one paired WhatsApp number.");
+        Label lblHelp = new Label("Manage connected WhatsApp sender numbers. Each channel represents one paired WhatsApp phone number used for automated document dispatch.");
         lblHelp.setWrapText(true);
         lblHelp.getStyleClass().add("settings-field-hint");
 
@@ -2851,6 +2853,8 @@ private record AssetPreviewRequest(
                         }
                     } else if (qrResp != null && "CONNECTED".equalsIgnoreCase(qrResp.status())) {
                         lblStatus.setText("WhatsApp device is already CONNECTED and active!");
+                    } else if (qrResp != null && qrResp.message() != null && !qrResp.message().isBlank()) {
+                        lblStatus.setText(qrResp.message());
                     } else {
                         lblStatus.setText("No QR code available. Ensure WAHA session is running.");
                     }
