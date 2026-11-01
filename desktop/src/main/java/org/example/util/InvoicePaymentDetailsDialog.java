@@ -13,13 +13,14 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import org.example.api.bank.BankStatementApiClient;
 import org.example.api.support.SupportApiClient;
 
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
 
-/** Shared, read-only payment drill-down for Sales and Purchase registers. */
+/** Shared, read-only payment and linkage drill-down for Sales and Purchase registers. */
 public final class InvoicePaymentDetailsDialog {
     private InvoicePaymentDetailsDialog() {}
 
@@ -55,6 +56,50 @@ public final class InvoicePaymentDetailsDialog {
         TableView<SupportApiClient.PaymentRow> table = new TableView<>();
         table.getStyleClass().addAll("professional-table", "approved-table", "invoice-payment-table", "erp-table-profile-dialog");
         table.setPlaceholder(new Label("Loading payment records…"));
+        TableColumn<SupportApiClient.PaymentRow, String> paymentRefCol = new TableColumn<>("Payment Ref");
+        paymentRefCol.setPrefWidth(155);
+        paymentRefCol.setCellValueFactory(value -> new ReadOnlyStringWrapper(safe(value.getValue().paymentReference())));
+        IconFactory.applyTableHeaderIcon(paymentRefCol, "link");
+        paymentRefCol.setCellFactory(ignored -> new javafx.scene.control.TableCell<>() {
+            private final javafx.scene.control.Hyperlink link = new javafx.scene.control.Hyperlink();
+            {
+                link.getStyleClass().add("table-link");
+                link.setOnAction(e -> {
+                    int idx = getIndex();
+                    if (idx >= 0 && idx < getTableView().getItems().size()) {
+                        SupportApiClient.PaymentRow row = getTableView().getItems().get(idx);
+                        if (row.statementTransactionId() != null && row.statementTransactionId() > 0) {
+                            dialog.setResult(ButtonType.CLOSE);
+                            dialog.close();
+                            org.example.controller.LinkedRecordContext.open(
+                                    "BANK_STATEMENT",
+                                    row.statementTransactionId().intValue(),
+                                    row.statementReference() == null || row.statementReference().isBlank() ? row.reference() : row.statementReference(),
+                                    "VIEW",
+                                    "Invoice Payment Details"
+                            );
+                            org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/BankStatement.fxml");
+                        } else {
+                            String user = row.createdBy() == null || row.createdBy().isBlank() ? "ADMIN" : row.createdBy();
+                            String pmtRef = row.paymentReference() == null || row.paymentReference().isBlank() ? ("#" + row.id()) : row.paymentReference();
+                            new OwnedAlert(javafx.scene.control.Alert.AlertType.WARNING,
+                                    "No Bank Statement entry exists for Payment Ref " + pmtRef + " as it was settled manually by USER: " + user).showAndWait();
+                        }
+                    }
+                });
+            }
+            @Override protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null || val.isBlank() || "—".equals(val)) {
+                    setGraphic(null);
+                    setText(empty ? null : "—");
+                } else {
+                    link.setText(val);
+                    setText(null);
+                    setGraphic(link);
+                }
+            }
+        });
         TableColumn<SupportApiClient.PaymentRow, String> date = textColumn("Date", "calendar", SupportApiClient.PaymentRow::date);
         TableColumn<SupportApiClient.PaymentRow, String> reference = textColumn("Reference", "document", SupportApiClient.PaymentRow::reference);
         TableColumn<SupportApiClient.PaymentRow, String> from = textColumn("Received From / Paid To", "customer", SupportApiClient.PaymentRow::receivedFrom);
@@ -72,7 +117,7 @@ public final class InvoicePaymentDetailsDialog {
         });
         IconFactory.applyTableHeaderIcon(amount, "currency");
         TableColumn<SupportApiClient.PaymentRow, String> notes = textColumn("Notes", "notes", SupportApiClient.PaymentRow::notes);
-        table.getColumns().addAll(date, reference, from, mode, amount, notes);
+        table.getColumns().addAll(paymentRefCol, date, reference, from, mode, amount, notes);
         DynamicTableLayoutManager.install(table);
         VBox.setVgrow(table, Priority.ALWAYS);
 
@@ -106,6 +151,212 @@ public final class InvoicePaymentDetailsDialog {
                 });
 
         dialog.showAndWait();
+    }
+
+    public static void showDocumentLinkagesDialog(Node owner, String documentType, long documentId,
+                                                  String invoiceNo, String partyLabel, String partyName) {
+        OwnedDialog<ButtonType> dialog = new OwnedDialog<>(owner);
+        dialog.setTitle("Linked Records — " + safe(invoiceNo));
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().getStyleClass().addAll("invoice-payment-dialog");
+        dialog.getDialogPane().setPrefSize(980, 560);
+
+        Label title = new Label("Linked Financial & Bank Records");
+        title.getStyleClass().add("bank-dialog-hero-title");
+        Label subtitle = new Label(safe(invoiceNo) + "  •  " + partyLabel + ": " + safe(partyName));
+        subtitle.getStyleClass().add("bank-dialog-subtitle");
+        HBox hero = new HBox(12, IconFactory.icon("link", 32), new VBox(3, title, subtitle));
+        hero.setAlignment(Pos.CENTER_LEFT);
+        hero.getStyleClass().add("bank-dialog-hero");
+
+        Node linkagesNode = buildDocumentLinkagesNode(dialog, documentType, documentId, invoiceNo);
+        VBox.setVgrow(linkagesNode, Priority.ALWAYS);
+
+        dialog.getDialogPane().setContent(new VBox(12, hero, linkagesNode));
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.showAndWait();
+    }
+
+    public static Node buildDocumentLinkagesNode(javafx.scene.control.Dialog<?> parentDialog,
+                                                 String documentType, long documentId, String invoiceNo) {
+        TableView<BankStatementApiClient.LinkageItemDto> table = new TableView<>();
+        table.getStyleClass().addAll("professional-table", "approved-table", "invoice-payment-table", "erp-table-standard");
+        table.setPlaceholder(new Label("Loading linked Bank Statement, Payment Ref (PRF), Bank Entry & Expense records…"));
+        table.setFixedCellSize(36.0);
+
+        TableColumn<BankStatementApiClient.LinkageItemDto, String> colStmtRef = new TableColumn<>("Statement Ref");
+        colStmtRef.setPrefWidth(155);
+        colStmtRef.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().statementReference())));
+        IconFactory.applyTableHeaderIcon(colStmtRef, "bank");
+        colStmtRef.setCellFactory(ignored -> new javafx.scene.control.TableCell<>() {
+            private final javafx.scene.control.Hyperlink link = new javafx.scene.control.Hyperlink();
+            {
+                link.getStyleClass().add("table-link");
+                link.setOnAction(e -> {
+                    int idx = getIndex();
+                    if (idx >= 0 && idx < getTableView().getItems().size()) {
+                        navigateToStatementFromLinkage(parentDialog, invoiceNo, getTableView().getItems().get(idx));
+                    }
+                });
+            }
+            @Override protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null || val.isBlank() || "—".equals(val)) {
+                    setGraphic(null);
+                    setText(empty ? null : "—");
+                } else {
+                    link.setText(val);
+                    setText(null);
+                    setGraphic(link);
+                }
+            }
+        });
+
+        TableColumn<BankStatementApiClient.LinkageItemDto, String> colPmtRef = new TableColumn<>("Payment Ref");
+        colPmtRef.setPrefWidth(155);
+        colPmtRef.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().paymentReference())));
+        IconFactory.applyTableHeaderIcon(colPmtRef, "payment");
+        colPmtRef.setCellFactory(ignored -> new javafx.scene.control.TableCell<>() {
+            private final javafx.scene.control.Hyperlink link = new javafx.scene.control.Hyperlink();
+            {
+                link.getStyleClass().add("table-link");
+                link.setOnAction(e -> {
+                    int idx = getIndex();
+                    if (idx >= 0 && idx < getTableView().getItems().size()) {
+                        navigateToStatementFromLinkage(parentDialog, invoiceNo, getTableView().getItems().get(idx));
+                    }
+                });
+            }
+            @Override protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null || val.isBlank() || "—".equals(val)) {
+                    setGraphic(null);
+                    setText(empty ? null : "—");
+                } else {
+                    link.setText(val);
+                    setText(null);
+                    setGraphic(link);
+                }
+            }
+        });
+
+        TableColumn<BankStatementApiClient.LinkageItemDto, String> colFinRef = new TableColumn<>("Finance Voucher");
+        colFinRef.setPrefWidth(155);
+        colFinRef.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().financeVoucherNo())));
+        IconFactory.applyTableHeaderIcon(colFinRef, "link");
+        colFinRef.setCellFactory(ignored -> new javafx.scene.control.TableCell<>() {
+            private final javafx.scene.control.Hyperlink link = new javafx.scene.control.Hyperlink();
+            {
+                link.getStyleClass().add("table-link");
+                link.setOnAction(e -> {
+                    int idx = getIndex();
+                    if (idx >= 0 && idx < getTableView().getItems().size()) {
+                        BankStatementApiClient.LinkageItemDto item = getTableView().getItems().get(idx);
+                        if (item.financeEntryId() != null) {
+                            if (parentDialog != null) parentDialog.close();
+                            String vType = item.financeVoucherType() == null ? "" : item.financeVoucherType().toUpperCase(Locale.ROOT);
+                            org.example.controller.BankExpenseController.requestLinkedEntry(
+                                    vType.contains("EXPENSE") ? org.example.controller.BankExpenseController.Mode.EXPENSE : org.example.controller.BankExpenseController.Mode.BANK,
+                                    item.financeEntryId()
+                            );
+                            org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/BankExpense.fxml");
+                        }
+                    }
+                });
+            }
+            @Override protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null || val.isBlank() || "—".equals(val)) {
+                    setGraphic(null);
+                    setText(empty ? null : "—");
+                } else {
+                    link.setText(val);
+                    setText(null);
+                    setGraphic(link);
+                }
+            }
+        });
+
+        TableColumn<BankStatementApiClient.LinkageItemDto, String> colDate = new TableColumn<>("Date");
+        colDate.setPrefWidth(105);
+        colDate.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().transactionDate())));
+        IconFactory.applyTableHeaderIcon(colDate, "calendar");
+
+        TableColumn<BankStatementApiClient.LinkageItemDto, String> colBankRef = new TableColumn<>("Bank / Mode / UTR");
+        colBankRef.setPrefWidth(180);
+        colBankRef.setCellValueFactory(v -> {
+            var item = v.getValue();
+            String b = item.bankName() == null ? "" : item.bankName();
+            String r = item.originalReference() == null ? "" : item.originalReference();
+            return new ReadOnlyStringWrapper(safe(b.isBlank() ? r : (r.isBlank() ? b : b + " • " + r)));
+        });
+        IconFactory.applyTableHeaderIcon(colBankRef, "document");
+
+        TableColumn<BankStatementApiClient.LinkageItemDto, String> colAmount = new TableColumn<>("Allocated Amount");
+        colAmount.setPrefWidth(130);
+        colAmount.setCellValueFactory(v -> new ReadOnlyStringWrapper(money(v.getValue().allocatedAmount())));
+        IconFactory.applyTableHeaderIcon(colAmount, "currency");
+
+        TableColumn<BankStatementApiClient.LinkageItemDto, String> colStatus = new TableColumn<>("Status / Settled By");
+        colStatus.setPrefWidth(175);
+        colStatus.setCellValueFactory(v -> {
+            var item = v.getValue();
+            String st = item.status() == null ? "" : item.status();
+            String by = item.settledBy() == null || item.settledBy().isBlank() ? "" : (" (User: " + item.settledBy() + ")");
+            return new ReadOnlyStringWrapper(safe(st + by));
+        });
+        IconFactory.applyTableHeaderIcon(colStatus, "status");
+
+        table.getColumns().addAll(colPmtRef, colStmtRef, colFinRef, colDate, colBankRef, colAmount, colStatus);
+        DynamicTableLayoutManager.install(table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        Label countLabel = new Label("Loading linked records…");
+        countLabel.getStyleClass().add("muted-label");
+        HBox footer = new HBox(10, countLabel);
+        footer.setAlignment(Pos.CENTER_LEFT);
+
+        VBox box = new VBox(8, table, footer);
+        VBox.setVgrow(box, Priority.ALWAYS);
+
+        Integer docIdInt = documentId > 0 ? (int) documentId : null;
+        UiTaskExecutor.submitLatest("doc-linkages-" + documentType + "-" + documentId + "-" + invoiceNo,
+                () -> new BankStatementApiClient().linkage(documentType, docIdInt, invoiceNo, null, null),
+                view -> {
+                    List<BankStatementApiClient.LinkageItemDto> items = view != null && view.linkages() != null ? view.linkages() : List.of();
+                    table.getItems().setAll(items);
+                    if (items.isEmpty()) {
+                        table.setPlaceholder(new Label("No linked Bank Statement, Bank Entry, Expense Entry, or Payment records found for " + safe(invoiceNo) + "."));
+                    }
+                    countLabel.setText(items.size() + " linked record(s) found • Click Payment Ref, Statement Ref, or Finance Voucher to navigate");
+                },
+                err -> {
+                    table.setPlaceholder(new Label("Unable to load linked records: " + err.getMessage()));
+                    countLabel.setText("Error loading linked records");
+                });
+        return box;
+    }
+
+    private static void navigateToStatementFromLinkage(javafx.scene.control.Dialog<?> parentDialog,
+                                                       String invoiceNo,
+                                                       BankStatementApiClient.LinkageItemDto item) {
+        if (item == null) return;
+        if (item.statementTransactionId() != null && item.statementTransactionId() > 0) {
+            if (parentDialog != null) parentDialog.close();
+            org.example.controller.LinkedRecordContext.open(
+                    "BANK_STATEMENT",
+                    item.statementTransactionId().intValue(),
+                    item.statementReference() == null || item.statementReference().isBlank() ? item.originalReference() : item.statementReference(),
+                    "VIEW",
+                    safe(invoiceNo)
+            );
+            org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/BankStatement.fxml");
+        } else {
+            String user = item.settledBy() == null || item.settledBy().isBlank() ? "ADMIN" : item.settledBy();
+            String pmtRef = item.paymentReference() == null || item.paymentReference().isBlank() ? safe(item.originalReference()) : item.paymentReference();
+            new OwnedAlert(javafx.scene.control.Alert.AlertType.WARNING,
+                    "No Bank Statement entry exists for Payment Ref " + pmtRef + " as it was settled manually by USER: " + user).showAndWait();
+        }
     }
 
     private static VBox metric(String label, String value, String style) {

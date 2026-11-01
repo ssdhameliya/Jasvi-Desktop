@@ -121,7 +121,11 @@ public final class SalesDocumentInspectionDialog {
         logisticsTab.setGraphic(IconFactory.compactIcon("delivery", 14));
         logisticsTab.setContent(buildLogisticsTabContent(currentSale));
 
-        tabPane.getTabs().addAll(itemsTab, paymentsTab, attachmentsTab, logisticsTab);
+        Tab linkagesTab = new Tab("Linked Records");
+        linkagesTab.setGraphic(IconFactory.compactIcon("link", 14));
+        linkagesTab.setContent(InvoicePaymentDetailsDialog.buildDocumentLinkagesNode(dialog, "SALE", currentSale.getId(), currentSale.getInvoiceNo()));
+
+        tabPane.getTabs().addAll(itemsTab, paymentsTab, linkagesTab, attachmentsTab, logisticsTab);
 
         // ================= ACTION DOCK =================
         HBox actionDock = buildActionDock(currentSale, resolvedSaleRef, dialog, salesService, support, onUpdated);
@@ -622,6 +626,50 @@ public final class SalesDocumentInspectionDialog {
         table.getStyleClass().addAll("approved-table", "erp-table-standard", "invoice-payment-table");
         table.setPlaceholder(Classy3DLoadingView.createTableSkeleton("Loading Payment History…", "Retrieving payment proofs, receipts, and allocations for " + sale.getInvoiceNo()));
 
+        TableColumn<SupportApiClient.PaymentRow, String> colPaymentRef = new TableColumn<>("Payment Ref");
+        colPaymentRef.setPrefWidth(155);
+        colPaymentRef.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().paymentReference())));
+        IconFactory.applyTableHeaderIcon(colPaymentRef, "link");
+        colPaymentRef.setCellFactory(c -> new TableCell<>() {
+            private final Hyperlink link = new Hyperlink();
+            {
+                link.getStyleClass().add("table-link");
+                link.setOnAction(e -> {
+                    int idx = getIndex();
+                    if (idx >= 0 && idx < getTableView().getItems().size()) {
+                        SupportApiClient.PaymentRow row = getTableView().getItems().get(idx);
+                        if (row.statementTransactionId() != null && row.statementTransactionId() > 0) {
+                            dialog.close();
+                            org.example.controller.LinkedRecordContext.open(
+                                    "BANK_STATEMENT",
+                                    row.statementTransactionId().intValue(),
+                                    row.statementReference() == null || row.statementReference().isBlank() ? row.reference() : row.statementReference(),
+                                    "VIEW",
+                                    sale.getInvoiceNo()
+                            );
+                            NavigationManager.navigateOrReport("/fxml/pages/BankStatement.fxml");
+                        } else {
+                            String user = row.createdBy() == null || row.createdBy().isBlank() ? "ADMIN" : row.createdBy();
+                            String pmtRef = row.paymentReference() == null || row.paymentReference().isBlank() ? ("#" + row.id()) : row.paymentReference();
+                            new OwnedAlert(Alert.AlertType.WARNING,
+                                    "No Bank Statement entry exists for Payment Ref " + pmtRef + " as it was settled manually by USER: " + user).showAndWait();
+                        }
+                    }
+                });
+            }
+            @Override protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null || val.isBlank() || "—".equals(val)) {
+                    setGraphic(null);
+                    setText(empty ? null : "—");
+                } else {
+                    link.setText(val);
+                    setText(null);
+                    setGraphic(link);
+                }
+            }
+        });
+
         TableColumn<SupportApiClient.PaymentRow, String> colDate = new TableColumn<>("Payment Date");
         colDate.setPrefWidth(110);
         colDate.setCellValueFactory(v -> new ReadOnlyStringWrapper(BusinessClock.formatDate(v.getValue().date())));
@@ -655,7 +703,7 @@ public final class SalesDocumentInspectionDialog {
         colNotes.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().notes())));
         IconFactory.applyTableHeaderIcon(colNotes, "notes");
 
-        table.getColumns().addAll(colDate, colRef, colParty, colMode, colAmount, colNotes);
+        table.getColumns().addAll(colPaymentRef, colDate, colRef, colParty, colMode, colAmount, colNotes);
         DynamicTableLayoutManager.install(table);
         VBox.setVgrow(table, Priority.ALWAYS);
 
@@ -681,7 +729,13 @@ public final class SalesDocumentInspectionDialog {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox footer = new HBox(12, lblHistorySummary, spacer, btnRecordPayment);
+        Button btnViewLinkages = new Button("View Linkages");
+        btnViewLinkages.setGraphic(IconFactory.compactIcon("link", 14));
+        btnViewLinkages.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnViewLinkages.setOnAction(e -> InvoicePaymentDetailsDialog.showDocumentLinkagesDialog(
+                dialog.getDialogPane(), "SALE", sale.getId(), sale.getInvoiceNo(), "Customer",
+                sale.getCustomer() != null ? sale.getCustomer().getName() : ""));
+        HBox footer = new HBox(12, lblHistorySummary, spacer, btnViewLinkages, btnRecordPayment);
         footer.setAlignment(Pos.CENTER_LEFT);
         footer.setPadding(new Insets(8, 6, 4, 6));
 

@@ -183,7 +183,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V10_0_39__bank_statement_unique_reference",
                     "db/migration/V10_0_39__bank_statement_unique_reference.sql"),
             new Migration("V10_0_40__standardize_all_27_references",
-                    "db/migration/V10_0_40__standardize_all_27_references.sql")
+                    "db/migration/V10_0_40__standardize_all_27_references.sql"),
+            new Migration("V10_0_41__standardize_all_master_and_payment_references",
+                    "db/migration/V10_0_41__standardize_all_master_and_payment_references.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

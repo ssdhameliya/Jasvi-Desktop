@@ -198,6 +198,7 @@ public class BusinessOperationsService {
  @Transactional public void cancelSale(String invoice){CurrentUser.requirePermission("SALES.EDIT","Cancel Sale");SalesHeaderEntity h=sales.findByInvoiceNoForUpdate(invoice).orElseThrow(()->new IllegalArgumentException("Sale not found: "+invoice));assertDocumentHasNoPayments("SALE",h.getId(),n(h.getPaidAmount()),h.getPaymentStatus(),"cancelled");String status=up(h.getDocumentStatus());if("DELETED".equals(status))throw new IllegalStateException("Deleted Sales invoices cannot be cancelled.");if("CANCELLED".equals(status))return;if(hasActiveReturn("SALES RETURN",h.getInvoiceNo()))throw new IllegalStateException("A Sale with an active Sales Return cannot be cancelled. Reverse/cancel the return first.");if(Boolean.TRUE.equals(h.getInventoryPosted())){restoreSaleStock(h.getId());h.setInventoryPosted(false);}h.setDocumentStatus("CANCELLED");audit.logChange("SALE",h.getId(),"CANCELLED",h.getInvoiceNo(),"Document Status",status,"CANCELLED");onBusinessDataChanged();}
  @Transactional public void markSaleEmail(int id){CurrentUser.requirePermission("SALES.EDIT","Update Sale email status");SalesHeaderEntity h=sales.findById(id).orElseThrow();h.setEmailSent(1);audit.log("SALE",h.getId(),"EMAIL_SENT",h.getInvoiceNo());}
  @Transactional public String nextSalesInvoice(){return configuredNextAtomicSql("REF_SALES","IN/DD-MM-YYYY/XXXX","sales_header","invoice_no");}
+ @Transactional public String nextPaymentReference(){return configuredNextAtomicSql("REF_PAYMENT","PRF/DD-MM-YYYY/XXXX","payment_record","payment_reference");}
  @Transactional(readOnly=true) public String previewSalesInvoice(){return configuredPreviewAtomicSql("REF_SALES","IN/DD-MM-YYYY/XXXX","sales_header","invoice_no");}
 
  @Transactional(readOnly=true) public List<OperationDtos.PurchaseDto> purchases(){
@@ -710,7 +711,7 @@ private void copySale(OperationDtos.SaleDto d,SalesHeaderEntity h){h.setInvoiceN
   return configuredReferenceSql(lookupCode,fallback,table,column,true);
  }
  private String configuredReferenceSql(String lookupCode,String fallback,String table,String column,boolean allocate){
-  Set<String> allowed=Set.of("sales_header.invoice_no","purchase_header.invoice_no","finance_register.voucher_no","journal_entry.entry_number","credit_note_header.credit_note_no","debit_note_header.debit_note_no","purchase_recon.recon_ref");
+  Set<String> allowed=Set.of("sales_header.invoice_no","purchase_header.invoice_no","finance_register.voucher_no","journal_entry.entry_number","credit_note_header.credit_note_no","debit_note_header.debit_note_no","purchase_recon.recon_ref","payment_record.payment_reference");
   if(!allowed.contains(table+"."+column))throw new IllegalArgumentException("Unsupported reference source");
   String dated=datedReferenceFormat(configuredFormat(lookupCode,fallback));Matcher sequence=ReferenceFormatRules.sequenceMatcher(dated);int width=sequence.end()-sequence.start();
   String prefix=dated.substring(0,sequence.start()),suffix=dated.substring(sequence.end());String scope=prefix+"\u0000"+suffix;String counterKey=lookupCode+"|"+UUID.nameUUIDFromBytes(scope.getBytes(java.nio.charset.StandardCharsets.UTF_8));

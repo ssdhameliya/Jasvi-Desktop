@@ -20,7 +20,7 @@ import javafx.stage.Window;
 import javafx.util.converter.DoubleStringConverter;
 import org.example.api.bank.BankStatementApiClient;
 import org.example.config.ConfigManager;
-import org.example.bank.KotakBankStatementCsvParser;
+import org.example.bank.UniversalBankStatementParser;
 import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.SessionService;
@@ -62,7 +62,7 @@ public class BankStatementController implements ScreenLifecycle {
     @FXML private TextField txtSearch,txtHistorySearch;
     @FXML private TableView<Row> table;
     @FXML private TableView<BankStatementApiClient.BatchDto> tableHistory;
-    @FXML private TableColumn<Row,String> colDate,colValueDate,colReference,colDescription,colStatus,colMatch;
+    @FXML private TableColumn<Row,String> colStatementRef,colDate,colReference,colDescription,colStatus,colMatch;
     @FXML private TableColumn<Row,Boolean> colSelect;
     @FXML private TableColumn<Row,Number> colDebit,colCredit,colBalance;
     @FXML private TableColumn<Row,Void> colAction;
@@ -172,7 +172,7 @@ public class BankStatementController implements ScreenLifecycle {
                     cmbStatus.setValue("All Status");
                     cmbDirection.setValue("All");
                     String ref = (tx.reference() != null && !tx.reference().isBlank()) ? tx.reference() : (target.documentNo() != null ? target.documentNo() : "");
-                    txtSearch.setText(ref);
+                    txtSearch.setText("");
                     fromDate.setValue(null);
                     toDate.setValue(null);
                     currentPage=0;
@@ -227,7 +227,7 @@ public class BankStatementController implements ScreenLifecycle {
         colSelect.setResizable(false);
         colSelect.getStyleClass().add("bank-select-column");
         colSelect.getProperties().put("erp-header-preserve",true);
-        colDate.setCellValueFactory(v->new SimpleStringProperty(BusinessClock.formatDate(v.getValue().date.get()))); colValueDate.setCellValueFactory(v->new SimpleStringProperty(BusinessClock.formatDate(v.getValue().valueDate.get())));
+        if(colStatementRef!=null){colStatementRef.setCellValueFactory(v->v.getValue().statementRef);colStatementRef.setMinWidth(155);colStatementRef.setPrefWidth(165);IconFactory.applyTableHeaderIcon(colStatementRef,"reference");} colDate.setCellValueFactory(v->new SimpleStringProperty(BusinessClock.formatDate(v.getValue().date.get())));
         colReference.setCellValueFactory(v->v.getValue().reference);
         colReference.setCellFactory(c -> new TableCell<Row, String>() {
             private final javafx.scene.text.Text textNode = new javafx.scene.text.Text();
@@ -885,7 +885,7 @@ public class BankStatementController implements ScreenLifecycle {
                 chkSelectAll.setSelected(false);chkSelectAll.setIndeterminate(false);updateSelectionState();
                 applyMetrics(loaded.metrics()); updatePageFooter();
                 if(pendingLinkedTransactionId!=null){
-                    Row match=rows.stream().filter(r->Objects.equals(r.dto.id(),pendingLinkedTransactionId)).findFirst().orElse(null);
+                    Row match=rows.stream().filter(r->Objects.equals(r.dto.id(),pendingLinkedTransactionId)).findFirst().orElseGet(()->{try{return new Row(api.transaction(pendingLinkedTransactionId));}catch(Exception ignored){return null;}});
                     if(match!=null){
                         table.getItems().setAll(match);
                         table.getSelectionModel().select(match);
@@ -928,7 +928,7 @@ public class BankStatementController implements ScreenLifecycle {
     @FXML private void applyFilters(){resetPageAndLoad();}
     @FXML private void resetFilters(){
         suppressFilterReload=true;
-        try{applyBatchPeriod();cmbStatus.setValue("All Status");if(cmbDirection!=null)cmbDirection.setValue("All");txtSearch.clear();currentPage=0;}
+        try{pendingLinkedTransactionId=null;applyBatchPeriod();cmbStatus.setValue("All Status");if(cmbDirection!=null)cmbDirection.setValue("All");txtSearch.clear();currentPage=0;}
         finally{suppressFilterReload=false;}
         reloadCurrentPage();
     }
@@ -1007,8 +1007,8 @@ public class BankStatementController implements ScreenLifecycle {
         Dialog<ButtonType> dialog=new OwnedDialog<>();dialog.setTitle("Bulk Move to Expense");dialog.setHeaderText(rows.size()+" selected transactions • Total ₹ "+money(rows.stream().mapToDouble(r->r.dto.debit()).sum()));
         ComboBox<String> category=new ComboBox<>(FXCollections.observableArrayList(categories));category.setPromptText("Select category *");category.setMaxWidth(Double.MAX_VALUE);
         ComboBox<String> mode=new ComboBox<>(FXCollections.observableArrayList(modes));if(!modes.isEmpty())mode.getSelectionModel().selectFirst();mode.setMaxWidth(Double.MAX_VALUE);
-        TextField account=new TextField(batchAccountName());TextArea notes=new TextArea();notes.setPromptText("Optional note applied to all selected transactions");notes.setPrefRowCount(2);
-        GridPane grid=new GridPane();grid.setHgap(10);grid.setVgap(10);grid.addRow(0,new Label("Expense Category *"),category);grid.addRow(1,new Label("Bank Account"),account);grid.addRow(2,new Label("Payment Mode"),mode);grid.addRow(3,new Label("Common Note"),notes);GridPane.setHgrow(category,Priority.ALWAYS);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);grid.setPrefWidth(560);
+        TextField account=new TextField(batchAccountName());TextArea notes=new TextArea();notes.setPromptText("Optional note applied to all selected transactions");notes.setPrefRowCount(3);notes.setWrapText(true);notes.setMinHeight(84);notes.setPrefHeight(92);notes.setStyle("-fx-text-fill: -fx-text-base-color; -fx-font-size: 13px;");
+        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lCat=new Label("Expense Category *");lCat.setMinWidth(Region.USE_PREF_SIZE);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lCat,category);grid.addRow(1,lAcc,account);grid.addRow(2,lMode,mode);grid.addRow(3,lNote,notes);GridPane.setHgrow(category,Priority.ALWAYS);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(240);dialog.getDialogPane().setMinWidth(640);dialog.getDialogPane().setPrefWidth(660);
         dialog.getDialogPane().setContent(grid);ButtonType move=new ButtonType("Move "+rows.size()+" Entries",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL,move);
         Node moveButton=dialog.getDialogPane().lookupButton(move);moveButton.addEventFilter(javafx.event.ActionEvent.ACTION,e->{if(category.getValue()==null||category.getValue().isBlank()){e.consume();info("Category required","Select one Expense Category. The same category will be applied to every selected transaction.");}});
         dialog.showAndWait().filter(move::equals).ifPresent(x->{
@@ -1021,8 +1021,8 @@ public class BankStatementController implements ScreenLifecycle {
     private void showBulkBankEntryDialog(List<Row> rows,List<String> modes){
         Dialog<ButtonType> dialog=new OwnedDialog<>();dialog.setTitle("Bulk Move to Bank Entry");dialog.setHeaderText(rows.size()+" selected transactions • Total ₹ "+money(rows.stream().mapToDouble(r->bankAmount(r.dto)).sum()));
         TextField account=new TextField(batchAccountName());ComboBox<String> mode=new ComboBox<>(FXCollections.observableArrayList(modes));if(!modes.isEmpty())mode.getSelectionModel().selectFirst();mode.setMaxWidth(Double.MAX_VALUE);
-        TextArea notes=new TextArea();notes.setPromptText("Optional note applied to all selected transactions");notes.setPrefRowCount(2);
-        GridPane grid=new GridPane();grid.setHgap(10);grid.setVgap(10);grid.addRow(0,new Label("Bank Account"),account);grid.addRow(1,new Label("Payment Mode"),mode);grid.addRow(2,new Label("Common Note"),notes);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);grid.setPrefWidth(560);
+        TextArea notes=new TextArea();notes.setPromptText("Optional note applied to all selected transactions");notes.setPrefRowCount(3);notes.setWrapText(true);notes.setMinHeight(84);notes.setPrefHeight(92);notes.setStyle("-fx-text-fill: -fx-text-base-color; -fx-font-size: 13px;");
+        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lAcc,account);grid.addRow(1,lMode,mode);grid.addRow(2,lNote,notes);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(210);dialog.getDialogPane().setMinWidth(640);dialog.getDialogPane().setPrefWidth(660);
         dialog.getDialogPane().setContent(grid);ButtonType move=new ButtonType("Move "+rows.size()+" Entries",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL,move);
         dialog.showAndWait().filter(move::equals).ifPresent(x->{
             List<Long> ids=rows.stream().map(r->r.dto.id()).toList();String performedBy=user();
@@ -1302,7 +1302,7 @@ public class BankStatementController implements ScreenLifecycle {
             String chipClass = chipClassFor(type);
             double amt = a.allocatedAmount();
             double roundOff = a.roundingAdjustment();
-            list.add(new LinkedTargetItem(role, docNo, type, typeLabel, amt, roundOff, "link", chipClass, () -> openAllocation(a, "Bank Statement #" + t.id())));
+            list.add(new LinkedTargetItem(role, docNo, type, typeLabel, amt, roundOff, "link", chipClass, () -> openAllocation(a, "Bank Statement #" + t.id()))); if (a.paymentReference() != null && !a.paymentReference().isBlank()) { String payRef = a.paymentReference(); String payType = "PURCHASE".equals(type) ? "PURCHASE_PAYMENT" : "SALE_PAYMENT"; String payLabel = "PURCHASE".equals(type) ? "Purchase Payment Ref" : "Sales Payment Ref"; list.add(new LinkedTargetItem("Payment Reference", payRef, payType, payLabel, amt, roundOff, "payment", "finance-chip-blue", () -> openLinkedTarget(payType, a.targetId(), docNo, payRef, row))); }
         }
         if (list.isEmpty() && t.linkedTargetType() != null && !t.linkedTargetType().isBlank()) {
             String type = up(t.linkedTargetType());
@@ -1518,13 +1518,13 @@ public class BankStatementController implements ScreenLifecycle {
         if("SALES_RETURN".equals(t)) return "View Sales Return";
         if("PURCHASE_RETURN".equals(t)) return "View Purchase Return";
         if("BANK_ENTRY".equals(t)) return "View Bank Entry";
-        if("EXPENSE".equals(t)) return "View Expense";
+        if("EXPENSE".equals(t)) return "View Expense"; if("SALE_PAYMENT".equals(t)||"PURCHASE_PAYMENT".equals(t)) return "View Payment";
         return "View";
     }
 
     private void openAllocation(BankStatementApiClient.AllocationDto allocation,String source){if(allocation==null)return;String type=up(allocation.targetType());Integer id=("EXPENSE".equals(type)||"BANK_ENTRY".equals(type))&&allocation.financeEntryId()!=null?allocation.financeEntryId():allocation.targetId();openLinkedTarget(type,id,safe(allocation.documentNo()),source,null);}
     private void openLinkedTarget(String type,Integer id,String documentNo,String source,Row row){
-        if("EXPENSE".equals(type)){Integer financeId=row!=null&&row.dto.financeEntryId()!=null?row.dto.financeEntryId():id;BankExpenseController.requestLinkedEntry(BankExpenseController.Mode.EXPENSE,financeId);DashboardController.navigateFromChild("Expense Entry","/fxml/pages/BankExpense.fxml",BankExpenseController.Mode.EXPENSE);return;}
+        if("SALE_PAYMENT".equals(type)){if(documentNo!=null&&!documentNo.isBlank())SalesScreenContext.select(documentNo);DashboardController.navigateFromChild("Record Payment","/fxml/pages/RecordPayment.fxml",null);return;} if("PURCHASE_PAYMENT".equals(type)){if(documentNo!=null&&!documentNo.isBlank())PurchaseScreenContext.select(documentNo);DashboardController.navigateFromChild("Purchase Payment","/fxml/pages/PurchasePayment.fxml",null);return;} if("EXPENSE".equals(type)){Integer financeId=row!=null&&row.dto.financeEntryId()!=null?row.dto.financeEntryId():id;BankExpenseController.requestLinkedEntry(BankExpenseController.Mode.EXPENSE,financeId);DashboardController.navigateFromChild("Expense Entry","/fxml/pages/BankExpense.fxml",BankExpenseController.Mode.EXPENSE);return;}
         if("BANK_ENTRY".equals(type)){Integer financeId=row!=null&&row.dto.financeEntryId()!=null?row.dto.financeEntryId():id;BankExpenseController.requestLinkedEntry(BankExpenseController.Mode.BANK,financeId);DashboardController.navigateFromChild("Bank Entry","/fxml/pages/BankExpense.fxml",BankExpenseController.Mode.BANK);return;}
         if("SALE".equals(type)){
             if(documentNo.isBlank()){org.example.util.AppDialogService.warning(table,"Linked record unavailable","Sale document not found","The linked Sale no longer has a usable invoice number.");return;}
@@ -1563,7 +1563,7 @@ public class BankStatementController implements ScreenLifecycle {
     private void viewEdit(Row row){
         var t=row.dto;
         GridPane grid=new GridPane(); grid.setHgap(14); grid.setVgap(8); grid.getStyleClass().add("bank-dialog-grid");
-        int r=0; addDialogRow(grid,r++,"Transaction Date",safe(t.transactionDate())); addDialogRow(grid,r++,"Value Date",safe(t.valueDate()));
+        int r=0; addDialogRow(grid,r++,"Statement Ref",safe(t.statementReference())); addDialogRow(grid,r++,"Transaction Date",safe(t.transactionDate()));
         addDialogRow(grid,r++,"Reference / Cheque",safe(t.reference())); addDialogRow(grid,r++,"Description / Narration",safe(t.description()));
         addDialogRow(grid,r++,"Debit",money(t.debit())); addDialogRow(grid,r++,"Credit",money(t.credit())); addDialogRow(grid,r++,"Balance",money(t.balance()));
         addDialogRow(grid,r++,"Reconciliation Status",safe(t.status())); addDialogRow(grid,r++,"Match / Link",safe(t.matchLink()).isBlank()?"Not linked yet":safe(t.matchLink()));
@@ -1680,8 +1680,8 @@ public class BankStatementController implements ScreenLifecycle {
     private record MatchWorkspaceData(List<BankStatementApiClient.CandidateDto> candidates,double roundingTolerance) { }
 
     public static final class Row{
-        final BankStatementApiClient.TransactionDto dto;final BooleanProperty selected=new SimpleBooleanProperty(false);final StringProperty date,valueDate,reference,description,status,match;final DoubleProperty debit,credit,balance;
-        Row(BankStatementApiClient.TransactionDto t){dto=t;date=new SimpleStringProperty(safe(t.transactionDate()));valueDate=new SimpleStringProperty(safe(t.valueDate()));reference=new SimpleStringProperty(safe(t.reference()));description=new SimpleStringProperty(safe(t.description()));status=new SimpleStringProperty(safe(t.status()));match=new SimpleStringProperty(safe(t.matchLink()));debit=new SimpleDoubleProperty(t.debit());credit=new SimpleDoubleProperty(t.credit());balance=new SimpleDoubleProperty(t.balance());}
+        final BankStatementApiClient.TransactionDto dto;final BooleanProperty selected=new SimpleBooleanProperty(false);final StringProperty statementRef,date,valueDate,reference,description,status,match;final DoubleProperty debit,credit,balance;
+        Row(BankStatementApiClient.TransactionDto t){dto=t;statementRef=new SimpleStringProperty(safe(t.statementReference()));date=new SimpleStringProperty(safe(t.transactionDate()));valueDate=new SimpleStringProperty(safe(t.valueDate()));reference=new SimpleStringProperty(safe(t.reference()));description=new SimpleStringProperty(safe(t.description()));status=new SimpleStringProperty(safe(t.status()));match=new SimpleStringProperty(safe(t.matchLink()));debit=new SimpleDoubleProperty(t.debit());credit=new SimpleDoubleProperty(t.credit());balance=new SimpleDoubleProperty(t.balance());}
     }
 
     private static final class CandidateRow{

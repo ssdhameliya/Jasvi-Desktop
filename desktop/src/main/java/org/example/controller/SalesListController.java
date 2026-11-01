@@ -403,7 +403,13 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
         MenuItem cancel = salesActionItem("Cancel Sale", "cancel", () -> cancelSale(requireSalesActionTarget(target)));
         MenuItem delete = salesActionItem("Delete Sale", "delete", () -> delete(requireSalesActionTarget(target)));
         delete.getStyleClass().add("danger-menu-item");
-        sharedMenu.getItems().setAll(view,audit,edit,duplicate,print,barcode,excel,email,whatsapp,payment,createReturn,cancel,delete);
+        MenuItem linkages = salesActionItem("View Linkages", "link", () -> {
+            Sales row = requireSalesActionTarget(target);
+            org.example.util.InvoicePaymentDetailsDialog.showDocumentLinkagesDialog(
+                    tableSales, "SALE", row.getId(), row.getInvoiceNo(), "Customer",
+                    row.getCustomer() != null ? row.getCustomer().getName() : "");
+        });
+        sharedMenu.getItems().setAll(view,linkages,audit,edit,duplicate,print,barcode,excel,email,whatsapp,payment,createReturn,cancel,delete);
         IconFactory.decorateActionMenu(sharedMenu);
 
         java.util.function.Consumer<Sales> updateAvailability = current -> {

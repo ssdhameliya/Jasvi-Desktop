@@ -46,7 +46,7 @@ public final class ImportMappingSupport {
             case "igst" -> normalizedHeader.equals("integratedtax") || normalizedHeader.equals("igst") || normalizedHeader.equals("igstamount");
             case "invoicevalue" -> normalizedHeader.equals("invoicevalue") || normalizedHeader.equals("invoicetotal") || normalizedHeader.equals("totalinvoicevalue");
             case "isactive" -> normalizedHeader.equals("active") || normalizedHeader.equals("status");
-            case "transactiondate" -> normalizedHeader.equals("transactiondate");
+            case "transactiondate" -> normalizedHeader.equals("transactiondate") || normalizedHeader.equals("date") || normalizedHeader.equals("txndate") || normalizedHeader.equals("paymentdate");
             case "valuedate" -> normalizedHeader.equals("valuedate");
             case "reference" -> normalizedHeader.equals("chqrefno") || normalizedHeader.equals("referenceno");
             case "amount" -> normalizedHeader.equals("amount");

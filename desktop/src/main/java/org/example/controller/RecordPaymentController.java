@@ -45,8 +45,12 @@ import java.util.stream.Collectors;
 
 public class RecordPaymentController implements ScreenLifecycle {
     private final SupportApiClient supportApi = new SupportApiClient();
-    public record PaymentRow(int id, String date, String reference, String from, String mode,
-                             double amount, String status, String notes, String receiptPath, String paymentType, long rowVersion) {}
+    public record PaymentRow(int id, String date, String reference, String from, String mode, double amount, String status, String notes, String receiptPath, String paymentType, long rowVersion, String paymentReference, String createdBy, Long statementTransactionId, String statementReference) {
+        public PaymentRow(int id, String date, String reference, String from, String mode, double amount, String status, String notes, String receiptPath, String paymentType, long rowVersion) {
+            this(id, date, reference, from, mode, amount, status, notes, receiptPath, paymentType, rowVersion, "", "", null, "");
+        }
+    } //
+
 
     @FXML private Label invoiceNo, invoiceStatus, customer, customerPhone, customerEmail, invoiceDate, dueDate,
             total, paid, balance, after, summaryTotal, summaryPaid, summaryBalance, paidPercent,
@@ -183,6 +187,36 @@ public class RecordPaymentController implements ScreenLifecycle {
     }
 
     private void configureHistoryTable() {
+        if (historyTable.getColumns().stream().noneMatch(c -> "Payment Ref".equals(c.getText()))) {
+            TableColumn<PaymentRow, String> historyPaymentRef = new TableColumn<>("Payment Ref");
+            historyPaymentRef.setPrefWidth(155);
+            IconFactory.applyTableHeaderIcon(historyPaymentRef, "link");
+            historyPaymentRef.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().paymentReference() == null || v.getValue().paymentReference().isBlank() ? "—" : v.getValue().paymentReference()));
+            historyPaymentRef.setCellFactory(c -> new TableCell<>() {
+                private final Hyperlink link = new Hyperlink();
+                {
+                    link.getStyleClass().add("table-link");
+                    link.setOnAction(e -> {
+                        int idx = getIndex();
+                        if (idx >= 0 && idx < getTableView().getItems().size()) {
+                            openPaymentRefBankStatement(getTableView().getItems().get(idx));
+                        }
+                    });
+                }
+                @Override protected void updateItem(String val, boolean empty) {
+                    super.updateItem(val, empty);
+                    if (empty || val == null || val.isBlank() || "—".equals(val)) {
+                        setGraphic(null);
+                        setText(empty ? null : "—");
+                    } else {
+                        link.setText(val);
+                        setText(null);
+                        setGraphic(link);
+                    }
+                }
+            });
+            historyTable.getColumns().add(0, historyPaymentRef);
+        }
         historyDate.setCellValueFactory(v->new SimpleStringProperty(v.getValue().date()));
         historyReference.setCellValueFactory(v->new SimpleStringProperty(v.getValue().reference()));
         historyFrom.setCellValueFactory(v->new SimpleStringProperty(v.getValue().from()));
@@ -220,6 +254,25 @@ public class RecordPaymentController implements ScreenLifecycle {
                 setGraphic(actions);
             }
         });
+    }
+
+    private void openPaymentRefBankStatement(PaymentRow row) {
+        if (row == null) return;
+        if (row.statementTransactionId() != null && row.statementTransactionId() > 0) {
+            org.example.controller.LinkedRecordContext.open(
+                    "BANK_STATEMENT",
+                    row.statementTransactionId().intValue(),
+                    row.statementReference() == null || row.statementReference().isBlank() ? row.reference() : row.statementReference(),
+                    "VIEW",
+                    "Record Payment"
+            );
+            NavigationManager.getInstance().loadPage("/fxml/pages/BankStatement.fxml");
+        } else {
+            String user = row.createdBy() == null || row.createdBy().isBlank() ? "ADMIN" : row.createdBy();
+            String pmtRef = row.paymentReference() == null || row.paymentReference().isBlank() ? ("#" + row.id()) : row.paymentReference();
+            new OwnedAlert(Alert.AlertType.WARNING,
+                    "No Bank Statement entry exists for Payment Ref " + pmtRef + " as it was settled manually by USER: " + user).showAndWait();
+        }
     }
 
     private void refreshInvoiceAmounts() {
@@ -319,7 +372,7 @@ public class RecordPaymentController implements ScreenLifecycle {
             () -> supportApi.payments("SALE",saleId),
             rows -> {
                 allPayments.clear();
-                for(var r:rows)allPayments.add(new PaymentRow(r.id(),r.date(),safe(r.reference()),safeOr(r.receivedFrom(),customerName),safe(r.mode()),r.amount(),"Recorded",safe(r.notes()),safe(r.attachment()),safe(r.paymentType()),r.rowVersion()));
+                for(var r:rows)allPayments.add(new PaymentRow(r.id(),r.date(),safe(r.reference()),safeOr(r.receivedFrom(),customerName),safe(r.mode()),r.amount(),"Recorded",safe(r.notes()),safe(r.attachment()),safe(r.paymentType()),r.rowVersion(),safe(r.paymentReference()),safe(r.createdBy()),r.statementTransactionId(),safe(r.statementReference())));
                 historyCount.setText(allPayments.size()+" Payment"+(allPayments.size()==1?"":"s"));applyHistoryFilter();refreshTimeline();
             },
             failure -> new OwnedAlert(Alert.AlertType.ERROR,message(failure)).showAndWait()

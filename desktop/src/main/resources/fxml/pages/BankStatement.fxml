@@ -66,8 +66,8 @@
           <TableView fx:id="table" VBox.vgrow="ALWAYS" styleClass="approved-table,bank-recon-table,erp-table-profile-responsive">
             <columns>
               <TableColumn fx:id="colSelect" text="" resizable="false" sortable="false"/>
+              <TableColumn fx:id="colStatementRef" text="Statement Ref"/>
               <TableColumn fx:id="colDate" text="Date"/>
-              <TableColumn fx:id="colValueDate" text="Value Date"/>
               <TableColumn fx:id="colReference" text="Reference / Cheque No."/>
               <TableColumn fx:id="colDescription" text="Description / Narration"/>
               <TableColumn fx:id="colDebit" text="Debit"/>

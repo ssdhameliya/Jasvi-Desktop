@@ -102,6 +102,18 @@ public class MasterDataService {
         ensureReferenceFormat("REF_LOOKUP_ACCOUNT_TYPE","ACT/DD-MM-YYYY/XXXX","Account Type Master code reference",345);
         ensureReferenceFormat("REF_LOOKUP_QUOTATION_SOURCE","QTS/DD-MM-YYYY/XXXX","Quotation Source Master code reference",350);
         ensureReferenceFormat("REF_LOOKUP_REFERENCE_FORMAT","RFM/DD-MM-YYYY/XXXX","Reference Format Master code reference",360);
+        ensureReferenceFormat("REF_PAYMENT","PRF/DD-MM-YYYY/XXXX","Payment settlement reference (Sales & Purchase)",91);
+        ensureReferenceFormat("REF_CREDIT_NOTE","CN/DD-MM-YYYY/XXXX","Sales Credit Note reference",45);
+        ensureReferenceFormat("REF_DEBIT_NOTE","DN/DD-MM-YYYY/XXXX","Purchase Debit Note reference",55);
+        ensureReferenceFormat("REF_LOOKUP_BUSINESS_TYPE","BUS/DD-MM-YYYY/XXXX","Business Type Master code reference",365);
+        ensureReferenceFormat("REF_LOOKUP_INDUSTRY","IND/DD-MM-YYYY/XXXX","Industry Master code reference",370);
+        ensureReferenceFormat("REF_LOOKUP_CURRENCY","CCY/DD-MM-YYYY/XXXX","Currency Master code reference",375);
+        ensureReferenceFormat("REF_LOOKUP_TIME_ZONE","TMZ/DD-MM-YYYY/XXXX","Time Zone Master code reference",380);
+        ensureReferenceFormat("REF_LOOKUP_DATE_FORMAT","DTF/DD-MM-YYYY/XXXX","Date Format Master code reference",385);
+        ensureReferenceFormat("REF_LOOKUP_TIME_FORMAT","TMF/DD-MM-YYYY/XXXX","Time Format Master code reference",390);
+        ensureReferenceFormat("REF_LOOKUP_REFERENCE_SCHEME","SCH/DD-MM-YYYY/XXXX","Reference Scheme Master code reference",395);
+        ensureReferenceFormat("REF_LOOKUP_CREDIT_NOTE_REASON","CNR/DD-MM-YYYY/XXXX","Credit Note Reason Master code reference",400);
+        ensureReferenceFormat("REF_LOOKUP_DEBIT_NOTE_REASON","DNR/DD-MM-YYYY/XXXX","Debit Note Reason Master code reference",405);
     }
 
     private void ensureCategory(String code,String name,String description,int order){
@@ -238,7 +250,7 @@ public class MasterDataService {
     private String previewPartyCode(String type) {
         String t = normal(type);
         String key = "CUSTOMER".equals(t) ? "REF_CUSTOMER" : "REF_SUPPLIER";
-        String fallback = "CUSTOMER".equals(t) ? "CUSXXX" : "SUPXXX";
+        String fallback = "CUSTOMER".equals(t) ? "CUS/DD-MM-YYYY/XXXX" : "SUP/DD-MM-YYYY/XXXX";
         List<String> existing = parties.findByPartyTypeOrderByNameAsc(t).stream().map(PartyEntity::getPartyCode).filter(Objects::nonNull).toList();
         return referenceNumbers.previewConfiguredReference(key, fallback, existing);
     }
@@ -246,7 +258,7 @@ public class MasterDataService {
     private String allocatePartyCode(String type) {
         String t = normal(type);
         String key = "CUSTOMER".equals(t) ? "REF_CUSTOMER" : "REF_SUPPLIER";
-        String fallback = "CUSTOMER".equals(t) ? "CUSXXX" : "SUPXXX";
+        String fallback = "CUSTOMER".equals(t) ? "CUS/DD-MM-YYYY/XXXX" : "SUP/DD-MM-YYYY/XXXX";
         List<String> existing = parties.findByPartyTypeOrderByNameAsc(t).stream().map(PartyEntity::getPartyCode).filter(Objects::nonNull).toList();
         return referenceNumbers.nextConfiguredReference(key, fallback, existing);
     }
@@ -312,7 +324,7 @@ public class MasterDataService {
         copy(d, e, true);
         if (e.getItemCode() == null || e.getItemCode().isBlank()) {
             List<String> existing = items.findAll().stream().map(ItemEntity::getItemCode).filter(Objects::nonNull).toList();
-            e.setItemCode(referenceNumbers.nextConfiguredReference("REF_ITEM", "ITMXXX", existing));
+            e.setItemCode(referenceNumbers.nextConfiguredReference("REF_ITEM", "ITM/DD-MM-YYYY/XXXX", existing));
         }
         e = items.saveAndFlush(e);
         audit.logChanges("ITEM", e.getId(), "CREATED", e.getItemCode(), List.of(
@@ -453,7 +465,7 @@ public class MasterDataService {
     @Transactional(readOnly = true)
     public String nextItemCode() {
         List<String> existing = items.findAll().stream().map(ItemEntity::getItemCode).filter(Objects::nonNull).toList();
-        return referenceNumbers.previewConfiguredReference("REF_ITEM", "ITMXXX", existing);
+        return referenceNumbers.previewConfiguredReference("REF_ITEM", "ITM/DD-MM-YYYY/XXXX", existing);
     }
 
     @Transactional(readOnly = true)
@@ -539,6 +551,18 @@ public class MasterDataService {
         prefixMap.put("REF_LOOKUP_QUOTATION_SOURCE", "QTS");
         prefixMap.put("REF_LOOKUP_REFERENCE_FORMAT", "RFM");
         prefixMap.put("REF_LOOKUP_ACCOUNT_TYPE", "ACT");
+        prefixMap.put("REF_PAYMENT", "PRF");
+        prefixMap.put("REF_CREDIT_NOTE", "CN");
+        prefixMap.put("REF_DEBIT_NOTE", "DN");
+        prefixMap.put("REF_LOOKUP_BUSINESS_TYPE", "BUS");
+        prefixMap.put("REF_LOOKUP_INDUSTRY", "IND");
+        prefixMap.put("REF_LOOKUP_CURRENCY", "CCY");
+        prefixMap.put("REF_LOOKUP_TIME_ZONE", "TMZ");
+        prefixMap.put("REF_LOOKUP_DATE_FORMAT", "DTF");
+        prefixMap.put("REF_LOOKUP_TIME_FORMAT", "TMF");
+        prefixMap.put("REF_LOOKUP_REFERENCE_SCHEME", "SCH");
+        prefixMap.put("REF_LOOKUP_CREDIT_NOTE_REASON", "CNR");
+        prefixMap.put("REF_LOOKUP_DEBIT_NOTE_REASON", "DNR");
 
         MasterCategoryEntity category = categories.findByCategoryCode("REFERENCE_FORMAT").orElse(null);
         if (category != null) {
@@ -696,14 +720,14 @@ public class MasterDataService {
         LookupNumberingScope scope = lookupNumberingScope(type);
         List<String> existing = lookups.findByLookupTypeOrderByLookupCodeDesc(scope.lookupType()).stream()
                 .map(LookupEntity::getLookupCode).filter(Objects::nonNull).toList();
-        return referenceNumbers.previewConfiguredReference(scope.referenceKey(), scope.prefix() + "XXX", existing);
+        return referenceNumbers.previewConfiguredReference(scope.referenceKey(), scope.prefix() + "/DD-MM-YYYY/XXXX", existing);
     }
 
     private String allocateLookupCode(String type) {
         LookupNumberingScope scope = lookupNumberingScope(type);
         List<String> existing = lookups.findByLookupTypeOrderByLookupCodeDesc(scope.lookupType()).stream()
                 .map(LookupEntity::getLookupCode).filter(Objects::nonNull).toList();
-        return referenceNumbers.nextConfiguredReference(scope.referenceKey(), scope.prefix() + "XXX", existing);
+        return referenceNumbers.nextConfiguredReference(scope.referenceKey(), scope.prefix() + "/DD-MM-YYYY/XXXX", existing);
     }
 
     /**
@@ -743,6 +767,15 @@ public class MasterDataService {
             case "ACCOUNT_TYPE" -> "ACT";
             case "QUOTATION_SOURCE" -> "QTS";
             case "REFERENCE_FORMAT" -> "RFM";
+            case "BUSINESS_TYPE" -> "BUS";
+            case "INDUSTRY" -> "IND";
+            case "CURRENCY" -> "CCY";
+            case "TIME_ZONE", "TIMEZONE" -> "TMZ";
+            case "DATE_FORMAT" -> "DTF";
+            case "TIME_FORMAT" -> "TMF";
+            case "REFERENCE_SCHEME" -> "SCH";
+            case "CREDIT_NOTE_REASON" -> "CNR";
+            case "DEBIT_NOTE_REASON" -> "DNR";
             default -> derivedMasterPrefix(categoryCode);
         };
     }

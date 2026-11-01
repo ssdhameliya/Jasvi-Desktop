@@ -2,14 +2,17 @@ package org.example.server.support;
 
 import org.example.server.persistence.JpaNativeRepository;
 import org.example.server.audit.AuditService;
+import org.example.server.operations.BusinessOperationsService;
 import org.example.server.security.CurrentUser;
 import org.example.server.util.BusinessClock;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
@@ -19,10 +22,17 @@ public class PaymentIntegrityService {
     private static final BigDecimal ZERO = new BigDecimal("0.00");
     private final JpaNativeRepository jdbc;
     private final AuditService audit;
+    private final BusinessOperationsService operations;
 
     public PaymentIntegrityService(JpaNativeRepository jdbc, AuditService audit) {
+        this(jdbc, audit, null);
+    }
+
+    @Autowired
+    public PaymentIntegrityService(JpaNativeRepository jdbc, AuditService audit, BusinessOperationsService operations) {
         this.jdbc = jdbc;
         this.audit = audit;
+        this.operations = operations;
     }
 
     @Transactional
@@ -59,9 +69,12 @@ public class PaymentIntegrityService {
         if (amount.compareTo(outstanding) > 0)
             throw new IllegalArgumentException("Payment exceeds the outstanding balance of " + outstanding.toPlainString());
 
-        Integer paymentId = jdbc.queryForObject("INSERT INTO payment_record(document_type,document_id,payment_date,amount,payment_mode,reference_no," +
-                        "notes,received_from,payment_type,attachment_path,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id", Integer.class,
-                type.name(), request.documentId(), date, amount, mode, clean(request.reference()), clean(request.notes()),
+        String paymentReference = operations != null
+                ? operations.nextPaymentReference()
+                : "PRF/" + date.format(DateTimeFormatter.ofPattern("dd-MM-uuuu")) + "/" + String.format(Locale.ROOT, "%04d", nextFallbackSequence());
+        Integer paymentId = jdbc.queryForObject("INSERT INTO payment_record(document_type,document_id,payment_date,amount,payment_mode,reference_no,payment_reference," +
+                        "notes,received_from,payment_type,attachment_path,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id", Integer.class,
+                type.name(), request.documentId(), date, amount, mode, clean(request.reference()), paymentReference, clean(request.notes()),
                 clean(request.receivedFrom()), paymentType, null, CurrentUser.require().username());
         BigDecimal paid = authoritativePaid.add(amount).setScale(2, RoundingMode.HALF_UP);
         boolean isChequePdc = (mode != null && (mode.equalsIgnoreCase("Cheque") || mode.equalsIgnoreCase("PDC")))
@@ -73,12 +86,22 @@ public class PaymentIntegrityService {
         if (paymentId == null || paymentId <= 0) throw new IllegalStateException("Payment id was not returned after saving");
         org.example.server.insights.InsightsService.invalidateDashboardCache();
         audit.logChanges(type.name(), request.documentId(), "PAYMENT_RECORDED",
-                "Payment #"+paymentId+" • "+mode+" • "+amount.toPlainString(),
-                List.of(new AuditService.Change("Payment Status", paymentStatus(authoritativePaid,target.total), status),
+                "Payment " + paymentReference + " (#" + paymentId + ") • " + mode + " • " + amount.toPlainString(),
+                List.of(new AuditService.Change("Payment Status", paymentStatus(authoritativePaid, target.total), status),
                         new AuditService.Change("Payment Amount", "0.00", amount.toPlainString()),
                         new AuditService.Change("Payment Mode", null, mode),
-                        new AuditService.Change("Payment Reference", null, clean(request.reference()))));
+                        new AuditService.Change("Payment Reference", null, paymentReference),
+                        new AuditService.Change("Bank / Reference No.", null, clean(request.reference()))));
         return paymentId;
+    }
+
+    private int nextFallbackSequence() {
+        try {
+            Integer maxId = jdbc.queryForObject("SELECT COALESCE(MAX(id), 0) + 1 FROM payment_record", Integer.class);
+            return maxId == null || maxId <= 0 ? 1 : maxId;
+        } catch (Exception ignored) {
+            return 1;
+        }
     }
 
     @Transactional
@@ -155,7 +178,7 @@ public class PaymentIntegrityService {
                 + "; new amount=" + newAmount.toPlainString() + "; difference=" + difference.toPlainString();
         audit.logChanges(existing.type.name(), existing.documentId, "PAYMENT_EDITED", detail,
                 List.of(new AuditService.Change("Payment Amount", existing.amount.toPlainString(), newAmount.toPlainString()),
-                        new AuditService.Change("Payment Status", paymentStatus(oldAuthoritativePaid,target.total), status),
+                        new AuditService.Change("Payment Status", paymentStatus(oldAuthoritativePaid, target.total), status),
                         new AuditService.Change("Payment Mode", null, paymentMode)));
     }
 
@@ -164,7 +187,7 @@ public class PaymentIntegrityService {
         if (paymentId <= 0) throw new IllegalArgumentException("A valid payment is required");
         List<AttachmentPayment> payments = jdbc.query(
                 "SELECT document_type,document_id,COALESCE(payment_type,'PARTIAL'),COALESCE(attachment_path,'') FROM payment_record WHERE id=? FOR UPDATE",
-                (row,index) -> new AttachmentPayment(DocumentType.parse(row.getString(1)),row.getInt(2),clean(row.getString(3)),clean(row.getString(4))),
+                (row, index) -> new AttachmentPayment(DocumentType.parse(row.getString(1)), row.getInt(2), clean(row.getString(3)), clean(row.getString(4))),
                 paymentId);
         if (payments.isEmpty()) throw new IllegalArgumentException("Payment record was not found");
         AttachmentPayment existing = payments.getFirst();
@@ -178,12 +201,6 @@ public class PaymentIntegrityService {
                 "Payment Proof", existing.attachmentPath, clean(path));
     }
 
-
-    /**
-     * One authoritative settlement total for ordinary and bank-reconciled payments.
-     * Active reconciliation rounding adjustments belong to the effective payment even
-     * when an unrelated ordinary payment is edited later.
-     */
     private BigDecimal effectivePaid(DocumentType type, int documentId, Integer excludedPaymentId) {
         String exclusion = excludedPaymentId == null ? "" : " AND p.id<>?";
         Object[] paymentArgs = excludedPaymentId == null
@@ -253,14 +270,9 @@ public class PaymentIntegrityService {
         return status.equals("DRAFT");
     }
 
-    private record Target(BigDecimal total, BigDecimal paid, String status) {
-    }
-
-    private record ExistingPayment(DocumentType type, int documentId, BigDecimal amount, String paymentType, long rowVersion) {
-    }
-
-    private record AttachmentPayment(DocumentType type, int documentId, String paymentType, String attachmentPath) {
-    }
+    private record Target(BigDecimal total, BigDecimal paid, String status) {}
+    private record ExistingPayment(DocumentType type, int documentId, BigDecimal amount, String paymentType, long rowVersion) {}
+    private record AttachmentPayment(DocumentType type, int documentId, String paymentType, String attachmentPath) {}
 
     private enum DocumentType {
         SALE("sales_header", "Sales"), PURCHASE("purchase_header", "Purchase");
@@ -273,4 +285,3 @@ public class PaymentIntegrityService {
         }
     }
 }
-

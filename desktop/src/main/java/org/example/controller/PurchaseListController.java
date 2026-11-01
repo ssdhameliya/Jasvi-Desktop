@@ -141,7 +141,13 @@ public class PurchaseListController implements ScreenLifecycle{
   deleteActionItem = purchaseActionItem("Delete Purchase", "delete", () -> delete(requirePurchaseActionTarget(target)));
   deleteActionItem.getStyleClass().add("danger-menu-item");
 
-  sharedMenu.getItems().setAll(view, audit, editActionItem, duplicate, pdf, barcode, excel, email, whatsapp, paymentActionItem, returnActionItem, notes, cancelActionItem, deleteActionItem);
+  MenuItem linkages = purchaseActionItem("View Linkages", "link", () -> {
+   Purchase row = requirePurchaseActionTarget(target);
+   org.example.util.InvoicePaymentDetailsDialog.showDocumentLinkagesDialog(
+           tablePurchase, "PURCHASE", row.getId(), row.getInvoiceNo(), "Supplier",
+           row.getSupplier() != null ? row.getSupplier().getName() : "");
+  });
+  sharedMenu.getItems().setAll(view, linkages, audit, editActionItem, duplicate, pdf, barcode, excel, email, whatsapp, paymentActionItem, returnActionItem, notes, cancelActionItem, deleteActionItem);
   IconFactory.decorateActionMenu(sharedMenu);
 
   java.util.function.Consumer<Purchase> updateAvailability = current -> {

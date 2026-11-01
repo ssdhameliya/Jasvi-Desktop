@@ -13,7 +13,11 @@ public final class BankReconciliationDtos {
  }
  public record BatchPage(List<BatchDto> rows,int page,int size,long totalRows,int totalPages){}
  public record SourceDto(String fileName,String fingerprint,String csvContent){}
- public record AllocationDto(Long allocationId,String targetType,Integer targetId,String documentNo,double allocatedAmount,double roundingAdjustment,Integer paymentRecordId,Integer financeEntryId){}
+ public record AllocationDto(Long allocationId,String targetType,Integer targetId,String documentNo,double allocatedAmount,double roundingAdjustment,Integer paymentRecordId,String paymentReference,Integer financeEntryId){
+  public AllocationDto(Long allocationId,String targetType,Integer targetId,String documentNo,double allocatedAmount,double roundingAdjustment,Integer paymentRecordId,Integer financeEntryId){
+   this(allocationId,targetType,targetId,documentNo,allocatedAmount,roundingAdjustment,paymentRecordId,null,financeEntryId);
+  }
+ }
  public record TransactionDto(Long id,Long importId,String statementReference,Integer sourceRowNumber,String transactionTimestamp,String transactionDate,String valueDate,String description,String reference,double debit,double credit,double balance,String status,String suggestedMatchType,Integer suggestedMatchId,Double suggestedConfidence,String matchLink,Integer financeEntryId,String financeVoucherNo,String linkedTargetType,Integer linkedTargetId,String linkedDocumentNo,List<AllocationDto> linkedAllocations,long rowVersion){
   public TransactionDto(Long id,Long importId,Integer sourceRowNumber,String transactionTimestamp,String transactionDate,String valueDate,String description,String reference,double debit,double credit,double balance,String status,String suggestedMatchType,Integer suggestedMatchId,Double suggestedConfidence,String matchLink,Integer financeEntryId,String financeVoucherNo,String linkedTargetType,Integer linkedTargetId,String linkedDocumentNo,List<AllocationDto> linkedAllocations,long rowVersion){
    this(id,importId,null,sourceRowNumber,transactionTimestamp,transactionDate,valueDate,description,reference,debit,credit,balance,status,suggestedMatchType,suggestedMatchId,suggestedConfidence,matchLink,financeEntryId,financeVoucherNo,linkedTargetType,linkedTargetId,linkedDocumentNo,linkedAllocations,rowVersion);
@@ -34,6 +38,10 @@ public final class BankReconciliationDtos {
  public record BatchDeleteResult(boolean success,String message,long deletedBatchId,int deletedTransactions,int reversedTransactions){}
  public record AuditDto(Long id,String eventType,String detail,String previousStatus,String newStatus,String performedBy,String createdAt){}
  public record Metrics(int total,int unmatched,int suggested,int matched,int expenses,int ignored,int review,double totalCredits,double totalDebits,int reconciled,double reconciledPercent,String batchStatus){}
- public record LinkageItemDto(Long statementTransactionId,String statementReference,String bankName,String bankAccount,String transactionDate,String originalReference,double debitAmount,double creditAmount,Integer financeEntryId,String financeVoucherNo,String financeVoucherType,String targetType,Integer targetId,String documentNo,double allocatedAmount,String status){}
+ public record LinkageItemDto(Long statementTransactionId,String statementReference,String bankName,String bankAccount,String transactionDate,String originalReference,double debitAmount,double creditAmount,Integer financeEntryId,String financeVoucherNo,String financeVoucherType,String targetType,Integer targetId,String documentNo,Integer paymentRecordId,String paymentReference,String settledBy,double allocatedAmount,String status){
+  public LinkageItemDto(Long statementTransactionId,String statementReference,String bankName,String bankAccount,String transactionDate,String originalReference,double debitAmount,double creditAmount,Integer financeEntryId,String financeVoucherNo,String financeVoucherType,String targetType,Integer targetId,String documentNo,double allocatedAmount,String status){
+   this(statementTransactionId,statementReference,bankName,bankAccount,transactionDate,originalReference,debitAmount,creditAmount,financeEntryId,financeVoucherNo,financeVoucherType,targetType,targetId,documentNo,null,null,null,allocatedAmount,status);
+  }
+ }
  public record DocumentLinkageDto(boolean linked,String queryType,String queryRef,List<LinkageItemDto> linkages){}
 }

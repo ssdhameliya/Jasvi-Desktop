@@ -1246,6 +1246,39 @@ public class ImportController implements ScreenLifecycle {
         if (Set.of("mandatory", "format", "master", "data").contains(key)) {
             c.setCellFactory(column -> SemanticTableCells.status("validation"));
         }
+        if ("rows".equals(key)) { c.setMinWidth(95); c.setPrefWidth(110); }
+        else if ("reference".equals(key)) { c.setMinWidth(155); c.setPrefWidth(195); }
+        else if (Set.of("mandatory", "format", "master", "data").contains(key)) {
+            c.setMinWidth("data".equals(key) ? 145 : 105);
+            c.setPrefWidth("data".equals(key) ? 175 : 120);
+            c.setCellFactory(column -> SemanticTableCells.status("validation"));
+        } else if ("message".equals(key)) {
+            c.setMinWidth(380);
+            c.setPrefWidth(540);
+            c.setCellFactory(column -> new TableCell<>() {
+                private final Label lbl = new Label();
+                {
+                    lbl.setWrapText(true);
+                    lbl.setMaxWidth(Double.MAX_VALUE);
+                    lbl.prefWidthProperty().bind(widthProperty().subtract(18));
+                }
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null || item.isBlank()) {
+                        setGraphic(null);
+                        setText(null);
+                        setTooltip(null);
+                    } else {
+                        lbl.setText(item);
+                        setGraphic(lbl);
+                        setText(null);
+                        setTooltip(new Tooltip(item));
+                    }
+                }
+            });
+        }
+        tblValidation.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
         tblValidation.getColumns().add(c);
     }
 
@@ -1459,7 +1492,7 @@ public class ImportController implements ScreenLifecycle {
 
     private ImportService.ImportResult importBankStatement(boolean dryRun) throws Exception {
         var audit = new org.example.bank.UniversalBankStatementParser().parseWithAudit(selectedFile.toPath());
-        var parsed = audit.statement() != null ? audit.statement() : new org.example.bank.KotakBankStatementCsvParser().parse(selectedFile.toPath());
+        var parsed = audit.statement() != null ? audit.statement() : new org.example.bank.UniversalBankStatementParser().parse(selectedFile.toPath());
         updateProgress(parsed.rows().size(), parsed.rows().size());
         return bankStatementImportCoordinator.execute(selectedFile.toPath(), dryRun);
     }
@@ -1700,6 +1733,7 @@ public class ImportController implements ScreenLifecycle {
         chooser.setTitle("Save Import Template");
         chooser.setInitialFileName(cmbImportModule.getValue().replaceAll("[^A-Za-z0-9]+", "_") + "_Template.xlsx");
         chooser.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter("All 3 Formats (.xlsx + .xls + .csv)", "*.xlsx"),
             new FileChooser.ExtensionFilter("Excel workbook (*.xlsx)", "*.xlsx"),
             new FileChooser.ExtensionFilter("CSV (Comma Delimited) (*.csv)", "*.csv"),
             new FileChooser.ExtensionFilter("Excel 97-2003 workbook (*.xls)", "*.xls")
@@ -1708,7 +1742,14 @@ public class ImportController implements ScreenLifecycle {
         if (target == null) return;
 
         try {
-            importTemplateService.write(target.toPath(), cmbImportModule.getValue(), org.example.update.BuildInfo.version());
+            var selectedExt = chooser.getSelectedExtensionFilter();
+            if (selectedExt != null && selectedExt.getDescription() != null && selectedExt.getDescription().startsWith("All 3 Formats")) {
+                var written = importTemplateService.writeAllThreeFormats(target.toPath(), cmbImportModule.getValue(), org.example.update.BuildInfo.version());
+                org.example.util.ToastManager.success(btnRunImport, "All 3 Templates Created",
+                    "Saved .xlsx, .xls, and .csv templates to: " + written.getFirst().getParent());
+            } else {
+                importTemplateService.write(target.toPath(), cmbImportModule.getValue(), org.example.update.BuildInfo.version());
+            }
             org.example.util.ToastManager.success(btnRunImport, "Template created",
                 "Template saved to: " + target.getAbsolutePath());
         } catch (Exception exception) {

@@ -89,6 +89,7 @@ public class BankExpenseController implements ScreenLifecycle {
     private EntryRow detailRow;
     private boolean explicitRefreshPending;
     private Integer pendingSelectEntryId;
+    private Integer activeDeepLinkEntryId;
 
     @FXML public void initialize() {
         DatePickerFormatter.attach(entryDate);
@@ -118,9 +119,15 @@ public class BankExpenseController implements ScreenLifecycle {
         if(filterFrom!=null)filterFrom.valueProperty().addListener((o,a,b)->applyFilters());
         if(filterTo!=null)filterTo.valueProperty().addListener((o,a,b)->applyFilters());
         org.example.util.RealtimeSearchSupport.installRemote(searchField, this::applyFilters);
+        if (requestedLinkedEntryId != null) {
+            activeDeepLinkEntryId = requestedLinkedEntryId;
+        }
         Mode initialMode = consumeRequestedMode();
         mode = initialMode == null ? Mode.BANK : initialMode;
         applyMode(mode);
+        if (activeDeepLinkEntryId != null) {
+            revealRequestedLinkedEntry();
+        }
         // Statement transfer context is applied once the page is attached in onScreenShown().
         // This avoids an initialize/onScreenShown lifecycle race on the cached BankExpense page.
     }
@@ -208,8 +215,13 @@ public class BankExpenseController implements ScreenLifecycle {
     @Override
     public void onScreenShown(boolean reusedFromCache) {
         LinkedRecordContext.Target linkedTarget=LinkedRecordContext.consume("FINANCE");
+        if(linkedTarget==null) linkedTarget=LinkedRecordContext.consume("EXPENSE_ENTRY");
+        if(linkedTarget==null) linkedTarget=LinkedRecordContext.consume("BANK_ENTRY");
         if(linkedTarget!=null && linkedTarget.recordId()!=null){
-            requestedLinkedEntryId=linkedTarget.recordId();
+            requestedLinkedEntryId=linkedTarget.recordId().intValue();
+        }
+        if(requestedLinkedEntryId!=null){
+            activeDeepLinkEntryId=requestedLinkedEntryId;
         }
         // BankExpense.fxml is intentionally cached. On reuse, refresh the master
         // values and consume the navigation request so the cached controller cannot
@@ -230,14 +242,16 @@ public class BankExpenseController implements ScreenLifecycle {
     }
 
     private void revealRequestedLinkedEntry(){
-        Integer id=requestedLinkedEntryId;if(id==null)return;
+        Integer id=requestedLinkedEntryId!=null?requestedLinkedEntryId:activeDeepLinkEntryId;if(id==null)return;
         requestedLinkedEntryId=null;
+        activeDeepLinkEntryId=id;
+        UiTaskExecutor.cancelPrefix("finance-register-page");
         UiTaskExecutor.submitLatest("finance-linked-entry",()->financeService.get(id),entry->{
-            if(entry==null){org.example.util.AppDialogService.warning(table,"Linked record unavailable","Expense / Bank entry not found","The linked finance entry is no longer available.");return;}
+            if(entry==null){activeDeepLinkEntryId=null;org.example.util.AppDialogService.warning(table,"Linked record unavailable","Expense / Bank entry not found","The linked finance entry is no longer available.");reloadRows();return;}
             String raw=safe(entry.voucherType(),"").toUpperCase(Locale.ROOT);Mode entryMode=raw.contains("EXPENSE")?Mode.EXPENSE:Mode.BANK;if(mode!=entryMode)applyMode(entryMode);
-            EntryRow row=toRow(entry);table.getItems().setAll(row);filtered.clear();filtered.add(row);totalRows=1;totalPages=1;currentPage=0;renderPage();table.getSelectionModel().select(row);table.scrollTo(row);table.requestFocus();
+            EntryRow row=toRow(entry);table.getItems().setAll(row);filtered.clear();filtered.add(row);totalRows=1;totalPages=1;currentPage=0;renderPage();table.getSelectionModel().select(row);table.scrollTo(row);showEntryDetails(row);table.requestFocus();
             org.example.util.PerformanceMonitor.event("linked-navigation",(entryMode==Mode.EXPENSE?"EXPENSE":"BANK_ENTRY")+" -> "+id);
-        },failure->error("Unable to open linked finance entry: "+failure.getMessage()));
+        },failure->{activeDeepLinkEntryId=null;error("Unable to open linked finance entry: "+failure.getMessage());});
     }
 
     private void loadAccounts() {
@@ -275,8 +289,8 @@ public class BankExpenseController implements ScreenLifecycle {
                 failure -> System.err.println("Finance bank account lookup failed: " + userMessage(failure)));
     }
 
-    @FXML private void showBankMode(){ applyMode(Mode.BANK); }
-    @FXML private void showExpenseMode(){ applyMode(Mode.EXPENSE); }
+    @FXML private void showBankMode(){ activeDeepLinkEntryId=null; applyMode(Mode.BANK); }
+    @FXML private void showExpenseMode(){ activeDeepLinkEntryId=null; applyMode(Mode.EXPENSE); }
     @FXML private void showBankReconciliation(){ DashboardController.navigateFromChild("Bank Statement","/fxml/pages/BankStatement.fxml",null); }
 
     private void applyMode(Mode next) {
@@ -435,6 +449,47 @@ public class BankExpenseController implements ScreenLifecycle {
         if (row.statementTransactionId != null) {
             String typeLabel = "Bank Statement Transaction";
             targets.add(new BankStatementController.LinkedTargetItem("Bank Statement", bankRef, "BANK_STATEMENT", typeLabel, row.amount.get(), 0.0, "bank", "finance-chip-teal", () -> openBankStatement(row)));
+            try {
+                var linkageView = bankStatementApi.linkage("BANK_STATEMENT", null, bankRef, row.statementTransactionId, row.id);
+                if (linkageView != null && linkageView.linkages() != null) {
+                    for (var item : linkageView.linkages()) {
+                        String pmtRef = item.paymentReference();
+                        if (pmtRef != null && !pmtRef.isBlank()) {
+                            String itemType = safe(item.targetType(), "").toUpperCase(Locale.ROOT);
+                            String invNo = safe(item.documentNo(), "");
+                            double amt = item.allocatedAmount() <= 0 ? row.amount.get() : item.allocatedAmount();
+                            targets.add(new BankStatementController.LinkedTargetItem("Payment Ref", pmtRef, "PAYMENT", "Payment Record (" + invNo + ")", amt, 0.0, "payment", "finance-chip-purple", () -> {
+                                if ("PURCHASE".equals(itemType)) {
+                                    PurchaseScreenContext.select(invNo);
+                                    org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/PurchasePayment.fxml");
+                                } else {
+                                    SalesScreenContext.select(invNo);
+                                    org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/RecordPayment.fxml");
+                                }
+                            }));
+                        }
+                    }
+                }
+
+                /*
+                        String pmtRef = item.paymentReference();
+                        if (pmtRef != null && !pmtRef.isBlank()) {
+                        String itemType = "";
+                        String invNo = ""; double amt = 0;
+
+                            targets.add(new BankStatementController.LinkedTargetItem("Payment Ref", pmtRef, "PAYMENT", "Payment Record (" + invNo + ")", amt, 0.0, "payment", "finance-chip-purple", () -> {
+                                if ("PURCHASE".equals(itemType)) {
+                                    PurchaseScreenContext.select(invNo);
+                                    org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/PurchasePayment.fxml");
+                                } else {
+                                    SalesScreenContext.select(invNo);
+                                    org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/RecordPayment.fxml");
+                                }
+                            }));
+                        }
+                    }
+                }
+                */ } catch (Exception ignored) {}
         }
 
         if (targets.isEmpty()) {
@@ -649,6 +704,7 @@ public class BankExpenseController implements ScreenLifecycle {
 
     @FXML private void applyFilters(){ currentPage=0; reloadRows(); }
     @FXML private void resetFilters(){
+        activeDeepLinkEntryId=null;
         if(searchField!=null)searchField.clear();
         if(typeFilter!=null&&!typeFilter.getItems().isEmpty())typeFilter.getSelectionModel().selectFirst();
         LocalDate today=BusinessClock.today();
@@ -688,6 +744,7 @@ public class BankExpenseController implements ScreenLifecycle {
         }catch(Exception ex){error(userMessage(ex));}
     }
     @FXML private void refreshWithFeedback(){
+        activeDeepLinkEntryId=null;
         explicitRefreshPending=true;
         if(btnRefreshEntries!=null){btnRefreshEntries.setDisable(true);btnRefreshEntries.setText("Refreshing...");}
         reloadRows();loadMetrics();
@@ -698,6 +755,7 @@ public class BankExpenseController implements ScreenLifecycle {
         if(success)org.example.util.ToastManager.info(table,"Refreshed",mode==Mode.EXPENSE?"Expense Entry is up to date.":"Bank Entry is up to date.");
     }
     private void reloadRows(){
+        if(activeDeepLinkEntryId!=null)return;
         org.example.util.OperationalUiSupport.showLoading(table, mode==Mode.EXPENSE?"Loading expenses…":"Loading bank entries…");
         String q=searchField==null?"":searchField.getText().trim();String filter=typeFilter==null?"":safe(typeFilter.getValue(),"");Mode requestedMode=mode;int requestedPage=currentPage;LocalDate from=filterFrom==null?null:filterFrom.getValue();LocalDate to=filterTo==null?null:filterTo.getValue();
         UiTaskExecutor.submitLatest("finance-register-page",()->financeService.page(requestedPage,PAGE_SIZE,requestedMode==null?"":requestedMode.name(),"",filter,q,from,to),this::applyFinancePage,failure->{
@@ -707,6 +765,7 @@ public class BankExpenseController implements ScreenLifecycle {
         });
     }
     private void applyFinancePage(OperationsApiClient.FinancePage page){
+        if(activeDeepLinkEntryId!=null)return;
         filtered.clear();if(page!=null&&page.rows()!=null)for(var e:page.rows())filtered.add(toRow(e));currentPage=page==null?0:page.page();totalPages=page==null?0:page.totalPages();totalRows=page==null?0:page.totalRows();renderPage();if(pendingSelectEntryId!=null){EntryRow row=filtered.stream().filter(x->x.id==pendingSelectEntryId).findFirst().orElse(null);if(row!=null){table.getSelectionModel().select(row);table.scrollTo(row);showEntryDetails(row);pendingSelectEntryId=null;}}if(filtered.isEmpty())org.example.util.OperationalUiSupport.showEmpty(table,mode==Mode.EXPENSE?"No expenses found":"No bank entries found","Adjust the filters or add a new entry.");finishExplicitRefresh(true);
     }
     private EntryRow toRow(OperationsApiClient.FinanceEntry e){String raw=safe(e.voucherType(),"");String type=raw.toUpperCase(Locale.ROOT).contains("DEPOSIT")?"Deposit":raw.toUpperCase(Locale.ROOT).contains("WITHDRAW")?"Withdrawal":safe(e.category(),"Other");return new EntryRow(e.id()==null?0:e.id(),safe(e.voucherNo(),""),e.voucherDate(),type,safe(e.notes(),""),safe(e.accountName(),""),safe(e.paymentMode(),""),safe(e.referenceNo(),""),e.amount(),raw,e.reconciled(),e.statementTransactionId(),safe(e.linkedTargetType(),""),e.linkedTargetId(),safe(e.linkedDocumentNo(),""),e.rowVersion());}

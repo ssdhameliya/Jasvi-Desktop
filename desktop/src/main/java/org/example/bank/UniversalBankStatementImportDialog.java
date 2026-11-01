@@ -7,6 +7,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
@@ -15,9 +16,8 @@ import javafx.stage.FileChooser;
 import javafx.stage.Window;
 import org.example.api.bank.BankStatementApiClient;
 import org.example.api.master.MasterApiClient;
-import javafx.scene.Node;
-import org.example.model.Lookup;
 import org.example.importing.ImportTemplateService;
+import org.example.model.Lookup;
 import org.example.util.*;
 
 import java.io.File;
@@ -26,8 +26,8 @@ import java.util.*;
 
 /**
  * Universal Bank Statement Import & Data Shipping Wizard for Jasvi ERP Desktop.
- * Implements full 5-stage workflow with multi-bank normalization, template downloads,
- * color-coded preflight validation table, and generous non-clipping workspace sizing.
+ * Implements full 5-stage workflow with multi-bank normalization, template downloads (.xlsx, .xls, .csv),
+ * color-coded preflight validation table, Light/Dark mode parity, and generous non-clipping workspace sizing.
  */
 public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolean> {
 
@@ -35,18 +35,19 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
     private final MasterApiClient masterClient;
     private final Runnable onSuccessCallback;
     private final UniversalBankStatementParser parser = new UniversalBankStatementParser();
+    private final boolean lightMode;
 
     private final ComboBox<BankAccountChoice> cmbBankAccount = new ComboBox<>();
     private final Label lblSelectedFile = new Label("No statement file selected (drag & drop or browse below)");
-    private final TableView<KotakBankStatementCsvParser.AuditRow> table = new TableView<>();
-    private final ObservableList<KotakBankStatementCsvParser.AuditRow> auditRows = FXCollections.observableArrayList();
+    private final TableView<UniversalBankStatementParser.AuditRow> table = new TableView<>();
+    private final ObservableList<UniversalBankStatementParser.AuditRow> auditRows = FXCollections.observableArrayList();
     private final Button btnStartShipping = new Button("Start Data Shipping");
     private final Label lblTotalRows = new Label("Total: 0");
     private final Label lblValidRows = new Label("Valid: 0");
     private final Label lblErrorRows = new Label("Errors: 0");
 
     private File chosenFile = null;
-    private KotakBankStatementCsvParser.AuditParseResult lastAuditResult = null;
+    private UniversalBankStatementParser.AuditParseResult lastAuditResult = null;
 
     public record BankAccountChoice(String lookupCode, String bankName, String accountNumber, String holderName) {
         @Override
@@ -62,16 +63,20 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
     }
 
     public UniversalBankStatementImportDialog(Window owner, BankStatementApiClient api, MasterApiClient masterClient, Runnable onSuccess) {
-        super(owner != null ? owner.getScene().getRoot() : null);
+        super(owner != null && owner.getScene() != null ? owner.getScene().getRoot() : null);
         this.api = api != null ? api : new BankStatementApiClient();
         this.masterClient = masterClient != null ? masterClient : new MasterApiClient();
         this.onSuccessCallback = onSuccess;
+        this.lightMode = detectLightMode(owner);
 
         setTitle("Data Shipping Wizard - Bank Statement");
         setResizable(true);
 
         DialogPane pane = getDialogPane();
         pane.getStyleClass().addAll("approved-dialog", "erp-screen-root", "universal-import-dialog");
+        if (lightMode && !pane.getStyleClass().contains("light-theme")) {
+            pane.getStyleClass().add("light-theme");
+        }
         pane.getButtonTypes().add(ButtonType.CLOSE);
 
         // Apply generous sizing so nothing is clipped
@@ -79,7 +84,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         pane.setMinWidth(1100);
         pane.setPrefHeight(820);
         pane.setMinHeight(640);
-        PopupTableWorkspace.applyInspectionSizing(this, owner != null ? owner.getScene().getRoot() : null);
+        PopupTableWorkspace.applyInspectionSizing(this, owner != null && owner.getScene() != null ? owner.getScene().getRoot() : null);
 
         VBox content = new VBox(14);
         content.setPadding(new Insets(14, 18, 14, 18));
@@ -112,6 +117,28 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         loadBankAccounts();
     }
 
+    private static boolean detectLightMode(Window owner) {
+        if (owner != null && owner.getScene() != null && owner.getScene().getRoot() != null) {
+            List<String> classes = owner.getScene().getRoot().getStyleClass();
+            if (classes.contains("light-theme") || classes.contains("theme-light")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String headingColor() {
+        return lightMode ? "#1e293b" : "#e2e8f0";
+    }
+
+    private String accentColor() {
+        return lightMode ? "#0284c7" : "#38bdf8";
+    }
+
+    private String mutedTextColor() {
+        return lightMode ? "#475569" : "#94a3b8";
+    }
+
     private Node buildHeaderCard() {
         HBox header = new HBox(14);
         header.setAlignment(Pos.CENTER_LEFT);
@@ -125,10 +152,11 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         VBox titleBox = new VBox(2);
         Label title = new Label("DATA LOADER / DATA SHIPPING WIZARD - MODULE: BANK STATEMENT");
         title.getStyleClass().add("section-title");
-        title.setStyle("-fx-font-weight: 800; -fx-font-size: 15px; -fx-text-fill: #38bdf8;");
+        title.setStyle("-fx-font-weight: 800; -fx-font-size: 15px; -fx-text-fill: " + accentColor() + ";");
 
         Label sub = new Label("Universal statement ingestion supporting .xlsx, .xls, and .csv across all commercial banking templates with preflight parity.");
         sub.getStyleClass().add("muted-label");
+        sub.setStyle("-fx-text-fill: " + mutedTextColor() + "; -fx-font-size: 12px;");
         titleBox.getChildren().addAll(title, sub);
 
         Region spacer = new Region();
@@ -144,7 +172,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         box.setPadding(new Insets(10, 14, 10, 14));
 
         Label lbl = new Label("1. TARGET BANK ACCOUNT (Populated from Master: BANK_ACCOUNT)");
-        lbl.setStyle("-fx-font-weight: 700; -fx-font-size: 12px; -fx-text-fill: #e2e8f0;");
+        lbl.setStyle("-fx-font-weight: 700; -fx-font-size: 12px; -fx-text-fill: " + headingColor() + ";");
 
         cmbBankAccount.setMaxWidth(Double.MAX_VALUE);
         cmbBankAccount.setPrefHeight(36);
@@ -161,34 +189,45 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         box.setPadding(new Insets(10, 14, 10, 14));
 
         Label lbl = new Label("2. TEMPLATE DOWNLOAD & FILE INGESTION");
-        lbl.setStyle("-fx-font-weight: 700; -fx-font-size: 12px; -fx-text-fill: #e2e8f0;");
+        lbl.setStyle("-fx-font-weight: 700; -fx-font-size: 12px; -fx-text-fill: " + headingColor() + ";");
 
         HBox controls = new HBox(12);
         controls.setAlignment(Pos.CENTER_LEFT);
 
-        Button btnDownloadTemplate = new Button("Download Bank Statement Template (.xlsx / .csv)");
+        MenuButton btnDownloadTemplate = new MenuButton("Download Bank Statement Template (.xlsx / .xls / .csv)");
         btnDownloadTemplate.setGraphic(IconFactory.compactIcon("excel", 15));
         btnDownloadTemplate.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnDownloadTemplate.setOnAction(e -> onDownloadTemplate());
+
+        MenuItem itemAllThree = new MenuItem("Download All 3 Formats (.xlsx + .xls + .csv)");
+        itemAllThree.setOnAction(e -> onDownloadTemplate("ALL"));
+        MenuItem itemXlsx = new MenuItem("Excel Workbook (.xlsx) — Multi-Color Headers");
+        itemXlsx.setOnAction(e -> onDownloadTemplate("xlsx"));
+        MenuItem itemXls = new MenuItem("Excel 97-2003 Workbook (.xls) — Multi-Color Headers");
+        itemXls.setOnAction(e -> onDownloadTemplate("xls"));
+        MenuItem itemCsv = new MenuItem("CSV (Comma Delimited) (.csv) — Mandatory (*) Headers");
+        itemCsv.setOnAction(e -> onDownloadTemplate("csv"));
+        btnDownloadTemplate.getItems().addAll(itemAllThree, new SeparatorMenuItem(), itemXlsx, itemXls, itemCsv);
 
         Button btnBrowse = new Button("Select File (.xlsx, .xls, .csv)");
         btnBrowse.setGraphic(IconFactory.compactIcon("document", 15));
         btnBrowse.getStyleClass().addAll("approved-button", "primary-button");
         btnBrowse.setOnAction(e -> onBrowseFile());
 
-        lblSelectedFile.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; -fx-text-fill: #38bdf8;");
+        lblSelectedFile.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: " + accentColor() + ";");
         HBox.setHgrow(lblSelectedFile, Priority.ALWAYS);
 
         controls.getChildren().addAll(btnDownloadTemplate, btnBrowse, lblSelectedFile);
 
-        // Drag & drop dropzone
+        // Drag & drop dropzone (Theme-aware Light & Dark mode)
         VBox dropZone = new VBox(6);
         dropZone.setAlignment(Pos.CENTER);
         dropZone.setPadding(new Insets(12));
-        dropZone.setStyle("-fx-border-color: rgba(56, 189, 248, 0.35); -fx-border-style: dashed; -fx-border-width: 2px; -fx-border-radius: 8px; -fx-background-color: rgba(15, 23, 42, 0.45);");
+        String dropBg = lightMode ? "rgba(241, 245, 249, 0.92)" : "rgba(15, 23, 42, 0.45)";
+        String dropBorder = lightMode ? "rgba(2, 132, 199, 0.45)" : "rgba(56, 189, 248, 0.35)";
+        dropZone.setStyle("-fx-border-color: " + dropBorder + "; -fx-border-style: dashed; -fx-border-width: 2px; -fx-border-radius: 8px; -fx-background-radius: 8px; -fx-background-color: " + dropBg + ";");
 
         Label dropText = new Label("Drag & Drop ANY Bank Statement file here (.xlsx, .xls, .csv)");
-        dropText.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 12px;");
+        dropText.setStyle("-fx-text-fill: " + (lightMode ? "#334155" : "#94a3b8") + "; -fx-font-weight: 600; -fx-font-size: 12px;");
         dropZone.getChildren().addAll(IconFactory.icon("import", 22), dropText);
 
         dropZone.setOnDragOver(event -> {
@@ -219,19 +258,21 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         box.setAlignment(Pos.CENTER_LEFT);
         box.getStyleClass().addAll("approved-card");
         box.setPadding(new Insets(8, 14, 8, 14));
-        box.setStyle("-fx-background-color: rgba(30, 41, 59, 0.5); -fx-border-color: rgba(255,255,255,0.06); -fx-border-radius: 6px;");
+        String cardBg = lightMode ? "#f8fafc" : "rgba(30, 41, 59, 0.5)";
+        String cardBorder = lightMode ? "#cbd5e1" : "rgba(255,255,255,0.06)";
+        box.setStyle("-fx-background-color: " + cardBg + "; -fx-border-color: " + cardBorder + "; -fx-border-radius: 6px; -fx-background-radius: 6px;");
 
         Label title = new Label("3. SMART COLUMN NORMALIZATION:");
-        title.setStyle("-fx-font-weight: 700; -fx-font-size: 11px; -fx-text-fill: #cbd5e1;");
+        title.setStyle("-fx-font-weight: 700; -fx-font-size: 11px; -fx-text-fill: " + headingColor() + ";");
 
         Label chip1 = new Label("• System Template ──► 1-to-1 Direct Mapping");
-        chip1.setStyle("-fx-font-size: 11px; -fx-text-fill: #34d399;");
+        chip1.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: " + (lightMode ? "#059669" : "#34d399") + ";");
 
         Label chip2 = new Label("• Known Banks (Kotak, HDFC, ICICI, SBI, Axis) ──► Auto-detected & Mapped");
-        chip2.setStyle("-fx-font-size: 11px; -fx-text-fill: #38bdf8;");
+        chip2.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: " + (lightMode ? "#0284c7" : "#38bdf8") + ";");
 
         Label chip3 = new Label("• Custom File ──► Fuzzy Synonym Matching (Date, Narration, Ref, Dr, Cr)");
-        chip3.setStyle("-fx-font-size: 11px; -fx-text-fill: #a78bfa;");
+        chip3.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: " + (lightMode ? "#6d28d9" : "#a78bfa") + ";");
 
         box.getChildren().addAll(title, chip1, chip2, chip3);
         return box;
@@ -245,14 +286,20 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         top.setAlignment(Pos.CENTER_LEFT);
 
         Label lbl = new Label("4. PREFLIGHT COLOR-CODED VALIDATION TABLE");
-        lbl.setStyle("-fx-font-weight: 700; -fx-font-size: 12px; -fx-text-fill: #e2e8f0;");
+        lbl.setStyle("-fx-font-weight: 700; -fx-font-size: 12px; -fx-text-fill: " + headingColor() + ";");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        lblTotalRows.setStyle("-fx-background-color: rgba(255,255,255,0.08); -fx-padding: 3 8 3 8; -fx-background-radius: 4; -fx-font-weight: 600; -fx-text-fill: #f8fafc;");
-        lblValidRows.setStyle("-fx-background-color: rgba(52, 211, 153, 0.2); -fx-padding: 3 8 3 8; -fx-background-radius: 4; -fx-font-weight: 600; -fx-text-fill: #34d399;");
-        lblErrorRows.setStyle("-fx-background-color: rgba(248, 113, 113, 0.2); -fx-padding: 3 8 3 8; -fx-background-radius: 4; -fx-font-weight: 600; -fx-text-fill: #f87171;");
+        lblTotalRows.setStyle(lightMode
+            ? "-fx-background-color: #e2e8f0; -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 700; -fx-text-fill: #0f172a;"
+            : "-fx-background-color: rgba(255,255,255,0.08); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 600; -fx-text-fill: #f8fafc;");
+        lblValidRows.setStyle(lightMode
+            ? "-fx-background-color: rgba(16, 185, 129, 0.16); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 700; -fx-text-fill: #047857;"
+            : "-fx-background-color: rgba(52, 211, 153, 0.2); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 600; -fx-text-fill: #34d399;");
+        lblErrorRows.setStyle(lightMode
+            ? "-fx-background-color: rgba(239, 68, 68, 0.15); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 700; -fx-text-fill: #b91c1c;"
+            : "-fx-background-color: rgba(248, 113, 113, 0.2); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 600; -fx-text-fill: #f87171;");
 
         top.getChildren().addAll(lbl, spacer, lblTotalRows, lblValidRows, lblErrorRows);
 
@@ -264,21 +311,25 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
     }
 
     private void configureTable() {
+        table.getProperties().put("erp.noRowSelection", Boolean.TRUE);
+        if (!table.getStyleClass().contains("erp-no-row-selection")) {
+            table.getStyleClass().add("erp-no-row-selection");
+        }
         PopupTableWorkspace.prepareTable(table, "erp-table-profile-responsive");
         table.setItems(auditRows);
         table.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
 
-        // 1. Line / Source Index
-        TableColumn<KotakBankStatementCsvParser.AuditRow, Number> colIdx = new TableColumn<>("#");
+        // 1. Line / Source Index (#)
+        TableColumn<UniversalBankStatementParser.AuditRow, Number> colIdx = new TableColumn<>("#");
         colIdx.setCellValueFactory(v -> new SimpleIntegerProperty(v.getValue().sourceIndex()));
-        colIdx.setMinWidth(45);
-        colIdx.setPrefWidth(55);
+        colIdx.setMinWidth(50);
+        colIdx.setPrefWidth(60);
 
         // 2. Status Badge
-        TableColumn<KotakBankStatementCsvParser.AuditRow, String> colStatus = new TableColumn<>("Status");
+        TableColumn<UniversalBankStatementParser.AuditRow, String> colStatus = new TableColumn<>("Status");
         colStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().status()));
-        colStatus.setMinWidth(95);
-        colStatus.setPrefWidth(110);
+        colStatus.setMinWidth(100);
+        colStatus.setPrefWidth(115);
         colStatus.setCellFactory(tc -> new TableCell<>() {
             @Override
             protected void updateItem(String val, boolean empty) {
@@ -287,11 +338,15 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                     setGraphic(null);
                     setText(null);
                 } else {
-                    boolean ok = "PASSED".equalsIgnoreCase(val);
+                    boolean ok = "PASSED".equalsIgnoreCase(val) || "READY".equalsIgnoreCase(val);
                     Label badge = new Label(ok ? "🟢 VALID" : "🔴 ERROR");
-                    badge.setStyle(ok
-                        ? "-fx-background-color: rgba(52, 211, 153, 0.18); -fx-text-fill: #34d399; -fx-padding: 2 6 2 6; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;"
-                        : "-fx-background-color: rgba(248, 113, 113, 0.22); -fx-text-fill: #f87171; -fx-padding: 2 6 2 6; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;");
+                    String okStyle = lightMode
+                        ? "-fx-background-color: rgba(16, 185, 129, 0.16); -fx-text-fill: #047857; -fx-padding: 2 8 2 8; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;"
+                        : "-fx-background-color: rgba(52, 211, 153, 0.18); -fx-text-fill: #34d399; -fx-padding: 2 8 2 8; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;";
+                    String errStyle = lightMode
+                        ? "-fx-background-color: rgba(239, 68, 68, 0.16); -fx-text-fill: #b91c1c; -fx-padding: 2 8 2 8; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;"
+                        : "-fx-background-color: rgba(248, 113, 113, 0.22); -fx-text-fill: #f87171; -fx-padding: 2 8 2 8; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;";
+                    badge.setStyle(ok ? okStyle : errStyle);
                     setGraphic(badge);
                     setText(null);
                 }
@@ -299,61 +354,63 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         });
 
         // 3. Date
-        TableColumn<KotakBankStatementCsvParser.AuditRow, String> colDate = new TableColumn<>("Date");
+        TableColumn<UniversalBankStatementParser.AuditRow, String> colDate = new TableColumn<>("Date");
         colDate.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().date()));
         colDate.setMinWidth(110);
         colDate.setPrefWidth(125);
 
         // 4. Reference
-        TableColumn<KotakBankStatementCsvParser.AuditRow, String> colRef = new TableColumn<>("Reference / UTR");
+        TableColumn<UniversalBankStatementParser.AuditRow, String> colRef = new TableColumn<>("Reference / UTR");
         colRef.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().reference()));
-        colRef.setMinWidth(140);
-        colRef.setPrefWidth(170);
+        colRef.setMinWidth(145);
+        colRef.setPrefWidth(175);
 
         // 5. Description / Narration
-        TableColumn<KotakBankStatementCsvParser.AuditRow, String> colDesc = new TableColumn<>("Narration / Description");
+        TableColumn<UniversalBankStatementParser.AuditRow, String> colDesc = new TableColumn<>("Narration / Description");
         colDesc.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().description()));
-        colDesc.setMinWidth(220);
-        colDesc.setPrefWidth(320);
+        colDesc.setMinWidth(230);
+        colDesc.setPrefWidth(330);
 
         // 6. Debit
-        TableColumn<KotakBankStatementCsvParser.AuditRow, Number> colDr = new TableColumn<>("Debit (Dr)");
+        TableColumn<UniversalBankStatementParser.AuditRow, Number> colDr = new TableColumn<>("Debit (Dr)");
         colDr.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().debit()));
         colDr.setCellFactory(x -> currencyCell(false));
         colDr.setMinWidth(115);
         colDr.setPrefWidth(130);
 
         // 7. Credit
-        TableColumn<KotakBankStatementCsvParser.AuditRow, Number> colCr = new TableColumn<>("Credit (Cr)");
+        TableColumn<UniversalBankStatementParser.AuditRow, Number> colCr = new TableColumn<>("Credit (Cr)");
         colCr.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().credit()));
         colCr.setCellFactory(x -> currencyCell(true));
         colCr.setMinWidth(115);
         colCr.setPrefWidth(130);
 
         // 8. Balance
-        TableColumn<KotakBankStatementCsvParser.AuditRow, Number> colBal = new TableColumn<>("Balance");
+        TableColumn<UniversalBankStatementParser.AuditRow, Number> colBal = new TableColumn<>("Balance");
         colBal.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().balance()));
         colBal.setCellFactory(x -> currencyCell(false));
         colBal.setMinWidth(115);
         colBal.setPrefWidth(130);
 
         // 9. Error Message / Validation Detail
-        TableColumn<KotakBankStatementCsvParser.AuditRow, String> colError = new TableColumn<>("Validation Message");
+        TableColumn<UniversalBankStatementParser.AuditRow, String> colError = new TableColumn<>("Validation Message");
         colError.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().error() != null ? v.getValue().error() : "Passed all statutory checks"));
-        colError.setMinWidth(200);
-        colError.setPrefWidth(260);
+        colError.setMinWidth(220);
+        colError.setPrefWidth(280);
         colError.setCellFactory(tc -> new TableCell<>() {
             @Override
             protected void updateItem(String val, boolean empty) {
                 super.updateItem(val, empty);
                 if (empty || val == null) {
                     setText(null);
+                    setTooltip(null);
                 } else {
                     setText(val);
+                    setTooltip(new Tooltip(val));
                     if (val.contains("Passed")) {
-                        setStyle("-fx-text-fill: #94a3b8;");
+                        setStyle("-fx-text-fill: " + (lightMode ? "#475569" : "#94a3b8") + ";");
                     } else {
-                        setStyle("-fx-text-fill: #f87171; -fx-font-weight: 700;");
+                        setStyle("-fx-text-fill: " + (lightMode ? "#b91c1c" : "#f87171") + "; -fx-font-weight: 700;");
                     }
                 }
             }
@@ -362,7 +419,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         table.getColumns().setAll(colIdx, colStatus, colDate, colRef, colDesc, colDr, colCr, colBal, colError);
     }
 
-    private TableCell<KotakBankStatementCsvParser.AuditRow, Number> currencyCell(boolean isCredit) {
+    private TableCell<UniversalBankStatementParser.AuditRow, Number> currencyCell(boolean isCredit) {
         return new TableCell<>() {
             @Override
             protected void updateItem(Number val, boolean empty) {
@@ -372,7 +429,10 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                     setStyle("-fx-alignment: CENTER-RIGHT; -fx-text-fill: #64748b;");
                 } else {
                     setText(String.format(Locale.ENGLISH, "₹ %,.2f", val.doubleValue()));
-                    setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-weight: 600; -fx-text-fill: " + (isCredit ? "#34d399;" : "#f87171;"));
+                    String color = isCredit
+                        ? (lightMode ? "#047857" : "#34d399")
+                        : (lightMode ? "#dc2626" : "#f87171");
+                    setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-weight: 600; -fx-text-fill: " + color + ";");
                 }
             }
         };
@@ -425,20 +485,38 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         }
     }
 
-    private void onDownloadTemplate() {
+    private void onDownloadTemplate(String formatMode) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Save Bank Statement Import Template");
-        chooser.setInitialFileName("Bank_Statement_Template.xlsx");
-        chooser.getExtensionFilters().addAll(
-            new FileChooser.ExtensionFilter("Excel Workbook (*.xlsx)", "*.xlsx"),
-            new FileChooser.ExtensionFilter("CSV (Comma Delimited) (*.csv)", "*.csv")
-        );
+        String ext = "ALL".equalsIgnoreCase(formatMode) ? "xlsx" : formatMode.toLowerCase(Locale.ROOT);
+        chooser.setInitialFileName("Bank_Statement_Template." + ext);
+        if ("ALL".equalsIgnoreCase(formatMode)) {
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All 3 Formats (.xlsx + .xls + .csv)", "*.xlsx"));
+        } else if ("xls".equalsIgnoreCase(ext)) {
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel 97-2003 Workbook (*.xls)", "*.xls"));
+        } else if ("csv".equalsIgnoreCase(ext)) {
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV (Comma Delimited) (*.csv)", "*.csv"));
+        } else {
+            chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Excel Workbook (*.xlsx)", "*.xlsx"),
+                new FileChooser.ExtensionFilter("Excel 97-2003 Workbook (*.xls)", "*.xls"),
+                new FileChooser.ExtensionFilter("CSV (Comma Delimited) (*.csv)", "*.csv")
+            );
+        }
         File target = chooser.showSaveDialog(getDialogPane().getScene().getWindow());
         if (target == null) return;
 
         try {
-            new ImportTemplateService().write(target.toPath(), "Bank Statement", org.example.update.BuildInfo.version());
-            ToastManager.success(table, "Template Downloaded", "Bank statement template saved to: " + target.getName());
+            ImportTemplateService service = new ImportTemplateService();
+            String ver = org.example.update.BuildInfo.version();
+            if ("ALL".equalsIgnoreCase(formatMode)) {
+                List<Path> written = service.writeAllThreeFormats(target.toPath(), "Bank Statement", ver);
+                ToastManager.success(table, "All 3 Templates Downloaded",
+                    "Saved .xlsx, .xls, and .csv templates in: " + written.getFirst().getParent());
+            } else {
+                service.write(target.toPath(), "Bank Statement", ver);
+                ToastManager.success(table, "Template Downloaded", "Bank statement template saved to: " + target.getName());
+            }
         } catch (Exception ex) {
             AppDialogService.error(table, "Template Error", "Template Export Failed", "Could not write template: " + ex.getMessage());
         }
@@ -461,7 +539,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
 
     private void processSelectedFile(File file) {
         this.chosenFile = file;
-        lblSelectedFile.setText(file.getName() + " (" + (file.length() / 1024) + " KB)");
+        lblSelectedFile.setText(file.getName() + " (" + Math.max(1, file.length() / 1024) + " KB)");
 
         try {
             lastAuditResult = parser.parseWithAudit(file.toPath());

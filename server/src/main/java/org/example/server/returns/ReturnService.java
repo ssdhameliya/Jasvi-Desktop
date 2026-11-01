@@ -149,7 +149,7 @@ public class ReturnService {
         int expectedParty = sourcePartyId(sales, d.invoiceNo());
         if (d.partyId() != expectedParty) throw new IllegalArgumentException("Return party must match the original invoice party.");
 
-        String refKey = sales ? "REF_SALES_RETURN" : "REF_PURCHASE_RETURN", fallback = sales ? "SAL-RET-YYYY-XXXX" : "PUR-RET-YYYY-XXXX";
+        String refKey = sales ? "REF_SALES_RETURN" : "REF_PURCHASE_RETURN", fallback = sales ? "SRT/DD-MM-YYYY/XXXX" : "PRT/DD-MM-YYYY/XXXX";
         String no = operations.nextConfiguredReference(refKey, fallback, () -> jdbc.query("SELECT DISTINCT return_no FROM return_register WHERE return_no IS NOT NULL", (r, i) -> r.getString(1)));
         String now = BusinessClock.nowUtcText();
         String actor = CurrentUser.require().username();

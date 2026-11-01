@@ -42,8 +42,12 @@ import java.util.*;
  * reused or modified.</p>
  */
 public final class PurchasePaymentController implements ScreenLifecycle {
-    public record PaymentRow(int id, String date, String reference, String paidTo, String mode,
-                             double amount, String status, String notes, String proofPath, String paymentType, long rowVersion) {}
+    public record PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion, String paymentReference, String createdBy, Long statementTransactionId, String statementReference) {
+        public PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion) {
+            this(id, date, reference, paidTo, mode, amount, status, notes, proofPath, paymentType, rowVersion, "", "", null, "");
+        }
+    } //
+
 
     @FXML private Label invoiceNo, invoiceStatus, supplier, supplierPhone, supplierEmail, invoiceDate, dueDate,
             total, paid, balance, after, summaryTotal, summaryPaid, summaryBalance, paidPercent,
@@ -216,6 +220,36 @@ public final class PurchasePaymentController implements ScreenLifecycle {
     }
 
     private void configureHistoryTable() {
+        if (historyTable.getColumns().stream().noneMatch(c -> "Payment Ref".equals(c.getText()))) {
+            TableColumn<PaymentRow, String> historyPaymentRef = new TableColumn<>("Payment Ref");
+            historyPaymentRef.setPrefWidth(155);
+            IconFactory.applyTableHeaderIcon(historyPaymentRef, "link");
+            historyPaymentRef.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().paymentReference() == null || v.getValue().paymentReference().isBlank() ? "—" : v.getValue().paymentReference()));
+            historyPaymentRef.setCellFactory(c -> new TableCell<>() {
+                private final Hyperlink link = new Hyperlink();
+                {
+                    link.getStyleClass().add("table-link");
+                    link.setOnAction(e -> {
+                        int idx = getIndex();
+                        if (idx >= 0 && idx < getTableView().getItems().size()) {
+                            openPaymentRefBankStatement(getTableView().getItems().get(idx));
+                        }
+                    });
+                }
+                @Override protected void updateItem(String val, boolean empty) {
+                    super.updateItem(val, empty);
+                    if (empty || val == null || val.isBlank() || "—".equals(val)) {
+                        setGraphic(null);
+                        setText(empty ? null : "—");
+                    } else {
+                        link.setText(val);
+                        setText(null);
+                        setGraphic(link);
+                    }
+                }
+            });
+            historyTable.getColumns().add(0, historyPaymentRef);
+        }
         historyDate.setCellValueFactory(v -> new SimpleStringProperty(formatIsoDate(v.getValue().date())));
         historyReference.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().reference()));
         historyPaidTo.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().paidTo()));
@@ -258,6 +292,25 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                 setGraphic(actions);
             }
         });
+    }
+
+    private void openPaymentRefBankStatement(PaymentRow row) {
+        if (row == null) return;
+        if (row.statementTransactionId() != null && row.statementTransactionId() > 0) {
+            org.example.controller.LinkedRecordContext.open(
+                    "BANK_STATEMENT",
+                    row.statementTransactionId().intValue(),
+                    row.statementReference() == null || row.statementReference().isBlank() ? row.reference() : row.statementReference(),
+                    "VIEW",
+                    "Purchase Payment"
+            );
+            NavigationManager.getInstance().loadPage("/fxml/pages/BankStatement.fxml");
+        } else {
+            String user = row.createdBy() == null || row.createdBy().isBlank() ? "ADMIN" : row.createdBy();
+            String pmtRef = row.paymentReference() == null || row.paymentReference().isBlank() ? ("#" + row.id()) : row.paymentReference();
+            new OwnedAlert(Alert.AlertType.WARNING,
+                    "No Bank Statement entry exists for Payment Ref " + pmtRef + " as it was settled manually by USER: " + user).showAndWait();
+        }
     }
 
     private void refreshInvoiceAmounts() {
@@ -472,7 +525,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                                 : "FULL".equalsIgnoreCase(row.paymentType()) ? "Full Payment"
                                 : "PARTIAL".equalsIgnoreCase(row.paymentType()) ? "Partial Payment" : "Recorded";
                         allPayments.add(new PaymentRow(row.id(), row.date(), safe(row.reference()), paidToValue,
-                                safe(row.mode()), row.amount(), status, safe(row.notes()), safe(row.attachment()), safe(row.paymentType()), row.rowVersion()));
+                                safe(row.mode()), row.amount(), status, safe(row.notes()), safe(row.attachment()), safe(row.paymentType()), row.rowVersion(), safe(row.paymentReference()), safe(row.createdBy()), row.statementTransactionId(), safe(row.statementReference())));
                     }
                     historyTable.getItems().setAll(allPayments);
                     historyCount.setText(allPayments.size() + " Payment" + (allPayments.size() == 1 ? "" : "s"));

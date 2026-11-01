@@ -1,7 +1,7 @@
 package org.example.importing;
 
 import org.apache.poi.ss.usermodel.*;
-import org.example.bank.KotakBankStatementCsvParser;
+import org.example.bank.UniversalBankStatementParser;
 import org.example.util.SpreadsheetLayoutDetector;
 
 import java.io.File;
@@ -26,7 +26,7 @@ public final class ImportPreviewService {
         Objects.requireNonNull(file, "file");
         if ("Bank Statement".equals(module)) {
             return new Inspection(null, List.of(
-                "Transaction Date", "Value Date", "Description", "Chq / Ref No.", "Amount", "Dr / Cr", "Balance"));
+                "Transaction Date", "Description", "Chq / Ref No.", "Amount", "Dr / Cr", "Balance"));
         }
         try (Workbook workbook = WorkbookFactory.create(file)) {
             SpreadsheetLayoutDetector.Layout layout = SpreadsheetLayoutDetector.detect(workbook, domainFields);
@@ -54,12 +54,11 @@ public final class ImportPreviewService {
     }
 
     private Preview bankPreview(File file) throws Exception {
-        var parsed = new KotakBankStatementCsvParser().parse(file.toPath());
+        var parsed = new UniversalBankStatementParser().parse(file.toPath());
         List<Map<String, String>> rows = new ArrayList<>();
         for (var row : parsed.rows().stream().limit(STANDARD_PREVIEW_LIMIT).toList()) {
             Map<String, String> value = new LinkedHashMap<>();
-            value.put("transaction_date", row.transactionTimestamp());
-            value.put("value_date", row.valueDate());
+            value.put("transaction_date", row.transactionDate());
             value.put("description", row.description());
             value.put("reference", row.reference());
             value.put("amount", String.format(Locale.ROOT, "%.2f", row.debit() > 0 ? row.debit() : row.credit()));
@@ -67,7 +66,7 @@ public final class ImportPreviewService {
             value.put("balance", String.format(Locale.ROOT, "%.2f", row.balance()));
             rows.add(value);
         }
-        return new Preview(List.copyOf(rows), 1, "Kotak bank statement preview loaded successfully", true);
+        return new Preview(List.copyOf(rows), 1, "Bank statement preview loaded successfully", true);
     }
 
     private Preview purchaseReconPreview(File file, Map<String, String> mapping, List<String> mappedFields) throws Exception {

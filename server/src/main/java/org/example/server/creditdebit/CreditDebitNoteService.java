@@ -450,7 +450,13 @@ public class CreditDebitNoteService {
                 Long.class, counterKey, org.example.server.util.BusinessClock.nowUtcText()
         );
         long val = allocatedValue != null ? allocatedValue : 1L;
-        return String.format(Locale.ROOT, "%s-%s-%04d", prefix, datePart, val);
+        String lookupCode = "DN".equalsIgnoreCase(prefix) ? "REF_DEBIT_NOTE" : "REF_CREDIT_NOTE";
+        String fallback = prefix.toUpperCase(Locale.ROOT) + "/DD-MM-YYYY/XXXX";
+        List<String> fmtRows = jdbc.query(
+            "SELECT lookup_value FROM lookup_master WHERE UPPER(TRIM(lookup_type))='REFERENCE FORMAT' AND UPPER(TRIM(lookup_code))=? AND COALESCE(is_active,1)<>0 LIMIT 1",
+            (r, i) -> r.getString(1), lookupCode);
+        String fmt = (!fmtRows.isEmpty() && fmtRows.getFirst() != null && !fmtRows.getFirst().isBlank()) ? fmtRows.getFirst().trim() : fallback;
+        return org.example.shared.ReferenceFormatRules.format(fmt, (int) val, org.example.server.util.BusinessClock.today());
     }
 
     private Long postCreditNoteJournal(String noteNo, LocalDate date, String party, BigDecimal taxable, BigDecimal tax, BigDecimal total, String user) {

@@ -1,3 +1,11 @@
+# What's New in DSE ERP v11.0.23
+
+### Unified Bank Statement Engine, Payment Reference (`PRF/...`) Deep-Linking & Standardized Master Reference Formats
+- **Unified Bank Statement Import Engine (`UniversalBankStatementParser`)**: Consolidated all bank statement ingestion and preflight validation under a single universal parser, added full Light Mode parity, normalized valid status badges to `PASSED`, and enabled multi-format template downloads (`.xlsx`, `.xls`, `.csv`, and All 3 Formats) with 5-color semantic headers.
+- **Auto-Generated Statement Reference (`BST/...`) & Payment Reference (`PRF/...`)**: Added `Statement Ref` (`BST/DD-MM-YYYY/XXXX`) column to Bank Statement and Purchase Recon `# Linked Ref`, removed duplicate `Value Date`, and implemented auto-generated `Payment Ref` (`PRF/DD-MM-YYYY/XXXX`) across manual and bank-matched settlements with 2-way deep-link traversal and manual settlement warnings.
+- **Standardized `PREFIX/DD-MM-YYYY/XXXX` Across All Master & Note Categories**: Standardized Business Type (`BUS/...`), Industry (`IND/...`), Currency (`CCY/...`), Time Zone (`TIM/...`), Date Format (`DAT/...`), Time Format (`TMF/...`), Reference Scheme (`RFS/...`), Credit/Debit Note Reasons (`CNR/...`, `DNR/...`), and Credit/Debit Notes (`CN/...`, `DN/...`) under the master `REFERENCE_FORMAT` engine.
+- **2-Way Document Inspection Linkages & Deep-Link Isolation**: Added **"Linked Records"** tab and **"View Linkages"** actions to Sales and Purchase inspection modals and registers, fixed Expense Entry deep-link isolation, and enhanced Move to Expense / Bank Entry dialog ergonomics.
+
 # What's New in DSE ERP v11.0.16
 
 ### Google Antigravity SDK Ecosystem, Glassmorphism Defect Highlighting & AI Copilot Diagnostics
