@@ -222,7 +222,7 @@ class AuthMfaEnrollmentScenarioTest {
                 .thenReturn(new AuthOtpService.Issued("reg-challenge-456", true));
 
         AuthDtos.ChallengeResponse response = service.requestRegistrationOtp(
-                new AuthDtos.RegistrationOtpRequest("shailesh", "Shailesh", "shailesh@test.com", "Sales", true, "chal-123", "10")
+                new AuthDtos.RegistrationOtpRequest("shailesh", "Shailesh", "shailesh@test.com", "9876543210", "Sales", true, "chal-123", "10")
         );
 
         assertTrue(response.success());

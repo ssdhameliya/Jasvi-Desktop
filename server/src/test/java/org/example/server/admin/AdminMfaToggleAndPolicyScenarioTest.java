@@ -81,13 +81,13 @@ class AdminMfaToggleAndPolicyScenarioTest {
     private static AdminService service(ToggleDb db, TokenService tokens, RoleMasterService roles, boolean resultingMfa) {
         return new AdminService(db,mock(PasswordEncoder.class),tokens,roles) {
             @Override public AdminDtos.UserDto user(int id) {
-                return new AdminDtos.UserDto(id,"admin","System Administrator","admin@company.com","ADMIN","Administration","FULL ACCESS","Head Office",true,false,resultingMfa,"",5);
+                return new AdminDtos.UserDto(id,"admin","System Administrator","admin@company.com","9876543210","ADMIN","Administration","FULL ACCESS","Head Office",true,false,resultingMfa,"",5);
             }
         };
     }
 
     private static AdminDtos.UserSaveRequest request(boolean mfa) {
-        return new AdminDtos.UserSaveRequest(7,"admin","","System Administrator","admin@company.com","ADMIN","Administration","FULL ACCESS","Head Office",true,false,mfa,4);
+        return new AdminDtos.UserSaveRequest(7,"admin","","System Administrator","admin@company.com","9876543210","ADMIN","Administration","FULL ACCESS","Head Office",true,false,mfa,4);
     }
 
     private static void actor(int id, String username) {
@@ -108,6 +108,7 @@ class AdminMfaToggleAndPolicyScenarioTest {
             if(query.contains("security.auth.mfa.policy")) return type.cast(policy);
             if(query.contains("COUNT(*) FROM users") && query.contains("username")) return type.cast(Long.valueOf(0));
             if(query.contains("COUNT(*) FROM users") && query.contains("email")) return type.cast(Long.valueOf(0));
+            if(query.contains("COUNT(*) FROM users") && query.contains("phone")) return type.cast(Long.valueOf(0));
             if(query.contains("SELECT mfa_enabled FROM users")) return type.cast(Boolean.valueOf(previousMfa));
             if(query.contains("SELECT locked FROM users")) return type.cast(Boolean.FALSE);
             if(query.contains("SELECT COALESCE(role,'') FROM users")) return type.cast("ADMIN");
