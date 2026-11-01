@@ -1056,4 +1056,12 @@ public class MasterDataService {
     private double n(Double v) {
         return v == null ? 0 : v;
     }
+
+    public byte[] generateImportTemplate(String module) {
+        try {
+            return new TemplateExportService().generateTemplate(module, referenceFormats());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate import template for " + module + ": " + e.getMessage(), e);
+        }
+    }
 }

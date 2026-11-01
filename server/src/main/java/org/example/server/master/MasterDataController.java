@@ -47,4 +47,13 @@ public class MasterDataController {
  @PutMapping("/categories/rename") public MasterDtos.CategoryDto rename(@RequestBody MasterDtos.RenameCategoryRequest r,@RequestParam(defaultValue="-1") long rowVersion){return service.renameCategory(r.oldName(),r.newName(),rowVersion);}
  @DeleteMapping("/categories") public MasterDtos.OperationResponse deleteCategory(@RequestParam String name,@RequestParam(defaultValue="-1") long rowVersion){service.deleteCategory(name,rowVersion);return new MasterDtos.OperationResponse(true,"OK");}
  @PutMapping("/categories/active") public MasterDtos.CategoryDto setCategoryActive(@RequestParam String name,@RequestParam boolean active,@RequestParam(defaultValue="-1") long rowVersion){return service.setCategoryActive(name,active,rowVersion);}
+
+ @GetMapping(value = "/import/template/{moduleName}", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+ public org.springframework.http.ResponseEntity<byte[]> downloadTemplate(@PathVariable String moduleName) {
+     byte[] excelBytes = service.generateImportTemplate(moduleName);
+     String safeName = moduleName.replaceAll("[^A-Za-z0-9]+", "_") + "_Template.xlsx";
+     return org.springframework.http.ResponseEntity.ok()
+         .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeName + "\"")
+         .body(excelBytes);
+ }
 }

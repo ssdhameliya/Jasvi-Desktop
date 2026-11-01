@@ -101,6 +101,14 @@ D:\DSE Production (PostgreSQL 16 on port 55432)
 >    - Arbitrary root `.md` files outside the whitelist are strictly banned.
 > 5. **Sync Protection:**
 >    - Automated robocopy sync scripts must never introduce extraneous files into `D:\JavaProject\` or `D:\GitHub\`.
+> 6. **Mandatory Universal Protocol Synchronization Across All Folders:**
+>    - Whenever `dse-erp-master-protocol.md` or `GEMINI.md` is updated, Antigravity MUST automatically synchronize the updated file across ALL 4 ecosystem repositories and tiers:
+>      - Tier 1 Active Dev: `D:\Antigravity-Dev\Jasvi-Desktop`, `D:\Antigravity-Dev\Jasvi-Admin`, `D:\Antigravity-Dev\Jasvi-UserView`, `D:\Antigravity-Dev\Jasvi-Mobile`, `D:\ERP Website`, `D:\ERP Website\admin`
+>      - Tier 2 User Testing: `D:\JavaProject\Jasvi-Desktop`, `D:\JavaProject\Jasvi-Admin`, `D:\JavaProject\Jasvi-UserView`, `D:\JavaProject\Jasvi-Mobile`
+>      - Tier 3 Pre-Release Staging: `D:\GitHub\ReleaseSource-Desktop`, `D:\GitHub\ReleaseSource-UserView`
+>      - Tier 4 Git Target Repos: `D:\GitHub\Jasvi-Desktop`, `D:\GitHub\Jasvi-Admin`, `D:\GitHub\Jasvi-UserView`, `D:\GitHub\Jasvi-Mobile`
+>      - Global Rule Directory: `C:\Users\JATIN DHAMELIYA\.gemini\config\rules\dse-erp-master-protocol.md`
+>    - This guarantees that all folders and workspaces across all conversations remain 100% synchronized with zero configuration drift.
 
 ### 1.6 Mandatory Investigation, Confirmation & Zero-Assumption Protocol
 > **BINDING OPERATING RULES FOR ALL AGENTIC ASSISTANCE:**

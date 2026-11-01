@@ -12,8 +12,14 @@ import java.util.Locale;
 /** Writes import workbooks; no JavaFX or controller state. */
 public final class ImportTemplateService {
     public void write(Path target, String module, String appVersion) throws Exception {
+        try (OutputStream output = Files.newOutputStream(target)) {
+            writeToStream(output, module, appVersion);
+        }
+    }
+
+    public static void writeToStream(OutputStream output, String module, String appVersion) throws Exception {
         List<String> fields = ImportModuleRegistry.fields(module);
-        try (Workbook workbook = new XSSFWorkbook(); OutputStream output = Files.newOutputStream(target)) {
+        try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Import Template");
             Sheet instructions = workbook.createSheet("Instructions");
             String[][] guidance = {
@@ -57,6 +63,31 @@ public final class ImportTemplateService {
                 }
                 lastSampleRow = sampleIndex + 1;
             }
+
+            // In-cell Excel Data Validation Dropdowns (Desktop POI parity)
+            DataValidationHelper validationHelper = sheet.getDataValidationHelper();
+            for (int col = 0; col < fields.size(); col++) {
+                String f = fields.get(col).toLowerCase(Locale.ROOT);
+                String[] listValues = null;
+                if (f.equals("gst_percent") || f.equals("charge_1_gst_percent") || f.equals("charge_2_gst_percent")) {
+                    listValues = new String[]{"0", "5", "12", "18", "28"};
+                } else if (f.equals("gst_type")) {
+                    listValues = new String[]{"GST", "IGST"};
+                } else if (f.equals("charge_1_type") || f.equals("charge_2_type")) {
+                    listValues = new String[]{"Freight", "Packing", "Insurance", "Handling", "Loading", "Other"};
+                } else if (f.equals("charge_1_taxable") || f.equals("charge_2_taxable") || f.equals("is_active")) {
+                    listValues = new String[]{"true", "false"};
+                }
+                if (listValues != null) {
+                    org.apache.poi.ss.util.CellRangeAddressList addressList = new org.apache.poi.ss.util.CellRangeAddressList(1, 1000, col, col);
+                    DataValidationConstraint constraint = validationHelper.createExplicitListConstraint(listValues);
+                    DataValidation validation = validationHelper.createValidation(constraint, addressList);
+                    validation.setSuppressDropDownArrow(true);
+                    validation.setShowErrorBox(true);
+                    sheet.addValidationData(validation);
+                }
+            }
+
             sheet.createFreezePane(0, 1);
             sheet.setAutoFilter(new org.apache.poi.ss.util.CellRangeAddress(0, Math.max(1, lastSampleRow), 0, fields.size() - 1));
             workbook.write(output);
@@ -109,20 +140,41 @@ public final class ImportTemplateService {
             } else if (module != null && (module.contains("Item") || module.equalsIgnoreCase("Inventory"))) {
                 format = formats.get("REF_ITEM");
             }
-            if (format != null && !format.isBlank()) {
-                java.time.LocalDate today = java.time.LocalDate.now();
-                List<List<String>> dynamicRows = new java.util.ArrayList<>();
-                for (int i = 0; i < rows.size(); i++) {
-                    List<String> original = rows.get(i);
-                    List<String> updated = new java.util.ArrayList<>(original);
-                    if (!updated.isEmpty()) {
-                        String sampleRef = org.example.shared.ReferenceFormatRules.format(format, i + 1, today);
-                        updated.set(0, sampleRef);
-                    }
-                    dynamicRows.add(java.util.List.copyOf(updated));
+
+            java.time.LocalDate today = java.time.LocalDate.now();
+            List<List<String>> dynamicRows = new java.util.ArrayList<>();
+            for (int i = 0; i < rows.size(); i++) {
+                List<String> original = rows.get(i);
+                List<String> updated = new java.util.ArrayList<>(original);
+                if (format != null && !format.isBlank() && !updated.isEmpty()) {
+                    String sampleRef = org.example.shared.ReferenceFormatRules.format(format, i + 1, today);
+                    updated.set(0, sampleRef);
                 }
-                return java.util.List.copyOf(dynamicRows);
+                // Dynamic party_code and item_code for Sales
+                if ("Sales".equalsIgnoreCase(module) && updated.size() > 3) {
+                    String cusFmt = formats.get("REF_CUSTOMER");
+                    if (cusFmt != null && !cusFmt.isBlank()) {
+                        updated.set(2, org.example.shared.ReferenceFormatRules.format(cusFmt, i + 1, today));
+                    }
+                    String itmFmt = formats.get("REF_ITEM");
+                    if (itmFmt != null && !itmFmt.isBlank()) {
+                        updated.set(3, org.example.shared.ReferenceFormatRules.format(itmFmt, 1, today));
+                    }
+                }
+                // Dynamic party_code and item_code for Purchases
+                if ("Purchases".equalsIgnoreCase(module) && updated.size() > 3) {
+                    String supFmt = formats.get("REF_SUPPLIER");
+                    if (supFmt != null && !supFmt.isBlank()) {
+                        updated.set(2, org.example.shared.ReferenceFormatRules.format(supFmt, i + 1, today));
+                    }
+                    String itmFmt = formats.get("REF_ITEM");
+                    if (itmFmt != null && !itmFmt.isBlank()) {
+                        updated.set(3, org.example.shared.ReferenceFormatRules.format(itmFmt, 1, today));
+                    }
+                }
+                dynamicRows.add(java.util.List.copyOf(updated));
             }
+            return java.util.List.copyOf(dynamicRows);
         } catch (Exception ignored) {
             // Graceful fallback to static examples if server lookup is unavailable
         }

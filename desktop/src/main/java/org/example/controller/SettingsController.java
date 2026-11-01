@@ -227,6 +227,9 @@ public class SettingsController implements ScreenLifecycle {
     private TextArea txtInvoiceTerms;
 
     @FXML
+    private Label lblActiveRefFormat;
+
+    @FXML
     private ComboBox<String> cmbCurrency;
 
     @FXML
@@ -787,6 +790,16 @@ public class SettingsController implements ScreenLifecycle {
                 txtCompanyTagline.setText(value.tagline()); txtShipAddress.setText(value.shipAddress()); txtInvoiceTerms.setText(value.terms());
                 selectComboValue(cmbCurrency, value.currency()); selectComboValue(cmbTimeZone, value.timeZone()); selectComboValue(cmbDateFormat, value.dateFormat());
                 if (cmbTimeFormat != null) selectComboValue(cmbTimeFormat, value.timeFormat());
+                if (lblActiveRefFormat != null) {
+                    try {
+                        java.util.Map<String, String> fmts = new org.example.api.master.MasterApiClient().referenceFormats();
+                        String sales = fmts.getOrDefault("REF_SALES", "IN/DD-MM-YYYY/XXXX");
+                        String sample = org.example.shared.ReferenceFormatRules.format(sales, 1, java.time.LocalDate.now());
+                        lblActiveRefFormat.setText(sales + " (e.g., " + sample + ")");
+                    } catch (Exception ignored) {
+                        lblActiveRefFormat.setText("PREFIX / DD-MM-YYYY / XXXX");
+                    }
+                }
             }
             case EMAIL -> {
                 EmailSettingsSnapshot value = (EmailSettingsSnapshot) snapshot;
@@ -913,6 +926,45 @@ public class SettingsController implements ScreenLifecycle {
     @FXML
     private void removeApplicationMark() {
         removeConfiguredAsset(APPLICATION_MARK_PATH_KEY, imgApplicationMark, placeholderApplicationMark, lblApplicationMarkFile);
+    }
+
+    @FXML
+    private void showRefFormatInfoDialog() {
+        org.example.util.AppDialogService.info(
+            lblActiveRefFormat,
+            "Document Reference Formats Guide",
+            "Deterministic Auto-Numbering & Supported Tokens",
+            "Reference formats control document and entity codes generated across the ERP:\n\n" +
+            "• YY-YYYY : Indian Financial Year (e.g. 24-2025)\n" +
+            "• YYYY-YYYY : Full Indian Financial Year (e.g. 2024-2025)\n" +
+            "• YYYY-YY : Short Indian Financial Year (e.g. 2024-25)\n" +
+            "• YY-YY : 2-digit Indian Financial Year (e.g. 24-25)\n" +
+            "• DD-MM-YYYY : Indian Calendar Date (Day-Month-Year)\n" +
+            "• MM-YYYY : Month and Year\n" +
+            "• YYYY : 4-digit Calendar Year\n" +
+            "• XXXX : Zero-padded sequence numbers (0001, 0002...)\n\n" +
+            "GST Rule 46(b) recommends keeping tax invoice numbers under 16 characters."
+        );
+    }
+
+    @FXML
+    private void handleRefFormatSyncAction() {
+        boolean confirmed = org.example.util.AppDialogService.confirm(
+            lblActiveRefFormat,
+            "Double Confirmation: Reference Format Modification",
+            "Review Operational & Statutory Impact",
+            "Reconfiguring reference formats impacts ERP sequences:\n\n" +
+            "1. Historical Invoices: Existing documents remain unchanged for statutory and tax audit compliance.\n" +
+            "2. Next Sequences: Newly created documents will adopt the updated format.\n" +
+            "3. Import Templates: Excel templates will reflect the updated format samples.\n" +
+            "4. GST Length Limit: Verify that total document number length stays within 16 characters.\n\n" +
+            "Do you want to proceed to Master Data Reference Formats to apply changes?",
+            "Proceed to Master Data"
+        );
+        if (confirmed) {
+            MasterDataController.requestCategory("REFERENCE_FORMAT");
+            DashboardController.navigateFromChildPage("Master Data", "/fxml/pages/Masterdata.fxml");
+        }
     }
 
     @FXML

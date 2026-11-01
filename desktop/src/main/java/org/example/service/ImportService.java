@@ -893,24 +893,34 @@ public class ImportService {
         if (second != null) charges.add(second);
         String flexible = consistentText(rows, DocumentImportRow::additionalCharges, "additional_charges", false);
         if (flexible != null && !flexible.isBlank()) charges.addAll(parseAdditionalSalesCharges(flexible));
-        java.util.Set<String> names = new java.util.HashSet<>();
+
+        // Deduplicate identical charges (same type and amount)
+        List<SalesCharge> deduplicatedCharges = new ArrayList<>();
+        java.util.Set<String> chargeSignatures = new java.util.HashSet<>();
         for (SalesCharge charge : charges) {
+            String sig = charge.getChargeType().trim().toUpperCase(Locale.ROOT) + "|" + String.format(Locale.ROOT, "%.2f", charge.getAmount());
+            if (chargeSignatures.add(sig)) {
+                deduplicatedCharges.add(charge);
+            }
+        }
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (SalesCharge charge : deduplicatedCharges) {
             String key = charge.getChargeType().trim().toUpperCase(Locale.ROOT);
             if (!names.add(key)) throw new IllegalArgumentException("Duplicate sales charge type: " + charge.getChargeType());
         }
 
-        String attachment = consistentText(rows, DocumentImportRow::attachmentFile, "attachment_file", false);
+        String attachment = consistentText(rows, DocumentImportRow::attachmentFiles, "attachment_files", false);
+        if (attachment == null || attachment.isBlank()) {
+            attachment = consistentText(rows, DocumentImportRow::attachmentFile, "attachment_file", false);
+        }
         Path source = null;
         if (attachment != null && !attachment.isBlank()) {
-            try { source = Path.of(attachment.trim()); }
-            catch (Exception invalidPath) { throw new IllegalArgumentException("attachment_file is not a valid path: " + attachment); }
-            if (!source.isAbsolute()) {
-                Path parent = workbookFile.toAbsolutePath().normalize().getParent();
-                source = (parent == null ? Path.of("") : parent).resolve(source).normalize();
+            String firstFile = attachment.split(";")[0].trim();
+            if (!firstFile.isBlank()) {
+                source = ImportDocumentPolicy.resolveAttachment(workbookFile, firstFile);
             }
-            if (!Files.isRegularFile(source)) throw new IllegalArgumentException("attachment_file was not found: " + attachment);
         }
-        return new SalesImportExtras(List.copyOf(charges), source);
+        return new SalesImportExtras(List.copyOf(deduplicatedCharges), source);
     }
 
     private PurchaseImportExtras purchaseImportExtras(Path workbookFile,List<DocumentImportRow> rows){
@@ -919,14 +929,24 @@ public class ImportService {
         if(first!=null)charges.add(first);if(second!=null)charges.add(second);
         String flexible=consistentText(rows,DocumentImportRow::additionalCharges,"additional_charges",false);
         if(flexible!=null&&!flexible.isBlank())charges.addAll(parseAdditionalPurchaseCharges(flexible));
+
+        // Deduplicate identical charges (same type and amount)
+        List<PurchaseCharge> deduplicatedCharges = new ArrayList<>();
+        java.util.Set<String> chargeSignatures = new java.util.HashSet<>();
+        for (PurchaseCharge charge : charges) {
+            String sig = charge.getChargeType().trim().toUpperCase(Locale.ROOT) + "|" + String.format(Locale.ROOT, "%.2f", charge.getAmount());
+            if (chargeSignatures.add(sig)) {
+                deduplicatedCharges.add(charge);
+            }
+        }
         java.util.Set<String> names=new java.util.HashSet<>();
-        for(PurchaseCharge charge:charges){String key=charge.getChargeType().trim().toUpperCase(Locale.ROOT);if(!names.add(key))throw new IllegalArgumentException("Duplicate purchase charge type: "+charge.getChargeType());}
+        for(PurchaseCharge charge:deduplicatedCharges){String key=charge.getChargeType().trim().toUpperCase(Locale.ROOT);if(!names.add(key))throw new IllegalArgumentException("Duplicate purchase charge type: "+charge.getChargeType());}
         List<Path> attachments=new ArrayList<>();
         String legacy=consistentText(rows,DocumentImportRow::attachmentFile,"attachment_file",false);
         Path legacyPath=ImportDocumentPolicy.resolveAttachment(workbookFile,legacy);if(legacyPath!=null)attachments.add(legacyPath);
         String many=consistentText(rows,DocumentImportRow::attachmentFiles,"attachment_files",false);
         if(many!=null&&!many.isBlank())for(String value:many.split(";")){Path path=ImportDocumentPolicy.resolveAttachment(workbookFile,value);if(path!=null&&!attachments.contains(path))attachments.add(path);}
-        return new PurchaseImportExtras(List.copyOf(charges),List.copyOf(attachments));
+        return new PurchaseImportExtras(List.copyOf(deduplicatedCharges),List.copyOf(attachments));
     }
 
     private List<PurchaseCharge> parseAdditionalPurchaseCharges(String text){

@@ -60,7 +60,7 @@ public final class ImportMappingSupport {
             case "charge2amount" -> normalizedHeader.equals("charge2value") || normalizedHeader.equals("additionalcharge2amount");
             case "charge2taxable" -> normalizedHeader.equals("charge2istaxable") || normalizedHeader.equals("charge2tax");
             case "charge2gstpercent" -> normalizedHeader.equals("charge2gst") || normalizedHeader.equals("charge2gstrate");
-            case "attachmentfile" -> normalizedHeader.equals("attachment") || normalizedHeader.equals("documentfile") || normalizedHeader.equals("attachmentpath");
+            case "attachmentfiles", "attachmentfile" -> normalizedHeader.equals("attachment") || normalizedHeader.equals("documentfile") || normalizedHeader.equals("attachmentpath") || normalizedHeader.equals("attachmentfile") || normalizedHeader.equals("attachmentfiles");
             default -> false;
         };
     }
