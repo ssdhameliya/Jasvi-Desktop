@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for the unified Jasvi ERP ecosystem (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, `Jasvi-Mobile`): Architecture, Workspace Boundaries, Desktop-Web Parity Inspection, Automation Scripts, Server Infrastructure, and Cloud Deployment.
 > **Antigravity Enforcement:** This document is automatically loaded by Antigravity on every conversation. All rules, boundaries, and checklists herein are strictly binding.
-> **Last Updated:** 2026-11-01 — Codified Strict Operating Protocol: Zero extraneous files (.md, .txt, logs), mandatory user confirmation before build/code updates, root-cause investigation before planning, zero-assumptions rule, UserView manual-only PROD deployment, and mandatory plugin accountability across all builds.
+> **Last Updated:** 2026-11-01 — Codified Strict Operating Protocol: Zero extraneous files (.md, .txt, logs), mandatory user confirmation before build/code updates, root-cause investigation before planning, zero-assumptions rule, UserView manual-only PROD deployment, mandatory plugin accountability, and automated full-tier sync with version auto-increment on push to GitHub.
 
 ---
 
@@ -104,16 +104,21 @@ D:\DSE Production (PostgreSQL 16 on port 55432)
 
 ### 1.6 Mandatory Investigation, Confirmation & Zero-Assumption Protocol
 > **BINDING OPERATING RULES FOR ALL AGENTIC ASSISTANCE:**
-> 1. **No Code Modifications or Builds Without Confirmation:**
+> 1. **No Code Modifications or Builds Without Confirmation (Strict Scope Locking & Decisive Direct Execution):**
 >    - When the user asks a question, reports an issue, or requests help, Antigravity must **NEVER build, modify, or update code until the user has explicitly confirmed and approved the plan**.
 >    - Never execute premature edits or automated builds without prior agreement.
-> 2. **Structured 3-Stage Investigation & Plan Sequence:**
->    - **Stage 1 (Deep Investigation):** Thoroughly inspect the code, logic, database schemas, and contracts. Ground every statement in concrete code references.
->    - **Stage 2 (Root Cause Analysis - "The Why"):** Clearly explain precisely *why* the issue or defect exists with verified evidence.
->    - **Stage 3 (Proposed Fix Plan - "The How"):** Outline the exact plan showing which files, lines, and logic will be modified, and what verification will be executed.
-> 3. **Zero Assumptions Policy:**
+>    - **Decisive Direct Execution Post-Approval (No Re-Investigation Loops):** All investigation must be 100% complete and exhaustive *before* presenting the plan. Once the user explicitly approves, do NOT re-investigate, second-guess, or wander into repetitive file lookups. Move **immediately and directly** to applying the approved fix.
+>    - **Strict Scope Locking:** Work strictly and exclusively on the approved fix. Never perform unapproved refactoring, touch unrelated files, or expand scope beyond what was agreed.
+> 2. **Structured 3-Stage Investigation & Plan Sequence (Recursive Linkage & Zero-Regression Proof):**
+>    - **Stage 1 (Exhaustive Upfront Investigation):** Thoroughly inspect the code, logic, database schemas, and contracts completely the first time. Pinpoint exact files, line numbers, and logic so no further investigation is needed after approval.
+>    - **Stage 2 (Root Cause & Recursive Dependency Trace - "The Why & The Ripple Effect"):** Clearly explain precisely *why* the issue exists with verified evidence. Trace every downstream function, shared utility, controller, and screen connected to the issue (Function A ──► Function B ──► Screens 1 through 10+).
+>    - **Stage 3 (Proposed Fix Plan with Explicit Regression Guarantee - "The How & Regression Proof"):** Outline the exact plan showing which files, lines, and logic will be modified. Explicitly declare whether and how this fix could impact linked functionalities, and detail the exact safeguards proving **zero regression**.
+> 3. **Cumulative Context & Multi-Question Synthesis (Zero Dropped Questions):**
+>    - When the user asks follow-up questions or adds new constraints, answering a new question must NEVER cause previous questions or findings to be lost.
+>    - The response must synthesize the cumulative context, maintaining a unified summary of all previous inquiries and answers alongside the current question so that both parties remain 100% aligned.
+> 4. **Zero Assumptions Policy:**
 >    - Never guess, extrapolate, or assume user intentions, business logic, or system behavior.
-> 4. **Ask If in Doubt:**
+> 5. **Ask If in Doubt:**
 >    - If any requirement, parameter, or detail is ambiguous, stop immediately and ask the user clarifying questions before taking any action.
 
 ### 1.7 UserView Strict Deployment Protocol: Push = UAT Only, PROD is 100% Manual
@@ -129,18 +134,40 @@ D:\DSE Production (PostgreSQL 16 on port 55432)
 > 3. **PROD Default Safeguard:**
 >    - The Production site (`https://jasviindustries.in`) must strictly remain locked to the Upcoming Page until explicit user instruction.
 
-### 1.8 Mandatory Plugin Accountability & Verification Across All Builds
-> **STRICT PLUGIN GOVERNANCE DURING INVESTIGATION, CODING & BUILDS:**
-> 1. **Application Vendor Libraries & Plugins (`jspdf`, `xlsx`, `swiper`):**
+### 1.8 Mandatory Default Plugin Quality Gate (Always Run by Default Across All Builds)
+> **MANDATORY AUTOMATIC EXECUTION ON EVERY INVESTIGATION & BUILD PROPOSAL:**
+> In every investigation and before proposing or confirming any build, Antigravity MUST automatically run and include a verified **Plugin Quality Gate** in the output:
+> 1. **Web Standards & Layout Gate (`modern-web-guidance`):**
+>    - Automatically verify modern HTML5/CSS3/ES6 standards, responsive layouts, theme parity (light/dark), and browser compatibility.
+> 2. **Security & Vulnerability Gate (`cloudflare-security-audit`):**
+>    - Automatically check for XSS vulnerabilities, token leakage, DOM injection flaws, and unsafe CDN scripts.
+> 3. **Lean Code & Anti-Bloat Gate (`ponytail`):**
+>    - Automatically audit code simplicity, enforce minimal clean diffs, and eliminate bloat or dead code.
+> 4. **Application Vendor Libraries & Plugins (`jspdf`, `xlsx`, `swiper`):**
 >    - **Strict Zero-Dependency Creep:** Never introduce arbitrary npm packages, external plugins, or third-party CDN scripts into any repository (`Jasvi-Admin`, `Jasvi-UserView`, `Jasvi-Mobile`).
 >    - **Mandatory Guarding & Verification:** All approved vendor plugins (e.g. `jspdf` for client PDF generation, `xlsx` for Excel parsing/export, `swiper` for 3D showcase carousel) must be defensively guarded (`window.jspdf`, `window.XLSX`, `window.Swiper`) to prevent runtime failures or offline breaks.
 >    - **Architectural Determinism:** Core business logic, pricing, tax calculations, and state machines must NEVER be outsourced to external plugins; they belong strictly in internal, deterministic engines (`DocumentCalculationEngine.js`, Java backend) to maintain 100% desktop-web parity.
-> 2. **Agent Plugins & AI Engineering Tooling:**
->    - **Active Quality & Security Audits on All Builds:** In every investigation and before proposing or confirming any build, Antigravity must actively leverage installed agent plugins:
->      - `modern-web-guidance`: Verify modern HTML5/CSS3/ES6 standards, responsive layouts, and browser compatibility.
->      - `cloudflare-security-audit`: Check for vulnerabilities, token leakage, injection flaws, and unsafe patterns.
->      - `ponytail`: Audit code simplicity, enforce minimal clean diffs, and eliminate bloat or dead code.
->    - **Zero Contamination:** Agent plugins must strictly adhere to Rule 1.5 — never creating, depositing, or syncing extraneous `.txt`, `.md`, or log artifacts into any project tier.
+> 5. **Zero Extraneous File Contamination:**
+>    - Agent plugins must strictly adhere to Rule 1.5 — never creating, depositing, or syncing extraneous `.txt`, `.md`, or log artifacts into any project tier.
+
+### 1.9 Mandatory "Push to GitHub" Protocol: Full-Tier Sync & Version Auto-Increment
+> **STRICT WORKFLOW UPON USER COMMAND ("push to github", "deploy to github", "release"):**
+> Whenever the user instructs to push or deploy to GitHub:
+> 1. **Mandatory Pre-Push Full-Tier Sync (Zero Lagging Workspaces):**
+>    - Antigravity MUST automatically synchronize all modified files across the 4-tier chain before pushing:
+>      `Tier 1: Antigravity-Dev ──► Tier 3: ReleaseSource-* ──► Tier 2: D:\JavaProject\* ──► Tier 4: D:\GitHub\*`
+>    - The user's local IntelliJ testing workspace (`D:\JavaProject`) MUST always be synchronized (strictly excluding `.idea`, `.git`, and `target`), and the exact number of copied/modified files MUST be counted and reported to the user.
+> 2. **Mandatory Latest Version Check & Auto-Increment:**
+>    - Before committing or pushing, Antigravity MUST query the repository's latest previous git tag (`git tag --sort=-v:refname` or `git describe --tags`).
+>    - Antigravity MUST automatically increment the version:
+>      - **`Jasvi-Desktop`:** Increment the release revision (e.g. `11.0.19` ──► `11.0.20`) and update `.mvn/maven.config`.
+>      - **`Jasvi-Admin`:** Align to the desktop baseline and increment the web build (e.g. `web-v11.0.20.01`), updating `version.json`, `js/version.js`, `ViewLoader.js`, and `index.html` cache-busters.
+>      - **`Jasvi-Mobile`:** Increment the semantic mobile version (e.g. `1.2.7` ──► `1.2.8`).
+> 3. **Validation & Atomic Release:**
+>    - Execute the mandatory test suite and release audit gates in Tier 4 (`D:\GitHub\<Repo>`).
+>    - Commit changes with the standard release message format (`Release v<Version> - <Summary>`).
+>    - Create the annotated git release tag (`v<Version>` or `web-v<Version>`).
+>    - Push `main` and the release tag to `origin`, triggering the designated GitHub Actions workflow.
 
 ---
 
