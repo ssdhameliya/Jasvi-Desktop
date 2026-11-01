@@ -45,6 +45,57 @@
     </VBox>
     <Separator styleClass="workspace-separator"/>
 
+    <VBox spacing="10" styleClass="workspace-section,settings-subcard">
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Label text="Cloud Server Health &amp; Telemetry (Oracle Cloud OCI)" styleClass="settings-subsection-title"/>
+                    <Label fx:id="lblTelemetryTargetBadge" text="[ PROD - 130.210.35.1 ]" styleClass="telemetry-target-badge"/>
+                    <Label fx:id="lblTelemetryStatusBadge" text="🟢 NORMAL &amp; HEALTHY" styleClass="telemetry-badge-healthy"/>
+                </HBox>
+                <Label text="Live RAM memory, disk volume headroom, and automated storage guardian status from the cloud server." styleClass="settings-help-text"/>
+            </VBox>
+            <Button fx:id="btnRefreshTelemetry" text="Refresh Live Telemetry" onAction="#refreshCloudTelemetry" styleClass="settings-action-button,settings-secondary-button"/>
+        </HBox>
+        <GridPane hgap="24" vgap="12" styleClass="workspace-metric-grid">
+            <columnConstraints>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+            </columnConstraints>
+            <!-- Left: Disk Storage -->
+            <VBox spacing="6" GridPane.columnIndex="0">
+                <HBox alignment="CENTER_LEFT" spacing="6">
+                    <Label text="Root Disk Storage" styleClass="settings-form-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblTelemetryDiskUsage" text="0% Used" styleClass="workspace-metric-subvalue"/>
+                </HBox>
+                <ProgressBar fx:id="pbTelemetryDisk" progress="0.0" maxWidth="Infinity" prefHeight="12" styleClass="telemetry-progress,telemetry-bar-healthy"/>
+                <HBox alignment="CENTER_LEFT" spacing="12">
+                    <Label fx:id="lblTelemetryDiskTotal" text="Allocated: —" styleClass="page-subtitle"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblTelemetryDiskFree" text="Free: —" styleClass="page-subtitle"/>
+                    <Label fx:id="lblTelemetryDiskUsed" text="Used: —" styleClass="page-subtitle"/>
+                </HBox>
+            </VBox>
+            <!-- Right: Memory / RAM -->
+            <VBox spacing="6" GridPane.columnIndex="1">
+                <HBox alignment="CENTER_LEFT" spacing="6">
+                    <Label text="RAM Memory Utilization" styleClass="settings-form-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblTelemetryRamUsage" text="0% Used" styleClass="workspace-metric-subvalue"/>
+                </HBox>
+                <ProgressBar fx:id="pbTelemetryRam" progress="0.0" maxWidth="Infinity" prefHeight="12" styleClass="telemetry-progress,telemetry-bar-healthy"/>
+                <HBox alignment="CENTER_LEFT" spacing="12">
+                    <Label fx:id="lblTelemetryRamTotal" text="Shape Total: —" styleClass="page-subtitle"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblTelemetryRamAvailable" text="Available: —" styleClass="page-subtitle"/>
+                    <Label fx:id="lblTelemetryRamActive" text="Active: —" styleClass="page-subtitle"/>
+                </HBox>
+            </VBox>
+        </GridPane>
+    </VBox>
+    <Separator styleClass="workspace-separator"/>
+
     <VBox spacing="10" styleClass="workspace-section">
         <Label text="Protected Workspace Data" styleClass="settings-subsection-title"/>
         <GridPane hgap="24" vgap="8">

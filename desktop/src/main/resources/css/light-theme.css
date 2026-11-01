@@ -18485,3 +18485,58 @@
     -fx-cursor: hand;
 }
 
+
+
+/* Cloud Server Telemetry Styling */
+.telemetry-target-badge {
+    -fx-background-color: rgba(2, 132, 199, 0.1);
+    -fx-text-fill: #0284c7;
+    -fx-border-color: rgba(2, 132, 199, 0.35);
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 3px 8px;
+    -fx-font-weight: 700;
+    -fx-font-size: 11px;
+}
+.telemetry-badge-healthy {
+    -fx-background-color: rgba(5, 150, 105, 0.12);
+    -fx-text-fill: #059669;
+    -fx-border-color: rgba(5, 150, 105, 0.35);
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 3px 8px;
+    -fx-font-weight: 700;
+    -fx-font-size: 11px;
+}
+.telemetry-badge-warning {
+    -fx-background-color: rgba(217, 119, 6, 0.12);
+    -fx-text-fill: #d97706;
+    -fx-border-color: rgba(217, 119, 6, 0.35);
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 3px 8px;
+    -fx-font-weight: 700;
+    -fx-font-size: 11px;
+}
+.telemetry-badge-critical {
+    -fx-background-color: rgba(220, 38, 38, 0.12);
+    -fx-text-fill: #dc2626;
+    -fx-border-color: rgba(220, 38, 38, 0.35);
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 3px 8px;
+    -fx-font-weight: 700;
+    -fx-font-size: 11px;
+}
+.telemetry-bar-healthy .bar {
+    -fx-background-color: #059669;
+    -fx-background-radius: 6px;
+}
+.telemetry-bar-warning .bar {
+    -fx-background-color: #d97706;
+    -fx-background-radius: 6px;
+}
+.telemetry-bar-critical .bar {
+    -fx-background-color: #dc2626;
+    -fx-background-radius: 6px;
+}

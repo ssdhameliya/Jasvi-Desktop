@@ -39,6 +39,7 @@ import javafx.scene.control.DatePicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ListView;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -437,6 +438,19 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private Label lblStorageLogsTemp;
     @FXML private Label lblStorageTotal;
     @FXML private Label lblLastCleanup;
+    @FXML private Label lblTelemetryTargetBadge;
+    @FXML private Label lblTelemetryStatusBadge;
+    @FXML private Button btnRefreshTelemetry;
+    @FXML private ProgressBar pbTelemetryDisk;
+    @FXML private Label lblTelemetryDiskUsage;
+    @FXML private Label lblTelemetryDiskTotal;
+    @FXML private Label lblTelemetryDiskFree;
+    @FXML private Label lblTelemetryDiskUsed;
+    @FXML private ProgressBar pbTelemetryRam;
+    @FXML private Label lblTelemetryRamUsage;
+    @FXML private Label lblTelemetryRamTotal;
+    @FXML private Label lblTelemetryRamAvailable;
+    @FXML private Label lblTelemetryRamActive;
     private String validatedCompanyServerUrl;
     private DeploymentMode loadedDeploymentMode;
     private String loadedCompanyServerUrl = "";
@@ -1530,6 +1544,7 @@ private record AssetPreviewRequest(
 
     @FXML
     private void refreshStorageUsage() {
+        refreshCloudTelemetry();
         if (lblStorageTotal == null) return;
         lblStorageTotal.setText("Total managed storage: Loading…");
         UiTaskExecutor.submitLatest("settings-storage-status",
@@ -1750,6 +1765,86 @@ private record AssetPreviewRequest(
             String when = status.lastCleanupAt() == null || status.lastCleanupAt().isBlank() ? "Never run" : status.lastCleanupAt();
             lblLastCleanup.setText("Last cleanup: " + when + " • " + (status.lastCleanupSummary() == null ? "" : status.lastCleanupSummary()));
         }
+    }
+
+    @FXML
+    private void refreshCloudTelemetry() {
+        if (!SessionService.isAdmin()) return;
+        if (btnRefreshTelemetry != null) btnRefreshTelemetry.setDisable(true);
+        UiTaskExecutor.submitAction(
+            "fetch-cloud-telemetry",
+            () -> new org.example.api.system.ServerTelemetryApiClient().getTelemetry(),
+            telemetry -> {
+                if (btnRefreshTelemetry != null) btnRefreshTelemetry.setDisable(false);
+                applyCloudTelemetry(telemetry);
+            },
+            err -> {
+                if (btnRefreshTelemetry != null) btnRefreshTelemetry.setDisable(false);
+                if (lblTelemetryStatusBadge != null) {
+                    lblTelemetryStatusBadge.setText("🔴 SERVER UNREACHABLE");
+                    lblTelemetryStatusBadge.getStyleClass().removeAll("telemetry-badge-healthy", "telemetry-badge-warning", "telemetry-badge-critical");
+                    lblTelemetryStatusBadge.getStyleClass().add("telemetry-badge-critical");
+                }
+            }
+        );
+    }
+
+    private void applyCloudTelemetry(org.example.api.system.ServerTelemetryApiClient.TelemetryDto t) {
+        if (t == null) return;
+        if (lblTelemetryTargetBadge != null) {
+            lblTelemetryTargetBadge.setText("[ " + t.environment() + " - " + t.serverIp() + " ]");
+        }
+        if (lblTelemetryStatusBadge != null) {
+            lblTelemetryStatusBadge.getStyleClass().removeAll("telemetry-badge-healthy", "telemetry-badge-warning", "telemetry-badge-critical");
+            if ("CRITICAL".equalsIgnoreCase(t.status())) {
+                lblTelemetryStatusBadge.setText("🔴 CRITICAL HEADROOM");
+                lblTelemetryStatusBadge.getStyleClass().add("telemetry-badge-critical");
+            } else if ("WARNING".equalsIgnoreCase(t.status())) {
+                lblTelemetryStatusBadge.setText("🟡 WARNING ELEVATED");
+                lblTelemetryStatusBadge.getStyleClass().add("telemetry-badge-warning");
+            } else {
+                lblTelemetryStatusBadge.setText("🟢 NORMAL & HEALTHY");
+                lblTelemetryStatusBadge.getStyleClass().add("telemetry-badge-healthy");
+            }
+        }
+
+        // Disk metrics
+        if (pbTelemetryDisk != null) {
+            pbTelemetryDisk.setProgress(Math.min(1.0, Math.max(0.0, t.diskUsagePercent() / 100.0)));
+            pbTelemetryDisk.getStyleClass().removeAll("telemetry-bar-healthy", "telemetry-bar-warning", "telemetry-bar-critical");
+            if (t.diskUsagePercent() >= 85.0) pbTelemetryDisk.getStyleClass().add("telemetry-bar-critical");
+            else if (t.diskUsagePercent() >= 75.0) pbTelemetryDisk.getStyleClass().add("telemetry-bar-warning");
+            else pbTelemetryDisk.getStyleClass().add("telemetry-bar-healthy");
+        }
+        if (lblTelemetryDiskUsage != null) {
+            lblTelemetryDiskUsage.setText(String.format(java.util.Locale.ROOT, "%.1f%% Used", t.diskUsagePercent()));
+        }
+        long totalDiskGb = t.totalDiskBytes() / (1024 * 1024 * 1024);
+        long freeDiskGb = t.freeDiskBytes() / (1024 * 1024 * 1024);
+        long usedDiskGb = Math.max(0, (t.totalDiskBytes() - t.freeDiskBytes()) / (1024 * 1024 * 1024));
+        double freePercent = Math.max(0.0, 100.0 - t.diskUsagePercent());
+        if (lblTelemetryDiskTotal != null) lblTelemetryDiskTotal.setText("Total: " + totalDiskGb + " GB");
+        if (lblTelemetryDiskFree != null) lblTelemetryDiskFree.setText(String.format(java.util.Locale.ROOT, "Free: %d GB (%.0f%%)", freeDiskGb, freePercent));
+        if (lblTelemetryDiskUsed != null) lblTelemetryDiskUsed.setText(String.format(java.util.Locale.ROOT, "Used: %d GB (%.1f%%)", usedDiskGb, t.diskUsagePercent()));
+
+        // RAM metrics
+        if (pbTelemetryRam != null) {
+            pbTelemetryRam.setProgress(Math.min(1.0, Math.max(0.0, t.ramUsagePercent() / 100.0)));
+            pbTelemetryRam.getStyleClass().removeAll("telemetry-bar-healthy", "telemetry-bar-warning", "telemetry-bar-critical");
+            if (t.ramUsagePercent() >= 92.0) pbTelemetryRam.getStyleClass().add("telemetry-bar-critical");
+            else if (t.ramUsagePercent() >= 85.0) pbTelemetryRam.getStyleClass().add("telemetry-bar-warning");
+            else pbTelemetryRam.getStyleClass().add("telemetry-bar-healthy");
+        }
+        if (lblTelemetryRamUsage != null) {
+            lblTelemetryRamUsage.setText(String.format(java.util.Locale.ROOT, "%.1f%% Used", t.ramUsagePercent()));
+        }
+        double totalRamGib = (double) t.totalRamBytes() / (1024.0 * 1024.0 * 1024.0);
+        double availRamGib = (double) t.availableRamBytes() / (1024.0 * 1024.0 * 1024.0);
+        double activeRamGib = Math.max(0.0, (double) (t.totalRamBytes() - t.availableRamBytes()) / (1024.0 * 1024.0 * 1024.0));
+        double availPercent = Math.max(0.0, 100.0 - t.ramUsagePercent());
+        if (lblTelemetryRamTotal != null) lblTelemetryRamTotal.setText(String.format(java.util.Locale.ROOT, "Shape Total: %.1f GiB", totalRamGib));
+        if (lblTelemetryRamAvailable != null) lblTelemetryRamAvailable.setText(String.format(java.util.Locale.ROOT, "Available: %.1f GiB (%.0f%%)", availRamGib, availPercent));
+        if (lblTelemetryRamActive != null) lblTelemetryRamActive.setText(String.format(java.util.Locale.ROOT, "Active: %.1f GiB (%.1f%%)", activeRamGib, t.ramUsagePercent()));
     }
 
     private static String formatBytes(long bytes) {

@@ -132,14 +132,14 @@ public final class ImportModuleRegistry {
     public static List<List<String>> exampleRows(String module) {
         if ("Sales".equals(module)) {
             return List.of(
-                List.of("SAL-GST-0001", BusinessClock.formatDate(BusinessClock.today()), "CUS-0001", "ITEM-0001", "2", "1500", "18", "GST", "15 Days", "0", "Sample intra-state sale with optional charges", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "Insurance|75|true|18;Handling|50|false|0", ""),
-                List.of("SAL-IGST-0002", BusinessClock.formatDate(BusinessClock.today()), "CUS-0002", "ITEM-0001", "1", "2000", "18", "IGST", "15 Days", "0", "Sample inter-state sale; multiple attachments optional", "", "", "", "", "", "", "", "", "Freight|250|true|18", "invoice.pdf;delivery-receipt.pdf")
+                List.of("SAL-GST-0001", BusinessClock.formatDate(BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 1, BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "2", "1500", "18", "GST", "15 Days", "0", "Sample intra-state sale with optional charges", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "Insurance|75|true|18;Handling|50|false|0", ""),
+                List.of("SAL-IGST-0002", BusinessClock.formatDate(BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 2, BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "1", "2000", "18", "IGST", "15 Days", "0", "Sample inter-state sale; multiple attachments optional", "", "", "", "", "", "", "", "", "Freight|250|true|18", "invoice.pdf;delivery-receipt.pdf")
             );
         }
         if ("Purchases".equals(module)) {
             return List.of(
-                List.of("PUR-GST-0001", BusinessClock.formatDate(BusinessClock.today()), "SUP-0001", "ITEM-0001", "10", "1200", "18", "GST", "15 Days", "0", "Sample intra-state purchase with unlimited charge syntax", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "Insurance|75|true|18;Handling|50|false|0", ""),
-                List.of("PUR-IGST-0002", BusinessClock.formatDate(BusinessClock.today()), "SUP-0002", "ITEM-0001", "5", "1200", "18", "IGST", "15 Days", "0", "Sample inter-state purchase; multiple attachments are optional", "", "", "", "", "", "", "", "", "Freight|250|true|18", "invoice.pdf;quality-certificate.pdf")
+                List.of("PUR-GST-0001", BusinessClock.formatDate(BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("SUP-XXXX", 1, BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "10", "1200", "18", "GST", "15 Days", "0", "Sample intra-state purchase with unlimited charge syntax", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "Insurance|75|true|18;Handling|50|false|0", ""),
+                List.of("PUR-IGST-0002", BusinessClock.formatDate(BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("SUP-XXXX", 2, BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "5", "1200", "18", "IGST", "15 Days", "0", "Sample inter-state purchase; multiple attachments are optional", "", "", "", "", "", "", "", "", "Freight|250|true|18", "invoice.pdf;quality-certificate.pdf")
             );
         }
         return List.of(exampleRow(module));
@@ -147,14 +147,14 @@ public final class ImportModuleRegistry {
 
     private static List<String> exampleRow(String module) {
         return switch (module == null ? "" : module) {
-            case "Customers/CRM" -> List.of("CUS-0001", "ABC Enterprises", "Ravi Patel", "9876543210", "accounts@example.com", "24AAAAA1111A1Z5", "Ahmedabad, Gujarat", "0", "true");
-            case "Suppliers/HRM" -> List.of("SUP-0001", "Steel Supplier Ltd", "Amit Shah", "9876500000", "sales@supplier.example", "24BBBBB2222B1Z4", "Rajkot, Gujarat", "0", "true");
-            case "Sales" -> List.of("SAL-0001", "2026-07-28", "CUS-0001", "ITEM-0001", "2", "1500", "18", "GST", "15 Days", "0", "Sample sales invoice", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "");
-            case "Purchases" -> List.of("PUR-0001", "2026-07-28", "SUP-0001", "ITEM-0001", "10", "1200", "18", "GST", "15 Days", "0", "Sample purchase invoice", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "");
+            case "Customers/CRM" -> List.of(org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 1, BusinessClock.today()), "ABC Enterprises", "Ravi Patel", "9876543210", "accounts@example.com", "24AAAAA1111A1Z5", "Ahmedabad, Gujarat", "0", "true");
+            case "Suppliers/HRM" -> List.of(org.example.shared.ReferenceFormatRules.format("SUP-XXXX", 1, BusinessClock.today()), "Steel Supplier Ltd", "Amit Shah", "9876500000", "sales@supplier.example", "24BBBBB2222B1Z4", "Rajkot, Gujarat", "0", "true");
+            case "Sales" -> List.of("SAL-0001", "2026-07-28", org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 1, BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "2", "1500", "18", "GST", "15 Days", "0", "Sample sales invoice", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "");
+            case "Purchases" -> List.of("PUR-0001", "2026-07-28", org.example.shared.ReferenceFormatRules.format("SUP-XXXX", 1, BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "10", "1200", "18", "GST", "15 Days", "0", "Sample purchase invoice", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "");
             case "Purchase Recon" -> List.of("Shree Ram Engineering Works", "24APCPJ0791E1Z9", "25/26/61", BusinessClock.formatDate(BusinessClock.today()), "10620.00", "955.80", "955.80", "0.00", "12532.00");
             case "Master Categories and Values" -> List.of("UNIT", "Unit", "Units of measure", "UNT001", "Nos", "Number of items", "1", "true");
             case "Bank Statement" -> List.of(BusinessClock.formatDate(BusinessClock.today()), "NEFT-INWARD-CUSTOMER-SETTLEMENT", "UTR9928374829", "50000.00", "CR", "150000.00");
-            default -> List.of("ITEM-0001", "MS Round Pipe", "Pipe", "Jasvi", "Mild Steel", "25 mm", "Nos", "73063000", "18", "0", "1200", "1500", "Sample item", "0", "10", "Main Warehouse");
+            default -> List.of(org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "MS Round Pipe", "Pipe", "Jasvi", "Mild Steel", "25 mm", "Nos", "73063000", "18", "0", "1200", "1500", "Sample item", "0", "10", "Main Warehouse");
         };
     }
 }

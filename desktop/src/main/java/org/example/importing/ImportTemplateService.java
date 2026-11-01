@@ -235,7 +235,7 @@ public final class ImportTemplateService {
                     org.apache.poi.ss.util.CellRangeAddressList addressList = new org.apache.poi.ss.util.CellRangeAddressList(1, 1000, col, col);
                     DataValidationConstraint constraint = validationHelper.createExplicitListConstraint(listValues);
                     DataValidation validation = validationHelper.createValidation(constraint, addressList);
-                    validation.setSuppressDropDownArrow(true);
+                    validation.setSuppressDropDownArrow(false);
                     validation.setShowErrorBox(true);
                     sheet.addValidationData(validation);
                 }
