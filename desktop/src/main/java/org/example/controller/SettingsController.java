@@ -972,7 +972,7 @@ public class SettingsController implements ScreenLifecycle {
 
         Label info = new Label("Select the canonical format scheme to synchronize all 27 reference formats uniformly across Sales, Purchases, Masters, Lookups, and Bank Statements. Existing issued documents remain strictly immutable for statutory compliance.");
         info.setWrapText(true);
-        info.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 12px;");
+        info.getStyleClass().add("muted-label");
 
         ComboBox<String> cmbScheme = new ComboBox<>();
         cmbScheme.getItems().addAll(
@@ -1004,7 +1004,7 @@ public class SettingsController implements ScreenLifecycle {
         cmbSeq.setPrefWidth(180);
 
         Label lblSample = new Label("Preview: IN/01-11-2026/0001");
-        lblSample.setStyle("-fx-font-family: monospace; -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #38bdf8;");
+        lblSample.getStyleClass().add("section-title");
 
         Runnable updatePreview = () -> {
             String sch = cmbScheme.getValue();

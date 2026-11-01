@@ -36,6 +36,22 @@ WHERE cat.category_code = 'REFERENCE_SCHEME'
 ON CONFLICT DO NOTHING;
 
 -- Standardize all Master Data reference formats in lookup_master under REFERENCE_FORMAT category
+-- Allow REFERENCE FORMAT rows (which are keyed by lookup_code via ux_lookup_master_type_code) to hold format patterns without colliding on lookup_value
+DROP INDEX IF EXISTS ux_lookup_master_type_value;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_lookup_master_type_value
+ON lookup_master (UPPER(TRIM(lookup_type)), UPPER(TRIM(lookup_value)))
+WHERE UPPER(TRIM(lookup_type)) <> 'REFERENCE FORMAT';
+
+-- Deduplicate legacy JOURNAL_VOUCHER / JOURNAL keys if REF_JOURNAL already exists
+DELETE FROM lookup_master
+WHERE UPPER(TRIM(lookup_type)) = 'REFERENCE FORMAT'
+  AND lookup_code IN ('JOURNAL_VOUCHER', 'JOURNAL')
+  AND EXISTS (
+      SELECT 1 FROM lookup_master rj
+      WHERE UPPER(TRIM(rj.lookup_type)) = 'REFERENCE FORMAT'
+        AND rj.lookup_code = 'REF_JOURNAL'
+  );
+
 UPDATE lookup_master SET lookup_value = 'IN/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_SALES';
 UPDATE lookup_master SET lookup_value = 'PUR/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_PURCHASE';
 UPDATE lookup_master SET lookup_value = 'QT/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_QUOTATION';
@@ -45,7 +61,7 @@ UPDATE lookup_master SET lookup_value = 'VCH/DD-MM-YYYY/XXXX' WHERE lookup_code 
 UPDATE lookup_master SET lookup_value = 'BE/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_BANK_ENTRY';
 UPDATE lookup_master SET lookup_value = 'EXP/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_BANK_EXPENSE';
 UPDATE lookup_master SET lookup_value = 'BST/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_BANK_STATEMENT';
-UPDATE lookup_master SET lookup_value = 'JV/DD-MM-YYYY/XXXX' WHERE lookup_code IN ('REF_JOURNAL', 'JOURNAL_VOUCHER', 'JOURNAL');
+UPDATE lookup_master SET lookup_value = 'JV/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_JOURNAL';
 UPDATE lookup_master SET lookup_value = 'RSP/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_RECON_SUPPLIER';
 UPDATE lookup_master SET lookup_value = 'PRC/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_PURCHASE_RECON';
 
@@ -65,7 +81,7 @@ UPDATE lookup_master SET lookup_value = 'TRN/DD-MM-YYYY/XXXX' WHERE lookup_code 
 UPDATE lookup_master SET lookup_value = 'PTM/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_LOOKUP_PAYMENT_TERMS';
 UPDATE lookup_master SET lookup_value = 'CHG/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_LOOKUP_CHARGES';
 UPDATE lookup_master SET lookup_value = 'PMD/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_LOOKUP_PAYMENT_MODE';
-UPDATE lookup_master SET lookup_value = 'EXP/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_LOOKUP_EXPENSE_CATEGORY';
+UPDATE lookup_master SET lookup_value = 'EXC/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_LOOKUP_EXPENSE_CATEGORY';
 UPDATE lookup_master SET lookup_value = 'BNK/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_LOOKUP_BANK_ACCOUNT';
 UPDATE lookup_master SET lookup_value = 'QTS/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_LOOKUP_QUOTATION_SOURCE';
 UPDATE lookup_master SET lookup_value = 'RFM/DD-MM-YYYY/XXXX' WHERE lookup_code = 'REF_LOOKUP_REFERENCE_FORMAT';

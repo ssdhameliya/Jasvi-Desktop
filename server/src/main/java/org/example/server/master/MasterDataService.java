@@ -97,7 +97,7 @@ public class MasterDataService {
         ensureReferenceFormat("REF_LOOKUP_PAYMENT_TERMS","PTM/DD-MM-YYYY/XXXX","Payment Terms Master code reference",300);
         ensureReferenceFormat("REF_LOOKUP_CHARGES","CHG/DD-MM-YYYY/XXXX","Charges Master code reference",310);
         ensureReferenceFormat("REF_LOOKUP_PAYMENT_MODE","PMD/DD-MM-YYYY/XXXX","Payment Mode Master code reference",320);
-        ensureReferenceFormat("REF_LOOKUP_EXPENSE_CATEGORY","EXP/DD-MM-YYYY/XXXX","Expense Category Master code reference",330);
+        ensureReferenceFormat("REF_LOOKUP_EXPENSE_CATEGORY","EXC/DD-MM-YYYY/XXXX","Expense Category Master code reference",330);
         ensureReferenceFormat("REF_LOOKUP_BANK_ACCOUNT","BNK/DD-MM-YYYY/XXXX","Bank Account Master code reference",340);
         ensureReferenceFormat("REF_LOOKUP_ACCOUNT_TYPE","ACT/DD-MM-YYYY/XXXX","Account Type Master code reference",345);
         ensureReferenceFormat("REF_LOOKUP_QUOTATION_SOURCE","QTS/DD-MM-YYYY/XXXX","Quotation Source Master code reference",350);
@@ -534,7 +534,7 @@ public class MasterDataService {
         prefixMap.put("REF_LOOKUP_PAYMENT_TERMS", "PTM");
         prefixMap.put("REF_LOOKUP_CHARGES", "CHG");
         prefixMap.put("REF_LOOKUP_PAYMENT_MODE", "PMD");
-        prefixMap.put("REF_LOOKUP_EXPENSE_CATEGORY", "EXP");
+        prefixMap.put("REF_LOOKUP_EXPENSE_CATEGORY", "EXC");
         prefixMap.put("REF_LOOKUP_BANK_ACCOUNT", "BNK");
         prefixMap.put("REF_LOOKUP_QUOTATION_SOURCE", "QTS");
         prefixMap.put("REF_LOOKUP_REFERENCE_FORMAT", "RFM");
@@ -738,7 +738,7 @@ public class MasterDataService {
             case "PAYMENT_TERMS" -> "PTM";
             case "CHARGES" -> "CHG";
             case "PAYMENT_MODE" -> "PMD";
-            case "EXPENSE_CATEGORY" -> "EXP";
+            case "EXPENSE_CATEGORY" -> "EXC";
             case "BANK_ACCOUNT" -> "BNK";
             case "ACCOUNT_TYPE" -> "ACT";
             case "QUOTATION_SOURCE" -> "QTS";
