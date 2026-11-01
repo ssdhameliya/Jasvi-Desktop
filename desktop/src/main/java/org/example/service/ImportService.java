@@ -124,7 +124,7 @@ public class ImportService {
         Map<String,String> referenceFormats = new MasterApiClient().referenceFormats();
 
         // --- Step 1: Read Excel ---
-        try (Workbook workbook = WorkbookFactory.create(file.toFile())) {
+        try (Workbook workbook = org.example.importing.ImportWorkbookBridge.openWorkbook(file)) {
             SpreadsheetLayoutDetector.Layout layout = SpreadsheetLayoutDetector.detect(workbook, mapping.values());
             Sheet sheet = workbook.getSheetAt(layout.sheetIndex());
             int total = Math.max(0, sheet.getLastRowNum() - layout.headerRowIndex());
@@ -270,7 +270,7 @@ public class ImportService {
             availableStockByItem.put(code, item.getAvailableStock());
         });
 
-        try (Workbook workbook = WorkbookFactory.create(file.toFile())) {
+        try (Workbook workbook = org.example.importing.ImportWorkbookBridge.openWorkbook(file)) {
             SpreadsheetLayoutDetector.Layout layout = SpreadsheetLayoutDetector.detect(workbook, mapping.values());
             Sheet sheet = workbook.getSheetAt(layout.sheetIndex());
             int total = Math.max(0, sheet.getLastRowNum() - layout.headerRowIndex());
@@ -562,7 +562,7 @@ public class ImportService {
                 categories.put(category.categoryCode().trim().toUpperCase(Locale.ROOT), category);
         }
         Map<String,List<Lookup>> lookupCache = new HashMap<>();
-        try (Workbook workbook = WorkbookFactory.create(file.toFile())) {
+        try (Workbook workbook = org.example.importing.ImportWorkbookBridge.openWorkbook(file)) {
             SpreadsheetLayoutDetector.Layout layout = SpreadsheetLayoutDetector.detect(workbook, mapping.values());
             Sheet sheet = workbook.getSheetAt(layout.sheetIndex());
             int total = Math.max(0, sheet.getLastRowNum() - layout.headerRowIndex());
@@ -671,7 +671,7 @@ public class ImportService {
         PartyService service = new PartyService();
         Map<String,String> referenceFormats = new MasterApiClient().referenceFormats();
 
-        try (Workbook workbook = WorkbookFactory.create(file.toFile())) {
+        try (Workbook workbook = org.example.importing.ImportWorkbookBridge.openWorkbook(file)) {
             SpreadsheetLayoutDetector.Layout layout = SpreadsheetLayoutDetector.detect(workbook, mapping.values());
             Sheet sheet = workbook.getSheetAt(layout.sheetIndex());
             int total = Math.max(0, sheet.getLastRowNum() - layout.headerRowIndex());

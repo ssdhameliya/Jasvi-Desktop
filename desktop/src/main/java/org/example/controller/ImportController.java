@@ -662,7 +662,7 @@ public class ImportController implements ScreenLifecycle {
 
         if (selectedFile == null) {
             lblReadyStatus.setText(
-                "Bank Statement".equals(cmbImportModule.getValue()) ? "Choose a bank statement CSV to begin" : "Choose an Excel file to begin"
+                "Choose an import file (.xlsx, .xls, .csv) to begin"
             );
         } else if (!mappingsComplete) {
             lblReadyStatus.setText(
@@ -933,9 +933,7 @@ public class ImportController implements ScreenLifecycle {
         chooser
             .getExtensionFilters()
             .add(
-                bankStatement
-                    ? new FileChooser.ExtensionFilter("Bank statement CSV", "*.csv")
-                    : new FileChooser.ExtensionFilter("Excel workbooks", "*.xlsx", "*.xls")
+                new FileChooser.ExtensionFilter("Supported Data Files (*.xlsx, *.xls, *.csv)", "*.xlsx", "*.xls", "*.csv")
             );
 
         File file =
@@ -1035,7 +1033,7 @@ public class ImportController implements ScreenLifecycle {
 
                 showWarning(
                     "Unsupported file",
-                    "Bank Statement".equals(cmbImportModule.getValue()) ? "Please choose a Kotak CSV statement (.csv)." : "Please choose an Excel workbook (.xlsx or .xls)."
+                    "Please choose a supported spreadsheet or CSV file (.xlsx, .xls, or .csv)."
                 );
             }
         }
@@ -1053,8 +1051,7 @@ public class ImportController implements ScreenLifecycle {
                 .getName()
                 .toLowerCase(Locale.ROOT);
 
-        if ("Bank Statement".equals(cmbImportModule.getValue())) return name.endsWith(".csv");
-        return name.endsWith(".xlsx") || name.endsWith(".xls");
+        return name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".csv");
     }
 
     private void selectFile(File file) {
@@ -1063,7 +1060,7 @@ public class ImportController implements ScreenLifecycle {
 
             showWarning(
                 "Unsupported file",
-                "Bank Statement".equals(cmbImportModule.getValue()) ? "Please choose a Kotak CSV statement (.csv)." : "Please choose an Excel workbook (.xlsx or .xls)."
+                "Please choose a supported spreadsheet or CSV file (.xlsx, .xls, or .csv)."
             );
 
             return;

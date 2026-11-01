@@ -107,7 +107,7 @@
                             <VBox spacing="6" maxWidth="Infinity" styleClass="settings-information-card">
                                 <HBox spacing="8" alignment="CENTER_LEFT">
                                     <Label text="Document Numbering &amp; Reference Formats" styleClass="settings-subsection-title"/>
-                                    <Button text="ℹ" onAction="#showRefFormatInfoDialog" styleClass="settings-secondary-button,approved-button"/>
+                                    <Button text="Information &amp; Guidance" onAction="#showRefFormatInfoDialog" styleClass="settings-secondary-button,approved-button"/>
                                     <Region HBox.hgrow="ALWAYS"/>
                                     <Button text="Synchronize Reference Formats" onAction="#handleRefFormatSyncAction" styleClass="settings-secondary-button,approved-button"/>
                                 </HBox>

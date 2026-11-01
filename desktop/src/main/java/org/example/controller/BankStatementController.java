@@ -75,7 +75,7 @@ public class BankStatementController implements ScreenLifecycle {
     @FXML private ProgressBar reconciliationProgress;
 
     private final BankStatementApiClient api = new BankStatementApiClient();
-    private final KotakBankStatementCsvParser parser = new KotakBankStatementCsvParser();
+    private final org.example.bank.UniversalBankStatementParser parser = new org.example.bank.UniversalBankStatementParser();
     private final LookupService lookupService = new LookupService();
     private int currentPage;
     private int totalPages;
@@ -566,8 +566,8 @@ public class BankStatementController implements ScreenLifecycle {
     @FXML private void importStatement(){
         configureBankAccountMaster();
         FileChooser f = new FileChooser();
-        f.setTitle("Import Bank Statement CSV");
-        f.getExtensionFilters().add(new FileChooser.ExtensionFilter("Bank statement CSV", "*.csv"));
+        f.setTitle("Import Bank Statement (.xlsx, .xls, .csv)");
+        f.getExtensionFilters().add(new FileChooser.ExtensionFilter("Bank statement (*.xlsx, *.xls, *.csv)", "*.xlsx", "*.xls", "*.csv"));
         File file = f.showOpenDialog(table.getScene().getWindow());
         if (file == null) return;
         String importedBy = user();

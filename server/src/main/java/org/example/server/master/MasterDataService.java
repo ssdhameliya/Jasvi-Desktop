@@ -474,35 +474,100 @@ public class MasterDataService {
     public Map<String,String> syncAllDocumentReferenceFormats(String pattern, String delimiter, String seqWidth) {
         String pat = (pattern == null || pattern.isBlank()) ? "DD-MM-YYYY" : pattern.trim();
         String delim = (delimiter == null || delimiter.isBlank()) ? "/" : delimiter.trim();
-        String seq = (seqWidth == null || seqWidth.isBlank()) ? "XXXX" : seqWidth.trim();
+        
+        String seq;
+        if (seqWidth == null || seqWidth.isBlank()) {
+            seq = "XXXX";
+        } else if (seqWidth.trim().matches("\\d+")) {
+            int w = Math.max(2, Math.min(10, Integer.parseInt(seqWidth.trim())));
+            seq = "X".repeat(w);
+        } else if (seqWidth.trim().toUpperCase(Locale.ROOT).matches("X+")) {
+            seq = seqWidth.trim().toUpperCase(Locale.ROOT);
+        } else {
+            seq = "XXXX";
+        }
 
-        Map<String, String> prefixMap = Map.ofEntries(
-            Map.entry("REF_SALES", "IN"),
-            Map.entry("REF_PURCHASE", "PUR"),
-            Map.entry("REF_QUOTATION", "QT"),
-            Map.entry("REF_SALES_RETURN", "SRT"),
-            Map.entry("REF_PURCHASE_RETURN", "PRT"),
-            Map.entry("REF_FINANCE_VOUCHER", "VCH"),
-            Map.entry("REF_BANK_ENTRY", "BE"),
-            Map.entry("REF_BANK_EXPENSE", "EXP"),
-            Map.entry("REF_JOURNAL", "JV"),
-            Map.entry("REF_PURCHASE_RECON", "PRC"),
-            Map.entry("REF_RECON_SUPPLIER", "RSP"),
-            Map.entry("REF_BANK_STATEMENT", "BST")
-        );
+        Map<String, String> prefixMap = new LinkedHashMap<>();
+        // 1. Transaction & Document Formats
+        prefixMap.put("REF_SALES", "IN");
+        prefixMap.put("REF_PURCHASE", "PUR");
+        prefixMap.put("REF_QUOTATION", "QT");
+        prefixMap.put("REF_SALES_RETURN", "SRT");
+        prefixMap.put("REF_PURCHASE_RETURN", "PRT");
+        prefixMap.put("REF_FINANCE_VOUCHER", "VCH");
+        prefixMap.put("REF_BANK_ENTRY", "BE");
+        prefixMap.put("REF_BANK_EXPENSE", "EXP");
+        prefixMap.put("REF_JOURNAL", "JV");
+        prefixMap.put("REF_PURCHASE_RECON", "PRC");
+        prefixMap.put("REF_RECON_SUPPLIER", "RSP");
+        prefixMap.put("REF_BANK_STATEMENT", "BST");
+
+        // 2. Core Master Entity Formats
+        prefixMap.put("REF_CUSTOMER", "CUS");
+        prefixMap.put("REF_SUPPLIER", "SUP");
+        prefixMap.put("REF_ITEM", "ITM");
+
+        // 3. Master Lookup Reference Formats
+        prefixMap.put("REF_LOOKUP_CATEGORY", "CAT");
+        prefixMap.put("REF_LOOKUP_UNIT", "UNT");
+        prefixMap.put("REF_LOOKUP_MATERIAL", "MAT");
+        prefixMap.put("REF_LOOKUP_BRAND", "BRD");
+        prefixMap.put("REF_LOOKUP_GST", "GST");
+        prefixMap.put("REF_LOOKUP_ROLE", "ROL");
+        prefixMap.put("REF_LOOKUP_DISCOUNT", "DSC");
+        prefixMap.put("REF_LOOKUP_GST_TYPE", "GTP");
+        prefixMap.put("REF_LOOKUP_TRANSPORTER", "TRN");
+        prefixMap.put("REF_LOOKUP_PAYMENT_TERMS", "PTM");
+        prefixMap.put("REF_LOOKUP_CHARGES", "CHG");
+        prefixMap.put("REF_LOOKUP_PAYMENT_MODE", "PMD");
+        prefixMap.put("REF_LOOKUP_EXPENSE_CATEGORY", "EXP");
+        prefixMap.put("REF_LOOKUP_BANK_ACCOUNT", "BNK");
+        prefixMap.put("REF_LOOKUP_QUOTATION_SOURCE", "QTS");
+        prefixMap.put("REF_LOOKUP_REFERENCE_FORMAT", "RFM");
+        prefixMap.put("REF_LOOKUP_ACCOUNT_TYPE", "ACT");
 
         MasterCategoryEntity category = categories.findByCategoryCode("REFERENCE_FORMAT").orElse(null);
         if (category != null) {
             List<LookupEntity> all = lookups.findByLookupTypeOrderByDisplayOrderAscLookupValueAsc(category.getCategoryName());
             for (LookupEntity row : all) {
+                if (row == null || !Boolean.TRUE.equals(row.getActive())) continue;
                 String code = row.getLookupCode() != null ? row.getLookupCode().trim().toUpperCase(Locale.ROOT) : "";
                 if ("JOURNAL_VOUCHER".equals(code) || "JOURNAL".equals(code)) code = "REF_JOURNAL";
-                if (prefixMap.containsKey(code)) {
-                    String prefix = prefixMap.get(code);
-                    String newFormat = prefix + delim + pat + delim + seq;
-                    ReferenceFormatRules.requireValidFormat(newFormat);
-                    row.setLookupValue(newFormat);
-                    lookups.save(row);
+
+                String prefix = prefixMap.get(code);
+                if (prefix == null || prefix.isBlank()) {
+                    // Dynamic fallback: extract prefix from existing value
+                    String curVal = row.getLookupValue();
+                    if (curVal != null && curVal.contains("/")) {
+                        prefix = curVal.substring(0, curVal.indexOf('/'));
+                    } else if (curVal != null && curVal.contains("-")) {
+                        prefix = curVal.substring(0, curVal.indexOf('-'));
+                    } else if (curVal != null && curVal.matches("^[A-Za-z]+.*")) {
+                        prefix = curVal.replaceAll("[^A-Za-z].*", "");
+                    } else if (code.startsWith("REF_LOOKUP_")) {
+                        prefix = code.substring("REF_LOOKUP_".length());
+                        if (prefix.length() > 3) prefix = prefix.substring(0, 3);
+                    } else if (code.startsWith("REF_")) {
+                        prefix = code.substring("REF_".length());
+                        if (prefix.length() > 3) prefix = prefix.substring(0, 3);
+                    }
+                }
+
+                if (prefix != null && !prefix.isBlank()) {
+                    prefix = prefix.trim().toUpperCase(Locale.ROOT);
+                    String newFormat;
+                    if ("NONE".equalsIgnoreCase(pat)) {
+                        newFormat = prefix + delim + seq;
+                    } else {
+                        newFormat = prefix + delim + pat + delim + seq;
+                    }
+                    try {
+                        ReferenceFormatRules.requireValidFormat(newFormat);
+                        row.setLookupValue(newFormat);
+                        lookups.save(row);
+                    } catch (Exception ex) {
+                        System.err.println("Skipping format synchronization for " + code + ": " + ex.getMessage());
+                    }
                 }
             }
         }

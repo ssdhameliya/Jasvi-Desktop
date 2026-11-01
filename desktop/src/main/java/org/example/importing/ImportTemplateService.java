@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /** Writes import workbooks; no JavaFX or controller state. */
 public final class ImportTemplateService {
@@ -19,6 +20,8 @@ public final class ImportTemplateService {
 
     public static void writeToStream(OutputStream output, String module, String appVersion) throws Exception {
         List<String> fields = ImportModuleRegistry.fields(module);
+        Set<String> required = ImportModuleRegistry.requiredFields(module);
+
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Import Template");
             Sheet instructions = workbook.createSheet("Instructions");
@@ -35,22 +38,62 @@ public final class ImportTemplateService {
                 {"Multiple attachments", "Use attachment_files for semicolon-separated file paths. Paths may be absolute or relative to the import workbook. The older attachment_file column remains supported."},
                 {"Safe process", "Run Validate only first, review the preview and generated result report, then import."},
                 {"Identifiers", ImportModuleRegistry.identifierGuidance(module)},
-                {"Header Color Coding", "[RED] Mandatory Required Fields | [AMBER/YELLOW] Tax & GST Fields | [BLUE] Charge Columns | [GRAY] Optional Details"}
+                {"Header Color Coding", "[RED] Mandatory Required Fields (*) | [AMBER/YELLOW] Tax & GST Fields | [BLUE] Charge Columns | [GRAY] Optional Details"}
             };
             for (int i = 0; i < guidance.length; i++) {
                 Row row = instructions.createRow(i);
                 row.createCell(0).setCellValue(guidance[i][0]);
                 row.createCell(1).setCellValue(guidance[i][1]);
             }
+
+            // Append Comprehensive Field Dictionary to Instructions
+            int nextRow = guidance.length + 1;
+            Row dictHeader = instructions.createRow(nextRow++);
+            dictHeader.createCell(0).setCellValue("FIELD NAME");
+            dictHeader.createCell(1).setCellValue("STATUS");
+            dictHeader.createCell(2).setCellValue("DATA TYPE");
+            dictHeader.createCell(3).setCellValue("FORMAT / ALLOWED VALUES");
+            dictHeader.createCell(4).setCellValue("WHAT TO DO IF BLANK");
+
+            for (String field : fields) {
+                boolean isReq = required.contains(field);
+                Row r = instructions.createRow(nextRow++);
+                r.createCell(0).setCellValue(isReq ? field + " *" : field);
+                r.createCell(1).setCellValue(isReq ? "MANDATORY (*)" : "OPTIONAL");
+                r.createCell(2).setCellValue(ImportModuleRegistry.dataType(field));
+                r.createCell(3).setCellValue(getFieldFormatInfo(field));
+                r.createCell(4).setCellValue(getFieldBlankInfo(field, isReq));
+            }
+
             instructions.setColumnWidth(0, 32 * 256);
-            instructions.setColumnWidth(1, 95 * 256);
+            instructions.setColumnWidth(1, 20 * 256);
+            instructions.setColumnWidth(2, 16 * 256);
+            instructions.setColumnWidth(3, 40 * 256);
+            instructions.setColumnWidth(4, 55 * 256);
 
             Row header = sheet.createRow(0);
+            Drawing<?> drawing = sheet.createDrawingPatriarch();
+            CreationHelper factory = workbook.getCreationHelper();
+
             for (int i = 0; i < fields.size(); i++) {
+                String field = fields.get(i);
+                boolean isReq = required.contains(field);
                 Cell cell = header.createCell(i);
-                cell.setCellValue(fields.get(i));
-                cell.setCellStyle(getFieldHeaderStyle(workbook, fields.get(i)));
-                sheet.setColumnWidth(i, Math.max(14, fields.get(i).length() + 3) * 256);
+                cell.setCellValue(isReq ? field + " *" : field);
+                cell.setCellStyle(getFieldHeaderStyle(workbook, field, isReq));
+                sheet.setColumnWidth(i, Math.max(16, field.length() + 5) * 256);
+
+                // Attach POI cell comment with format & blank instructions
+                ClientAnchor anchor = factory.createClientAnchor();
+                anchor.setCol1(cell.getColumnIndex());
+                anchor.setCol2(cell.getColumnIndex() + 2);
+                anchor.setRow1(cell.getRowIndex());
+                anchor.setRow2(cell.getRowIndex() + 3);
+                Comment comment = drawing.createCellComment(anchor);
+                String commentText = getFieldComment(module, field, isReq);
+                comment.setString(factory.createRichTextString(commentText));
+                comment.setAuthor("Jasvi ERP");
+                cell.setCellComment(comment);
             }
 
             List<List<String>> exampleRows = getDynamicExampleRows(module);
@@ -73,6 +116,8 @@ public final class ImportTemplateService {
                     listValues = new String[]{"0", "5", "12", "18", "28"};
                 } else if (f.equals("gst_type")) {
                     listValues = new String[]{"GST", "IGST"};
+                } else if (f.equals("direction")) {
+                    listValues = new String[]{"CR", "DR"};
                 } else if (f.equals("charge_1_type") || f.equals("charge_2_type")) {
                     listValues = new String[]{"Freight", "Packing", "Insurance", "Handling", "Loading", "Other"};
                 } else if (f.equals("charge_1_taxable") || f.equals("charge_2_taxable") || f.equals("is_active")) {
@@ -94,10 +139,50 @@ public final class ImportTemplateService {
         }
     }
 
-    public static CellStyle getFieldHeaderStyle(Workbook workbook, String field) {
+    public static String getFieldFormatInfo(String field) {
         String f = field.toLowerCase(Locale.ROOT);
-        if (f.equals("invoice_no") || f.equals("invoice_date") || f.equals("party_code") || f.equals("item_code") ||
-            f.equals("quantity") || f.equals("rate") || f.equals("name") || f.equals("description") || f.equals("category_code") || f.equals("value_code")) {
+        if (f.contains("date")) return "YYYY-MM-DD (e.g. 2026-11-01) or DD/MM/YYYY";
+        if (f.contains("gst_percent") || f.equals("gst")) return "Standard GST rate (0, 5, 12, 18, 28)";
+        if (f.equals("gst_type")) return "GST (Intra-state) or IGST (Inter-state)";
+        if (f.equals("direction")) return "CR (Credit/Deposit) or DR (Debit/Withdrawal)";
+        if (f.equals("unit")) return "Unit of measure (e.g. Nos, KGS, MTR, PCS)";
+        if (f.equals("hsn")) return "6 or 8 digit HSN/SAC code (e.g. 73063000)";
+        if (f.equals("email")) return "Valid email address (e.g. name@example.com)";
+        if (f.equals("is_active") || f.contains("taxable")) return "true or false";
+        if (f.equals("attachment_files")) return "Semicolon-separated file paths (inv.pdf;spec.pdf)";
+        if (f.equals("additional_charges")) return "Type|Amount|Taxable|GSTPercent;... (Freight|250|true|18)";
+        if (f.contains("amount") || f.contains("price") || f.contains("rate") || f.contains("quantity") || f.contains("value")) {
+            return "Positive decimal number (e.g. 1500.00)";
+        }
+        return "Alphanumeric Text";
+    }
+
+    public static String getFieldBlankInfo(String field, boolean isRequired) {
+        if (isRequired) return "Mandatory. Cannot be blank; will fail validation if empty.";
+        String f = field.toLowerCase(Locale.ROOT);
+        if (f.contains("gst_percent") || f.equals("gst")) return "If blank, default 18% is applied.";
+        if (f.equals("gst_type")) return "If blank, default 'GST' is applied.";
+        if (f.equals("is_active")) return "If blank, default 'true' is applied.";
+        if (f.equals("value_date")) return "If blank, Transaction Date is used.";
+        if (f.equals("balance")) return "If blank, balance is computed from ledger.";
+        return "Optional. Leave blank to preserve defaults or existing record data.";
+    }
+
+    public static String getFieldComment(String module, String field, boolean isRequired) {
+        String format = getFieldFormatInfo(field);
+        String blank = getFieldBlankInfo(field, isRequired);
+        return (isRequired ? "[MANDATORY] Required field. " : "[OPTIONAL] ") + blank + " Format: " + format;
+    }
+
+    public static CellStyle getFieldHeaderStyle(Workbook workbook, String field) {
+        return getFieldHeaderStyle(workbook, field, false);
+    }
+
+    public static CellStyle getFieldHeaderStyle(Workbook workbook, String field, boolean isRequired) {
+        String f = field.toLowerCase(Locale.ROOT);
+        if (isRequired || f.equals("invoice_no") || f.equals("invoice_date") || f.equals("party_code") || f.equals("item_code") ||
+            f.equals("quantity") || f.equals("rate") || f.equals("name") || f.equals("description") || f.equals("unit") || f.equals("hsn") ||
+            f.equals("category_code") || f.equals("value_code") || f.equals("transaction_date") || f.equals("amount") || f.equals("direction")) {
             return createHeaderStyle(workbook, IndexedColors.DARK_RED, IndexedColors.WHITE, true);
         } else if (f.contains("gst") || f.equals("taxable_value") || f.equals("cgst") || f.equals("sgst") || f.equals("igst") || f.equals("invoice_value")) {
             return createHeaderStyle(workbook, IndexedColors.DARK_YELLOW, IndexedColors.BLACK, true);

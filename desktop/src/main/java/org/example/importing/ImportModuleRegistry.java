@@ -70,7 +70,7 @@ public final class ImportModuleRegistry {
             case "Sales", "Purchases" -> Set.of("invoice_no", "invoice_date", "party_code", "item_code", "quantity", "rate");
             case "Master Categories and Values" -> Set.of("category_code", "category_name", "value_code", "value");
             case "Purchase Recon" -> Set.of("supplier_name", "supplier_invoice_no", "invoice_date", "invoice_value");
-            case "Bank Statement" -> Set.of("transaction_date", "value_date", "description", "reference", "amount", "direction", "balance");
+            case "Bank Statement" -> Set.of("transaction_date", "description", "amount", "direction");
             default -> Set.of("item_code", "description", "unit", "hsn", "remarks");
         };
     }
@@ -153,6 +153,7 @@ public final class ImportModuleRegistry {
             case "Purchases" -> List.of("PUR-0001", "2026-07-28", "SUP-0001", "ITEM-0001", "10", "1200", "18", "GST", "15 Days", "0", "Sample purchase invoice", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "");
             case "Purchase Recon" -> List.of("Shree Ram Engineering Works", "24APCPJ0791E1Z9", "25/26/61", BusinessClock.formatDate(BusinessClock.today()), "10620.00", "955.80", "955.80", "0.00", "12532.00");
             case "Master Categories and Values" -> List.of("UNIT", "Unit", "Units of measure", "UNT001", "Nos", "Number of items", "1", "true");
+            case "Bank Statement" -> List.of(BusinessClock.formatDate(BusinessClock.today()), BusinessClock.formatDate(BusinessClock.today()), "NEFT-INWARD-CUSTOMER-SETTLEMENT", "UTR9928374829", "50000.00", "CR", "150000.00");
             default -> List.of("ITEM-0001", "MS Round Pipe", "Pipe", "Jasvi", "Mild Steel", "25 mm", "Nos", "73063000", "18", "0", "1200", "1500", "Sample item", "0", "10", "Main Warehouse");
         };
     }
