@@ -33,7 +33,6 @@ import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.PurchaseService;
 import org.example.service.SalesService;
-import org.example.service.WhatsappService;
 import org.example.util.*;
 
 import java.awt.Desktop;
@@ -548,16 +547,38 @@ public class GstComplianceController implements ScreenLifecycle {
         HBox btnRow = new HBox(10);
         btnRow.setAlignment(Pos.CENTER_RIGHT);
 
-        Button btnWhatsapp = new Button("Open WhatsApp");
+        Button btnWhatsapp = new Button("Send WhatsApp");
         btnWhatsapp.getStyleClass().addAll("approved-button", "approved-primary-button");
         btnWhatsapp.setOnAction(e -> {
             try {
-                String encoded = URLEncoder.encode(noticeMessage, StandardCharsets.UTF_8);
-                String waUrl = "https://api.whatsapp.com/send?text=" + encoded;
-                if (Desktop.isDesktopSupported()) {
-                    Desktop.getDesktop().browse(URI.create(waUrl));
+                String defaultPhone = "";
+                try {
+                    Purchase p = purchaseService.getByInvoice(row.invoiceNo());
+                    if (p != null && p.getSupplier() != null && p.getSupplier().getPhone() != null) {
+                        defaultPhone = p.getSupplier().getPhone().replaceAll("\\D", "");
+                    }
+                } catch (Exception ignored) { }
+
+                TextInputDialog phoneDialog = new OwnedTextInputDialog(defaultPhone);
+                phoneDialog.setTitle("Send WhatsApp Notice");
+                phoneDialog.setHeaderText("Recipient Mobile Number");
+                phoneDialog.setContentText("Enter 10-digit mobile number for supplier:");
+                Optional<String> phoneOpt = phoneDialog.showAndWait();
+                if (phoneOpt.isEmpty() || phoneOpt.get().isBlank()) {
+                    return;
                 }
-                ToastManager.success(tblReconciliation, "WhatsApp Opened", "Opened WhatsApp chat with notice text.");
+                String phone = phoneOpt.get().replaceAll("\\D", "");
+                if (phone.length() == 10) phone = "91" + phone;
+                var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+                var resp = wahaApi.sendText(new org.example.api.whatsapp.BusinessWhatsappApiClient.TextSendRequest(
+                    phone,
+                    noticeMessage,
+                    null
+                ));
+                if (!resp.success()) {
+                    throw new IllegalStateException(resp.message());
+                }
+                ToastManager.success(tblReconciliation, "WhatsApp Sent", "Statutory notice sent via WAHA channel: " + resp.channelCode());
             } catch (Exception ex) {
                 ToastManager.error(tblReconciliation, "WhatsApp Error", ex.getMessage());
             }

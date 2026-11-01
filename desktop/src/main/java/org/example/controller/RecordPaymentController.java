@@ -27,7 +27,6 @@ import org.example.service.EmailService;
 import org.example.service.ManagedInvoicePdfService;
 import org.example.service.NotificationService;
 import org.example.service.PaymentMessageService;
-import org.example.service.WhatsappService;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
 import org.example.util.UiTaskExecutor;

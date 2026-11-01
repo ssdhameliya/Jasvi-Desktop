@@ -190,13 +190,13 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
    reporter.stage(2,3,"Formatting WhatsApp message...");
    LocalDate qDate=null; try{if(q.date!=null&&!q.date.get().isBlank())qDate=LocalDate.parse(q.date.get());}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
    String message=MessageTemplateService.formatQuotationWhatsapp(q.id,q.no.get(),q.customer.get(),qDate,q.amount.get());
-   reporter.stage(3,3,"Opening WhatsApp application...");
-   WhatsappService.openWhatsappWithMessage(finalPhone,message,pdf,PaymentMessageService.configuredQrPath());
+    reporter.stage(3,3,"Sending quotation via WhatsApp engine...");
+    var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient(); var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest("QUOTATION", q.no.get(), q.id, null, finalPhone, message, q.rowVersion)); if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
    quotationApi.markSent(q.id,"WHATSAPP",q.rowVersion);
    comm(q,"WHATSAPP",finalPhone,"SENT",null);
   },()->{
    refresh();
-   success("WhatsApp is ready. The quotation PDF and configured UPI QR are on the clipboard for attachment.");
+    success("Quotation " + q.no.get() + " sent successfully via WhatsApp!");
   },failure->error(asException(failure)));
  }
  private void followUp(QuoteRow q){if(q==null)return;if(q.converted.get()!=null&&!q.converted.get().isBlank()){info("Converted quotations are read-only. Duplicate the quotation if a new follow-up/revision is required.");return;}DatePicker date=DatePickerFormatter.attach(new DatePicker(q.followDate==null?BusinessClock.today().plusDays(1):q.followDate));Dialog<ButtonType>d=new OwnedDialog<>();d.setTitle("Create Follow Up");TextArea notes=new TextArea("Follow up for "+q.no.get());VBox box=new VBox(8,new Label("Follow-up date"),date,new Label("Notes"),notes);d.getDialogPane().setContent(box);d.getDialogPane().getButtonTypes().addAll(ButtonType.OK,ButtonType.CANCEL);d.showAndWait().filter(b->b==ButtonType.OK).ifPresent(b->{String due=date.getValue().toString(),text=notes.getText();UiTaskExecutor.submitAction("quotation-followup-"+q.id,()->{quotationApi.followUp(q.id,due,text,q.rowVersion);return true;},ignored->{org.example.util.ToastManager.success(table,"Follow-up saved",q.no.get()+" follow-up was scheduled successfully.");refresh();},failure->error(asException(failure)));});}

@@ -13,7 +13,6 @@ import javafx.scene.layout.StackPane;
 import javafx.geometry.Pos;
 import javafx.concurrent.Task;
 import org.example.service.EmailService;
-import org.example.service.WhatsappService;
 import org.example.service.ManagedInvoicePdfService;
 import org.example.service.SalesService;
 import org.example.service.PurchaseService;
@@ -108,7 +107,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
             } else {
                 String phone=recipient.replaceAll("\\D","");
                 if(phone.length()==10)phone="91"+phone;
-                WhatsappService.openWhatsappWithMessage(phone,subject,attachment);
+                var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient(); var sendResp = wahaApi.sendText(new org.example.api.whatsapp.BusinessWhatsappApiClient.TextSendRequest(phone, subject, null)); if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
             }
             supportApi.communication(new SupportApiClient.CommunicationRequest(row.entityType,row.entityId,channel,recipient,subject,"SENT",null,"System"));
             return null;}};

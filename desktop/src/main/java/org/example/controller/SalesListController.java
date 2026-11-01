@@ -725,25 +725,25 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
     }
     private void sendWhatsapp(Sales sale){
         if(isApprovalLocked(sale)){warning("Admin approval is required before sharing this Sale document.");return;}
-        LiveOperationDialog.run(tableSales, "Preparing WhatsApp Notification", "whatsapp", "Loading sales invoice...", reporter -> {
+        LiveOperationDialog.run(tableSales, "Sending WhatsApp Invoice", "whatsapp", "Loading sales invoice...", reporter -> {
             reporter.stage(1, 3, "Loading invoice details...");
             Sales full = service.getByInvoice(sale.getInvoiceNo());
             String phone = digits(full.getCustomer().getPhone());
             if (phone.length() == 10) phone = "91" + phone;
             if (phone.isBlank()) throw new IllegalStateException("Customer mobile number is not available. Update it in Customer Master.");
-            String missing = PaymentMessageService.missingPaymentConfiguration();
-            if (missing != null) reporter.log("Note: " + missing);
-            reporter.stage(2, 3, "Generating invoice PDF for attachment...");
-            Path pdf = ManagedInvoicePdfService.sales(full);
-            reporter.stage(3, 3, "Opening WhatsApp application...");
+            reporter.stage(2, 3, "Checking WhatsApp Business Engine...");
             String message = MessageTemplateService.formatSalesWhatsapp(full);
-            String finalPhone = phone;
-            WhatsappService.openWhatsappWithMessage(finalPhone, message, pdf, PaymentMessageService.configuredQrPath());
+            var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+            var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+                "SALE", full.getInvoiceNo(), full.getId(), null, phone, message, full.getRowVersion()
+            ));
+            if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
+            reporter.stage(3, 3, "Dispatched via WhatsApp channel " + sendResp.channelCode());
             support.markWhatsapp("SALE", full.getId(), full.getRowVersion());
             communication("SALE", full.getId(), "WHATSAPP", phone, "Sales Invoice " + full.getInvoiceNo(), "SENT", null);
         }, () -> {
             refresh();
-            info("WhatsApp is ready. The invoice and configured UPI QR are on the clipboard for attachment.");
+            info("Sales Invoice " + sale.getInvoiceNo() + " was successfully sent via WhatsApp!");
         }, this::error);
     }
     private void recordPayment(Sales sale){

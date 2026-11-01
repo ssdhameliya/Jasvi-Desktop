@@ -1,4 +1,6 @@
 package org.example.controller;
+import javafx.geometry.Pos;
+import javafx.scene.control.TableColumn;
 import javafx.geometry.Insets;
 import java.util.Optional;
 import java.time.LocalDate;
@@ -262,6 +264,11 @@ public class SettingsController implements ScreenLifecycle {
 
     @FXML
     private TextField txtSmtpPort;
+    @FXML private TextField txtWahaEndpoint;
+    @FXML private PasswordField txtWahaApiKey;
+    @FXML private CheckBox chkWahaEnabled;
+    @FXML private Button btnWhatsappTest;
+    @FXML private Button btnManageWhatsappChannels;
 
     @FXML private TextArea txtEmailSignature;
     @FXML private Label lblSignatureImageStatus;
@@ -753,15 +760,24 @@ public class SettingsController implements ScreenLifecycle {
     }
 
     private EmailSettingsSnapshot readEmailSettingsSnapshot() {
+        String wahaEndpoint = ConfigManager.get("whatsapp.waha.endpoint", "http://localhost:3000");
+        boolean wahaEnabled = Boolean.parseBoolean(ConfigManager.get("whatsapp.waha.enabled", "false"));
         if (ConfigManager.isSharedClient()) {
-            if (!SessionService.isAdmin()) return new EmailSettingsSnapshot("", "", "", "587", false, false);
+            if (!SessionService.isAdmin()) return new EmailSettingsSnapshot("", "", "", "587", false, false, wahaEndpoint, wahaEnabled);
             var smtp = new org.example.api.authority.BusinessEmailClient().settings();
-            return new EmailSettingsSnapshot(smtp.email(), "", smtp.host(), smtp.port() == null ? "587" : Integer.toString(smtp.port()), smtp.passwordConfigured(), true);
+            try {
+                var waha = new org.example.api.whatsapp.BusinessWhatsappApiClient().getSettings();
+                if (waha != null) {
+                    wahaEndpoint = waha.endpoint();
+                    wahaEnabled = waha.enabled();
+                }
+            } catch (Exception ignored) {}
+            return new EmailSettingsSnapshot(smtp.email(), "", smtp.host(), smtp.port() == null ? "587" : Integer.toString(smtp.port()), smtp.passwordConfigured(), true, wahaEndpoint, wahaEnabled);
         }
         String pwd = ConfigManager.getSmtpPassword();
         boolean hasPassword = pwd != null && !pwd.isBlank();
         return new EmailSettingsSnapshot(ConfigManager.getSmtpEmail(), "",
-                ConfigManager.getSmtpHost(), ConfigManager.getSmtpPort(), hasPassword, true);
+                ConfigManager.getSmtpHost(), ConfigManager.getSmtpPort(), hasPassword, true, wahaEndpoint, wahaEnabled);
     }
 
     private void applySectionSnapshot(Section section, Object snapshot) {
@@ -813,6 +829,8 @@ public class SettingsController implements ScreenLifecycle {
                 txtSmtpPassword.setPromptText(value.passwordConfigured() ? "Configured — leave blank to keep current password" : "Enter email app password");
                 boolean editable = value.editable();
                 txtSmtpEmail.setDisable(!editable); txtSmtpPassword.setDisable(!editable); txtSmtpHost.setDisable(!editable); txtSmtpPort.setDisable(!editable);
+                if (txtWahaEndpoint != null) txtWahaEndpoint.setText(value.wahaEndpoint());
+                if (chkWahaEnabled != null) chkWahaEnabled.setSelected(value.wahaEnabled());
             }
             case SECURITY -> {
                 SecuritySettingsSnapshot value = (SecuritySettingsSnapshot) snapshot;
@@ -848,7 +866,7 @@ public class SettingsController implements ScreenLifecycle {
                                            String branch, String accountType, List<String> accountTypes, String roundingTolerance) { }
     private record InvoiceSettingsSnapshot(String address, String state, String website, String tagline, String shipAddress,
                                            String terms, String currency, String timeZone, String dateFormat, String timeFormat) { }
-    private record EmailSettingsSnapshot(String email, String password, String host, String port, boolean passwordConfigured, boolean editable) { }
+    private record EmailSettingsSnapshot(String email, String password, String host, String port, boolean passwordConfigured, boolean editable, String wahaEndpoint, boolean wahaEnabled) { }
     private record SecuritySettingsSnapshot(String timeout, String warning, String mfaPolicy) { }
     private record StorageRetentionSnapshot(String logs, String reports, String exports, String diagnostics, String importResults,
                                             String temp, boolean compressOldLogs) { }
@@ -2606,6 +2624,249 @@ private record AssetPreviewRequest(
         }
         putSetting("smtp.host", host);
         putSetting("smtp.port", Integer.toString(port));
+        saveWhatsappSettings();
+    }
+
+    private void saveWhatsappSettings() {
+        if (txtWahaEndpoint != null) {
+            String endpoint = txtWahaEndpoint.getText() == null ? "" : txtWahaEndpoint.getText().trim();
+            putSetting("whatsapp.waha.endpoint", endpoint);
+            ConfigManager.setWithoutSaving("whatsapp.waha.endpoint", endpoint);
+        }
+        if (chkWahaEnabled != null) {
+            boolean enabled = chkWahaEnabled.isSelected();
+            putSetting("whatsapp.waha.enabled", String.valueOf(enabled));
+            ConfigManager.setWithoutSaving("whatsapp.waha.enabled", String.valueOf(enabled));
+        }
+        String apiKey = txtWahaApiKey != null && txtWahaApiKey.getText() != null ? txtWahaApiKey.getText().trim() : "";
+        if (!apiKey.isBlank()) {
+            putSetting("whatsapp.waha.apiKey", apiKey);
+        }
+        if (SessionService.isAdmin()) {
+            try {
+                String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
+                boolean on = chkWahaEnabled != null && chkWahaEnabled.isSelected();
+                new org.example.api.whatsapp.BusinessWhatsappApiClient().saveSettings(
+                    new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, apiKey, on, null)
+                );
+            } catch (Exception ignored) {}
+        }
+    }
+
+    @FXML
+    private void testWhatsappConnection() {
+        if (!SessionService.isAdmin()) {
+            showInfoAlert("Permission Required", "Only administrators can test WhatsApp WAHA configuration.");
+            return;
+        }
+        if (btnWhatsappTest != null) btnWhatsappTest.setDisable(true);
+        UiTaskExecutor.submitAction(
+            "test-waha-connection",
+            () -> {
+                String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
+                String key = txtWahaApiKey != null && txtWahaApiKey.getText() != null ? txtWahaApiKey.getText().trim() : "";
+                boolean on = chkWahaEnabled != null && chkWahaEnabled.isSelected();
+                var api = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+                api.saveSettings(new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, key, on, null));
+                return api.testConnection();
+            },
+            health -> {
+                if (btnWhatsappTest != null) btnWhatsappTest.setDisable(false);
+                if (health != null && health.connected()) {
+                    showInfoAlert("WAHA Connected", "Successfully connected to WhatsApp WAHA engine!\n\nVersion: " + health.serverVersion() + "\nStatus: " + health.message());
+                } else {
+                    showErrorAlert("WAHA Offline", health != null ? health.message() : "Unable to reach WAHA Docker container at specified endpoint.");
+                }
+            },
+            err -> {
+                if (btnWhatsappTest != null) btnWhatsappTest.setDisable(false);
+                showErrorAlert("Connection Failed", "Could not connect to WAHA server:\n" + err.getMessage());
+            }
+        );
+    }
+
+    @FXML
+    private void openWhatsappChannelDialog() {
+        if (!SessionService.isAdmin()) {
+            showInfoAlert("Permission Required", "Only administrators can manage WhatsApp channels.");
+            return;
+        }
+        showWhatsappChannelManagerDialog();
+    }
+
+    private void showWhatsappChannelManagerDialog() {
+        Dialog<ButtonType> dialog = new OwnedDialog<>();
+        dialog.setTitle("WhatsApp Business Channels & QR Pairing");
+        dialog.setHeaderText("Manage connected WhatsApp devices, scan QR code, or set the default sender channel.");
+
+        VBox content = new VBox(12);
+        content.setPrefWidth(680);
+        content.setMinWidth(640);
+
+        Label lblHelp = new Label("Pairs with WAHA (WhatsApp HTTP API) Docker container running on port 3000. Each channel represents one paired WhatsApp number.");
+        lblHelp.setWrapText(true);
+        lblHelp.getStyleClass().add("settings-field-hint");
+
+        TableView<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto> tbl = new TableView<>();
+        tbl.setPrefHeight(220);
+        tbl.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colCode = new TableColumn<>("Channel Code");
+        colCode.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().channelCode()));
+        colCode.setPrefWidth(120);
+
+        TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colName = new TableColumn<>("Display Name");
+        colName.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().displayName()));
+        colName.setPrefWidth(160);
+
+        TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colPhone = new TableColumn<>("Phone Number");
+        colPhone.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().phoneNumber() == null ? "-" : d.getValue().phoneNumber()));
+        colPhone.setPrefWidth(130);
+
+        TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colStatus = new TableColumn<>("Status");
+        colStatus.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().connectionStatus()));
+        colStatus.setPrefWidth(110);
+
+        TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colDefault = new TableColumn<>("Default");
+        colDefault.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().isDefault() ? "PRIMARY" : "-"));
+        colDefault.setPrefWidth(80);
+
+        tbl.getColumns().setAll(colCode, colName, colPhone, colStatus, colDefault);
+
+        Button btnRefreshChannels = new Button("Refresh Channels");
+        btnRefreshChannels.getStyleClass().add("secondary-button");
+
+        Button btnScanQr = new Button("Scan QR Code to Pair");
+        btnScanQr.getStyleClass().addAll("approved-button", "approved-primary-button");
+
+        Button btnSetDefault = new Button("Set as Primary");
+        btnSetDefault.getStyleClass().add("secondary-button");
+
+        Button btnDeleteChannel = new Button("Delete Channel");
+        btnDeleteChannel.getStyleClass().addAll("approved-button", "danger-button");
+
+        HBox actions = new HBox(10, btnScanQr, btnSetDefault, btnRefreshChannels, new Region(), btnDeleteChannel);
+        HBox.setHgrow(actions.getChildren().get(3), Priority.ALWAYS);
+
+        Runnable loadChannels = () -> {
+            UiTaskExecutor.submitAction(
+                "load-waha-channels",
+                () -> new org.example.api.whatsapp.BusinessWhatsappApiClient().listChannels(),
+                list -> tbl.getItems().setAll(list == null ? List.of() : list),
+                err -> showErrorAlert("Load Failed", err.getMessage())
+            );
+        };
+
+        btnRefreshChannels.setOnAction(e -> loadChannels.run());
+        btnSetDefault.setOnAction(e -> {
+            var selected = tbl.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                showInfoAlert("Select Channel", "Please select a channel to mark as primary default.");
+                return;
+            }
+            UiTaskExecutor.submitAction(
+                "set-default-channel",
+                () -> {
+                    new org.example.api.whatsapp.BusinessWhatsappApiClient().setDefaultChannel(selected.id());
+                    return true;
+                },
+                ok -> {
+                    showInfoAlert("Primary Channel Set", selected.displayName() + " is now the primary WhatsApp sender.");
+                    loadChannels.run();
+                },
+                err -> showErrorAlert("Failed", err.getMessage())
+            );
+        });
+
+        btnDeleteChannel.setOnAction(e -> {
+            var selected = tbl.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                showInfoAlert("Select Channel", "Please select a channel to delete.");
+                return;
+            }
+            UiTaskExecutor.submitAction(
+                "delete-channel",
+                () -> {
+                    new org.example.api.whatsapp.BusinessWhatsappApiClient().deleteChannel(selected.id());
+                    return true;
+                },
+                ok -> {
+                    showInfoAlert("Channel Deleted", "WhatsApp channel was removed.");
+                    loadChannels.run();
+                },
+                err -> showErrorAlert("Failed", err.getMessage())
+            );
+        });
+
+        btnScanQr.setOnAction(e -> {
+            var selected = tbl.getSelectionModel().getSelectedItem();
+            String session = selected != null ? selected.sessionName() : "default";
+            showWhatsappQrCodeModal(session, loadChannels);
+        });
+
+        content.getChildren().addAll(lblHelp, tbl, actions);
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        loadChannels.run();
+        dialog.showAndWait();
+    }
+
+    private void showWhatsappQrCodeModal(String session, Runnable onPairedCallback) {
+        Dialog<ButtonType> qrDialog = new OwnedDialog<>();
+        qrDialog.setTitle("Scan WhatsApp QR Code");
+        qrDialog.setHeaderText("Open WhatsApp on your phone > Linked Devices > Link a Device, then scan this QR code.");
+
+        VBox box = new VBox(14);
+        box.setAlignment(Pos.CENTER);
+        box.setPrefWidth(380);
+        box.setPadding(new Insets(14));
+
+        ImageView qrView = new ImageView();
+        qrView.setFitWidth(260);
+        qrView.setFitHeight(260);
+        qrView.setPreserveRatio(true);
+
+        Label lblStatus = new Label("Fetching QR code from WAHA engine...");
+        lblStatus.getStyleClass().add("page-subtitle");
+
+        Button btnRefreshQr = new Button("Refresh QR Code");
+        btnRefreshQr.getStyleClass().add("secondary-button");
+
+        Runnable fetchQr = () -> {
+            lblStatus.setText("Requesting fresh QR code...");
+            UiTaskExecutor.submitAction(
+                "fetch-waha-qr",
+                () -> new org.example.api.whatsapp.BusinessWhatsappApiClient().getQrCode(session),
+                qrResp -> {
+                    if (qrResp != null && qrResp.qrImageBase64() != null && !qrResp.qrImageBase64().isBlank()) {
+                        try {
+                            String b64 = qrResp.qrImageBase64();
+                            if (b64.contains(",")) b64 = b64.substring(b64.indexOf(",") + 1);
+                            byte[] imgBytes = java.util.Base64.getDecoder().decode(b64);
+                            qrView.setImage(new javafx.scene.image.Image(new java.io.ByteArrayInputStream(imgBytes)));
+                            lblStatus.setText("Status: " + qrResp.status() + (qrResp.message() != null ? " • " + qrResp.message() : ""));
+                        } catch (Exception ex) {
+                            lblStatus.setText("Error decoding QR image: " + ex.getMessage());
+                        }
+                    } else if (qrResp != null && "CONNECTED".equalsIgnoreCase(qrResp.status())) {
+                        lblStatus.setText("WhatsApp device is already CONNECTED and active!");
+                    } else {
+                        lblStatus.setText("No QR code available. Ensure WAHA session is running.");
+                    }
+                },
+                err -> lblStatus.setText("Failed to load QR code: " + err.getMessage())
+            );
+        };
+
+        btnRefreshQr.setOnAction(ev -> fetchQr.run());
+        box.getChildren().addAll(qrView, lblStatus, btnRefreshQr);
+        qrDialog.getDialogPane().setContent(box);
+        qrDialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        fetchQr.run();
+        qrDialog.showAndWait();
+        if (onPairedCallback != null) onPairedCallback.run();
     }
 
     private void initEmailTemplatesAndSignature() {
@@ -3881,6 +4142,20 @@ private record AssetPreviewRequest(
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to save showcase settings: " + ex.getMessage(), ex);
         }
+    }
+
+        private void showInfoAlert(String title, String message) {
+        OwnedAlert alert = new OwnedAlert(Alert.AlertType.INFORMATION, message);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.showAndWait();
+    }
+
+    private void showErrorAlert(String title, String message) {
+        OwnedAlert alert = new OwnedAlert(Alert.AlertType.ERROR, message);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.showAndWait();
     }
 
     private void openBrowserUrl(String url) {

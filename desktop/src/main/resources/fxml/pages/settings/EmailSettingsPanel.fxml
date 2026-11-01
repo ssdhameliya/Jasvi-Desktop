@@ -40,6 +40,34 @@
         </GridPane>
     </VBox>
 
+    <VBox spacing="12" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="8">
+            <Label text="WhatsApp Business Engine (WAHA Docker)" styleClass="section-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnWhatsappTest" text="Test Connection" onAction="#testWhatsappConnection" styleClass="secondary-button"/>
+            <Label text="Container runs locally or on cloud server at port 3000" styleClass="page-subtitle"/>
+        </HBox>
+        <GridPane hgap="18" vgap="14">
+            <columnConstraints>
+                <ColumnConstraints percentWidth="60" hgrow="ALWAYS"/>
+                <ColumnConstraints percentWidth="40" hgrow="ALWAYS"/>
+            </columnConstraints>
+            <VBox spacing="7" GridPane.columnIndex="0" GridPane.rowIndex="0">
+                <Label text="WAHA Docker Endpoint" styleClass="settings-form-label"/>
+                <TextField fx:id="txtWahaEndpoint" promptText="http://localhost:3000" styleClass="approved-input"/>
+            </VBox>
+            <VBox spacing="7" GridPane.columnIndex="1" GridPane.rowIndex="0">
+                <Label text="WAHA API Key" styleClass="settings-form-label"/>
+                <PasswordField fx:id="txtWahaApiKey" promptText="Optional secret key" styleClass="approved-input"/>
+            </VBox>
+        </GridPane>
+        <HBox spacing="16" alignment="CENTER_LEFT">
+            <CheckBox fx:id="chkWahaEnabled" text="Enable Server Automated WhatsApp Dispatch" styleClass="approved-checkbox"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnManageWhatsappChannels" text="Manage Channels &amp; Scan QR" onAction="#openWhatsappChannelDialog" styleClass="approved-button,approved-primary-button"/>
+        </HBox>
+    </VBox>
+
     <VBox spacing="10" styleClass="settings-subcard">
         <HBox alignment="CENTER_LEFT" spacing="8">
             <Label text="Company Email Signature" styleClass="section-title"/>
