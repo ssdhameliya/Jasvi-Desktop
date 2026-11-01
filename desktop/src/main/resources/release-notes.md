@@ -1,4 +1,4 @@
-# What's New in DSE ERP v11.0.23
+# What's New in DSE ERP v11.0.24
 
 ### Unified Bank Statement Engine, Payment Reference (`PRF/...`) Deep-Linking & Standardized Master Reference Formats
 - **Unified Bank Statement Import Engine (`UniversalBankStatementParser`)**: Consolidated all bank statement ingestion and preflight validation under a single universal parser, added full Light Mode parity, normalized valid status badges to `PASSED`, and enabled multi-format template downloads (`.xlsx`, `.xls`, `.csv`, and All 3 Formats) with 5-color semantic headers.
