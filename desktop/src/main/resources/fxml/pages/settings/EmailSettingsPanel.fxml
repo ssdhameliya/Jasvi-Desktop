@@ -60,6 +60,10 @@
                 <Label text="WAHA API Key" styleClass="settings-form-label"/>
                 <PasswordField fx:id="txtWahaApiKey" promptText="Optional secret key" styleClass="approved-input"/>
             </VBox>
+            <VBox spacing="7" GridPane.columnIndex="0" GridPane.rowIndex="1" GridPane.columnSpan="2">
+                <Label text="Active WhatsApp Sender Number (from Master Lookup)" styleClass="settings-form-label"/>
+                <ComboBox fx:id="cmbActiveWhatsappSender" maxWidth="Infinity" promptText="Select sender number from Master Lookup (WhatsApp Senders)" styleClass="approved-combobox"/>
+            </VBox>
         </GridPane>
         <HBox spacing="16" alignment="CENTER_LEFT">
             <CheckBox fx:id="chkWahaEnabled" text="Enable Server Automated WhatsApp Dispatch" styleClass="approved-checkbox"/>

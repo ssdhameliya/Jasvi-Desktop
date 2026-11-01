@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -133,7 +134,7 @@ public class CloudStorageHealthGuardian {
 
             if (adminEmail == null || adminEmail.isBlank()) {
                 List<Map<String, Object>> rows = jdbc.queryForList(
-                        "SELECT setting_value FROM application_setting WHERE setting_key='company_email'");
+                        "SELECT setting_value FROM application_setting WHERE setting_key IN ('company.email', 'company_email') AND setting_value IS NOT NULL AND BTRIM(setting_value) <> ''");
                 if (!rows.isEmpty() && rows.getFirst().get("setting_value") != null) {
                     adminEmail = rows.getFirst().get("setting_value").toString().trim();
                 }
@@ -149,29 +150,58 @@ public class CloudStorageHealthGuardian {
 
     private void dispatchWhatsappAlert(String message) {
         try {
-            String adminPhone = null;
+            List<String> targetPhones = new ArrayList<>();
+
+            // 1. Query all active phone numbers from Master Lookup (WHATSAPP_SENDER)
             try {
                 List<Map<String, Object>> rows = jdbc.queryForList(
-                        "SELECT phone FROM users WHERE UPPER(COALESCE(role,'')) IN ('ADMIN','SUPER_ADMIN') AND phone IS NOT NULL AND BTRIM(phone) <> '' ORDER BY id ASC LIMIT 1");
-                if (!rows.isEmpty() && rows.getFirst().get("phone") != null) {
-                    adminPhone = rows.getFirst().get("phone").toString().trim();
+                        "SELECT lookup_value FROM lookup_master " +
+                        "WHERE UPPER(lookup_type) = 'WHATSAPP_SENDER' AND is_active = 1 " +
+                        "ORDER BY display_order ASC, id ASC");
+                for (Map<String, Object> r : rows) {
+                    if (r.get("lookup_value") != null && !r.get("lookup_value").toString().isBlank()) {
+                        String phone = r.get("lookup_value").toString().trim();
+                        if (!targetPhones.contains(phone)) targetPhones.add(phone);
+                    }
                 }
             } catch (Exception ignored) {}
 
-            if (adminPhone == null || adminPhone.isBlank()) {
-                List<Map<String, Object>> rows = jdbc.queryForList(
-                        "SELECT setting_value FROM application_setting WHERE setting_key='company_phone'");
-                if (!rows.isEmpty() && rows.getFirst().get("setting_value") != null) {
-                    adminPhone = rows.getFirst().get("setting_value").toString().trim();
-                }
+            // 2. Fallback to company.phone or company_phone if no numbers configured in Master Lookup yet
+            if (targetPhones.isEmpty()) {
+                try {
+                    List<Map<String, Object>> rows = jdbc.queryForList(
+                            "SELECT setting_value FROM application_setting WHERE setting_key IN ('company.phone', 'company_phone') AND setting_value IS NOT NULL AND BTRIM(setting_value) <> ''");
+                    for (Map<String, Object> r : rows) {
+                        String p = r.get("setting_value").toString().trim();
+                        if (!p.isBlank() && !targetPhones.contains(p)) targetPhones.add(p);
+                    }
+                } catch (Exception ignored) {}
             }
 
-            if (adminPhone != null && !adminPhone.isBlank()) {
+            // 3. Fallback to users table if still empty
+            if (targetPhones.isEmpty()) {
+                try {
+                    List<Map<String, Object>> rows = jdbc.queryForList(
+                            "SELECT phone FROM users WHERE UPPER(COALESCE(role,'')) IN ('ADMIN','SUPER_ADMIN') AND phone IS NOT NULL AND BTRIM(phone) <> ''");
+                    for (Map<String, Object> r : rows) {
+                        String p = r.get("phone").toString().trim();
+                        if (!p.isBlank() && !targetPhones.contains(p)) targetPhones.add(p);
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // 4. Dispatch alert to every configured recipient
+            if (!targetPhones.isEmpty()) {
                 var channels = whatsappService.listChannels();
                 if (!channels.isEmpty()) {
-                    var defaultChannel = channels.stream().filter(WahaDtos.ChannelDto::isDefault).findFirst().orElse(channels.getFirst());
+                    var defaultChannel = channels.stream()
+                            .filter(WahaDtos.ChannelDto::isDefault)
+                            .findFirst()
+                            .orElse(channels.getFirst());
                     if ("CONNECTED".equalsIgnoreCase(defaultChannel.connectionStatus())) {
-                        whatsappService.sendText(new WahaDtos.TextSendRequest(adminPhone, message, defaultChannel.id()));
+                        for (String phone : targetPhones) {
+                            whatsappService.sendText(new WahaDtos.TextSendRequest(phone, message, defaultChannel.id()));
+                        }
                     }
                 }
             }

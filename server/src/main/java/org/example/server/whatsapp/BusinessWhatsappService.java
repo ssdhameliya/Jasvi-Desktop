@@ -99,6 +99,31 @@ public class BusinessWhatsappService {
 
     @Transactional
     public List<WahaDtos.ChannelDto> listChannels() {
+        try {
+            List<Map<String, Object>> lookupSenders = jdbc.queryForList(
+                    "SELECT lookup_value, description FROM lookup_master " +
+                    "WHERE UPPER(lookup_type) = 'WHATSAPP_SENDER' AND is_active = 1");
+            for (Map<String, Object> r : lookupSenders) {
+                if (r.get("lookup_value") != null) {
+                    String phone = r.get("lookup_value").toString().trim();
+                    String desc = r.get("description") != null ? r.get("description").toString().trim() : "WhatsApp Sender";
+                    if (!phone.isBlank()) {
+                        var existing = channelRepo.findFirstByPhoneNumberAndIsActiveTrue(phone);
+                        if (existing.isEmpty()) {
+                            WhatsappSenderChannelEntity newCh = new WhatsappSenderChannelEntity();
+                            newCh.setChannelCode("WHA_" + phone.replaceAll("[^0-9]", ""));
+                            newCh.setDisplayName(desc.isBlank() ? ("WhatsApp " + phone) : desc);
+                            newCh.setPhoneNumber(phone);
+                            newCh.setSessionName("default");
+                            newCh.setIsActive(true);
+                            newCh.setIsDefault(channelRepo.count() == 0);
+                            channelRepo.save(newCh);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
         List<WhatsappSenderChannelEntity> entities = channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc();
 
         // Check live session statuses if WAHA is configured
@@ -307,6 +332,11 @@ public class BusinessWhatsappService {
     }
 
     private WhatsappSenderChannelEntity resolveDefaultChannel() {
+        String activeSender = getSetting("whatsapp.active_sender_number", "");
+        if (!activeSender.isBlank()) {
+            var matching = channelRepo.findFirstByPhoneNumberAndIsActiveTrue(activeSender.trim());
+            if (matching.isPresent()) return matching.get();
+        }
         return channelRepo.findFirstByIsDefaultTrueAndIsActiveTrue()
                 .orElseGet(() -> {
                     var list = channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc();

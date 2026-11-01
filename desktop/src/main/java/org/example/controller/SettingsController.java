@@ -268,6 +268,7 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private TextField txtWahaEndpoint;
     @FXML private PasswordField txtWahaApiKey;
     @FXML private CheckBox chkWahaEnabled;
+    @FXML private ComboBox<String> cmbActiveWhatsappSender;
     @FXML private Button btnWhatsappTest;
     @FXML private Button btnManageWhatsappChannels;
 
@@ -845,6 +846,15 @@ public class SettingsController implements ScreenLifecycle {
                 txtSmtpEmail.setDisable(!editable); txtSmtpPassword.setDisable(!editable); txtSmtpHost.setDisable(!editable); txtSmtpPort.setDisable(!editable);
                 if (txtWahaEndpoint != null) txtWahaEndpoint.setText(value.wahaEndpoint());
                 if (chkWahaEnabled != null) chkWahaEnabled.setSelected(value.wahaEnabled());
+                if (cmbActiveWhatsappSender != null) {
+                    populateLookupDropdown(cmbActiveWhatsappSender, "WHATSAPP_SENDER", List.of());
+                    String activeSender = ConfigManager.get("whatsapp.active_sender_number", "");
+                    if (!activeSender.isBlank()) {
+                        cmbActiveWhatsappSender.setValue(activeSender);
+                    } else if (!cmbActiveWhatsappSender.getItems().isEmpty()) {
+                        cmbActiveWhatsappSender.getSelectionModel().selectFirst();
+                    }
+                }
             }
             case SECURITY -> {
                 SecuritySettingsSnapshot value = (SecuritySettingsSnapshot) snapshot;
@@ -918,6 +928,10 @@ public class SettingsController implements ScreenLifecycle {
             List<String> lookupValues = service.getValuesByCategoryCode(categoryCode);
             if (lookupValues != null && !lookupValues.isEmpty()) {
                 values.addAll(lookupValues);
+            }
+            if (values.isEmpty()) {
+                List<String> byType = service.getValues(categoryCode);
+                if (byType != null && !byType.isEmpty()) values.addAll(byType);
             }
         } catch (Exception ignored) {}
         if (values.isEmpty()) {
@@ -2732,6 +2746,11 @@ private record AssetPreviewRequest(
             boolean enabled = chkWahaEnabled.isSelected();
             putSetting("whatsapp.waha.enabled", String.valueOf(enabled));
             ConfigManager.setWithoutSaving("whatsapp.waha.enabled", String.valueOf(enabled));
+        }
+        if (cmbActiveWhatsappSender != null && cmbActiveWhatsappSender.getValue() != null && !cmbActiveWhatsappSender.getValue().isBlank()) {
+            String sender = cmbActiveWhatsappSender.getValue().trim();
+            putSetting("whatsapp.active_sender_number", sender);
+            ConfigManager.setWithoutSaving("whatsapp.active_sender_number", sender);
         }
         String apiKey = txtWahaApiKey != null && txtWahaApiKey.getText() != null ? txtWahaApiKey.getText().trim() : "";
         if (!apiKey.isBlank()) {

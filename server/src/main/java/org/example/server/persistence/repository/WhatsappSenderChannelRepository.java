@@ -11,5 +11,6 @@ import java.util.Optional;
 public interface WhatsappSenderChannelRepository extends JpaRepository<WhatsappSenderChannelEntity, Long> {
     Optional<WhatsappSenderChannelEntity> findByChannelCode(String channelCode);
     Optional<WhatsappSenderChannelEntity> findFirstByIsDefaultTrueAndIsActiveTrue();
+    Optional<WhatsappSenderChannelEntity> findFirstByPhoneNumberAndIsActiveTrue(String phoneNumber);
     List<WhatsappSenderChannelEntity> findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc();
 }
