@@ -9,10 +9,10 @@ public final class AuthDtos { private AuthDtos() {}
  public record LoginMfaEnrollmentResponse(boolean success,String challengeId,String manualSecret,String provisioningUri,String message){}
  public record UserIdRequest(int userId){}
  public record ChangePasswordRequest(int userId,String currentPassword,String password){}
- public record RegisterRequest(String username,String password,String fullName,String email,String role,boolean mfaEnabled){}
+ public record RegisterRequest(String username,String password,String fullName,String email,String phone,String role,boolean mfaEnabled){}
  public record CaptchaResponse(String challengeId,String question,String expiresIn){}
- public record RegistrationOtpRequest(String username,String fullName,String email,String role,boolean mfaEnabled,String captchaChallengeId,String captchaAnswer){}
- public record RegistrationEmailVerifyRequest(String challengeId,String otp,String username,String password,String fullName,String email,String role,boolean mfaEnabled){}
+ public record RegistrationOtpRequest(String username,String fullName,String email,String phone,String role,boolean mfaEnabled,String captchaChallengeId,String captchaAnswer){}
+ public record RegistrationEmailVerifyRequest(String challengeId,String otp,String username,String password,String fullName,String email,String phone,String role,boolean mfaEnabled){}
  public record RegistrationMfaSetupResponse(boolean success,Long registrationId,String manualSecret,String provisioningUri,String message){}
  public record RegistrationMfaCompleteRequest(long registrationId,String otp){}
  public record PasswordResetOtpRequest(String identity){}
@@ -23,6 +23,6 @@ public final class AuthDtos { private AuthDtos() {}
  public record OperationResponse(boolean success,String message){}
  public record RoleOption(String code,String displayName){}
  public record EffectivePermission(String module,String action,String description){}
- public record UserPayload(int id,String username,String fullName,String role,Integer roleId,String email,boolean active,String department,String branch,String accessLevel,boolean locked,boolean mfaEnabled){}
+ public record UserPayload(int id,String username,String fullName,String role,Integer roleId,String email,String phone,boolean active,String department,String branch,String accessLevel,boolean locked,boolean mfaEnabled){}
  public record SessionExtendResponse(boolean success,String message,String accessToken,String expiresAt){}
 }

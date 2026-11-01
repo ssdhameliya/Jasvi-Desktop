@@ -27,6 +27,7 @@
            <VBox spacing="5" GridPane.rowIndex="2"><Label text="Department"/><TextField fx:id="txtDepartment" promptText="Sales, Purchase, Accounts..." styleClass="approved-input"/></VBox>
            <VBox spacing="5" GridPane.columnIndex="1" GridPane.rowIndex="2"><Label text="Branch / Location"/><TextField fx:id="txtBranch" promptText="Enter branch" styleClass="approved-input"/></VBox>
            <VBox spacing="5" GridPane.rowIndex="3"><Label text="Access Level *"/><ComboBox fx:id="cmbAccess" promptText="Select access" maxWidth="Infinity" styleClass="approved-input"/></VBox>
+           <VBox spacing="5" GridPane.columnIndex="1" GridPane.rowIndex="3"><Label text="Phone Number *"/><TextField fx:id="txtPhone" promptText="10-digit mobile number" styleClass="approved-input"/></VBox>
          </GridPane>
        </VBox>
        <VBox spacing="10" styleClass="form-section-card">

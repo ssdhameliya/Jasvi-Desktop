@@ -23,7 +23,7 @@ public class UserDialogController implements ScreenLifecycle {
     private static final Pattern EMAIL = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
     @FXML private Label lblTitle, lblSubtitle, lblMessage, lblMfaPolicy, lblMfaStatus;
-    @FXML private TextField txtFullName, txtUsername, txtEmail, txtDepartment, txtBranch;
+    @FXML private TextField txtFullName, txtUsername, txtEmail, txtDepartment, txtBranch, txtPhone;
     @FXML private PasswordField txtPassword, txtConfirm;
     @FXML private TextField txtPasswordVisible, txtConfirmVisible;
     @FXML private ComboBox<String> cmbRole, cmbAccess;
@@ -153,6 +153,7 @@ public class UserDialogController implements ScreenLifecycle {
         txtEmail.setText(nvl(u.email()));
         txtDepartment.setText(nvl(u.department()));
         txtBranch.setText(nvl(u.branch()));
+        txtPhone.setText(nvl(u.phone()));
         selectRole(nvl(u.role()));
         cmbAccess.setValue(blank(u.accessLevel(), "STANDARD"));
         chkActive.setSelected(u.active());
@@ -277,7 +278,7 @@ public class UserDialogController implements ScreenLifecycle {
         if (!validateForm()) return;
         AdminApiClient.UserSaveRequest request = new AdminApiClient.UserSaveRequest(editingUserId, txtUsername.getText().trim(),
                 blank(txtPassword.getText()) ? null : txtPassword.getText(), txtFullName.getText().trim(),
-                txtEmail.getText().trim(), canonicalRole(cmbRole.getValue()), txtDepartment.getText().trim(),
+                txtEmail.getText().trim(), txtPhone.getText().trim(), canonicalRole(cmbRole.getValue()), txtDepartment.getText().trim(),
                 cmbAccess.getValue(), txtBranch.getText().trim(), chkActive.isSelected(), chkLocked.isSelected(),
                 chkMfa.isSelected(), editingRowVersion);
         btnSave.setDisable(true);
@@ -295,6 +296,7 @@ public class UserDialogController implements ScreenLifecycle {
             String m = text.toLowerCase(Locale.ROOT);
             if (m.contains("username") && (m.contains("already") || m.contains("duplicate") || m.contains("unique"))) invalid(txtUsername, "This username already exists.");
             else if (m.contains("email") && (m.contains("already") || m.contains("duplicate") || m.contains("unique"))) invalid(txtEmail, "This email address is already assigned to another user.");
+            else if (m.contains("phone") && (m.contains("already") || m.contains("duplicate") || m.contains("unique"))) invalid(txtPhone, "This phone number is already assigned to another user.");
             else message("Unable to save user: " + text, true);
         });
     }
@@ -304,6 +306,9 @@ public class UserDialogController implements ScreenLifecycle {
         if (blank(txtUsername.getText())) return invalid(txtUsername, "Username is required.");
         if (blank(txtEmail.getText())) return invalid(txtEmail, "Email address is required.");
         if (!EMAIL.matcher(txtEmail.getText().trim()).matches()) return invalid(txtEmail, "Enter a valid email address.");
+        if (blank(txtPhone.getText())) return invalid(txtPhone, "Phone number is required.");
+        String phoneDigits = txtPhone.getText().replaceAll("[^0-9]", "");
+        if (phoneDigits.length() < 10 || phoneDigits.length() > 15) return invalid(txtPhone, "Enter a valid 10-digit mobile number.");
         if (blank(cmbRole.getValue())) return invalid(cmbRole, "Select a role from Role Master.");
         if (cmbAccess.getValue() == null) return invalid(cmbAccess, "Select an access level.");
         boolean passwordRequired = editingUserId == null;
@@ -319,6 +324,7 @@ public class UserDialogController implements ScreenLifecycle {
         txtFullName.textProperty().addListener((o,a,b)->clearInvalid(txtFullName));
         txtUsername.textProperty().addListener((o,a,b)->clearInvalid(txtUsername));
         txtEmail.textProperty().addListener((o,a,b)->clearInvalid(txtEmail));
+        txtPhone.textProperty().addListener((o,a,b)->clearInvalid(txtPhone));
         txtPassword.textProperty().addListener((o,a,b)->clearInvalid(txtPassword));
         txtConfirm.textProperty().addListener((o,a,b)->clearInvalid(txtConfirm));
         cmbAccess.valueProperty().addListener((o,a,b)->clearInvalid(cmbAccess));

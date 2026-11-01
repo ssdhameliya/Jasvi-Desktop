@@ -295,7 +295,7 @@ public class LoginController implements ScreenLifecycle {
             setLoginBusy(false, null);
             if (attempt == null || attempt.user() == null) {
                 PerformanceMonitor.finish("login-click");
-                message("Invalid email/username or password.", true);
+                message("Invalid email, username, phone or password.", true);
                 return;
             }
 
@@ -756,7 +756,7 @@ public class LoginController implements ScreenLifecycle {
         clearResetErrors();
         String identity = txtResetIdentity.getText() == null ? "" : txtResetIdentity.getText().trim();
         if (identity.isBlank()) {
-            showFieldError(txtResetIdentity, lblResetIdentityError, "Email or username is required.");
+            showFieldError(txtResetIdentity, lblResetIdentityError, "Email, username or mobile is required.");
             return;
         }
 

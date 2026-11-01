@@ -409,6 +409,7 @@ public final class AuthApiClient {
         result.setRole(user.role());
         if (user.roleId() != null) result.setRoleId(user.roleId());
         result.setEmail(user.email());
+        result.setPhone(user.phone());
         result.setActive(user.active());
         result.setDepartment(user.department());
         result.setBranch(user.branch());
@@ -481,7 +482,7 @@ public final class AuthApiClient {
         @Override public String toString() { return displayName; }
     }
     public record UserPayload(int id, String username, String fullName, String role, Integer roleId,
-                              String email, boolean active, String department, String branch,
+                              String email, String phone, boolean active, String department, String branch,
                               String accessLevel, boolean locked, boolean mfaEnabled) {}
 
     public record SessionExtendResponse(boolean success,String message,String accessToken,String expiresAt){}

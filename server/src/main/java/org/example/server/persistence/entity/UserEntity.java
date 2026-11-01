@@ -14,6 +14,7 @@ public class UserEntity {
     /** Stable security identity from ROLE Master lookup_value (ADMIN, PURCHASE, SALES, ...). The hidden ROLxxx lookup_code is never stored here. */
     @Column(nullable = false) private String role;
     private String email;
+    private String phone;
     @Column(nullable = false) private Integer active = 1;
     private String department;
     private String branch;
@@ -36,6 +37,7 @@ public class UserEntity {
     public void setFullName(String fullName) { this.fullName = fullName; }
     public void setRole(String role) { this.role = role; }
     public void setEmail(String email) { this.email = email; }
+    public void setPhone(String phone) { this.phone = phone; }
     public void setActive(boolean active) { this.active = active ? 1 : 0; }
     public void setDepartment(String department) { this.department = department; }
     public void setBranch(String branch) { this.branch = branch; }
@@ -50,6 +52,7 @@ public class UserEntity {
     public String getRoleName() { return role; }
     public Integer getRoleId() { return null; } // legacy transport field; Role Master identity is the case-insensitive ROLE lookup_value from v8.5.1.
     public String getEmail() { return email; }
+    public String getPhone() { return phone; }
     public boolean isActive() { return Integer.valueOf(1).equals(active); }
     public String getDepartment() { return department; }
     public String getBranch() { return branch; }

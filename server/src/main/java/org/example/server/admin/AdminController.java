@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.*;import java.util.*;
  @GetMapping("/users") public List<AdminDtos.UserDto> users(){return s.users();}
  @GetMapping("/users/{id}") public AdminDtos.UserDto user(@PathVariable int id){return s.user(id);}
  @PostMapping("/users") public AdminDtos.UserDto addUser(@RequestBody AdminDtos.UserSaveRequest d){return s.saveUser(d);}
- @PutMapping("/users/{id}") public AdminDtos.UserDto updateUser(@PathVariable int id,@RequestBody AdminDtos.UserSaveRequest d){return s.saveUser(new AdminDtos.UserSaveRequest(id,d.username(),d.password(),d.fullName(),d.email(),d.role(),d.department(),d.accessLevel(),d.branch(),d.active(),d.locked(),d.mfaEnabled(),d.rowVersion()));}
+ @PutMapping("/users/{id}") public AdminDtos.UserDto updateUser(@PathVariable int id,@RequestBody AdminDtos.UserSaveRequest d){return s.saveUser(new AdminDtos.UserSaveRequest(id,d.username(),d.password(),d.fullName(),d.email(),d.phone(),d.role(),d.department(),d.accessLevel(),d.branch(),d.active(),d.locked(),d.mfaEnabled(),d.rowVersion()));}
  @DeleteMapping("/users/{id}") public AdminDtos.Ok deleteUser(@PathVariable int id){s.deleteUser(id);return ok("Deleted");}
  @PostMapping("/users/{id}/password") public AdminDtos.Ok password(@PathVariable int id,@RequestBody AdminDtos.PasswordRequest d){s.resetPassword(id,d.password());return ok("Updated");}
  @PostMapping("/users/{id}/lock") public AdminDtos.Ok lock(@PathVariable int id,@RequestBody AdminDtos.LockRequest d){s.setLocked(id,d.locked());return ok("Updated");}

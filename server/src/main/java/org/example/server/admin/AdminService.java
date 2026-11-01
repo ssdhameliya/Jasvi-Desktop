@@ -99,12 +99,12 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public List<AdminDtos.UserDto> users() {
-        return jdbc.query("SELECT u.id,u.username,u.full_name,u.email,COALESCE(NULLIF(TRIM(u.role),''),'SALES')," +
+        return jdbc.query("SELECT u.id,u.username,u.full_name,u.email,u.phone,COALESCE(NULLIF(TRIM(u.role),''),'SALES')," +
                         "u.department,u.access_level,u.branch,u.active,u.locked,u.mfa_enabled,COALESCE(NULLIF(u.last_login_utc,''),CAST(u.last_login AS text)),COALESCE(u.row_version,0) " +
                         "FROM users u ORDER BY u.full_name,u.username",
                 (row, index) -> new AdminDtos.UserDto(row.getInt(1), row.getString(2), row.getString(3), row.getString(4),
-                        row.getString(5), row.getString(6), row.getString(7), row.getString(8), flag(row.getObject(9)),
-                        flag(row.getObject(10)), flag(row.getObject(11)), BusinessClock.toUtcText(row.getObject(12)), row.getLong(13)));
+                        row.getString(5), row.getString(6), row.getString(7), row.getString(8), row.getString(9), flag(row.getObject(10)),
+                        flag(row.getObject(11)), flag(row.getObject(12)), BusinessClock.toUtcText(row.getObject(13)), row.getLong(14)));
     }
 
     @Transactional(readOnly = true)
@@ -176,6 +176,9 @@ public class AdminService {
         if (request == null || request.username() == null || request.username().isBlank())
             throw new IllegalArgumentException("Username is required");
         String assignedRole = role(request.role());
+        String phone = clean(request.phone());
+        if (request.id() == null && (phone == null || phone.isBlank()))
+            throw new IllegalArgumentException("Phone number is required");
         validateUniqueIdentity(request);
         boolean enforcedMfa = effectiveMfa(assignedRole, request.mfaEnabled());
         String encoded = null;
@@ -184,10 +187,10 @@ public class AdminService {
             encoded = passwords.encode(request.password());
         }
         if (request.id() == null) {
-            jdbc.update("INSERT INTO users(username,password,full_name,role,role_id,email,active,locked,lock_reason,mfa_enabled,department,branch,access_level) " +
-                            "VALUES(?,?,?,?,NULL,?,?,?,?,?,?,?,?)",
+            jdbc.update("INSERT INTO users(username,password,full_name,role,role_id,email,phone,active,locked,lock_reason,mfa_enabled,department,branch,access_level) " +
+                            "VALUES(?,?,?,?,NULL,?,?,?,?,?,?,?,?,?)",
                     request.username().trim(), encoded, clean(request.fullName()), assignedRole,
-                    clean(request.email()), request.active() ? 1 : 0, request.locked() ? 1 : 0,
+                    clean(request.email()), phone, request.active() ? 1 : 0, request.locked() ? 1 : 0,
                     request.locked() ? "ADMIN" : "NONE", enforcedMfa ? 1 : 0,
                     clean(request.department()), clean(request.branch()), clean(request.accessLevel()));
         } else {
@@ -205,9 +208,9 @@ public class AdminService {
             ensureActiveAdministratorRemains(request.id(), assignedRole, request.active(), request.locked());
             if (request.id() == CurrentUser.require().id() && (request.locked() || !request.active()))
                 throw new IllegalArgumentException("You cannot lock or deactivate your own account");
-            jdbc.update("UPDATE users SET username=?,full_name=?,email=?,role=?,role_id=NULL," +
+            jdbc.update("UPDATE users SET username=?,full_name=?,email=?,phone=?,role=?,role_id=NULL," +
                             "active=?,locked=?,mfa_enabled=?,department=?,branch=?,access_level=?,row_version=row_version+1 WHERE id=? AND row_version=?",
-                    request.username().trim(), clean(request.fullName()), clean(request.email()), assignedRole,
+                    request.username().trim(), clean(request.fullName()), clean(request.email()), phone, assignedRole,
                     request.active() ? 1 : 0, request.locked() ? 1 : 0, enforcedMfa ? 1 : 0,
                     clean(request.department()), clean(request.branch()), clean(request.accessLevel()), request.id(), request.rowVersion());
             if (previousLocked && !request.locked()) {
@@ -388,6 +391,13 @@ public class AdminService {
                     : jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE LOWER(TRIM(COALESCE(email,'')))=LOWER(TRIM(?)) AND id<>?", Long.class, email, id);
             if (emailMatches != null && emailMatches > 0) throw new IllegalArgumentException("This email address is already assigned to another user");
         }
+        String phone = clean(request.phone());
+        if (phone != null && !phone.isBlank()) {
+            Long phoneMatches = id == null
+                    ? jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE BTRIM(COALESCE(phone,''))=BTRIM(?) AND BTRIM(COALESCE(phone,''))<>''", Long.class, phone)
+                    : jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE BTRIM(COALESCE(phone,''))=BTRIM(?) AND BTRIM(COALESCE(phone,''))<>'' AND id<>?", Long.class, phone, id);
+            if (phoneMatches != null && phoneMatches > 0) throw new IllegalArgumentException("This phone number is already assigned to another user");
+        }
     }
 
     private String role(String value) {
@@ -418,16 +428,16 @@ public class AdminService {
 
     @Transactional
     public AdminDtos.Ok approveRegistration(long id, AdminDtos.RegistrationDecisionRequest request) {
-        var row=jdbc.queryForMap("SELECT id,username,password_hash,full_name,email,requested_role,totp_secret_enc,email_verified,mfa_verified,status,row_version FROM registration_request WHERE id=? FOR UPDATE",id);
+        var row=jdbc.queryForMap("SELECT id,username,password_hash,full_name,email,COALESCE(phone,'') phone,requested_role,totp_secret_enc,email_verified,mfa_verified,status,row_version FROM registration_request WHERE id=? FOR UPDATE",id);
         long version=((Number)row.get("row_version")).longValue(); if(request==null||request.rowVersion()!=version)throw new ConcurrentEditException("Registration request");
         if(!"PENDING_ADMIN_APPROVAL".equals(String.valueOf(row.get("status"))))throw new IllegalArgumentException("Registration request has already been processed");
         if(!flag(row.get("email_verified"))||!flag(row.get("mfa_verified")))throw new IllegalArgumentException("Registration identity verification is incomplete");
         String assigned=request.role()==null||request.role().isBlank()?String.valueOf(row.get("requested_role")):request.role().trim().toUpperCase();
         if("ADMIN".equals(assigned))throw new SecurityException("Administrator accounts cannot be created from self-registration. Use User Management.");
         var role=roleMaster.requireActive(assigned);
-        String username=String.valueOf(row.get("username")),email=String.valueOf(row.get("email"));
+        String username=String.valueOf(row.get("username")),email=String.valueOf(row.get("email")),phone=clean(String.valueOf(row.get("phone")));
         Long duplicates=jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE LOWER(username)=LOWER(?) OR LOWER(COALESCE(email,''))=LOWER(?)",Long.class,username,email);if(duplicates!=null&&duplicates>0)throw new IllegalArgumentException("Username or email is already registered");
-        boolean approvedMfa=effectiveMfa(role.code(),true);Integer userId=jdbc.queryForObject("INSERT INTO users(username,password,full_name,role,email,active,locked,mfa_enabled,access_level,totp_secret_enc,approval_status,row_version) VALUES(?,?,?,?,?,1,0,?,'STANDARD',?,'APPROVED',0) RETURNING id",Integer.class,username,String.valueOf(row.get("password_hash")),String.valueOf(row.get("full_name")),role.code(),email,approvedMfa?1:0,String.valueOf(row.get("totp_secret_enc")));
+        boolean approvedMfa=effectiveMfa(role.code(),true);Integer userId=jdbc.queryForObject("INSERT INTO users(username,password,full_name,role,email,phone,active,locked,mfa_enabled,access_level,totp_secret_enc,approval_status,row_version) VALUES(?,?,?,?,?,?,1,0,?,'STANDARD',?,'APPROVED',0) RETURNING id",Integer.class,username,String.valueOf(row.get("password_hash")),String.valueOf(row.get("full_name")),role.code(),email,phone,approvedMfa?1:0,String.valueOf(row.get("totp_secret_enc")));
         var actor=CurrentUser.require();jdbc.update("UPDATE registration_request SET status='APPROVED',reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,rejection_reason=NULL,row_version=row_version+1 WHERE id=?",actor.id(),id);
         jdbc.update("INSERT INTO activity_log(entity_type,entity_id,action,detail,created_by,created_at) VALUES('USER',?,?,?,?,?)",userId,"REGISTRATION_APPROVED","Self-registration approved with role "+role.code(),actor.username(),BusinessClock.nowUtcText());
         return new AdminDtos.Ok(true,approvedMfa?"Registration approved. The user can now sign in with password + authenticator.":"Registration approved. Current MFA policy permits password-only sign in.");

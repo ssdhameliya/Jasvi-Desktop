@@ -8,6 +8,7 @@ public class AppUser {
     private String role;
     private int roleId;
     private String email;
+    private String phone;
     private boolean active;
     private String department;
     private String branch;
@@ -63,6 +64,14 @@ public class AppUser {
 
     public void setEmail(String value) {
         email = value;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String value) {
+        phone = value;
     }
 
     public boolean isActive() {

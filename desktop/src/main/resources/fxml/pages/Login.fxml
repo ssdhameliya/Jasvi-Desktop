@@ -32,7 +32,7 @@
                 <VBox fx:id="loginPanel" spacing="11" maxWidth="620" alignment="CENTER">
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Email or username *" styleClass="auth-field-label"/>
-                        <TextField fx:id="txtUsername" promptText="Email or username" prefHeight="44" styleClass="auth-input"/>
+                        <TextField fx:id="txtUsername" promptText="Email, username or mobile" prefHeight="44" styleClass="auth-input"/>
                         <Label fx:id="lblUsernameError" managed="false" visible="false" styleClass="field-error"/>
                     </VBox>
 
@@ -80,7 +80,7 @@
 
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Email or username *" styleClass="auth-field-label"/>
-                        <TextField fx:id="txtResetIdentity" promptText="Email or username" prefHeight="44" styleClass="auth-input"/>
+                        <TextField fx:id="txtResetIdentity" promptText="Email, username or mobile" prefHeight="44" styleClass="auth-input"/>
                         <Label fx:id="lblResetIdentityError" managed="false" visible="false" styleClass="field-error"/>
                     </VBox>
 

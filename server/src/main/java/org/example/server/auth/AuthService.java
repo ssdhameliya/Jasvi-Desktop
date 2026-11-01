@@ -262,6 +262,9 @@ public class AuthService {
         if (!email.isBlank() && users.existsByEmailIgnoreCase(email))
             return new AuthDtos.OperationResponse(false, "Email is already registered");
 
+        String phone = clean(request.phone());
+        if (phone != null && !phone.isBlank() && users.existsByPhone(phone))
+            return new AuthDtos.OperationResponse(false, "Phone number is already registered");
         String requestedRole = normalizeRole(request.role());
         RoleMasterService.RoleDefinition role;
         try { role = roleMaster.requireActive(requestedRole); }
@@ -274,6 +277,7 @@ public class AuthService {
         user.setPassword(passwords.encode(request.password()));
         user.setFullName(request.fullName());
         user.setEmail(email);
+        user.setPhone(phone);
         user.setRole(role.code());
         user.setActive(true);
         user.setApprovalStatus("APPROVED");
@@ -294,7 +298,7 @@ public class AuthService {
     @Transactional
     public AuthDtos.ChallengeResponse requestRegistrationOtp(AuthDtos.RegistrationOtpRequest request) {
         cleanupExpiredRegistrations();
-        String validation=publicRegistrationError(request==null?null:request.username(),request==null?null:request.fullName(),request==null?null:request.email(),request==null?null:request.role());
+        String validation=publicRegistrationError(request==null?null:request.username(),request==null?null:request.fullName(),request==null?null:request.email(),request==null?null:request.phone(),request==null?null:request.role());
         if(validation!=null)return new AuthDtos.ChallengeResponse(false,null,validation);
         if(request==null || !captcha.verify(request.captchaChallengeId(),request.captchaAnswer()))
             return new AuthDtos.ChallengeResponse(false,null,"CAPTCHA verification failed or expired. Refresh the CAPTCHA and try again.");
@@ -302,6 +306,8 @@ public class AuthService {
         if("ADMIN".equals(role))return new AuthDtos.ChallengeResponse(false,null,"Administrator accounts cannot be created through self-registration.");
         if(users.existsByUsernameIgnoreCase(username)||openRegistrationExists("username",username))return new AuthDtos.ChallengeResponse(false,null,"Username is already registered or awaiting approval");
         if(users.existsByEmailIgnoreCase(email)||openRegistrationExists("email",email))return new AuthDtos.ChallengeResponse(false,null,"Email is already registered or awaiting approval");
+        String phone=request.phone()==null?"":request.phone().trim();
+        if(users.existsByPhone(phone)||openRegistrationExists("phone",phone))return new AuthDtos.ChallengeResponse(false,null,"Phone number is already registered or awaiting approval");
         mail.requireConfigured();
         var issued=otp.issue(AuthOtpService.Purpose.REGISTRATION,email.toLowerCase(Locale.ROOT),registrationBinding(username,email,role,true),null,email,mail);
         return new AuthDtos.ChallengeResponse(true,issued.challengeId(),issued.sent()?"Verification code sent to your email":"A verification code was already sent. Please use the latest code");
@@ -310,7 +316,7 @@ public class AuthService {
     @Transactional
     public AuthDtos.RegistrationMfaSetupResponse verifyRegistrationEmail(AuthDtos.RegistrationEmailVerifyRequest request) {
         cleanupExpiredRegistrations();
-        String validation=publicRegistrationError(request==null?null:request.username(),request==null?null:request.fullName(),request==null?null:request.email(),request==null?null:request.role());
+        String validation=publicRegistrationError(request==null?null:request.username(),request==null?null:request.fullName(),request==null?null:request.email(),request==null?null:request.phone(),request==null?null:request.role());
         if(validation!=null)throw new IllegalArgumentException(validation);
         String passwordError=passwordError(request.password());if(passwordError!=null)throw new IllegalArgumentException(passwordError);
         String username=request.username().trim(),email=request.email().trim(),role=normalizeRole(request.role());
@@ -318,8 +324,10 @@ public class AuthService {
         otp.verify(AuthOtpService.Purpose.REGISTRATION,request.challengeId(),request.otp(),registrationBinding(username,email,role,true));
         if(users.existsByUsernameIgnoreCase(username)||openRegistrationExists("username",username))throw new IllegalArgumentException("Username is already registered or awaiting approval");
         if(users.existsByEmailIgnoreCase(email)||openRegistrationExists("email",email))throw new IllegalArgumentException("Email is already registered or awaiting approval");
+        String phone=request.phone()==null?"":request.phone().trim();
+        if(users.existsByPhone(phone)||openRegistrationExists("phone",phone))throw new IllegalArgumentException("Phone number is already registered or awaiting approval");
         var setup=totp.createSetup(username,email);
-        Long id=db.queryForObject("INSERT INTO registration_request(username,password_hash,full_name,email,requested_role,totp_secret_enc,email_verified,mfa_verified,status,requested_at,expires_at,mfa_attempts,row_version) VALUES(?,?,?,?,?,?,1,0,'MFA_ENROLLMENT_PENDING',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP + INTERVAL '30 minutes',0,0) RETURNING id",Long.class,username,passwords.encode(request.password()),request.fullName().trim(),email,role,setup.encryptedSecret());
+        Long id=db.queryForObject("INSERT INTO registration_request(username,password_hash,full_name,email,phone,requested_role,totp_secret_enc,email_verified,mfa_verified,status,requested_at,expires_at,mfa_attempts,row_version) VALUES(?,?,?,?,?,?,?,1,0,'MFA_ENROLLMENT_PENDING',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP + INTERVAL '30 minutes',0,0) RETURNING id",Long.class,username,passwords.encode(request.password()),request.fullName().trim(),email,clean(request.phone()),role,setup.encryptedSecret());
         return new AuthDtos.RegistrationMfaSetupResponse(true,id,setup.manualSecret(),setup.provisioningUri(),"Email verified. Add " + mail.companyName() + " to Google Authenticator or Microsoft Authenticator, then enter the current 6-digit code.");
     }
 
@@ -513,11 +521,14 @@ public class AuthService {
         return null;
     }
 
-    private String publicRegistrationError(String username, String fullName, String email, String role) {
+    private String publicRegistrationError(String username, String fullName, String email, String phone, String role) {
         if (username == null || username.isBlank()) return "Username is required";
         if (fullName == null || fullName.isBlank()) return "Full name is required";
         if (email == null || !email.trim().matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$"))
             return "A valid email address is required";
+        if (phone == null || phone.isBlank()) return "Phone number is required";
+        String phoneDigits = phone.replaceAll("[^0-9]", "");
+        if (phoneDigits.length() < 10 || phoneDigits.length() > 15) return "Enter a valid 10-digit mobile number";
         String normalizedRole = normalizeRole(role);
         RoleMasterService.RoleDefinition registrationRole;
         try { registrationRole = roleMaster.selfRegistrationRole(); }
@@ -567,20 +578,24 @@ public class AuthService {
     private java.util.Map<String,Object> pendingRegistration(String identity){
         if(identity==null||identity.isBlank())return null;
         cleanupExpiredRegistrations();
+        String digits = identity.replaceAll("[^0-9]", "");
         var rows=db.queryForList("""
-                SELECT id,username,email,password_hash,status
+                SELECT id,username,email,phone,password_hash,status
                 FROM registration_request
-                WHERE (LOWER(username)=LOWER(?) OR LOWER(email)=LOWER(?))
+                WHERE (LOWER(username)=LOWER(?) OR LOWER(email)=LOWER(?) OR phone=? OR phone=?)
                   AND (status='PENDING_ADMIN_APPROVAL'
                        OR (status='MFA_ENROLLMENT_PENDING' AND expires_at>CURRENT_TIMESTAMP))
                 ORDER BY id DESC LIMIT 1
-                """,identity,identity);
+                """,identity,identity,identity,digits.isEmpty()?identity:digits);
         return rows.isEmpty()?null:rows.getFirst();
     }
     private boolean openRegistrationExists(String field,String value){
-        if(!"username".equals(field)&&!"email".equals(field))throw new IllegalArgumentException("Invalid registration field");
+        if(!"username".equals(field)&&!"email".equals(field)&&!"phone".equals(field))throw new IllegalArgumentException("Invalid registration field");
         cleanupExpiredRegistrations();
-        Long count=db.queryForObject("SELECT COUNT(*) FROM registration_request WHERE LOWER("+field+")=LOWER(?) AND (status='PENDING_ADMIN_APPROVAL' OR (status='MFA_ENROLLMENT_PENDING' AND expires_at>CURRENT_TIMESTAMP))",Long.class,value);
+        String sql = "phone".equals(field)
+                ? "SELECT COUNT(*) FROM registration_request WHERE phone=? AND (status='PENDING_ADMIN_APPROVAL' OR (status='MFA_ENROLLMENT_PENDING' AND expires_at>CURRENT_TIMESTAMP))"
+                : "SELECT COUNT(*) FROM registration_request WHERE LOWER("+field+")=LOWER(?) AND (status='PENDING_ADMIN_APPROVAL' OR (status='MFA_ENROLLMENT_PENDING' AND expires_at>CURRENT_TIMESTAMP))";
+        Long count=db.queryForObject(sql,Long.class,value.trim());
         return count!=null&&count>0;
     }
     private void auditRegistration(Long id,String action,String detail,String actor){
@@ -660,6 +675,10 @@ public class AuthService {
         return value.length() <= 120 ? value : value.substring(0,120);
     }
 
+    private static String clean(String value) {
+        return value == null ? null : value.trim();
+    }
+
     private static String normalizeThrottleIdentity(String identity) {
         String value = identity == null ? "" : identity.trim().toLowerCase(Locale.ROOT);
         return value.length() <= 240 ? value : value.substring(0,240);
@@ -713,7 +732,7 @@ public class AuthService {
 
     private AuthDtos.UserPayload payload(UserEntity user) {
         return new AuthDtos.UserPayload(user.getId(), user.getUsername(), user.getFullName(), user.getRoleName(),
-                user.getRoleId(), user.getEmail(), user.isActive(), user.getDepartment(), user.getBranch(),
+                user.getRoleId(), user.getEmail(), user.getPhone(), user.isActive(), user.getDepartment(), user.getBranch(),
                 user.getAccessLevel(), user.isLocked(), user.isMfaEnabled());
     }
 }
