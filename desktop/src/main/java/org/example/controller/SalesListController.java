@@ -688,7 +688,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             if (full == null) throw new IllegalStateException("Sales invoice " + sale.getInvoiceNo() + " was not found. Refresh the register and try again.");
             Path pdf = ManagedInvoicePdfService.sales(full);
             MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatSalesEmail(full);
-            String sigImg = MessageTemplateService.getSignatureImagePath();
+            String sigImg = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
             Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
             String target = full.getCustomer() == null ? "" : safe(full.getCustomer().getEmail()).trim();
             return new EmailTransmissionDialog.EmailDraft(

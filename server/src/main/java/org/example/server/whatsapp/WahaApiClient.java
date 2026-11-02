@@ -72,12 +72,22 @@ public class WahaApiClient {
 
     public WahaDtos.HealthResponse ping(String endpoint, String apiKey) {
         try {
-            HttpRequest req = request(endpoint, "/api/server/version", apiKey)
-                    .GET()
-                    .build();
-            HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
             String version = "Unknown";
-            if (res.statusCode() >= 200 && res.statusCode() < 300) {
+            HttpResponse<String> res = null;
+            for (String path : List.of("/api/server/version", "/api/version")) {
+                try {
+                    HttpRequest req = request(endpoint, path, apiKey).GET().build();
+                    HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
+                    if (r.statusCode() >= 200 && r.statusCode() < 300) {
+                        res = r;
+                        break;
+                    } else if (r.statusCode() == 401 || r.statusCode() == 403) {
+                        return new WahaDtos.HealthResponse(false, "Authentication failed (Invalid WAHA API Key)", "", List.of());
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if (res != null && res.statusCode() >= 200 && res.statusCode() < 300) {
                 try {
                     JsonNode root = json.readTree(res.body());
                     if (root.has("version")) version = root.get("version").asText();
@@ -86,12 +96,19 @@ public class WahaApiClient {
                 } catch (Exception ignored) {
                     version = res.body();
                 }
-            } else if (res.statusCode() == 401 || res.statusCode() == 403) {
-                return new WahaDtos.HealthResponse(false, "Authentication failed (Invalid WAHA API Key)", "", List.of());
             }
 
             List<WahaDtos.SessionStatus> sessions = getSessions(endpoint, apiKey);
-            return new WahaDtos.HealthResponse(true, "WAHA Connected", version, sessions);
+            if (!"Unknown".equals(version) || !sessions.isEmpty()) {
+                return new WahaDtos.HealthResponse(true, "WAHA Connected", version, sessions);
+            }
+            // Check if sessions endpoint at least replied
+            HttpRequest sessReq = request(endpoint, "/api/sessions?all=true", apiKey).GET().build();
+            HttpResponse<String> sessRes = http.send(sessReq, HttpResponse.BodyHandlers.ofString());
+            if (sessRes.statusCode() >= 200 && sessRes.statusCode() < 300) {
+                return new WahaDtos.HealthResponse(true, "WAHA Connected", version, sessions);
+            }
+            return new WahaDtos.HealthResponse(false, "WhatsApp engine is offline at " + endpoint, "", List.of());
         } catch (Exception e) {
             String norm = normalizeBaseUrl(endpoint);
             if (norm.contains("localhost") || norm.contains("127.0.0.1")) {

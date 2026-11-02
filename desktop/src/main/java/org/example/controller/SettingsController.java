@@ -278,6 +278,8 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private Button btnBrowseSignatureImage;
     @FXML private Button btnPreviewSignatureImage;
     @FXML private Button btnClearSignatureImage;
+    @FXML private ToggleButton tglAttachSignatureEmail;
+    @FXML private ToggleButton tglAttachSignatureWhatsapp;
     @FXML private Button btnEmailSecurityInfo;
     @FXML private Button btnLivePreview;
     @FXML private ComboBox<String> cmbMessageTemplateDoc;
@@ -633,6 +635,8 @@ public class SettingsController implements ScreenLifecycle {
                 if (cmbMfaPolicy != null) cmbMfaPolicy.getItems().setAll("Required", "Admin Controlled", "Disabled");
                 if (chkUiDiagnostics != null) chkUiDiagnostics.setSelected(UiDiagnostics.isEnabled());
                 if (securityHeaderIcon != null) securityHeaderIcon.getChildren().setAll(IconFactory.icon("security", 22));
+                populateWhatsappSendersDropdown();
+                refreshCloudTelemetry();
                 loadSectionDataAsync(section);
             }
             case WORKSPACE -> {
@@ -944,6 +948,33 @@ public class SettingsController implements ScreenLifecycle {
         box.setItems(FXCollections.observableArrayList(values));
         if (current != null && !current.isBlank()) {
             box.setValue(current);
+        }
+    }
+
+    private void populateWhatsappSendersDropdown() {
+        if (cmbActiveWhatsappSender == null) return;
+        List<String> items = new ArrayList<>();
+        try {
+            org.example.service.LookupService service = new org.example.service.LookupService();
+            List<org.example.model.Lookup> lookups = service.getByCategoryCode("WHATSAPP_SENDER");
+            if (lookups != null) {
+                for (var l : lookups) {
+                    if (l.isActive() && l.getLookupValue() != null && !l.getLookupValue().isBlank()) {
+                        String code = l.getLookupCode() == null ? "" : l.getLookupCode().trim();
+                        String val = l.getLookupValue().trim();
+                        String label = code.isBlank() ? val : code + " — " + val;
+                        items.add(label);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        cmbActiveWhatsappSender.setItems(FXCollections.observableArrayList(items));
+        String saved = ConfigManager.get("whatsapp.active_sender_number", "");
+        if (!saved.isBlank()) {
+            String match = items.stream().filter(it -> it.contains(saved)).findFirst().orElse(saved);
+            cmbActiveWhatsappSender.setValue(match);
+        } else if (!items.isEmpty()) {
+            cmbActiveWhatsappSender.getSelectionModel().selectFirst();
         }
     }
     private LocalDate parseDate(String value) { return SettingsFieldSupport.parseDate(value); }
@@ -1512,7 +1543,11 @@ private record AssetPreviewRequest(
     @FXML private void showInvoice() { selectSection(Section.INVOICE, navInvoice, ensureSectionLoaded(Section.INVOICE)); }
     @FXML private void showNotifications() { selectSection(Section.NOTIFICATIONS, navNotifications, ensureSectionLoaded(Section.NOTIFICATIONS)); }
     @FXML private void showEmail() { selectSection(Section.EMAIL, navEmail, ensureSectionLoaded(Section.EMAIL)); }
-    @FXML private void showSecurity() { selectSection(Section.SECURITY, null, ensureSectionLoaded(Section.SECURITY)); }
+    @FXML private void showSecurity() {
+        selectSection(Section.SECURITY, null, ensureSectionLoaded(Section.SECURITY));
+        refreshCloudTelemetry();
+        populateWhatsappSendersDropdown();
+    }
     @FXML private void showModules() { selectSection(Section.MODULES, navModules, ensureSectionLoaded(Section.MODULES)); }
     @FXML private void showShowcase() { selectSection(Section.SHOWCASE, null, ensureSectionLoaded(Section.SHOWCASE)); }
 
@@ -2513,6 +2548,7 @@ private record AssetPreviewRequest(
 
     private void saveSecuritySettings() {
         if (chkUiDiagnostics != null) UiDiagnostics.setEnabled(chkUiDiagnostics.isSelected());
+        saveWhatsappSettings();
         if (txtSessionTimeoutMinutes == null || txtSessionWarningMinutes == null || !SessionService.isAdmin()) return;
         int timeout; int warning;
         try { timeout = Integer.parseInt(txtSessionTimeoutMinutes.getText().trim()); warning = Integer.parseInt(txtSessionWarningMinutes.getText().trim()); }
@@ -2721,6 +2757,16 @@ private record AssetPreviewRequest(
         }
         saveActiveMessageTemplate();
         saveAllDraftMessageTemplates();
+        if (tglAttachSignatureEmail != null) {
+            boolean val = tglAttachSignatureEmail.isSelected();
+            putSetting("email.signature.attachToEmail", String.valueOf(val));
+            ConfigManager.setWithoutSaving("email.signature.attachToEmail", String.valueOf(val));
+        }
+        if (tglAttachSignatureWhatsapp != null) {
+            boolean val = tglAttachSignatureWhatsapp.isSelected();
+            putSetting("email.signature.attachToWhatsapp", String.valueOf(val));
+            ConfigManager.setWithoutSaving("email.signature.attachToWhatsapp", String.valueOf(val));
+        }
         if (ConfigManager.isSharedClient()) {
             if (!SessionService.isAdmin()) return;
             new org.example.api.authority.BusinessEmailClient().saveSettings(
@@ -2733,7 +2779,6 @@ private record AssetPreviewRequest(
         }
         putSetting("smtp.host", host);
         putSetting("smtp.port", Integer.toString(port));
-        saveWhatsappSettings();
     }
 
     private void saveWhatsappSettings() {
@@ -2748,13 +2793,10 @@ private record AssetPreviewRequest(
             ConfigManager.setWithoutSaving("whatsapp.waha.enabled", String.valueOf(enabled));
         }
         if (cmbActiveWhatsappSender != null && cmbActiveWhatsappSender.getValue() != null && !cmbActiveWhatsappSender.getValue().isBlank()) {
-            String sender = cmbActiveWhatsappSender.getValue().trim();
+            String val = cmbActiveWhatsappSender.getValue().trim();
+            String sender = val.contains("—") ? val.substring(0, val.indexOf("—")).trim() : val;
             putSetting("whatsapp.active_sender_number", sender);
             ConfigManager.setWithoutSaving("whatsapp.active_sender_number", sender);
-        }
-        String apiKey = txtWahaApiKey != null && txtWahaApiKey.getText() != null ? txtWahaApiKey.getText().trim() : "";
-        if (!apiKey.isBlank()) {
-            putSetting("whatsapp.waha.apiKey", apiKey);
         }
         if (SessionService.isAdmin()) {
             try {
@@ -2762,7 +2804,7 @@ private record AssetPreviewRequest(
                 if (!ep.startsWith("http://") && !ep.startsWith("https://")) ep = "http://" + ep;
                 boolean on = chkWahaEnabled != null && chkWahaEnabled.isSelected();
                 new org.example.api.whatsapp.BusinessWhatsappApiClient().saveSettings(
-                    new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, apiKey, on, null)
+                    new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, "", on, null)
                 );
             } catch (Exception ignored) {}
         }
@@ -2780,10 +2822,9 @@ private record AssetPreviewRequest(
             () -> {
                 String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null && !txtWahaEndpoint.getText().isBlank() ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
                 if (!ep.startsWith("http://") && !ep.startsWith("https://")) ep = "http://" + ep;
-                String key = txtWahaApiKey != null && txtWahaApiKey.getText() != null ? txtWahaApiKey.getText().trim() : "";
                 boolean on = chkWahaEnabled != null && chkWahaEnabled.isSelected();
                 var api = new org.example.api.whatsapp.BusinessWhatsappApiClient();
-                api.saveSettings(new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, key, on, null));
+                api.saveSettings(new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, "", on, null));
                 return api.testConnection();
             },
             health -> {
@@ -3006,6 +3047,12 @@ private record AssetPreviewRequest(
         }
         selectedSignatureImagePath = ConfigManager.get("email.signature.image", "").trim();
         updateSignatureImagePreview(selectedSignatureImagePath);
+        if (tglAttachSignatureEmail != null) {
+            tglAttachSignatureEmail.setSelected(ConfigManager.getBoolean("email.signature.attachToEmail", true));
+        }
+        if (tglAttachSignatureWhatsapp != null) {
+            tglAttachSignatureWhatsapp.setSelected(ConfigManager.getBoolean("email.signature.attachToWhatsapp", false));
+        }
 
         cmbMessageTemplateDoc.setValue("Sales Invoice (Email)");
         loadTemplateIntoUi("Sales Invoice (Email)");

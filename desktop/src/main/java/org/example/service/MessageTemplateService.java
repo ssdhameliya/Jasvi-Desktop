@@ -100,6 +100,22 @@ public final class MessageTemplateService {
         ConfigManager.setWithoutSaving("email.signature.image", path == null ? "" : path.trim());
     }
 
+    public static boolean isAttachSignatureToEmail() {
+        return ConfigManager.getBoolean("email.signature.attachToEmail", true);
+    }
+
+    public static boolean isAttachSignatureToWhatsapp() {
+        return ConfigManager.getBoolean("email.signature.attachToWhatsapp", false);
+    }
+
+    public static void setAttachSignatureToEmail(boolean enabled) {
+        ConfigManager.setWithoutSaving("email.signature.attachToEmail", String.valueOf(enabled));
+    }
+
+    public static void setAttachSignatureToWhatsapp(boolean enabled) {
+        ConfigManager.setWithoutSaving("email.signature.attachToWhatsapp", String.valueOf(enabled));
+    }
+
     public static String defaultSignature() {
         String company = BrandingService.companyName();
         String phone = ConfigManager.get("company.phone", "").trim();

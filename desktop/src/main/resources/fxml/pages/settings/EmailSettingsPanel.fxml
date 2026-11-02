@@ -40,38 +40,6 @@
         </GridPane>
     </VBox>
 
-    <VBox spacing="12" styleClass="settings-subcard">
-        <HBox alignment="CENTER_LEFT" spacing="8">
-            <Label text="WhatsApp Business Integration" styleClass="section-title"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnWhatsappTest" text="Check Status" onAction="#testWhatsappConnection" styleClass="secondary-button"/>
-            <Label text="Managed centrally on the company server" styleClass="page-subtitle"/>
-        </HBox>
-        <GridPane hgap="18" vgap="14">
-            <columnConstraints>
-                <ColumnConstraints percentWidth="60" hgrow="ALWAYS"/>
-                <ColumnConstraints percentWidth="40" hgrow="ALWAYS"/>
-            </columnConstraints>
-            <VBox spacing="7" GridPane.columnIndex="0" GridPane.rowIndex="0">
-                <Label text="WAHA Docker Endpoint" styleClass="settings-form-label"/>
-                <TextField fx:id="txtWahaEndpoint" promptText="http://localhost:3000" styleClass="approved-input"/>
-            </VBox>
-            <VBox spacing="7" GridPane.columnIndex="1" GridPane.rowIndex="0">
-                <Label text="WAHA API Key" styleClass="settings-form-label"/>
-                <PasswordField fx:id="txtWahaApiKey" promptText="Optional secret key" styleClass="approved-input"/>
-            </VBox>
-            <VBox spacing="7" GridPane.columnIndex="0" GridPane.rowIndex="1" GridPane.columnSpan="2">
-                <Label text="Active WhatsApp Sender Number (from Master Lookup)" styleClass="settings-form-label"/>
-                <ComboBox fx:id="cmbActiveWhatsappSender" maxWidth="Infinity" promptText="Select sender number from Master Lookup (WhatsApp Senders)" styleClass="approved-combobox"/>
-            </VBox>
-        </GridPane>
-        <HBox spacing="16" alignment="CENTER_LEFT">
-            <CheckBox fx:id="chkWahaEnabled" text="Enable Server Automated WhatsApp Dispatch" styleClass="approved-checkbox"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnManageWhatsappChannels" text="Manage Channels &amp; Scan QR" onAction="#openWhatsappChannelDialog" styleClass="approved-button,approved-primary-button"/>
-        </HBox>
-    </VBox>
-
     <VBox spacing="10" styleClass="settings-subcard">
         <HBox alignment="CENTER_LEFT" spacing="8">
             <Label text="Company Email Signature" styleClass="section-title"/>
@@ -93,6 +61,16 @@
             <Button fx:id="btnBrowseSignatureImage" text="Browse Image" onAction="#browseSignatureImage" styleClass="secondary-button"/>
             <Button fx:id="btnPreviewSignatureImage" text="Preview Image" onAction="#previewSignatureImage" styleClass="secondary-button"/>
             <Button fx:id="btnClearSignatureImage" text="Clear Image" onAction="#clearSignatureImage" styleClass="secondary-button"/>
+                </HBox>
+        <HBox alignment="CENTER_LEFT" spacing="24" styleClass="settings-asset-card">
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <ToggleButton fx:id="tglAttachSignatureEmail" text="Attach to Email" styleClass="theme-switch,approved-button"/>
+                <Label text="Include signature stamp image on email delivery" styleClass="muted-text"/>
+            </HBox>
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <ToggleButton fx:id="tglAttachSignatureWhatsapp" text="Attach to WhatsApp" styleClass="theme-switch,approved-button"/>
+                <Label text="Include signature stamp image on WhatsApp dispatch" styleClass="muted-text"/>
+            </HBox>
         </HBox>
     </VBox>
 

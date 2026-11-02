@@ -1384,8 +1384,8 @@ public class BankStatementController implements ScreenLifecycle {
         linkedTable.setPrefHeight(Math.max(180, Math.min(420, 75 + targets.size() * 48)));
 
         TableColumn<LinkedTargetItem, String> colRole = new TableColumn<>("Category");
-        colRole.setMinWidth(140);
-        colRole.setPrefWidth(150);
+        colRole.setMinWidth(170);
+        colRole.setPrefWidth(180);
         colRole.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().role));
         colRole.setCellFactory(c -> new TableCell<>() {
             @Override protected void updateItem(String s, boolean empty) {
@@ -1462,8 +1462,8 @@ public class BankStatementController implements ScreenLifecycle {
         });
 
         TableColumn<LinkedTargetItem, Void> colAction = new TableColumn<>("Action");
-        colAction.setMinWidth(140);
-        colAction.setPrefWidth(150);
+        colAction.setMinWidth(185);
+        colAction.setPrefWidth(195);
         colAction.setCellFactory(c -> new TableCell<>() {
             @Override protected void updateItem(Void value, boolean empty) {
                 super.updateItem(value, empty);
@@ -1473,7 +1473,8 @@ public class BankStatementController implements ScreenLifecycle {
                 }
                 var item = getTableView().getItems().get(getIndex());
                 Button view = new Button(linkActionLabel(item.type));
-                view.getStyleClass().addAll("approved-button", "approved-primary-button");
+                view.getStyleClass().addAll("approved-button", "approved-primary-button", "approved-row-action");
+                view.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
                 view.setGraphic(IconFactory.compactIcon("view", 14));
                 view.setOnAction(e -> {
                     dialog.close();
@@ -1505,7 +1506,7 @@ public class BankStatementController implements ScreenLifecycle {
         Label footer = PopupTableWorkspace.footerText(targets.size() + " linked records found • Click View on any record to navigate directly to its workspace.");
         VBox content = PopupTableWorkspace.content(metrics, linkedTable, footer);
         dialog.getDialogPane().setContent(content);
-        PopupTableWorkspace.prepareDialog(dialog, 980);
+        PopupTableWorkspace.prepareDialog(dialog, 1060);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.showAndWait();
     }

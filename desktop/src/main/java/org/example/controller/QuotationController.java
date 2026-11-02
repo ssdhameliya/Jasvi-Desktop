@@ -140,7 +140,7 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
        if (q.date != null && !q.date.get().isBlank()) qDate = LocalDate.parse(q.date.get());
    } catch (Exception ignored) { }
    MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatQuotationEmail(q.no.get(), q.customer.get(), qDate, q.amount.get());
-   String sigImg = MessageTemplateService.getSignatureImagePath();
+   String sigImg = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
    Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
    return new EmailTransmissionDialog.EmailDraft(
            "Transmit Quotation via Email",

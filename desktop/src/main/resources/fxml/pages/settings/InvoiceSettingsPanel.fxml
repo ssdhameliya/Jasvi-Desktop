@@ -102,22 +102,6 @@
 
                             </GridPane>
 
-                            <Separator/>
-                            <!-- DOCUMENT NUMBERING & REFERENCE FORMATS (Parity with Web & Master) -->
-                            <VBox spacing="6" maxWidth="Infinity" styleClass="settings-information-card">
-                                <HBox spacing="8" alignment="CENTER_LEFT">
-                                    <Label text="Document Numbering &amp; Reference Formats" styleClass="settings-subsection-title"/>
-                                    <Button text="Information &amp; Guidance" onAction="#showRefFormatInfoDialog" styleClass="settings-secondary-button,approved-button"/>
-                                    <Region HBox.hgrow="ALWAYS"/>
-                                    <Button text="Synchronize Reference Formats" onAction="#handleRefFormatSyncAction" styleClass="settings-secondary-button,approved-button"/>
-                                </HBox>
-                                <Label text="Configure global numbering conventions across Sales Invoices, Purchase Bills, Customers, Suppliers, and Items. Changing reference formatting applies exclusively to subsequent documents while preserving audit integrity." wrapText="true" styleClass="settings-help-text"/>
-                                <HBox spacing="10" alignment="CENTER_LEFT" styleClass="settings-asset-card">
-                                    <Label text="Active Pattern:" styleClass="settings-form-label"/>
-                                    <Label fx:id="lblActiveRefFormat" text="PREFIX / DD-MM-YYYY / XXXX (e.g., IN/01-11-2026/0001)" styleClass="settings-asset-filename"/>
-                                </HBox>
-                            </VBox>
-                            <Separator/>
                             <VBox spacing="6" maxWidth="Infinity" styleClass="settings-information-card,settings-invoice-assets-panel">
                                 <VBox spacing="4">
                                     <Label text="Branding, Logo &amp; Signature" styleClass="settings-subsection-title"/>

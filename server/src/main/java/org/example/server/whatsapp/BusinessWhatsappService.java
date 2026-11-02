@@ -252,6 +252,15 @@ public class BusinessWhatsappService {
 
                 response = wahaClient.sendFile(settings.endpoint(), settings.apiKey(),
                         channel.getSessionName(), chatId, filename, "application/pdf", rendered.bytes(), caption);
+                if (response.success() && "true".equalsIgnoreCase(getSetting("email.signature.attachToWhatsapp", "false"))) {
+                    try {
+                        String sigPath = getSetting("email.signature.image", "");
+                        if (!sigPath.isBlank() && java.nio.file.Files.isRegularFile(java.nio.file.Path.of(sigPath))) {
+                            byte[] sigBytes = java.nio.file.Files.readAllBytes(java.nio.file.Path.of(sigPath));
+                            wahaClient.sendFile(settings.endpoint(), settings.apiKey(), channel.getSessionName(), chatId, "Signature.png", "image/png", sigBytes, "Authorized Signature");
+                        }
+                    } catch (Exception ignored) {}
+                }
             } else {
                 // Plain text message dispatch
                 String text = (req.customMessage() != null && !req.customMessage().isBlank())
@@ -333,18 +342,57 @@ public class BusinessWhatsappService {
 
     private WhatsappSenderChannelEntity resolveDefaultChannel() {
         String activeSender = getSetting("whatsapp.active_sender_number", "");
+        String targetPhone = "";
         if (!activeSender.isBlank()) {
-            var matching = channelRepo.findFirstByPhoneNumberAndIsActiveTrue(activeSender.trim());
+            String trimmed = activeSender.trim();
+            try {
+                List<Map<String, Object>> rows = jdbc.queryForList(
+                        "SELECT lookup_value FROM lookup_master WHERE UPPER(lookup_type) = 'WHATSAPP_SENDER' AND is_active = 1 AND (UPPER(lookup_code) = UPPER(?) OR BTRIM(lookup_value) = ?)",
+                        trimmed, trimmed);
+                if (!rows.isEmpty() && rows.getFirst().get("lookup_value") != null) {
+                    targetPhone = Objects.toString(rows.getFirst().get("lookup_value"), "").trim();
+                }
+            } catch (Exception ignored) {}
+            if (targetPhone.isBlank()) {
+                targetPhone = trimmed;
+            }
+
+            String digits = targetPhone.replaceAll("[^0-9]", "");
+            var matching = channelRepo.findFirstByPhoneNumberAndIsActiveTrue(targetPhone);
             if (matching.isPresent()) return matching.get();
+
+            if (!digits.isBlank()) {
+                for (var ch : channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc()) {
+                    String chDigits = ch.getPhoneNumber() == null ? "" : ch.getPhoneNumber().replaceAll("[^0-9]", "");
+                    if (!chDigits.isBlank() && (chDigits.equals(digits) || chDigits.endsWith(digits) || digits.endsWith(chDigits))) {
+                        return ch;
+                    }
+                }
+            }
+
+            var byCode = channelRepo.findByChannelCode(trimmed);
+            if (byCode.isPresent() && byCode.get().getIsActive()) return byCode.get();
         }
-        return channelRepo.findFirstByIsDefaultTrueAndIsActiveTrue()
+
+        var defChannel = channelRepo.findFirstByIsDefaultTrueAndIsActiveTrue();
+        if (defChannel.isPresent()) {
+            var ch = defChannel.get();
+            if (!targetPhone.isBlank() && (ch.getPhoneNumber() == null || ch.getPhoneNumber().isBlank())) {
+                ch.setPhoneNumber(targetPhone);
+                channelRepo.save(ch);
+            }
+            return ch;
+        }
+
+        final String fallbackPhone = targetPhone;
+        return channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc().stream()
+                .findFirst()
                 .orElseGet(() -> {
-                    var list = channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc();
-                    if (!list.isEmpty()) return list.getFirst();
                     WhatsappSenderChannelEntity fallback = new WhatsappSenderChannelEntity();
                     fallback.setChannelCode("DEFAULT");
                     fallback.setDisplayName("Default WhatsApp");
                     fallback.setSessionName("default");
+                    fallback.setPhoneNumber(fallbackPhone);
                     fallback.setIsDefault(true);
                     fallback.setIsActive(true);
                     return channelRepo.save(fallback);

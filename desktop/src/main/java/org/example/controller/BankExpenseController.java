@@ -249,7 +249,7 @@ public class BankExpenseController implements ScreenLifecycle {
         UiTaskExecutor.submitLatest("finance-linked-entry",()->financeService.get(id),entry->{
             if(entry==null){activeDeepLinkEntryId=null;org.example.util.AppDialogService.warning(table,"Linked record unavailable","Expense / Bank entry not found","The linked finance entry is no longer available.");reloadRows();return;}
             String raw=safe(entry.voucherType(),"").toUpperCase(Locale.ROOT);Mode entryMode=raw.contains("EXPENSE")?Mode.EXPENSE:Mode.BANK;if(mode!=entryMode)applyMode(entryMode);
-            EntryRow row=toRow(entry);table.getItems().setAll(row);filtered.clear();filtered.add(row);totalRows=1;totalPages=1;currentPage=0;renderPage();table.getSelectionModel().select(row);table.scrollTo(row);showEntryDetails(row);table.requestFocus();
+            EntryRow row=toRow(entry);table.getItems().setAll(row);filtered.clear();filtered.add(row);totalRows=1;totalPages=1;currentPage=0;renderPage();table.getSelectionModel().select(row);table.scrollTo(row);table.requestFocus();ToastManager.info(table, "Bank Entry Linked", "Viewing matched voucher: " + row.voucherNo);
             org.example.util.PerformanceMonitor.event("linked-navigation",(entryMode==Mode.EXPENSE?"EXPENSE":"BANK_ENTRY")+" -> "+id);
         },failure->{activeDeepLinkEntryId=null;error("Unable to open linked finance entry: "+failure.getMessage());});
     }
@@ -505,8 +505,8 @@ public class BankExpenseController implements ScreenLifecycle {
         linkedTable.setPrefHeight(Math.max(180, Math.min(380, 80 + targets.size() * 52)));
 
         TableColumn<BankStatementController.LinkedTargetItem, String> colRole = new TableColumn<>("Category");
-        colRole.setMinWidth(140);
-        colRole.setPrefWidth(150);
+        colRole.setMinWidth(170);
+        colRole.setPrefWidth(180);
         colRole.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().role));
         colRole.setCellFactory(c -> new TableCell<>() {
             @Override protected void updateItem(String s, boolean empty) {
@@ -572,8 +572,8 @@ public class BankExpenseController implements ScreenLifecycle {
         });
 
         TableColumn<BankStatementController.LinkedTargetItem, Void> colAction = new TableColumn<>("Action");
-        colAction.setMinWidth(140);
-        colAction.setPrefWidth(150);
+        colAction.setMinWidth(185);
+        colAction.setPrefWidth(195);
         colAction.setCellFactory(c -> new TableCell<>() {
             @Override protected void updateItem(Void value, boolean empty) {
                 super.updateItem(value, empty);
@@ -584,7 +584,8 @@ public class BankExpenseController implements ScreenLifecycle {
                 var item = getTableView().getItems().get(getIndex());
                 String btnText = "SALE".equals(item.type) ? "View Sale" : "PURCHASE".equals(item.type) ? "View Purchase" : "PURCHASE_RECON".equals(item.type) ? "View Recon" : "BANK_STATEMENT".equals(item.type) ? "View Statement" : "View";
                 Button view = new Button(btnText);
-                view.getStyleClass().addAll("approved-button", "approved-primary-button");
+                view.getStyleClass().addAll("approved-button", "approved-primary-button", "approved-row-action");
+                view.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
                 view.setGraphic(IconFactory.compactIcon("view", 14));
                 view.setOnAction(e -> {
                     dialog.close();
@@ -613,7 +614,7 @@ public class BankExpenseController implements ScreenLifecycle {
         Label footer = PopupTableWorkspace.footerText(targets.size() + " linked records found • Click View to navigate directly to the linked transaction.");
         VBox content = PopupTableWorkspace.content(metrics, linkedTable, footer);
         dialog.getDialogPane().setContent(content);
-        PopupTableWorkspace.prepareDialog(dialog, 980);
+        PopupTableWorkspace.prepareDialog(dialog, 1060);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.showAndWait();
     }

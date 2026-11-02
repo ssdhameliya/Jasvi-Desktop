@@ -159,7 +159,9 @@ public final class InvoicePaymentDetailsDialog {
         dialog.setTitle("Linked Records — " + safe(invoiceNo));
         dialog.setHeaderText(null);
         dialog.getDialogPane().getStyleClass().addAll("invoice-payment-dialog");
-        dialog.getDialogPane().setPrefSize(980, 560);
+        PopupTableWorkspace.prepareDialog(dialog, 1040);
+        dialog.getDialogPane().setPrefHeight(620);
+        dialog.getDialogPane().setMinHeight(520);
 
         Label title = new Label("Linked Financial & Bank Records");
         title.getStyleClass().add("bank-dialog-hero-title");
@@ -172,7 +174,9 @@ public final class InvoicePaymentDetailsDialog {
         Node linkagesNode = buildDocumentLinkagesNode(dialog, documentType, documentId, invoiceNo);
         VBox.setVgrow(linkagesNode, Priority.ALWAYS);
 
-        dialog.getDialogPane().setContent(new VBox(12, hero, linkagesNode));
+        VBox contentBox = new VBox(12, hero, linkagesNode);
+        contentBox.setPadding(new javafx.geometry.Insets(0, 0, 10, 0));
+        dialog.getDialogPane().setContent(contentBox);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.showAndWait();
     }
@@ -313,8 +317,10 @@ public final class InvoicePaymentDetailsDialog {
 
         Label countLabel = new Label("Loading linked records…");
         countLabel.getStyleClass().add("muted-label");
+        countLabel.setWrapText(true);
         HBox footer = new HBox(10, countLabel);
         footer.setAlignment(Pos.CENTER_LEFT);
+        footer.setPadding(new javafx.geometry.Insets(4, 0, 8, 0));
 
         VBox box = new VBox(8, table, footer);
         VBox.setVgrow(box, Priority.ALWAYS);

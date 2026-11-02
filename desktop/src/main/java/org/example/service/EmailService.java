@@ -28,7 +28,7 @@ public final class EmailService {
 
     public static void resend(String recipient, String subject, String body, Path attachment, Path signatureImage) {
         org.example.service.PermissionService.require("COMMUNICATION.RESEND", "re-send a communication");
-        if (signatureImage == null) {
+        if (signatureImage == null && MessageTemplateService.isAttachSignatureToEmail()) {
             String configuredSig = MessageTemplateService.getSignatureImagePath();
             if (configuredSig != null && !configuredSig.isBlank()) {
                 try {
@@ -53,7 +53,7 @@ public final class EmailService {
     }
 
     public static void send(String recipient, String subject, String body, Path attachment, Path signatureImage) {
-        if (signatureImage == null) {
+        if (signatureImage == null && MessageTemplateService.isAttachSignatureToEmail()) {
             String configuredSig = MessageTemplateService.getSignatureImagePath();
             if (configuredSig != null && !configuredSig.isBlank()) {
                 try {

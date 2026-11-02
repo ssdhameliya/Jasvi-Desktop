@@ -336,7 +336,7 @@ private void configureDetailsCloseButton(){
    String target = s(full.getSupplier().getEmail()).trim();
    Path pdf = ManagedInvoicePdfService.purchase(full);
    MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatPurchaseEmail(full);
-   String sigImg = MessageTemplateService.getSignatureImagePath();
+   String sigImg = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
    Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
    return new EmailTransmissionDialog.EmailDraft(
            "Transmit Purchase Order via Email",

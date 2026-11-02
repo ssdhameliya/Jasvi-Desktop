@@ -11,6 +11,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -40,7 +41,7 @@ public final class RegisterDetailDrawer extends VBox {
     private final Label subtitle = new Label("Review the selected record.");
     private final GridPane fieldsGrid = new GridPane();
     private final VBox extra = new VBox(10);
-    private final HBox actions = new HBox(8);
+    private final FlowPane actions = new FlowPane();
 
     private Node ownerNode;
     private OwnedDialog<ButtonType> activeDialog;
@@ -53,6 +54,10 @@ public final class RegisterDetailDrawer extends VBox {
         setMinSize(0, 0);
         setPrefSize(0, 0);
         setMaxSize(0, 0);
+
+        actions.setHgap(8);
+        actions.setVgap(6);
+        actions.setAlignment(Pos.CENTER_RIGHT);
 
         fieldsGrid.setHgap(14);
         fieldsGrid.setVgap(10);
@@ -185,10 +190,10 @@ public final class RegisterDetailDrawer extends VBox {
         Button btnClose = new Button("Close");
         btnClose.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnClose.setGraphic(IconFactory.compactIcon("cancel", 14));
+        btnClose.setMinWidth(Region.USE_PREF_SIZE);
         btnClose.setOnAction(e -> hideDrawer());
 
         actions.setAlignment(Pos.CENTER_RIGHT);
-        actions.setSpacing(8);
 
         String footerBg = isDark ? "rgba(15, 23, 42, 0.95)" : "linear-gradient(to bottom, #f8fafc, #f1f5f9)";
         String footerBorder = isDark ? "rgba(255, 255, 255, 0.08)" : "#e2e8f0";
@@ -206,8 +211,8 @@ public final class RegisterDetailDrawer extends VBox {
 
         VBox dialogRoot = new VBox(header, scroll, footer);
         dialogRoot.setStyle("-fx-background-color: " + dialogBg + "; -fx-background-radius: 14; -fx-border-color: " + dialogBorder + "; -fx-border-radius: 14; -fx-border-width: 1; " + dialogShadow);
-        dialogRoot.setPrefSize(680, 560);
-        dialogRoot.setMinSize(540, 400);
+        dialogRoot.setPrefSize(840, 580);
+        dialogRoot.setMinSize(720, 440);
 
         pane.getProperties().put("dse.dialog.presented", true);
         pane.getProperties().put("dse.dialog.workspace", true);
@@ -239,7 +244,14 @@ public final class RegisterDetailDrawer extends VBox {
     public void setActions(Node... nodes) {
         actions.getChildren().clear();
         if (nodes != null) {
-            for (Node node : nodes) if (node != null) actions.getChildren().add(node);
+            for (Node node : nodes) {
+                if (node != null) {
+                    if (node instanceof Region r) {
+                        r.setMinWidth(Region.USE_PREF_SIZE);
+                    }
+                    actions.getChildren().add(node);
+                }
+            }
         }
         actions.setManaged(!actions.getChildren().isEmpty());
         actions.setVisible(!actions.getChildren().isEmpty());

@@ -320,7 +320,10 @@ public final class DynamicTableLayoutManager {
             String semantic = headerSemantic(columns.get(i), heading);
             double floor;
             if (isSelectionColumn(columns.get(i), semantic, heading)) floor = 36.0;
-            else if ("actions".equals(semantic)) floor = Math.min(ACTION_CONTROL_MIN_WIDTH, 96.0);
+            else if ("actions".equals(semantic)) {
+                double colMin = columns.get(i).getMinWidth();
+                floor = (colMin >= 160.0 && Double.isFinite(colMin)) ? colMin : Math.min(ACTION_CONTROL_MIN_WIDTH, 96.0);
+            }
             else floor = Math.max(ABSOLUTE_MIN_COLUMN, Math.min(profiles.get(i).floor(), denseFloor(semantic, heading)));
             dense[i] = floor;
             total += floor;
@@ -341,7 +344,9 @@ public final class DynamicTableLayoutManager {
         double scaledTotal = 0;
         for (int i = 0; i < dense.length; i++) {
             String semantic = headerSemantic(columns.get(i), headerLabel(columns.get(i)));
-            double hardFloor = "actions".equals(semantic) ? 78.0 : isSelectionColumn(columns.get(i), semantic, headerLabel(columns.get(i))) ? 30.0 : ABSOLUTE_MIN_COLUMN;
+            double colMin = columns.get(i).getMinWidth();
+            double actionsHardFloor = (colMin >= 160.0 && Double.isFinite(colMin)) ? colMin : 78.0;
+            double hardFloor = "actions".equals(semantic) ? actionsHardFloor : isSelectionColumn(columns.get(i), semantic, headerLabel(columns.get(i))) ? 30.0 : ABSOLUTE_MIN_COLUMN;
             dense[i] = Math.max(hardFloor, dense[i] * scale);
             scaledTotal += dense[i];
         }
@@ -349,13 +354,17 @@ public final class DynamicTableLayoutManager {
             double reducible = 0;
             for (int i = 0; i < dense.length; i++) {
                 String semantic = headerSemantic(columns.get(i), headerLabel(columns.get(i)));
-                double hardFloor = "actions".equals(semantic) ? 72.0 : ABSOLUTE_MIN_COLUMN;
+                double colMin = columns.get(i).getMinWidth();
+                double actionsHardFloor = (colMin >= 160.0 && Double.isFinite(colMin)) ? colMin : 72.0;
+                double hardFloor = "actions".equals(semantic) ? actionsHardFloor : ABSOLUTE_MIN_COLUMN;
                 reducible += Math.max(0, dense[i] - hardFloor);
             }
             double needed = scaledTotal - available;
             for (int i = 0; i < dense.length && needed > 0.25; i++) {
                 String semantic = headerSemantic(columns.get(i), headerLabel(columns.get(i)));
-                double hardFloor = "actions".equals(semantic) ? 72.0 : ABSOLUTE_MIN_COLUMN;
+                double colMin = columns.get(i).getMinWidth();
+                double actionsHardFloor = (colMin >= 160.0 && Double.isFinite(colMin)) ? colMin : 72.0;
+                double hardFloor = "actions".equals(semantic) ? actionsHardFloor : ABSOLUTE_MIN_COLUMN;
                 double own = Math.max(0, dense[i] - hardFloor);
                 double reduction = reducible <= 0 ? 0 : Math.min(own, needed * own / reducible);
                 dense[i] -= reduction;
