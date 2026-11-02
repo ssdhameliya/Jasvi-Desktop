@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.example.controller.BillToTallyController"
+      spacing="12" styleClass="approved-screen,erp-screen-root">
+    <padding>
+        <Insets top="14" right="16" bottom="14" left="16"/>
+    </padding>
+
+    <!-- 1. Header Card with Client Profile and Action Bar -->
+    <HBox spacing="14" alignment="CENTER_LEFT" styleClass="erp-page-identity-header,approved-card">
+        <padding>
+            <Insets top="10" right="16" bottom="10" left="16"/>
+        </padding>
+
+        <StackPane styleClass="erp-page-header-icon" fx:id="headerIconHolder"/>
+
+        <VBox spacing="2">
+            <Label text="Multi-Format Bill-to-Tally Automation" styleClass="section-title"/>
+            <Label text="Intelligent OCR, math cross-validation, and direct push/export to TallyPrime." styleClass="muted-label"/>
+        </VBox>
+
+        <Region HBox.hgrow="ALWAYS"/>
+
+        <!-- Client Profile Selector & Ingestion Controls -->
+        <HBox spacing="10" alignment="CENTER_RIGHT">
+            <Label text="Client Profile:" styleClass="form-field-label"/>
+            <ComboBox fx:id="cmbClientProfile" prefWidth="200" promptText="Select Client..."/>
+            <Button fx:id="btnNewClient" text="New Profile" styleClass="approved-button,approved-secondary-button" onAction="#handleNewClientProfile"/>
+            <Separator orientation="VERTICAL"/>
+            <Button fx:id="btnUploadBills" text="Upload Bills (.pdf, .jpg, .xlsx)" styleClass="approved-button,primary-button" onAction="#handleUploadBills"/>
+        </HBox>
+    </HBox>
+
+    <!-- 2. KPI Summary Bar -->
+    <HBox spacing="12">
+        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
+            <Label text="Total Uploaded" styleClass="kpi-title"/>
+            <Label fx:id="lblKpiTotal" text="0" styleClass="kpi-value"/>
+        </VBox>
+        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
+            <Label text="Ready to Export (&gt;=95%)" styleClass="kpi-title"/>
+            <Label fx:id="lblKpiReady" text="0" styleClass="kpi-value,approved-emerald-text"/>
+        </VBox>
+        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
+            <Label text="Needs Review (&lt;95%)" styleClass="kpi-title"/>
+            <Label fx:id="lblKpiReview" text="0" styleClass="kpi-value,approved-amber-text"/>
+        </VBox>
+        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
+            <Label text="Exported to Tally" styleClass="kpi-title"/>
+            <Label fx:id="lblKpiExported" text="0" styleClass="kpi-value,approved-indigo-text"/>
+        </VBox>
+        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
+            <Label text="Batch Total (₹)" styleClass="kpi-title"/>
+            <Label fx:id="lblKpiTotalValue" text="₹0.00" styleClass="kpi-value"/>
+        </VBox>
+    </HBox>
+
+    <!-- 3. Workspace: Main Master-Detail SplitPane -->
+    <SplitPane orientation="HORIZONTAL" dividerPositions="0.65" VBox.vgrow="ALWAYS">
+        <!-- Left Pane: Master Bills & Detail Line Items -->
+        <VBox spacing="10">
+            <!-- Master Bills Table -->
+            <VBox spacing="6" VBox.vgrow="ALWAYS" styleClass="approved-card">
+                <padding>
+                    <Insets top="8" right="10" bottom="8" left="10"/>
+                </padding>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Extracted Bills &amp; Vouchers" styleClass="section-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="btnDeleteBill" text="Delete" styleClass="approved-button,approved-danger-button" onAction="#handleDeleteBill"/>
+                    <Button fx:id="btnRecalculate" text="Re-Calculate Math" styleClass="approved-button,approved-secondary-button" onAction="#handleRecalculateAccuracy"/>
+                </HBox>
+
+                <TableView fx:id="tblBills" VBox.vgrow="ALWAYS">
+                    <columns>
+                        <TableColumn fx:id="colStatus" text="Status"/>
+                        <TableColumn fx:id="colAccuracy" text="Accuracy"/>
+                        <TableColumn fx:id="colInvoiceNo" text="Invoice No"/>
+                        <TableColumn fx:id="colInvoiceDate" text="Date"/>
+                        <TableColumn fx:id="colVendorName" text="Printed Vendor"/>
+                        <TableColumn fx:id="colPartyLedger" text="Tally Party Ledger"/>
+                        <TableColumn fx:id="colTaxable" text="Taxable (₹)"/>
+                        <TableColumn fx:id="colTotalGst" text="Total GST (₹)"/>
+                        <TableColumn fx:id="colGrandTotal" text="Grand Total (₹)"/>
+                    </columns>
+                    <placeholder>
+                        <Label text="No bills in active batch. Drag &amp; drop bills or click 'Upload Bills'." styleClass="muted-label"/>
+                    </placeholder>
+                </TableView>
+            </VBox>
+
+            <!-- Bottom Detail Table (Line Items for ITEM Mode) -->
+            <VBox fx:id="lineItemsSection" spacing="6" prefHeight="180" styleClass="approved-card">
+                <padding>
+                    <Insets top="8" right="10" bottom="8" left="10"/>
+                </padding>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Line Items (Inventory Mode)" styleClass="section-title"/>
+                    <Label fx:id="lblLineItemBillRef" text="" styleClass="muted-label"/>
+                </HBox>
+
+                <TableView fx:id="tblLineItems" VBox.vgrow="ALWAYS">
+                    <columns>
+                        <TableColumn fx:id="colLineNo" text="#"/>
+                        <TableColumn fx:id="colItemName" text="Extracted Item"/>
+                        <TableColumn fx:id="colTallyItem" text="Mapped Tally Item"/>
+                        <TableColumn fx:id="colHsn" text="HSN/SAC"/>
+                        <TableColumn fx:id="colQty" text="Qty"/>
+                        <TableColumn fx:id="colUom" text="Unit"/>
+                        <TableColumn fx:id="colRate" text="Rate (₹)"/>
+                        <TableColumn fx:id="colLineTaxable" text="Taxable (₹)"/>
+                        <TableColumn fx:id="colLineAccuracy" text="Accuracy"/>
+                    </columns>
+                    <placeholder>
+                        <Label text="Select a line-item mode bill to view details." styleClass="muted-label"/>
+                    </placeholder>
+                </TableView>
+            </VBox>
+        </VBox>
+
+        <!-- Right Pane: Zoomable Document Viewer -->
+        <VBox spacing="8" styleClass="approved-card">
+            <padding>
+                <Insets top="8" right="10" bottom="8" left="10"/>
+            </padding>
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label text="Document Inspection" styleClass="section-title"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="btnZoomIn" text="+" styleClass="approved-button,approved-secondary-button" onAction="#handleZoomIn"/>
+                <Button fx:id="btnZoomOut" text="-" styleClass="approved-button,approved-secondary-button" onAction="#handleZoomOut"/>
+                <Button fx:id="btnRotate" text="Rotate" styleClass="approved-button,approved-secondary-button" onAction="#handleRotate"/>
+                <Button fx:id="btnFit" text="Fit" styleClass="approved-button,approved-secondary-button" onAction="#handleFit"/>
+            </HBox>
+
+            <ScrollPane fx:id="imageScrollPane" fitToWidth="true" fitToHeight="true" VBox.vgrow="ALWAYS" styleClass="document-preview-scroll">
+                <StackPane fx:id="imageContainer" alignment="CENTER">
+                    <Label fx:id="lblNoPreview" text="Select a bill to view original document image." styleClass="muted-label"/>
+                </StackPane>
+            </ScrollPane>
+        </VBox>
+    </SplitPane>
+
+    <!-- 4. Bottom Action Bar (Push / Export) -->
+    <HBox spacing="12" alignment="CENTER_RIGHT" styleClass="approved-card">
+        <padding>
+            <Insets top="10" right="16" bottom="10" left="16"/>
+        </padding>
+
+        <Label text="TallyPrime URL:" styleClass="form-field-label"/>
+        <TextField fx:id="txtTallyUrl" text="http://localhost:9000" prefWidth="200"/>
+        <Region HBox.hgrow="ALWAYS"/>
+
+        <Button fx:id="btnExportJson" text="Export Tally JSON" styleClass="approved-button,approved-secondary-button" onAction="#handleExportJson"/>
+        <Button fx:id="btnExportExcel" text="Export Tally Excel" styleClass="approved-button,approved-secondary-button" onAction="#handleExportExcel"/>
+        <Button fx:id="btnPushTally" text="Push to TallyPrime (Port 9000)" styleClass="approved-button,primary-button" onAction="#handlePushTally"/>
+    </HBox>
+</VBox>

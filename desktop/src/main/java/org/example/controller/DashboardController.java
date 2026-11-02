@@ -128,6 +128,7 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private Button btnBankStatement;
     @FXML private Button btnPurchaseRecon;
     @FXML private Button btnReconSupplier;
+    @FXML private Button btnBillToTally;
     @FXML private VBox salesSubmenu;
     @FXML private VBox purchaseSubmenu;
     @FXML private VBox bankExpenseSubmenu;
@@ -1409,6 +1410,10 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML private void openReconSupplier() {
         openPage(btnReconSupplier, "Recon Supplier", "/fxml/pages/ReconSupplier.fxml");
+    }
+
+    @FXML private void openBillToTally() {
+        openPage(btnBillToTally, "Bill to Tally", "/fxml/pages/BillToTally.fxml");
     }
 
     /** Refreshes company/environment identity after Company Settings are saved. */

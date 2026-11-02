@@ -105,6 +105,10 @@ public final class ConfigManager {
         return val != null ? Boolean.parseBoolean(val.trim()) : defaultValue;
     }
 
+    public static synchronized void setBoolean(String key, boolean value) {
+        set(key, String.valueOf(value));
+    }
+
     public static synchronized void set(String key, String value) {
         if (shouldUseServerSetting(key) && org.example.api.ApiSession.token() != null) {
             String remote=SharedAssetBridge.isAssetKey(key)?SharedAssetBridge.publish(key,value):value;

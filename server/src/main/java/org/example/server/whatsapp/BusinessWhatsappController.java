@@ -41,6 +41,12 @@ public class BusinessWhatsappController {
         return service.testConnection();
     }
 
+    @PostMapping("/server/start-docker")
+    public WahaDtos.HealthResponse startDocker() {
+        requireAdmin();
+        return service.startDockerEngine();
+    }
+
     @GetMapping("/channels")
     public List<WahaDtos.ChannelDto> listChannels() {
         return service.listChannels();

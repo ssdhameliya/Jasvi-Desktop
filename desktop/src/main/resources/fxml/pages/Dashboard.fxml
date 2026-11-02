@@ -51,6 +51,7 @@
                     <Button fx:id="btnBankStatement" text="Bank Statement" onAction="#openBankStatement" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnPurchaseRecon" text="Purchase Recon" onAction="#openPurchaseRecon" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnReconSupplier" text="Recon Supplier" onAction="#openReconSupplier" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnBillToTally" text="Bill to Tally" onAction="#openBillToTally" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                 </VBox>
             </VBox>
             <VBox styleClass="nav-group">

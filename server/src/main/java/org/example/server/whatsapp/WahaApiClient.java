@@ -108,14 +108,14 @@ public class WahaApiClient {
             if (sessRes.statusCode() >= 200 && sessRes.statusCode() < 300) {
                 return new WahaDtos.HealthResponse(true, "WAHA Connected", version, sessions);
             }
-            return new WahaDtos.HealthResponse(false, "WhatsApp engine is offline at " + endpoint, "", List.of());
+            return new WahaDtos.HealthResponse(false, "WhatsApp engine is offline at " + endpoint + ".\n\nWAHA Docker container is not running on port 3000.\nTo start it, run: docker run -d --name waha -p 3000:3000 devlikeapro/waha\nor click 'Start WAHA Engine' in Settings.", "", List.of());
         } catch (Exception e) {
             String norm = normalizeBaseUrl(endpoint);
             if (norm.contains("localhost") || norm.contains("127.0.0.1")) {
                 tryAutoStartDocker();
             }
             log.info("WAHA ping notice for {}: {}", endpoint, e.getMessage());
-            return new WahaDtos.HealthResponse(false, "WhatsApp engine is offline at " + endpoint, "", List.of());
+            return new WahaDtos.HealthResponse(false, "WhatsApp engine is offline at " + endpoint + ".\n\nWAHA Docker container is not running on port 3000.\nTo start it, run: docker run -d --name waha -p 3000:3000 devlikeapro/waha\nor click 'Start WAHA Engine' in Settings.", "", List.of());
         }
     }
 

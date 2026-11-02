@@ -68,22 +68,18 @@ public final class InvoicePaymentDetailsDialog {
                     int idx = getIndex();
                     if (idx >= 0 && idx < getTableView().getItems().size()) {
                         SupportApiClient.PaymentRow row = getTableView().getItems().get(idx);
-                        if (row.statementTransactionId() != null && row.statementTransactionId() > 0) {
-                            dialog.setResult(ButtonType.CLOSE);
-                            dialog.close();
-                            org.example.controller.LinkedRecordContext.open(
-                                    "BANK_STATEMENT",
-                                    row.statementTransactionId().intValue(),
-                                    row.statementReference() == null || row.statementReference().isBlank() ? row.reference() : row.statementReference(),
-                                    "VIEW",
-                                    "Invoice Payment Details"
-                            );
-                            org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/BankStatement.fxml");
+                        dialog.setResult(ButtonType.CLOSE);
+                        dialog.close();
+                        if ("PURCHASE".equalsIgnoreCase(documentType)) {
+                            if (invoiceNo != null && !invoiceNo.isBlank()) {
+                                org.example.controller.PurchaseScreenContext.select(invoiceNo);
+                            }
+                            org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/PurchasePayment.fxml");
                         } else {
-                            String user = row.createdBy() == null || row.createdBy().isBlank() ? "ADMIN" : row.createdBy();
-                            String pmtRef = row.paymentReference() == null || row.paymentReference().isBlank() ? ("#" + row.id()) : row.paymentReference();
-                            new OwnedAlert(javafx.scene.control.Alert.AlertType.WARNING,
-                                    "No Bank Statement entry exists for Payment Ref " + pmtRef + " as it was settled manually by USER: " + user).showAndWait();
+                            if (invoiceNo != null && !invoiceNo.isBlank()) {
+                                org.example.controller.SalesScreenContext.select(invoiceNo);
+                            }
+                            org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/RecordPayment.fxml");
                         }
                     }
                 });
@@ -257,7 +253,7 @@ public final class InvoicePaymentDetailsDialog {
                     if (idx >= 0 && idx < getTableView().getItems().size()) {
                         BankStatementApiClient.LinkageItemDto item = getTableView().getItems().get(idx);
                         if (item.financeEntryId() != null) {
-                            if (parentDialog != null) parentDialog.close();
+                            closeDialogHierarchy(parentDialog);
                             String vType = item.financeVoucherType() == null ? "" : item.financeVoucherType().toUpperCase(Locale.ROOT);
                             org.example.controller.BankExpenseController.requestLinkedEntry(
                                     vType.contains("EXPENSE") ? org.example.controller.BankExpenseController.Mode.EXPENSE : org.example.controller.BankExpenseController.Mode.BANK,
@@ -343,12 +339,26 @@ public final class InvoicePaymentDetailsDialog {
         return box;
     }
 
+    private static void closeDialogHierarchy(javafx.scene.control.Dialog<?> dialog) {
+        if (dialog == null) return;
+        try {
+            dialog.setResult(null);
+            dialog.close();
+            if (dialog.getDialogPane() != null && dialog.getDialogPane().getScene() != null) {
+                var window = dialog.getDialogPane().getScene().getWindow();
+                if (window instanceof javafx.stage.Stage stage) {
+                    stage.close();
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
     private static void navigateToStatementFromLinkage(javafx.scene.control.Dialog<?> parentDialog,
                                                        String invoiceNo,
                                                        BankStatementApiClient.LinkageItemDto item) {
         if (item == null) return;
         if (item.statementTransactionId() != null && item.statementTransactionId() > 0) {
-            if (parentDialog != null) parentDialog.close();
+            closeDialogHierarchy(parentDialog);
             org.example.controller.LinkedRecordContext.open(
                     "BANK_STATEMENT",
                     item.statementTransactionId().intValue(),
@@ -374,7 +384,7 @@ public final class InvoicePaymentDetailsDialog {
         if (type == null) type = "SALE";
         String docNo = item.documentNo() != null && !item.documentNo().isBlank() ? item.documentNo() : invoiceNo;
 
-        if (parentDialog != null) parentDialog.close();
+        closeDialogHierarchy(parentDialog);
 
         if ("PURCHASE".equalsIgnoreCase(type)) {
             if (docNo != null && !docNo.isBlank()) {

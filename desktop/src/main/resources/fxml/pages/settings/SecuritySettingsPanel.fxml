@@ -95,7 +95,9 @@
     <VBox spacing="12" styleClass="settings-subcard">
         <HBox alignment="CENTER_LEFT" spacing="8">
             <Label text="WhatsApp Business Integration (WAHA)" styleClass="section-title"/>
+            <Button fx:id="btnWhatsappInfo" text="Information &amp; Guidance" onAction="#showWhatsappGuidance" styleClass="secondary-button,help-button"/>
             <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnStartWaha" text="Start WAHA Engine" onAction="#startWahaEngine" styleClass="secondary-button"/>
             <Button fx:id="btnWhatsappTest" text="Check Status" onAction="#testWhatsappConnection" styleClass="secondary-button"/>
             <Label text="Managed centrally on the company server" styleClass="page-subtitle"/>
         </HBox>

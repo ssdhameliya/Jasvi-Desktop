@@ -191,7 +191,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_29__user_phone_authentication",
                     "db/migration/V11_0_29__user_phone_authentication.sql"),
             new Migration("V11_0_30__clean_whatsapp_master_category",
-                    "db/migration/V11_0_30__clean_whatsapp_master_category.sql")
+                    "db/migration/V11_0_30__clean_whatsapp_master_category.sql"),
+            new Migration("V11_0_32__whatsapp_cleanup_and_tally_automation",
+                    "db/migration/V11_0_32__whatsapp_cleanup_and_tally_automation.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

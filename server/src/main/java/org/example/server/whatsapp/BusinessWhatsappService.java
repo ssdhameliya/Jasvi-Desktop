@@ -100,9 +100,17 @@ public class BusinessWhatsappService {
     @Transactional
     public List<WahaDtos.ChannelDto> listChannels() {
         try {
+            // Purge dummy placeholder channels with blank phone number
+            List<WhatsappSenderChannelEntity> all = channelRepo.findAll();
+            for (var c : all) {
+                if (c.getPhoneNumber() == null || c.getPhoneNumber().isBlank() || "PRIMARY_WHATSAPP".equalsIgnoreCase(c.getChannelCode())) {
+                    channelRepo.delete(c);
+                }
+            }
+
             List<Map<String, Object>> lookupSenders = jdbc.queryForList(
                     "SELECT lookup_value, description FROM lookup_master " +
-                    "WHERE UPPER(lookup_type) = 'WHATSAPP_SENDER' AND is_active = 1");
+                    "WHERE (UPPER(lookup_type) = 'WHATSAPP_SENDER' OR UPPER(lookup_type) = 'WHATSAPP SENDERS' OR UPPER(lookup_type) = 'WHATSAPP_SENDERS') AND is_active = 1");
             for (Map<String, Object> r : lookupSenders) {
                 if (r.get("lookup_value") != null) {
                     String phone = r.get("lookup_value").toString().trim();
@@ -124,7 +132,9 @@ public class BusinessWhatsappService {
             }
         } catch (Exception ignored) {}
 
-        List<WhatsappSenderChannelEntity> entities = channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc();
+        List<WhatsappSenderChannelEntity> entities = channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc().stream()
+                .filter(c -> c.getPhoneNumber() != null && !c.getPhoneNumber().isBlank())
+                .toList();
 
         // Check live session statuses if WAHA is configured
         WahaDtos.WahaSettingsDto settings = getSettings();
@@ -214,6 +224,24 @@ public class BusinessWhatsappService {
     public WahaDtos.HealthResponse testConnection() {
         WahaDtos.WahaSettingsDto settings = getSettings();
         return wahaClient.ping(settings.endpoint(), settings.apiKey());
+    }
+
+    public WahaDtos.HealthResponse startDockerEngine() {
+        try {
+            log.info("Attempting to start WAHA Docker container on server...");
+            ProcessBuilder pb = new ProcessBuilder("docker", "start", "waha");
+            Process p = pb.start();
+            boolean finished = p.waitFor(6, java.util.concurrent.TimeUnit.SECONDS);
+            if (!finished || p.exitValue() != 0) {
+                ProcessBuilder runPb = new ProcessBuilder("docker", "run", "-d", "--name", "waha", "-p", "3000:3000", "--restart", "always", "devlikeapro/waha");
+                Process runP = runPb.start();
+                runP.waitFor(12, java.util.concurrent.TimeUnit.SECONDS);
+            }
+            Thread.sleep(2500);
+        } catch (Exception e) {
+            log.warn("Docker auto-start attempt finished with: {}", e.getMessage());
+        }
+        return testConnection();
     }
 
     public WahaDtos.QrResponse getQrCode(String sessionName) {

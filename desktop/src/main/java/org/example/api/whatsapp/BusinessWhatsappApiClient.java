@@ -45,6 +45,10 @@ public final class BusinessWhatsappApiClient {
         return post("/api/authority/whatsapp/test", null, HealthResponse.class);
     }
 
+    public HealthResponse startDockerEngine() {
+        return post("/api/authority/whatsapp/server/start-docker", null, HealthResponse.class);
+    }
+
     public List<ChannelDto> listChannels() {
         return get("/api/authority/whatsapp/channels", new TypeReference<List<ChannelDto>>() {});
     }

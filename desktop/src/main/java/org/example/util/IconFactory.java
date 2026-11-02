@@ -1143,6 +1143,13 @@ public final class IconFactory {
         if (value.equals("reject") || value.contains("reject return") || value.contains("reject sale") || value.contains("reject purchase")) return "reject";
         if (value.equals("ignore") || value.contains("bulk ignore")) return "ignore";
         if (value.contains("choose bill")) return "bill";
+        if (value.contains("tally")) return "ledger";
+        if (value.contains("waha") || value.contains("docker")) return "run";
+        if (value.equals("+") || value.contains("zoom in")) return "add";
+        if (value.equals("-") || value.contains("zoom out")) return "delete";
+        if (value.contains("rotate")) return "refresh";
+        if (value.equals("fit") || value.contains("fit width") || value.contains("fit page") || value.contains("fit window")) return "view";
+        if (value.contains("push")) return "upload";
         if (value.contains("change file")) return "change-file";
         if (value.contains("erp template")) return "template";
         if (value.contains("group selected") && !value.contains("ungroup")) return "group";

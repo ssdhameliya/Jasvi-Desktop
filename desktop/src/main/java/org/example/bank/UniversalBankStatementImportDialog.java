@@ -175,7 +175,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         box.setPadding(new Insets(10, 14, 10, 14));
 
         Label lbl = new Label("1. TARGET BANK ACCOUNT (Populated from Master: BANK_ACCOUNT)");
-        lbl.setStyle("-fx-font-weight: 700; -fx-font-size: 12px; -fx-text-fill: " + headingColor() + ";");
+        lbl.getStyleClass().addAll("form-section-title", "section-title");
 
         cmbBankAccount.setMaxWidth(Double.MAX_VALUE);
         cmbBankAccount.setPrefHeight(36);
@@ -192,7 +192,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         box.setPadding(new Insets(10, 14, 10, 14));
 
         Label lbl = new Label("2. TEMPLATE DOWNLOAD & FILE INGESTION");
-        lbl.setStyle("-fx-font-weight: 700; -fx-font-size: 12px; -fx-text-fill: " + headingColor() + ";");
+        lbl.getStyleClass().addAll("form-section-title", "section-title");
 
         HBox controls = new HBox(12);
         controls.setAlignment(Pos.CENTER_LEFT);
@@ -202,16 +202,23 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         btnDownloadTemplate.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
         MenuItem itemAllThree = new MenuItem("Download All 3 Formats (.xlsx + .xls + .csv)");
-        itemAllThree.getProperties().put("erp.icon.semantic", "package");
+        itemAllThree.setGraphic(IconFactory.compactIcon("package", 15));
+        itemAllThree.getStyleClass().add("erp-menu-semantic-orange");
         itemAllThree.setOnAction(e -> onDownloadTemplate("ALL"));
+
         MenuItem itemXlsx = new MenuItem("Excel Workbook (.xlsx) — Multi-Color Headers");
-        itemXlsx.getProperties().put("erp.icon.semantic", "complete");
+        itemXlsx.setGraphic(IconFactory.compactIcon("excel", 15));
+        itemXlsx.getStyleClass().add("erp-menu-semantic-green");
         itemXlsx.setOnAction(e -> onDownloadTemplate("xlsx"));
+
         MenuItem itemXls = new MenuItem("Excel 97-2003 Workbook (.xls) — Multi-Color Headers");
-        itemXls.getProperties().put("erp.icon.semantic", "inventory");
+        itemXls.setGraphic(IconFactory.compactIcon("inventory", 15));
+        itemXls.getStyleClass().add("erp-menu-semantic-teal");
         itemXls.setOnAction(e -> onDownloadTemplate("xls"));
+
         MenuItem itemCsv = new MenuItem("CSV (Comma Delimited) (.csv) — Mandatory (*) Headers");
-        itemCsv.getProperties().put("erp.icon.semantic", "reference");
+        itemCsv.setGraphic(IconFactory.compactIcon("document", 15));
+        itemCsv.getStyleClass().add("erp-menu-semantic-blue");
         itemCsv.setOnAction(e -> onDownloadTemplate("csv"));
         btnDownloadTemplate.getItems().addAll(itemAllThree, new SeparatorMenuItem(), itemXlsx, itemXls, itemCsv);
 
@@ -270,7 +277,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         box.setStyle("-fx-background-color: " + cardBg + "; -fx-border-color: " + cardBorder + "; -fx-border-radius: 6px; -fx-background-radius: 6px;");
 
         Label title = new Label("3. SMART COLUMN NORMALIZATION:");
-        title.setStyle("-fx-font-weight: 700; -fx-font-size: 11px; -fx-text-fill: " + headingColor() + ";");
+        title.getStyleClass().addAll("form-section-title", "section-title");
 
         Label chip1 = new Label("• System Template ──► 1-to-1 Direct Mapping");
         chip1.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: " + (lightMode ? "#059669" : "#34d399") + ";");
@@ -293,7 +300,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         top.setAlignment(Pos.CENTER_LEFT);
 
         Label lbl = new Label("4. PREFLIGHT COLOR-CODED VALIDATION TABLE");
-        lbl.setStyle("-fx-font-weight: 700; -fx-font-size: 12px; -fx-text-fill: " + headingColor() + ";");
+        lbl.getStyleClass().addAll("form-section-title", "section-title");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);

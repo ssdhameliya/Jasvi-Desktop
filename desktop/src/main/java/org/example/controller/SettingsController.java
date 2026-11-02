@@ -270,6 +270,8 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private CheckBox chkWahaEnabled;
     @FXML private ComboBox<String> cmbActiveWhatsappSender;
     @FXML private Button btnWhatsappTest;
+    @FXML private Button btnStartWaha;
+    @FXML private Button btnWhatsappInfo;
     @FXML private Button btnManageWhatsappChannels;
 
     @FXML private TextArea txtEmailSignature;
@@ -983,16 +985,36 @@ public class SettingsController implements ScreenLifecycle {
             if (lookups == null || lookups.isEmpty()) {
                 lookups = service.getByCategoryCode("WHATSAPP_SENDERS");
             }
+            if (lookups == null || lookups.isEmpty()) {
+                lookups = service.getByType("WHATSAPP_SENDER");
+            }
+            if (lookups == null || lookups.isEmpty()) {
+                lookups = service.getByType("WhatsApp Senders");
+            }
             if (lookups != null) {
                 for (var l : lookups) {
                     if (l.isActive() && l.getLookupValue() != null && !l.getLookupValue().isBlank()) {
                         String code = l.getLookupCode() == null ? "" : l.getLookupCode().trim();
                         String val = l.getLookupValue().trim();
                         String label = code.isBlank() ? val : code + " — " + val;
-                        items.add(label);
+                        if (!items.contains(label)) items.add(label);
                     }
                 }
             }
+            // Cross-populate from configured WhatsApp channels
+            try {
+                var api = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+                var channels = api.listChannels();
+                if (channels != null) {
+                    for (var ch : channels) {
+                        if (ch.phoneNumber() != null && !ch.phoneNumber().isBlank()) {
+                            String chLabel = ch.displayName() + " — " + ch.phoneNumber();
+                            boolean exists = items.stream().anyMatch(it -> it.contains(ch.phoneNumber()));
+                            if (!exists) items.add(chLabel);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
         } catch (Exception ignored) {}
         cmbActiveWhatsappSender.setItems(FXCollections.observableArrayList(items));
         String saved = ConfigManager.get("whatsapp.active_sender_number", "");
@@ -2880,14 +2902,93 @@ private record AssetPreviewRequest(
                 if (health != null && health.connected()) {
                     showInfoAlert("WAHA Connected", "Successfully connected to WhatsApp WAHA engine!\n\nVersion: " + health.serverVersion() + "\nStatus: " + health.message());
                 } else {
-                    showErrorAlert("WAHA Offline", health != null ? health.message() : "Unable to reach WAHA Docker container at specified endpoint.");
+                    String ep = txtWahaEndpoint != null && !txtWahaEndpoint.getText().isBlank() ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
+                    showErrorAlert("WAHA Offline", (health != null && health.message() != null && !health.message().isBlank() ? health.message() : "WhatsApp engine is offline at " + ep) +
+                            "\n\nWAHA Docker container is not running on port 3000.\nTo start it, run: docker run -d --name waha -p 3000:3000 devlikeapro/waha\nor click 'Start WAHA Engine' above.");
                 }
             },
             err -> {
                 if (btnWhatsappTest != null) btnWhatsappTest.setDisable(false);
-                showErrorAlert("Connection Failed", "Could not connect to WAHA server:\n" + err.getMessage());
+                showErrorAlert("Connection Failed", "Could not connect to WAHA server:\n" + err.getMessage() +
+                        "\n\nWAHA Docker container is not running on port 3000.\nTo start it, run: docker run -d --name waha -p 3000:3000 devlikeapro/waha\nor click 'Start WAHA Engine' above.");
             }
         );
+    }
+
+    @FXML
+    private void startWahaEngine() {
+        if (!SessionService.isAdmin()) {
+            showInfoAlert("Permission Required", "Only administrators can start the WhatsApp WAHA engine.");
+            return;
+        }
+        if (btnStartWaha != null) btnStartWaha.setDisable(true);
+        ToastManager.info(txtWahaEndpoint, "Starting WAHA", "Sending container startup command to server...");
+        UiTaskExecutor.submitAction(
+            "start-waha-engine",
+            () -> {
+                var api = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+                return api.startDockerEngine();
+            },
+            health -> {
+                if (btnStartWaha != null) btnStartWaha.setDisable(false);
+                if (health != null && health.connected()) {
+                    showInfoAlert("WAHA Engine Started", "Successfully started and connected to WAHA Docker engine!\n\nVersion: " + health.serverVersion() + "\nStatus: " + health.message());
+                } else {
+                    showErrorAlert("WAHA Startup Notice", "Startup command was sent, but the container is not responding on port 3000 yet.\n\n" +
+                            "Please ensure Docker is installed and running on your host, or execute manually:\n" +
+                            "docker run -d --name waha -p 3000:3000 devlikeapro/waha");
+                }
+            },
+            err -> {
+                if (btnStartWaha != null) btnStartWaha.setDisable(false);
+                showErrorAlert("Startup Failed", "Could not start WAHA Docker engine:\n" + err.getMessage());
+            }
+        );
+    }
+
+    @FXML
+    private void showWhatsappGuidance() {
+        Dialog<ButtonType> dialog = new OwnedDialog<>();
+        dialog.setTitle("WhatsApp Business Integration (WAHA) — Guide");
+        dialog.setHeaderText("How WhatsApp Automated Document Dispatch Works");
+        VBox box = new VBox(14);
+        box.setPrefWidth(720);
+        box.getStyleClass().add("settings-guidance-box");
+
+        Label intro = new Label("The Jasvi ERP WhatsApp engine connects your ERP to WhatsApp Web using the open-source WAHA Docker service, enabling automated document delivery directly to customers.");
+        intro.setWrapText(true);
+        intro.getStyleClass().add("settings-help-text");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(12);
+        grid.getStyleClass().add("settings-information-card");
+
+        int row = 0;
+        grid.add(new Label("1. WAHA Docker Engine:"), 0, row);
+        Label step1 = new Label("Runs locally or on your Cloud Server (144.24.109.1 / 130.210.35.1) on port 3000.\nLaunch command: docker run -d --name waha -p 3000:3000 devlikeapro/waha");
+        step1.setWrapText(true);
+        grid.add(step1, 1, row++);
+
+        grid.add(new Label("2. Pair Your WhatsApp Number:"), 0, row);
+        Label step2 = new Label("Click 'Manage Channels & Scan QR' -> 'Scan QR Code to Pair'. Open WhatsApp on your phone, go to Linked Devices, and scan the QR code.");
+        step2.setWrapText(true);
+        grid.add(step2, 1, row++);
+
+        grid.add(new Label("3. Active Sender Selection:"), 0, row);
+        Label step3 = new Label("Choose your primary paired sender number in the dropdown. Automated invoices and receipts will be sent from this number.");
+        step3.setWrapText(true);
+        grid.add(step3, 1, row++);
+
+        grid.add(new Label("4. Signature & Attachment Flags:"), 0, row);
+        Label step4 = new Label("Use the iOS switches in Email Settings to choose whether company stamp/signature image is attached on WhatsApp dispatch.");
+        step4.setWrapText(true);
+        grid.add(step4, 1, row++);
+
+        box.getChildren().addAll(intro, grid);
+        dialog.getDialogPane().setContent(box);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.showAndWait();
     }
 
     @FXML
@@ -3096,10 +3197,26 @@ private record AssetPreviewRequest(
         selectedSignatureImagePath = ConfigManager.get("email.signature.image", "").trim();
         updateSignatureImagePreview(selectedSignatureImagePath);
         if (tglAttachSignatureEmail != null) {
-            tglAttachSignatureEmail.setSelected(ConfigManager.getBoolean("email.signature.attachToEmail", true));
+            boolean active = ConfigManager.getBoolean("email.signature.attachToEmail", true);
+            tglAttachSignatureEmail.setSelected(active);
+            tglAttachSignatureEmail.setText(active ? "Attach to Email: ON" : "Attach to Email: OFF");
+            tglAttachSignatureEmail.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                tglAttachSignatureEmail.setText(newVal ? "Attach to Email: ON" : "Attach to Email: OFF");
+                MessageTemplateService.setAttachSignatureToEmail(newVal);
+                ConfigManager.setBoolean("email.signature.attachToEmail", newVal);
+                ConfigManager.save();
+            });
         }
         if (tglAttachSignatureWhatsapp != null) {
-            tglAttachSignatureWhatsapp.setSelected(ConfigManager.getBoolean("email.signature.attachToWhatsapp", false));
+            boolean active = ConfigManager.getBoolean("email.signature.attachToWhatsapp", false);
+            tglAttachSignatureWhatsapp.setSelected(active);
+            tglAttachSignatureWhatsapp.setText(active ? "Attach to WhatsApp: ON" : "Attach to WhatsApp: OFF");
+            tglAttachSignatureWhatsapp.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                tglAttachSignatureWhatsapp.setText(newVal ? "Attach to WhatsApp: ON" : "Attach to WhatsApp: OFF");
+                MessageTemplateService.setAttachSignatureToWhatsapp(newVal);
+                ConfigManager.setBoolean("email.signature.attachToWhatsapp", newVal);
+                ConfigManager.save();
+            });
         }
 
         cmbMessageTemplateDoc.setValue("Sales Invoice (Email)");

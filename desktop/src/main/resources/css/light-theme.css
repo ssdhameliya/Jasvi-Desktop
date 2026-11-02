@@ -18595,3 +18595,31 @@
     -fx-text-fill: #ffffff;
     -fx-border-color: #14b8a6;
 }
+/* 15. iOS / Apple Style Turn ON-OFF Toggle Switches */
+.toggle-button.apple-toggle-switch, .toggle-button.ios-toggle-switch {
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-padding: 5px 14px;
+    -fx-background-radius: 20px;
+    -fx-border-radius: 20px;
+    -fx-cursor: hand;
+    -fx-background-color: rgba(203, 213, 225, 0.50);
+    -fx-text-fill: #64748b;
+    -fx-border-color: rgba(148, 163, 184, 0.60);
+    -fx-border-width: 1px;
+}
+.toggle-button.apple-toggle-switch:hover, .toggle-button.ios-toggle-switch:hover {
+    -fx-background-color: rgba(203, 213, 225, 0.80);
+    -fx-text-fill: #334155;
+    -fx-border-color: #64748b;
+}
+.toggle-button.apple-toggle-switch:selected, .toggle-button.ios-toggle-switch:selected {
+    -fx-background-color: linear-gradient(to right, #10b981, #059669);
+    -fx-text-fill: #ffffff;
+    -fx-border-color: #10b981;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.35), 8, 0, 0, 2);
+}
+.toggle-button.apple-toggle-switch:selected:hover, .toggle-button.ios-toggle-switch:selected:hover {
+    -fx-background-color: linear-gradient(to right, #059669, #047857);
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.50), 10, 0, 0, 3);
+}

@@ -64,11 +64,11 @@
                 </HBox>
         <HBox alignment="CENTER_LEFT" spacing="24" styleClass="settings-asset-card">
             <HBox spacing="8" alignment="CENTER_LEFT">
-                <ToggleButton fx:id="tglAttachSignatureEmail" text="Attach to Email" styleClass="theme-switch,approved-button"/>
+                <ToggleButton fx:id="tglAttachSignatureEmail" text="Attach to Email: OFF" styleClass="apple-toggle-switch,ios-toggle-switch"/>
                 <Label text="Include signature stamp image on email delivery" styleClass="muted-text"/>
             </HBox>
             <HBox spacing="8" alignment="CENTER_LEFT">
-                <ToggleButton fx:id="tglAttachSignatureWhatsapp" text="Attach to WhatsApp" styleClass="theme-switch,approved-button"/>
+                <ToggleButton fx:id="tglAttachSignatureWhatsapp" text="Attach to WhatsApp: OFF" styleClass="apple-toggle-switch,ios-toggle-switch"/>
                 <Label text="Include signature stamp image on WhatsApp dispatch" styleClass="muted-text"/>
             </HBox>
         </HBox>
