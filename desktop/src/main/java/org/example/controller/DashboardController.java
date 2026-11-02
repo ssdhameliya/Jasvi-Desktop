@@ -538,12 +538,14 @@ public class DashboardController implements ScreenLifecycle {
         boolean bankAllowed = PermissionService.allowed("BANK_EXPENSE.VIEW");
         boolean purchaseReconAllowed = PermissionService.allowed("PURCHASE_RECON.VIEW");
         boolean reconSupplierAllowed = PermissionService.allowed("RECON_SUPPLIER.VIEW");
-        if (btnBankExpense != null) btnBankExpense.setDisable(!(bankAllowed || purchaseReconAllowed || reconSupplierAllowed));
+        boolean tallyAllowed = PermissionService.allowed("TALLY.VIEW");
+        if (btnBankExpense != null) btnBankExpense.setDisable(!(bankAllowed || purchaseReconAllowed || reconSupplierAllowed || tallyAllowed));
         for (Button child : new Button[]{btnBankEntry, btnExpenseEntry, btnBankStatement}) {
             if (child != null) child.setDisable(!bankAllowed);
         }
         if (btnPurchaseRecon != null) btnPurchaseRecon.setDisable(!purchaseReconAllowed);
         if (btnReconSupplier != null) btnReconSupplier.setDisable(!reconSupplierAllowed);
+        if (btnBillToTally != null) btnBillToTally.setDisable(!tallyAllowed);
 
         // Finance & Accounts accordion: Admin has full access. For other roles, keep available if GL, Financial Statements, or Aging Analysis is permitted.
         boolean isAdmin = SessionService.isAdmin();
@@ -1142,7 +1144,7 @@ public class DashboardController implements ScreenLifecycle {
             return NavGroup.SALES;
         if (button == btnPurchase || button == btnPurchaseRegister || button == btnCreatePurchase || button == btnPurchaseReturn || button == btnDebitNote)
             return NavGroup.PURCHASE;
-        if (button == btnBankExpense || button == btnBankEntry || button == btnExpenseEntry || button == btnBankStatement || button == btnPurchaseRecon || button == btnReconSupplier)
+        if (button == btnBankExpense || button == btnBankEntry || button == btnExpenseEntry || button == btnBankStatement || button == btnPurchaseRecon || button == btnReconSupplier || button == btnBillToTally)
             return NavGroup.BANK_EXPENSE;
         if (button == btnFinance || button == btnGeneralLedger || button == btnFinancialStatements || button == btnAgingAnalysis)
             return NavGroup.FINANCE;
@@ -1157,7 +1159,7 @@ public class DashboardController implements ScreenLifecycle {
         String path = fxmlPath == null ? "" : fxmlPath.toLowerCase(Locale.ROOT);
         if (path.contains("quotation") || path.contains("saleslist") || path.contains("salesreturns") || path.contains("creditnoteregister") || path.endsWith("/sale.fxml")) return NavGroup.SALES;
         if (path.contains("purchaselist") || path.contains("purchasereturns") || path.contains("debitnoteregister") || path.endsWith("/purchase.fxml")) return NavGroup.PURCHASE;
-        if (path.contains("bankexpense") || path.contains("bankstatement") || path.contains("purchaserecon") || path.contains("reconsupplier")) return NavGroup.BANK_EXPENSE;
+        if (path.contains("bankexpense") || path.contains("bankstatement") || path.contains("purchaserecon") || path.contains("reconsupplier") || path.contains("billtotally")) return NavGroup.BANK_EXPENSE;
         if (path.contains("generalledger") || path.contains("financialstatements") || path.contains("aginganalysis")) return NavGroup.FINANCE;
         if (path.contains("gstcompliance") || path.contains("ewaybill")) return NavGroup.GST;
         if (path.contains("documentstudio") || path.contains("pdfdesigner") || path.contains("exceldesigner")) return NavGroup.DOCUMENT_STUDIO;
@@ -1179,6 +1181,7 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("bankstatement")) return btnBankStatement;
         if (path.contains("purchaserecon")) return btnPurchaseRecon;
         if (path.contains("reconsupplier")) return btnReconSupplier;
+        if (path.contains("billtotally")) return btnBillToTally;
         if (path.contains("generalledger")) return btnGeneralLedger;
         if (path.contains("financialstatements")) return btnFinancialStatements;
         if (path.contains("aginganalysis")) return btnAgingAnalysis;
@@ -1209,7 +1212,7 @@ public class DashboardController implements ScreenLifecycle {
                 btnDashboard,
                 btnSales, btnSalesRegister, btnCreateSale, btnSalesReturn, btnCreditNote, btnQuotation,
                 btnPurchase, btnPurchaseRegister, btnCreatePurchase, btnPurchaseReturn, btnDebitNote,
-                btnItem, btnMasters, btnBankExpense, btnBankEntry, btnExpenseEntry, btnBankStatement, btnPurchaseRecon, btnReconSupplier,
+                btnItem, btnMasters, btnBankExpense, btnBankEntry, btnExpenseEntry, btnBankStatement, btnPurchaseRecon, btnReconSupplier, btnBillToTally,
                 btnFinance, btnGeneralLedger, btnFinancialStatements, btnAgingAnalysis,
                 btnGst, btnGstCompliance, btnEWayBill,
                 btnImport, btnInventory, btnBarcodeStudio, btnCustomer, btnSupplier, btnReports, btnReminders, btnUserAccess, btnAuditTrail, btnSystemDiagnosticsNav, btnCommunication,
@@ -1311,8 +1314,18 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("bankexpense") || path.contains("bankstatement")) return "BANK_EXPENSE.VIEW";
         if (path.contains("purchaserecon")) return "PURCHASE_RECON.VIEW";
         if (path.contains("reconsupplier")) return "RECON_SUPPLIER.VIEW";
+        if (path.contains("billtotally")) return "TALLY.VIEW";
         if (path.contains("generalledger")) return "GENERAL_LEDGER.VIEW";
+        if (path.contains("financialstatements")) return "FINANCIAL_STATEMENTS.VIEW";
+        if (path.contains("aginganalysis")) return "AGING_ANALYSIS.VIEW";
+        if (path.contains("creditnoteregister")) return "CREDIT_NOTE.VIEW";
+        if (path.contains("debitnoteregister")) return "DEBIT_NOTE.VIEW";
         if (path.contains("gstcompliance")) return "GST_COMPLIANCE.VIEW";
+        if (path.contains("ewaybillcenter") || path.contains("ewaybill")) return "EWAY_BILL.VIEW";
+        if (path.contains("barcodestudio")) return "BARCODE.VIEW";
+        if (path.contains("globalaudit")) return "AUDIT.GLOBAL";
+        if (path.contains("customer360")) return "CUSTOMERS.VIEW";
+        if (path.contains("supplier360")) return "SUPPLIERS.VIEW";
         if (path.contains("automationcenter")) return "AUTOMATION.VIEW";
         return null;
     }

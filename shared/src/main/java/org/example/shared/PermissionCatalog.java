@@ -46,6 +46,7 @@ public final class PermissionCatalog {
             entry("GENERAL_LEDGER", "General Ledger & Accounts", "Finance & Compliance", "ledger", 56),
             entry("FINANCIAL_STATEMENTS", "Financial Statements (P&L / BS)", "Finance & Compliance", "statement", 57),
             entry("AGING_ANALYSIS", "AR / AP Aging Analysis", "Finance & Compliance", "aging", 58),
+            entry("TALLY", "Bill to Tally Automation", "Finance & Compliance", "ledger", 59),
             entry("MASTERS", "Masters", "Masters", "master", 60),
             entry("REPORTS", "Reports", "Reports", "report", 70),
             entry("DOCUMENT_STUDIO", "Document Studio", "Document Studio", "document", 80),

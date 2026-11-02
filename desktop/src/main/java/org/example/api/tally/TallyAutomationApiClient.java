@@ -195,6 +195,7 @@ public final class TallyAutomationApiClient {
                     .uri(URI.create(base + path))
                     .header("Accept", "application/json")
                     .timeout(java.time.Duration.ofSeconds(20));
+            org.example.api.ApiSession.authorize(b);
 
             if ("POST".equalsIgnoreCase(method)) {
                 String payload = body == null ? "" : json.writeValueAsString(body);

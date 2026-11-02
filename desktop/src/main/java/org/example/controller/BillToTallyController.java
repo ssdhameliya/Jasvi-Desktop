@@ -353,6 +353,14 @@ public class BillToTallyController implements ScreenLifecycle {
                 },
                 batch -> {
                     ToastManager.success(tblBills, "Batch Ingested", "Processed " + files.size() + " bills in batch " + batch.batchReference());
+                    org.example.service.NotificationService.createNotification(
+                            org.example.service.NotificationService.Category.IMPORTS,
+                            "Tally Batch Ingested",
+                            "Processed " + files.size() + " bills in batch " + batch.batchReference(),
+                            "INFO",
+                            "/fxml/pages/BillToTally.fxml",
+                            batch.batchReference()
+                    );
                     reloadActiveBatch();
                 },
                 failure -> AppDialogService.error(tblBills, "Upload Failed", "Ingestion Error", failure.getMessage())
@@ -440,9 +448,25 @@ public class BillToTallyController implements ScreenLifecycle {
                 resp -> {
                     if (resp.success()) {
                         AppDialogService.info(btnPushTally, "Tally Push Succeeded", "Vouchers Pushed to TallyPrime", resp.message());
+                        org.example.service.NotificationService.createNotification(
+                                org.example.service.NotificationService.Category.IMPORTS,
+                                "Tally Vouchers Synced",
+                                resp.message(),
+                                "INFO",
+                                "/fxml/pages/BillToTally.fxml",
+                                null
+                        );
                         reloadActiveBatch();
                     } else {
                         AppDialogService.error(btnPushTally, "Tally Push Failed", "Push Failed", resp.message());
+                        org.example.service.NotificationService.createNotification(
+                                org.example.service.NotificationService.Category.IMPORTS,
+                                "Tally Sync Failed",
+                                resp.message(),
+                                "WARNING",
+                                "/fxml/pages/BillToTally.fxml",
+                                null
+                        );
                     }
                 },
                 failure -> AppDialogService.error(btnPushTally, "Tally Connection Error", "Could not reach TallyPrime", failure.getMessage())

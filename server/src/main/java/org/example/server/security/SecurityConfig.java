@@ -72,6 +72,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/support/documents/PURCHASE_RECON/**").hasAnyAuthority("ROLE_ADMIN", "PURCHASE_RECON.EDIT")
                         .requestMatchers(HttpMethod.DELETE, "/api/bank-statements/imports/**").hasAnyAuthority("ROLE_ADMIN", "BANK_EXPENSE.DELETE")
                         .requestMatchers("/api/bank-statements/**", "/api/reconciliation/**").hasAnyAuthority("ROLE_ADMIN", "BANK_EXPENSE.RECONCILE")
+                        .requestMatchers("/api/tally-automation/**").hasAnyAuthority("ROLE_ADMIN", "TALLY.VIEW")
                         .requestMatchers(HttpMethod.GET, "/api/operations/stock/**").hasAnyAuthority("ROLE_ADMIN", "INVENTORY.VIEW")
                         .requestMatchers(HttpMethod.POST, "/api/operations/stock/**").hasAnyAuthority("ROLE_ADMIN", "INVENTORY.EDIT")
                         .requestMatchers(HttpMethod.GET, "/api/insights/dashboard").hasAnyAuthority("ROLE_ADMIN", "DASHBOARD.VIEW")

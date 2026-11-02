@@ -619,6 +619,14 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                 AppDialogService.info(table, "Already Imported", "Duplicate Statement", "This exact bank statement was imported previously. Statement batch reference: " + (result.batch() != null ? result.batch().statementReference() : ""));
             } else {
                 ToastManager.success(table, "Data Shipping Complete", "Imported " + result.importedRows() + " transactions. Statement Ref: " + (result.batch() != null ? result.batch().statementReference() : ""));
+                org.example.service.NotificationService.createNotification(
+                        org.example.service.NotificationService.Category.BANKING,
+                        "Bank Statement Imported",
+                        "Imported " + result.importedRows() + " transactions (Ref: " + (result.batch() != null ? result.batch().statementReference() : "") + ")",
+                        "INFO",
+                        "/fxml/pages/BankStatement.fxml",
+                        result.batch() != null ? result.batch().statementReference() : null
+                );
             }
             if (onSuccessCallback != null) onSuccessCallback.run();
             close();

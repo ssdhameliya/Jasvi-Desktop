@@ -2933,10 +2933,12 @@ private record AssetPreviewRequest(
                 if (btnStartWaha != null) btnStartWaha.setDisable(false);
                 if (health != null && health.connected()) {
                     showInfoAlert("WAHA Engine Started", "Successfully started and connected to WAHA Docker engine!\n\nVersion: " + health.serverVersion() + "\nStatus: " + health.message());
+                    NotificationService.createNotification(NotificationService.Category.COMMUNICATION, "WAHA Connected", "WhatsApp engine is active on server (v" + health.serverVersion() + ")", "INFO", "/fxml/pages/Settings.fxml", null);
                 } else {
                     showErrorAlert("WAHA Startup Notice", "Startup command was sent, but the container is not responding on port 3000 yet.\n\n" +
                             "Please ensure Docker is installed and running on your host, or execute manually:\n" +
                             "docker run -d --name waha -p 3000:3000 devlikeapro/waha");
+                    NotificationService.createNotification(NotificationService.Category.COMMUNICATION, "WAHA Startup Notice", "WhatsApp Docker container is offline or starting up.", "WARNING", "/fxml/pages/Settings.fxml", null);
                 }
             },
             err -> {

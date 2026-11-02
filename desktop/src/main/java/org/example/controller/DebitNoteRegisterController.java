@@ -419,6 +419,14 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
                 },
                 res -> {
                     AppDialogService.success(tblDebitNotes, "Debit Note Created", "Debit note created and posted to general ledger successfully.");
+                    org.example.service.NotificationService.createNotification(
+                            org.example.service.NotificationService.Category.PURCHASES,
+                            "Debit Note Created",
+                            "Debit note created and posted to general ledger successfully.",
+                            "INFO",
+                            "/fxml/pages/DebitNoteRegister.fxml",
+                            null
+                    );
                     refreshData();
                 },
                 err -> AppDialogService.error(tblDebitNotes, "Debit Notes", "Creation Failed", err.getMessage())

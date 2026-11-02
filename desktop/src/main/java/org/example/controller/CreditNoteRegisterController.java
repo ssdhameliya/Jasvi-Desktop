@@ -417,6 +417,14 @@ public class CreditNoteRegisterController implements ScreenLifecycle {
                 },
                 res -> {
                     AppDialogService.success(tblCreditNotes, "Credit Note Created", "Credit note created and posted to general ledger successfully.");
+                    org.example.service.NotificationService.createNotification(
+                            org.example.service.NotificationService.Category.SALES,
+                            "Credit Note Created",
+                            "Credit note created and posted to general ledger successfully.",
+                            "INFO",
+                            "/fxml/pages/CreditNoteRegister.fxml",
+                            null
+                    );
                     refreshData();
                 },
                 err -> AppDialogService.error(tblCreditNotes, "Credit Notes", "Creation Failed", err.getMessage())
