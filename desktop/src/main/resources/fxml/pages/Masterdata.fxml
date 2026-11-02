@@ -58,15 +58,6 @@
             <ListView fx:id="lstTypes"
                       VBox.vgrow="ALWAYS"
                       styleClass="approved-list,master-category-list"/>
-
-            <VBox spacing="9" styleClass="master-category-actions">
-                <Button fx:id="btnAddCategory" text="Add Category" onAction="#addCategory"
-                        maxWidth="Infinity" styleClass="approved-button,approved-primary-button,master-action-button"/>
-                <Button fx:id="btnRenameCategory" text="Rename Category" onAction="#renameCategory"
-                        maxWidth="Infinity" styleClass="approved-button,approved-secondary-button,master-action-button"/>
-                <Button fx:id="btnDeleteCategory" text="Deactivate Category" onAction="#deleteCategory"
-                        maxWidth="Infinity" styleClass="approved-button,approved-danger-button,master-action-button"/>
-            </VBox>
         </VBox>
     </left>
 

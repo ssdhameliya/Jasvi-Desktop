@@ -227,7 +227,7 @@ public final class InvoicePaymentDetailsDialog {
                 link.setOnAction(e -> {
                     int idx = getIndex();
                     if (idx >= 0 && idx < getTableView().getItems().size()) {
-                        navigateToStatementFromLinkage(parentDialog, invoiceNo, getTableView().getItems().get(idx));
+                        navigateToPaymentFromLinkage(parentDialog, invoiceNo, documentType, getTableView().getItems().get(idx));
                     }
                 });
             }
@@ -362,6 +362,30 @@ public final class InvoicePaymentDetailsDialog {
             String pmtRef = item.paymentReference() == null || item.paymentReference().isBlank() ? safe(item.originalReference()) : item.paymentReference();
             new OwnedAlert(javafx.scene.control.Alert.AlertType.WARNING,
                     "No Bank Statement entry exists for Payment Ref " + pmtRef + " as it was settled manually by USER: " + user).showAndWait();
+        }
+    }
+
+    private static void navigateToPaymentFromLinkage(javafx.scene.control.Dialog<?> parentDialog,
+                                                     String invoiceNo,
+                                                     String fallbackDocumentType,
+                                                     BankStatementApiClient.LinkageItemDto item) {
+        if (item == null) return;
+        String type = item.targetType() != null && !item.targetType().isBlank() ? item.targetType() : fallbackDocumentType;
+        if (type == null) type = "SALE";
+        String docNo = item.documentNo() != null && !item.documentNo().isBlank() ? item.documentNo() : invoiceNo;
+
+        if (parentDialog != null) parentDialog.close();
+
+        if ("PURCHASE".equalsIgnoreCase(type)) {
+            if (docNo != null && !docNo.isBlank()) {
+                org.example.controller.PurchaseScreenContext.select(docNo);
+            }
+            org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/PurchasePayment.fxml");
+        } else {
+            if (docNo != null && !docNo.isBlank()) {
+                org.example.controller.SalesScreenContext.select(docNo);
+            }
+            org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/RecordPayment.fxml");
         }
     }
 

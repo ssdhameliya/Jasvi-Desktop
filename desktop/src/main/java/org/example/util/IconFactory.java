@@ -62,10 +62,12 @@ public final class IconFactory {
         "erp-button-amber", "erp-button-indigo", "erp-button-emerald",
         "erp-button-sky", "erp-button-purple", "erp-button-cyan",
         "erp-button-violet", "erp-button-coral", "erp-button-slate",
-        "erp-button-danger-ghost", "approved-amber-button", "approved-indigo-button",
+        "erp-button-danger-ghost", "erp-button-next", "erp-button-back", "erp-button-teal",
+        "approved-amber-button", "approved-indigo-button",
         "approved-emerald-button", "approved-sky-button", "approved-purple-button",
         "approved-cyan-button", "approved-violet-button", "approved-coral-button",
-        "approved-slate-button", "approved-danger-ghost-button"
+        "approved-slate-button", "approved-danger-ghost-button",
+        "approved-next-button", "approved-back-button", "approved-teal-button"
     };
 
     private IconFactory() {
@@ -788,6 +790,21 @@ public final class IconFactory {
         } else if ("add".equals(semantic) || "save".equals(semantic) || "backup".equals(semantic)
             || "import".equals(semantic)) {
             variant = "erp-button-primary";
+        } else if ("next".equals(semantic) || "forward".equals(semantic) || "continue".equals(semantic) || text.contains("next") || text.contains("continue") || text.contains("proceed")) {
+            variant = "erp-button-next";
+            if (!button.getStyleClass().contains("approved-next-button")) button.getStyleClass().add("approved-next-button");
+        } else if ("back".equals(semantic) || "previous".equals(semantic) || text.contains("back") || text.contains("previous")) {
+            variant = "erp-button-back";
+            if (!button.getStyleClass().contains("approved-back-button")) button.getStyleClass().add("approved-back-button");
+        } else if ("refresh".equals(semantic) || "reload".equals(semantic)) {
+            variant = "erp-button-teal";
+            if (!button.getStyleClass().contains("approved-teal-button")) button.getStyleClass().add("approved-teal-button");
+        } else if ("view".equals(semantic) || "preview".equals(semantic) || "search".equals(semantic)) {
+            variant = "erp-button-sky";
+            if (!button.getStyleClass().contains("approved-sky-button")) button.getStyleClass().add("approved-sky-button");
+        } else if ("reset".equals(semantic)) {
+            variant = "erp-button-amber";
+            if (!button.getStyleClass().contains("approved-amber-button")) button.getStyleClass().add("approved-amber-button");
         } else {
             variant = "erp-button-secondary";
         }

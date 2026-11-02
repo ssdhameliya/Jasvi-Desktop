@@ -303,9 +303,9 @@ public class MasterDataController implements ScreenLifecycle {
         UiActionIcons.apply(btnHeaderAddLookup, ButtonAction.ADD);
         UiActionIcons.apply(btnHeaderExport, ButtonAction.EXPORT);
 
-        UiActionIcons.apply(btnAddCategory, ButtonAction.ADD);
-        UiActionIcons.apply(btnRenameCategory, ButtonAction.EDIT);
-        UiActionIcons.apply(btnDeleteCategory, ButtonAction.DELETE);
+        if (btnAddCategory != null) UiActionIcons.apply(btnAddCategory, ButtonAction.ADD);
+        if (btnRenameCategory != null) UiActionIcons.apply(btnRenameCategory, ButtonAction.EDIT);
+        if (btnDeleteCategory != null) UiActionIcons.apply(btnDeleteCategory, ButtonAction.DELETE);
 
         UiActionIcons.apply(btnAddLookup, ButtonAction.ADD);
         UiActionIcons.apply(btnEditLookup, ButtonAction.EDIT);
@@ -708,7 +708,6 @@ public class MasterDataController implements ScreenLifecycle {
             if (match != null) {
                 tblLookup.getSelectionModel().select(match);
                 tblLookup.scrollTo(match);
-                showLookupDetails(match);
                 pendingSelectLookupId = null;
             }
         }

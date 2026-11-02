@@ -758,10 +758,23 @@ public class SettingsController implements ScreenLifecycle {
             case EMAIL -> readEmailSettingsSnapshot();
             case SECURITY -> {
                 var support = new org.example.api.support.SupportApiClient();
+                String ep = ConfigManager.get("whatsapp.waha.endpoint", "http://localhost:3000");
+                boolean en = Boolean.parseBoolean(ConfigManager.get("whatsapp.waha.enabled", "false"));
+                String sender = ConfigManager.get("whatsapp.active_sender_number", "");
+                if (ConfigManager.isSharedClient() && SessionService.isAdmin()) {
+                    try {
+                        var wahaSettings = new org.example.api.whatsapp.BusinessWhatsappApiClient().getSettings();
+                        if (wahaSettings != null) {
+                            if (wahaSettings.endpoint() != null && !wahaSettings.endpoint().isBlank()) ep = wahaSettings.endpoint();
+                            en = wahaSettings.enabled();
+                        }
+                    } catch (Exception ignored) {}
+                }
                 yield new SecuritySettingsSnapshot(
                         support.setting("security.session.timeout.minutes", "10"),
                         support.setting("security.session.warning.minutes", "2"),
-                        support.setting("security.auth.mfa.policy", "REQUIRED"));
+                        support.setting("security.auth.mfa.policy", "REQUIRED"),
+                        ep, en, sender);
             }
             case WORKSPACE -> {
                 var support = new org.example.api.support.SupportApiClient();
@@ -869,6 +882,16 @@ public class SettingsController implements ScreenLifecycle {
                 }
                 boolean editable = SessionService.isAdmin();
                 txtSessionTimeoutMinutes.setDisable(!editable); txtSessionWarningMinutes.setDisable(!editable); if (cmbMfaPolicy != null) cmbMfaPolicy.setDisable(!editable);
+                if (txtWahaEndpoint != null) txtWahaEndpoint.setText(value.wahaEndpoint());
+                if (chkWahaEnabled != null) chkWahaEnabled.setSelected(value.wahaEnabled());
+                populateWhatsappSendersDropdown();
+                if (cmbActiveWhatsappSender != null) {
+                    String sender = value.activeSender();
+                    if (!sender.isBlank()) {
+                        String match = cmbActiveWhatsappSender.getItems().stream().filter(it -> it.contains(sender)).findFirst().orElse(sender);
+                        cmbActiveWhatsappSender.setValue(match);
+                    }
+                }
             }
             case WORKSPACE -> {
                 StorageRetentionSnapshot value = (StorageRetentionSnapshot) snapshot;
@@ -895,7 +918,7 @@ public class SettingsController implements ScreenLifecycle {
     private record InvoiceSettingsSnapshot(String address, String state, String website, String tagline, String shipAddress,
                                            String terms, String currency, String timeZone, String dateFormat, String timeFormat) { }
     private record EmailSettingsSnapshot(String email, String password, String host, String port, boolean passwordConfigured, boolean editable, String wahaEndpoint, boolean wahaEnabled) { }
-    private record SecuritySettingsSnapshot(String timeout, String warning, String mfaPolicy) { }
+    private record SecuritySettingsSnapshot(String timeout, String warning, String mfaPolicy, String wahaEndpoint, boolean wahaEnabled, String activeSender) { }
     private record StorageRetentionSnapshot(String logs, String reports, String exports, String diagnostics, String importResults,
                                             String temp, boolean compressOldLogs) { }
 
@@ -957,6 +980,9 @@ public class SettingsController implements ScreenLifecycle {
         try {
             org.example.service.LookupService service = new org.example.service.LookupService();
             List<org.example.model.Lookup> lookups = service.getByCategoryCode("WHATSAPP_SENDER");
+            if (lookups == null || lookups.isEmpty()) {
+                lookups = service.getByCategoryCode("WHATSAPP_SENDERS");
+            }
             if (lookups != null) {
                 for (var l : lookups) {
                     if (l.isActive() && l.getLookupValue() != null && !l.getLookupValue().isBlank()) {
@@ -1042,7 +1068,8 @@ public class SettingsController implements ScreenLifecycle {
         DialogPane pane = dlg.getDialogPane();
         pane.getStyleClass().addAll("approved-dialog", "erp-screen-root");
         pane.getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        pane.setPrefWidth(680);
+        pane.setPrefWidth(760);
+        pane.setMinWidth(720);
 
         VBox root = new VBox(12);
         root.setPadding(new Insets(14));
@@ -1050,6 +1077,25 @@ public class SettingsController implements ScreenLifecycle {
         Label info = new Label("Select the canonical format scheme to synchronize all 27 reference formats uniformly across Sales, Purchases, Masters, Lookups, and Bank Statements. Existing issued documents remain strictly immutable for statutory compliance.");
         info.setWrapText(true);
         info.getStyleClass().add("muted-label");
+
+        Button btnHowItWorks = new Button("How Reference Synchronization Works", IconFactory.compactIcon("info", 15));
+        btnHowItWorks.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnHowItWorks.setOnAction(e -> {
+            org.example.util.AppDialogService.info(
+                pane,
+                "Reference Numbering Guide",
+                "How Synchronization & Formats Work",
+                "Reference Numbering Configuration Guide:\n\n" +
+                "1. Synchronization Scope: When you click 'Synchronize All Formats', all 27 document types (Sales, Purchase, Payments, Bank Statements, Quotations, Returns, Masters) will adopt this exact Scheme, Delimiter, and Sequence Width with their respective module prefixes (e.g. IN, PUR, PRF, BST, QT).\n\n" +
+                "2. Statutory Immutability: Any invoices or vouchers already generated and issued remain 100% untouched to ensure statutory and audit compliance.\n\n" +
+                "3. GST Compliance: Indian GST Rule 46(b) recommends keeping consecutive invoice numbers under 16 alphanumeric characters.\n\n" +
+                "4. Tokens:\n" +
+                "   • DD-MM-YYYY : Full calendar date (e.g. 02-11-2026)\n" +
+                "   • YY-YYYY : Indian Financial Year (e.g. 26-2027)\n" +
+                "   • NONE : Prefix and sequence only (e.g. IN/0001)\n" +
+                "   • XXXX / XXXXXX : Configures leading zero padding."
+            );
+        });
 
         ComboBox<String> cmbScheme = new ComboBox<>();
         cmbScheme.getItems().addAll(
@@ -1082,6 +1128,8 @@ public class SettingsController implements ScreenLifecycle {
 
         Label lblSample = new Label("Preview: IN/01-11-2026/0001");
         lblSample.getStyleClass().add("section-title");
+        lblSample.setWrapText(true);
+        lblSample.setMaxWidth(Double.MAX_VALUE);
 
         Runnable updatePreview = () -> {
             String sch = cmbScheme.getValue();
@@ -1089,7 +1137,7 @@ public class SettingsController implements ScreenLifecycle {
             String sq = cmbSeq.getValue() != null && cmbSeq.getValue().startsWith("XXXXXX") ? "XXXXXX" : (cmbSeq.getValue() != null && cmbSeq.getValue().startsWith("XXXXX") ? "XXXXX" : "XXXX");
             String fmt = "NONE".equalsIgnoreCase(sch) ? "IN" + del + sq : "IN" + del + sch + del + sq;
             String ex = ReferenceFormatRules.format(fmt, 1, LocalDate.now());
-            lblSample.setText("Preview: " + fmt + " (e.g., " + ex + ")");
+            lblSample.setText("Pattern:  " + fmt + "   \nSample:   " + ex);
         };
 
         cmbScheme.setOnAction(e -> updatePreview.run());
@@ -1108,7 +1156,7 @@ public class SettingsController implements ScreenLifecycle {
         grid.add(cmbSeq, 1, 2);
         grid.add(lblSample, 0, 3, 3, 1);
 
-        root.getChildren().addAll(info, grid);
+        root.getChildren().addAll(info, btnHowItWorks, grid);
         pane.setContent(root);
 
         Button btnOk = (Button) pane.lookupButton(ButtonType.OK);
@@ -2794,7 +2842,7 @@ private record AssetPreviewRequest(
         }
         if (cmbActiveWhatsappSender != null && cmbActiveWhatsappSender.getValue() != null && !cmbActiveWhatsappSender.getValue().isBlank()) {
             String val = cmbActiveWhatsappSender.getValue().trim();
-            String sender = val.contains("—") ? val.substring(0, val.indexOf("—")).trim() : val;
+            String sender = val.contains("—") ? val.substring(val.indexOf("—") + 1).trim() : (val.contains("-") ? val.substring(val.lastIndexOf("-") + 1).trim() : val);
             putSetting("whatsapp.active_sender_number", sender);
             ConfigManager.setWithoutSaving("whatsapp.active_sender_number", sender);
         }

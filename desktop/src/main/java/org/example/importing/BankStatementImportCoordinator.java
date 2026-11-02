@@ -30,9 +30,41 @@ public final class BankStatementImportCoordinator {
         var parsed = auditResult.statement();
         var current = SessionService.current();
         String user = current == null ? "User" : current.getFullName();
+
+        String bankAccount = parsed.accountNumber();
+        String bankName = parsed.bankName();
+        String accHolder = parsed.accountHolder();
+
+        if (bankAccount == null || bankAccount.isBlank()) {
+            try {
+                var lookups = new org.example.api.master.MasterApiClient().lookupsByCategoryCode("BANK_ACCOUNT");
+                if (lookups != null && !lookups.isEmpty()) {
+                    var first = lookups.getFirst();
+                    bankAccount = (first.getLookupValue() != null && !first.getLookupValue().isBlank()) ? first.getLookupValue().trim() : "0000000000";
+                    if (bankName == null || bankName.isBlank()) {
+                        bankName = (first.getDescription() != null && !first.getDescription().isBlank()) ? first.getDescription().trim() : "Bank";
+                    }
+                }
+            } catch (Exception ignored) {}
+            if (bankAccount == null || bankAccount.isBlank()) {
+                bankAccount = "0000000000";
+            }
+        }
+        if (bankName == null || bankName.isBlank()) {
+            bankName = "Bank Account";
+        }
+        if (accHolder == null || accHolder.isBlank()) {
+            accHolder = org.example.service.BrandingService.companyName();
+        }
+
+        String fingerprint = parsed.sourceFingerprint();
+        if (fingerprint == null || fingerprint.isBlank()) {
+            fingerprint = java.util.UUID.randomUUID().toString();
+        }
+
         var request = new BankStatementApiClient.ImportRequest(
-            parsed.bankName(), parsed.accountNumber(), parsed.accountHolder(), parsed.statementFrom(), parsed.statementTo(),
-            parsed.currency(), parsed.openingBalance(), parsed.closingBalance(), parsed.sourceFingerprint(),
+            bankName, bankAccount, accHolder, parsed.statementFrom(), parsed.statementTo(),
+            parsed.currency(), parsed.openingBalance(), parsed.closingBalance(), fingerprint,
             parsed.sourceFileName(), parsed.sourceCsv(), user, dryRun, parsed.rows());
         var result = api.importStatement(request);
         boolean allExisting = !result.alreadyImported() && result.importedRows() == 0 && result.duplicateRows() > 0;

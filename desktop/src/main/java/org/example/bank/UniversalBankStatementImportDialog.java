@@ -120,11 +120,14 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
     private static boolean detectLightMode(Window owner) {
         if (owner != null && owner.getScene() != null && owner.getScene().getRoot() != null) {
             List<String> classes = owner.getScene().getRoot().getStyleClass();
-            if (classes.contains("light-theme") || classes.contains("theme-light")) {
+            if (classes.contains("dse-theme-light") || classes.contains("light-theme") || classes.contains("theme-light")) {
                 return true;
             }
+            if (classes.contains("dse-theme-dark")) {
+                return false;
+            }
         }
-        return false;
+        return !org.example.theme.ThemeManager.isDark();
     }
 
     private String headingColor() {
@@ -199,12 +202,16 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         btnDownloadTemplate.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
         MenuItem itemAllThree = new MenuItem("Download All 3 Formats (.xlsx + .xls + .csv)");
+        itemAllThree.getProperties().put("erp.icon.semantic", "package");
         itemAllThree.setOnAction(e -> onDownloadTemplate("ALL"));
         MenuItem itemXlsx = new MenuItem("Excel Workbook (.xlsx) — Multi-Color Headers");
+        itemXlsx.getProperties().put("erp.icon.semantic", "complete");
         itemXlsx.setOnAction(e -> onDownloadTemplate("xlsx"));
         MenuItem itemXls = new MenuItem("Excel 97-2003 Workbook (.xls) — Multi-Color Headers");
+        itemXls.getProperties().put("erp.icon.semantic", "inventory");
         itemXls.setOnAction(e -> onDownloadTemplate("xls"));
         MenuItem itemCsv = new MenuItem("CSV (Comma Delimited) (.csv) — Mandatory (*) Headers");
+        itemCsv.getProperties().put("erp.icon.semantic", "reference");
         itemCsv.setOnAction(e -> onDownloadTemplate("csv"));
         btnDownloadTemplate.getItems().addAll(itemAllThree, new SeparatorMenuItem(), itemXlsx, itemXls, itemCsv);
 
