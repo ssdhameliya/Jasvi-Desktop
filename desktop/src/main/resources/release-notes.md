@@ -1,3 +1,11 @@
+# What's New in DSE ERP v11.0.37
+
+### Multi-Format Bill-to-Tally Automation Rebuild & WhatsApp Dispatch Resilience
+- **Multi-Format Bill-to-Tally Automation Rebuild**: Rebuilt the Bill-to-Tally interface with standard enterprise KPI metric cards (Total Bills, Ready to Export, Needs Review, Exported, and Batch Gross Value). Added interactive inline editing for invoice numbers, Tally party ledgers, taxable amounts, and mapped stock items with real-time accuracy scoring and persistence.
+- **WAHA Fast Non-Blocking Polling & Startup Resilience**: Optimized QR code retrieval and connection checks to return immediately during session initialization (`STARTING`), preventing reverse-proxy and desktop client timeouts (`request timed out`). Added automated retry logic when dispatching documents during headless browser warmup.
+- **WhatsApp Communication Audit Transaction Safety**: Wrapped post-transmission audit logging and invoice status tracking in an active transaction, resolving `TransactionRequiredException` and ensuring `communication_log` records and `sales_header.whatsapp_sent` status are reliably committed.
+- **iText PDF Column Width Normalization**: Normalized dynamic transport facts widths to sum to exactly 100%, silencing `TableWidths: Sum of table columns is greater than 100%` server warnings while preserving exact visual PDF formatting.
+
 # What's New in DSE ERP v11.0.24
 
 ### Unified Bank Statement Engine, Payment Reference (`PRF/...`) Deep-Linking & Standardized Master Reference Formats

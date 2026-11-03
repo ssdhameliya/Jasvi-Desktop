@@ -45,6 +45,12 @@ public class BillToTallyController implements ScreenLifecycle {
     @FXML private Button btnNewClient;
     @FXML private Button btnUploadBills;
 
+    @FXML private StackPane kpiTotalIcon;
+    @FXML private StackPane kpiReadyIcon;
+    @FXML private StackPane kpiReviewIcon;
+    @FXML private StackPane kpiExportedIcon;
+    @FXML private StackPane kpiTotalValueIcon;
+
     @FXML private Label lblKpiTotal;
     @FXML private Label lblKpiReady;
     @FXML private Label lblKpiReview;
@@ -107,6 +113,20 @@ public class BillToTallyController implements ScreenLifecycle {
         if (headerIconHolder != null) {
             headerIconHolder.getChildren().setAll(IconFactory.icon("excel", 24));
         }
+        if (kpiTotalIcon != null) kpiTotalIcon.getChildren().setAll(IconFactory.icon("purchase", 18));
+        if (kpiReadyIcon != null) kpiReadyIcon.getChildren().setAll(IconFactory.icon("complete", 18));
+        if (kpiReviewIcon != null) kpiReviewIcon.getChildren().setAll(IconFactory.icon("warning", 18));
+        if (kpiExportedIcon != null) kpiExportedIcon.getChildren().setAll(IconFactory.icon("link", 18));
+        if (kpiTotalValueIcon != null) kpiTotalValueIcon.getChildren().setAll(IconFactory.icon("currency", 18));
+
+        if (btnUploadBills != null) btnUploadBills.setGraphic(IconFactory.compactIcon("add", 14));
+        if (btnNewClient != null) btnNewClient.setGraphic(IconFactory.compactIcon("supplier", 14));
+        if (btnDeleteBill != null) btnDeleteBill.setGraphic(IconFactory.compactIcon("delete", 14));
+        if (btnRecalculate != null) btnRecalculate.setGraphic(IconFactory.compactIcon("refresh", 14));
+        if (btnExportJson != null) btnExportJson.setGraphic(IconFactory.compactIcon("file", 14));
+        if (btnExportGstPortal != null) btnExportGstPortal.setGraphic(IconFactory.compactIcon("file", 14));
+        if (btnExportExcel != null) btnExportExcel.setGraphic(IconFactory.compactIcon("excel", 14));
+        if (btnPushTally != null) btnPushTally.setGraphic(IconFactory.compactIcon("send", 14));
 
         configureBillsTable();
         configureLineItemsTable();
@@ -171,6 +191,41 @@ public class BillToTallyController implements ScreenLifecycle {
             }
         });
 
+        // Enable table cell editing for corrections
+        tblBills.setEditable(true);
+
+        colInvoiceNo.setCellFactory(javafx.scene.control.cell.TextFieldTableCell.forTableColumn());
+        colInvoiceNo.setOnEditCommit(event -> {
+            var bill = event.getRowValue();
+            if (bill != null && event.getNewValue() != null && !event.getNewValue().isBlank()) {
+                var updated = new TallyAutomationApiClient.BillRecordDto(
+                        bill.id(), bill.batchId(), bill.clientProfileId(), bill.voucherMode(),
+                        event.getNewValue().trim(), bill.invoiceDate(), bill.vendorNamePrinted(), bill.vendorGstin(),
+                        bill.tallyPartyLedger(), bill.tallyPurchaseLedger(), bill.costCenter(), bill.poReference(),
+                        bill.taxableAmount(), bill.cgstAmount(), bill.sgstAmount(), bill.igstAmount(),
+                        bill.roundOff(), bill.grandTotal(), bill.accuracyPercentage(), bill.validationNotes(),
+                        bill.attachedFilePaths(), bill.status(), bill.tallyVoucherGuid(), bill.lineItems()
+                );
+                saveUpdatedBill(updated);
+            }
+        });
+
+        colPartyLedger.setCellFactory(javafx.scene.control.cell.TextFieldTableCell.forTableColumn());
+        colPartyLedger.setOnEditCommit(event -> {
+            var bill = event.getRowValue();
+            if (bill != null && event.getNewValue() != null && !event.getNewValue().isBlank()) {
+                var updated = new TallyAutomationApiClient.BillRecordDto(
+                        bill.id(), bill.batchId(), bill.clientProfileId(), bill.voucherMode(),
+                        bill.invoiceNumber(), bill.invoiceDate(), bill.vendorNamePrinted(), bill.vendorGstin(),
+                        event.getNewValue().trim(), bill.tallyPurchaseLedger(), bill.costCenter(), bill.poReference(),
+                        bill.taxableAmount(), bill.cgstAmount(), bill.sgstAmount(), bill.igstAmount(),
+                        bill.roundOff(), bill.grandTotal(), bill.accuracyPercentage(), bill.validationNotes(),
+                        bill.attachedFilePaths(), bill.status(), bill.tallyVoucherGuid(), bill.lineItems()
+                );
+                saveUpdatedBill(updated);
+            }
+        });
+
         tblBills.setItems(billsList);
         tblBills.getSelectionModel().selectedItemProperty().addListener((obs, oldV, bill) -> {
             if (bill != null) {
@@ -179,7 +234,22 @@ public class BillToTallyController implements ScreenLifecycle {
         });
     }
 
+    private void saveUpdatedBill(TallyAutomationApiClient.BillRecordDto bill) {
+        if (bill == null || bill.id() == null) return;
+        UiTaskExecutor.submitAction(
+                "update-bill-" + bill.id(),
+                () -> api.saveBill(bill),
+                saved -> {
+                    ToastManager.success(tblBills, "Saved", "Updated voucher " + saved.invoiceNumber());
+                    reloadActiveBatch();
+                },
+                failure -> ToastManager.error(tblBills, "Update Failed", failure.getMessage())
+        );
+    }
+
     private void configureLineItemsTable() {
+        tblLineItems.setEditable(true);
+
         colLineNo.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().lineNumber())));
         colItemName.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().extractedItemName()));
         colTallyItem.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().mappedTallyStockItem()));
@@ -190,6 +260,37 @@ public class BillToTallyController implements ScreenLifecycle {
         colLineTaxable.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().taxableAmount() != null ? "₹" + c.getValue().taxableAmount().toPlainString() : "₹0.00"));
         colLineAccuracy.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().lineAccuracyPercentage() != null ? c.getValue().lineAccuracyPercentage().toPlainString() + "%" : "100%"));
+
+        // Allow inline correction of Mapped Tally Stock Item
+        colTallyItem.setCellFactory(javafx.scene.control.cell.TextFieldTableCell.forTableColumn());
+        colTallyItem.setOnEditCommit(event -> {
+            var item = event.getRowValue();
+            var bill = tblBills.getSelectionModel().getSelectedItem();
+            if (item != null && bill != null && event.getNewValue() != null) {
+                List<TallyAutomationApiClient.BillLineItemDto> updatedItems = new ArrayList<>();
+                for (var li : bill.lineItems()) {
+                    if (Objects.equals(li.lineNumber(), item.lineNumber())) {
+                        updatedItems.add(new TallyAutomationApiClient.BillLineItemDto(
+                                li.id(), li.billRecordId(), li.lineNumber(), li.extractedItemName(),
+                                event.getNewValue().trim(), li.hsnSac(), li.quantity(), li.uom(),
+                                li.rate(), li.discountAmount(), li.taxRate(), li.taxableAmount(),
+                                li.lineAccuracyPercentage(), li.lineErrorNotes()
+                        ));
+                    } else {
+                        updatedItems.add(li);
+                    }
+                }
+                var updatedBill = new TallyAutomationApiClient.BillRecordDto(
+                        bill.id(), bill.batchId(), bill.clientProfileId(), bill.voucherMode(),
+                        bill.invoiceNumber(), bill.invoiceDate(), bill.vendorNamePrinted(), bill.vendorGstin(),
+                        bill.tallyPartyLedger(), bill.tallyPurchaseLedger(), bill.costCenter(), bill.poReference(),
+                        bill.taxableAmount(), bill.cgstAmount(), bill.sgstAmount(), bill.igstAmount(),
+                        bill.roundOff(), bill.grandTotal(), bill.accuracyPercentage(), bill.validationNotes(),
+                        bill.attachedFilePaths(), bill.status(), bill.tallyVoucherGuid(), updatedItems
+                );
+                saveUpdatedBill(updatedBill);
+            }
+        });
 
         tblLineItems.setItems(lineItemsList);
     }

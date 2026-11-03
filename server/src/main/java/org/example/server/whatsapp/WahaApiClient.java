@@ -190,8 +190,8 @@ public class WahaApiClient {
     public WahaDtos.QrResponse getQrCode(String endpoint, String apiKey, String sessionName) {
         String session = (sessionName == null || sessionName.isBlank()) ? "default" : sessionName.trim();
         try {
-            // Check session status up to 8 attempts (with 1s wait) if STARTING
-            for (int attempt = 0; attempt < 8; attempt++) {
+            // Check session status with quick non-blocking attempts (avoiding reverse proxy 30s timeout)
+            for (int attempt = 0; attempt < 2; attempt++) {
                 List<WahaDtos.SessionStatus> sessions = getSessions(endpoint, apiKey);
                 WahaDtos.SessionStatus current = sessions.stream()
                         .filter(s -> session.equalsIgnoreCase(s.name()))
@@ -210,18 +210,18 @@ public class WahaApiClient {
                                 .build();
                         http.send(restartReq, HttpResponse.BodyHandlers.ofString());
                     } catch (Exception ignored) {}
-                    Thread.sleep(1500);
+                    Thread.sleep(800);
                     continue;
                 }
                 if (current == null || "STOPPED".equalsIgnoreCase(current.status())) {
                     startSession(endpoint, apiKey, session);
-                    Thread.sleep(1500);
+                    Thread.sleep(800);
                     continue;
                 }
 
                 if ("STARTING".equalsIgnoreCase(current.status())) {
-                    Thread.sleep(1200);
-                    // continue polling until SCAN_QR_CODE or WORKING
+                    // Return fast so client poll timeline can smoothly update without hitting HTTP timeouts
+                    return new WahaDtos.QrResponse(session, null, "STARTING", "WhatsApp Web is starting up. Preparing QR code...");
                 }
 
                 // Request QR code image/png with ?format=image
@@ -250,9 +250,8 @@ public class WahaApiClient {
                         } catch (Exception ignored) {}
                     }
                 } else if (res.statusCode() == 422) {
-                    // Session might still be transitioning from STARTING to SCAN_QR_CODE
-                    Thread.sleep(1200);
-                    continue;
+                    // Session is transitioning
+                    return new WahaDtos.QrResponse(session, null, "STARTING", "WhatsApp session is initializing. Preparing QR code...");
                 } else if (res.statusCode() == 404 || res.statusCode() == 400) {
                     return new WahaDtos.QrResponse(session, null, "ALREADY_CONNECTED", "Session is already connected or QR code is not pending.");
                 }
@@ -265,7 +264,7 @@ public class WahaApiClient {
             log.info("WAHA QR notice for {}: {}", session, e.getMessage());
             return new WahaDtos.QrResponse(session, null, "OFFLINE", "WhatsApp engine (WAHA) is not running on the server. Please ensure the server container is started.");
         }
-        return new WahaDtos.QrResponse(session, null, "STARTING", "WhatsApp Web is starting up. Please wait 5 seconds and click 'Scan QR Code' again.");
+        return new WahaDtos.QrResponse(session, null, "STARTING", "WhatsApp Web is starting up. Preparing QR code...");
     }
 
     public WahaDtos.SendResponse sendText(String endpoint, String apiKey, String sessionName, String chatId, String text) {
@@ -282,6 +281,14 @@ public class WahaApiClient {
                     .build();
 
             HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() == 422 && res.body().contains("STARTING")) {
+                // Session is momentarily initializing; wait 1.5s and retry once
+                try {
+                    Thread.sleep(1500);
+                    res = http.send(req, HttpResponse.BodyHandlers.ofString());
+                } catch (Exception ignored) {}
+            }
+
             if (res.statusCode() >= 200 && res.statusCode() < 300) {
                 String messageId = "";
                 try {
@@ -289,6 +296,8 @@ public class WahaApiClient {
                     messageId = node.path("id").asText(node.path("messageId").asText(""));
                 } catch (Exception ignored) {}
                 return new WahaDtos.SendResponse(true, "Message sent successfully", messageId, session, chatId);
+            } else if (res.statusCode() == 422 && res.body().contains("STARTING")) {
+                return new WahaDtos.SendResponse(false, "WhatsApp session is still initializing. Please wait 5 seconds and retry.", "", session, chatId);
             } else {
                 return new WahaDtos.SendResponse(false, "WAHA error (" + res.statusCode() + "): " + res.body(), "", session, chatId);
             }
@@ -321,6 +330,14 @@ public class WahaApiClient {
                     .build();
 
             HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() == 422 && res.body().contains("STARTING")) {
+                // Session is momentarily initializing; wait 1.5s and retry once
+                try {
+                    Thread.sleep(1500);
+                    res = http.send(req, HttpResponse.BodyHandlers.ofString());
+                } catch (Exception ignored) {}
+            }
+
             if (res.statusCode() >= 200 && res.statusCode() < 300) {
                 String messageId = "";
                 try {
@@ -328,6 +345,8 @@ public class WahaApiClient {
                     messageId = node.path("id").asText(node.path("messageId").asText(""));
                 } catch (Exception ignored) {}
                 return new WahaDtos.SendResponse(true, "Document sent successfully via WhatsApp", messageId, session, chatId);
+            } else if (res.statusCode() == 422 && res.body().contains("STARTING")) {
+                return new WahaDtos.SendResponse(false, "WhatsApp session is still initializing. Please wait 5 seconds and retry.", "", session, chatId);
             } else {
                 return new WahaDtos.SendResponse(false, "WAHA error (" + res.statusCode() + "): " + res.body(), "", session, chatId);
             }

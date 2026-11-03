@@ -471,11 +471,19 @@ public final class TaxInvoicePdfGenerator {
 
     private static float[] transportFactWidths(List<String> facts) {
         float[] widths = new float[facts.size()];
+        float total = 0f;
         for (int i = 0; i < facts.size(); i++) {
             String fact = facts.get(i);
             // Character-weighted sizing is intentionally simple and deterministic.
             // It gives long values more room while preserving a compact minimum share.
             widths[i] = Math.max(10f, fact == null ? 10f : fact.length() + 4f);
+            total += widths[i];
+        }
+        // Normalize array elements to sum to exactly 100.0% to prevent iText TableWidths warning
+        if (total > 0f) {
+            for (int i = 0; i < widths.length; i++) {
+                widths[i] = (widths[i] / total) * 100f;
+            }
         }
         return widths;
     }

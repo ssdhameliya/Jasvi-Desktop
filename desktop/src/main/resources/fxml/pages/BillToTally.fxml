@@ -36,11 +36,84 @@
         </HBox>
     </HBox>
 
-    <!-- 2. Workspace: Main Master-Detail SplitPane (Reclaiming full vertical space) -->
+    <!-- 2. Standard Enterprise KPI Row -->
+    <HBox spacing="8" styleClass="standard-kpi-row,recon-metric-row,erp-kpi-section">
+        <!-- Total Bills Card -->
+        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-blue">
+            <StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Total Bills" styleClass="metric-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Total" styleClass="metric-trend-pill,trend-neutral"/>
+                </HBox>
+                <Label fx:id="lblKpiTotal" text="0" styleClass="metric-value"/>
+                <Label text="Uploaded vouchers" styleClass="metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- Ready for Tally Card -->
+        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-green">
+            <StackPane fx:id="kpiReadyIcon" styleClass="standard-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Ready to Export" styleClass="metric-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Ready" styleClass="metric-trend-pill,trend-positive"/>
+                </HBox>
+                <Label fx:id="lblKpiReady" text="0" styleClass="metric-value"/>
+                <Label text="Accuracy ≥ 95%" styleClass="metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- Needs Review Card -->
+        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-orange">
+            <StackPane fx:id="kpiReviewIcon" styleClass="standard-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Needs Review" styleClass="metric-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Review" styleClass="metric-trend-pill,trend-warning"/>
+                </HBox>
+                <Label fx:id="lblKpiReview" text="0" styleClass="metric-value"/>
+                <Label text="Tax mismatch / Unmapped" styleClass="metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- Exported Card -->
+        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-purple">
+            <StackPane fx:id="kpiExportedIcon" styleClass="standard-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Exported" styleClass="metric-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Synced" styleClass="metric-trend-pill,trend-info"/>
+                </HBox>
+                <Label fx:id="lblKpiExported" text="0" styleClass="metric-value"/>
+                <Label text="Pushed to TallyPrime" styleClass="metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- Total Value Card -->
+        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-blue">
+            <StackPane fx:id="kpiTotalValueIcon" styleClass="standard-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Batch Gross" styleClass="metric-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Value" styleClass="metric-trend-pill,trend-neutral"/>
+                </HBox>
+                <Label fx:id="lblKpiTotalValue" text="₹ 0.00" styleClass="metric-value"/>
+                <Label text="Total vouchers value" styleClass="metric-note"/>
+            </VBox>
+        </HBox>
+    </HBox>
+
+    <!-- 3. Workspace: Main Master-Detail SplitPane -->
     <SplitPane orientation="HORIZONTAL" dividerPositions="0.65" VBox.vgrow="ALWAYS">
         <!-- Left Pane: Master Bills & Detail Line Items -->
         <VBox spacing="10">
-            <!-- Master Bills Table -->
+            <!-- Master Bills Table Card -->
             <VBox spacing="6" VBox.vgrow="ALWAYS" styleClass="approved-card">
                 <padding>
                     <Insets top="8" right="10" bottom="8" left="10"/>
@@ -52,7 +125,7 @@
                     <Button fx:id="btnRecalculate" text="Re-Calculate Math" styleClass="approved-button,approved-secondary-button" onAction="#handleRecalculateAccuracy"/>
                 </HBox>
 
-                <TableView fx:id="tblBills" VBox.vgrow="ALWAYS">
+                <TableView fx:id="tblBills" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive">
                     <columns>
                         <TableColumn fx:id="colStatus" text="Status"/>
                         <TableColumn fx:id="colAccuracy" text="Accuracy"/>
@@ -83,7 +156,7 @@
                     <Label fx:id="lblLineItemBillRef" text="" styleClass="muted-label"/>
                 </HBox>
 
-                <TableView fx:id="tblLineItems" VBox.vgrow="ALWAYS">
+                <TableView fx:id="tblLineItems" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive">
                     <columns>
                         <TableColumn fx:id="colLineNo" text="#"/>
                         <TableColumn fx:id="colItemName" text="Extracted Item"/>
@@ -124,7 +197,7 @@
         </VBox>
     </SplitPane>
 
-    <!-- 3. Bottom Action Bar (Push / Export) -->
+    <!-- 4. Bottom Action Bar (Push / Export) -->
     <HBox spacing="12" alignment="CENTER_RIGHT" styleClass="approved-card">
         <padding>
             <Insets top="10" right="16" bottom="10" left="16"/>
