@@ -297,7 +297,7 @@ public class WahaApiClient {
                 } catch (Exception ignored) {}
                 return new WahaDtos.SendResponse(true, "Message sent successfully", messageId, session, chatId);
             } else if (res.statusCode() == 422 && res.body().contains("STARTING")) {
-                return new WahaDtos.SendResponse(false, "WhatsApp session is still initializing. Please wait 5 seconds and retry.", "", session, chatId);
+                return new WahaDtos.SendResponse(false, "WhatsApp sender channel is not paired or ready. Please scan the QR code in Settings > WhatsApp to authenticate with your phone.", "", session, chatId);
             } else {
                 return new WahaDtos.SendResponse(false, "WAHA error (" + res.statusCode() + "): " + res.body(), "", session, chatId);
             }
@@ -346,7 +346,7 @@ public class WahaApiClient {
                 } catch (Exception ignored) {}
                 return new WahaDtos.SendResponse(true, "Document sent successfully via WhatsApp", messageId, session, chatId);
             } else if (res.statusCode() == 422 && res.body().contains("STARTING")) {
-                return new WahaDtos.SendResponse(false, "WhatsApp session is still initializing. Please wait 5 seconds and retry.", "", session, chatId);
+                return new WahaDtos.SendResponse(false, "WhatsApp sender channel is not paired or ready. Please scan the QR code in Settings > WhatsApp to authenticate with your phone.", "", session, chatId);
             } else {
                 return new WahaDtos.SendResponse(false, "WAHA error (" + res.statusCode() + "): " + res.body(), "", session, chatId);
             }
