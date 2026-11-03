@@ -36,31 +36,7 @@
         </HBox>
     </HBox>
 
-    <!-- 2. KPI Summary Bar -->
-    <HBox spacing="12">
-        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
-            <Label text="Total Uploaded" styleClass="kpi-title"/>
-            <Label fx:id="lblKpiTotal" text="0" styleClass="kpi-value"/>
-        </VBox>
-        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
-            <Label text="Ready to Export (&gt;=95%)" styleClass="kpi-title"/>
-            <Label fx:id="lblKpiReady" text="0" styleClass="kpi-value,approved-emerald-text"/>
-        </VBox>
-        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
-            <Label text="Needs Review (&lt;95%)" styleClass="kpi-title"/>
-            <Label fx:id="lblKpiReview" text="0" styleClass="kpi-value,approved-amber-text"/>
-        </VBox>
-        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
-            <Label text="Exported to Tally" styleClass="kpi-title"/>
-            <Label fx:id="lblKpiExported" text="0" styleClass="kpi-value,approved-indigo-text"/>
-        </VBox>
-        <VBox styleClass="kpi-card,approved-card" HBox.hgrow="ALWAYS">
-            <Label text="Batch Total (₹)" styleClass="kpi-title"/>
-            <Label fx:id="lblKpiTotalValue" text="₹0.00" styleClass="kpi-value"/>
-        </VBox>
-    </HBox>
-
-    <!-- 3. Workspace: Main Master-Detail SplitPane -->
+    <!-- 2. Workspace: Main Master-Detail SplitPane (Reclaiming full vertical space) -->
     <SplitPane orientation="HORIZONTAL" dividerPositions="0.65" VBox.vgrow="ALWAYS">
         <!-- Left Pane: Master Bills & Detail Line Items -->
         <VBox spacing="10">
@@ -89,13 +65,16 @@
                         <TableColumn fx:id="colGrandTotal" text="Grand Total (₹)"/>
                     </columns>
                     <placeholder>
-                        <Label text="No bills in active batch. Drag &amp; drop bills or click 'Upload Bills'." styleClass="muted-label"/>
+                        <VBox alignment="CENTER" spacing="6">
+                            <Label text="No bills in active batch." styleClass="page-subtitle"/>
+                            <Label text="Drag &amp; drop PDF, Excel, or image invoice files here, or click 'Upload Bills'." styleClass="muted-label"/>
+                        </VBox>
                     </placeholder>
                 </TableView>
             </VBox>
 
             <!-- Bottom Detail Table (Line Items for ITEM Mode) -->
-            <VBox fx:id="lineItemsSection" spacing="6" prefHeight="180" styleClass="approved-card">
+            <VBox fx:id="lineItemsSection" spacing="6" prefHeight="220" styleClass="approved-card">
                 <padding>
                     <Insets top="8" right="10" bottom="8" left="10"/>
                 </padding>
@@ -117,7 +96,7 @@
                         <TableColumn fx:id="colLineAccuracy" text="Accuracy"/>
                     </columns>
                     <placeholder>
-                        <Label text="Select a line-item mode bill to view details." styleClass="muted-label"/>
+                        <Label text="Select a bill above to view extracted line items." styleClass="muted-label"/>
                     </placeholder>
                 </TableView>
             </VBox>
@@ -145,7 +124,7 @@
         </VBox>
     </SplitPane>
 
-    <!-- 4. Bottom Action Bar (Push / Export) -->
+    <!-- 3. Bottom Action Bar (Push / Export) -->
     <HBox spacing="12" alignment="CENTER_RIGHT" styleClass="approved-card">
         <padding>
             <Insets top="10" right="16" bottom="10" left="16"/>

@@ -51,7 +51,7 @@ public class MasterDataService {
         ensureCategory("PAYMENT_MODE","PAYMENT MODE","Payment methods used by Bank, Expense and Invoice Payment",130);
         ensureCategory("EXPENSE_CATEGORY","EXPENSE CATEGORY","Expense classifications used by Expense Entry",140);
         ensureCategory("BANK_ACCOUNT","BANK ACCOUNT","Bank account master: lookup value = account number, description = bank name",150);
-        ensureCategory("WHATSAPP_SENDER","WhatsApp Senders","Sender & Alert WhatsApp numbers used for automated customer dispatch and system storage risk alerts",150);
+        ensureCategory("WHATSAPP_SENDER","WhatsApp","WhatsApp sender numbers used for automated customer dispatch and system storage risk alerts",150);
         ensureCategory("ACCOUNT_TYPE","ACCOUNT TYPE","Bank account types used by Settings, Excel Studio and PDF Studio",155);
         ensureCategory("REFERENCE_FORMAT","REFERENCE FORMAT","Auto-generated reference patterns. YYYY / YY represent year; XX... defines minimum zero-padding and expands automatically as the sequence grows.",160);
         ensureCategory("REFERENCE_SCHEME","REFERENCE SCHEME","Canonical date and year numbering schemes supported across all ERP reference formats",210);
@@ -471,11 +471,38 @@ public class MasterDataService {
 
     @Transactional(readOnly = true)
     public List<MasterDtos.LookupDto> lookups(String type) {
+        MasterCategoryEntity cat = resolveCanonicalCategoryByCode(type);
+        if (cat != null) {
+            Set<String> matchTypes = new HashSet<>();
+            matchTypes.add(normal(type));
+            if (cat.getCategoryName() != null) matchTypes.add(normal(cat.getCategoryName()));
+            if (cat.getCategoryCode() != null) matchTypes.add(normal(cat.getCategoryCode()));
+            return lookups.findAll().stream()
+                .filter(l -> l.getLookupType() != null && matchTypes.contains(normal(l.getLookupType())))
+                .sorted(Comparator.comparing((LookupEntity l) -> l.getDisplayOrder() == null ? 0 : l.getDisplayOrder())
+                    .thenComparing(l -> l.getLookupValue() == null ? "" : l.getLookupValue()))
+                .map(this::lookupDto)
+                .toList();
+        }
         return lookups.findByLookupTypeOrderByDisplayOrderAscLookupValueAsc(type).stream().map(this::lookupDto).toList();
     }
 
     @Transactional(readOnly = true)
     public List<String> values(String type) {
+        MasterCategoryEntity cat = resolveCanonicalCategoryByCode(type);
+        if (cat != null) {
+            Set<String> matchTypes = new HashSet<>();
+            matchTypes.add(normal(type));
+            if (cat.getCategoryName() != null) matchTypes.add(normal(cat.getCategoryName()));
+            if (cat.getCategoryCode() != null) matchTypes.add(normal(cat.getCategoryCode()));
+            return lookups.findAll().stream()
+                .filter(l -> l.getLookupType() != null && matchTypes.contains(normal(l.getLookupType()))
+                        && (l.getActive() == null || l.getActive() != 0))
+                .sorted(Comparator.comparing((LookupEntity l) -> l.getDisplayOrder() == null ? 0 : l.getDisplayOrder())
+                    .thenComparing(l -> l.getLookupValue() == null ? "" : l.getLookupValue()))
+                .map(LookupEntity::getLookupValue)
+                .toList();
+        }
         return lookups.findByLookupTypeAndActiveTrueOrderByDisplayOrderAscLookupValueAsc(type).stream().map(LookupEntity::getLookupValue).toList();
     }
 
@@ -794,9 +821,30 @@ public class MasterDataService {
 
     @Transactional(readOnly = true)
     public List<MasterDtos.CategoryDto> categories() {
-        return categories.findAllByOrderByDisplayOrderAscCategoryNameAsc().stream()
-            .filter(c -> !Set.of("SALES_INVOICE_FORMAT","PURCHASE_INVOICE_FORMAT").contains(normal(c.getCategoryCode())))
-            .map(c -> categoryDto(c, lookups.countByLookupType(c.getCategoryName()), lookups.findByLookupTypeOrderByDisplayOrderAscLookupValueAsc(c.getCategoryName()).stream().filter(v -> v.getActive() == null || v.getActive() != 0).count())).toList();
+        Set<String> seenKeys = new HashSet<>();
+        List<MasterCategoryEntity> unique = new ArrayList<>();
+        for (var c : categories.findAllByOrderByDisplayOrderAscCategoryNameAsc()) {
+            if (Set.of("SALES_INVOICE_FORMAT","PURCHASE_INVOICE_FORMAT").contains(normal(c.getCategoryCode()))) continue;
+            String k = categoryKey(c.getCategoryCode());
+            if (seenKeys.add(k)) {
+                unique.add(c);
+            }
+        }
+        return unique.stream()
+            .map(c -> {
+                long count = lookups.countByLookupType(c.getCategoryName());
+                long activeCount = lookups.findByLookupTypeOrderByDisplayOrderAscLookupValueAsc(c.getCategoryName()).stream()
+                    .filter(v -> v.getActive() == null || v.getActive() != 0).count();
+                if (count == 0 && c.getCategoryCode() != null && !c.getCategoryCode().equalsIgnoreCase(c.getCategoryName())) {
+                    long codeCount = lookups.countByLookupType(c.getCategoryCode());
+                    if (codeCount > 0) {
+                        count = codeCount;
+                        activeCount = lookups.findByLookupTypeOrderByDisplayOrderAscLookupValueAsc(c.getCategoryCode()).stream()
+                            .filter(v -> v.getActive() == null || v.getActive() != 0).count();
+                    }
+                }
+                return categoryDto(c, count, activeCount);
+            }).toList();
     }
 
     @Transactional

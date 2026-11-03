@@ -157,13 +157,30 @@ public class WahaApiClient {
     public boolean startSession(String endpoint, String apiKey, String sessionName) {
         String session = (sessionName == null || sessionName.isBlank()) ? "default" : sessionName.trim();
         try {
-            Map<String, Object> body = Map.of("name", session);
+            // First check if session exists
+            List<WahaDtos.SessionStatus> sessions = getSessions(endpoint, apiKey);
+            boolean exists = sessions.stream().anyMatch(s -> session.equalsIgnoreCase(s.name()));
+            if (exists) {
+                // If it already exists, use POST /api/sessions/{session}/start
+                HttpRequest startReq = request(endpoint, "/api/sessions/" + session + "/start", apiKey)
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.noBody())
+                        .build();
+                HttpResponse<String> startRes = http.send(startReq, HttpResponse.BodyHandlers.ofString());
+                if (startRes.statusCode() >= 200 && startRes.statusCode() < 300) {
+                    return true;
+                }
+            }
+            // If not existing or start failed, create session
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("name", session);
+            body.put("start", true);
             HttpRequest req = request(endpoint, "/api/sessions", apiKey)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
                     .build();
             HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
-            return res.statusCode() >= 200 && res.statusCode() < 300;
+            return (res.statusCode() >= 200 && res.statusCode() < 300) || res.statusCode() == 422;
         } catch (Exception e) {
             log.warn("Failed to start WAHA session {}: {}", session, e.getMessage());
             return false;
@@ -173,51 +190,61 @@ public class WahaApiClient {
     public WahaDtos.QrResponse getQrCode(String endpoint, String apiKey, String sessionName) {
         String session = (sessionName == null || sessionName.isBlank()) ? "default" : sessionName.trim();
         try {
-            // First verify session exists / start it if stopped
-            List<WahaDtos.SessionStatus> sessions = getSessions(endpoint, apiKey);
-            WahaDtos.SessionStatus current = sessions.stream()
-                    .filter(s -> session.equalsIgnoreCase(s.name()))
-                    .findFirst()
-                    .orElse(null);
+            // Check session status up to 8 attempts (with 1s wait) if STARTING
+            for (int attempt = 0; attempt < 8; attempt++) {
+                List<WahaDtos.SessionStatus> sessions = getSessions(endpoint, apiKey);
+                WahaDtos.SessionStatus current = sessions.stream()
+                        .filter(s -> session.equalsIgnoreCase(s.name()))
+                        .findFirst()
+                        .orElse(null);
 
-            if (current != null && "WORKING".equalsIgnoreCase(current.status())) {
-                return new WahaDtos.QrResponse(session, null, "WORKING", "WhatsApp session is already active and paired.");
-            }
-
-            if (current == null || "STOPPED".equalsIgnoreCase(current.status()) || "FAILED".equalsIgnoreCase(current.status())) {
-                startSession(endpoint, apiKey, session);
-                // Give engine a brief moment to initialize QR
-                Thread.sleep(1500);
-            }
-
-            // Request QR code image/png
-            HttpRequest req = request(endpoint, "/api/" + session + "/auth/qr", apiKey)
-                    .header("Accept", "image/png, application/json")
-                    .GET()
-                    .build();
-            HttpResponse<byte[]> res = http.send(req, HttpResponse.BodyHandlers.ofByteArray());
-
-            if (res.statusCode() >= 200 && res.statusCode() < 300) {
-                String contentType = res.headers().firstValue("Content-Type").orElse("");
-                if (contentType.contains("image")) {
-                    String base64 = "data:image/png;base64," + Base64.getEncoder().encodeToString(res.body());
-                    return new WahaDtos.QrResponse(session, base64, "SCAN_QR_CODE", "Please scan this QR code with WhatsApp on your phone.");
-                } else {
-                    String text = new String(res.body(), java.nio.charset.StandardCharsets.UTF_8);
-                    try {
-                        JsonNode node = json.readTree(text);
-                        if (node.has("data")) {
-                            String data = node.get("data").asText();
-                            if (!data.startsWith("data:")) data = "data:image/png;base64," + data;
-                            return new WahaDtos.QrResponse(session, data, "SCAN_QR_CODE", "Please scan this QR code with WhatsApp.");
-                        } else if (node.has("raw") || node.has("qr")) {
-                            return new WahaDtos.QrResponse(session, node.path("raw").asText(node.path("qr").asText()), "RAW_QR", "Scan QR string.");
-                        }
-                    } catch (Exception ignored) {}
+                if (current != null && "WORKING".equalsIgnoreCase(current.status())) {
+                    return new WahaDtos.QrResponse(session, null, "WORKING", "WhatsApp session is already active and paired.");
                 }
-            } else if (res.statusCode() == 404 || res.statusCode() == 400) {
-                // If 404 or 400, session might already be authenticated
-                return new WahaDtos.QrResponse(session, null, "ALREADY_CONNECTED", "Session is already connected or QR code is not pending.");
+
+                if (current == null || "STOPPED".equalsIgnoreCase(current.status()) || "FAILED".equalsIgnoreCase(current.status())) {
+                    startSession(endpoint, apiKey, session);
+                    Thread.sleep(1500);
+                    continue;
+                }
+
+                if ("STARTING".equalsIgnoreCase(current.status())) {
+                    Thread.sleep(1200);
+                    // continue polling until SCAN_QR_CODE or WORKING
+                }
+
+                // Request QR code image/png with ?format=image
+                HttpRequest req = request(endpoint, "/api/" + session + "/auth/qr?format=image", apiKey)
+                        .header("Accept", "image/png, application/json, */*")
+                        .GET()
+                        .build();
+                HttpResponse<byte[]> res = http.send(req, HttpResponse.BodyHandlers.ofByteArray());
+
+                if (res.statusCode() >= 200 && res.statusCode() < 300) {
+                    String contentType = res.headers().firstValue("Content-Type").orElse("");
+                    if (contentType.contains("image") || (res.body() != null && res.body().length > 100)) {
+                        String base64 = "data:image/png;base64," + Base64.getEncoder().encodeToString(res.body());
+                        return new WahaDtos.QrResponse(session, base64, "SCAN_QR_CODE", "Please scan this QR code with WhatsApp on your phone.");
+                    } else {
+                        String text = new String(res.body(), java.nio.charset.StandardCharsets.UTF_8);
+                        try {
+                            JsonNode node = json.readTree(text);
+                            if (node.has("data")) {
+                                String data = node.get("data").asText();
+                                if (!data.startsWith("data:")) data = "data:image/png;base64," + data;
+                                return new WahaDtos.QrResponse(session, data, "SCAN_QR_CODE", "Please scan this QR code with WhatsApp.");
+                            } else if (node.has("raw") || node.has("qr")) {
+                                return new WahaDtos.QrResponse(session, node.path("raw").asText(node.path("qr").asText()), "RAW_QR", "Scan QR string.");
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                } else if (res.statusCode() == 422) {
+                    // Session might still be transitioning from STARTING to SCAN_QR_CODE
+                    Thread.sleep(1200);
+                    continue;
+                } else if (res.statusCode() == 404 || res.statusCode() == 400) {
+                    return new WahaDtos.QrResponse(session, null, "ALREADY_CONNECTED", "Session is already connected or QR code is not pending.");
+                }
             }
         } catch (Exception e) {
             String norm = normalizeBaseUrl(endpoint);
@@ -227,7 +254,7 @@ public class WahaApiClient {
             log.info("WAHA QR notice for {}: {}", session, e.getMessage());
             return new WahaDtos.QrResponse(session, null, "OFFLINE", "WhatsApp engine (WAHA) is not running on the server. Please ensure the server container is started.");
         }
-        return new WahaDtos.QrResponse(session, null, "UNAVAILABLE", "QR code is currently unavailable. Please check WAHA logs.");
+        return new WahaDtos.QrResponse(session, null, "STARTING", "WhatsApp Web is starting up. Please wait 5 seconds and click 'Scan QR Code' again.");
     }
 
     public WahaDtos.SendResponse sendText(String endpoint, String apiKey, String sessionName, String chatId, String text) {

@@ -983,47 +983,43 @@ public class SettingsController implements ScreenLifecycle {
             org.example.service.LookupService service = new org.example.service.LookupService();
             List<org.example.model.Lookup> lookups = service.getByCategoryCode("WHATSAPP_SENDER");
             if (lookups == null || lookups.isEmpty()) {
-                lookups = service.getByCategoryCode("WHATSAPP_SENDERS");
+                lookups = service.getByType("WhatsApp");
             }
             if (lookups == null || lookups.isEmpty()) {
                 lookups = service.getByType("WHATSAPP_SENDER");
-            }
-            if (lookups == null || lookups.isEmpty()) {
-                lookups = service.getByType("WhatsApp Senders");
             }
             if (lookups != null) {
                 for (var l : lookups) {
                     if (l.isActive() && l.getLookupValue() != null && !l.getLookupValue().isBlank()) {
                         String code = l.getLookupCode() == null ? "" : l.getLookupCode().trim();
-                        String val = l.getLookupValue().trim();
-                        String label = code.isBlank() ? val : code + " — " + val;
+                        String val = normalizeTenDigitPhone(l.getLookupValue().trim());
+                        String label = code.isBlank() ? val : code + " - " + val;
                         if (!items.contains(label)) items.add(label);
                     }
                 }
             }
-            // Cross-populate from configured WhatsApp channels
-            try {
-                var api = new org.example.api.whatsapp.BusinessWhatsappApiClient();
-                var channels = api.listChannels();
-                if (channels != null) {
-                    for (var ch : channels) {
-                        if (ch.phoneNumber() != null && !ch.phoneNumber().isBlank()) {
-                            String chLabel = ch.displayName() + " — " + ch.phoneNumber();
-                            boolean exists = items.stream().anyMatch(it -> it.contains(ch.phoneNumber()));
-                            if (!exists) items.add(chLabel);
-                        }
-                    }
-                }
-            } catch (Exception ignored) {}
         } catch (Exception ignored) {}
         cmbActiveWhatsappSender.setItems(FXCollections.observableArrayList(items));
         String saved = ConfigManager.get("whatsapp.active_sender_number", "");
         if (!saved.isBlank()) {
-            String match = items.stream().filter(it -> it.contains(saved)).findFirst().orElse(saved);
+            String normSaved = normalizeTenDigitPhone(saved);
+            String match = items.stream().filter(it -> it.contains(normSaved)).findFirst().orElse(normSaved);
             cmbActiveWhatsappSender.setValue(match);
         } else if (!items.isEmpty()) {
             cmbActiveWhatsappSender.getSelectionModel().selectFirst();
         }
+    }
+
+    private String normalizeTenDigitPhone(String raw) {
+        if (raw == null) return "";
+        String digits = raw.replaceAll("[^0-9]", "");
+        if (digits.length() == 12 && digits.startsWith("91")) {
+            return digits.substring(2);
+        }
+        if (digits.length() == 11 && digits.startsWith("0")) {
+            return digits.substring(1);
+        }
+        return digits;
     }
     private LocalDate parseDate(String value) { return SettingsFieldSupport.parseDate(value); }
 
@@ -2953,42 +2949,97 @@ private record AssetPreviewRequest(
         Dialog<ButtonType> dialog = new OwnedDialog<>();
         dialog.setTitle("WhatsApp Business Integration (WAHA) — Guide");
         dialog.setHeaderText("How WhatsApp Automated Document Dispatch Works");
-        VBox box = new VBox(14);
-        box.setPrefWidth(720);
-        box.getStyleClass().add("settings-guidance-box");
 
-        Label intro = new Label("The Jasvi ERP WhatsApp engine connects your ERP to WhatsApp Web using the open-source WAHA Docker service, enabling automated document delivery directly to customers.");
-        intro.setWrapText(true);
-        intro.getStyleClass().add("settings-help-text");
+        VBox root = new VBox(12);
+        root.setPrefWidth(720);
+        root.getStyleClass().add("settings-guidance-box");
 
-        GridPane grid = new GridPane();
-        grid.setHgap(16);
-        grid.setVgap(12);
-        grid.getStyleClass().add("settings-information-card");
+        // Header Card
+        VBox headerCard = new VBox(4);
+        headerCard.getStyleClass().addAll("approved-card", "p-4");
+        Label lblHeader = new Label("Secure, Automated WhatsApp Delivery for Invoices & Receipts");
+        lblHeader.getStyleClass().addAll("section-title", "approved-emerald-text");
+        Label lblIntro = new Label("Jasvi ERP connects directly to WhatsApp Web through the open-source WAHA Docker service, enabling automated delivery of invoices and receipts directly to customer mobile phones.");
+        lblIntro.setWrapText(true);
+        lblIntro.getStyleClass().add("settings-help-text");
+        headerCard.getChildren().addAll(lblHeader, lblIntro);
 
-        int row = 0;
-        grid.add(new Label("1. WAHA Docker Engine:"), 0, row);
-        Label step1 = new Label("Runs locally or on your Cloud Server (144.24.109.1 / 130.210.35.1) on port 3000.\nLaunch command: docker run -d --name waha -p 3000:3000 devlikeapro/waha");
-        step1.setWrapText(true);
-        grid.add(step1, 1, row++);
+        // Step 1: WAHA Docker Engine
+        VBox card1 = new VBox(6);
+        card1.getStyleClass().addAll("approved-card", "p-3");
+        HBox badge1 = new HBox(8);
+        badge1.setAlignment(Pos.CENTER_LEFT);
+        Label step1Badge = new Label("STEP 1");
+        step1Badge.getStyleClass().addAll("approved-badge", "badge-indigo");
+        Label step1Title = new Label("WAHA Docker Engine (Port 3000)");
+        step1Title.getStyleClass().add("approved-title");
+        badge1.getChildren().addAll(step1Badge, step1Title);
 
-        grid.add(new Label("2. Pair Your WhatsApp Number:"), 0, row);
-        Label step2 = new Label("Click 'Manage Channels & Scan QR' -> 'Scan QR Code to Pair'. Open WhatsApp on your phone, go to Linked Devices, and scan the QR code.");
-        step2.setWrapText(true);
-        grid.add(step2, 1, row++);
+        Label step1Desc = new Label("Runs locally or on your Cloud Server on port 3000. Verified endpoints:");
+        step1Desc.getStyleClass().add("muted-label");
 
-        grid.add(new Label("3. Active Sender Selection:"), 0, row);
-        Label step3 = new Label("Choose your primary paired sender number in the dropdown. Automated invoices and receipts will be sent from this number.");
-        step3.setWrapText(true);
-        grid.add(step3, 1, row++);
+        HBox endpointsBox = new HBox(12);
+        endpointsBox.setAlignment(Pos.CENTER_LEFT);
+        Label uatPill = new Label("UAT Server: http://144.24.109.1:3000");
+        uatPill.getStyleClass().addAll("code-pill", "approved-emerald-text");
+        Label prodPill = new Label("PROD Server: http://130.210.35.1:3000");
+        prodPill.getStyleClass().addAll("code-pill", "approved-indigo-text");
+        endpointsBox.getChildren().addAll(uatPill, prodPill);
 
-        grid.add(new Label("4. Signature & Attachment Flags:"), 0, row);
-        Label step4 = new Label("Use the iOS switches in Email Settings to choose whether company stamp/signature image is attached on WhatsApp dispatch.");
-        step4.setWrapText(true);
-        grid.add(step4, 1, row++);
+        Label step1Cmd = new Label("Docker launch command: docker run -d --name waha -p 3000:3000 --restart always devlikeapro/waha");
+        step1Cmd.getStyleClass().addAll("code-pill", "text-xs");
+        card1.getChildren().addAll(badge1, step1Desc, endpointsBox, step1Cmd);
 
-        box.getChildren().addAll(intro, grid);
-        dialog.getDialogPane().setContent(box);
+        // Step 2: Pair Your WhatsApp Number
+        VBox card2 = new VBox(6);
+        card2.getStyleClass().addAll("approved-card", "p-3");
+        HBox badge2 = new HBox(8);
+        badge2.setAlignment(Pos.CENTER_LEFT);
+        Label step2Badge = new Label("STEP 2");
+        step2Badge.getStyleClass().addAll("approved-badge", "badge-emerald");
+        Label step2Title = new Label("Pair Your WhatsApp Number");
+        step2Title.getStyleClass().add("approved-title");
+        badge2.getChildren().addAll(step2Badge, step2Title);
+
+        Label step2Desc = new Label("Click 'Manage Channels & Scan QR' -> 'Scan QR Code to Pair'. Open WhatsApp on your phone, go to Linked Devices, and scan the QR code to pair your device.");
+        step2Desc.setWrapText(true);
+        step2Desc.getStyleClass().add("settings-help-text");
+        card2.getChildren().addAll(badge2, step2Desc);
+
+        // Step 3: Canonical WhatsApp Sender & 10-Digit Mobile Format
+        VBox card3 = new VBox(6);
+        card3.getStyleClass().addAll("approved-card", "p-3");
+        HBox badge3 = new HBox(8);
+        badge3.setAlignment(Pos.CENTER_LEFT);
+        Label step3Badge = new Label("STEP 3");
+        step3Badge.getStyleClass().addAll("approved-badge", "badge-blue");
+        Label step3Title = new Label("Active Sender Selection (10-Digit Normalization)");
+        step3Title.getStyleClass().add("approved-title");
+        badge3.getChildren().addAll(step3Badge, step3Title);
+
+        Label step3Desc = new Label("Choose your primary paired sender number in the dropdown. Dropdown is populated strictly from Master Data -> 'WhatsApp'. Users only need to enter 10 digits (e.g. 8197349439); the ERP manages country codes and formatting automatically.");
+        step3Desc.setWrapText(true);
+        step3Desc.getStyleClass().add("settings-help-text");
+        card3.getChildren().addAll(badge3, step3Desc);
+
+        // Step 4: Signature & Attachment Flags
+        VBox card4 = new VBox(6);
+        card4.getStyleClass().addAll("approved-card", "p-3");
+        HBox badge4 = new HBox(8);
+        badge4.setAlignment(Pos.CENTER_LEFT);
+        Label step4Badge = new Label("STEP 4");
+        step4Badge.getStyleClass().addAll("approved-badge", "badge-purple");
+        Label step4Title = new Label("Signature & Official Stamp Attachment");
+        step4Title.getStyleClass().add("approved-title");
+        badge4.getChildren().addAll(step4Badge, step4Title);
+
+        Label step4Desc = new Label("Use the toggle switches in Email Settings to choose whether company stamp/signature image is attached on WhatsApp dispatch.");
+        step4Desc.setWrapText(true);
+        step4Desc.getStyleClass().add("settings-help-text");
+        card4.getChildren().addAll(badge4, step4Desc);
+
+        root.getChildren().addAll(headerCard, card1, card2, card3, card4);
+        dialog.getDialogPane().setContent(root);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.showAndWait();
     }
