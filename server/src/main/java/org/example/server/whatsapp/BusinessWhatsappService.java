@@ -316,33 +316,40 @@ public class BusinessWhatsappService {
             response = new WahaDtos.SendResponse(false, "Failed to send: " + e.getMessage(), "", channel.getChannelCode(), req.recipientPhone());
         }
 
-        // Post-dispatch status handling and communication logging
+        // Post-dispatch status handling and communication logging with active transaction
+        recordDocumentCommunicationAudit(req.documentType(), req.documentId(), req.recipientPhone(),
+                req.documentNumber(), response.success(), response.success() ? null : response.message());
+
+        return response;
+    }
+
+    @Transactional
+    public void recordDocumentCommunicationAudit(String entityType, Integer entityId, String recipientPhone,
+                                                 String docNumber, boolean success, String errorMessage) {
         try {
-            String status = response.success() ? "SENT" : "FAILED";
-            String error = response.success() ? null : response.message();
-            String entityType = req.documentType() != null ? req.documentType().toUpperCase(Locale.ROOT) : "COMMUNICATION";
-            int entityId = req.documentId() != null ? req.documentId() : 0;
+            String status = success ? "SENT" : "FAILED";
             String username = "SYSTEM";
             try { username = CurrentUser.require().username(); } catch (Exception ignored) {}
 
+            String resolvedType = entityType != null ? entityType.toUpperCase(Locale.ROOT) : "COMMUNICATION";
+            int resolvedId = entityId != null ? entityId : 0;
+
             jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
                             "VALUES (?, ?, 'WHATSAPP', ?, ?, ?, ?, ?, ?)",
-                    entityType, entityId, req.recipientPhone(),
-                    "WhatsApp: " + (req.documentNumber() != null ? req.documentNumber() : "Direct Message"),
-                    status, error, username, BusinessClock.nowUtcText());
+                    resolvedType, resolvedId, recipientPhone,
+                    "WhatsApp: " + (docNumber != null ? docNumber : "Direct Message"),
+                    status, errorMessage, username, BusinessClock.nowUtcText());
 
-            if (response.success() && req.documentId() != null && req.documentId() > 0) {
-                if ("SALE".equalsIgnoreCase(entityType) || "SALES_INVOICE".equalsIgnoreCase(entityType)) {
-                    jdbc.update("UPDATE sales_header SET whatsapp_sent = 1 WHERE id = ?", req.documentId());
-                } else if ("QUOTATION".equalsIgnoreCase(entityType)) {
-                    jdbc.update("UPDATE quotation_header SET whatsapp_sent = 1 WHERE id = ?", req.documentId());
+            if (success && resolvedId > 0) {
+                if ("SALE".equalsIgnoreCase(resolvedType) || "SALES_INVOICE".equalsIgnoreCase(resolvedType)) {
+                    jdbc.update("UPDATE sales_header SET whatsapp_sent = 1 WHERE id = ?", resolvedId);
+                } else if ("QUOTATION".equalsIgnoreCase(resolvedType)) {
+                    jdbc.update("UPDATE quotation_header SET whatsapp_sent = 1 WHERE id = ?", resolvedId);
                 }
             }
         } catch (Exception logEx) {
             log.warn("Failed to write communication audit log for WhatsApp: {}", logEx.getMessage());
         }
-
-        return response;
     }
 
     public WahaDtos.SendResponse sendText(WahaDtos.TextSendRequest req) {
@@ -358,20 +365,24 @@ public class BusinessWhatsappService {
         WahaDtos.SendResponse response = wahaClient.sendText(settings.endpoint(), settings.apiKey(),
                 channel.getSessionName(), chatId, req.message());
 
+        recordTextCommunicationAudit(req.recipientPhone(), response.success(), response.success() ? null : response.message());
+
+        return response;
+    }
+
+    @Transactional
+    public void recordTextCommunicationAudit(String recipientPhone, boolean success, String errorMessage) {
         try {
-            String status = response.success() ? "SENT" : "FAILED";
-            String error = response.success() ? null : response.message();
+            String status = success ? "SENT" : "FAILED";
             String username = "SYSTEM";
             try { username = CurrentUser.require().username(); } catch (Exception ignored) {}
 
             jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
                             "VALUES ('WHATSAPP_MESSAGE', 0, 'WHATSAPP', ?, 'Direct WhatsApp Message', ?, ?, ?, ?)",
-                    req.recipientPhone(), status, error, username, BusinessClock.nowUtcText());
+                    recipientPhone, status, errorMessage, username, BusinessClock.nowUtcText());
         } catch (Exception logEx) {
             log.warn("Failed to record text communication log: {}", logEx.getMessage());
         }
-
-        return response;
     }
 
     private WhatsappSenderChannelEntity resolveChannel(Long channelId) {

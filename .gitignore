@@ -40,3 +40,7 @@ Downloads/
 # Python cache
 __pycache__/
 *.pyc
+
+
+# Antigravity local agent internal config
+.agents/
