@@ -334,7 +334,7 @@ public class ItemMasterController implements ScreenLifecycle {
     private void selectSavedItem(String code){
         if(code==null||code.isBlank())return;
         Item match=items.stream().filter(i->code.equalsIgnoreCase(i.getItemCode())).findFirst().orElse(null);
-        if(match!=null){tableItems.getSelectionModel().select(match);tableItems.scrollTo(match);showDetails(match);}
+        if(match!=null){tableItems.getSelectionModel().select(match);tableItems.scrollTo(match);}
     }
 
     @FXML

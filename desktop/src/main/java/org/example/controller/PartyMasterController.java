@@ -349,7 +349,7 @@ public abstract class PartyMasterController implements ScreenLifecycle {
         if (match != null) {
             tableParties.getSelectionModel().select(match);
             tableParties.scrollTo(match);
-            showDetails(match);
+
         }
     }
 

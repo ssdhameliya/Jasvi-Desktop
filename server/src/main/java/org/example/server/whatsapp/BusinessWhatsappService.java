@@ -265,7 +265,6 @@ public class BusinessWhatsappService {
         return wahaClient.getQrCode(settings.endpoint(), settings.apiKey(), session);
     }
 
-    @Transactional
     public WahaDtos.SendResponse sendDocument(WahaDtos.DocumentSendRequest req) {
         if (req == null) throw new IllegalArgumentException("Request cannot be null");
         WahaDtos.WahaSettingsDto settings = getSettings();
@@ -323,7 +322,8 @@ public class BusinessWhatsappService {
             String error = response.success() ? null : response.message();
             String entityType = req.documentType() != null ? req.documentType().toUpperCase(Locale.ROOT) : "COMMUNICATION";
             int entityId = req.documentId() != null ? req.documentId() : 0;
-            String username = CurrentUser.require().username();
+            String username = "SYSTEM";
+            try { username = CurrentUser.require().username(); } catch (Exception ignored) {}
 
             jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
                             "VALUES (?, ?, 'WHATSAPP', ?, ?, ?, ?, ?, ?)",
@@ -345,7 +345,6 @@ public class BusinessWhatsappService {
         return response;
     }
 
-    @Transactional
     public WahaDtos.SendResponse sendText(WahaDtos.TextSendRequest req) {
         if (req == null) throw new IllegalArgumentException("Request cannot be null");
         WahaDtos.WahaSettingsDto settings = getSettings();
@@ -362,7 +361,8 @@ public class BusinessWhatsappService {
         try {
             String status = response.success() ? "SENT" : "FAILED";
             String error = response.success() ? null : response.message();
-            String username = CurrentUser.require().username();
+            String username = "SYSTEM";
+            try { username = CurrentUser.require().username(); } catch (Exception ignored) {}
 
             jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
                             "VALUES ('WHATSAPP_MESSAGE', 0, 'WHATSAPP', ?, 'Direct WhatsApp Message', ?, ?, ?, ?)",

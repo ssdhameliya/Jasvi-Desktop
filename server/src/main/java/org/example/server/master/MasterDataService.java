@@ -196,6 +196,19 @@ public class MasterDataService {
             new AuditService.Change("Active", (e.getActive()==null||e.getActive()!=0)?"Yes":"No", d.active()?"Yes":"No"));
         copy(d, e, false);
         e = parties.saveAndFlush(e);
+        if ("CUSTOMER".equalsIgnoreCase(e.getPartyType())) {
+            entityManager.createNativeQuery("UPDATE sales_header SET customer_phone_snapshot = :phone, customer_email_snapshot = :email WHERE customer_id = :id")
+                    .setParameter("phone", e.getPhone())
+                    .setParameter("email", e.getEmail())
+                    .setParameter("id", e.getId())
+                    .executeUpdate();
+        } else if ("SUPPLIER".equalsIgnoreCase(e.getPartyType())) {
+            entityManager.createNativeQuery("UPDATE purchase_header SET supplier_phone_snapshot = :phone, supplier_email_snapshot = :email WHERE supplier_id = :id")
+                    .setParameter("phone", e.getPhone())
+                    .setParameter("email", e.getEmail())
+                    .setParameter("id", e.getId())
+                    .executeUpdate();
+        }
         audit.logChanges("PARTY", e.getId(), "UPDATED", e.getPartyType() + " " + e.getPartyCode(), changes);
         return partyDto(e);
     }

@@ -373,39 +373,55 @@ private void configureDetailsCloseButton(){
  private Purchase requirePurchase(Purchase row){Purchase full=service.getByInvoice(row.getInvoiceNo());if(full==null)throw new IllegalStateException("Purchase invoice "+row.getInvoiceNo()+" was not found. Refresh the register and try again.");return full;}
  private void logCommunication(int id,String recipient,String subject,String status,String error){try{support.communication(new SupportApiClient.CommunicationRequest("PURCHASE",id,"EMAIL",recipient,subject,status,error,user()));}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }}
  private String rootMessage(Throwable failure){Throwable root=failure;while(root.getCause()!=null)root=root.getCause();String message=root.getMessage();return message==null||message.isBlank()?root.getClass().getSimpleName():message;}
- private void whatsapp(Purchase p) {
+  private void whatsapp(Purchase p) {
+    if (p == null) return;
     if (isApprovalLocked(p)) {
       info("Approve this Purchase before sharing it externally.");
       return;
     }
-    LiveOperationDialog.run(tablePurchase, "Sending WhatsApp Purchase Order", "whatsapp", "Loading purchase invoice...", reporter -> {
-      reporter.stage(1, 3, "Loading purchase details...");
-      Purchase full = service.getByInvoice(p.getInvoiceNo());
-      String phone = s(full.getSupplier() != null ? full.getSupplier().getPhone() : "").replaceAll("\\D", "");
-      if (phone.length() == 10) phone = "91" + phone;
-      if (phone.isBlank()) throw new IllegalStateException("Supplier mobile number is missing. Update it in Supplier Master.");
-      reporter.stage(2, 3, "Checking WhatsApp Business Engine...");
+    UiTaskExecutor.submitAction("purchase-prepare-whatsapp-" + p.getId(), () -> {
+      Purchase full = requirePurchase(p);
+      Path pdf = ManagedInvoicePdfService.purchase(full);
       String message = PaymentMessageService.purchaseMessage(full);
-      org.example.api.whatsapp.BusinessWhatsappApiClient wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
-      var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
-          "PURCHASE",
-          full.getInvoiceNo(),
-          full.getId(),
-          null,
-          phone,
-          message,
-          full.getRowVersion()
-      ));
-      if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
-      reporter.stage(3, 3, "Dispatched via WhatsApp channel " + sendResp.channelCode());
-      support.communication(new SupportApiClient.CommunicationRequest("PURCHASE", full.getId(), "WHATSAPP", phone, "Purchase Invoice " + full.getInvoiceNo(), "SENT", null, user()));
-    }, () -> {
-      refresh();
-      info("Purchase Invoice " + p.getInvoiceNo() + " sent successfully via WhatsApp!");
-    }, failure -> {
-      support.communication(new SupportApiClient.CommunicationRequest("PURCHASE", p.getId(), "WHATSAPP", "", "Purchase Invoice " + p.getInvoiceNo(), "FAILED", "Error sending WhatsApp: " + rootMessage(failure), user()));
-      error(failure);
-    });
+      String phone = s(full.getSupplier() != null ? full.getSupplier().getPhone() : "").replaceAll("\\D", "");
+      return new WhatsappTransmissionDialog.WhatsappDraft(
+              "Transmit Purchase Order via WhatsApp",
+              "Direct delivery via WhatsApp Business Engine to supplier registered mobile",
+              "Purchase Order",
+              full.getInvoiceNo(),
+              phone,
+              message,
+              pdf,
+              "Connected: Primary Company WhatsApp"
+      );
+    }, draft -> {
+      Optional<WhatsappTransmissionDialog.WhatsappTransmissionResult> opt = WhatsappTransmissionDialog.show(tablePurchase, draft);
+      if (opt.isEmpty()) return;
+      WhatsappTransmissionDialog.WhatsappTransmissionResult result = opt.get();
+      LiveOperationDialog.run(tablePurchase, "Sending WhatsApp Purchase Order", "whatsapp", "Connecting to WhatsApp Business Engine...", reporter -> {
+        reporter.stage(1, 3, "Validating recipient " + result.recipientPhone() + "...");
+        org.example.api.whatsapp.BusinessWhatsappApiClient wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+        reporter.stage(2, 3, "Transmitting purchase order to WhatsApp...");
+        var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+            "PURCHASE",
+            p.getInvoiceNo(),
+            p.getId(),
+            null,
+            result.recipientPhone(),
+            result.message(),
+            p.getRowVersion()
+        ));
+        if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
+        reporter.stage(3, 3, "Dispatched via WhatsApp channel " + sendResp.channelCode());
+        support.communication(new SupportApiClient.CommunicationRequest("PURCHASE", p.getId(), "WHATSAPP", result.recipientPhone(), "Purchase Invoice " + p.getInvoiceNo(), "SENT", null, user()));
+      }, () -> {
+        refresh();
+        info("Purchase Invoice " + p.getInvoiceNo() + " sent successfully via WhatsApp!");
+      }, failure -> {
+        support.communication(new SupportApiClient.CommunicationRequest("PURCHASE", p.getId(), "WHATSAPP", result.recipientPhone(), "Purchase Invoice " + p.getInvoiceNo(), "FAILED", "Error sending WhatsApp: " + rootMessage(failure), user()));
+        error(failure);
+      });
+    }, failure -> error(new IllegalStateException("Failed to prepare WhatsApp draft:\n\n" + rootMessage(failure), failure)));
   }
   private void delete(Purchase p){if(isFinanciallyLocked(p)){info("Paid, partially paid, or settled purchases cannot be deleted. Create a purchase return instead.");return;}String status=s(p.getDocumentStatus()).trim().toUpperCase(java.util.Locale.ROOT);if("DELETED".equals(status)){info("This purchase is already marked as deleted.");return;}String prompt="Delete "+p.getInvoiceNo()+"?\n\nThe document will disappear from the normal Purchase Register, but its backend audit record will be retained as DELETED.\nAny inventory movement already posted by this purchase will be reversed safely.";if(new OwnedAlert(Alert.AlertType.CONFIRMATION,prompt,ButtonType.YES,ButtonType.NO).showAndWait().orElse(ButtonType.NO)!=ButtonType.YES)return;try{service.delete(p.getInvoiceNo());refresh();closeDetails();info(p.getInvoiceNo()+" deleted from the register. Backend audit record retained.");}catch(Exception e){error(e);}}
  private void duplicate(Purchase p){try{FXMLLoader l=new FXMLLoader(org.example.util.ResourceLocator.require("/fxml/pages/Purchase.fxml"));Parent root=l.load();org.example.util.ProfessionalUiEnhancer.enhance(root);PurchaseController c=l.getController();c.loadPurchase(service.getByInvoice(p.getInvoiceNo()));c.prepareDuplicate();NavigationManager.getInstance().showPreparedPage("/fxml/pages/Purchase.fxml",root,c);}catch(Exception e){error(e);}}

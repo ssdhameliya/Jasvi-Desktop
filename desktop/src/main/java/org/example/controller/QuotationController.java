@@ -181,22 +181,45 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
  private String attachmentDisplayName(String value){if(value==null||value.isBlank())return "No document attached";String normalized=value.replace('\\','/');int i=normalized.lastIndexOf('/');return i>=0&&i+1<normalized.length()?normalized.substring(i+1):normalized;}
 
  private void sendWhatsapp(QuoteRow q){
-  String phone=q.phone.replaceAll("\\D","");if(phone.length()==10)phone="91"+phone;
-  if(phone.isBlank()){error(new IllegalStateException("Customer mobile number is missing"));return;}
-  String finalPhone=phone;
-  LiveOperationDialog.run(table,"Preparing WhatsApp Notification","whatsapp","Loading quotation details...",reporter->{
-   reporter.stage(1,3,"Generating branded quotation PDF...");
+  if(q==null)return;
+  UiTaskExecutor.submitAction("quotation-prepare-whatsapp-"+q.id,()->{
    Path pdf=quotePdf(q);
-   reporter.stage(2,3,"Formatting WhatsApp message...");
-   LocalDate qDate=null; try{if(q.date!=null&&!q.date.get().isBlank())qDate=LocalDate.parse(q.date.get());}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
+   LocalDate qDate=null;
+   try{if(q.date!=null&&!q.date.get().isBlank())qDate=LocalDate.parse(q.date.get());}catch(Exception ignored){}
    String message=MessageTemplateService.formatQuotationWhatsapp(q.id,q.no.get(),q.customer.get(),qDate,q.amount.get());
-    reporter.stage(3,3,"Sending quotation via WhatsApp engine...");
-    var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient(); var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest("QUOTATION", q.no.get(), q.id, null, finalPhone, message, q.rowVersion)); if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
-   quotationApi.markSent(q.id,"WHATSAPP",q.rowVersion);
-   comm(q,"WHATSAPP",finalPhone,"SENT",null);
-  },()->{
-   refresh();
-    success("Quotation " + q.no.get() + " sent successfully via WhatsApp!");
+   String target=q.phone==null?"":q.phone.replaceAll("\\D","");
+   return new WhatsappTransmissionDialog.WhatsappDraft(
+           "Transmit Quotation via WhatsApp",
+           "Direct delivery via WhatsApp Business Engine to customer registered mobile",
+           "Quotation",
+           q.no.get(),
+           target,
+           message,
+           pdf,
+           "Connected: Primary Company WhatsApp"
+   );
+  },draft->{
+   Optional<WhatsappTransmissionDialog.WhatsappTransmissionResult> opt=WhatsappTransmissionDialog.show(table,draft);
+   if(opt.isEmpty())return;
+   WhatsappTransmissionDialog.WhatsappTransmissionResult result=opt.get();
+   LiveOperationDialog.run(table,"Sending WhatsApp Quotation","whatsapp","Connecting to WhatsApp Business Engine...",reporter->{
+    reporter.stage(1,3,"Validating recipient "+result.recipientPhone()+"...");
+    var wahaApi=new org.example.api.whatsapp.BusinessWhatsappApiClient();
+    reporter.stage(2,3,"Transmitting quotation via WhatsApp...");
+    var sendResp=wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+            "QUOTATION",q.no.get(),q.id,null,result.recipientPhone(),result.message(),q.rowVersion
+    ));
+    if(!sendResp.success())throw new IllegalStateException(sendResp.message());
+    quotationApi.markSent(q.id,"WHATSAPP",q.rowVersion);
+    comm(q,"WHATSAPP",result.recipientPhone(),"SENT",null);
+    reporter.stage(3,3,"Dispatched via WhatsApp channel "+sendResp.channelCode());
+   },()->{
+    refresh();
+    success("Quotation "+q.no.get()+" sent successfully via WhatsApp!");
+   },failure->{
+    comm(q,"WHATSAPP",result.recipientPhone(),"FAILED",failure.getMessage());
+    error(asException(failure));
+   });
   },failure->error(asException(failure)));
  }
  private void followUp(QuoteRow q){if(q==null)return;if(q.converted.get()!=null&&!q.converted.get().isBlank()){info("Converted quotations are read-only. Duplicate the quotation if a new follow-up/revision is required.");return;}DatePicker date=DatePickerFormatter.attach(new DatePicker(q.followDate==null?BusinessClock.today().plusDays(1):q.followDate));Dialog<ButtonType>d=new OwnedDialog<>();d.setTitle("Create Follow Up");TextArea notes=new TextArea("Follow up for "+q.no.get());VBox box=new VBox(8,new Label("Follow-up date"),date,new Label("Notes"),notes);d.getDialogPane().setContent(box);d.getDialogPane().getButtonTypes().addAll(ButtonType.OK,ButtonType.CANCEL);d.showAndWait().filter(b->b==ButtonType.OK).ifPresent(b->{String due=date.getValue().toString(),text=notes.getText();UiTaskExecutor.submitAction("quotation-followup-"+q.id,()->{quotationApi.followUp(q.id,due,text,q.rowVersion);return true;},ignored->{org.example.util.ToastManager.success(table,"Follow-up saved",q.no.get()+" follow-up was scheduled successfully.");refresh();},failure->error(asException(failure)));});}

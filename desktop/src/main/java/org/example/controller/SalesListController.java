@@ -725,26 +725,41 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
     }
     private void sendWhatsapp(Sales sale){
         if(isApprovalLocked(sale)){warning("Admin approval is required before sharing this Sale document.");return;}
-        LiveOperationDialog.run(tableSales, "Sending WhatsApp Invoice", "whatsapp", "Loading sales invoice...", reporter -> {
-            reporter.stage(1, 3, "Loading invoice details...");
+        if(sale == null) return;
+        UiTaskExecutor.submitAction("sales-prepare-whatsapp-" + sale.getId(), () -> {
             Sales full = service.getByInvoice(sale.getInvoiceNo());
-            String phone = digits(full.getCustomer().getPhone());
-            if (phone.length() == 10) phone = "91" + phone;
-            if (phone.isBlank()) throw new IllegalStateException("Customer mobile number is not available. Update it in Customer Master.");
-            reporter.stage(2, 3, "Checking WhatsApp Business Engine...");
+            if (full == null) throw new IllegalStateException("Sales invoice " + sale.getInvoiceNo() + " was not found. Refresh the register and try again.");
+            Path pdf = ManagedInvoicePdfService.sales(full);
             String message = MessageTemplateService.formatSalesWhatsapp(full);
-            var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
-            var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
-                "SALE", full.getInvoiceNo(), full.getId(), null, phone, message, full.getRowVersion()
-            ));
-            if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
-            reporter.stage(3, 3, "Dispatched via WhatsApp channel " + sendResp.channelCode());
-            support.markWhatsapp("SALE", full.getId(), full.getRowVersion());
-            communication("SALE", full.getId(), "WHATSAPP", phone, "Sales Invoice " + full.getInvoiceNo(), "SENT", null);
-        }, () -> {
-            refresh();
-            info("Sales Invoice " + sale.getInvoiceNo() + " was successfully sent via WhatsApp!");
-        }, this::error);
+            String target = full.getCustomer() == null ? "" : safe(full.getCustomer().getPhone()).trim();
+            return new WhatsappTransmissionDialog.WhatsappDraft(
+                    "Transmit Tax Invoice via WhatsApp",
+                    "Direct delivery via WhatsApp Business Engine to customer registered mobile",
+                    "Tax Invoice",
+                    full.getInvoiceNo(),
+                    target,
+                    message,
+                    pdf,
+                    "Connected: Primary Company WhatsApp"
+            );
+        }, draft -> {
+            Optional<WhatsappTransmissionDialog.WhatsappTransmissionResult> opt = WhatsappTransmissionDialog.show(tableSales, draft);
+            if (opt.isEmpty()) return;
+            WhatsappTransmissionDialog.WhatsappTransmissionResult result = opt.get();
+            LiveOperationDialog.run(tableSales, "Sending WhatsApp Invoice", "whatsapp", "Connecting to WhatsApp Business Engine...", reporter -> {
+                reporter.stage(1, 3, "Validating recipient " + result.recipientPhone() + "...");
+                var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+                reporter.stage(2, 3, "Transmitting tax invoice to WhatsApp...");
+                var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+                    "SALE", sale.getInvoiceNo(), sale.getId(), null, result.recipientPhone(), result.message(), sale.getRowVersion()
+                ));
+                if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
+                reporter.stage(3, 3, "Dispatched via WhatsApp channel " + sendResp.channelCode());
+            }, () -> {
+                refresh();
+                info("Sales Invoice " + sale.getInvoiceNo() + " was successfully sent via WhatsApp!");
+            }, this::error);
+        }, failure -> error(new IllegalStateException("Failed to prepare WhatsApp draft:\n\n" + rootMessage(failure), failure)));
     }
     private void recordPayment(Sales sale){
         if(sale.getBalanceAmount()<=0){info("This invoice is already fully paid.");return;}

@@ -189,7 +189,7 @@ public class UserAccessController implements ScreenLifecycle {
             var saved=controller.getSavedResult();refresh();if(saved!=null)selectSavedUser(saved.id());}
         catch(Exception e){error("User form could not be opened",e);}
     }
-    private void selectSavedUser(int id){UserRow row=users.stream().filter(x->x.id==id).findFirst().orElse(null);if(row!=null){table.getSelectionModel().select(row);table.scrollTo(row);showDetails(row);}}
+    private void selectSavedUser(int id){UserRow row=users.stream().filter(x->x.id==id).findFirst().orElse(null);if(row!=null){table.getSelectionModel().select(row);table.scrollTo(row);}}
     @FXML private void resetSelected(){resetPassword(table.getSelectionModel().getSelectedItem());}
     private void resetPassword(UserRow row){
         if(row==null){warning("Select a user first.");return;}

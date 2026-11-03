@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="org.example.controller.WhatsappTransmissionDialog"
+            prefWidth="860" prefHeight="740" minWidth="760" minHeight="580"
+            styleClass="entity-dialog,premium-entity-dialog,approved-ui">
+    <center>
+        <ScrollPane fitToWidth="true" fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" styleClass="edge-to-edge,email-transmission-scroll">
+            <VBox spacing="14" styleClass="premium-dialog-content">
+                <padding>
+                    <Insets top="16" right="20" bottom="16" left="20"/>
+                </padding>
+
+                <!-- Sender Channel Banner -->
+                <HBox alignment="CENTER_LEFT" spacing="10" styleClass="email-transmission-sig-box">
+                    <StackPane fx:id="senderIconHolder" minWidth="26" minHeight="26"/>
+                    <VBox spacing="2" HBox.hgrow="ALWAYS">
+                        <Label fx:id="lblSenderTitle" text="WhatsApp Business Channel" styleClass="email-transmission-sig-title"/>
+                        <Label fx:id="lblSenderInfo" text="Connected: Primary Company WhatsApp" styleClass="email-transmission-sig-info"/>
+                    </VBox>
+                    <Label fx:id="lblChannelStatusBadge" text="ONLINE" styleClass="approved-emerald-badge"/>
+                </HBox>
+
+                <!-- Recipient Mobile Number -->
+                <VBox spacing="6">
+                    <HBox alignment="CENTER_LEFT" spacing="6">
+                        <Label text="Recipient WhatsApp Number *" styleClass="field-label,settings-form-label,email-transmission-field-bold"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Enter 10-digit number or international with country code (+91)" styleClass="page-subtitle,email-transmission-hint"/>
+                    </HBox>
+                    <TextField fx:id="txtRecipientPhone" promptText="e.g. 9876543210 or +91 9876543210" styleClass="approved-input"/>
+                    <Label fx:id="errRecipientPhone" text="Valid mobile number is required (at least 10 digits)" visible="false" managed="false" styleClass="validation-message,email-transmission-error"/>
+                </VBox>
+
+                <!-- WhatsApp Message Text -->
+                <VBox spacing="6" VBox.vgrow="ALWAYS">
+                    <HBox alignment="CENTER_LEFT" spacing="6">
+                        <Label text="WhatsApp Message Body" styleClass="field-label,settings-form-label,email-transmission-field-bold"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Message text delivered alongside the PDF invoice" styleClass="page-subtitle,email-transmission-hint"/>
+                    </HBox>
+                    <TextArea fx:id="txtMessage" prefRowCount="8" minHeight="180" prefHeight="220" wrapText="true" styleClass="email-transmission-body-area" VBox.vgrow="ALWAYS"/>
+                </VBox>
+
+                <!-- Document Attachment Box (Preview PDF capability) -->
+                <HBox fx:id="boxAttachment" alignment="CENTER_LEFT" spacing="12" styleClass="email-transmission-attach-box">
+                    <StackPane fx:id="attachIconHolder" minWidth="26" minHeight="26"/>
+                    <VBox spacing="2" HBox.hgrow="ALWAYS">
+                        <Label fx:id="lblAttachmentName" text="Document.pdf" styleClass="email-transmission-attach-name"/>
+                        <Label fx:id="lblAttachmentDesc" text="Official document PDF attached automatically" styleClass="email-transmission-attach-desc"/>
+                    </VBox>
+                    <Button fx:id="btnPreviewPdf" text="Preview PDF" onAction="#previewPdf" styleClass="email-transmission-preview-btn"/>
+                    <Label text="ATTACHED" styleClass="email-transmission-attached-badge"/>
+                </HBox>
+            </VBox>
+        </ScrollPane>
+    </center>
+    <bottom>
+        <HBox spacing="12" alignment="CENTER_RIGHT" styleClass="entity-dialog-actions,premium-dialog-actions,email-transmission-actions">
+            <Button fx:id="btnCancel" text="Cancel" onAction="#cancel" styleClass="secondary-button" cancelButton="true" prefHeight="36"/>
+            <Button fx:id="btnSend" text="Send via WhatsApp" onAction="#send" styleClass="primary-button,approved-primary-button,email-transmission-send-btn" defaultButton="true" prefHeight="36"/>
+        </HBox>
+    </bottom>
+</BorderPane>
