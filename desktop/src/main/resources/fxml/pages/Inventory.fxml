@@ -3,7 +3,7 @@
     <padding><Insets top="14" right="14" bottom="14" left="14"/></padding>
     <HBox alignment="CENTER_LEFT" styleClass="entity-page-header,approved-section-header,erp-page-identity-header">
         <StackPane fx:id="inventoryPageIcon" styleClass="erp-page-header-icon"/><VBox spacing="3"><Label text="Stock Register" styleClass="screen-title"/><Label text="Track inventory levels, reservations, valuation and stock movement" styleClass="screen-subtitle"/></VBox>
-        <Region HBox.hgrow="ALWAYS"/><Button text="Stock Adjustment" onAction="#adjustStock" styleClass="primary-action,entity-create-button"/>
+        <Region HBox.hgrow="ALWAYS"/><Button text="Stock Adjustment" onAction="#adjustStock" styleClass="approved-button,approved-primary-button,primary-action,entity-create-button"/>
     </HBox>
 
     <HBox spacing="12" styleClass="standard-kpi-row,inventory-metrics,erp-kpi-section">

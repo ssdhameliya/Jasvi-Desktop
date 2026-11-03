@@ -51,7 +51,7 @@ public class MasterDataService {
         ensureCategory("PAYMENT_MODE","PAYMENT MODE","Payment methods used by Bank, Expense and Invoice Payment",130);
         ensureCategory("EXPENSE_CATEGORY","EXPENSE CATEGORY","Expense classifications used by Expense Entry",140);
         ensureCategory("BANK_ACCOUNT","BANK ACCOUNT","Bank account master: lookup value = account number, description = bank name",150);
-        ensureCategory("WHATSAPP_SENDER","WhatsApp","WhatsApp sender numbers used for automated customer dispatch and system storage risk alerts",150);
+        ensureCategory("WHATSAPP_SENDER","WhatsApp Senders","WhatsApp sender numbers used for automated customer dispatch and system storage risk alerts",150);
         ensureCategory("ACCOUNT_TYPE","ACCOUNT TYPE","Bank account types used by Settings, Excel Studio and PDF Studio",155);
         ensureCategory("REFERENCE_FORMAT","REFERENCE FORMAT","Auto-generated reference patterns. YYYY / YY represent year; XX... defines minimum zero-padding and expands automatically as the sequence grows.",160);
         ensureCategory("REFERENCE_SCHEME","REFERENCE SCHEME","Canonical date and year numbering schemes supported across all ERP reference formats",210);

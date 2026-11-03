@@ -96,7 +96,7 @@
                             <VBox spacing="4" GridPane.columnIndex="3"><Label text="Amount To" styleClass="filter-label"/><TextField fx:id="txtAmountTo" promptText="Max Amount" styleClass="approved-input"/></VBox>
                             <VBox spacing="4" GridPane.columnIndex="4"><Label text="Follow Up" styleClass="filter-label"/><ComboBox fx:id="cmbFollowUp" maxWidth="Infinity" styleClass="approved-input"/></VBox>
                             <VBox spacing="4" GridPane.columnIndex="5"><Label text="Source" styleClass="filter-label"/><ComboBox fx:id="cmbSource" maxWidth="Infinity" styleClass="approved-input"/></VBox>
-                            <Button fx:id="btnApplyFilters" text="Apply Filters" onAction="#applyFilters" visible="false" managed="false"/>
+                            <Button fx:id="btnApplyFilters" text="Apply Filters" onAction="#applyFilters" visible="false" managed="false" styleClass="approved-button,approved-primary-button"/>
                         </GridPane>
 
                         <ToggleButton fx:id="btnAdvanced" text="Advanced Filters" selected="false" onAction="#toggleAdvanced" visible="false" managed="false"/>

@@ -8,7 +8,7 @@
             <Label text="Manage product codes, tax, pricing and reorder settings" styleClass="screen-subtitle"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button text="New Item" onAction="#newItem" styleClass="primary-action,entity-create-button"/>
+        <Button text="New Item" onAction="#newItem" styleClass="approved-button,approved-primary-button,primary-action,entity-create-button"/>
     </HBox>
 
     <HBox spacing="12" styleClass="standard-kpi-row,erp-kpi-section">

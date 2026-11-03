@@ -15562,26 +15562,26 @@
     -fx-cursor: hand;
 }
 .button.erp-action-button.erp-button-primary, .menu-button.erp-action-button.erp-button-primary, .toggle-button.erp-action-button.erp-button-primary,
-.approved-button.approved-primary-button, .primary-button {
+.approved-button.approved-primary-button, .primary-button, .auth-primary-button, .setup-primary-button, .quotation-primary-button, .dse-global-search-v3-search-button, .entity-create-button, .primary-action, .blue-button {
     -fx-background-color: linear-gradient(to bottom right,#2563eb,#6d28d9);
     -fx-border-color: #3b82f6;
     -fx-text-fill: white;
     -fx-effect: dropshadow(gaussian,rgba(37,99,235,.42),12,.20,0,2);
 }
 .button.erp-action-button.erp-button-primary:hover, .menu-button.erp-action-button.erp-button-primary:hover, .toggle-button.erp-action-button.erp-button-primary:hover,
-.approved-button.approved-primary-button:hover, .primary-button:hover {
+.approved-button.approved-primary-button:hover, .primary-button:hover, .auth-primary-button:hover, .setup-primary-button:hover, .quotation-primary-button:hover, .dse-global-search-v3-search-button:hover, .entity-create-button:hover, .primary-action:hover, .blue-button:hover {
     -fx-background-color: linear-gradient(to bottom right,#3b82f6,#7c3aed);
     -fx-effect: dropshadow(gaussian,rgba(59,130,246,.48),15,.22,0,3);
 }
 .button.erp-action-button.erp-button-secondary, .menu-button.erp-action-button.erp-button-secondary, .toggle-button.erp-action-button.erp-button-secondary,
-.approved-button.approved-secondary-button, .secondary-button {
+.approved-button.approved-secondary-button, .secondary-button, .settings-secondary-button, .backup-secondary-button, .auth-secondary-button, .setup-secondary-button, .reminder-secondary-button, .shortcut-group-button, .email-transmission-preview-btn, .pdf-v2-tool, .dse-global-search-v3-clear-button, .register-reset-button, .register-refresh-button, .dse-notification-v3-refresh, .dse-notification-v3-open, .dse-notification-v3-read {
     -fx-background-color: linear-gradient(to bottom right,#20375a,#172a47);
     -fx-border-color: #44617f;
     -fx-text-fill: #e8f1ff;
     -fx-effect: dropshadow(gaussian,rgba(0,0,0,.30),9,.13,0,2);
 }
 .button.erp-action-button.erp-button-secondary:hover, .menu-button.erp-action-button.erp-button-secondary:hover, .toggle-button.erp-action-button.erp-button-secondary:hover,
-.approved-button.approved-secondary-button:hover, .secondary-button:hover {
+.approved-button.approved-secondary-button:hover, .secondary-button:hover, .settings-secondary-button:hover, .backup-secondary-button:hover, .auth-secondary-button:hover, .setup-secondary-button:hover, .reminder-secondary-button:hover, .shortcut-group-button:hover, .email-transmission-preview-btn:hover, .pdf-v2-tool:hover, .dse-global-search-v3-clear-button:hover, .register-reset-button:hover, .register-refresh-button:hover, .dse-notification-v3-refresh:hover, .dse-notification-v3-open:hover, .dse-notification-v3-read:hover {
     -fx-background-color: linear-gradient(to bottom right,#29486f,#1d3557);
     -fx-border-color: #5f82a8;
 }

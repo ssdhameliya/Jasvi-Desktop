@@ -202,7 +202,18 @@ public class WahaApiClient {
                     return new WahaDtos.QrResponse(session, null, "WORKING", "WhatsApp session is already active and paired.");
                 }
 
-                if (current == null || "STOPPED".equalsIgnoreCase(current.status()) || "FAILED".equalsIgnoreCase(current.status())) {
+                if (current != null && "FAILED".equalsIgnoreCase(current.status())) {
+                    try {
+                        HttpRequest restartReq = request(endpoint, "/api/sessions/" + session + "/restart", apiKey)
+                                .header("Content-Type", "application/json")
+                                .POST(HttpRequest.BodyPublishers.noBody())
+                                .build();
+                        http.send(restartReq, HttpResponse.BodyHandlers.ofString());
+                    } catch (Exception ignored) {}
+                    Thread.sleep(1500);
+                    continue;
+                }
+                if (current == null || "STOPPED".equalsIgnoreCase(current.status())) {
                     startSession(endpoint, apiKey, session);
                     Thread.sleep(1500);
                     continue;

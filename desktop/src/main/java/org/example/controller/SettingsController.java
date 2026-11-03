@@ -3111,7 +3111,12 @@ private record AssetPreviewRequest(
             UiTaskExecutor.submitAction(
                 "load-waha-channels",
                 () -> new org.example.api.whatsapp.BusinessWhatsappApiClient().listChannels(),
-                list -> tbl.getItems().setAll(list == null ? List.of() : list),
+                list -> {
+                    tbl.getItems().setAll(list == null ? List.of() : list);
+                    if (!tbl.getItems().isEmpty() && tbl.getSelectionModel().getSelectedItem() == null) {
+                        tbl.getSelectionModel().select(0);
+                    }
+                },
                 err -> showErrorAlert("Load Failed", err.getMessage())
             );
         };
@@ -3159,8 +3164,12 @@ private record AssetPreviewRequest(
 
         btnScanQr.setOnAction(e -> {
             var selected = tbl.getSelectionModel().getSelectedItem();
-            String session = selected != null ? selected.sessionName() : "default";
-            showWhatsappQrCodeModal(session, loadChannels);
+            String session = (selected != null && selected.sessionName() != null && !selected.sessionName().isBlank())
+                    ? selected.sessionName() : "default";
+            String title = (selected != null && selected.displayName() != null)
+                    ? (selected.displayName() + " (" + (selected.phoneNumber() != null ? selected.phoneNumber() : "") + ")")
+                    : "Primary WhatsApp";
+            showWhatsappQrCodeModal(session, title, loadChannels);
         });
 
         content.getChildren().addAll(lblHelp, tbl, actions);
@@ -3171,52 +3180,67 @@ private record AssetPreviewRequest(
         dialog.showAndWait();
     }
 
-    private void showWhatsappQrCodeModal(String session, Runnable onPairedCallback) {
+    private void showWhatsappQrCodeModal(String session, String channelTitle, Runnable onPairedCallback) {
         Dialog<ButtonType> qrDialog = new OwnedDialog<>();
-        qrDialog.setTitle("Scan WhatsApp QR Code");
+        qrDialog.setTitle("Scan WhatsApp QR Code - " + channelTitle);
         qrDialog.setHeaderText("Open WhatsApp on your phone > Linked Devices > Link a Device, then scan this QR code.");
 
         VBox box = new VBox(14);
         box.setAlignment(Pos.CENTER);
-        box.setPrefWidth(380);
-        box.setPadding(new Insets(14));
+        box.setPrefWidth(500);
+        box.setMinWidth(480);
+        box.setPadding(new Insets(16));
 
         ImageView qrView = new ImageView();
-        qrView.setFitWidth(260);
-        qrView.setFitHeight(260);
+        qrView.setFitWidth(280);
+        qrView.setFitHeight(280);
         qrView.setPreserveRatio(true);
 
-        Label lblStatus = new Label("Fetching QR code from WAHA engine...");
+        Label lblStatus = new Label("Connecting to WhatsApp engine and fetching fresh QR code...");
         lblStatus.getStyleClass().add("page-subtitle");
+        lblStatus.setWrapText(true);
+        lblStatus.setMaxWidth(460);
+        lblStatus.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        lblStatus.setAlignment(Pos.CENTER);
 
         Button btnRefreshQr = new Button("Refresh QR Code");
-        btnRefreshQr.getStyleClass().add("secondary-button");
+        btnRefreshQr.getStyleClass().addAll("approved-button", "approved-secondary-button");
+
+        final javafx.animation.Timeline pollTimeline = new javafx.animation.Timeline();
 
         Runnable fetchQr = () -> {
-            lblStatus.setText("Requesting fresh QR code...");
             UiTaskExecutor.submitAction(
                 "fetch-waha-qr",
                 () -> new org.example.api.whatsapp.BusinessWhatsappApiClient().getQrCode(session),
                 qrResp -> {
-                    if (qrResp != null && qrResp.qrImageBase64() != null && !qrResp.qrImageBase64().isBlank()) {
+                    if (qrResp != null && ("WORKING".equalsIgnoreCase(qrResp.status()) || "CONNECTED".equalsIgnoreCase(qrResp.status()))) {
+                        pollTimeline.stop();
+                        lblStatus.setText("✅ WhatsApp device paired successfully! Sender is now active and ready.");
+                        lblStatus.getStyleClass().removeAll("status-success", "status-info");
+                        lblStatus.getStyleClass().add("status-success");
+                        if (onPairedCallback != null) onPairedCallback.run();
+                    } else if (qrResp != null && ("STARTING".equalsIgnoreCase(qrResp.status()) || "AUTHENTICATING".equalsIgnoreCase(qrResp.status()))) {
+                        lblStatus.setText("🔄 Scan detected! Establishing secure WhatsApp session with phone...");
+                        lblStatus.getStyleClass().removeAll("status-success", "status-info");
+                        lblStatus.getStyleClass().add("status-info");
+                    } else if (qrResp != null && qrResp.qrImageBase64() != null && !qrResp.qrImageBase64().isBlank()) {
                         try {
                             String b64 = qrResp.qrImageBase64();
                             if (b64.contains(",")) b64 = b64.substring(b64.indexOf(",") + 1);
                             byte[] imgBytes = java.util.Base64.getDecoder().decode(b64);
                             qrView.setImage(new javafx.scene.image.Image(new java.io.ByteArrayInputStream(imgBytes)));
-                            lblStatus.setText("Status: " + qrResp.status() + (qrResp.message() != null ? " • " + qrResp.message() : ""));
+                            lblStatus.setText("Status: Ready to scan • Open WhatsApp on your phone > Linked Devices > Link a Device.");
+                            lblStatus.getStyleClass().removeAll("status-success", "status-info");
                         } catch (Exception ex) {
                             lblStatus.setText("Error decoding QR image: " + ex.getMessage());
                         }
-                    } else if (qrResp != null && "CONNECTED".equalsIgnoreCase(qrResp.status())) {
-                        lblStatus.setText("WhatsApp device is already CONNECTED and active!");
                     } else if (qrResp != null && qrResp.message() != null && !qrResp.message().isBlank()) {
                         lblStatus.setText(qrResp.message());
                     } else {
-                        lblStatus.setText("No QR code available. Ensure WAHA session is running.");
+                        lblStatus.setText("Waiting for WhatsApp engine (WAHA) session...");
                     }
                 },
-                err -> lblStatus.setText("Failed to load QR code: " + err.getMessage())
+                err -> lblStatus.setText("Could not reach WhatsApp engine: " + err.getMessage())
             );
         };
 
@@ -3225,9 +3249,20 @@ private record AssetPreviewRequest(
         qrDialog.getDialogPane().setContent(box);
         qrDialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
 
-        fetchQr.run();
+        // Install 2.5s live polling loop so user immediately sees scan detection and success
+        pollTimeline.getKeyFrames().add(new javafx.animation.KeyFrame(javafx.util.Duration.millis(2500), ev -> fetchQr.run()));
+        pollTimeline.setCycleCount(javafx.animation.Timeline.INDEFINITE);
+
+        qrDialog.setOnShowing(ev -> {
+            fetchQr.run();
+            pollTimeline.play();
+        });
+        qrDialog.setOnHidden(ev -> {
+            pollTimeline.stop();
+            if (onPairedCallback != null) onPairedCallback.run();
+        });
+
         qrDialog.showAndWait();
-        if (onPairedCallback != null) onPairedCallback.run();
     }
 
     private void initEmailTemplatesAndSignature() {

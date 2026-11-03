@@ -3,7 +3,7 @@
     <padding><Insets top="14" right="14" bottom="14" left="14"/></padding>
     <HBox alignment="CENTER_LEFT" styleClass="entity-page-header,approved-section-header,erp-page-identity-header">
         <StackPane fx:id="partyPageIcon" styleClass="erp-page-header-icon"/><VBox spacing="3"><Label text="Customers Master" styleClass="screen-title"/><Label text="Manage customer contacts, tax details and opening balances" wrapText="true" styleClass="screen-subtitle"/></VBox>
-        <Region HBox.hgrow="ALWAYS"/><Button text="New Customer" onAction="#newParty" styleClass="primary-action,entity-create-button"/>
+        <Region HBox.hgrow="ALWAYS"/><Button text="New Customer" onAction="#newParty" styleClass="approved-button,approved-primary-button,primary-action,entity-create-button"/>
     </HBox>
     <HBox spacing="10" styleClass="entity-kpi-row,erp-kpi-section">
         <HBox alignment="CENTER_LEFT" spacing="10" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-blue"><StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon"/><VBox spacing="3" HBox.hgrow="ALWAYS"><HBox alignment="CENTER_LEFT"><Label text="Total Customers" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="All" styleClass="metric-trend-pill,trend-neutral"/></HBox><Label fx:id="lblKpiTotal" text="0" styleClass="metric-value"/><Label text="Master records" styleClass="metric-note"/></VBox></HBox>

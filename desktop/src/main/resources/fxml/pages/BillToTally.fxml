@@ -135,7 +135,8 @@
         <Region HBox.hgrow="ALWAYS"/>
 
         <Button fx:id="btnExportJson" text="Export Tally JSON" styleClass="approved-button,approved-secondary-button" onAction="#handleExportJson"/>
+        <Button fx:id="btnExportGstPortal" text="Export GST Portal JSON" styleClass="approved-button,approved-secondary-button" onAction="#handleExportGstPortal"/>
         <Button fx:id="btnExportExcel" text="Export Tally Excel" styleClass="approved-button,approved-secondary-button" onAction="#handleExportExcel"/>
-        <Button fx:id="btnPushTally" text="Push to TallyPrime (Port 9000)" styleClass="approved-button,primary-button" onAction="#handlePushTally"/>
+        <Button fx:id="btnPushTally" text="Push to TallyPrime (Port 9000)" styleClass="approved-button,primary-button" onAction="#handlePushToTally"/>
     </HBox>
 </VBox>

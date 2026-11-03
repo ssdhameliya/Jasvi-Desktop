@@ -8342,16 +8342,16 @@
 -fx-min-height: 34px;
 }
 .root {
--fx-base: #F5F7FA;
+-fx-base: #EDF2F7;
 }
 * {
--app-background: #F5F7FA;
+-app-background: #EDF2F7;
     -app-surface: #FFFFFF;
-    -app-surface-hover: #F1F5F9;
-    -app-border: #D6DEE8;
-    -app-border-strong: #AFC0D4;
-    -app-text-primary: #1E293B;
-    -app-text-secondary: #64748B;
+    -app-surface-hover: #F8FAFC;
+    -app-border: #CBD5E1;
+    -app-border-strong: #94A3B8;
+    -app-text-primary: #0F172A;
+    -app-text-secondary: #334155;
     -app-text-on-primary: #FFFFFF;
     -app-primary: #2563EB;
     -app-primary-hover: #1D4ED8;
@@ -8360,20 +8360,20 @@
     -app-input-background: #FFFFFF;
     -app-input-border: #CBD5E1;
     -app-input-focus: #2563EB;
-    -app-input-text: #1E293B;
-    -app-input-prompt: #94A3B8;
-    -app-shadow: rgba(15,23,42,0.14);
-    -color-bg: #F5F7FA;
+    -app-input-text: #0F172A;
+    -app-input-prompt: #64748B;
+    -app-shadow: rgba(15,23,42,0.10);
+    -color-bg: #EDF2F7;
     -color-surface: #FFFFFF;
     -color-surface-2: #F8FAFC;
-    -color-border: #D6DEE8;
-    -color-text: #1E293B;
-    -color-text-secondary: #475569;
-    -color-muted: #64748B;
+    -color-border: #CBD5E1;
+    -color-text: #0F172A;
+    -color-text-secondary: #334155;
+    -color-muted: #475569;
     -color-primary: #2563EB;
-    -color-primary-hover: #3B82F6;
+    -color-primary-hover: #1D4ED8;
     -color-success: #16A34A;
-    -color-warning: #F59E0B;
+    -color-warning: #D97706;
     -color-danger: #DC2626;
 }
 .page-title {
@@ -15745,26 +15745,26 @@
     -fx-cursor: hand;
 }
 .button.erp-action-button.erp-button-primary, .menu-button.erp-action-button.erp-button-primary, .toggle-button.erp-action-button.erp-button-primary,
-.approved-button.approved-primary-button, .primary-button {
+.approved-button.approved-primary-button, .primary-button, .auth-primary-button, .setup-primary-button, .quotation-primary-button, .dse-global-search-v3-search-button, .entity-create-button, .primary-action, .blue-button {
     -fx-background-color: linear-gradient(to bottom right,#2563eb,#6d28d9);
     -fx-border-color: #4f7ff2;
     -fx-text-fill: white;
     -fx-effect: dropshadow(gaussian,rgba(37,99,235,.30),10,.18,0,2);
 }
 .button.erp-action-button.erp-button-primary:hover, .menu-button.erp-action-button.erp-button-primary:hover, .toggle-button.erp-action-button.erp-button-primary:hover,
-.approved-button.approved-primary-button:hover, .primary-button:hover {
+.approved-button.approved-primary-button:hover, .primary-button:hover, .auth-primary-button:hover, .setup-primary-button:hover, .quotation-primary-button:hover, .dse-global-search-v3-search-button:hover, .entity-create-button:hover, .primary-action:hover, .blue-button:hover {
     -fx-background-color: linear-gradient(to bottom right,#3b82f6,#7c3aed);
     -fx-effect: dropshadow(gaussian,rgba(37,99,235,.38),14,.20,0,3);
 }
 .button.erp-action-button.erp-button-secondary, .menu-button.erp-action-button.erp-button-secondary, .toggle-button.erp-action-button.erp-button-secondary,
-.approved-button.approved-secondary-button, .secondary-button {
+.approved-button.approved-secondary-button, .secondary-button, .settings-secondary-button, .backup-secondary-button, .auth-secondary-button, .setup-secondary-button, .reminder-secondary-button, .shortcut-group-button, .email-transmission-preview-btn, .pdf-v2-tool, .dse-global-search-v3-clear-button, .register-reset-button, .register-refresh-button, .dse-notification-v3-refresh, .dse-notification-v3-open, .dse-notification-v3-read {
     -fx-background-color: linear-gradient(to bottom right,#ffffff,#e8effa);
     -fx-border-color: #b9c8dd;
     -fx-text-fill: #244269;
     -fx-effect: dropshadow(gaussian,rgba(51,65,85,.15),8,.12,0,2);
 }
 .button.erp-action-button.erp-button-secondary:hover, .menu-button.erp-action-button.erp-button-secondary:hover, .toggle-button.erp-action-button.erp-button-secondary:hover,
-.approved-button.approved-secondary-button:hover, .secondary-button:hover {
+.approved-button.approved-secondary-button:hover, .secondary-button:hover, .settings-secondary-button:hover, .backup-secondary-button:hover, .auth-secondary-button:hover, .setup-secondary-button:hover, .reminder-secondary-button:hover, .shortcut-group-button:hover, .email-transmission-preview-btn:hover, .pdf-v2-tool:hover, .dse-global-search-v3-clear-button:hover, .register-reset-button:hover, .register-refresh-button:hover, .dse-notification-v3-refresh:hover, .dse-notification-v3-open:hover, .dse-notification-v3-read:hover {
     -fx-background-color: linear-gradient(to bottom right,#ffffff,#dbeafe);
     -fx-border-color: #7da5e8;
 }
@@ -17357,6 +17357,45 @@
 /* ========================================================================== */
 
 /* ========================================================================== */
+/* Enterprise Light Mode Container Boundaries */
+.panel, .card, .erp-card, .settings-subcard {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #CBD5E1;
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.08), 10, 0, 0, 2);
+}
+.table-view {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #CBD5E1;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+.table-view .column-header-background {
+    -fx-background-color: #F1F5F9;
+    -fx-border-color: transparent transparent #CBD5E1 transparent;
+    -fx-border-width: 0 0 1px 0;
+}
+.table-view .column-header .label {
+    -fx-text-fill: #0F172A;
+    -fx-font-weight: 700;
+}
+.table-view .table-row-cell {
+    -fx-border-color: transparent transparent #F1F5F9 transparent;
+    -fx-border-width: 0 0 1px 0;
+}
+.table-view .table-row-cell:odd {
+    -fx-background-color: #F8FAFC;
+}
+.table-view .table-row-cell:even {
+    -fx-background-color: #FFFFFF;
+}
+.screen-subtitle, .page-subtitle, .settings-help-text, .muted-text, .settings-field-hint {
+    -fx-text-fill: #334155;
+}
+
 /* DSE ERP 10.0.31 — MODERN COLORFUL UI AUTHORITY (LIGHT)              */
 /* Comprehensive tactile buttons, 1px non-jitter inputs, dropdowns, scrollbars. */
 /* ========================================================================== */

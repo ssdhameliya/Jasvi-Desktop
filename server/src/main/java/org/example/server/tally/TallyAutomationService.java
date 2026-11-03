@@ -430,6 +430,10 @@ public class TallyAutomationService {
             String jsonPayload = generateTallyJson(bills);
             return new TallyAutomationDtos.TallyExportResponse(true, bills.size(), 0,
                     "Generated TallyPrime 7.0 JSON for " + bills.size() + " vouchers.", jsonPayload);
+        } else if ("GST_PORTAL".equals(format) || "GST".equals(format)) {
+            String gstJson = generateGstPortalJson(bills);
+            return new TallyAutomationDtos.TallyExportResponse(true, bills.size(), 0,
+                    "Generated GST Portal B2B JSON for " + bills.size() + " vouchers.", gstJson);
         } else {
             // Excel / XML fallback
             return new TallyAutomationDtos.TallyExportResponse(true, bills.size(), 0,
@@ -544,6 +548,90 @@ public class TallyAutomationService {
             sb.append("      \"roundOff\": ").append(b.getRoundOff()).append(",\n");
             sb.append("      \"grandTotal\": ").append(b.getGrandTotal()).append("\n");
             sb.append("    }").append(i < bills.size() - 1 ? "," : "").append("\n");
+        }
+        sb.append("  ]\n}");
+        return sb.toString();
+    }
+
+
+    private String generateGstPortalJson(List<BillRecordEntity> bills) {
+        StringBuilder sb = new StringBuilder();
+        String buyerGstin = "24AABCA5514E1Z1";
+        if (!bills.isEmpty() && bills.get(0).getClientProfileId() != null) {
+            ClientProfileEntity p = clientRepo.findById(bills.get(0).getClientProfileId()).orElse(null);
+            if (p != null && p.getGstin() != null && !p.getGstin().isBlank()) {
+                buyerGstin = p.getGstin().trim();
+            }
+        }
+        String fp = LocalDate.now().format(DateTimeFormatter.ofPattern("MMyyyy"));
+        if (!bills.isEmpty() && bills.get(0).getInvoiceDate() != null) {
+            fp = bills.get(0).getInvoiceDate().format(DateTimeFormatter.ofPattern("MMyyyy"));
+        }
+
+        Map<String, List<BillRecordEntity>> byVendor = new LinkedHashMap<>();
+        for (var b : bills) {
+            String ctin = (b.getVendorGstin() != null && !b.getVendorGstin().isBlank())
+                    ? b.getVendorGstin().trim().toUpperCase(Locale.ROOT)
+                    : "URP";
+            byVendor.computeIfAbsent(ctin, k -> new ArrayList<>()).add(b);
+        }
+
+        sb.append("{\n");
+        sb.append("  \"gstin\": \"").append(escapeJson(buyerGstin)).append("\",\n");
+        sb.append("  \"fp\": \"").append(fp).append("\",\n");
+        sb.append("  \"version\": \"GST3.0.4\",\n");
+        sb.append("  \"hash\": \"hash\",\n");
+        sb.append("  \"b2b\": [\n");
+
+        int vIndex = 0;
+        for (var entry : byVendor.entrySet()) {
+            String ctin = entry.getKey();
+            List<BillRecordEntity> vendorBills = entry.getValue();
+            sb.append("    {\n");
+            sb.append("      \"ctin\": \"").append(escapeJson(ctin)).append("\",\n");
+            sb.append("      \"inv\": [\n");
+
+            for (int i = 0; i < vendorBills.size(); i++) {
+                var b = vendorBills.get(i);
+                String idt = b.getInvoiceDate() != null ? b.getInvoiceDate().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+                String pos = (ctin.length() >= 2 && Character.isDigit(ctin.charAt(0)) && Character.isDigit(ctin.charAt(1)))
+                        ? ctin.substring(0, 2)
+                        : "24";
+
+                BigDecimal taxVal = b.getTaxableAmount() != null ? b.getTaxableAmount() : BigDecimal.ZERO;
+                BigDecimal cgst = b.getCgstAmount() != null ? b.getCgstAmount() : BigDecimal.ZERO;
+                BigDecimal sgst = b.getSgstAmount() != null ? b.getSgstAmount() : BigDecimal.ZERO;
+                BigDecimal igst = b.getIgstAmount() != null ? b.getIgstAmount() : BigDecimal.ZERO;
+                BigDecimal totalTax = cgst.add(sgst).add(igst);
+                double rate = 18.0;
+                if (taxVal.compareTo(BigDecimal.ZERO) > 0 && totalTax.compareTo(BigDecimal.ZERO) > 0) {
+                    rate = totalTax.multiply(BigDecimal.valueOf(100)).divide(taxVal, 1, RoundingMode.HALF_UP).doubleValue();
+                }
+
+                sb.append("        {\n");
+                sb.append("          \"inum\": \"").append(escapeJson(b.getInvoiceNumber() != null ? b.getInvoiceNumber() : "INV-1")).append("\",\n");
+                sb.append("          \"idt\": \"").append(idt).append("\",\n");
+                sb.append("          \"val\": ").append(b.getGrandTotal() != null ? b.getGrandTotal() : BigDecimal.ZERO).append(",\n");
+                sb.append("          \"pos\": \"").append(pos).append("\",\n");
+                sb.append("          \"rchrg\": \"N\",\n");
+                sb.append("          \"inv_typ\": \"R\",\n");
+                sb.append("          \"itms\": [\n");
+                sb.append("            {\n");
+                sb.append("              \"num\": 1,\n");
+                sb.append("              \"itm_det\": {\n");
+                sb.append("                \"rt\": ").append(rate).append(",\n");
+                sb.append("                \"txval\": ").append(taxVal).append(",\n");
+                sb.append("                \"camt\": ").append(cgst).append(",\n");
+                sb.append("                \"samt\": ").append(sgst).append(",\n");
+                sb.append("                \"csamt\": 0.00\n");
+                sb.append("              }\n");
+                sb.append("            }\n");
+                sb.append("          ]\n");
+                sb.append("        }").append(i < vendorBills.size() - 1 ? "," : "").append("\n");
+            }
+            sb.append("      ]\n");
+            sb.append("    }").append(vIndex < byVendor.size() - 1 ? "," : "").append("\n");
+            vIndex++;
         }
         sb.append("  ]\n}");
         return sb.toString();

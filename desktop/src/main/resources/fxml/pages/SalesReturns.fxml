@@ -4,7 +4,7 @@
 <?import javafx.scene.layout.*?>
 <VBox xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.controller.SalesReturnsController" spacing="14" styleClass="register-page,sales-register-page,approved-ui,approved-screen,approved-screen-sales-returns,erp-screen-root">
  <padding><Insets top="14" right="14" bottom="14" left="14"/></padding>
- <HBox alignment="CENTER_LEFT" spacing="12" styleClass="erp-page-identity-header"><StackPane styleClass="erp-page-header-icon"><Label text="↩" styleClass="erp-page-header-symbol"/></StackPane><VBox><Label text="Sales Return Register" styleClass="screen-title"/><Label text="Manage customer returns, approvals and refunds" styleClass="screen-subtitle"/></VBox><Region HBox.hgrow="ALWAYS"/><Button text="Create Sales Return" onAction="#create" styleClass="primary-action"/></HBox>
+ <HBox alignment="CENTER_LEFT" spacing="12" styleClass="erp-page-identity-header"><StackPane styleClass="erp-page-header-icon"><Label text="↩" styleClass="erp-page-header-symbol"/></StackPane><VBox><Label text="Sales Return Register" styleClass="screen-title"/><Label text="Manage customer returns, approvals and refunds" styleClass="screen-subtitle"/></VBox><Region HBox.hgrow="ALWAYS"/><Button text="Create Sales Return" onAction="#create" styleClass="approved-button,approved-primary-button,primary-action"/></HBox>
  <SplitPane fx:id="mainSplit" dividerPositions="1" minHeight="0" VBox.vgrow="ALWAYS" styleClass="register-split,sales-return-register-split"><items>
   <VBox spacing="14" minWidth="620" styleClass="register-workspace,sales-return-register-workspace">
    <HBox spacing="12" styleClass="return-kpi-row,erp-kpi-section">

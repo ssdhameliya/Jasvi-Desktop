@@ -119,10 +119,11 @@ public class BusinessWhatsappService {
                         var existing = channelRepo.findFirstByPhoneNumberAndIsActiveTrue(phone);
                         if (existing.isEmpty()) {
                             WhatsappSenderChannelEntity newCh = new WhatsappSenderChannelEntity();
-                            newCh.setChannelCode("WHA_" + phone.replaceAll("[^0-9]", ""));
+                            String digits = phone.replaceAll("[^0-9]", "");
+                            newCh.setChannelCode("WHA_" + digits);
                             newCh.setDisplayName(desc.isBlank() ? ("WhatsApp " + phone) : desc);
                             newCh.setPhoneNumber(phone);
-                            newCh.setSessionName("default");
+                            newCh.setSessionName("session_" + (digits.isBlank() ? "default" : digits));
                             newCh.setIsActive(true);
                             newCh.setIsDefault(channelRepo.count() == 0);
                             channelRepo.save(newCh);
@@ -148,6 +149,13 @@ public class BusinessWhatsappService {
 
         List<WahaDtos.ChannelDto> dtos = new ArrayList<>(entities.size());
         for (WhatsappSenderChannelEntity ch : entities) {
+            if (ch.getSessionName() == null || "default".equalsIgnoreCase(ch.getSessionName())) {
+                String d = ch.getPhoneNumber() != null ? ch.getPhoneNumber().replaceAll("[^0-9]", "") : "";
+                if (!d.isBlank()) {
+                    ch.setSessionName("session_" + d);
+                    channelRepo.save(ch);
+                }
+            }
             String liveStatus = sessionStatuses.get(ch.getSessionName().toLowerCase(Locale.ROOT));
             if (liveStatus != null && !liveStatus.equalsIgnoreCase(ch.getConnectionStatus())) {
                 ch.setConnectionStatus(liveStatus.toUpperCase(Locale.ROOT));

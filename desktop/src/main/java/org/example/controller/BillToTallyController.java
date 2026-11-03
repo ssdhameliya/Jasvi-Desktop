@@ -88,6 +88,7 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML private TextField txtTallyUrl;
     @FXML private Button btnExportJson;
+    @FXML private Button btnExportGstPortal;
     @FXML private Button btnExportExcel;
     @FXML private Button btnPushTally;
 
@@ -632,4 +633,35 @@ public class BillToTallyController implements ScreenLifecycle {
                 failure -> AppDialogService.error(btnExportExcel, "Export Failed", "Excel Export Error", failure.getMessage())
         );
     }
+
+    @FXML
+    private void handleExportGstPortal() {
+        if (activeBatchId == null || billsList.isEmpty()) {
+            ToastManager.warning(btnExportJson, "No Active Batch", "Upload bills before exporting GST Portal JSON.");
+            return;
+        }
+
+        var req = new TallyAutomationApiClient.TallyExportRequest(activeBatchId, List.of(), "GST_PORTAL", null);
+        UiTaskExecutor.submitAction(
+                "export-gst-portal-json",
+                () -> api.exportToTally(req),
+                resp -> {
+                    FileChooser chooser = new FileChooser();
+                    chooser.setTitle("Save GST Portal (gst.gov.in) B2B JSON");
+                    chooser.setInitialFileName("GST_Portal_Inward_Batch_" + activeBatchId + ".json");
+                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"));
+                    File target = chooser.showSaveDialog(btnExportJson.getScene().getWindow());
+                    if (target != null) {
+                        try {
+                            Files.writeString(target.toPath(), resp.payloadContent());
+                            ToastManager.success(btnExportJson, "GST JSON Saved", "Exported GST Portal JSON to " + target.getName());
+                        } catch (Exception ex) {
+                            ToastManager.error(btnExportJson, "Save Failed", ex.getMessage());
+                        }
+                    }
+                },
+                failure -> AppDialogService.error(btnExportJson, "Export Failed", "GST Portal JSON Export Error", failure.getMessage())
+        );
+    }
+
 }
