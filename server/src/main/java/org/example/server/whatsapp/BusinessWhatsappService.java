@@ -116,11 +116,20 @@ public class BusinessWhatsappService {
                     String phone = r.get("lookup_value").toString().trim();
                     String desc = r.get("description") != null ? r.get("description").toString().trim() : "WhatsApp Sender";
                     if (!phone.isBlank()) {
-                        var existing = channelRepo.findFirstByPhoneNumberAndIsActiveTrue(phone);
-                        if (existing.isEmpty()) {
+                        String digits = phone.replaceAll("[^0-9]", "");
+                        String channelCode = "WHA_" + digits;
+                        var existing = channelRepo.findByChannelCode(channelCode);
+                        if (existing.isPresent()) {
+                            WhatsappSenderChannelEntity ch = existing.get();
+                            ch.setIsActive(true);
+                            ch.setPhoneNumber(phone);
+                            if (ch.getDisplayName() == null || ch.getDisplayName().isBlank()) {
+                                ch.setDisplayName(desc.isBlank() ? ("WhatsApp " + phone) : desc);
+                            }
+                            channelRepo.save(ch);
+                        } else {
                             WhatsappSenderChannelEntity newCh = new WhatsappSenderChannelEntity();
-                            String digits = phone.replaceAll("[^0-9]", "");
-                            newCh.setChannelCode("WHA_" + digits);
+                            newCh.setChannelCode(channelCode);
                             newCh.setDisplayName(desc.isBlank() ? ("WhatsApp " + phone) : desc);
                             newCh.setPhoneNumber(phone);
                             newCh.setSessionName("session_" + (digits.isBlank() ? "default" : digits));
@@ -265,6 +274,7 @@ public class BusinessWhatsappService {
         return wahaClient.getQrCode(settings.endpoint(), settings.apiKey(), session);
     }
 
+    @Transactional
     public WahaDtos.SendResponse sendDocument(WahaDtos.DocumentSendRequest req) {
         if (req == null) throw new IllegalArgumentException("Request cannot be null");
         WahaDtos.WahaSettingsDto settings = getSettings();
@@ -352,6 +362,7 @@ public class BusinessWhatsappService {
         }
     }
 
+    @Transactional
     public WahaDtos.SendResponse sendText(WahaDtos.TextSendRequest req) {
         if (req == null) throw new IllegalArgumentException("Request cannot be null");
         WahaDtos.WahaSettingsDto settings = getSettings();
@@ -395,8 +406,21 @@ public class BusinessWhatsappService {
     }
 
     private WhatsappSenderChannelEntity resolveDefaultChannel() {
+        WahaDtos.WahaSettingsDto settings = getSettings();
+        Map<String, String> liveStatusMap = new HashMap<>();
+        try {
+            List<WahaDtos.SessionStatus> liveList = wahaClient.getSessions(settings.endpoint(), settings.apiKey());
+            for (var s : liveList) {
+                if (s.name() != null) {
+                    liveStatusMap.put(s.name().toLowerCase(Locale.ROOT), s.status());
+                }
+            }
+        } catch (Exception ignored) {}
+
         String activeSender = getSetting("whatsapp.active_sender_number", "");
         String targetPhone = "";
+        WhatsappSenderChannelEntity preferred = null;
+
         if (!activeSender.isBlank()) {
             String trimmed = activeSender.trim();
             try {
@@ -413,29 +437,53 @@ public class BusinessWhatsappService {
 
             String digits = targetPhone.replaceAll("[^0-9]", "");
             var matching = channelRepo.findFirstByPhoneNumberAndIsActiveTrue(targetPhone);
-            if (matching.isPresent()) return matching.get();
-
-            if (!digits.isBlank()) {
+            if (matching.isPresent()) {
+                preferred = matching.get();
+            } else if (!digits.isBlank()) {
                 for (var ch : channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc()) {
                     String chDigits = ch.getPhoneNumber() == null ? "" : ch.getPhoneNumber().replaceAll("[^0-9]", "");
                     if (!chDigits.isBlank() && (chDigits.equals(digits) || chDigits.endsWith(digits) || digits.endsWith(chDigits))) {
-                        return ch;
+                        preferred = ch;
+                        break;
                     }
                 }
             }
 
-            var byCode = channelRepo.findByChannelCode(trimmed);
-            if (byCode.isPresent() && byCode.get().getIsActive()) return byCode.get();
+            if (preferred == null) {
+                var byCode = channelRepo.findByChannelCode(trimmed);
+                if (byCode.isPresent() && byCode.get().getIsActive()) preferred = byCode.get();
+            }
         }
 
-        var defChannel = channelRepo.findFirstByIsDefaultTrueAndIsActiveTrue();
-        if (defChannel.isPresent()) {
-            var ch = defChannel.get();
-            if (!targetPhone.isBlank() && (ch.getPhoneNumber() == null || ch.getPhoneNumber().isBlank())) {
-                ch.setPhoneNumber(targetPhone);
-                channelRepo.save(ch);
+        if (preferred == null) {
+            var defChannel = channelRepo.findFirstByIsDefaultTrueAndIsActiveTrue();
+            if (defChannel.isPresent()) {
+                preferred = defChannel.get();
             }
-            return ch;
+        }
+
+        // Live Health Check: If preferred channel's session is actively WORKING in WAHA, use it
+        if (preferred != null) {
+            String status = liveStatusMap.get(preferred.getSessionName().toLowerCase(Locale.ROOT));
+            if ("WORKING".equalsIgnoreCase(status)) {
+                return preferred;
+            }
+        }
+
+        // Live Auto-Fallback: If preferred is not WORKING (STARTING/FAILED/STOPPED),
+        // automatically route dispatch to any active channel that IS WORKING
+        for (var ch : channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc()) {
+            String status = liveStatusMap.get(ch.getSessionName().toLowerCase(Locale.ROOT));
+            if ("WORKING".equalsIgnoreCase(status)) {
+                log.info("Live auto-fallback: Routing WhatsApp dispatch through working channel '{}' ({})",
+                        ch.getDisplayName(), ch.getPhoneNumber());
+                return ch;
+            }
+        }
+
+        // If no working channel found, return preferred if available
+        if (preferred != null) {
+            return preferred;
         }
 
         final String fallbackPhone = targetPhone;

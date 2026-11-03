@@ -1,3 +1,12 @@
+# What's New in DSE ERP v11.0.38
+
+### WhatsApp Multi-Channel Live Auto-Fallback, Hibernate Session Protection & Protocol Governance
+- **WhatsApp Live Health-Aware Auto-Fallback**: Upgraded `BusinessWhatsappService` to inspect live WAHA session statuses across all channels. If a preferred or active sender channel is un-paired or stuck in initializing status (`STARTING`, `STOPPED`, `FAILED`), outgoing tax invoices and document dispatches automatically fall back to an active, authenticated `WORKING` channel (e.g. `session_9099939193`), preventing document delivery disruption.
+- **Hibernate AssertionFailure (`HHH000099`) Prevention**: Resolved unique key constraint collision on `whatsapp_sender_channel_channel_code_key` by querying channels by unique channel code rather than filtering only active rows. Inactive channels are safely reactivated and updated, eliminating duplicate insert attempts and protecting Hibernate session integrity.
+- **Full Transactional Dispatch Safety**: Hardened `sendDocument()` and `sendText()` boundaries with `@Transactional`, guaranteeing that entity resolution, communication audit logs, and `sales_header.whatsapp_sent` flags commit atomically without `TransactionRequiredException`.
+- **Actionable WAHA QR Error Messaging**: Replaced generic and misleading "wait 5 seconds" alerts with actionable pairing guidance directing operators to authenticate in Settings > WhatsApp when no active sessions are paired.
+- **Jasvi Ecosystem Master Protocol & Oracle Cloud Decoupling**: Unified the Jasvi ERP 4-Tier Operational Lifecycle across all repositories, codified the 15 Canonical Engineering & UI/UX Rules, decoupled Oracle OCI and Caddy specifications into `oracle.md`, and deployed the permanent universal synchronizer `scripts/sync-to-all.py`.
+
 # What's New in DSE ERP v11.0.37
 
 ### Multi-Format Bill-to-Tally Automation Rebuild & WhatsApp Dispatch Resilience
@@ -45,23 +54,3 @@
 - **Centralized System Standards**: Formally documented the 6 centralized core systems in `dse-erp-master-protocol.md` (High-Speed Document Inspection Modals, Unified SVG UI Design System, Concurrency & Freeze Prevention Thread Pools, Multi-Tab Workspace Navigation, RBAC Security & API Runtime, and Universal Document Studio Exporters).
 - **Strict Clean Root Mandate**: Permanently purged historical `CHANGELOG-*.md` files and obsolete legacy protocols from repository roots, standardizing all release history exclusively in `release-notes.md`.
 - **Ponytail Minimalist Architecture**: Integrated Ponytail (YAGNI / minimal diff ladder) to eliminate over-engineering, protect JavaFX memory heap, and ensure maximum desktop responsiveness.
-
-# What's New in DSE ERP v11.0.12
-
-### Ultra-Fast Document Inspection Pop-ups & Zero-Lag Tab Navigation
-- **Instant Shell Mount (0ms):** Inspection dialogs now mount header hero, 4 metric cards, tabs, and action dock synchronously from in-memory row data, eliminating the 5+ second full-page loading skeleton.
-- **Asynchronous Line Streaming:** Consignment/purchased line items load asynchronously inside the items table placeholder without blocking the modal shell or UI interaction.
-- **Zero-Lag Tab Navigation:** Transport & Notes tab mounts instantaneously (0ms) from existing in-memory fields without artificial loading skeletons. Document attachments query lightweight metadata first and defer large raw binary file downloads until the user explicitly requests an export or preview.
-- **Non-Blocking Action Dock:** Excel export, quotation duplication, and document return workflows run via background task executors with animated button states, preventing JavaFX UI freezes.
-
-# What's New in DSE ERP v11.0.11
-
-### Unified Enterprise Inspection Modals & Double-Header Fix
-- **Single-Header Symmetry**: Resolved double-header rendering in System & Application Diagnostics and Audit Trail modals, eliminating the duplicate outer shell.
-- **Solid Host Framing**: Standardized all 7 document inspection and system diagnostic dialogs with a persistent, solid opaque background (`#0d1527` dark / `#ffffff` light), 14px radius, ambient elevation shadows, and top-right close buttons.
-- **Window Dragging**: Added smooth window dragging support across all inspection and diagnostic hero header bars.
-
-### Lightning-Fast Search & Dropdown Filtering
-- **Pre-Indexed Memory Search**: Background ingestion and flattening threads pre-index searchable strings, reducing search evaluations to a single instant substring comparison.
-- **250ms Input & Dropdown Debounce**: Smooth, fluid filtering without keystroke lag or dropdown selection stutter.
-- **Cell Tooltip Reuse & O(1) Indexing**: Eliminated GC churn from repetitive tooltip allocations and optimized row numbering performance.
