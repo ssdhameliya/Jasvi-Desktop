@@ -109,8 +109,8 @@ public class CommunicationCenterController implements ScreenLifecycle {
         colActions.setCellFactory(c -> new TableCell<>() {
             private final Button resend = new Button("Re-send");
             {
-                resend.getStyleClass().addAll("approved-button", "approved-secondary-button", "communication-resend-button");
-                UiActionIcons.apply(resend, "refresh", "Re-send communication with draft preview & live status");
+                resend.getStyleClass().addAll("approved-button","approved-secondary-button","communication-resend-button");
+                UiActionIcons.apply(resend,"refresh", "Re-send communication with draft preview & live status");
                 resend.setOnAction(e -> {
                     Row row = getTableRow() != null ? getTableRow().getItem() : null;
                     if (row != null) resend(row);
