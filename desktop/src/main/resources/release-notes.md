@@ -1,3 +1,12 @@
+# What's New in DSE ERP v11.0.40
+
+### Bill-to-Tally Native Windows OCR Extraction, Scanned PDF Fallback, Multi-Format Export Previews & Automatic Downloads
+- **Native Windows WinRT OCR Extraction**: Integrated Windows native OCR (`Windows.Media.Ocr.OcrEngine`) via `WindowsOcrEngine`, enabling automated text and data extraction from image invoices (`.png`, `.jpg`, `.jpeg`). Eliminates manual summary fallbacks and successfully parses real invoices, GSTINs, vendor names, dates, financial amounts, and line items.
+- **Scanned Image-Only PDF Fallback**: Upgraded `TallyDocumentParser` to detect scanned/image-only PDFs where digital text extraction yields insufficient text. Automatically renders the document pages to high-resolution bitmaps and routes them through the native OCR engine.
+- **Robust Multi-Line & Columnar Item Extraction**: Enhanced regex parsers to recognize multiline label/value sequences and tabular columnar structures, accurately extracting item names, HSN codes, quantities, rates, and tax amounts.
+- **Interactive Export & Push Preview Dialogs**: Added `TallyExportPreviewDialog` for all 4 export and push actions (`Export Tally JSON`, `Export GST Portal JSON`, `Export Tally Excel`, and `Push to TallyPrime`). Users can review formatted JSON, GST Portal structures, Excel row summaries, and Tally XML request payloads before transmission.
+- **Frictionless Direct Downloads (Zero FileChooser Prompts)**: Replaced painful OS `FileChooser` location prompts with direct automatic downloads to the user's standard `Downloads` folder (`~/Downloads/`), auto-generating clean timestamped files and triggering non-intrusive toast notifications.
+
 # What's New in DSE ERP v11.0.39
 
 ### WhatsApp Transaction Isolation, Communication Center Dual-Channel Re-send, Bill-to-Tally Automation Streamlining & iText TableWidths Silencing

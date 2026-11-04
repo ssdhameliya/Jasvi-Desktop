@@ -16,6 +16,7 @@ import org.example.navigation.ScreenLifecycle;
 import org.example.service.SessionService;
 import org.example.tally.TallyDocumentInspectionDialog;
 import org.example.tally.TallyDocumentParser;
+import org.example.tally.TallyExportPreviewDialog;
 import org.example.util.AppDialogService;
 import org.example.util.IconFactory;
 import org.example.util.ToastManager;
@@ -471,28 +472,25 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML
     public void handleExportJson() {
-        if (activeBatchId == null) {
+        if (activeBatchId == null || billsList.isEmpty()) {
             ToastManager.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
         }
 
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save TallyPrime JSON");
-        chooser.setInitialFileName("TallyPrime_Batch_" + activeBatchId + ".json");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
-        File file = chooser.showSaveDialog(tblBills.getScene().getWindow());
-        if (file == null) return;
-
         UiTaskExecutor.submitAction(
-                "export-tally-json",
+                "prepare-tally-json",
                 () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "JSON", null)),
                 resp -> {
-                    try {
-                        java.nio.file.Files.writeString(file.toPath(), resp.payloadContent() != null ? resp.payloadContent() : "{}");
-                        ToastManager.success(tblBills, "JSON Exported", "Saved Tally JSON to " + file.getName());
-                    } catch (Exception ex) {
-                        ToastManager.error(tblBills, "Save Failed", ex.getMessage());
-                    }
+                    String json = resp.payloadContent() != null ? resp.payloadContent() : "{}";
+                    TallyExportPreviewDialog.show(
+                            tblBills,
+                            TallyExportPreviewDialog.ExportType.TALLY_JSON,
+                            activeBatchId,
+                            billsList,
+                            json,
+                            null,
+                            null
+                    );
                 },
                 failure -> ToastManager.error(tblBills, "Export Error", failure.getMessage())
         );
@@ -500,28 +498,25 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML
     public void handleExportGstPortal() {
-        if (activeBatchId == null) {
+        if (activeBatchId == null || billsList.isEmpty()) {
             ToastManager.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
         }
 
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save GST Portal JSON");
-        chooser.setInitialFileName("GST_Portal_Batch_" + activeBatchId + ".json");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
-        File file = chooser.showSaveDialog(tblBills.getScene().getWindow());
-        if (file == null) return;
-
         UiTaskExecutor.submitAction(
-                "export-gst-portal-json",
+                "prepare-gst-portal-json",
                 () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "GST_PORTAL", null)),
                 resp -> {
-                    try {
-                        java.nio.file.Files.writeString(file.toPath(), resp.payloadContent() != null ? resp.payloadContent() : "{}");
-                        ToastManager.success(tblBills, "GST Exported", "Saved GST Portal JSON to " + file.getName());
-                    } catch (Exception ex) {
-                        ToastManager.error(tblBills, "Save Failed", ex.getMessage());
-                    }
+                    String json = resp.payloadContent() != null ? resp.payloadContent() : "{}";
+                    TallyExportPreviewDialog.show(
+                            tblBills,
+                            TallyExportPreviewDialog.ExportType.GST_PORTAL_JSON,
+                            activeBatchId,
+                            billsList,
+                            json,
+                            null,
+                            null
+                    );
                 },
                 failure -> ToastManager.error(tblBills, "Export Error", failure.getMessage())
         );
@@ -529,30 +524,26 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML
     public void handleExportExcel() {
-        if (activeBatchId == null) {
+        if (activeBatchId == null || billsList.isEmpty()) {
             ToastManager.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
         }
 
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save Tally Excel Workbook");
-        chooser.setInitialFileName("Tally_Batch_" + activeBatchId + ".xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Workbook", "*.xlsx"));
-        File file = chooser.showSaveDialog(tblBills.getScene().getWindow());
-        if (file == null) return;
-
         UiTaskExecutor.submitAction(
-                "export-tally-excel",
-                () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "EXCEL", null)),
-                resp -> {
-                    try {
-                        java.nio.file.Files.writeString(file.toPath(), resp.payloadContent() != null ? resp.payloadContent() : "");
-                        ToastManager.success(tblBills, "Exported", "Saved export to " + file.getName());
-                    } catch (Exception ex) {
-                        ToastManager.error(tblBills, "Save Failed", ex.getMessage());
-                    }
+                "prepare-tally-excel",
+                () -> generateExcelBytes(billsList),
+                excelBytes -> {
+                    TallyExportPreviewDialog.show(
+                            tblBills,
+                            TallyExportPreviewDialog.ExportType.TALLY_EXCEL,
+                            activeBatchId,
+                            billsList,
+                            null,
+                            excelBytes,
+                            null
+                    );
                 },
-                failure -> ToastManager.error(tblBills, "Export Error", failure.getMessage())
+                failure -> ToastManager.error(tblBills, "Excel Error", failure.getMessage())
         );
     }
 
@@ -569,14 +560,26 @@ public class BillToTallyController implements ScreenLifecycle {
             return;
         }
 
-        boolean confirm = AppDialogService.confirm(
-                tblBills,
-                "Push to TallyPrime",
-                "Push " + billsList.size() + " vouchers to TallyPrime?",
-                "This will transmit XML vouchers directly to TallyPrime at " + targetUrl + "."
+        UiTaskExecutor.submitAction(
+                "prepare-tally-push-preview",
+                () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "XML", targetUrl)),
+                resp -> {
+                    String xml = resp.payloadContent() != null ? resp.payloadContent() : "<ENVELOPE/>";
+                    TallyExportPreviewDialog.show(
+                            tblBills,
+                            TallyExportPreviewDialog.ExportType.TALLY_PUSH,
+                            activeBatchId,
+                            billsList,
+                            xml,
+                            null,
+                            confirmed -> executePushToTally(targetUrl)
+                    );
+                },
+                failure -> ToastManager.error(tblBills, "Push Preparation Error", failure.getMessage())
         );
-        if (!confirm) return;
+    }
 
+    private void executePushToTally(String targetUrl) {
         UiTaskExecutor.submitAction(
                 "push-to-tally",
                 () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "HTTP", targetUrl)),
@@ -597,6 +600,39 @@ public class BillToTallyController implements ScreenLifecycle {
                     }
                 }
         );
+    }
+
+    private byte[] generateExcelBytes(List<TallyAutomationApiClient.BillRecordDto> bills) {
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+             java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Purchase Vouchers");
+            org.apache.poi.ss.usermodel.Row header = sheet.createRow(0);
+            String[] cols = {"Invoice No", "Date", "Vendor Name", "Vendor GSTIN", "Party Ledger", "Purchase Ledger", "Taxable Amount", "CGST", "SGST", "IGST", "Grand Total"};
+            for (int i = 0; i < cols.length; i++) {
+                header.createCell(i).setCellValue(cols[i]);
+            }
+            int rowIdx = 1;
+            for (var b : bills) {
+                org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(b.invoiceNumber() != null ? b.invoiceNumber() : "");
+                row.createCell(1).setCellValue(b.invoiceDate() != null ? b.invoiceDate().toString() : "");
+                row.createCell(2).setCellValue(b.vendorNamePrinted() != null ? b.vendorNamePrinted() : "");
+                row.createCell(3).setCellValue(b.vendorGstin() != null ? b.vendorGstin() : "");
+                row.createCell(4).setCellValue(b.tallyPartyLedger() != null ? b.tallyPartyLedger() : "");
+                row.createCell(5).setCellValue(b.tallyPurchaseLedger() != null ? b.tallyPurchaseLedger() : "");
+                row.createCell(6).setCellValue(b.taxableAmount() != null ? b.taxableAmount().doubleValue() : 0.0);
+                row.createCell(7).setCellValue(b.cgstAmount() != null ? b.cgstAmount().doubleValue() : 0.0);
+                row.createCell(8).setCellValue(b.sgstAmount() != null ? b.sgstAmount().doubleValue() : 0.0);
+                row.createCell(9).setCellValue(b.igstAmount() != null ? b.igstAmount().doubleValue() : 0.0);
+                row.createCell(10).setCellValue(b.grandTotal() != null ? b.grandTotal().doubleValue() : 0.0);
+            }
+            for (int i = 0; i < cols.length; i++) sheet.autoSizeColumn(i);
+            workbook.write(bos);
+            return bos.toByteArray();
+        } catch (Exception ex) {
+            log.error("Failed generating Excel bytes: {}", ex.getMessage());
+            return new byte[0];
+        }
     }
 
     @FXML
