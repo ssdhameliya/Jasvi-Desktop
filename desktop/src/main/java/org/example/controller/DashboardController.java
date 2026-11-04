@@ -269,7 +269,7 @@ public class DashboardController implements ScreenLifecycle {
         if (SessionService.current() != null) {
             menuUser.setText(SessionService.current().getFullName());
             if (lblSidebarUser != null) lblSidebarUser.setText(SessionService.current().getFullName());
-            if ("SUPER_ADMIN".equalsIgnoreCase(SessionService.current().getRole())) {
+            if (SessionService.isSuperAdmin()) {
                 javafx.scene.control.MenuItem superItem = new javafx.scene.control.MenuItem("Master Licensor Studio");
                 superItem.setOnAction(e -> openLicenseRenewalDialog());
                 superItem.setGraphic(IconFactory.compactIcon("shield", 15));

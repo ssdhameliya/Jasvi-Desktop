@@ -229,7 +229,15 @@ public class LicenseRenewalDialogController {
         UiTaskExecutor.submitAction(
                 "apply-license",
                 () -> {
-                    JsonNode root = json.readTree(raw);
+                    JsonNode root;
+                    try {
+                        root = json.readTree(raw);
+                    } catch (Exception parseEx) {
+                        throw new IllegalArgumentException("The provided text is not valid JSON. Please paste the complete license JSON payload or click 'Browse jasvi.lic File'.", parseEx);
+                    }
+                    if (root == null || !root.isObject()) {
+                        throw new IllegalArgumentException("Invalid license format: Expected a JSON object containing license header, payload, and signature.");
+                    }
                     Map<String, Object> payloadMap = json.convertValue(root, Map.class);
                     return api.activate(payloadMap);
                 },

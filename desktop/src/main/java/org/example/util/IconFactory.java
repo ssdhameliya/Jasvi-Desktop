@@ -1133,6 +1133,7 @@ public final class IconFactory {
         if (value.equals("●")) return "active";
 
         // Specific actions must win before broad business nouns.
+        if (value.contains("license") || value.contains("licensing") || value.contains("subscription") || value.contains("activate")) return "security";
         if (value.contains("showcase") || value.contains("studio")) return "view";
         if (value.contains("system diagnostics") || value.contains("diagnostics") || value.contains("diagnostic")) return "diagnostic";
         if (value.contains("audit trail")) return "audit";

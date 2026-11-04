@@ -704,7 +704,7 @@ public class AuthService {
 
     private boolean requiresMfa(UserEntity user, String role) {
         String r = normalizeRole(role);
-        if ("ADMIN".equals(r) || "SUPER_ADMIN".equals(r)) return false;
+        if ("SUPER_ADMIN".equals(r) || (user != null && "superadmin".equalsIgnoreCase(user.getUsername()))) return false;
         String policy = mfaPolicy();
         if ("DISABLED".equals(policy)) return false;
         if ("ADMIN_CONTROLLED".equals(policy)) return user != null && user.isMfaEnabled();
@@ -713,7 +713,7 @@ public class AuthService {
 
     private boolean mfaForRequestedUser(String role, boolean requested) {
         String r = normalizeRole(role);
-        if ("ADMIN".equals(r) || "SUPER_ADMIN".equals(r)) return false;
+        if ("SUPER_ADMIN".equals(r)) return false;
         String policy = mfaPolicy();
         if ("DISABLED".equals(policy)) return false;
         if ("ADMIN_CONTROLLED".equals(policy)) return requested;

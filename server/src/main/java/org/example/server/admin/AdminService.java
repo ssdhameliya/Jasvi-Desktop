@@ -224,8 +224,7 @@ public class AdminService {
             boolean previousLocked = Boolean.TRUE.equals(jdbc.queryForObject(
                     "SELECT locked FROM users WHERE id=?", Boolean.class, request.id()));
             String previousRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, request.id());
-            String previousUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, request.id());
-            if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(previousRole) || "superadmin".equalsIgnoreCase(previousUsername) || "SUPER_ADMIN".equalsIgnoreCase(assignedRole))) {
+            if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(previousRole) || "superadmin".equalsIgnoreCase(request.username()) || "SUPER_ADMIN".equalsIgnoreCase(assignedRole))) {
                 throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
             }
             if (request.id() == CurrentUser.require().id() && previousRole != null && !assignedRole.equalsIgnoreCase(previousRole.trim()))
@@ -293,13 +292,11 @@ public class AdminService {
 
     @Transactional
     public AdminDtos.MfaState resetAuthenticator(int id) {
-        String targetRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, id);
-        String targetUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, id);
-        if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(targetRole) || "superadmin".equalsIgnoreCase(targetUsername))) {
-            throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
-        }
         Map<String,Object> row=jdbc.queryForMap("SELECT COALESCE(role,'') role,COALESCE(mfa_enabled,0) mfa_enabled FROM users WHERE id=? FOR UPDATE",id);
         String role=String.valueOf(row.get("role"));
+        if (!isSuperAdminCaller() && "SUPER_ADMIN".equalsIgnoreCase(role)) {
+            throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
+        }
         boolean required=effectiveMfa(role,flag(row.get("mfa_enabled")));
         if(!required)throw new IllegalStateException("Authenticator is not required for this user under the current MFA policy.");
         jdbc.update("UPDATE users SET totp_secret_enc=NULL,mfa_failed_attempts=0,row_version=row_version+1 WHERE id=?",id);
