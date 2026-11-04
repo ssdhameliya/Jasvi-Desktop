@@ -146,14 +146,19 @@ public class ClientsDirectoryController implements ScreenLifecycle {
         });
 
         colActions.setCellFactory(col -> new TableCell<>() {
-            private final Button btnTemplates = new Button("Templates");
-            private final Button btnDelete = new Button("Delete");
-            private final HBox box = new HBox(6, btnTemplates, btnDelete);
+            private final MenuButton menu = new MenuButton("Actions");
+            private final MenuItem itemTemplates = new MenuItem("Manage Templates", IconFactory.compactIcon("manage templates", 14));
+            private final MenuItem itemGstDetails = new MenuItem("View Full GST Details", IconFactory.compactIcon("view full gst", 14));
+            private final MenuItem itemDelete = new MenuItem("Delete Client", IconFactory.compactIcon("delete", 14));
 
             {
-                btnTemplates.getStyleClass().addAll("approved-button", "approved-secondary-button", "compact-action-button");
-                btnTemplates.setGraphic(IconFactory.compactIcon("document", 12));
-                btnTemplates.setOnAction(ev -> {
+                menu.getStyleClass().setAll("table-action-menu", "approved-row-action");
+                menu.setGraphic(IconFactory.compactIcon("actions", 14));
+                menu.setContentDisplay(ContentDisplay.LEFT);
+                menu.setGraphicTextGap(6);
+                IconFactory.decorateActionMenu(menu);
+
+                itemTemplates.setOnAction(ev -> {
                     TallyAutomationApiClient.ClientDirectoryRowDto row = getTableView().getItems().get(getIndex());
                     if (row != null) {
                         ClientTemplateController.setSelectedClientId(row.id());
@@ -161,19 +166,30 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                     }
                 });
 
-                btnDelete.getStyleClass().addAll("approved-button", "approved-danger-button", "compact-action-button");
-                btnDelete.setGraphic(IconFactory.compactIcon("delete", 12));
-                btnDelete.setOnAction(ev -> {
+                itemGstDetails.setOnAction(ev -> {
+                    TallyAutomationApiClient.ClientDirectoryRowDto row = getTableView().getItems().get(getIndex());
+                    if (row != null) {
+                        org.example.tally.GstFullDetailsDialog.show(tableClients, row);
+                    }
+                });
+
+                itemDelete.setOnAction(ev -> {
                     TallyAutomationApiClient.ClientDirectoryRowDto row = getTableView().getItems().get(getIndex());
                     if (row != null) handleDeleteClient(row);
                 });
-                box.setAlignment(Pos.CENTER);
+
+                menu.getItems().setAll(itemTemplates, itemGstDetails, itemDelete);
             }
 
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                setGraphic(empty ? null : box);
+                if (empty || getIndex() >= getTableView().getItems().size()) {
+                    setGraphic(null);
+                } else {
+                    setGraphic(menu);
+                    setAlignment(Pos.CENTER);
+                }
             }
         });
     }
@@ -267,26 +283,41 @@ public class ClientsDirectoryController implements ScreenLifecycle {
         HBox gstinRow = new HBox(8, txtGstin, btnVerify);
         HBox.setHgrow(txtGstin, Priority.ALWAYS);
 
-        // Verification Status Badge
+        java.util.concurrent.atomic.AtomicReference<TallyAutomationApiClient.GstPortalProfileDto> latestGstProfile =
+                new java.util.concurrent.atomic.AtomicReference<>();
+
+        // Verification Status Badge & Actions Row
         Label lblStatusBadge = new Label("Awaiting verification");
         lblStatusBadge.getStyleClass().addAll("status-badge", "status-inactive");
 
+        Button btnViewFullGst = new Button("View Full GST Details");
+        btnViewFullGst.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnViewFullGst.setGraphic(IconFactory.compactIcon("view full gst", 14));
+
+        Button btnOpenPortal = new Button("Open GST Portal (Live)");
+        btnOpenPortal.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnOpenPortal.setGraphic(IconFactory.compactIcon("web", 14));
+
+        HBox gstStatusRow = new HBox(10, lblStatusBadge, btnViewFullGst, btnOpenPortal);
+        gstStatusRow.setAlignment(Pos.CENTER_LEFT);
+
         // Verified Form Fields
         Label lblTrade = new Label("Trade Name");
-        lblTrade.getStyleClass().add("field-label");
+        lblTrade.getStyleClass().addAll("field-label", "accent-label-purple");
         TextField txtTrade = new TextField();
         txtTrade.getStyleClass().add("approved-input");
 
         Label lblLegal = new Label("Legal Firm Name");
-        lblLegal.getStyleClass().add("field-label");
+        lblLegal.getStyleClass().addAll("field-label", "accent-label-blue");
         TextField txtLegal = new TextField();
         txtLegal.getStyleClass().add("approved-input");
 
         Label lblAddress = new Label("Registered Principal Address");
-        lblAddress.getStyleClass().add("field-label");
+        lblAddress.getStyleClass().addAll("field-label", "accent-label-amber");
         TextArea txtAddress = new TextArea();
-        txtAddress.setPrefRowCount(2);
-        txtAddress.getStyleClass().add("approved-input");
+        txtAddress.setPrefRowCount(3);
+        txtAddress.setWrapText(true);
+        txtAddress.getStyleClass().addAll("approved-input", "dialog-text-area");
 
         btnVerify.setOnAction(ev -> {
             String gstin = txtGstin.getText().trim().toUpperCase(Locale.ROOT);
@@ -298,6 +329,7 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                     "verify-gstin",
                     () -> api.verifyGstin(gstin),
                     resp -> {
+                        latestGstProfile.set(resp);
                         txtTrade.setText(resp.tradeName());
                         txtLegal.setText(resp.legalName());
                         txtAddress.setText(resp.address());
@@ -309,8 +341,51 @@ public class ClientsDirectoryController implements ScreenLifecycle {
             );
         });
 
+        btnViewFullGst.setOnAction(ev -> {
+            if (latestGstProfile.get() != null) {
+                org.example.tally.GstFullDetailsDialog.show(tableClients, latestGstProfile.get());
+            } else {
+                String gstin = txtGstin.getText().trim().toUpperCase(Locale.ROOT);
+                if (gstin.length() == 15) {
+                    UiTaskExecutor.submitAction(
+                            "verify-gstin-dialog",
+                            () -> api.verifyGstin(gstin),
+                            p -> {
+                                latestGstProfile.set(p);
+                                txtTrade.setText(p.tradeName());
+                                txtLegal.setText(p.legalName());
+                                txtAddress.setText(p.address());
+                                lblStatusBadge.setText(p.status());
+                                lblStatusBadge.getStyleClass().setAll("status-badge", "status-active");
+                                org.example.tally.GstFullDetailsDialog.show(tableClients, p);
+                            },
+                            err -> ToastManager.error(pane, "Verification Error", err.getMessage())
+                    );
+                } else {
+                    ToastManager.warning(pane, "Invalid GSTIN", "Please enter a valid 15-character GSTIN first.");
+                }
+            }
+        });
+
+        btnOpenPortal.setOnAction(ev -> {
+            String gstin = txtGstin.getText().trim().toUpperCase(Locale.ROOT);
+            if (!gstin.isBlank()) {
+                javafx.scene.input.ClipboardContent clip = new javafx.scene.input.ClipboardContent();
+                clip.putString(gstin);
+                javafx.scene.input.Clipboard.getSystemClipboard().setContent(clip);
+                ToastManager.info(pane, "Copied", "GSTIN copied to clipboard. Opening GST Portal...");
+            }
+            try {
+                if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                    java.awt.Desktop.getDesktop().browse(new java.net.URI("https://services.gst.gov.in/services/searchtp"));
+                }
+            } catch (Exception ex) {
+                ToastManager.error(pane, "Portal Error", "Unable to open browser: " + ex.getMessage());
+            }
+        });
+
         content.getChildren().addAll(
-                lblGstin, gstinRow, lblStatusBadge,
+                lblGstin, gstinRow, gstStatusRow,
                 lblTrade, txtTrade,
                 lblLegal, txtLegal,
                 lblAddress, txtAddress
@@ -329,6 +404,14 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                 return;
             }
 
+            var p = latestGstProfile.get();
+            String filingsJson = null;
+            if (p != null && p.filings() != null) {
+                try {
+                    filingsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(p.filings());
+                } catch (Exception ignored) {}
+            }
+
             var dto = new TallyAutomationApiClient.ClientProfileDto(
                     null,
                     trade,
@@ -338,7 +421,13 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                     legal,
                     txtAddress.getText(),
                     lblStatusBadge.getText(),
-                    "REGULAR",
+                    p != null && p.taxpayerType() != null ? p.taxpayerType() : "REGULAR",
+                    p != null ? p.registrationDate() : null,
+                    p != null ? p.constitutionOfBusiness() : null,
+                    p != null ? p.stateJurisdiction() : null,
+                    p != null ? p.centerJurisdiction() : null,
+                    p != null ? p.natureOfBusiness() : null,
+                    filingsJson,
                     gstin.substring(0, 2),
                     "ITEM",
                     "Purchase Account",

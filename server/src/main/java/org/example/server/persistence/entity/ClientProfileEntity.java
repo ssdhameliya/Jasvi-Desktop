@@ -34,6 +34,24 @@ public class ClientProfileEntity {
     @Column(name = "taxpayer_type")
     private String taxpayerType = "REGULAR";
 
+    @Column(name = "registration_date")
+    private String registrationDate;
+
+    @Column(name = "constitution_of_business")
+    private String constitutionOfBusiness;
+
+    @Column(name = "state_jurisdiction")
+    private String stateJurisdiction;
+
+    @Column(name = "center_jurisdiction")
+    private String centerJurisdiction;
+
+    @Column(name = "nature_of_business")
+    private String natureOfBusiness;
+
+    @Column(name = "filing_status_json", columnDefinition = "TEXT")
+    private String filingStatusJson = "[]";
+
     @Column(name = "state_code", nullable = false)
     private String stateCode = "24";
 
@@ -85,6 +103,18 @@ public class ClientProfileEntity {
     public void setGstStatus(String gstStatus) { this.gstStatus = gstStatus; }
     public String getTaxpayerType() { return taxpayerType; }
     public void setTaxpayerType(String taxpayerType) { this.taxpayerType = taxpayerType; }
+    public String getRegistrationDate() { return registrationDate; }
+    public void setRegistrationDate(String registrationDate) { this.registrationDate = registrationDate; }
+    public String getConstitutionOfBusiness() { return constitutionOfBusiness; }
+    public void setConstitutionOfBusiness(String constitutionOfBusiness) { this.constitutionOfBusiness = constitutionOfBusiness; }
+    public String getStateJurisdiction() { return stateJurisdiction; }
+    public void setStateJurisdiction(String stateJurisdiction) { this.stateJurisdiction = stateJurisdiction; }
+    public String getCenterJurisdiction() { return centerJurisdiction; }
+    public void setCenterJurisdiction(String centerJurisdiction) { this.centerJurisdiction = centerJurisdiction; }
+    public String getNatureOfBusiness() { return natureOfBusiness; }
+    public void setNatureOfBusiness(String natureOfBusiness) { this.natureOfBusiness = natureOfBusiness; }
+    public String getFilingStatusJson() { return filingStatusJson; }
+    public void setFilingStatusJson(String filingStatusJson) { this.filingStatusJson = filingStatusJson; }
     public String getStateCode() { return stateCode; }
     public void setStateCode(String stateCode) { this.stateCode = stateCode; }
     public String getDefaultMode() { return defaultMode; }

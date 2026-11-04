@@ -21,6 +21,8 @@ import org.example.navigation.ScreenLifecycle;
 import org.example.tally.TallyDocumentInspectionDialog;
 import org.example.tally.WindowsOcrEngine;
 import org.example.util.*;
+import org.example.tally.GstFullDetailsDialog;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -33,6 +33,8 @@
                     styleClass="approved-button,approved-primary-button"/>
             <Button fx:id="btnViewTemplateDoc" text="View Template Document" onAction="#handleViewTemplateDoc"
                     styleClass="approved-button,approved-secondary-button"/>
+            <Button fx:id="btnViewFullGst" text="View Full GST Details" onAction="#handleViewFullGst"
+                    styleClass="approved-button,approved-secondary-button"/>
         </HBox>
 
         <!-- Live GST Profile Information Grid -->
@@ -44,19 +46,31 @@
                 <ColumnConstraints percentWidth="15"/>
             </columnConstraints>
             <VBox spacing="2" GridPane.columnIndex="0">
-                <Label text="Legal &amp; Trade Name" styleClass="caption-label"/>
+                <HBox spacing="5" alignment="CENTER_LEFT">
+                    <StackPane fx:id="iconTrade" styleClass="metric-icon-small"/>
+                    <Label text="Legal &amp; Trade Name" styleClass="caption-label,accent-label-purple"/>
+                </HBox>
                 <Label fx:id="lblFirmName" text="Select a client above" styleClass="bold-value-label"/>
             </VBox>
             <VBox spacing="2" GridPane.columnIndex="1">
-                <Label text="Vendor GSTIN" styleClass="caption-label"/>
+                <HBox spacing="5" alignment="CENTER_LEFT">
+                    <StackPane fx:id="iconGstin" styleClass="metric-icon-small"/>
+                    <Label text="Vendor GSTIN" styleClass="caption-label,accent-label-blue"/>
+                </HBox>
                 <Label fx:id="lblGstin" text="—" styleClass="gstin-badge-text"/>
             </VBox>
             <VBox spacing="2" GridPane.columnIndex="2">
-                <Label text="Registered Address" styleClass="caption-label"/>
+                <HBox spacing="5" alignment="CENTER_LEFT">
+                    <StackPane fx:id="iconAddress" styleClass="metric-icon-small"/>
+                    <Label text="Registered Address" styleClass="caption-label,accent-label-amber"/>
+                </HBox>
                 <Label fx:id="lblAddress" text="—" styleClass="address-summary-text"/>
             </VBox>
             <VBox spacing="2" GridPane.columnIndex="3" alignment="CENTER_RIGHT">
-                <Label text="Live Portal Status" styleClass="caption-label"/>
+                <HBox spacing="5" alignment="CENTER_RIGHT">
+                    <StackPane fx:id="iconStatus" styleClass="metric-icon-small"/>
+                    <Label text="Live Portal Status" styleClass="caption-label,accent-label-green"/>
+                </HBox>
                 <Label fx:id="lblGstStatus" text="ACTIVE" styleClass="status-badge,status-active"/>
             </VBox>
         </GridPane>

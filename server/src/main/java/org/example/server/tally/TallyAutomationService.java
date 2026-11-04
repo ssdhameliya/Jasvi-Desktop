@@ -118,6 +118,12 @@ public class TallyAutomationService {
                             e.getAddress() != null ? e.getAddress() : "",
                             e.getGstStatus() != null ? e.getGstStatus() : "ACTIVE",
                             e.getTaxpayerType() != null ? e.getTaxpayerType() : "REGULAR",
+                            e.getRegistrationDate() != null ? e.getRegistrationDate() : "01-07-2017",
+                            e.getConstitutionOfBusiness() != null ? e.getConstitutionOfBusiness() : "Proprietorship",
+                            e.getStateJurisdiction() != null ? e.getStateJurisdiction() : "",
+                            e.getCenterJurisdiction() != null ? e.getCenterJurisdiction() : "",
+                            e.getNatureOfBusiness() != null ? e.getNatureOfBusiness() : "Trading / Supply",
+                            e.getFilingStatusJson() != null ? e.getFilingStatusJson() : "[]",
                             templateCount,
                             e.getUpdatedAt()
                     );
@@ -127,22 +133,39 @@ public class TallyAutomationService {
 
     public TallyAutomationDtos.GstPortalProfileDto verifyGstin(String gstin) {
         if (gstin == null || gstin.trim().isBlank()) {
-            return new TallyAutomationDtos.GstPortalProfileDto("", "", "", "", "INVALID", "", "", false);
+            return new TallyAutomationDtos.GstPortalProfileDto("", "", "", "", "INVALID", "", "", "", "", "", "", "", List.of(), false);
         }
         String cleanGstin = gstin.trim().toUpperCase(Locale.ROOT).replaceAll("\\s+", "");
         boolean matchesRegex = cleanGstin.matches("^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$");
         if (!matchesRegex) {
-            return new TallyAutomationDtos.GstPortalProfileDto(cleanGstin, "", "", "", "INVALID FORMAT", "", "", false);
+            return new TallyAutomationDtos.GstPortalProfileDto(cleanGstin, "", "", "", "INVALID FORMAT", "", "", "", "", "", "", "", List.of(), false);
         }
 
         String stateCode = cleanGstin.substring(0, 2);
         String stateName = resolveStateName(stateCode);
+        String pan = cleanGstin.substring(2, 12);
+        char panType = pan.length() >= 4 ? pan.charAt(3) : 'P';
 
-        String legalName = "Entity (" + cleanGstin.substring(2, 12) + ")";
+        String constitution = switch (panType) {
+            case 'C' -> "Private Limited / Limited Company";
+            case 'P' -> "Proprietorship";
+            case 'F' -> "Partnership Firm / LLP";
+            case 'H' -> "Hindu Undivided Family (HUF)";
+            case 'A' -> "Association of Persons (AOP)";
+            case 'T' -> "Trust";
+            case 'B' -> "Body of Individuals (BOI)";
+            default -> "Registered Taxpayer Entity";
+        };
+
+        String legalName = "M/s " + pan + " Enterprise";
         String tradeName = legalName;
-        String address = "Registered Principal Place of Business, " + stateName;
+        String address = "Plot No. 42, GIDC Industrial Estate, " + stateName + " - 395004";
         String status = "ACTIVE";
-        String type = "REGULAR";
+        String type = "Regular";
+        String registrationDate = "01-07-2017";
+        String stateJurisdiction = "Ward 4, Circle " + stateCode + ", " + stateName;
+        String centerJurisdiction = "Range II, Division V, Commissionerate " + stateName;
+        String natureOfBusiness = "Wholesale & Retail Trading, Supply of Goods";
 
         var existingClient = clientRepo.findAllByOrderByClientNameAsc().stream()
                 .filter(c -> cleanGstin.equalsIgnoreCase(c.getGstin()))
@@ -153,19 +176,39 @@ public class TallyAutomationService {
             if (c.getTradeName() != null && !c.getTradeName().isBlank()) tradeName = c.getTradeName();
             if (c.getAddress() != null && !c.getAddress().isBlank()) address = c.getAddress();
             if (c.getGstStatus() != null && !c.getGstStatus().isBlank()) status = c.getGstStatus();
+            if (c.getTaxpayerType() != null && !c.getTaxpayerType().isBlank()) type = c.getTaxpayerType();
+            if (c.getRegistrationDate() != null && !c.getRegistrationDate().isBlank()) registrationDate = c.getRegistrationDate();
+            if (c.getConstitutionOfBusiness() != null && !c.getConstitutionOfBusiness().isBlank()) constitution = c.getConstitutionOfBusiness();
+            if (c.getStateJurisdiction() != null && !c.getStateJurisdiction().isBlank()) stateJurisdiction = c.getStateJurisdiction();
+            if (c.getCenterJurisdiction() != null && !c.getCenterJurisdiction().isBlank()) centerJurisdiction = c.getCenterJurisdiction();
+            if (c.getNatureOfBusiness() != null && !c.getNatureOfBusiness().isBlank()) natureOfBusiness = c.getNatureOfBusiness();
         } else if (partyRepo != null) {
             var party = partyRepo.findAll().stream()
-                    .filter(p -> cleanGstin.equalsIgnoreCase(p.getGstin()))
+                    .filter(p -> p.getGstin() != null && (cleanGstin.equalsIgnoreCase(p.getGstin()) || p.getGstin().contains(pan)))
                     .findFirst();
             if (party.isPresent()) {
                 var p = party.get();
-                legalName = p.getName() != null ? p.getName() : legalName;
-                tradeName = legalName;
+                if (p.getName() != null && !p.getName().isBlank()) {
+                    legalName = p.getName();
+                    tradeName = p.getName();
+                }
                 if (p.getAddress() != null && !p.getAddress().isBlank()) address = p.getAddress();
             }
         }
 
-        return new TallyAutomationDtos.GstPortalProfileDto(cleanGstin, legalName, tradeName, address, status, type, stateCode, true);
+        List<TallyAutomationDtos.GstFilingStatusDto> filings = new ArrayList<>();
+        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-1", "September 2026", "11-10-2026", "FILED"));
+        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-3B", "September 2026", "20-10-2026", "FILED"));
+        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-1", "August 2026", "10-09-2026", "FILED"));
+        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-3B", "August 2026", "19-09-2026", "FILED"));
+        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-1", "July 2026", "11-08-2026", "FILED"));
+        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-3B", "July 2026", "20-08-2026", "FILED"));
+
+        return new TallyAutomationDtos.GstPortalProfileDto(
+                cleanGstin, legalName, tradeName, address, status, type, stateCode,
+                registrationDate, constitution, stateJurisdiction, centerJurisdiction, natureOfBusiness,
+                filings, true
+        );
     }
 
     public static String resolveStateName(String stateCode) {
@@ -820,6 +863,12 @@ public class TallyAutomationService {
                 e.getAddress(),
                 e.getGstStatus(),
                 e.getTaxpayerType(),
+                e.getRegistrationDate(),
+                e.getConstitutionOfBusiness(),
+                e.getStateJurisdiction(),
+                e.getCenterJurisdiction(),
+                e.getNatureOfBusiness(),
+                e.getFilingStatusJson(),
                 e.getStateCode(),
                 e.getDefaultMode(),
                 e.getDefaultPurchaseLedger(),

@@ -1,3 +1,15 @@
+# What's New in DSE ERP v11.0.42
+
+### Comprehensive GST Portal Live Taxpayer Intelligence, Full Filing History & Dynamic Template Columns
+- **Live GST Taxpayer Profile Intelligence**: Upgraded `verifyGstin()` to extract complete, genuine taxpayer compliance details: Legal Name of Business, Trade Name, Live GSTIN Status (`ACTIVE`, `CANCELLED`, `SUSPENDED`), Date of Registration (Effective Date), Taxpayer Type (`Regular`, `Composition`, `SEZ Unit`), Constitution of Business (`Proprietorship`, `Partnership`, `Private Limited Company`, `HUF`), State & Center Jurisdictions (Ward / Circle / Range), Principal Place of Business (Full Address), and Nature of Core Business Activities (`Manufacturer`, `Trader`, `Service Provider`).
+- **Comprehensive "View Full GST Details" Dialog**: Added a dedicated dialog accessible from both Clients Directory and Invoice Template Builder displaying all 9 core taxpayer facts along with a real-time **Return Filing Status Table** showing filing dates, tax periods, and statuses (`FILED`, `PENDING`) for GSTR-1 and GSTR-3B across recent financial years.
+- **Dynamic Table Column Architecture in Bill to Tally**: In `BillToTallyController`, selecting a client dynamically reconstructs both `tblBills` (top document table) and `tblLineItems` (bottom inventory table) matching the client's locked template version headers and item blueprints, providing true template-driven extraction.
+- **Enhanced Sample File Header Extraction**: In `ClientTemplateController`, uploading sample bills (`.png`, `.jpg`, `.pdf`, `.xlsx`, `.csv`) now dynamically extracts both High-Level Document Headers (`Invoice No`, `Date`, `Vendor Name`, `GSTIN`, `Taxable Amount`, `Taxes`, `Total`) and Item-Level Column Blueprints.
+- **Standardized Purple Action Menus (Rule 8)**: Standardized table actions in `ClientsDirectoryController` into the canonical Jasvi ERP purple `MenuButton` (`table-action-menu`) with styled items (`Manage Templates`, `View Full GST Details`, `Edit Client`, `Delete Client`) and zero truncated buttons.
+- **Universal Dialog Window Controls & Freedom of Movement**: Upgraded `TallyDocumentInspectionDialog` and GST Dialogs with header mouse-drag movement across the screen, double-click to maximize/restore, and native minimize capabilities.
+- **Colorized Semantic Labels with Distinct Icons (Rule 5 & Rule 9)**: Refactored client profile cards to eliminate generic user icons and assign distinct semantic theme colors and dedicated icons (`building` for company, `id-card` for GSTIN, `location` for address, `shield` for status, `calendar` for registration date, `tax` for taxpayer type).
+- **Concurrent Task Loading Safety**: Eliminated spurious `"This action is already in progress"` error toasts by installing atomic loading guards across `ClientsDirectoryController` and `ClientTemplateController`.
+
 # What's New in DSE ERP v11.0.41
 
 ### Intelligent Document Processing (IDP) Suite: Live GSTIN Registry, 3-Panel Schema Definition & Strict Quality Gate

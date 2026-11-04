@@ -31,15 +31,15 @@ All 4 client applications communicate with **one shared Spring Boot backend** an
 
 ---
 
-## 1. The Unified 4-Tier Operational Lifecycle (How Code & Workflows Move)
+## 1. The Unified 5-Tier Operational Lifecycle (How Code & Workflows Move)
 
 Code and tasks progress in strictly one safe, orderly, verified direction:
 
 ```
-[ Tier 1: Dev ]       ──►   [ Tier 2: Plan ]      ──►   [ Tier 3: Staging ]   ──►   [ Tier 4: GitHub ]
-D:\Antigravity-Dev          Investigation & Plan        D:\GitHub\ReleaseSource     D:\GitHub\
-Active coding,              End-to-End Analysis.        Sync on "approved".         PR, Auto-Merge, Tag
-compile & test.             Zero edits without OK.      Local IntelliJ (.idea safe) on "push to github".
+[ Tier 1: Dev ]       ──►   [ Tier 2: Plan ]      ──►   [ Tier 3: Staging ]   ──►   [ Tier 4: GitHub ]    ──►   [ Tier 5: Google Drive ]
+D:\Antigravity-Dev          Investigation & Plan        D:\GitHub\ReleaseSource     D:\GitHub\                  JavaFx / <Repo> Folder
+Active coding,              End-to-End Analysis.        Sync on "approved".         PR, Auto-Merge, Tag         In-place synced clean
+compile & test.             Zero edits without OK.      Local IntelliJ (.idea safe) on "push to github".        cloud project mirror.
 ```
 
 ### 1.1 Tier 1: Antigravity Active Dev Workspace (`D:\Antigravity-Dev\<Repo>`)
@@ -84,7 +84,21 @@ compile & test.             Zero edits without OK.      Local IntelliJ (.idea sa
   - Create and push release tag (`vXX.X.XX`) on the verified green `main` commit to kick off the official release build.
   - Monitor and confirm the release build completes successfully.
 
-### 1.5 Protected Local Runtime Workspace: `D:\DSE Production`
+### 1.5 Tier 5: Cloud Backup Mirror (Google Drive Integration)
+- Keeps all 4 ecosystem repositories permanently backed up and synchronized to Google Drive in both **uncompressed source directory trees** (for mobile Gemini app direct reading and AI indexing) and **in-place clean snapshot archives (`.zip`)**.
+- **Root Parent Folder (`JavaFx`):** `1Nn2wQWrNETBUNHbAAbYriWNeu_nXai7l` ([View on Drive](https://drive.google.com/drive/folders/1Nn2wQWrNETBUNHbAAbYriWNeu_nXai7l))
+- **Registered Subfolders & In-Place Archive File IDs:**
+  | Project Repository | Google Drive Subfolder ID | In-Place Archive File ID | Direct Drive Link |
+  | :--- | :---: | :---: | :--- |
+  | **`Jasvi-Desktop`** | `1gBQWeTodjuxQmUHuWzEiE-MoRRC5W7qA` | `1oOjUnxuiJhq5SV4iO5UHN1G-oYFEhNwX` | [Jasvi-Desktop Folder](https://drive.google.com/drive/folders/1gBQWeTodjuxQmUHuWzEiE-MoRRC5W7qA) |
+  | **`Jasvi-Admin`** | `10fio8DAwYowAwVM5LyPhe877CXjy5OK3` | `13iMvdV7HqqC-whAknCXi6-rUHCvbOOWA` | [Jasvi-Admin Folder](https://drive.google.com/drive/folders/10fio8DAwYowAwVM5LyPhe877CXjy5OK3) |
+  | **`Jasvi-UserView`**| `1W5yeaVOExL_k5wsYUxVepadRj_MocEcq` | `1cmVdRKGrM1FD5q2gk5GDo9mFj5XZUN9I` | [Jasvi-UserView Folder](https://drive.google.com/drive/folders/1W5yeaVOExL_k5wsYUxVepadRj_MocEcq) |
+  | **`Jasvi-Mobile`** | `104QmrAHnLGHSMrn5zHBPeM-30ZMtOOo4` | `1BoGSpdDLZAREpW2Z5D1nwVHZHLu7fQi1` | [Jasvi-Mobile Folder](https://drive.google.com/drive/folders/104QmrAHnLGHSMrn5zHBPeM-30ZMtOOo4) |
+- **Dual Cloud Sync Mechanism:**
+  1. **Uncompressed Source Trees:** Uploads all source code files (`.java`, `.fxml`, `.html`, `.css`, `.js`, `.sql`, `.json`, `.md`, `.properties`, etc.) into nested folders mirroring the local repository structure with text MIME types, enabling the **Gemini mobile app** to directly read, search, and parse code on mobile devices. Excludes `.git/`, `.idea/`, `target/`, `build/`, `.gradle/`, and `postgresql/` binaries.
+  2. **In-Place Snapshot Archive:** Automated via `python scripts/sync-to-all.py --gdrive` (or `--code --all --gdrive`), updating the root `.zip` file in-place without changing file IDs or breaking links.
+
+### 1.6 Protected Local Runtime Workspace: `D:\DSE Production`
 - Live PostgreSQL database (`port 55432`), configs, runtime logs, attachments, backups.
 - **NEVER** run destructive SQL (`TRUNCATE`, `DROP`, `DELETE`) or alter database/runtime files here unless explicitly instructed.
 
