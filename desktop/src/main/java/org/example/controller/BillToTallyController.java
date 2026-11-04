@@ -503,6 +503,14 @@ public class BillToTallyController implements ScreenLifecycle {
             return;
         }
 
+        long invalidCount = billsList.stream().filter(b -> !"EXTRACTED".equalsIgnoreCase(b.status())
+                || (b.accuracyPercentage() != null && b.accuracyPercentage().compareTo(new BigDecimal("90.00")) < 0)).count();
+        if (invalidCount > 0) {
+            ToastManager.error(tblBills, "Accuracy Verification Failed",
+                    invalidCount + " bill(s) require review or have math discrepancies. Resolve before exporting to GST Portal.");
+            return;
+        }
+
         UiTaskExecutor.submitAction(
                 "prepare-gst-portal-json",
                 () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "GST_PORTAL", null)),
@@ -551,6 +559,14 @@ public class BillToTallyController implements ScreenLifecycle {
     public void handlePushToTally() {
         if (activeBatchId == null || billsList.isEmpty()) {
             ToastManager.info(tblBills, "Empty Batch", "No bills available to push to TallyPrime.");
+            return;
+        }
+
+        long invalidCount = billsList.stream().filter(b -> !"EXTRACTED".equalsIgnoreCase(b.status())
+                || (b.accuracyPercentage() != null && b.accuracyPercentage().compareTo(new BigDecimal("90.00")) < 0)).count();
+        if (invalidCount > 0) {
+            ToastManager.error(tblBills, "Accuracy Verification Failed",
+                    invalidCount + " bill(s) require review or have math discrepancies. Resolve before pushing to TallyPrime.");
             return;
         }
 
@@ -647,7 +663,7 @@ public class BillToTallyController implements ScreenLifecycle {
             UiTaskExecutor.submitAction(
                     "create-client-profile",
                     () -> api.saveProfile(new TallyAutomationApiClient.ClientProfileDto(
-                            null, name, name, "24AABCA0000A1Z1", "24", "ITEM",
+                            null, name, name, "24AABCA0000A1Z1", name, name, "", "ACTIVE", "Regular", "24", "ITEM",
                             "Purchase Account", "Round Off", true, true, false, false, "{}"
                     )),
                     created -> {

@@ -19,6 +19,21 @@ public class ClientProfileEntity {
     @Column(name = "gstin")
     private String gstin;
 
+    @Column(name = "trade_name")
+    private String tradeName;
+
+    @Column(name = "legal_name")
+    private String legalName;
+
+    @Column(name = "address", columnDefinition = "TEXT")
+    private String address;
+
+    @Column(name = "gst_status")
+    private String gstStatus = "ACTIVE";
+
+    @Column(name = "taxpayer_type")
+    private String taxpayerType = "REGULAR";
+
     @Column(name = "state_code", nullable = false)
     private String stateCode = "24";
 
@@ -60,6 +75,16 @@ public class ClientProfileEntity {
     public void setTallyCompanyName(String tallyCompanyName) { this.tallyCompanyName = tallyCompanyName; }
     public String getGstin() { return gstin; }
     public void setGstin(String gstin) { this.gstin = gstin; }
+    public String getTradeName() { return tradeName; }
+    public void setTradeName(String tradeName) { this.tradeName = tradeName; }
+    public String getLegalName() { return legalName; }
+    public void setLegalName(String legalName) { this.legalName = legalName; }
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
+    public String getGstStatus() { return gstStatus; }
+    public void setGstStatus(String gstStatus) { this.gstStatus = gstStatus; }
+    public String getTaxpayerType() { return taxpayerType; }
+    public void setTaxpayerType(String taxpayerType) { this.taxpayerType = taxpayerType; }
     public String getStateCode() { return stateCode; }
     public void setStateCode(String stateCode) { this.stateCode = stateCode; }
     public String getDefaultMode() { return defaultMode; }

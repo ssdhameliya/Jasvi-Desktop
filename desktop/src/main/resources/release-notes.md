@@ -1,3 +1,13 @@
+# What's New in DSE ERP v11.0.41
+
+### Intelligent Document Processing (IDP) Suite: Live GSTIN Registry, 3-Panel Schema Definition & Strict Quality Gate
+- **Live GSTIN Master Driver & Dedicated Clients Screen**: Established GSTIN as the authoritative root identity. Added a dedicated `Clients` directory screen displaying live verified client records, legal firm names, trade names, registered addresses, and real-time GST status (`ACTIVE`, `CANCELLED`). Integrated `+ Add Client via GSTIN` with instant auto-fill and validation from the GST portal.
+- **3-Panel Templates Schema Definition & Version Locking**: Introduced dedicated `Templates` screen to define document schemas without touching transactional data. Panel 1 shows the verified client profile; Panel 2 configures document headers (`Invoice No`, `Date`, `CGST`, `SGST`, `IGST`, `Total`); Panel 3 provides an interactive item-level column blueprint (`No`, `Item Name`, `HSN/SAC`, `Qty`, `Price`, `GST%`, `Discount`, `Net Amt`) with manual column additions, sample file testing, and version locking (`v1`, `v2`).
+- **Sidebar Menu Reorganization**: Relocated `Bill to Tally` out of `Bank & Expense` into its own top-level menu group placed directly below `Bank & Expense`, providing three clean submenus: `Bill to Tally`, `Clients`, and `Templates`.
+- **Dynamic Template-Driven Extraction (Zero Dummy Data)**: In `Bill to Tally`, uploaded invoices automatically detect the vendor's GSTIN, match the locked template version, and dynamically construct `TableView` columns according to the template blueprint, extracting 100% real line items and document totals.
+- **Strict Mathematical Quality Gate & Export Blocker**: Enforces automated two-level reconciliation ($\sum \text{items} = \text{taxable}$ and $\text{taxable} + \text{taxes} = \text{total}$). If mathematical discrepancies exist, vouchers are flagged as `NEEDS_REVIEW` and exports (`Export GST Portal JSON`, `Push to TallyPrime`) are strictly blocked with explicit diagnostic mismatch alerts.
+- **Universal Multi-Format Document Inspection Dialog**: Enhanced `TallyDocumentInspectionDialog` to preview all formats (`.pdf`, `.png`, `.jpg`, `.jpeg`, `.xlsx`, `.xls`, `.csv`) with embedded Apache POI spreadsheet grid, zoom/rotation controls, and native OS window minimize, maximize, and restore capabilities, accessible anytime from both screens.
+
 # What's New in DSE ERP v11.0.40
 
 ### Bill-to-Tally Native Windows OCR Extraction, Scanned PDF Fallback, Multi-Format Export Previews & Automatic Downloads

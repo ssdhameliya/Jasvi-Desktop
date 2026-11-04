@@ -1,8 +1,13 @@
 package org.example.api.tally;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.example.config.ConfigManager;
+import org.example.service.SessionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -12,16 +17,25 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-public final class TallyAutomationApiClient {
-    private final HttpClient http = org.example.api.ApiRuntime.HTTP;
-    private final ObjectMapper json = org.example.api.ApiRuntime.JSON;
+public class TallyAutomationApiClient {
+    private static final Logger log = LoggerFactory.getLogger(TallyAutomationApiClient.class);
+
+    private final HttpClient httpClient;
+    private final ObjectMapper mapper;
     private final String base;
 
     public TallyAutomationApiClient() {
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        this.mapper = new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         String b = ConfigManager.getDataApiBaseUrl();
         while (b.endsWith("/")) b = b.substring(0, b.length() - 1);
         this.base = b;
@@ -32,6 +46,11 @@ public final class TallyAutomationApiClient {
             String clientName,
             String tallyCompanyName,
             String gstin,
+            String tradeName,
+            String legalName,
+            String address,
+            String gstStatus,
+            String taxpayerType,
             String stateCode,
             String defaultMode,
             String defaultPurchaseLedger,
@@ -41,6 +60,66 @@ public final class TallyAutomationApiClient {
             boolean showCostCenter,
             boolean showPoReference,
             String excelColumnMappingJson
+    ) {}
+
+    public record ClientDirectoryRowDto(
+            Long id,
+            String clientName,
+            String tradeName,
+            String legalName,
+            String gstin,
+            String stateCode,
+            String address,
+            String gstStatus,
+            String taxpayerType,
+            long templateCount,
+            OffsetDateTime updatedAt
+    ) {}
+
+    public record GstPortalProfileDto(
+            String gstin,
+            String legalName,
+            String tradeName,
+            String address,
+            String status,
+            String taxpayerType,
+            String stateCode,
+            boolean isValid
+    ) {}
+
+    public record GstinVerificationRequest(
+            String gstin
+    ) {}
+
+    public record TemplateColumnDef(
+            int colOrder,
+            String colKey,
+            String colHeader,
+            String canonicalField,
+            String dataType,
+            boolean isRequired
+    ) {}
+
+    public record TemplateHeaderFieldDef(
+            String fieldKey,
+            String label,
+            String sampleValue,
+            boolean isRequired
+    ) {}
+
+    public record TemplateVersionDto(
+            Long id,
+            Long clientProfileId,
+            String templateName,
+            String versionCode,
+            boolean isActive,
+            boolean isLocked,
+            String vendorGstin,
+            String matchingKeywords,
+            String headerFieldsJson,
+            String itemColumnsJson,
+            String sampleFilePath,
+            OffsetDateTime createdAt
     ) {}
 
     public record UploadBatchDto(
@@ -136,6 +215,30 @@ public final class TallyAutomationApiClient {
         delete("/api/tally-automation/profiles/" + id);
     }
 
+    public List<ClientDirectoryRowDto> listClientsDirectory() {
+        return get("/api/tally-automation/clients/directory", new TypeReference<List<ClientDirectoryRowDto>>() {});
+    }
+
+    public GstPortalProfileDto verifyGstin(String gstin) {
+        return post("/api/tally-automation/clients/verify-gstin", new GstinVerificationRequest(gstin), GstPortalProfileDto.class);
+    }
+
+    public List<TemplateVersionDto> listTemplates(Long clientProfileId) {
+        return get("/api/tally-automation/clients/" + clientProfileId + "/templates", new TypeReference<List<TemplateVersionDto>>() {});
+    }
+
+    public List<TemplateVersionDto> listTemplatesByGstin(String gstin) {
+        return get("/api/tally-automation/templates/by-gstin/" + enc(gstin), new TypeReference<List<TemplateVersionDto>>() {});
+    }
+
+    public TemplateVersionDto saveTemplate(TemplateVersionDto dto) {
+        return post("/api/tally-automation/templates", dto, TemplateVersionDto.class);
+    }
+
+    public TemplateVersionDto lockTemplate(Long templateId) {
+        return post("/api/tally-automation/templates/" + templateId + "/lock", null, TemplateVersionDto.class);
+    }
+
     public UploadBatchDto createBatch(Long clientProfileId, String reference, int totalFiles, String user) {
         String path = "/api/tally-automation/batches?totalFiles=" + totalFiles
                 + (clientProfileId != null ? "&clientProfileId=" + clientProfileId : "")
@@ -168,53 +271,67 @@ public final class TallyAutomationApiClient {
         return post("/api/tally-automation/export", request, TallyExportResponse.class);
     }
 
-    /* Helper HTTP methods */
-    private static String enc(String s) {
-        return URLEncoder.encode(s == null ? "" : s, StandardCharsets.UTF_8);
+    /* =========================================================================
+       INTERNAL HTTP HELPERS
+       ========================================================================= */
+
+    private HttpRequest.Builder request(String path) {
+        HttpRequest.Builder b = HttpRequest.newBuilder()
+                .uri(URI.create(base + path))
+                .timeout(Duration.ofSeconds(60))
+                .header("Accept", "application/json");
+        org.example.api.ApiSession.authorize(b);
+        return b;
     }
 
     private <T> T get(String path, Class<T> clazz) {
-        return req("GET", path, null, clazz, null);
+        try {
+            HttpRequest req = request(path).GET().build();
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (resp.statusCode() >= 400) throw new RuntimeException("HTTP " + resp.statusCode() + ": " + resp.body());
+            return mapper.readValue(resp.body(), clazz);
+        } catch (Exception e) {
+            throw new RuntimeException("API GET " + path + " failed: " + e.getMessage(), e);
+        }
     }
 
-    private <T> T get(String path, TypeReference<T> type) {
-        return req("GET", path, null, null, type);
+    private <T> T get(String path, TypeReference<T> ref) {
+        try {
+            HttpRequest req = request(path).GET().build();
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (resp.statusCode() >= 400) throw new RuntimeException("HTTP " + resp.statusCode() + ": " + resp.body());
+            return mapper.readValue(resp.body(), ref);
+        } catch (Exception e) {
+            throw new RuntimeException("API GET " + path + " failed: " + e.getMessage(), e);
+        }
     }
 
     private <T> T post(String path, Object body, Class<T> clazz) {
-        return req("POST", path, body, clazz, null);
+        try {
+            String json = body != null ? mapper.writeValueAsString(body) : "";
+            HttpRequest req = request(path)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
+                    .build();
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (resp.statusCode() >= 400) throw new RuntimeException("HTTP " + resp.statusCode() + ": " + resp.body());
+            return mapper.readValue(resp.body(), clazz);
+        } catch (Exception e) {
+            throw new RuntimeException("API POST " + path + " failed: " + e.getMessage(), e);
+        }
     }
 
     private void delete(String path) {
-        req("DELETE", path, null, Void.class, null);
+        try {
+            HttpRequest req = request(path).DELETE().build();
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (resp.statusCode() >= 400) throw new RuntimeException("HTTP " + resp.statusCode() + ": " + resp.body());
+        } catch (Exception e) {
+            throw new RuntimeException("API DELETE " + path + " failed: " + e.getMessage(), e);
+        }
     }
 
-    private <T> T req(String method, String path, Object body, Class<T> clazz, TypeReference<T> typeRef) {
-        try {
-            HttpRequest.Builder b = HttpRequest.newBuilder()
-                    .uri(URI.create(base + path))
-                    .header("Accept", "application/json")
-                    .timeout(java.time.Duration.ofSeconds(20));
-            org.example.api.ApiSession.authorize(b);
-
-            if ("POST".equalsIgnoreCase(method)) {
-                String payload = body == null ? "" : json.writeValueAsString(body);
-                b.header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8));
-            } else if ("DELETE".equalsIgnoreCase(method)) {
-                b.DELETE();
-            } else {
-                b.GET();
-            }
-
-            HttpResponse<String> resp = http.send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (resp.statusCode() >= 400) {
-                throw new IOException("Server returned HTTP " + resp.statusCode() + ": " + resp.body());
-            }
-            if (clazz == Void.class) return null;
-            if (clazz != null) return json.readValue(resp.body(), clazz);
-            return json.readValue(resp.body(), typeRef);
-        } catch (Exception ex) {
-            throw new RuntimeException("Tally Automation API call failed: " + ex.getMessage(), ex);
-        }
+    private static String enc(String v) {
+        return URLEncoder.encode(v, StandardCharsets.UTF_8);
     }
 }

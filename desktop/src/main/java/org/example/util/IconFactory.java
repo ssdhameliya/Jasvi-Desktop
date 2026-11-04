@@ -1008,6 +1008,7 @@ public final class IconFactory {
             case "wallet", "finance" -> "fas-wallet";
             case "automation" -> "fas-cogs";
             case "module" -> "fas-cubes";
+            case "template" -> "fas-file-alt";
             default -> "fas-question-circle";
         };
     }
@@ -1020,7 +1021,7 @@ public final class IconFactory {
             case "sale", "sales-order", "complete", "add", "import", "whatsapp", "save", "validate", "approve", "publish" -> "green";
             case "export", "excel" -> "blue";
             case "purchase", "purchase-order", "goods-receipt", "item", "reminder", "warning", "snooze", "quantity", "tax", "gstin", "discount", "category", "minimum", "source", "reference", "rollback", "package", "set-default", "transporter", "vehicle", "lock" -> "orange";
-            case "quotation", "document", "master", "return", "settings", "more", "actions", "status", "reopen", "role", "reset", "notes", "print", "application", "calendar", "audit", "archive", "duplicate", "barcode" -> "purple";
+            case "quotation", "document", "master", "return", "settings", "more", "actions", "status", "reopen", "role", "reset", "notes", "print", "application", "calendar", "audit", "archive", "duplicate", "barcode", "template" -> "purple";
             case "report", "delete", "error", "cancel", "pdf", "debit", "reject", "exit" -> "pink";
             case "inventory", "supplier", "attachment", "phone", "location", "communication", "unit", "email", "backup", "filter" -> "teal";
             case "payment", "customer", "user", "dashboard", "view", "hide", "download", "identity", "sent", "currency", "confirmation", "refresh", "restore", "folder", "copy", "database", "first", "previous", "next", "last", "history", "workspace", "select", "balance", "business", "chevron", "wallet", "finance" -> "blue";
@@ -1151,7 +1152,9 @@ public final class IconFactory {
         if (value.equals("fit") || value.contains("fit width") || value.contains("fit page") || value.contains("fit window")) return "view";
         if (value.contains("push")) return "upload";
         if (value.contains("change file")) return "change-file";
-        if (value.contains("erp template")) return "template";
+        if (value.contains("template")) return "template";
+        if (value.contains("re-detect") || value.contains("detect")) return "validate";
+        if (value.contains("maximize") || value.contains("fullscreen")) return "view";
         if (value.contains("group selected") && !value.contains("ungroup")) return "group";
         if (value.contains("ungroup selected")) return "ungroup";
         if (value.contains("publish") && value.contains("default")) return "set-default";
@@ -1353,7 +1356,7 @@ public final class IconFactory {
         if (value.contains("more")) return "more";
         if (value.contains("whatsapp")) return "whatsapp";
         if (value.contains("supplier") || value.contains("hrm")) return "supplier";
-        if (value.contains("customer") || value.contains("crm")) return "customer";
+        if (value.contains("customer") || value.contains("crm") || value.contains("client")) return "customer";
         if (value.contains("user") || value.contains("profile")) return "user";
         if (value.contains("quotation")) return "quotation";
         if (value.contains("purchase")) return "purchase";

@@ -51,7 +51,19 @@
                     <Button fx:id="btnBankStatement" text="Bank Statement" onAction="#openBankStatement" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnPurchaseRecon" text="Purchase Recon" onAction="#openPurchaseRecon" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnReconSupplier" text="Recon Supplier" onAction="#openReconSupplier" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                </VBox>
+            </VBox>
+            <VBox styleClass="nav-group">
+                <StackPane maxWidth="Infinity" styleClass="nav-parent-row">
+                    <Button fx:id="btnBillToTallyNav" text="Bill to Tally" onAction="#toggleBillToTallyMenu" maxWidth="Infinity" styleClass="nav-parent,approved-button,approved-secondary-button">
+                        <tooltip><Tooltip text="Show or hide Bill to Tally menu"/></tooltip>
+                    </Button>
+                    <Label fx:id="lblBillToTallyChevron" mouseTransparent="true" styleClass="nav-chevron" StackPane.alignment="CENTER_RIGHT"/>
+                </StackPane>
+                <VBox fx:id="billToTallySubmenu" spacing="1" visible="false" managed="false" styleClass="nav-children">
                     <Button fx:id="btnBillToTally" text="Bill to Tally" onAction="#openBillToTally" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnClientsDirectory" text="Clients" onAction="#openClientsDirectory" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnClientTemplate" text="Templates" onAction="#openClientTemplate" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                 </VBox>
             </VBox>
             <VBox styleClass="nav-group">

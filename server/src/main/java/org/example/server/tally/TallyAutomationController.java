@@ -31,6 +31,36 @@ public class TallyAutomationController {
         service.deleteProfile(id);
     }
 
+    @GetMapping("/clients/directory")
+    public List<TallyAutomationDtos.ClientDirectoryRowDto> listClientsDirectory() {
+        return service.listClientsDirectory();
+    }
+
+    @PostMapping("/clients/verify-gstin")
+    public TallyAutomationDtos.GstPortalProfileDto verifyGstin(@RequestBody TallyAutomationDtos.GstinVerificationRequest request) {
+        return service.verifyGstin(request != null ? request.gstin() : "");
+    }
+
+    @GetMapping("/clients/{clientProfileId}/templates")
+    public List<TallyAutomationDtos.TemplateVersionDto> listTemplates(@PathVariable Long clientProfileId) {
+        return service.listTemplates(clientProfileId);
+    }
+
+    @GetMapping("/templates/by-gstin/{gstin}")
+    public List<TallyAutomationDtos.TemplateVersionDto> listTemplatesByGstin(@PathVariable String gstin) {
+        return service.listTemplatesByGstin(gstin);
+    }
+
+    @PostMapping("/templates")
+    public TallyAutomationDtos.TemplateVersionDto saveTemplate(@RequestBody TallyAutomationDtos.TemplateVersionDto dto) {
+        return service.saveTemplate(dto);
+    }
+
+    @PostMapping("/templates/{id}/lock")
+    public TallyAutomationDtos.TemplateVersionDto lockTemplate(@PathVariable Long id) {
+        return service.lockTemplate(id);
+    }
+
     @PostMapping("/batches")
     public TallyAutomationDtos.UploadBatchDto createBatch(
             @RequestParam(required = false) Long clientProfileId,

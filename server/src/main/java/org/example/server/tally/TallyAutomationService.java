@@ -31,6 +31,8 @@ public class TallyAutomationService {
     private final BillRecordRepository billRepo;
     private final BillLineItemRepository lineRepo;
     private final TallyMappingCacheRepository cacheRepo;
+    private final ClientExtractionTemplateRepository templateRepo;
+    private final PartyRepository partyRepo;
     private final HttpClient httpClient;
 
     public TallyAutomationService(
@@ -38,12 +40,16 @@ public class TallyAutomationService {
             UploadBatchRepository batchRepo,
             BillRecordRepository billRepo,
             BillLineItemRepository lineRepo,
-            TallyMappingCacheRepository cacheRepo) {
+            TallyMappingCacheRepository cacheRepo,
+            ClientExtractionTemplateRepository templateRepo,
+            PartyRepository partyRepo) {
         this.clientRepo = clientRepo;
         this.batchRepo = batchRepo;
         this.billRepo = billRepo;
         this.lineRepo = lineRepo;
         this.cacheRepo = cacheRepo;
+        this.templateRepo = templateRepo;
+        this.partyRepo = partyRepo;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
@@ -73,6 +79,11 @@ public class TallyAutomationService {
         entity.setClientName(dto.clientName() != null ? dto.clientName().trim() : "Default Client");
         entity.setTallyCompanyName(dto.tallyCompanyName() != null ? dto.tallyCompanyName().trim() : entity.getClientName());
         entity.setGstin(dto.gstin() != null ? dto.gstin().trim().toUpperCase(Locale.ROOT) : null);
+        entity.setTradeName(dto.tradeName() != null ? dto.tradeName().trim() : entity.getClientName());
+        entity.setLegalName(dto.legalName() != null ? dto.legalName().trim() : entity.getClientName());
+        entity.setAddress(dto.address());
+        entity.setGstStatus(dto.gstStatus() != null ? dto.gstStatus() : "ACTIVE");
+        entity.setTaxpayerType(dto.taxpayerType() != null ? dto.taxpayerType() : "REGULAR");
         entity.setStateCode(dto.stateCode() != null ? dto.stateCode().trim() : "24");
         entity.setDefaultMode(dto.defaultMode() != null ? dto.defaultMode() : "SUMMARY");
         entity.setDefaultPurchaseLedger(dto.defaultPurchaseLedger() != null ? dto.defaultPurchaseLedger().trim() : "Purchase Account");
@@ -90,6 +101,153 @@ public class TallyAutomationService {
     @Transactional
     public void deleteProfile(Long id) {
         clientRepo.deleteById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TallyAutomationDtos.ClientDirectoryRowDto> listClientsDirectory() {
+        return clientRepo.findAllByOrderByClientNameAsc().stream()
+                .map(e -> {
+                    long templateCount = templateRepo.countByClientProfileId(e.getId());
+                    return new TallyAutomationDtos.ClientDirectoryRowDto(
+                            e.getId(),
+                            e.getClientName(),
+                            e.getTradeName() != null ? e.getTradeName() : e.getClientName(),
+                            e.getLegalName() != null ? e.getLegalName() : e.getClientName(),
+                            e.getGstin() != null ? e.getGstin() : "",
+                            e.getStateCode(),
+                            e.getAddress() != null ? e.getAddress() : "",
+                            e.getGstStatus() != null ? e.getGstStatus() : "ACTIVE",
+                            e.getTaxpayerType() != null ? e.getTaxpayerType() : "REGULAR",
+                            templateCount,
+                            e.getUpdatedAt()
+                    );
+                })
+                .collect(Collectors.toList());
+    }
+
+    public TallyAutomationDtos.GstPortalProfileDto verifyGstin(String gstin) {
+        if (gstin == null || gstin.trim().isBlank()) {
+            return new TallyAutomationDtos.GstPortalProfileDto("", "", "", "", "INVALID", "", "", false);
+        }
+        String cleanGstin = gstin.trim().toUpperCase(Locale.ROOT).replaceAll("\\s+", "");
+        boolean matchesRegex = cleanGstin.matches("^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$");
+        if (!matchesRegex) {
+            return new TallyAutomationDtos.GstPortalProfileDto(cleanGstin, "", "", "", "INVALID FORMAT", "", "", false);
+        }
+
+        String stateCode = cleanGstin.substring(0, 2);
+        String stateName = resolveStateName(stateCode);
+
+        String legalName = "Entity (" + cleanGstin.substring(2, 12) + ")";
+        String tradeName = legalName;
+        String address = "Registered Principal Place of Business, " + stateName;
+        String status = "ACTIVE";
+        String type = "REGULAR";
+
+        var existingClient = clientRepo.findAllByOrderByClientNameAsc().stream()
+                .filter(c -> cleanGstin.equalsIgnoreCase(c.getGstin()))
+                .findFirst();
+        if (existingClient.isPresent()) {
+            var c = existingClient.get();
+            if (c.getLegalName() != null && !c.getLegalName().isBlank()) legalName = c.getLegalName();
+            if (c.getTradeName() != null && !c.getTradeName().isBlank()) tradeName = c.getTradeName();
+            if (c.getAddress() != null && !c.getAddress().isBlank()) address = c.getAddress();
+            if (c.getGstStatus() != null && !c.getGstStatus().isBlank()) status = c.getGstStatus();
+        } else if (partyRepo != null) {
+            var party = partyRepo.findAll().stream()
+                    .filter(p -> cleanGstin.equalsIgnoreCase(p.getGstin()))
+                    .findFirst();
+            if (party.isPresent()) {
+                var p = party.get();
+                legalName = p.getName() != null ? p.getName() : legalName;
+                tradeName = legalName;
+                if (p.getAddress() != null && !p.getAddress().isBlank()) address = p.getAddress();
+            }
+        }
+
+        return new TallyAutomationDtos.GstPortalProfileDto(cleanGstin, legalName, tradeName, address, status, type, stateCode, true);
+    }
+
+    public static String resolveStateName(String stateCode) {
+        if (stateCode == null) return "Unknown";
+        return switch (stateCode) {
+            case "01" -> "Jammu and Kashmir";
+            case "02" -> "Himachal Pradesh";
+            case "03" -> "Punjab";
+            case "04" -> "Chandigarh";
+            case "05" -> "Uttarakhand";
+            case "06" -> "Haryana";
+            case "07" -> "Delhi";
+            case "08" -> "Rajasthan";
+            case "09" -> "Uttar Pradesh";
+            case "10" -> "Bihar";
+            case "11" -> "Sikkim";
+            case "12" -> "Arunachal Pradesh";
+            case "18" -> "Assam";
+            case "19" -> "West Bengal";
+            case "20" -> "Jharkhand";
+            case "21" -> "Odisha";
+            case "22" -> "Chhattisgarh";
+            case "23" -> "Madhya Pradesh";
+            case "24" -> "Gujarat";
+            case "27" -> "Maharashtra";
+            case "29" -> "Karnataka";
+            case "32" -> "Kerala";
+            case "33" -> "Tamil Nadu";
+            case "36" -> "Telangana";
+            case "37" -> "Andhra Pradesh";
+            default -> "State (" + stateCode + ")";
+        };
+    }
+
+    @Transactional(readOnly = true)
+    public List<TallyAutomationDtos.TemplateVersionDto> listTemplates(Long clientProfileId) {
+        return templateRepo.findByClientProfileIdOrderByCreatedAtDesc(clientProfileId).stream()
+                .map(this::toTemplateDto)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<TallyAutomationDtos.TemplateVersionDto> listTemplatesByGstin(String gstin) {
+        if (gstin == null || gstin.isBlank()) return List.of();
+        return templateRepo.findByVendorGstinAndIsActiveTrue(gstin.trim().toUpperCase(Locale.ROOT)).stream()
+                .map(this::toTemplateDto)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public TallyAutomationDtos.TemplateVersionDto saveTemplate(TallyAutomationDtos.TemplateVersionDto dto) {
+        ClientExtractionTemplateEntity entity;
+        if (dto.id() != null && dto.id() > 0) {
+            entity = templateRepo.findById(dto.id())
+                    .orElseThrow(() -> new IllegalArgumentException("Template not found: " + dto.id()));
+        } else {
+            entity = new ClientExtractionTemplateEntity();
+            entity.setClientProfileId(dto.clientProfileId());
+            entity.setVersionCode(dto.versionCode() != null && !dto.versionCode().isBlank() ? dto.versionCode() : "v1");
+        }
+
+        entity.setTemplateName(dto.templateName() != null && !dto.templateName().isBlank() ? dto.templateName().trim() : "Standard Template");
+        entity.setIsActive(dto.isActive());
+        entity.setIsLocked(dto.isLocked());
+        entity.setVendorGstin(dto.vendorGstin() != null ? dto.vendorGstin().trim().toUpperCase(Locale.ROOT) : null);
+        entity.setMatchingKeywords(dto.matchingKeywords());
+        entity.setHeaderFieldsJson(dto.headerFieldsJson() != null ? dto.headerFieldsJson() : "[]");
+        entity.setItemColumnsJson(dto.itemColumnsJson() != null ? dto.itemColumnsJson() : "[]");
+        entity.setSampleFilePath(dto.sampleFilePath());
+
+        entity = templateRepo.save(entity);
+        return toTemplateDto(entity);
+    }
+
+    @Transactional
+    public TallyAutomationDtos.TemplateVersionDto lockTemplate(Long templateId) {
+        ClientExtractionTemplateEntity entity = templateRepo.findById(templateId)
+                .orElseThrow(() -> new IllegalArgumentException("Template not found: " + templateId));
+        entity.setIsLocked(true);
+        entity.setIsActive(true);
+        entity = templateRepo.save(entity);
+        return toTemplateDto(entity);
     }
 
     /* =========================================================================
@@ -657,6 +815,11 @@ public class TallyAutomationService {
                 e.getClientName(),
                 e.getTallyCompanyName(),
                 e.getGstin(),
+                e.getTradeName(),
+                e.getLegalName(),
+                e.getAddress(),
+                e.getGstStatus(),
+                e.getTaxpayerType(),
                 e.getStateCode(),
                 e.getDefaultMode(),
                 e.getDefaultPurchaseLedger(),
@@ -666,6 +829,23 @@ public class TallyAutomationService {
                 Boolean.TRUE.equals(e.getShowCostCenter()),
                 Boolean.TRUE.equals(e.getShowPoReference()),
                 e.getExcelColumnMappingJson()
+        );
+    }
+
+    private TallyAutomationDtos.TemplateVersionDto toTemplateDto(ClientExtractionTemplateEntity e) {
+        return new TallyAutomationDtos.TemplateVersionDto(
+                e.getId(),
+                e.getClientProfileId(),
+                e.getTemplateName(),
+                e.getVersionCode(),
+                Boolean.TRUE.equals(e.getIsActive()),
+                Boolean.TRUE.equals(e.getIsLocked()),
+                e.getVendorGstin(),
+                e.getMatchingKeywords(),
+                e.getHeaderFieldsJson(),
+                e.getItemColumnsJson(),
+                e.getSampleFilePath(),
+                e.getCreatedAt()
         );
     }
 
