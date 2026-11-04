@@ -13,6 +13,11 @@ public final class TallyAutomationDtos {
         String clientName,
         String tallyCompanyName,
         String gstin,
+        String tradeName,
+        String legalName,
+        String address,
+        String gstStatus,
+        String taxpayerType,
         String stateCode,
         String defaultMode,
         String defaultPurchaseLedger,
@@ -22,6 +27,66 @@ public final class TallyAutomationDtos {
         boolean showCostCenter,
         boolean showPoReference,
         String excelColumnMappingJson
+    ) {}
+
+    public record ClientDirectoryRowDto(
+        Long id,
+        String clientName,
+        String tradeName,
+        String legalName,
+        String gstin,
+        String stateCode,
+        String address,
+        String gstStatus,
+        String taxpayerType,
+        long templateCount,
+        OffsetDateTime updatedAt
+    ) {}
+
+    public record GstPortalProfileDto(
+        String gstin,
+        String legalName,
+        String tradeName,
+        String address,
+        String status,
+        String taxpayerType,
+        String stateCode,
+        boolean isValid
+    ) {}
+
+    public record GstinVerificationRequest(
+        String gstin
+    ) {}
+
+    public record TemplateColumnDef(
+        int colOrder,
+        String colKey,
+        String colHeader,
+        String canonicalField,
+        String dataType,
+        boolean isRequired
+    ) {}
+
+    public record TemplateHeaderFieldDef(
+        String fieldKey,
+        String label,
+        String sampleValue,
+        boolean isRequired
+    ) {}
+
+    public record TemplateVersionDto(
+        Long id,
+        Long clientProfileId,
+        String templateName,
+        String versionCode,
+        boolean isActive,
+        boolean isLocked,
+        String vendorGstin,
+        String matchingKeywords,
+        String headerFieldsJson,
+        String itemColumnsJson,
+        String sampleFilePath,
+        OffsetDateTime createdAt
     ) {}
 
     public record UploadBatchDto(

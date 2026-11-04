@@ -1,6 +1,8 @@
 package org.example.tally;
 
-import javafx.application.Platform;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -9,14 +11,15 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
+import javafx.stage.Stage;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
+import org.apache.poi.ss.usermodel.*;
 import org.example.api.tally.TallyAutomationApiClient;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
 import org.example.util.PopupTableWorkspace;
-import org.example.util.UiActionIcons;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,13 +29,18 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
- * Centered, full-size modal window popup for inspecting original Tally bill documents (PDF, Excel, JPG, PNG).
- * Features high-resolution rendering, zoom in/out, fit to window, rotation, and multi-page navigation.
+ * Universal modal window popup for inspecting original documents across all formats:
+ * PDF, Images (PNG, JPG, JPEG, BMP), Excel (XLSX, XLS), and CSV.
+ * Features high-resolution rendering, zoom in/out, fit width, rotation, page navigation,
+ * spreadsheet grids, and native window minimize, maximize, and restore controls.
  */
 public final class TallyDocumentInspectionDialog {
     private static final Logger log = LoggerFactory.getLogger(TallyDocumentInspectionDialog.class);
@@ -41,9 +49,25 @@ public final class TallyDocumentInspectionDialog {
 
     public static void show(Node ownerNode, TallyAutomationApiClient.BillRecordDto bill) {
         if (bill == null) return;
+        String title = "Invoice: " + (bill.invoiceNumber() != null ? bill.invoiceNumber() : "Voucher");
+        String meta = "Vendor: " + (bill.vendorNamePrinted() != null ? bill.vendorNamePrinted() : "N/A")
+                + " | Date: " + (bill.invoiceDate() != null ? bill.invoiceDate().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : "N/A")
+                + (bill.vendorGstin() != null && !bill.vendorGstin().isBlank() ? " | GSTIN: " + bill.vendorGstin() : "");
+        String financial = String.format(Locale.ROOT, "Taxable: ₹%.2f   GST: ₹%.2f   Total: ₹%.2f",
+                bill.taxableAmount() != null ? bill.taxableAmount().doubleValue() : 0.0,
+                (bill.cgstAmount() != null ? bill.cgstAmount().doubleValue() : 0.0)
+                        + (bill.sgstAmount() != null ? bill.sgstAmount().doubleValue() : 0.0)
+                        + (bill.igstAmount() != null ? bill.igstAmount().doubleValue() : 0.0),
+                bill.grandTotal() != null ? bill.grandTotal().doubleValue() : 0.0);
+        File file = (bill.attachedFilePaths() != null && !bill.attachedFilePaths().isBlank())
+                ? new File(bill.attachedFilePaths())
+                : null;
+        show(ownerNode, file, title, meta, financial);
+    }
 
+    public static void show(Node ownerNode, File file, String title, String subtitle, String financialSummary) {
         OwnedDialog<ButtonType> dialog = new OwnedDialog<>(ownerNode);
-        dialog.setTitle("Document Inspection — " + (bill.invoiceNumber() != null ? bill.invoiceNumber() : "Voucher"));
+        dialog.setTitle(title != null ? title : "Document Inspection");
         dialog.setHeaderText(null);
         dialog.setResizable(true);
 
@@ -66,29 +90,49 @@ public final class TallyDocumentInspectionDialog {
         root.getStyleClass().addAll("approved-card", "erp-ui-standard");
         VBox.setVgrow(root, Priority.ALWAYS);
 
-        // 1. Header Bar: Document identity & Financial Summary
-        HBox header = buildHeaderBar(bill, dialog);
-
-        // 2. Viewer Component with interactive zoom, rotation, and paging
-        VBox viewerBox = new VBox(8);
-        VBox.setVgrow(viewerBox, Priority.ALWAYS);
-
         DocumentViewerState state = new DocumentViewerState();
-        HBox toolbar = buildToolbar(state);
-        ScrollPane scrollPane = buildViewerScrollPane(state);
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-        viewerBox.getChildren().addAll(toolbar, scrollPane);
-        root.getChildren().addAll(header, viewerBox);
+        // 1. Header Bar with document meta, financial summary, maximize & close buttons
+        HBox header = buildHeaderBar(dialog, title, subtitle, financialSummary);
+
+        // 2. Viewer Toolbar (Zoom, Fit, Rotate, Paging)
+        HBox toolbar = buildToolbar(state);
+
+        // 3. Main Viewer Container
+        StackPane viewerContentArea = new StackPane();
+        VBox.setVgrow(viewerContentArea, Priority.ALWAYS);
+        state.contentArea = viewerContentArea;
+
+        ScrollPane scrollPane = buildViewerScrollPane(state);
+        state.scrollPane = scrollPane;
+        viewerContentArea.getChildren().add(scrollPane);
+
+        root.getChildren().addAll(header, toolbar, viewerContentArea);
         pane.setContent(root);
 
-        // Load document content
-        loadFileIntoViewer(bill.attachedFilePaths(), state);
+        // Responsive min window bounds
+        dialog.setOnShown(ev -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage stage) {
+                stage.setMinWidth(900);
+                stage.setMinHeight(650);
+            }
+        });
 
-        dialog.showAndWait();
+        // Load document content
+        loadFileIntoViewer(file, state);
+
+        try {
+            dialog.showAndWait();
+        } finally {
+            if (state.pdfDoc != null) {
+                try {
+                    state.pdfDoc.close();
+                } catch (Exception ignored) {}
+            }
+        }
     }
 
-    private static HBox buildHeaderBar(TallyAutomationApiClient.BillRecordDto bill, Dialog<?> dialog) {
+    private static HBox buildHeaderBar(Dialog<?> dialog, String titleText, String subtitleText, String financialSummary) {
         HBox header = new HBox(12);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(8, 12, 8, 12));
@@ -98,99 +142,100 @@ public final class TallyDocumentInspectionDialog {
         iconHolder.getChildren().setAll(IconFactory.icon("view", 22));
 
         VBox titleBox = new VBox(2);
-        Label lblTitle = new Label("Invoice: " + (bill.invoiceNumber() != null ? bill.invoiceNumber() : "—"));
-        lblTitle.getStyleClass().add("section-title");
+        Label title = new Label(titleText != null ? titleText : "Document Inspection");
+        title.getStyleClass().addAll("approved-page-title", "invoice-dialog-title");
 
-        String vendorInfo = "Vendor: " + (bill.vendorNamePrinted() != null && !bill.vendorNamePrinted().isBlank() ? bill.vendorNamePrinted() : "Unspecified");
-        if (bill.vendorGstin() != null && !bill.vendorGstin().isBlank()) {
-            vendorInfo += " | GSTIN: " + bill.vendorGstin();
-        }
-        if (bill.invoiceDate() != null) {
-            vendorInfo += " | Date: " + bill.invoiceDate().format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
-        }
-        Label lblSub = new Label(vendorInfo);
-        lblSub.getStyleClass().add("muted-label");
-        titleBox.getChildren().addAll(lblTitle, lblSub);
+        Label subtitle = new Label(subtitleText != null ? subtitleText : "Inspect original source document");
+        subtitle.getStyleClass().addAll("approved-page-subtitle", "invoice-dialog-meta");
+        titleBox.getChildren().addAll(title, subtitle);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // Financial KPI badges
-        HBox kpiBox = new HBox(8);
-        kpiBox.setAlignment(Pos.CENTER_RIGHT);
+        HBox controls = new HBox(8);
+        controls.setAlignment(Pos.CENTER_RIGHT);
 
-        BigDecimal taxable = bill.taxableAmount() != null ? bill.taxableAmount() : BigDecimal.ZERO;
-        BigDecimal gst = (bill.cgstAmount() != null ? bill.cgstAmount() : BigDecimal.ZERO)
-                .add(bill.sgstAmount() != null ? bill.sgstAmount() : BigDecimal.ZERO)
-                .add(bill.igstAmount() != null ? bill.igstAmount() : BigDecimal.ZERO);
-        BigDecimal total = bill.grandTotal() != null ? bill.grandTotal() : BigDecimal.ZERO;
+        if (financialSummary != null && !financialSummary.isBlank()) {
+            Label financialLabel = new Label(financialSummary);
+            financialLabel.getStyleClass().addAll("financial-summary-badge", "erp-badge-emerald");
+            controls.getChildren().add(financialLabel);
+        }
 
-        Label badgeTaxable = new Label("Taxable: ₹" + taxable.toPlainString());
-        badgeTaxable.getStyleClass().addAll("approved-badge", "approved-blue-badge");
-
-        Label badgeGst = new Label("GST: ₹" + gst.toPlainString());
-        badgeGst.getStyleClass().addAll("approved-badge", "approved-purple-badge");
-
-        Label badgeTotal = new Label("Total: ₹" + total.toPlainString());
-        badgeTotal.getStyleClass().addAll("approved-badge", "approved-emerald-badge");
+        Button btnMaximize = new Button("Maximize");
+        btnMaximize.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnMaximize.setGraphic(IconFactory.compactIcon("fullscreen", 14));
+        btnMaximize.setOnAction(ev -> {
+            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
+                boolean isMax = stage.isMaximized();
+                stage.setMaximized(!isMax);
+                btnMaximize.setText(!isMax ? "Restore" : "Maximize");
+                btnMaximize.setGraphic(IconFactory.compactIcon(!isMax ? "restore" : "fullscreen", 14));
+            }
+        });
 
         Button btnClose = new Button("Close");
-        btnClose.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        UiActionIcons.apply(btnClose, "cancel", "Close Document Inspection");
-        btnClose.setOnAction(e -> dialog.close());
+        btnClose.getStyleClass().addAll("approved-button", "approved-danger-button");
+        btnClose.setGraphic(IconFactory.compactIcon("cancel", 14));
+        btnClose.setOnAction(ev -> dialog.close());
 
-        kpiBox.getChildren().addAll(badgeTaxable, badgeGst, badgeTotal, btnClose);
-        header.getChildren().addAll(iconHolder, titleBox, spacer, kpiBox);
+        controls.getChildren().addAll(btnMaximize, btnClose);
+        header.getChildren().addAll(iconHolder, titleBox, spacer, controls);
         return header;
     }
 
     private static HBox buildToolbar(DocumentViewerState state) {
-        HBox bar = new HBox(8);
-        bar.setAlignment(Pos.CENTER_LEFT);
-        bar.setPadding(new Insets(6, 10, 6, 10));
-        bar.getStyleClass().addAll("approved-card", "erp-table-toolbar");
+        HBox toolbar = new HBox(8);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+        toolbar.setPadding(new Insets(6, 10, 6, 10));
+        toolbar.getStyleClass().addAll("approved-card", "document-viewer-toolbar");
 
         Button btnZoomIn = new Button("+");
         btnZoomIn.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnZoomIn.setOnAction(e -> state.zoom(1.2));
+        btnZoomIn.setGraphic(IconFactory.compactIcon("add", 13));
+        btnZoomIn.setTooltip(new Tooltip("Zoom In (Ctrl + Wheel Up)"));
+        btnZoomIn.setOnAction(ev -> state.zoom(1.2));
 
         Button btnZoomOut = new Button("-");
         btnZoomOut.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnZoomOut.setOnAction(e -> state.zoom(0.8));
+        btnZoomOut.setGraphic(IconFactory.compactIcon("delete", 13));
+        btnZoomOut.setTooltip(new Tooltip("Zoom Out (Ctrl + Wheel Down)"));
+        btnZoomOut.setOnAction(ev -> state.zoom(0.8));
 
         Button btnFit = new Button("Fit 100%");
         btnFit.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnFit.setOnAction(e -> state.resetZoom());
+        btnFit.setGraphic(IconFactory.compactIcon("view", 13));
+        btnFit.setOnAction(ev -> state.resetZoom());
 
         Button btnRotate = new Button("Rotate");
         btnRotate.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        UiActionIcons.apply(btnRotate, "refresh", "Rotate 90 degrees clockwise");
-        btnRotate.setOnAction(e -> state.rotate90());
+        btnRotate.setGraphic(IconFactory.compactIcon("refresh", 13));
+        btnRotate.setOnAction(ev -> state.rotate90());
 
-        Label lblZoom = new Label("100%");
-        lblZoom.getStyleClass().add("metric-note");
-        state.zoomLabel = lblZoom;
+        Label zoomLabel = new Label("100%");
+        zoomLabel.getStyleClass().addAll("zoom-percent-badge", "erp-badge-blue");
+        state.zoomLabel = zoomLabel;
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         Button btnPrev = new Button("Prev");
         btnPrev.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnPrev.setOnAction(e -> state.prevPage());
+        btnPrev.setGraphic(IconFactory.compactIcon("previous", 13));
+        btnPrev.setOnAction(ev -> state.prevPage());
+        state.btnPrev = btnPrev;
 
-        Label lblPage = new Label("Page 1 of 1");
-        lblPage.getStyleClass().add("metric-note");
-        state.pageLabel = lblPage;
+        Label pageLabel = new Label("Page 1 of 1");
+        pageLabel.getStyleClass().addAll("document-page-indicator", "erp-badge-purple");
+        state.pageLabel = pageLabel;
 
         Button btnNext = new Button("Next");
         btnNext.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnNext.setOnAction(e -> state.nextPage());
-
-        state.btnPrev = btnPrev;
+        btnNext.setGraphic(IconFactory.compactIcon("next", 13));
+        btnNext.setOnAction(ev -> state.nextPage());
         state.btnNext = btnNext;
 
-        bar.getChildren().addAll(btnZoomIn, btnZoomOut, btnFit, btnRotate, lblZoom, spacer, btnPrev, lblPage, btnNext);
-        return bar;
+        toolbar.getChildren().addAll(btnZoomIn, btnZoomOut, btnFit, btnRotate, zoomLabel, spacer, btnPrev, pageLabel, btnNext);
+        return toolbar;
     }
 
     private static ScrollPane buildViewerScrollPane(DocumentViewerState state) {
@@ -226,15 +271,14 @@ public final class TallyDocumentInspectionDialog {
         return sp;
     }
 
-    private static void loadFileIntoViewer(String filePath, DocumentViewerState state) {
-        if (filePath == null || filePath.isBlank()) {
-            state.showError("No document file path is attached to this bill record.");
+    private static void loadFileIntoViewer(File f, DocumentViewerState state) {
+        if (f == null) {
+            state.showError("No document file is selected or attached.");
             return;
         }
 
-        File f = new File(filePath);
         if (!f.exists() || !f.isFile()) {
-            state.showError("Document file not found on disk: " + filePath);
+            state.showError("Document file not found on disk: " + f.getAbsolutePath());
             return;
         }
 
@@ -242,8 +286,12 @@ public final class TallyDocumentInspectionDialog {
         String lower = f.getName().toLowerCase(Locale.ROOT);
         if (lower.endsWith(".pdf")) {
             loadPdfDocument(f, state);
-        } else if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".bmp") || lower.endsWith(".gif")) {
+        } else if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".bmp") || lower.endsWith(".gif") || lower.endsWith(".webp")) {
             loadImageDocument(f, state);
+        } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+            loadSpreadsheetDocument(f, state);
+        } else if (lower.endsWith(".csv")) {
+            loadCsvDocument(f, state);
         } else {
             state.showError("Preview is not supported for this file format (" + f.getName() + ").");
         }
@@ -280,8 +328,8 @@ public final class TallyDocumentInspectionDialog {
     }
 
     private static void loadImageDocument(File file, DocumentViewerState state) {
-        try {
-            Image img = new Image(new FileInputStream(file));
+        try (var fis = new FileInputStream(file)) {
+            Image img = new Image(fis);
             state.imageView.setImage(img);
             state.totalPages = 1;
             state.currentPage = 0;
@@ -293,6 +341,129 @@ public final class TallyDocumentInspectionDialog {
         }
     }
 
+    private static void loadSpreadsheetDocument(File file, DocumentViewerState state) {
+        try (var fis = new FileInputStream(file);
+             var workbook = WorkbookFactory.create(fis)) {
+            int sheetCount = workbook.getNumberOfSheets();
+            if (sheetCount == 0) {
+                state.showError("Excel workbook contains no sheets.");
+                return;
+            }
+
+            TabPane tabPane = new TabPane();
+            tabPane.getStyleClass().addAll("approved-tab-pane", "spreadsheet-preview-tabs");
+            VBox.setVgrow(tabPane, Priority.ALWAYS);
+
+            for (int i = 0; i < sheetCount; i++) {
+                Sheet sheet = workbook.getSheetAt(i);
+                TableView<List<String>> table = buildTableViewForSheet(sheet);
+                Tab tab = new Tab(sheet.getSheetName(), table);
+                tab.setClosable(false);
+                tabPane.getTabs().add(tab);
+            }
+
+            state.contentArea.getChildren().setAll(tabPane);
+            if (state.pageLabel != null) state.pageLabel.setText(sheetCount + " Sheet" + (sheetCount > 1 ? "s" : ""));
+            if (state.btnPrev != null) state.btnPrev.setDisable(true);
+            if (state.btnNext != null) state.btnNext.setDisable(true);
+            if (state.zoomLabel != null) state.zoomLabel.setText("Table View");
+        } catch (Exception ex) {
+            log.error("Failed to load spreadsheet: {}", ex.getMessage(), ex);
+            state.showError("Could not render Excel workbook: " + ex.getMessage());
+        }
+    }
+
+    private static TableView<List<String>> buildTableViewForSheet(Sheet sheet) {
+        TableView<List<String>> table = new TableView<>();
+        table.getStyleClass().addAll("approved-table", "spreadsheet-grid");
+
+        DataFormatter formatter = new DataFormatter();
+        int maxCols = 0;
+        List<List<String>> rows = new ArrayList<>();
+
+        for (Row row : sheet) {
+            List<String> rowData = new ArrayList<>();
+            short lastCellNum = row.getLastCellNum();
+            if (lastCellNum > maxCols) maxCols = lastCellNum;
+            for (int cn = 0; cn < lastCellNum; cn++) {
+                org.apache.poi.ss.usermodel.Cell cell = row.getCell(cn, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                rowData.add(cell != null ? formatter.formatCellValue(cell) : "");
+            }
+            rows.add(rowData);
+        }
+
+        // Generate columns
+        for (int c = 0; c < Math.min(maxCols, 30); c++) {
+            final int colIndex = c;
+            String colName = (colIndex < 26) ? String.valueOf((char) ('A' + colIndex)) : "Col " + (colIndex + 1);
+            if (!rows.isEmpty() && colIndex < rows.get(0).size() && !rows.get(0).get(colIndex).isBlank()) {
+                colName = rows.get(0).get(colIndex);
+            }
+
+            TableColumn<List<String>, String> column = new TableColumn<>(colName);
+            column.setCellValueFactory(data -> {
+                List<String> r = data.getValue();
+                return new SimpleStringProperty((colIndex < r.size()) ? r.get(colIndex) : "");
+            });
+            table.getColumns().add(column);
+        }
+
+        // Add rows (skip header row 0 if used as column name)
+        ObservableList<List<String>> tableData = FXCollections.observableArrayList();
+        for (int r = 1; r < rows.size(); r++) {
+            tableData.add(rows.get(r));
+        }
+        table.setItems(tableData);
+        return table;
+    }
+
+    private static void loadCsvDocument(File file, DocumentViewerState state) {
+        try {
+            List<String> rawLines = Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
+            if (rawLines.isEmpty()) {
+                state.showError("CSV file is empty.");
+                return;
+            }
+
+            TableView<List<String>> table = new TableView<>();
+            table.getStyleClass().addAll("approved-table", "spreadsheet-grid");
+
+            String firstLine = rawLines.get(0);
+            String delimiter = firstLine.contains("\t") ? "\t" : (firstLine.contains(";") ? ";" : ",");
+            String[] headers = firstLine.split(delimiter);
+
+            for (int c = 0; c < headers.length; c++) {
+                final int colIndex = c;
+                TableColumn<List<String>, String> column = new TableColumn<>(headers[c].trim().replaceAll("^\"|\"$", ""));
+                column.setCellValueFactory(data -> {
+                    List<String> r = data.getValue();
+                    return new SimpleStringProperty((colIndex < r.size()) ? r.get(colIndex) : "");
+                });
+                table.getColumns().add(column);
+            }
+
+            ObservableList<List<String>> tableData = FXCollections.observableArrayList();
+            for (int i = 1; i < rawLines.size(); i++) {
+                String line = rawLines.get(i).trim();
+                if (line.isBlank()) continue;
+                String[] tokens = line.split(delimiter);
+                List<String> row = new ArrayList<>();
+                for (String t : tokens) row.add(t.trim().replaceAll("^\"|\"$", ""));
+                tableData.add(row);
+            }
+            table.setItems(tableData);
+
+            state.contentArea.getChildren().setAll(table);
+            if (state.pageLabel != null) state.pageLabel.setText(tableData.size() + " CSV Rows");
+            if (state.btnPrev != null) state.btnPrev.setDisable(true);
+            if (state.btnNext != null) state.btnNext.setDisable(true);
+            if (state.zoomLabel != null) state.zoomLabel.setText("CSV Grid");
+        } catch (Exception ex) {
+            log.error("Failed to load CSV: {}", ex.getMessage(), ex);
+            state.showError("Could not render CSV file: " + ex.getMessage());
+        }
+    }
+
     private static final class DocumentViewerState {
         File file;
         PDDocument pdfDoc;
@@ -301,6 +472,8 @@ public final class TallyDocumentInspectionDialog {
         double zoomScale = 1.0;
         double rotation = 0.0;
 
+        StackPane contentArea;
+        ScrollPane scrollPane;
         ImageView imageView;
         StackPane container;
         Label zoomLabel;

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.example.controller.ClientsDirectoryController"
+      spacing="14" styleClass="clients-directory-page,approved-screen,erp-screen-root">
+
+    <!-- 1. Header Identity Strip -->
+    <HBox alignment="CENTER_LEFT" spacing="12" styleClass="approved-page-header,erp-page-identity-header">
+        <StackPane fx:id="pageIcon" prefWidth="42" prefHeight="42" styleClass="approved-page-icon,clients-page-icon"/>
+        <VBox spacing="2">
+            <Label text="Clients &amp; GST Registry" styleClass="approved-page-title"/>
+            <Label text="Manage live verified clients, view portal statuses, and manage linked extraction templates"
+                   styleClass="approved-page-subtitle"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="btnAddClient" text="Add Client via GSTIN" onAction="#handleAddClient"
+                styleClass="approved-button,approved-primary-button"/>
+        <Button fx:id="btnRefresh" text="Refresh" onAction="#handleRefresh"
+                styleClass="approved-button,approved-secondary-button"/>
+    </HBox>
+
+    <!-- 2. KPI Summary Strip (Rule 6 compliant) -->
+    <GridPane hgap="12" vgap="0" styleClass="erp-kpi-section,erp-kpi-single-row">
+        <VBox fx:id="cardKpiTotal" spacing="4" styleClass="erp-kpi-card,kpi-blue" GridPane.columnIndex="0">
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <StackPane fx:id="kpiTotalIcon" styleClass="erp-kpi-icon"/>
+                <Label text="Total Clients" styleClass="erp-kpi-caption"/>
+            </HBox>
+            <Label fx:id="lblKpiTotal" text="0" styleClass="erp-kpi-value"/>
+        </VBox>
+        <VBox fx:id="cardKpiActive" spacing="4" styleClass="erp-kpi-card,kpi-green" GridPane.columnIndex="1">
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <StackPane fx:id="kpiActiveIcon" styleClass="erp-kpi-icon"/>
+                <Label text="Active GSTINs" styleClass="erp-kpi-caption"/>
+            </HBox>
+            <Label fx:id="lblKpiActive" text="0" styleClass="erp-kpi-value"/>
+        </VBox>
+        <VBox fx:id="cardKpiInactive" spacing="4" styleClass="erp-kpi-card,kpi-amber" GridPane.columnIndex="2">
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <StackPane fx:id="kpiInactiveIcon" styleClass="erp-kpi-icon"/>
+                <Label text="Inactive / Cancelled" styleClass="erp-kpi-caption"/>
+            </HBox>
+            <Label fx:id="lblKpiInactive" text="0" styleClass="erp-kpi-value"/>
+        </VBox>
+        <VBox fx:id="cardKpiTemplates" spacing="4" styleClass="erp-kpi-card,kpi-purple" GridPane.columnIndex="3">
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <StackPane fx:id="kpiTemplatesIcon" styleClass="erp-kpi-icon"/>
+                <Label text="Active Templates" styleClass="erp-kpi-caption"/>
+            </HBox>
+            <Label fx:id="lblKpiTemplates" text="0" styleClass="erp-kpi-value"/>
+        </VBox>
+    </GridPane>
+
+    <!-- 3. Toolbar & Search -->
+    <HBox alignment="CENTER_LEFT" spacing="10" styleClass="approved-card,clients-search-strip">
+        <TextField fx:id="txtSearch" promptText="Search by GSTIN, Trade Name, Legal Name or City..."
+                   HBox.hgrow="ALWAYS" styleClass="approved-input,search-field"/>
+        <ComboBox fx:id="cmbFilterStatus" promptText="Filter Status" prefWidth="160" styleClass="approved-input"/>
+        <Button fx:id="btnResetFilter" text="Reset" onAction="#handleResetFilter"
+                styleClass="approved-button,approved-secondary-button"/>
+    </HBox>
+
+    <!-- 4. Clients Directory Table (Rule 7 compliant: dynamic widths) -->
+    <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,table-container-card">
+        <TableView fx:id="tableClients" VBox.vgrow="ALWAYS" styleClass="approved-table,clients-directory-table">
+            <placeholder>
+                <Label text="No clients registered yet. Click 'Add Client via GSTIN' to add your first client." styleClass="muted-label"/>
+            </placeholder>
+            <columns>
+                <TableColumn fx:id="colStatus" text="Status"/>
+                <TableColumn fx:id="colGstin" text="GSTIN"/>
+                <TableColumn fx:id="colTradeName" text="Trade Name"/>
+                <TableColumn fx:id="colLegalName" text="Legal Firm Name"/>
+                <TableColumn fx:id="colState" text="State"/>
+                <TableColumn fx:id="colTemplates" text="Templates"/>
+                <TableColumn fx:id="colActions" text="Actions"/>
+            </columns>
+        </TableView>
+    </VBox>
+</VBox>

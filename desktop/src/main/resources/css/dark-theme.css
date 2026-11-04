@@ -18310,3 +18310,49 @@
     -fx-background-color: linear-gradient(to right, #059669, #047857);
     -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.60), 10, 0, 0, 3);
 }
+
+/* 16. Client Directory & Template Schema Builder */
+.clients-directory-page, .client-template-page {
+    -fx-background-color: transparent;
+}
+.template-panel {
+    -fx-background-color: #1e293b;
+    -fx-background-radius: 8px;
+    -fx-border-color: rgba(148, 163, 184, 0.2);
+    -fx-border-radius: 8px;
+    -fx-border-width: 1px;
+}
+.version-pill {
+    -fx-background-color: rgba(59, 130, 246, 0.15);
+    -fx-text-fill: #93c5fd;
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+    -fx-padding: 3px 10px;
+    -fx-background-radius: 12px;
+    -fx-border-color: rgba(96, 165, 250, 0.3);
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+}
+.version-pill-active {
+    -fx-background-color: rgba(16, 185, 129, 0.2);
+    -fx-text-fill: #6ee7b7;
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+    -fx-padding: 3px 10px;
+    -fx-background-radius: 12px;
+    -fx-border-color: rgba(52, 211, 153, 0.4);
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+}
+.header-chip {
+    -fx-background-color: #334155;
+    -fx-text-fill: #f1f5f9;
+    -fx-font-size: 12px;
+    -fx-padding: 4px 10px;
+    -fx-background-radius: 6px;
+    -fx-border-color: rgba(148, 163, 184, 0.3);
+    -fx-border-radius: 6px;
+}
+.spreadsheet-grid {
+    -fx-background-color: #0f172a;
+}

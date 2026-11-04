@@ -397,7 +397,7 @@ public final class TallyDocumentParser {
                 ? defaultPartyLedger
                 : (!vendorName.isBlank() ? vendorName : "Purchase Account");
 
-        String status = items.isEmpty() && taxable.compareTo(BigDecimal.ZERO) == 0 ? "NEEDS_REVIEW" : "EXTRACTED";
+        String status = (items.isEmpty() || accuracy.compareTo(new BigDecimal("90.00")) < 0) ? "NEEDS_REVIEW" : "EXTRACTED";
 
         return new TallyAutomationApiClient.BillRecordDto(
                 null,
@@ -522,7 +522,7 @@ public final class TallyDocumentParser {
                 accuracy,
                 items.isEmpty() ? "No excel rows mapped." : "Excel sheet rows mapped directly.",
                 file.getAbsolutePath(),
-                items.isEmpty() ? "NEEDS_REVIEW" : "EXTRACTED",
+                (items.isEmpty() || accuracy.compareTo(new BigDecimal("90.00")) < 0) ? "NEEDS_REVIEW" : "EXTRACTED",
                 null,
                 items
         );
@@ -577,7 +577,7 @@ public final class TallyDocumentParser {
     }
 
     private static BigDecimal calculateAccuracy(BigDecimal taxable, BigDecimal totalGst, BigDecimal grandTotal, List<TallyAutomationApiClient.BillLineItemDto> items) {
-        if (taxable == null || taxable.compareTo(BigDecimal.ZERO) == 0) {
+        if (taxable == null || taxable.compareTo(BigDecimal.ZERO) <= 0 || grandTotal == null || grandTotal.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
 
@@ -585,14 +585,22 @@ public final class TallyDocumentParser {
         BigDecimal expectedTotal = taxable.add(totalGst != null ? totalGst : BigDecimal.ZERO);
         BigDecimal diff = grandTotal.subtract(expectedTotal).abs();
 
-        if (diff.compareTo(new BigDecimal("1.00")) > 0) {
-            score = score.subtract(new BigDecimal("15.00"));
+        if (diff.compareTo(new BigDecimal("0.50")) > 0) {
+            score = score.subtract(new BigDecimal("30.00"));
         } else if (diff.compareTo(BigDecimal.ZERO) > 0) {
             score = score.subtract(new BigDecimal("2.00"));
         }
 
-        if (items.isEmpty()) {
-            score = score.subtract(new BigDecimal("20.00"));
+        if (items == null || items.isEmpty()) {
+            score = score.subtract(new BigDecimal("30.00"));
+        } else {
+            BigDecimal itemsSum = items.stream()
+                    .map(item -> item.taxableAmount() != null ? item.taxableAmount() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal itemDiff = taxable.subtract(itemsSum).abs();
+            if (itemDiff.compareTo(new BigDecimal("0.50")) > 0) {
+                score = score.subtract(new BigDecimal("30.00"));
+            }
         }
 
         return score.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);

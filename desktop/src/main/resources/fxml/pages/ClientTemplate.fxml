@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.example.controller.ClientTemplateController"
+      spacing="14" styleClass="client-template-page,approved-screen,erp-screen-root">
+
+    <!-- 1. Header Identity Strip -->
+    <HBox alignment="CENTER_LEFT" spacing="12" styleClass="approved-page-header,erp-page-identity-header">
+        <StackPane fx:id="pageIcon" prefWidth="42" prefHeight="42" styleClass="approved-page-icon,template-page-icon"/>
+        <VBox spacing="2">
+            <Label text="Invoice Template Builder &amp; Versioning" styleClass="approved-page-title"/>
+            <Label text="Define document headers and item-level column blueprints for accurate, zero-dummy OCR extraction"
+                   styleClass="approved-page-subtitle"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="btnLockTemplate" text="Lock &amp; Save Template Version" onAction="#handleLockTemplate"
+                styleClass="approved-button,approved-primary-button"/>
+        <Button fx:id="btnBackToDirectory" text="Back to Clients" onAction="#handleBackToDirectory"
+                styleClass="approved-button,approved-secondary-button"/>
+    </HBox>
+
+    <!-- 2. PANEL 1: Client Profile & Live GST Data -->
+    <VBox spacing="10" styleClass="approved-card,template-profile-card">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <Label text="Select Client:" styleClass="field-label"/>
+            <ComboBox fx:id="cmbClientProfile" promptText="Choose client or vendor..." prefWidth="280" styleClass="approved-input"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnUploadSample" text="Upload Sample Bill" onAction="#handleUploadSample"
+                    styleClass="approved-button,approved-primary-button"/>
+            <Button fx:id="btnViewTemplateDoc" text="View Template Document" onAction="#handleViewTemplateDoc"
+                    styleClass="approved-button,approved-secondary-button"/>
+        </HBox>
+
+        <!-- Live GST Profile Information Grid -->
+        <GridPane hgap="16" vgap="6" styleClass="gst-live-summary-grid">
+            <columnConstraints>
+                <ColumnConstraints percentWidth="30"/>
+                <ColumnConstraints percentWidth="25"/>
+                <ColumnConstraints percentWidth="30"/>
+                <ColumnConstraints percentWidth="15"/>
+            </columnConstraints>
+            <VBox spacing="2" GridPane.columnIndex="0">
+                <Label text="Legal &amp; Trade Name" styleClass="caption-label"/>
+                <Label fx:id="lblFirmName" text="Select a client above" styleClass="bold-value-label"/>
+            </VBox>
+            <VBox spacing="2" GridPane.columnIndex="1">
+                <Label text="Vendor GSTIN" styleClass="caption-label"/>
+                <Label fx:id="lblGstin" text="—" styleClass="gstin-badge-text"/>
+            </VBox>
+            <VBox spacing="2" GridPane.columnIndex="2">
+                <Label text="Registered Address" styleClass="caption-label"/>
+                <Label fx:id="lblAddress" text="—" styleClass="address-summary-text"/>
+            </VBox>
+            <VBox spacing="2" GridPane.columnIndex="3" alignment="CENTER_RIGHT">
+                <Label text="Live Portal Status" styleClass="caption-label"/>
+                <Label fx:id="lblGstStatus" text="ACTIVE" styleClass="status-badge,status-active"/>
+            </VBox>
+        </GridPane>
+
+        <!-- Version Switcher Pills Strip -->
+        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="version-switcher-bar">
+            <Label text="Template Versions:" styleClass="field-label"/>
+            <HBox fx:id="boxVersionPills" spacing="6" alignment="CENTER_LEFT"/>
+            <Button fx:id="btnNewVersion" text="+ New Version" onAction="#handleNewVersion"
+                    styleClass="approved-button,approved-secondary-button,compact-action-button"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="lblLockStatus" text="Status: DRAFT (Unlocked)" styleClass="lock-status-badge,erp-badge-amber"/>
+        </HBox>
+    </VBox>
+
+    <!-- 3. PANEL 2: High-Level Document Headers Schema -->
+    <VBox spacing="8" styleClass="approved-card,template-headers-card">
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <Label text="High-Level Document Headers" styleClass="section-card-title"/>
+            <Label text="(Labels extracted from the bill header e.g. Invoice No, Date, CGST, SGST, IGST, Total)"
+                   styleClass="caption-label"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnAddHeaderField" text="+ Add Header Field" onAction="#handleAddHeaderField"
+                    styleClass="approved-button,approved-secondary-button,compact-action-button"/>
+        </HBox>
+        <FlowPane fx:id="flowDocumentHeaders" hgap="8" vgap="8" styleClass="headers-chip-container"/>
+    </VBox>
+
+    <!-- 4. PANEL 3: Item-Level Table Headers Blueprint (Dynamic Line Items Schema) -->
+    <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,template-items-card">
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <Label text="Item-Level Table Column Blueprint" styleClass="section-card-title"/>
+            <Label text="(Columns extracted from line items table. These define the dynamic table headers in Bill to Tally)"
+                   styleClass="caption-label"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnAddColumn" text="+ Add Column Header" onAction="#handleAddColumn"
+                    styleClass="approved-button,approved-secondary-button,compact-action-button"/>
+            <Button fx:id="btnReDetect" text="Re-Detect from Sample" onAction="#handleReDetect"
+                    styleClass="approved-button,approved-secondary-button,compact-action-button"/>
+        </HBox>
+
+        <TableView fx:id="tableColumnsBlueprint" VBox.vgrow="ALWAYS" styleClass="approved-table,columns-blueprint-table">
+            <columns>
+                <TableColumn fx:id="colOrder" text="Order"/>
+                <TableColumn fx:id="colHeaderLabel" text="Header Label"/>
+                <TableColumn fx:id="colCanonicalField" text="Mapped Field"/>
+                <TableColumn fx:id="colDataType" text="Data Type"/>
+                <TableColumn fx:id="colRequired" text="Required"/>
+                <TableColumn fx:id="colActions" text="Actions"/>
+            </columns>
+        </TableView>
+    </VBox>
+</VBox>

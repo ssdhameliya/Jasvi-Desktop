@@ -821,6 +821,12 @@ public final class ProfessionalUiEnhancer {
     private static String fallbackHeaderSemantic(String heading, String columnId) {
         String key = ((heading == null ? "" : heading) + " " + (columnId == null ? "" : columnId))
             .toLowerCase(Locale.ROOT);
+        if (key.contains("template")) return "template";
+        if (key.contains("order")) return "number";
+        if (key.contains("header")) return "document";
+        if (key.contains("mapped") || key.contains("mapping")) return "mapping";
+        if (key.contains("data type")) return "category";
+        if (key.contains("required")) return "status";
         if (key.contains("version")) return "update";
         if (key.contains("path") || key.contains("folder")) return "folder";
         if (key.contains("host") || key.contains("port") || key.contains("provider")) return "settings";

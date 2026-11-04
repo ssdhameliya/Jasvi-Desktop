@@ -128,7 +128,12 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private Button btnBankStatement;
     @FXML private Button btnPurchaseRecon;
     @FXML private Button btnReconSupplier;
+    @FXML private Button btnBillToTallyNav;
+    @FXML private Label lblBillToTallyChevron;
+    @FXML private VBox billToTallySubmenu;
     @FXML private Button btnBillToTally;
+    @FXML private Button btnClientsDirectory;
+    @FXML private Button btnClientTemplate;
     @FXML private VBox salesSubmenu;
     @FXML private VBox purchaseSubmenu;
     @FXML private VBox bankExpenseSubmenu;
@@ -539,13 +544,16 @@ public class DashboardController implements ScreenLifecycle {
         boolean purchaseReconAllowed = PermissionService.allowed("PURCHASE_RECON.VIEW");
         boolean reconSupplierAllowed = PermissionService.allowed("RECON_SUPPLIER.VIEW");
         boolean tallyAllowed = PermissionService.allowed("TALLY.VIEW");
-        if (btnBankExpense != null) btnBankExpense.setDisable(!(bankAllowed || purchaseReconAllowed || reconSupplierAllowed || tallyAllowed));
+        if (btnBankExpense != null) btnBankExpense.setDisable(!(bankAllowed || purchaseReconAllowed || reconSupplierAllowed));
         for (Button child : new Button[]{btnBankEntry, btnExpenseEntry, btnBankStatement}) {
             if (child != null) child.setDisable(!bankAllowed);
         }
         if (btnPurchaseRecon != null) btnPurchaseRecon.setDisable(!purchaseReconAllowed);
         if (btnReconSupplier != null) btnReconSupplier.setDisable(!reconSupplierAllowed);
+        if (btnBillToTallyNav != null) btnBillToTallyNav.setDisable(!tallyAllowed);
         if (btnBillToTally != null) btnBillToTally.setDisable(!tallyAllowed);
+        if (btnClientsDirectory != null) btnClientsDirectory.setDisable(!tallyAllowed);
+        if (btnClientTemplate != null) btnClientTemplate.setDisable(!tallyAllowed);
 
         // Finance & Accounts accordion: Admin has full access. For other roles, keep available if GL, Financial Statements, or Aging Analysis is permitted.
         boolean isAdmin = SessionService.isAdmin();
@@ -1018,13 +1026,14 @@ public class DashboardController implements ScreenLifecycle {
         if (button != null && !button.getStyleClass().contains("menu-selected")) button.getStyleClass().add("menu-selected");
     }
 
-    private enum NavGroup { NONE, SALES, PURCHASE, BANK_EXPENSE, FINANCE, GST, DOCUMENT_STUDIO, SETTINGS }
+    private enum NavGroup { NONE, SALES, PURCHASE, BANK_EXPENSE, BILL_TO_TALLY, FINANCE, GST, DOCUMENT_STUDIO, SETTINGS }
 
     /** Initializes the sidebar in a compact state so a new login shows only top-level modules. */
     private void initializeSidebarAccordion() {
         configureChevron(lblSalesChevron);
         configureChevron(lblPurchaseChevron);
         configureChevron(lblBankExpenseChevron);
+        configureChevron(lblBillToTallyChevron);
         configureChevron(lblFinanceChevron);
         configureChevron(lblGstChevron);
         configureChevron(lblDocumentStudioChevron);
@@ -1032,6 +1041,7 @@ public class DashboardController implements ScreenLifecycle {
         setGroupExpanded(NavGroup.SALES, false, false);
         setGroupExpanded(NavGroup.PURCHASE, false, false);
         setGroupExpanded(NavGroup.BANK_EXPENSE, false, false);
+        setGroupExpanded(NavGroup.BILL_TO_TALLY, false, false);
         setGroupExpanded(NavGroup.FINANCE, false, false);
         setGroupExpanded(NavGroup.GST, false, false);
         setGroupExpanded(NavGroup.DOCUMENT_STUDIO, false, false);
@@ -1048,6 +1058,7 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private void toggleSalesMenu() { toggleGroup(NavGroup.SALES); }
     @FXML private void togglePurchaseMenu() { toggleGroup(NavGroup.PURCHASE); }
     @FXML private void toggleBankExpenseMenu() { toggleGroup(NavGroup.BANK_EXPENSE); }
+    @FXML private void toggleBillToTallyMenu() { toggleGroup(NavGroup.BILL_TO_TALLY); }
     @FXML private void toggleFinanceMenu() { toggleGroup(NavGroup.FINANCE); }
     @FXML private void toggleGstMenu() { toggleGroup(NavGroup.GST); }
     @FXML private void toggleDocumentStudioMenu() { toggleGroup(NavGroup.DOCUMENT_STUDIO); }
@@ -1071,7 +1082,7 @@ public class DashboardController implements ScreenLifecycle {
     }
 
     private void collapseAllSubmenus(NavGroup except) {
-        for (NavGroup group : new NavGroup[]{NavGroup.SALES, NavGroup.PURCHASE, NavGroup.BANK_EXPENSE, NavGroup.FINANCE, NavGroup.GST, NavGroup.DOCUMENT_STUDIO, NavGroup.SETTINGS}) {
+        for (NavGroup group : new NavGroup[]{NavGroup.SALES, NavGroup.PURCHASE, NavGroup.BANK_EXPENSE, NavGroup.BILL_TO_TALLY, NavGroup.FINANCE, NavGroup.GST, NavGroup.DOCUMENT_STUDIO, NavGroup.SETTINGS}) {
             if (group != except) setGroupExpanded(group, false, true);
         }
     }
@@ -1105,6 +1116,7 @@ public class DashboardController implements ScreenLifecycle {
             case SALES -> salesSubmenu;
             case PURCHASE -> purchaseSubmenu;
             case BANK_EXPENSE -> bankExpenseSubmenu;
+            case BILL_TO_TALLY -> billToTallySubmenu;
             case FINANCE -> financeSubmenu;
             case GST -> gstSubmenu;
             case DOCUMENT_STUDIO -> documentStudioSubmenu;
@@ -1118,6 +1130,7 @@ public class DashboardController implements ScreenLifecycle {
             case SALES -> lblSalesChevron;
             case PURCHASE -> lblPurchaseChevron;
             case BANK_EXPENSE -> lblBankExpenseChevron;
+            case BILL_TO_TALLY -> lblBillToTallyChevron;
             case FINANCE -> lblFinanceChevron;
             case GST -> lblGstChevron;
             case DOCUMENT_STUDIO -> lblDocumentStudioChevron;
@@ -1131,6 +1144,7 @@ public class DashboardController implements ScreenLifecycle {
             case SALES -> btnSales;
             case PURCHASE -> btnPurchase;
             case BANK_EXPENSE -> btnBankExpense;
+            case BILL_TO_TALLY -> btnBillToTallyNav;
             case FINANCE -> btnFinance;
             case GST -> btnGst;
             case DOCUMENT_STUDIO -> btnDocumentStudio;
@@ -1144,8 +1158,10 @@ public class DashboardController implements ScreenLifecycle {
             return NavGroup.SALES;
         if (button == btnPurchase || button == btnPurchaseRegister || button == btnCreatePurchase || button == btnPurchaseReturn || button == btnDebitNote)
             return NavGroup.PURCHASE;
-        if (button == btnBankExpense || button == btnBankEntry || button == btnExpenseEntry || button == btnBankStatement || button == btnPurchaseRecon || button == btnReconSupplier || button == btnBillToTally)
+        if (button == btnBankExpense || button == btnBankEntry || button == btnExpenseEntry || button == btnBankStatement || button == btnPurchaseRecon || button == btnReconSupplier)
             return NavGroup.BANK_EXPENSE;
+        if (button == btnBillToTallyNav || button == btnBillToTally || button == btnClientsDirectory || button == btnClientTemplate)
+            return NavGroup.BILL_TO_TALLY;
         if (button == btnFinance || button == btnGeneralLedger || button == btnFinancialStatements || button == btnAgingAnalysis)
             return NavGroup.FINANCE;
         if (button == btnGst || button == btnGstCompliance || button == btnEWayBill)
@@ -1159,7 +1175,8 @@ public class DashboardController implements ScreenLifecycle {
         String path = fxmlPath == null ? "" : fxmlPath.toLowerCase(Locale.ROOT);
         if (path.contains("quotation") || path.contains("saleslist") || path.contains("salesreturns") || path.contains("creditnoteregister") || path.endsWith("/sale.fxml")) return NavGroup.SALES;
         if (path.contains("purchaselist") || path.contains("purchasereturns") || path.contains("debitnoteregister") || path.endsWith("/purchase.fxml")) return NavGroup.PURCHASE;
-        if (path.contains("bankexpense") || path.contains("bankstatement") || path.contains("purchaserecon") || path.contains("reconsupplier") || path.contains("billtotally")) return NavGroup.BANK_EXPENSE;
+        if (path.contains("bankexpense") || path.contains("bankstatement") || path.contains("purchaserecon") || path.contains("reconsupplier")) return NavGroup.BANK_EXPENSE;
+        if (path.contains("billtotally") || path.contains("clientsdirectory") || path.contains("clienttemplate")) return NavGroup.BILL_TO_TALLY;
         if (path.contains("generalledger") || path.contains("financialstatements") || path.contains("aginganalysis")) return NavGroup.FINANCE;
         if (path.contains("gstcompliance") || path.contains("ewaybill")) return NavGroup.GST;
         if (path.contains("documentstudio") || path.contains("pdfdesigner") || path.contains("exceldesigner")) return NavGroup.DOCUMENT_STUDIO;
@@ -1182,6 +1199,8 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("purchaserecon")) return btnPurchaseRecon;
         if (path.contains("reconsupplier")) return btnReconSupplier;
         if (path.contains("billtotally")) return btnBillToTally;
+        if (path.contains("clientsdirectory")) return btnClientsDirectory;
+        if (path.contains("clienttemplate")) return btnClientTemplate;
         if (path.contains("generalledger")) return btnGeneralLedger;
         if (path.contains("financialstatements")) return btnFinancialStatements;
         if (path.contains("aginganalysis")) return btnAgingAnalysis;
@@ -1212,7 +1231,7 @@ public class DashboardController implements ScreenLifecycle {
                 btnDashboard,
                 btnSales, btnSalesRegister, btnCreateSale, btnSalesReturn, btnCreditNote, btnQuotation,
                 btnPurchase, btnPurchaseRegister, btnCreatePurchase, btnPurchaseReturn, btnDebitNote,
-                btnItem, btnMasters, btnBankExpense, btnBankEntry, btnExpenseEntry, btnBankStatement, btnPurchaseRecon, btnReconSupplier, btnBillToTally,
+                btnItem, btnMasters, btnBankExpense, btnBankEntry, btnExpenseEntry, btnBankStatement, btnPurchaseRecon, btnReconSupplier, btnBillToTallyNav, btnBillToTally, btnClientsDirectory, btnClientTemplate,
                 btnFinance, btnGeneralLedger, btnFinancialStatements, btnAgingAnalysis,
                 btnGst, btnGstCompliance, btnEWayBill,
                 btnImport, btnInventory, btnBarcodeStudio, btnCustomer, btnSupplier, btnReports, btnReminders, btnUserAccess, btnAuditTrail, btnSystemDiagnosticsNav, btnCommunication,
@@ -1427,6 +1446,14 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML private void openBillToTally() {
         openPage(btnBillToTally, "Bill to Tally", "/fxml/pages/BillToTally.fxml");
+    }
+
+    @FXML private void openClientsDirectory() {
+        openPage(btnClientsDirectory, "Clients", "/fxml/pages/ClientsDirectory.fxml");
+    }
+
+    @FXML private void openClientTemplate() {
+        openPage(btnClientTemplate, "Templates", "/fxml/pages/ClientTemplate.fxml");
     }
 
     /** Refreshes company/environment identity after Company Settings are saved. */

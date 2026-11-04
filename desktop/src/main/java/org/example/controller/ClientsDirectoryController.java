@@ -1,0 +1,394 @@
+package org.example.controller;
+
+import javafx.application.Platform;
+import javafx.beans.property.SimpleLongProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
+import javafx.fxml.FXML;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import org.example.api.tally.TallyAutomationApiClient;
+import org.example.navigation.NavigationManager;
+import org.example.navigation.ScreenLifecycle;
+import org.example.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Locale;
+
+public class ClientsDirectoryController implements ScreenLifecycle {
+    private static final Logger log = LoggerFactory.getLogger(ClientsDirectoryController.class);
+
+    @FXML private StackPane pageIcon;
+    @FXML private Button btnAddClient;
+    @FXML private Button btnRefresh;
+    @FXML private Button btnResetFilter;
+
+    @FXML private VBox cardKpiTotal;
+    @FXML private VBox cardKpiActive;
+    @FXML private VBox cardKpiInactive;
+    @FXML private VBox cardKpiTemplates;
+    @FXML private StackPane kpiTotalIcon;
+    @FXML private StackPane kpiActiveIcon;
+    @FXML private StackPane kpiInactiveIcon;
+    @FXML private StackPane kpiTemplatesIcon;
+    @FXML private Label lblKpiTotal;
+    @FXML private Label lblKpiActive;
+    @FXML private Label lblKpiInactive;
+    @FXML private Label lblKpiTemplates;
+
+    @FXML private TextField txtSearch;
+    @FXML private ComboBox<String> cmbFilterStatus;
+
+    @FXML private TableView<TallyAutomationApiClient.ClientDirectoryRowDto> tableClients;
+    @FXML private TableColumn<TallyAutomationApiClient.ClientDirectoryRowDto, String> colStatus;
+    @FXML private TableColumn<TallyAutomationApiClient.ClientDirectoryRowDto, String> colGstin;
+    @FXML private TableColumn<TallyAutomationApiClient.ClientDirectoryRowDto, String> colTradeName;
+    @FXML private TableColumn<TallyAutomationApiClient.ClientDirectoryRowDto, String> colLegalName;
+    @FXML private TableColumn<TallyAutomationApiClient.ClientDirectoryRowDto, String> colState;
+    @FXML private TableColumn<TallyAutomationApiClient.ClientDirectoryRowDto, Number> colTemplates;
+    @FXML private TableColumn<TallyAutomationApiClient.ClientDirectoryRowDto, Void> colActions;
+
+    private final TallyAutomationApiClient api = new TallyAutomationApiClient();
+    private final ObservableList<TallyAutomationApiClient.ClientDirectoryRowDto> masterList = FXCollections.observableArrayList();
+    private FilteredList<TallyAutomationApiClient.ClientDirectoryRowDto> filteredList;
+
+    @FXML
+    public void initialize() {
+        if (pageIcon != null) pageIcon.getChildren().setAll(IconFactory.icon("customer", 22));
+        if (kpiTotalIcon != null) kpiTotalIcon.getChildren().setAll(IconFactory.icon("customer", 18));
+        if (kpiActiveIcon != null) kpiActiveIcon.getChildren().setAll(IconFactory.icon("active", 18));
+        if (kpiInactiveIcon != null) kpiInactiveIcon.getChildren().setAll(IconFactory.icon("inactive", 18));
+        if (kpiTemplatesIcon != null) kpiTemplatesIcon.getChildren().setAll(IconFactory.icon("document", 18));
+
+        if (btnAddClient != null) btnAddClient.setGraphic(IconFactory.compactIcon("add", 14));
+        if (btnRefresh != null) btnRefresh.setGraphic(IconFactory.compactIcon("refresh", 14));
+        if (btnResetFilter != null) btnResetFilter.setGraphic(IconFactory.compactIcon("reset", 14));
+
+        if (cmbFilterStatus != null) {
+            cmbFilterStatus.setItems(FXCollections.observableArrayList("All Statuses", "ACTIVE", "CANCELLED", "SUSPENDED"));
+            cmbFilterStatus.setValue("All Statuses");
+            cmbFilterStatus.valueProperty().addListener((obs, o, n) -> applyFilters());
+        }
+
+        setupTableColumns();
+        setupFiltering();
+    }
+
+    private void setupTableColumns() {
+        if (tableClients == null) return;
+
+        // Dynamic responsive column widths per Rule 7
+        colStatus.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.12));
+        colGstin.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.16));
+        colTradeName.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.20));
+        colLegalName.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.20));
+        colState.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.12));
+        colTemplates.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.08));
+        colActions.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.12));
+
+        colStatus.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().gstStatus()));
+        colStatus.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String status, boolean empty) {
+                super.updateItem(status, empty);
+                if (empty || status == null) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    Label badge = new Label(status);
+                    badge.getStyleClass().addAll("status-badge");
+                    if ("ACTIVE".equalsIgnoreCase(status)) {
+                        badge.getStyleClass().add("status-active");
+                    } else {
+                        badge.getStyleClass().add("status-inactive");
+                    }
+                    setGraphic(badge);
+                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                }
+            }
+        });
+
+        colGstin.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().gstin()));
+        colGstin.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                setText(empty || val == null ? null : val);
+                if (!empty && val != null) getStyleClass().add("gstin-cell");
+            }
+        });
+
+        colTradeName.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().tradeName()));
+        colLegalName.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().legalName()));
+        colState.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().stateCode()));
+
+        colTemplates.setCellValueFactory(cell -> new SimpleLongProperty(cell.getValue().templateCount()));
+        colTemplates.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(Number count, boolean empty) {
+                super.updateItem(count, empty);
+                if (empty || count == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    Label badge = new Label(count.intValue() + " Ver");
+                    badge.getStyleClass().addAll("template-count-badge", count.intValue() > 0 ? "erp-badge-purple" : "erp-badge-slate");
+                    setGraphic(badge);
+                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                }
+            }
+        });
+
+        colActions.setCellFactory(col -> new TableCell<>() {
+            private final Button btnTemplates = new Button("Templates");
+            private final Button btnDelete = new Button("Delete");
+            private final HBox box = new HBox(6, btnTemplates, btnDelete);
+
+            {
+                btnTemplates.getStyleClass().addAll("approved-button", "approved-secondary-button", "compact-action-button");
+                btnTemplates.setGraphic(IconFactory.compactIcon("document", 12));
+                btnTemplates.setOnAction(ev -> {
+                    TallyAutomationApiClient.ClientDirectoryRowDto row = getTableView().getItems().get(getIndex());
+                    if (row != null) {
+                        ClientTemplateController.setSelectedClientId(row.id());
+                        DashboardController.navigateFromChildPage("Templates", "/fxml/pages/ClientTemplate.fxml");
+                    }
+                });
+
+                btnDelete.getStyleClass().addAll("approved-button", "approved-danger-button", "compact-action-button");
+                btnDelete.setGraphic(IconFactory.compactIcon("delete", 12));
+                btnDelete.setOnAction(ev -> {
+                    TallyAutomationApiClient.ClientDirectoryRowDto row = getTableView().getItems().get(getIndex());
+                    if (row != null) handleDeleteClient(row);
+                });
+                box.setAlignment(Pos.CENTER);
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : box);
+            }
+        });
+    }
+
+    private void setupFiltering() {
+        filteredList = new FilteredList<>(masterList, p -> true);
+        if (txtSearch != null) {
+            txtSearch.textProperty().addListener((obs, o, n) -> applyFilters());
+        }
+        SortedList<TallyAutomationApiClient.ClientDirectoryRowDto> sorted = new SortedList<>(filteredList);
+        sorted.comparatorProperty().bind(tableClients.comparatorProperty());
+        tableClients.setItems(sorted);
+    }
+
+    private void applyFilters() {
+        String query = txtSearch != null ? txtSearch.getText().toLowerCase(Locale.ROOT).trim() : "";
+        String statusFilter = cmbFilterStatus != null ? cmbFilterStatus.getValue() : "All Statuses";
+
+        filteredList.setPredicate(row -> {
+            if (row == null) return false;
+            boolean matchesStatus = statusFilter == null || statusFilter.equals("All Statuses")
+                    || statusFilter.equalsIgnoreCase(row.gstStatus());
+            if (!matchesStatus) return false;
+
+            if (query.isEmpty()) return true;
+            return (row.gstin() != null && row.gstin().toLowerCase(Locale.ROOT).contains(query))
+                    || (row.tradeName() != null && row.tradeName().toLowerCase(Locale.ROOT).contains(query))
+                    || (row.legalName() != null && row.legalName().toLowerCase(Locale.ROOT).contains(query))
+                    || (row.clientName() != null && row.clientName().toLowerCase(Locale.ROOT).contains(query));
+        });
+
+        updateKpiMetrics();
+    }
+
+    private void updateKpiMetrics() {
+        int total = masterList.size();
+        long active = masterList.stream().filter(c -> "ACTIVE".equalsIgnoreCase(c.gstStatus())).count();
+        long inactive = total - active;
+        long templates = masterList.stream().mapToLong(TallyAutomationApiClient.ClientDirectoryRowDto::templateCount).sum();
+
+        if (lblKpiTotal != null) lblKpiTotal.setText(String.valueOf(total));
+        if (lblKpiActive != null) lblKpiActive.setText(String.valueOf(active));
+        if (lblKpiInactive != null) lblKpiInactive.setText(String.valueOf(inactive));
+        if (lblKpiTemplates != null) lblKpiTemplates.setText(String.valueOf(templates));
+    }
+
+    @FXML
+    public void handleRefresh() {
+        UiTaskExecutor.submitAction(
+                "load-clients-directory",
+                api::listClientsDirectory,
+                list -> {
+                    masterList.setAll(list);
+                    applyFilters();
+                    ToastManager.success(tableClients, "Clients Loaded", list.size() + " verified client profiles synced.");
+                },
+                failure -> ToastManager.error(tableClients, "Load Failed", failure.getMessage())
+        );
+    }
+
+    @FXML
+    public void handleResetFilter() {
+        if (txtSearch != null) txtSearch.clear();
+        if (cmbFilterStatus != null) cmbFilterStatus.setValue("All Statuses");
+    }
+
+    @FXML
+    public void handleAddClient() {
+        OwnedDialog<ButtonType> dialog = new OwnedDialog<>(tableClients);
+        dialog.setTitle("Add Client via GSTIN");
+        dialog.setHeaderText("Verify and onboard a new vendor or client using their authoritative GSTIN.");
+        dialog.setResizable(true);
+
+        DialogPane pane = dialog.getDialogPane();
+        pane.getStyleClass().addAll("approved-dialog", "erp-client-dialog");
+
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(16));
+
+        // GSTIN Search Row
+        Label lblGstin = new Label("15-Character GSTIN *");
+        lblGstin.getStyleClass().add("field-label");
+        TextField txtGstin = new TextField();
+        txtGstin.setPromptText("e.g. 24AAACN9012M1Z5");
+        txtGstin.getStyleClass().addAll("approved-input", "uppercase-input");
+
+        Button btnVerify = new Button("Get Live GST Data");
+        btnVerify.getStyleClass().addAll("approved-button", "approved-primary-button");
+        btnVerify.setGraphic(IconFactory.compactIcon("refresh", 14));
+
+        HBox gstinRow = new HBox(8, txtGstin, btnVerify);
+        HBox.setHgrow(txtGstin, Priority.ALWAYS);
+
+        // Verification Status Badge
+        Label lblStatusBadge = new Label("Awaiting verification");
+        lblStatusBadge.getStyleClass().addAll("status-badge", "status-inactive");
+
+        // Verified Form Fields
+        Label lblTrade = new Label("Trade Name");
+        lblTrade.getStyleClass().add("field-label");
+        TextField txtTrade = new TextField();
+        txtTrade.getStyleClass().add("approved-input");
+
+        Label lblLegal = new Label("Legal Firm Name");
+        lblLegal.getStyleClass().add("field-label");
+        TextField txtLegal = new TextField();
+        txtLegal.getStyleClass().add("approved-input");
+
+        Label lblAddress = new Label("Registered Principal Address");
+        lblAddress.getStyleClass().add("field-label");
+        TextArea txtAddress = new TextArea();
+        txtAddress.setPrefRowCount(2);
+        txtAddress.getStyleClass().add("approved-input");
+
+        btnVerify.setOnAction(ev -> {
+            String gstin = txtGstin.getText().trim().toUpperCase(Locale.ROOT);
+            if (gstin.length() != 15) {
+                ToastManager.warning(pane, "Invalid GSTIN", "GSTIN must be exactly 15 alphanumeric characters.");
+                return;
+            }
+            UiTaskExecutor.submitAction(
+                    "verify-gstin",
+                    () -> api.verifyGstin(gstin),
+                    resp -> {
+                        txtTrade.setText(resp.tradeName());
+                        txtLegal.setText(resp.legalName());
+                        txtAddress.setText(resp.address());
+                        lblStatusBadge.setText(resp.status());
+                        lblStatusBadge.getStyleClass().setAll("status-badge", "status-active");
+                        ToastManager.success(pane, "Verified", "Live profile fetched for " + resp.legalName());
+                    },
+                    err -> ToastManager.error(pane, "Verification Error", err.getMessage())
+            );
+        });
+
+        content.getChildren().addAll(
+                lblGstin, gstinRow, lblStatusBadge,
+                lblTrade, txtTrade,
+                lblLegal, txtLegal,
+                lblAddress, txtAddress
+        );
+
+        pane.setContent(content);
+        ButtonType btnSave = new ButtonType("Save Client", ButtonBar.ButtonData.OK_DONE);
+        pane.getButtonTypes().addAll(btnSave, ButtonType.CANCEL);
+
+        dialog.showAndWait().filter(b -> b == btnSave).ifPresent(b -> {
+            String gstin = txtGstin.getText().trim().toUpperCase(Locale.ROOT);
+            String trade = txtTrade.getText().trim();
+            String legal = txtLegal.getText().trim();
+            if (gstin.isBlank() || trade.isBlank()) {
+                ToastManager.warning(tableClients, "Missing Data", "GSTIN and Trade Name are required.");
+                return;
+            }
+
+            var dto = new TallyAutomationApiClient.ClientProfileDto(
+                    null,
+                    trade,
+                    trade,
+                    gstin,
+                    trade,
+                    legal,
+                    txtAddress.getText(),
+                    lblStatusBadge.getText(),
+                    "REGULAR",
+                    gstin.substring(0, 2),
+                    "ITEM",
+                    "Purchase Account",
+                    "Round Off",
+                    true,
+                    true,
+                    false,
+                    false,
+                    null
+            );
+
+            UiTaskExecutor.submitAction(
+                    "save-client-profile",
+                    () -> api.saveProfile(dto),
+                    saved -> {
+                        handleRefresh();
+                        ToastManager.success(tableClients, "Client Created", "Client " + saved.clientName() + " onboarded successfully.");
+                    },
+                    failure -> ToastManager.error(tableClients, "Save Failed", failure.getMessage())
+            );
+        });
+    }
+
+    private void handleDeleteClient(TallyAutomationApiClient.ClientDirectoryRowDto row) {
+        Alert confirm = new org.example.util.OwnedAlert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Confirm Deletion");
+        confirm.setHeaderText("Delete Client " + row.tradeName() + "?");
+        confirm.setContentText("All associated templates and profile settings will be permanently removed.");
+        confirm.showAndWait().filter(b -> b == ButtonType.OK).ifPresent(b -> {
+            UiTaskExecutor.submitAction(
+                    "delete-client",
+                    () -> {
+                        api.deleteProfile(row.id());
+                        return true;
+                    },
+                    ok -> {
+                        masterList.remove(row);
+                        updateKpiMetrics();
+                        ToastManager.info(tableClients, "Deleted", "Client removed.");
+                    },
+                    failure -> ToastManager.error(tableClients, "Delete Failed", failure.getMessage())
+            );
+        });
+    }
+
+    @Override
+    public void onScreenShown(boolean reusedFromCache) {
+        handleRefresh();
+    }
+
+    @Override
+    public void onScreenHidden() {}
+}
