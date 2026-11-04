@@ -43,6 +43,8 @@ public final class TallyDocumentParser {
         try {
             if (name.endsWith(".pdf")) {
                 return parsePdf(file, batchId, clientProfileId, defaultPartyLedger);
+            } else if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+                return parseImage(file, batchId, clientProfileId, defaultPartyLedger);
             } else if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
                 return parseExcel(file, batchId, clientProfileId, defaultPartyLedger);
             } else if (name.endsWith(".csv")) {
@@ -54,20 +56,48 @@ public final class TallyDocumentParser {
         return parseFallback(file, batchId, clientProfileId, defaultPartyLedger);
     }
 
+    private static TallyAutomationApiClient.BillRecordDto parseImage(File file, Long batchId, Long clientProfileId, String defaultPartyLedger) {
+        if (!WindowsOcrEngine.isAvailable()) {
+            return parseFallback(file, batchId, clientProfileId, defaultPartyLedger);
+        }
+        List<String> lines = WindowsOcrEngine.extractTextLines(file);
+        if (lines.isEmpty()) {
+            return parseFallback(file, batchId, clientProfileId, defaultPartyLedger);
+        }
+        return parseFromTextLines(lines, file, batchId, clientProfileId, defaultPartyLedger);
+    }
+
     private static TallyAutomationApiClient.BillRecordDto parsePdf(File file, Long batchId, Long clientProfileId, String defaultPartyLedger) {
-        String rawText = "";
+        List<String> lines = new ArrayList<>();
         try (PDDocument doc = Loader.loadPDF(file)) {
             PDFTextStripper stripper = new PDFTextStripper();
-            rawText = stripper.getText(doc);
+            String rawText = stripper.getText(doc);
+            if (rawText != null && !rawText.isBlank()) {
+                for (String l : rawText.split("\\r?\\n")) {
+                    l = l.trim();
+                    if (!l.isBlank()) lines.add(l);
+                }
+            }
+
+            // Scanned image PDF fallback: if digital text is empty or too sparse, use native OCR on rendered pages
+            if (lines.size() < 4 && WindowsOcrEngine.isAvailable() && doc.getNumberOfPages() > 0) {
+                org.apache.pdfbox.rendering.PDFRenderer renderer = new org.apache.pdfbox.rendering.PDFRenderer(doc);
+                for (int p = 0; p < Math.min(2, doc.getNumberOfPages()); p++) {
+                    java.awt.image.BufferedImage bim = renderer.renderImageWithDPI(p, 200);
+                    lines.addAll(WindowsOcrEngine.extractTextLines(bim));
+                }
+            }
         } catch (Exception ex) {
             log.warn("PDF extraction warning for {}: {}", file.getName(), ex.getMessage());
         }
 
-        if (rawText.isBlank()) {
+        if (lines.isEmpty()) {
             return parseFallback(file, batchId, clientProfileId, defaultPartyLedger);
         }
+        return parseFromTextLines(lines, file, batchId, clientProfileId, defaultPartyLedger);
+    }
 
-        String[] lines = rawText.split("\\r?\\n");
+    private static TallyAutomationApiClient.BillRecordDto parseFromTextLines(List<String> lines, File file, Long batchId, Long clientProfileId, String defaultPartyLedger) {
         String invNo = null;
         LocalDate invDate = null;
         String vendorName = null;
@@ -79,34 +109,50 @@ public final class TallyDocumentParser {
         BigDecimal grandTotal = null;
 
         List<TallyAutomationApiClient.BillLineItemDto> items = new ArrayList<>();
+        List<String> summaryLabels = new ArrayList<>();
+        List<BigDecimal> summaryNumbers = new ArrayList<>();
         int itemIndex = 1;
 
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i].trim();
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i).trim();
             if (line.isBlank()) continue;
 
-            // 1. GSTIN detection
-            Matcher gstinMatcher = GSTIN_PATTERN.matcher(line);
+            // 1. GSTIN detection (with OCR character stabilization: I -> 1 / Z)
+            String sanitizedGstinCandidate = line.replaceAll("(?i)(?<=\\d{2}[A-Z]{5}\\d{4}[A-Z]{1}[0-9A-Z]{1})I(?=[0-9A-Z]{1})", "Z")
+                    .replaceAll("(?i)(?<=\\d{2}[A-Z]{5}\\d{4}[A-Z]{1})I", "1");
+            Matcher gstinMatcher = GSTIN_PATTERN.matcher(sanitizedGstinCandidate);
             if (gstinMatcher.find()) {
-                String foundGstin = gstinMatcher.group(1);
+                String foundGstin = gstinMatcher.group(1).toUpperCase(Locale.ROOT);
                 if (vendorGstin == null) {
                     vendorGstin = foundGstin;
                     if (vendorName == null && i > 0) {
-                        String prev = lines[i - 1].trim();
-                        if (isProminentName(prev)) vendorName = prev;
+                        for (int p = Math.max(0, i - 4); p < i; p++) {
+                            String cand = lines.get(p).trim();
+                            if (isProminentName(cand)) {
+                                vendorName = (vendorName == null) ? cand : vendorName + " " + cand;
+                            }
+                        }
                     }
                 }
             }
 
-            // 2. Invoice No
+            // 2. Invoice No detection (supporting adjacent multi-line formats)
             if (invNo == null) {
                 Matcher invMatcher = INVOICE_NO_PATTERN.matcher(line);
                 if (invMatcher.find()) {
                     invNo = invMatcher.group(1).trim();
+                } else if (line.matches("(?i)^(?:Invoice|Bill|Inv)\\s*(?:No|Number|#)?\\s*:?$")) {
+                    for (int k = i + 1; k < Math.min(i + 4, lines.size()); k++) {
+                        String next = lines.get(k).trim().replaceAll("^[:\\s]+", "");
+                        if (next.matches("[A-Za-z0-9\\-_/]{3,30}")) {
+                            invNo = next;
+                            break;
+                        }
+                    }
                 }
             }
 
-            // 3. Date
+            // 3. Date detection
             if (invDate == null) {
                 Matcher dateMatcher = DATE_PATTERN.matcher(line);
                 if (dateMatcher.find()) {
@@ -114,7 +160,7 @@ public final class TallyDocumentParser {
                 }
             }
 
-            // 4. Totals & Tax
+            // 4. Totals & Tax (Inline line matching)
             Matcher totalMatcher = TOTAL_PATTERN.matcher(line);
             if (totalMatcher.find() && grandTotal == null) {
                 grandTotal = parseDecimal(totalMatcher.group(1));
@@ -140,7 +186,18 @@ public final class TallyDocumentParser {
                 igst = parseDecimal(igstMatcher.group(1));
             }
 
-            // 5. Line items parsing
+            // Summary block tracking
+            if (line.matches("(?i).*(?:Combined\\s*Taxable|Taxable\\s*Value|Sub\\s*Total|Items\\s*Subtotal|CGST|SGST|IGST|Net\\s*Payable|Grand\\s*Total|Total\\s*Invoice\\s*Value).*")) {
+                summaryLabels.add(line);
+            }
+            if (line.matches("^(?:Rs\\.?\\s*)?[\\d,]+(?:\\.[0-9Ool\\s]{1,2})?$") || line.matches("^[\\d,]+\\.\\d{2}$")) {
+                BigDecimal d = parseDecimal(line);
+                if (d.compareTo(BigDecimal.ZERO) > 0) {
+                    summaryNumbers.add(d);
+                }
+            }
+
+            // 5. Line items parsing (Single-line row format)
             Matcher itemMatcher = ITEM_ROW_PATTERN.matcher(line);
             if (itemMatcher.find()) {
                 String desc = itemMatcher.group(2).trim();
@@ -200,10 +257,94 @@ public final class TallyDocumentParser {
             }
         }
 
-        // Vendor name discovery
+        // Align summary block labels if totals were not matched inline
+        if (summaryLabels.size() == summaryNumbers.size() && !summaryLabels.isEmpty()) {
+            for (int j = 0; j < summaryLabels.size(); j++) {
+                String lbl = summaryLabels.get(j).toLowerCase(Locale.ROOT);
+                BigDecimal val = summaryNumbers.get(j);
+                if (lbl.contains("taxable") || lbl.contains("subtotal")) {
+                    if (taxable == null || lbl.contains("combined")) taxable = val;
+                } else if (lbl.contains("cgst")) {
+                    cgst = val;
+                } else if (lbl.contains("sgst")) {
+                    sgst = val;
+                } else if (lbl.contains("igst")) {
+                    igst = val;
+                } else if (lbl.contains("net payable") || lbl.contains("grand total") || lbl.contains("total")) {
+                    if (grandTotal == null) grandTotal = val;
+                }
+            }
+        }
+
+        // 6. Columnar Block OCR Table Item Parsing (if single-line matching produced no items)
+        if (items.isEmpty()) {
+            List<String> blockDescriptions = new ArrayList<>();
+            List<String> blockHsns = new ArrayList<>();
+            List<BigDecimal> blockQtys = new ArrayList<>();
+            List<String> blockUnits = new ArrayList<>();
+            List<BigDecimal> blockRates = new ArrayList<>();
+            List<BigDecimal> blockAmounts = new ArrayList<>();
+
+            int colMode = 0; // 1=Desc, 2=HSN, 3=Qty, 4=Unit, 5=Rate, 6=Amount
+            for (String line : lines) {
+                String l = line.trim();
+                if (l.equalsIgnoreCase("Particulars / Item Name") || l.equalsIgnoreCase("Description") || l.equalsIgnoreCase("Item Description")) { colMode = 1; continue; }
+                if (l.equalsIgnoreCase("HSN/SAC") || l.equalsIgnoreCase("HSN")) { colMode = 2; continue; }
+                if (l.equalsIgnoreCase("Qty") || l.equalsIgnoreCase("Quantity")) { colMode = 3; continue; }
+                if (l.equalsIgnoreCase("Unit") || l.equalsIgnoreCase("UOM")) { colMode = 4; continue; }
+                if (l.equalsIgnoreCase("Rate") || l.equalsIgnoreCase("Price")) { colMode = 5; continue; }
+                if (l.equalsIgnoreCase("Net Amt") || l.equalsIgnoreCase("Amount") || l.equalsIgnoreCase("Total")) { colMode = 6; continue; }
+                if (l.toLowerCase(Locale.ROOT).contains("brought forward") || l.toLowerCase(Locale.ROOT).contains("subtotal") || l.toLowerCase(Locale.ROOT).contains("payable") || l.toLowerCase(Locale.ROOT).contains("grand total")) {
+                    colMode = 0;
+                }
+
+                switch (colMode) {
+                    case 1 -> { if (l.length() > 2 && !l.matches("^[0-9.]+$") && !l.equalsIgnoreCase("Note.")) blockDescriptions.add(l); }
+                    case 2 -> { if (l.matches("\\d{4,8}")) blockHsns.add(l); }
+                    case 3 -> { BigDecimal q = parseDecimal(l); if (q.compareTo(BigDecimal.ZERO) > 0) blockQtys.add(q); }
+                    case 4 -> { if (l.matches("(?i)[a-z]{2,5}")) blockUnits.add(l.toUpperCase(Locale.ROOT)); }
+                    case 5 -> { BigDecimal r = parseDecimal(l); if (r.compareTo(BigDecimal.ZERO) > 0) blockRates.add(r); }
+                    case 6 -> { BigDecimal a = parseDecimal(l); if (a.compareTo(BigDecimal.ZERO) > 0) blockAmounts.add(a); }
+                }
+            }
+
+            int count = blockDescriptions.size();
+            if (count > 0 && count == blockQtys.size()) {
+                for (int idx = 0; idx < count; idx++) {
+                    String desc = blockDescriptions.get(idx);
+                    String hsn = (idx < blockHsns.size()) ? blockHsns.get(idx) : "998315";
+                    BigDecimal qty = blockQtys.get(idx);
+                    String uom = (idx < blockUnits.size()) ? blockUnits.get(idx) : "PCS";
+                    BigDecimal rate = (idx < blockRates.size()) ? blockRates.get(idx) : BigDecimal.ZERO;
+                    BigDecimal amount = (idx < blockAmounts.size()) ? blockAmounts.get(idx) : qty.multiply(rate);
+                    if (rate.compareTo(BigDecimal.ZERO) == 0 && qty.compareTo(BigDecimal.ZERO) > 0 && amount.compareTo(BigDecimal.ZERO) > 0) {
+                        rate = amount.divide(qty, 2, RoundingMode.HALF_UP);
+                    }
+
+                    items.add(new TallyAutomationApiClient.BillLineItemDto(
+                            null,
+                            null,
+                            itemIndex++,
+                            desc,
+                            desc,
+                            hsn,
+                            qty,
+                            uom,
+                            rate,
+                            BigDecimal.ZERO,
+                            new BigDecimal("18.00"),
+                            amount,
+                            new BigDecimal("100.00"),
+                            ""
+                    ));
+                }
+            }
+        }
+
+        // Vendor name discovery fallback
         if (vendorName == null) {
-            for (int i = 0; i < Math.min(8, lines.length); i++) {
-                String candidate = lines[i].trim();
+            for (int i = 0; i < Math.min(8, lines.size()); i++) {
+                String candidate = lines.get(i).trim();
                 if (isProminentName(candidate)) {
                     vendorName = candidate;
                     break;
@@ -236,7 +377,6 @@ public final class TallyDocumentParser {
 
         BigDecimal totalGst = cgst.add(sgst).add(igst);
         if (totalGst.compareTo(BigDecimal.ZERO) == 0 && taxable.compareTo(BigDecimal.ZERO) > 0) {
-            // Determine inter-state vs intra-state tax allocation based on GSTIN state code (24 = Gujarat)
             boolean isInterState = vendorGstin != null && !vendorGstin.isBlank() && !vendorGstin.startsWith("24");
             totalGst = taxable.multiply(new BigDecimal("0.18")).setScale(2, RoundingMode.HALF_UP);
             if (isInterState) {
