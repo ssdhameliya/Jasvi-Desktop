@@ -23,7 +23,7 @@ public final class CurrentUser {
         if (permission == null || permission.isBlank()) return true;
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) return false;
-        if ("ADMIN".equalsIgnoreCase(require().role())) return true;
+        if ("ADMIN".equalsIgnoreCase(require().role()) || "SUPER_ADMIN".equalsIgnoreCase(require().role())) return true;
         String wanted = permission.trim().toUpperCase();
         return authentication.getAuthorities().stream().anyMatch(a -> wanted.equalsIgnoreCase(a.getAuthority()));
     }

@@ -193,6 +193,7 @@
                 <MenuItem text="User Access" onAction="#openUserAccess"/>
                 <MenuItem text="Data Import" onAction="#openDataImport"/>
                 <MenuItem text="Document Studio" onAction="#openDocumentStudio"/>
+                <MenuItem fx:id="menuLicensing" text="Subscription &amp; Licensing" onAction="#openLicenseRenewalDialog"/>
                 <SeparatorMenuItem/>
                 <MenuItem text="Change Password" onAction="#changePassword"/>
                 <SeparatorMenuItem/>

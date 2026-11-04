@@ -54,8 +54,16 @@ public class RoleMasterService {
                  WHERE UPPER(TRIM(mc.category_code))=?
                    AND TRIM(COALESCE(lm.lookup_value,''))<>''
                 """ + activeClause + " ORDER BY COALESCE(lm.display_order,0), UPPER(TRIM(lm.lookup_value)), lm.id",
-                (row, index) -> new RoleDefinition(row.getInt(1), row.getString(2), row.getString(3), row.getString(4),
-                        flag(row.getObject(5)), row.getInt(6), row.getLong(7)), ROLE_CATEGORY_CODE);
+                (row, index) -> {
+                    String identity = row.getString(2);
+                    String display = row.getString(3);
+                    if ("SUPER_ADMIN".equalsIgnoreCase(identity) || "SUPER ADMIN".equalsIgnoreCase(identity)) {
+                        identity = "SUPER_ADMIN";
+                        display = "Super Admin";
+                    }
+                    return new RoleDefinition(row.getInt(1), identity, display, row.getString(4),
+                            flag(row.getObject(5)), row.getInt(6), row.getLong(7));
+                }, ROLE_CATEGORY_CODE);
     }
 
     @Transactional(readOnly = true)
@@ -75,11 +83,22 @@ public class RoleMasterService {
                  WHERE UPPER(TRIM(mc.category_code))=?
                    AND COALESCE(mc.is_active,1)=1
                    AND COALESCE(lm.is_active,1)=1
-                   AND UPPER(TRIM(lm.lookup_value))=?
+                   AND (UPPER(TRIM(lm.lookup_value))=?
+                        OR UPPER(REPLACE(TRIM(lm.lookup_value),'_',' '))=UPPER(REPLACE(TRIM(?),'_',' '))
+                        OR UPPER(REPLACE(TRIM(lm.lookup_value),' ','_'))=UPPER(REPLACE(TRIM(?),' ','_'))
+                        OR UPPER(TRIM(COALESCE(lm.lookup_code,'')))=?)
                  ORDER BY lm.id
                  LIMIT 1
-                """, (row, index) -> new RoleDefinition(row.getInt(1), row.getString(2), row.getString(3), row.getString(4),
-                        flag(row.getObject(5)), row.getInt(6), row.getLong(7)), ROLE_CATEGORY_CODE, candidate);
+                """, (row, index) -> {
+                    String identity = row.getString(2);
+                    String display = row.getString(3);
+                    if ("SUPER_ADMIN".equalsIgnoreCase(identity) || "SUPER ADMIN".equalsIgnoreCase(identity)) {
+                        identity = "SUPER_ADMIN";
+                        display = "Super Admin";
+                    }
+                    return new RoleDefinition(row.getInt(1), identity, display, row.getString(4),
+                            flag(row.getObject(5)), row.getInt(6), row.getLong(7));
+                }, ROLE_CATEGORY_CODE, candidate, candidate, candidate, candidate);
         if (matches.isEmpty()) throw new IllegalArgumentException("Role is not active in Role Master: " + (value == null ? "" : value.trim()));
         return matches.getFirst();
     }
@@ -105,7 +124,7 @@ public class RoleMasterService {
         if (selected != null) return selected;
 
         return activeRoles().stream()
-                .filter(role -> !"ADMIN".equalsIgnoreCase(role.code()))
+                .filter(role -> !"ADMIN".equalsIgnoreCase(role.code()) && !"SUPER_ADMIN".equalsIgnoreCase(role.code()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No active non-Admin role is available for public registration"));
     }
@@ -113,8 +132,8 @@ public class RoleMasterService {
     @Transactional
     public RoleDefinition setSelfRegistrationRole(String value) {
         RoleDefinition selected = requireActive(value);
-        if ("ADMIN".equalsIgnoreCase(selected.code())) {
-            throw new IllegalArgumentException("ADMIN cannot be used as the public registration role");
+        if ("ADMIN".equalsIgnoreCase(selected.code()) || "SUPER_ADMIN".equalsIgnoreCase(selected.code())) {
+            throw new IllegalArgumentException("ADMIN or SUPER_ADMIN cannot be used as the public registration role");
         }
         jdbc.update("INSERT INTO application_setting(setting_key,setting_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) " +
                         "ON CONFLICT(setting_key) DO UPDATE SET setting_value=EXCLUDED.setting_value,updated_at=CURRENT_TIMESTAMP",

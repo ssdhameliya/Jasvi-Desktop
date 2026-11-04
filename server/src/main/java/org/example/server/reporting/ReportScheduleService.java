@@ -490,7 +490,7 @@ public class ReportScheduleService {
         String role=safe(Objects.toString(row.get("role"),"")).trim().toUpperCase(Locale.ROOT);
         if(!active||locked||!"APPROVED".equals(approval))
             throw new SecurityException("Scheduled Report owner is not an active approved user");
-        if("ADMIN".equals(role)) return;
+        if("ADMIN".equals(role) || "SUPER_ADMIN".equals(role)) return;
         Set<String> keys=new HashSet<>(permissions.permissionKeys(role));
         if(!keys.contains("REPORTS.VIEW")||!keys.contains("REPORTS.EXPORT"))
             throw new SecurityException("Scheduled Report owner no longer has REPORTS.VIEW and REPORTS.EXPORT permissions");

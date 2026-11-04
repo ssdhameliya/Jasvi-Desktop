@@ -238,7 +238,10 @@ public class PermissionMatrixController implements ScreenLifecycle {
     private void loadRoles() {
         UiTaskExecutor.submitLatest(
                 "permission-matrix-roles",
-                () -> api.roles().stream().filter(AdminApiClient.RoleDto::active).toList(),
+                () -> api.roles().stream()
+                        .filter(AdminApiClient.RoleDto::active)
+                        .filter(r -> !"SUPER_ADMIN".equalsIgnoreCase(r.code()))
+                        .toList(),
                 this::applyRoles,
                 failure -> { loading = false; showError("Roles could not be loaded", asException(failure)); }
         );

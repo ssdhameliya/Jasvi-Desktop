@@ -269,6 +269,12 @@ public class DashboardController implements ScreenLifecycle {
         if (SessionService.current() != null) {
             menuUser.setText(SessionService.current().getFullName());
             if (lblSidebarUser != null) lblSidebarUser.setText(SessionService.current().getFullName());
+            if ("SUPER_ADMIN".equalsIgnoreCase(SessionService.current().getRole())) {
+                javafx.scene.control.MenuItem superItem = new javafx.scene.control.MenuItem("Master Licensor Studio");
+                superItem.setOnAction(e -> openLicenseRenewalDialog());
+                superItem.setGraphic(IconFactory.compactIcon("shield", 15));
+                menuUser.getItems().add(0, superItem);
+            }
         }
         configureProfileMenuIcons();
         markNavigationControls();
@@ -1756,6 +1762,7 @@ public class DashboardController implements ScreenLifecycle {
             String text = item.getText() == null ? "" : item.getText().toLowerCase(java.util.Locale.ROOT);
             String semantic = text.contains("profile") ? "user"
                 : text.contains("setting") ? "settings"
+                : text.contains("licensing") || text.contains("licensor") ? "shield"
                 : text.contains("backup") ? "backup"
                 : text.contains("reminder") ? "reminder"
                 : text.contains("user access") ? "security"
@@ -1777,6 +1784,22 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML private void openBackupRestore() { openPage(null, "Backup & Restore", "/fxml/pages/BackupRestore.fxml"); }
     @FXML private void openDataImport() { openPage(null, "Data Import", "/fxml/pages/Import.fxml"); }
+    @FXML private void openLicenseRenewalDialog() {
+        try {
+            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(getClass().getResource("/fxml/pages/LicenseRenewalDialog.fxml"));
+            javafx.scene.Parent root = loader.load();
+            javafx.stage.Stage stage = new javafx.stage.Stage();
+            stage.setTitle("Jasvi Desktop Subscription & Licensing");
+            stage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+            if (contentPane != null && contentPane.getScene() != null) {
+                stage.initOwner(contentPane.getScene().getWindow());
+            }
+            stage.setScene(new javafx.scene.Scene(root));
+            stage.show();
+        } catch (Exception e) {
+            org.example.util.AppDialogService.error(contentPane, "Licensing", "Could not open Licensing", e.getMessage());
+        }
+    }
 
     @FXML
     private void changePassword() {

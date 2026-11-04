@@ -1,3 +1,14 @@
+# What's New in DSE ERP v11.0.43
+
+### Enterprise Machine-Bound Licensing, Ed25519 Cryptography, Dynamic UPI QR Code & System Super Admin Shield
+- **Native Java 25 Ed25519 Cryptographic Signatures**: Integrated enterprise asymmetric digital signature verification (`Ed25519CryptoUtil`) into the desktop core. License leases are digitally signed with the vendor's private key and verified locally using the baked-in platform public key, eliminating keygens and forged license files.
+- **Hardware-Locked Machine Fingerprint Binding**: Upgraded `HardwareFingerprintUtil` to capture immutable Windows hardware identifiers (Motherboard UUID, CPU Processor ID, and Primary OS Drive Serial) hashed with SHA-256. Prevents copying the application across unauthorized PCs.
+- **Dynamic Bharat UPI QR Code Renewal Dialog**: Added `LicenseRenewalDialog` in `desktop` rendering a dynamic UPI QR code (`com.itextpdf.barcodes.BarcodeQRCode`) directly on screen for instant renewal via Google Pay, PhonePe, and Paytm with 0% transaction fees. Includes 1-click clipboard copy for Machine ID and payment strings, as well as an offline `jasvi.lic` file loader.
+- **Protected System Super Admin (`SUPER_ADMIN`) Role**: Created an immutable `SUPER_ADMIN` system role and default master developer account (`superadmin`) via Flyway migration `V11_0_43__system_super_admin_and_licensing.sql`. Filtered out from `RoleManagementController` and `PermissionMatrixController` so customer admins can never view, edit, or grant Super Admin rights.
+- **Anti-Clock-Tampering Guard**: Installed an automated database guard in `LicenseVerifierService` comparing the system clock against `SELECT MAX(created_at) FROM sales_header`. Rolling back the computer clock immediately locks write operations.
+- **Dual-Tier Spring Boot Security Interceptor**: Enforces "Read-Only Compliance Mode" via `LicenseSecurityInterceptor` across mutating ERP endpoints (`/api/invoices/**`, `/api/vouchers/**`, `/api/inventory/**`), guaranteeing that past invoices and financial statements remain readable and printable even if a license expires.
+- **Master License Studio CLI**: Added developer tool `scripts/license_studio.py` and `LicenseStudioCli` to inspect machine IDs, issue cryptographically signed licenses, and verify license files.
+
 # What's New in DSE ERP v11.0.42
 
 ### Comprehensive GST Portal Live Taxpayer Intelligence, Full Filing History & Dynamic Template Columns

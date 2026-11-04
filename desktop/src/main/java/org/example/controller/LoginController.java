@@ -711,7 +711,7 @@ public class LoginController implements ScreenLifecycle {
 
     private void updateLoginMode() {
         String role = selectedDatabaseRole();
-        boolean roleRequiresOtp = !role.isBlank() && !"ADMIN".equals(role);
+        boolean roleRequiresOtp = !role.isBlank() && !"ADMIN".equals(role) && !"SUPER_ADMIN".equals(role);
         boolean mfaPending = pendingMfaChallengeId != null;
         boolean enrollmentPending = pendingEnrollmentSetup != null;
         if (otpPanel != null) {
@@ -868,7 +868,7 @@ public class LoginController implements ScreenLifecycle {
 
     private String normalizeRole(String role) {
         if (role == null) return "";
-        String normalized = role.trim().toUpperCase(Locale.ROOT);
+        String normalized = role.trim().toUpperCase(Locale.ROOT).replace(' ', '_');
         // Role identity comes only from the Role Master Value; comparison is case-insensitive.
         return normalized;
     }

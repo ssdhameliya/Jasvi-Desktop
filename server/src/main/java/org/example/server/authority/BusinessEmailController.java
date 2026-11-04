@@ -62,7 +62,7 @@ public class BusinessEmailController {
     }
 
     private void requireAdmin() {
-        if (!"ADMIN".equalsIgnoreCase(CurrentUser.require().role()))
+        if (!"ADMIN".equalsIgnoreCase(CurrentUser.require().role()) && !"SUPER_ADMIN".equalsIgnoreCase(CurrentUser.require().role()))
             throw new SecurityException("Company email settings require Administrator access");
     }
 

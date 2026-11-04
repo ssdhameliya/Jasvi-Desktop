@@ -282,7 +282,7 @@ public class QuotationService {
         requireActiveQuotationItems(conversionLines,Set.of());
         LocalDate today = BusinessClock.today();
         String invoice = nextSale();
-        boolean admin = "ADMIN".equalsIgnoreCase(CurrentUser.require().role());
+        boolean admin = "ADMIN".equalsIgnoreCase(CurrentUser.require().role()) || "SUPER_ADMIN".equalsIgnoreCase(CurrentUser.require().role());
         // Keep quotation conversion aligned with the normal Sale creation workflow:
         // an Admin-created document is already approved; non-Admins still require approval.
         String documentStatus = admin ? "APPROVED" : "PENDING APPROVAL";

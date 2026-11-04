@@ -37,7 +37,7 @@ public class ServerResourceService {
             case "ISSUED_SALES_PDF" -> CurrentUser.requirePermission("SALES.VIEW","View issued sales PDFs");
             case "EXCEL_TEMPLATE","PDF_STUDIO_V3_TEMPLATE","PDF_STUDIO_V3_ACTIVE" -> CurrentUser.requirePermission("DOCUMENT_STUDIO.VIEW","View document templates");
             case "BUSINESS_ASSET" -> CurrentUser.require();
-            default -> { if(!"ADMIN".equalsIgnoreCase(CurrentUser.require().role())) throw new SecurityException("Administrator permission is required for this server resource"); }
+            default -> { if(!"ADMIN".equalsIgnoreCase(CurrentUser.require().role()) && !"SUPER_ADMIN".equalsIgnoreCase(CurrentUser.require().role())) throw new SecurityException("Administrator permission is required for this server resource"); }
         }
     }
 
@@ -54,7 +54,7 @@ public class ServerResourceService {
                 if(!CurrentUser.hasPermission("SETTINGS.EDIT"))
                     throw new SecurityException("Managing business assets requires SETTINGS.EDIT or ADMIN permission");
             }
-            default -> { if(!"ADMIN".equalsIgnoreCase(CurrentUser.require().role())) throw new SecurityException("Administrator permission is required for this server resource"); }
+            default -> { if(!"ADMIN".equalsIgnoreCase(CurrentUser.require().role()) && !"SUPER_ADMIN".equalsIgnoreCase(CurrentUser.require().role())) throw new SecurityException("Administrator permission is required for this server resource"); }
         }
     }
 
