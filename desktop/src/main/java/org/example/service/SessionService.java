@@ -28,11 +28,16 @@ public final class SessionService {
     }
 
     public static boolean isAdminRole(String value) {
-        return "ADMIN".equals(canonicalRole(value));
+        String role = canonicalRole(value);
+        return "ADMIN".equals(role) || "SUPER_ADMIN".equals(role);
     }
 
     public static boolean isAdmin() {
         return current != null && isAdminRole(current.getRole());
+    }
+
+    public static boolean isSuperAdmin() {
+        return current != null && ("SUPER_ADMIN".equalsIgnoreCase(current.getRole()) || "superadmin".equalsIgnoreCase(current.getUsername()));
     }
 
     public static void clear() {

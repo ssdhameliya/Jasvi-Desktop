@@ -2043,6 +2043,24 @@ private record AssetPreviewRequest(
         UpdateDialogs.showSystemHealth(panelUpdates.getScene().getWindow());
     }
 
+    @FXML
+    private void showLicenseRenewalDialog() {
+        try {
+            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(getClass().getResource("/fxml/pages/LicenseRenewalDialog.fxml"));
+            javafx.scene.Parent root = loader.load();
+            javafx.stage.Stage stage = new javafx.stage.Stage();
+            stage.setTitle("Jasvi Desktop Subscription & Licensing");
+            stage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+            if (panelUpdates != null && panelUpdates.getScene() != null) {
+                stage.initOwner(panelUpdates.getScene().getWindow());
+            }
+            stage.setScene(new javafx.scene.Scene(root));
+            stage.show();
+        } catch (Exception e) {
+            org.example.util.AppDialogService.error(panelUpdates, "Licensing", "Could not open Licensing", e.getMessage());
+        }
+    }
+
     private void putSetting(String key, String value) {
         if (batchingSettingsSave) ConfigManager.setWithoutSaving(key, value);
         else ConfigManager.set(key, value);

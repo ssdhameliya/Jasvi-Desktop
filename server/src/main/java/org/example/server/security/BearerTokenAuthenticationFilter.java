@@ -12,6 +12,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Locale;
 
 @Component
 public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
@@ -41,10 +42,14 @@ public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
         else request.setAttribute(AUTH_FAILURE_ATTRIBUTE, result.status().code());
         result.user().ifPresent(user -> {
             var authorities = new ArrayList<SimpleGrantedAuthority>();
-            authorities.add(new SimpleGrantedAuthority("ROLE_" + user.role().trim().toUpperCase()));
+            String r = user.role().trim().toUpperCase(Locale.ROOT);
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + r));
+            if ("SUPER_ADMIN".equals(r)) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            }
             for (String permission : permissions.permissionKeys(user.role())) {
                 if (permission != null && !permission.isBlank()) {
-                    authorities.add(new SimpleGrantedAuthority(permission.trim().toUpperCase()));
+                    authorities.add(new SimpleGrantedAuthority(permission.trim().toUpperCase(Locale.ROOT)));
                 }
             }
             var authentication = new UsernamePasswordAuthenticationToken(user, null, authorities);

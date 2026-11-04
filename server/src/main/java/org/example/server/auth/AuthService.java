@@ -699,21 +699,25 @@ public class AuthService {
     }
 
     private String normalizeRole(String role) {
-        return role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
+        return role == null ? "" : role.trim().toUpperCase(Locale.ROOT).replace(' ', '_');
     }
 
     private boolean requiresMfa(UserEntity user, String role) {
+        String r = normalizeRole(role);
+        if ("ADMIN".equals(r) || "SUPER_ADMIN".equals(r)) return false;
         String policy = mfaPolicy();
         if ("DISABLED".equals(policy)) return false;
         if ("ADMIN_CONTROLLED".equals(policy)) return user != null && user.isMfaEnabled();
-        return !"ADMIN".equals(normalizeRole(role));
+        return true;
     }
 
     private boolean mfaForRequestedUser(String role, boolean requested) {
+        String r = normalizeRole(role);
+        if ("ADMIN".equals(r) || "SUPER_ADMIN".equals(r)) return false;
         String policy = mfaPolicy();
         if ("DISABLED".equals(policy)) return false;
         if ("ADMIN_CONTROLLED".equals(policy)) return requested;
-        return !"ADMIN".equals(normalizeRole(role));
+        return true;
     }
 
     private String mfaPolicy() {

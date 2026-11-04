@@ -241,7 +241,7 @@ public class StorageMaintenanceService {
     }
 
     private static void requireAdmin() {
-        if (!"ADMIN".equalsIgnoreCase(CurrentUser.require().role()))
+        if (!"ADMIN".equalsIgnoreCase(CurrentUser.require().role()) && !"SUPER_ADMIN".equalsIgnoreCase(CurrentUser.require().role()))
             throw new SecurityException("Storage cleanup can be run only by an administrator");
     }
 

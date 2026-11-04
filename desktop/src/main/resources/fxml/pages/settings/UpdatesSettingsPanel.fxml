@@ -59,6 +59,7 @@
                                 <Button text="View Update History" onAction="#viewUpdateHistory" styleClass="settings-action-button,settings-secondary-button"/>
                                 <Button text="Install Offline Package" onAction="#installOfflineUpdate" styleClass="settings-action-button,settings-secondary-button"/>
                                 <Button text="System Health" onAction="#showSystemHealth" styleClass="settings-action-button,settings-secondary-button"/>
+                                <Button fx:id="btnSubscriptionLicensing" text="Subscription &amp; Licensing" onAction="#showLicenseRenewalDialog" styleClass="settings-action-button,settings-secondary-button"/>
                             </FlowPane>
 
                         </VBox>

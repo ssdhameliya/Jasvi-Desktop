@@ -31,7 +31,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/error", "/api/runtime/health", "/api/updates/**", "/api/auth/health", "/api/auth/login", "/api/auth/login/mfa/enrollment", "/api/auth/login/mfa/complete", "/api/auth/login/mfa/resend", "/api/auth/login/mfa/recovery/request", "/api/auth/login/mfa/recovery/complete", "/api/setup/bootstrap", "/api/setup/status",
                                 "/api/auth/login-roles", "/api/auth/registration-roles", "/api/auth/registration/captcha", "/api/auth/registration/request", "/api/auth/registration/email/verify", "/api/auth/registration/mfa/complete",
-                                "/api/auth/password-reset/request", "/api/auth/password-reset/complete", "/api/public/showcase/**").permitAll()
+                                "/api/auth/password-reset/request", "/api/auth/password-reset/complete", "/api/public/showcase/**", "/api/license/status", "/api/license/upi-payload", "/api/license/upi-qr-image", "/api/license/activate").permitAll()
                         .requestMatchers("/api/auth/effective-permissions", "/api/auth/session", "/api/admin/diagnostics/**", "/api/admin/showcase/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/admin/users/**", "/api/admin/roles", "/api/admin/permissions").hasAnyAuthority("ROLE_ADMIN", "USERS.VIEW")
                         .requestMatchers(HttpMethod.GET, "/api/admin/registration-role", "/api/admin/registrations/**").hasAnyAuthority("ROLE_ADMIN", "USERS.MANAGE_ROLES")
@@ -72,7 +72,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/support/documents/PURCHASE_RECON/**").hasAnyAuthority("ROLE_ADMIN", "PURCHASE_RECON.EDIT")
                         .requestMatchers(HttpMethod.DELETE, "/api/bank-statements/imports/**").hasAnyAuthority("ROLE_ADMIN", "BANK_EXPENSE.DELETE")
                         .requestMatchers("/api/bank-statements/**", "/api/reconciliation/**").hasAnyAuthority("ROLE_ADMIN", "BANK_EXPENSE.RECONCILE")
-                        .requestMatchers("/api/tally-automation/**").hasAnyAuthority("ROLE_ADMIN", "TALLY.VIEW")
+                        .requestMatchers("/api/tally-automation/**").hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "TALLY.VIEW")
                         .requestMatchers(HttpMethod.GET, "/api/operations/stock/**").hasAnyAuthority("ROLE_ADMIN", "INVENTORY.VIEW")
                         .requestMatchers(HttpMethod.POST, "/api/operations/stock/**").hasAnyAuthority("ROLE_ADMIN", "INVENTORY.EDIT")
                         .requestMatchers(HttpMethod.GET, "/api/insights/dashboard").hasAnyAuthority("ROLE_ADMIN", "DASHBOARD.VIEW")

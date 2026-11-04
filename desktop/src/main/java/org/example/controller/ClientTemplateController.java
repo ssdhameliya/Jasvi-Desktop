@@ -568,6 +568,15 @@ public class ClientTemplateController implements ScreenLifecycle {
     }
 
     @FXML
+    public void handleViewFullGst() {
+        if (activeClient != null) {
+            GstFullDetailsDialog.show(tableColumnsBlueprint, activeClient);
+        } else {
+            ToastManager.info(tableColumnsBlueprint, "Select Client", "Please select a client from the dropdown first to view full GST details.");
+        }
+    }
+
+    @FXML
     public void handleBackToDirectory() {
         DashboardController.navigateFromChildPage("Clients", "/fxml/pages/ClientsDirectory.fxml");
     }

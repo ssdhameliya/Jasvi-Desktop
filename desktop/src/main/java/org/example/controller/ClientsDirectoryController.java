@@ -56,6 +56,7 @@ public class ClientsDirectoryController implements ScreenLifecycle {
 
     private final TallyAutomationApiClient api = new TallyAutomationApiClient();
     private final ObservableList<TallyAutomationApiClient.ClientDirectoryRowDto> masterList = FXCollections.observableArrayList();
+    private final java.util.concurrent.atomic.AtomicBoolean isRefreshing = new java.util.concurrent.atomic.AtomicBoolean(false);
     private FilteredList<TallyAutomationApiClient.ClientDirectoryRowDto> filteredList;
 
     @FXML
@@ -238,15 +239,22 @@ public class ClientsDirectoryController implements ScreenLifecycle {
 
     @FXML
     public void handleRefresh() {
+        if (isRefreshing.getAndSet(true)) {
+            return;
+        }
         UiTaskExecutor.submitAction(
                 "load-clients-directory",
                 api::listClientsDirectory,
                 list -> {
+                    isRefreshing.set(false);
                     masterList.setAll(list);
                     applyFilters();
                     ToastManager.success(tableClients, "Clients Loaded", list.size() + " verified client profiles synced.");
                 },
-                failure -> ToastManager.error(tableClients, "Load Failed", failure.getMessage())
+                failure -> {
+                    isRefreshing.set(false);
+                    ToastManager.error(tableClients, "Load Failed", failure.getMessage());
+                }
         );
     }
 
@@ -265,6 +273,8 @@ public class ClientsDirectoryController implements ScreenLifecycle {
 
         DialogPane pane = dialog.getDialogPane();
         pane.getStyleClass().addAll("approved-dialog", "erp-client-dialog");
+        pane.setMinWidth(640);
+        pane.setPrefWidth(660);
 
         VBox content = new VBox(12);
         content.setPadding(new Insets(16));
@@ -330,12 +340,17 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                     () -> api.verifyGstin(gstin),
                     resp -> {
                         latestGstProfile.set(resp);
-                        txtTrade.setText(resp.tradeName());
-                        txtLegal.setText(resp.legalName());
-                        txtAddress.setText(resp.address());
+                        txtTrade.setText(resp.tradeName() != null ? resp.tradeName() : "");
+                        txtLegal.setText(resp.legalName() != null ? resp.legalName() : "");
+                        txtAddress.setText(resp.address() != null ? resp.address() : "");
                         lblStatusBadge.setText(resp.status());
-                        lblStatusBadge.getStyleClass().setAll("status-badge", "status-active");
-                        ToastManager.success(pane, "Verified", "Live profile fetched for " + resp.legalName());
+                        if (resp.isValid() && resp.legalName() != null && !resp.legalName().isBlank()) {
+                            lblStatusBadge.getStyleClass().setAll("status-badge", "status-active");
+                            ToastManager.success(pane, "Verified", "Authoritative profile fetched for " + resp.legalName());
+                        } else {
+                            lblStatusBadge.getStyleClass().setAll("status-badge", "status-inactive");
+                            ToastManager.info(pane, "GSTIN Validated", "Format verified. Please enter client legal name and address to save.");
+                        }
                     },
                     err -> ToastManager.error(pane, "Verification Error", err.getMessage())
             );
@@ -356,7 +371,11 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                                 txtLegal.setText(p.legalName());
                                 txtAddress.setText(p.address());
                                 lblStatusBadge.setText(p.status());
-                                lblStatusBadge.getStyleClass().setAll("status-badge", "status-active");
+                                if (p.isValid() && p.legalName() != null && !p.legalName().isBlank()) {
+                                    lblStatusBadge.getStyleClass().setAll("status-badge", "status-active");
+                                } else {
+                                    lblStatusBadge.getStyleClass().setAll("status-badge", "status-inactive");
+                                }
                                 org.example.tally.GstFullDetailsDialog.show(tableClients, p);
                             },
                             err -> ToastManager.error(pane, "Verification Error", err.getMessage())

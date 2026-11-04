@@ -20,7 +20,7 @@ public class PermissionAuthorityService {
     public List<String> permissionKeys(String role) {
         String code = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
         if (code.isBlank()) return List.of();
-        if ("ADMIN".equals(code)) {
+        if ("ADMIN".equals(code) || "SUPER_ADMIN".equals(code)) {
             return jdbc.query("SELECT permission_key FROM permissions WHERE active=1 ORDER BY permission_key",
                     (row, index) -> row.getString(1));
         }
@@ -33,7 +33,7 @@ public class PermissionAuthorityService {
     public List<EffectivePermissionView> effectivePermissions(String role) {
         String code = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
         if (code.isBlank()) return List.of();
-        if ("ADMIN".equals(code)) {
+        if ("ADMIN".equals(code) || "SUPER_ADMIN".equals(code)) {
             return jdbc.query("SELECT module_name,action_name,COALESCE(description,'') FROM permissions WHERE active=1 ORDER BY module_name,action_name",
                     (row, index) -> new EffectivePermissionView(row.getString(1), row.getString(2), row.getString(3)));
         }

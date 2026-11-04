@@ -113,6 +113,7 @@ def sync_code(repo_name="Jasvi-Desktop", include_tier4=False):
     targets = [
         ("Tier 2 (IntelliJ)", Path(f"D:\\JavaProject\\{repo_name}")),
         ("Tier 3 (Staging)", Path(f"D:\\GitHub\\ReleaseSource-{repo_name.replace('Jasvi-', '')}")),
+        ("Tier 3 (Staging Mirror)", Path(f"D:\\GitHub\\ReleaseSource-{repo_name}")),
     ]
 
     if include_tier4:

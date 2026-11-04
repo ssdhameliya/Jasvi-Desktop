@@ -97,26 +97,44 @@ public class AdminService {
         } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
     }
 
+    private boolean isSuperAdminCaller() {
+        try {
+            var user = org.example.server.security.CurrentUser.require();
+            return "SUPER_ADMIN".equalsIgnoreCase(user.role()) || "superadmin".equalsIgnoreCase(user.username());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<AdminDtos.UserDto> users() {
+        boolean superAdmin = isSuperAdminCaller();
         return jdbc.query("SELECT u.id,u.username,u.full_name,u.email,u.phone,COALESCE(NULLIF(TRIM(u.role),''),'SALES')," +
                         "u.department,u.access_level,u.branch,u.active,u.locked,u.mfa_enabled,COALESCE(NULLIF(u.last_login_utc,''),CAST(u.last_login AS text)),COALESCE(u.row_version,0) " +
                         "FROM users u ORDER BY u.full_name,u.username",
                 (row, index) -> new AdminDtos.UserDto(row.getInt(1), row.getString(2), row.getString(3), row.getString(4),
                         row.getString(5), row.getString(6), row.getString(7), row.getString(8), row.getString(9), flag(row.getObject(10)),
-                        flag(row.getObject(11)), flag(row.getObject(12)), BusinessClock.toUtcText(row.getObject(13)), row.getLong(14)));
+                        flag(row.getObject(11)), flag(row.getObject(12)), BusinessClock.toUtcText(row.getObject(13)), row.getLong(14)))
+                .stream()
+                .filter(u -> superAdmin || (!"SUPER_ADMIN".equalsIgnoreCase(u.role()) && !"superadmin".equalsIgnoreCase(u.username())))
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public AdminDtos.UserDto user(int id) {
-        return users().stream().filter(value -> value.id() == id).findFirst()
+        AdminDtos.UserDto u = users().stream().filter(value -> value.id() == id).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + id));
+        if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(u.role()) || "superadmin".equalsIgnoreCase(u.username()))) {
+            throw new SecurityException("Access denied to super admin account");
+        }
+        return u;
     }
 
     /** Role options are projected directly from Master Data ROLE lookups. */
     @Transactional(readOnly = true)
     public List<AdminDtos.RoleDto> roles() {
         return roleMaster.activeRoles().stream()
+                .filter(role -> !"SUPER_ADMIN".equalsIgnoreCase(role.code()))
                 .map(role -> new AdminDtos.RoleDto(role.id(), role.code(), role.displayName(), role.description(),
                         role.active(), role.userCount()))
                 .toList();
@@ -125,7 +143,7 @@ public class AdminService {
     @Transactional(readOnly = true)
     public List<AdminDtos.PermissionDto> permissions(String role) {
         String code = role(role);
-        boolean admin = "ADMIN".equals(code);
+        boolean admin = "ADMIN".equals(code) || "SUPER_ADMIN".equals(code);
         return jdbc.query("SELECT p.id,p.module_name,p.action_name,p.description,COALESCE(rp.allowed,0) " +
                         "FROM permissions p LEFT JOIN role_permission rp ON rp.permission_id=p.id " +
                         "AND UPPER(TRIM(COALESCE(rp.role_code,'')))=? WHERE p.active=1 ORDER BY p.module_name,p.action_name",
@@ -144,7 +162,7 @@ public class AdminService {
     @Transactional
     public void savePermissions(AdminDtos.PermissionSaveRequest request) {
         String code = role(request == null ? null : request.role());
-        if ("ADMIN".equals(code)) return;
+        if ("ADMIN".equals(code) || "SUPER_ADMIN".equals(code)) return;
         jdbc.update("INSERT INTO role_permission_revision(role_code,row_version) VALUES(?,0) ON CONFLICT(role_code) DO NOTHING", code);
         Long currentRevision = jdbc.queryForObject("SELECT row_version FROM role_permission_revision WHERE role_code=? FOR UPDATE", Long.class, code);
         long actualRevision = currentRevision == null ? 0L : currentRevision;
@@ -187,6 +205,9 @@ public class AdminService {
             encoded = passwords.encode(request.password());
         }
         if (request.id() == null) {
+            if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(assignedRole) || "superadmin".equalsIgnoreCase(request.username()))) {
+                throw new SecurityException("Access denied: Only Super Admin can create superadmin accounts");
+            }
             jdbc.update("INSERT INTO users(username,password,full_name,role,role_id,email,phone,active,locked,lock_reason,mfa_enabled,department,branch,access_level) " +
                             "VALUES(?,?,?,?,NULL,?,?,?,?,?,?,?,?,?)",
                     request.username().trim(), encoded, clean(request.fullName()), assignedRole,
@@ -203,6 +224,10 @@ public class AdminService {
             boolean previousLocked = Boolean.TRUE.equals(jdbc.queryForObject(
                     "SELECT locked FROM users WHERE id=?", Boolean.class, request.id()));
             String previousRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, request.id());
+            String previousUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, request.id());
+            if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(previousRole) || "superadmin".equalsIgnoreCase(previousUsername) || "SUPER_ADMIN".equalsIgnoreCase(assignedRole))) {
+                throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
+            }
             if (request.id() == CurrentUser.require().id() && previousRole != null && !assignedRole.equalsIgnoreCase(previousRole.trim()))
                 throw new IllegalArgumentException("You cannot change your own role. Another administrator must perform that change.");
             ensureActiveAdministratorRemains(request.id(), assignedRole, request.active(), request.locked());
@@ -268,6 +293,11 @@ public class AdminService {
 
     @Transactional
     public AdminDtos.MfaState resetAuthenticator(int id) {
+        String targetRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, id);
+        String targetUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, id);
+        if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(targetRole) || "superadmin".equalsIgnoreCase(targetUsername))) {
+            throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
+        }
         Map<String,Object> row=jdbc.queryForMap("SELECT COALESCE(role,'') role,COALESCE(mfa_enabled,0) mfa_enabled FROM users WHERE id=? FOR UPDATE",id);
         String role=String.valueOf(row.get("role"));
         boolean required=effectiveMfa(role,flag(row.get("mfa_enabled")));
@@ -285,6 +315,11 @@ public class AdminService {
     @Transactional
     public void deleteUser(int id) {
         if (id == CurrentUser.require().id()) throw new IllegalArgumentException("You cannot delete your own account");
+        String targetRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, id);
+        String targetUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, id);
+        if ("SUPER_ADMIN".equalsIgnoreCase(targetRole) || "superadmin".equalsIgnoreCase(targetUsername)) {
+            throw new SecurityException("Super Admin account cannot be deleted");
+        }
         jdbc.query("SELECT pg_advisory_xact_lock(?)", (row,index) -> row.getObject(1), USER_AUTHORITY_LOCK);
         jdbc.queryForMap("SELECT id FROM users WHERE id=? FOR UPDATE", id);
         ensureActiveAdministratorRemains(id, null, false, true);
@@ -295,6 +330,11 @@ public class AdminService {
     @Transactional
     public void resetPassword(int id, String password) {
         validatePassword(password);
+        String targetRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, id);
+        String targetUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, id);
+        if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(targetRole) || "superadmin".equalsIgnoreCase(targetUsername))) {
+            throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
+        }
         if (jdbc.update("UPDATE users SET password=?,failed_attempts=0,mfa_failed_attempts=0,locked=0,lock_reason='NONE',row_version=row_version+1 WHERE id=?", passwords.encode(password), id) != 1)
             throw new IllegalArgumentException("User not found");
         tokens.revokeUser(id);
@@ -305,6 +345,11 @@ public class AdminService {
     @Transactional
     public void setLocked(int id, boolean locked) {
         if (id == CurrentUser.require().id() && locked) throw new IllegalArgumentException("You cannot lock your own account");
+        String targetRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, id);
+        String targetUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, id);
+        if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(targetRole) || "superadmin".equalsIgnoreCase(targetUsername))) {
+            throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
+        }
         jdbc.query("SELECT pg_advisory_xact_lock(?)", (row,index) -> row.getObject(1), USER_AUTHORITY_LOCK);
         jdbc.queryForMap("SELECT id FROM users WHERE id=? FOR UPDATE", id);
         if (locked) ensureActiveAdministratorRemains(id, null, true, true);

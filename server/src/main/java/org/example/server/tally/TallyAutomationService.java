@@ -157,15 +157,17 @@ public class TallyAutomationService {
             default -> "Registered Taxpayer Entity";
         };
 
-        String legalName = "M/s " + pan + " Enterprise";
-        String tradeName = legalName;
-        String address = "Plot No. 42, GIDC Industrial Estate, " + stateName + " - 395004";
-        String status = "ACTIVE";
+        String legalName = "";
+        String tradeName = "";
+        String address = "";
+        String status = "UNVERIFIED";
         String type = "Regular";
-        String registrationDate = "01-07-2017";
-        String stateJurisdiction = "Ward 4, Circle " + stateCode + ", " + stateName;
-        String centerJurisdiction = "Range II, Division V, Commissionerate " + stateName;
-        String natureOfBusiness = "Wholesale & Retail Trading, Supply of Goods";
+        String registrationDate = "";
+        String stateJurisdiction = "";
+        String centerJurisdiction = "";
+        String natureOfBusiness = "";
+        List<TallyAutomationDtos.GstFilingStatusDto> filings = new ArrayList<>();
+        boolean found = false;
 
         var existingClient = clientRepo.findAllByOrderByClientNameAsc().stream()
                 .filter(c -> cleanGstin.equalsIgnoreCase(c.getGstin()))
@@ -182,9 +184,10 @@ public class TallyAutomationService {
             if (c.getStateJurisdiction() != null && !c.getStateJurisdiction().isBlank()) stateJurisdiction = c.getStateJurisdiction();
             if (c.getCenterJurisdiction() != null && !c.getCenterJurisdiction().isBlank()) centerJurisdiction = c.getCenterJurisdiction();
             if (c.getNatureOfBusiness() != null && !c.getNatureOfBusiness().isBlank()) natureOfBusiness = c.getNatureOfBusiness();
+            found = true;
         } else if (partyRepo != null) {
             var party = partyRepo.findAll().stream()
-                    .filter(p -> p.getGstin() != null && (cleanGstin.equalsIgnoreCase(p.getGstin()) || p.getGstin().contains(pan)))
+                    .filter(p -> p.getGstin() != null && cleanGstin.equalsIgnoreCase(p.getGstin().trim()))
                     .findFirst();
             if (party.isPresent()) {
                 var p = party.get();
@@ -193,21 +196,15 @@ public class TallyAutomationService {
                     tradeName = p.getName();
                 }
                 if (p.getAddress() != null && !p.getAddress().isBlank()) address = p.getAddress();
+                status = "ACTIVE";
+                found = true;
             }
         }
-
-        List<TallyAutomationDtos.GstFilingStatusDto> filings = new ArrayList<>();
-        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-1", "September 2026", "11-10-2026", "FILED"));
-        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-3B", "September 2026", "20-10-2026", "FILED"));
-        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-1", "August 2026", "10-09-2026", "FILED"));
-        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-3B", "August 2026", "19-09-2026", "FILED"));
-        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-1", "July 2026", "11-08-2026", "FILED"));
-        filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-3B", "July 2026", "20-08-2026", "FILED"));
 
         return new TallyAutomationDtos.GstPortalProfileDto(
                 cleanGstin, legalName, tradeName, address, status, type, stateCode,
                 registrationDate, constitution, stateJurisdiction, centerJurisdiction, natureOfBusiness,
-                filings, true
+                filings, found
         );
     }
 

@@ -17,7 +17,7 @@ public class BusinessWhatsappController {
     }
 
     private void requireAdmin() {
-        if (!"ADMIN".equalsIgnoreCase(CurrentUser.require().role())) {
+        if (!"ADMIN".equalsIgnoreCase(CurrentUser.require().role()) && !"SUPER_ADMIN".equalsIgnoreCase(CurrentUser.require().role())) {
             throw new SecurityException("Only administrators can manage WhatsApp configuration");
         }
     }

@@ -56,6 +56,7 @@ public class RoleManagementController implements ScreenLifecycle {
         registrationRoleCodes.clear();
         if(cmbRegistrationRole!=null)cmbRegistrationRole.getItems().clear();
         for(var r:roles){
+            if("SUPER_ADMIN".equalsIgnoreCase(r.code())) continue;
             rows.add(new RoleRow(r.id(),r.code(),r.displayName(),r.description(),(int)r.userCount(),r.active()));
             if(r.active()&&!"ADMIN".equalsIgnoreCase(r.code())){
                 String display=displayRole(r.displayName(),r.code());

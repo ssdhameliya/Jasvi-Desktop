@@ -133,7 +133,12 @@ public class UserAccessController implements ScreenLifecycle {
             try{
                 roles.clear();users.clear();roleDisplayNames.clear();cmbPermissionRole.getItems().clear();
                 for(var r:snapshot.roles()){RoleRow row=new RoleRow(r);roles.add(row);roleDisplayNames.put(row.code,row.name.get());cmbPermissionRole.getItems().add(row.code);}
-                for(var u:snapshot.users())users.add(new UserRow(u,roleDisplayNames));
+                boolean isSuper = org.example.service.SessionService.isSuperAdmin();
+                for(var u:snapshot.users()) {
+                    if (isSuper || (!"SUPER_ADMIN".equalsIgnoreCase(u.role()) && !"superadmin".equalsIgnoreCase(u.username()))) {
+                        users.add(new UserRow(u,roleDisplayNames));
+                    }
+                }
                 if(selectedPermissionRole!=null&&cmbPermissionRole.getItems().contains(selectedPermissionRole))cmbPermissionRole.setValue(selectedPermissionRole);
                 else if(!cmbPermissionRole.getItems().isEmpty())cmbPermissionRole.getSelectionModel().selectFirst();
             }finally{applyingAccessSnapshot=false;}
