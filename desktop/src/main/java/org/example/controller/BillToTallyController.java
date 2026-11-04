@@ -5,10 +5,8 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -16,23 +14,23 @@ import javafx.stage.FileChooser;
 import org.example.api.tally.TallyAutomationApiClient;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.SessionService;
+import org.example.tally.TallyDocumentInspectionDialog;
 import org.example.tally.TallyDocumentParser;
 import org.example.util.AppDialogService;
 import org.example.util.IconFactory;
 import org.example.util.ToastManager;
+import org.example.util.UiActionIcons;
 import org.example.util.UiTaskExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.math.BigDecimal;
 import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -45,28 +43,19 @@ public class BillToTallyController implements ScreenLifecycle {
     @FXML private Button btnNewClient;
     @FXML private Button btnUploadBills;
 
-    @FXML private StackPane kpiTotalIcon;
-    @FXML private StackPane kpiReadyIcon;
-    @FXML private StackPane kpiReviewIcon;
-    @FXML private StackPane kpiExportedIcon;
-    @FXML private StackPane kpiTotalValueIcon;
-
-    @FXML private Label lblKpiTotal;
-    @FXML private Label lblKpiReady;
-    @FXML private Label lblKpiReview;
-    @FXML private Label lblKpiExported;
-    @FXML private Label lblKpiTotalValue;
-
     @FXML private TableView<TallyAutomationApiClient.BillRecordDto> tblBills;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colStatus;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colAccuracy;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colInvoiceNo;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colInvoiceDate;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colVendorName;
+    @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colVendorGstin;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colPartyLedger;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colTaxable;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colTotalGst;
+    @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colIgst;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colGrandTotal;
+    @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, Void> colActions;
 
     @FXML private Button btnDeleteBill;
     @FXML private Button btnRecalculate;
@@ -84,14 +73,6 @@ public class BillToTallyController implements ScreenLifecycle {
     @FXML private TableColumn<TallyAutomationApiClient.BillLineItemDto, String> colLineTaxable;
     @FXML private TableColumn<TallyAutomationApiClient.BillLineItemDto, String> colLineAccuracy;
 
-    @FXML private Button btnZoomIn;
-    @FXML private Button btnZoomOut;
-    @FXML private Button btnRotate;
-    @FXML private Button btnFit;
-    @FXML private ScrollPane imageScrollPane;
-    @FXML private StackPane imageContainer;
-    @FXML private Label lblNoPreview;
-
     @FXML private TextField txtTallyUrl;
     @FXML private Button btnExportJson;
     @FXML private Button btnExportGstPortal;
@@ -104,20 +85,12 @@ public class BillToTallyController implements ScreenLifecycle {
     private final Map<String, TallyAutomationApiClient.ClientProfileDto> profilesByName = new LinkedHashMap<>();
 
     private Long activeBatchId = null;
-    private ImageView currentPreviewImageView = null;
-    private double currentZoomScale = 1.0;
-    private double currentRotation = 0.0;
 
     @FXML
     public void initialize() {
         if (headerIconHolder != null) {
             headerIconHolder.getChildren().setAll(IconFactory.icon("excel", 24));
         }
-        if (kpiTotalIcon != null) kpiTotalIcon.getChildren().setAll(IconFactory.icon("purchase", 18));
-        if (kpiReadyIcon != null) kpiReadyIcon.getChildren().setAll(IconFactory.icon("complete", 18));
-        if (kpiReviewIcon != null) kpiReviewIcon.getChildren().setAll(IconFactory.icon("warning", 18));
-        if (kpiExportedIcon != null) kpiExportedIcon.getChildren().setAll(IconFactory.icon("link", 18));
-        if (kpiTotalValueIcon != null) kpiTotalValueIcon.getChildren().setAll(IconFactory.icon("currency", 18));
 
         if (btnUploadBills != null) btnUploadBills.setGraphic(IconFactory.compactIcon("add", 14));
         if (btnNewClient != null) btnNewClient.setGraphic(IconFactory.compactIcon("supplier", 14));
@@ -130,7 +103,6 @@ public class BillToTallyController implements ScreenLifecycle {
 
         configureBillsTable();
         configureLineItemsTable();
-        configureDragAndDrop();
         loadClientProfiles();
     }
 
@@ -155,17 +127,21 @@ public class BillToTallyController implements ScreenLifecycle {
         colInvoiceDate.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().invoiceDate() != null ? c.getValue().invoiceDate().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : ""));
         colVendorName.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().vendorNamePrinted()));
+        colVendorGstin.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().vendorGstin() != null ? c.getValue().vendorGstin() : ""));
         colPartyLedger.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().tallyPartyLedger()));
         colTaxable.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().taxableAmount() != null ? "₹" + c.getValue().taxableAmount().toPlainString() : "₹0.00"));
         colTotalGst.setCellValueFactory(c -> {
-            BigDecimal gst = c.getValue().cgstAmount().add(c.getValue().sgstAmount()).add(c.getValue().igstAmount());
+            BigDecimal gst = (c.getValue().cgstAmount() != null ? c.getValue().cgstAmount() : BigDecimal.ZERO)
+                    .add(c.getValue().sgstAmount() != null ? c.getValue().sgstAmount() : BigDecimal.ZERO);
             return new SimpleStringProperty("₹" + gst.toPlainString());
         });
+        colIgst.setCellValueFactory(c -> new SimpleStringProperty(
+                c.getValue().igstAmount() != null ? "₹" + c.getValue().igstAmount().toPlainString() : "₹0.00"));
         colGrandTotal.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().grandTotal() != null ? "₹" + c.getValue().grandTotal().toPlainString() : "₹0.00"));
 
-        // Custom Accuracy Badge styling (Strictly CSS classes, Zero inline hex colors)
+        // Accuracy badge styling
         colAccuracy.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -190,6 +166,34 @@ public class BillToTallyController implements ScreenLifecycle {
                 }
             }
         });
+
+        // Actions column with interactive Inspect Document popup
+        if (colActions != null) {
+            colActions.setCellFactory(c -> new TableCell<>() {
+                private final Button inspectBtn = new Button("Inspect");
+                {
+                    inspectBtn.getStyleClass().addAll("approved-button", "approved-secondary-button");
+                    UiActionIcons.apply(inspectBtn, "view", "Inspect Original Document");
+                    inspectBtn.setOnAction(e -> {
+                        var item = getTableRow() != null ? getTableRow().getItem() : null;
+                        if (item != null) {
+                            TallyDocumentInspectionDialog.show(tblBills, item);
+                        }
+                    });
+                }
+
+                @Override
+                protected void updateItem(Void item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                        setGraphic(null);
+                    } else {
+                        setGraphic(inspectBtn);
+                    }
+                    setAlignment(Pos.CENTER);
+                }
+            });
+        }
 
         // Enable table cell editing for corrections
         tblBills.setEditable(true);
@@ -295,34 +299,6 @@ public class BillToTallyController implements ScreenLifecycle {
         tblLineItems.setItems(lineItemsList);
     }
 
-    private void configureDragAndDrop() {
-        tblBills.setOnDragOver(event -> {
-            if (event.getDragboard().hasFiles()) {
-                event.acceptTransferModes(TransferMode.COPY);
-            }
-            event.consume();
-        });
-        tblBills.setOnDragDropped(event -> {
-            var db = event.getDragboard();
-            boolean success = false;
-            if (db.hasFiles()) {
-                List<File> valid = db.getFiles().stream()
-                        .filter(f -> {
-                            String n = f.getName().toLowerCase(Locale.ROOT);
-                            return n.endsWith(".pdf") || n.endsWith(".xlsx") || n.endsWith(".xls")
-                                    || n.endsWith(".csv") || n.endsWith(".png") || n.endsWith(".jpg")
-                                    || n.endsWith(".jpeg");
-                        }).toList();
-                if (!valid.isEmpty()) {
-                    processUploadedFiles(valid);
-                    success = true;
-                }
-            }
-            event.setDropCompleted(success);
-            event.consume();
-        });
-    }
-
     private void loadClientProfiles() {
         UiTaskExecutor.submitAction(
                 "load-client-profiles",
@@ -355,25 +331,8 @@ public class BillToTallyController implements ScreenLifecycle {
                     } else {
                         lineItemsList.clear();
                     }
-                    refreshBatchSummary();
                 },
                 failure -> ToastManager.error(tblBills, "Load Failed", "Could not load batch bills: " + failure.getMessage())
-        );
-    }
-
-    private void refreshBatchSummary() {
-        if (activeBatchId == null) return;
-        UiTaskExecutor.submitAction(
-                "batch-metrics",
-                () -> api.metrics(activeBatchId),
-                metrics -> {
-                    if (lblKpiTotal != null) lblKpiTotal.setText(String.valueOf(metrics.totalBills()));
-                    if (lblKpiReady != null) lblKpiReady.setText(String.valueOf(metrics.highAccuracyCount()));
-                    if (lblKpiReview != null) lblKpiReview.setText(String.valueOf(metrics.needsReviewCount()));
-                    if (lblKpiExported != null) lblKpiExported.setText(String.valueOf(metrics.exportedCount()));
-                    if (lblKpiTotalValue != null) lblKpiTotalValue.setText("₹" + (metrics.totalGrandTotal() != null ? metrics.totalGrandTotal().toPlainString() : "0.00"));
-                },
-                failure -> {}
         );
     }
 
@@ -385,105 +344,21 @@ public class BillToTallyController implements ScreenLifecycle {
             lineItemsList.clear();
             lblLineItemBillRef.setText("(Summary Mode - No line items)");
         }
-
-        // Preview document image or PDF
-        if (bill.attachedFilePaths() != null && !bill.attachedFilePaths().isBlank()) {
-            displayDocumentImage(bill.attachedFilePaths());
-        }
-    }
-
-    private void displayDocumentImage(String filePath) {
-        try {
-            File f = new File(filePath);
-            if (f.exists() && f.isFile()) {
-                String lower = f.getName().toLowerCase(Locale.ROOT);
-                if (lower.endsWith(".pdf")) {
-                    try (org.apache.pdfbox.pdmodel.PDDocument doc = org.apache.pdfbox.Loader.loadPDF(f)) {
-                        org.apache.pdfbox.rendering.PDFRenderer renderer = new org.apache.pdfbox.rendering.PDFRenderer(doc);
-                        java.awt.image.BufferedImage bim = renderer.renderImageWithDPI(0, 150);
-                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                        javax.imageio.ImageIO.write(bim, "png", baos);
-                        Image fxImg = new Image(new java.io.ByteArrayInputStream(baos.toByteArray()));
-                        if (currentPreviewImageView == null) {
-                            currentPreviewImageView = new ImageView();
-                            currentPreviewImageView.setPreserveRatio(true);
-                            currentPreviewImageView.setSmooth(true);
-                        }
-                        currentPreviewImageView.setImage(fxImg);
-                        currentZoomScale = 1.0;
-                        currentRotation = 0.0;
-                        applyZoomAndRotation();
-                        imageContainer.getChildren().setAll(currentPreviewImageView);
-                        return;
-                    } catch (Exception pdfEx) {
-                        log.warn("Could not render PDF preview: {}", pdfEx.getMessage());
-                    }
-                }
-
-                Image img = new Image(new FileInputStream(f));
-                if (currentPreviewImageView == null) {
-                    currentPreviewImageView = new ImageView();
-                    currentPreviewImageView.setPreserveRatio(true);
-                    currentPreviewImageView.setSmooth(true);
-                }
-                currentPreviewImageView.setImage(img);
-                currentZoomScale = 1.0;
-                currentRotation = 0.0;
-                applyZoomAndRotation();
-
-                imageContainer.getChildren().setAll(currentPreviewImageView);
-            }
-        } catch (Exception ex) {
-            lblNoPreview.setText("Could not load preview: " + ex.getMessage());
-            imageContainer.getChildren().setAll(lblNoPreview);
-        }
-    }
-
-    private void applyZoomAndRotation() {
-        if (currentPreviewImageView != null && currentPreviewImageView.getImage() != null) {
-            currentPreviewImageView.setScaleX(currentZoomScale);
-            currentPreviewImageView.setScaleY(currentZoomScale);
-            currentPreviewImageView.setRotate(currentRotation);
-        }
     }
 
     /* =========================================================================
-       ACTIONS
+       USER ACTIONS & HANDLERS
        ========================================================================= */
 
     @FXML
-    private void handleNewClientProfile() {
-        org.example.util.OwnedTextInputDialog dialog = new org.example.util.OwnedTextInputDialog();
-        dialog.setTitle("New Client Profile");
-        dialog.setHeaderText("Create a new client profile for TallyPrime auto-mapping");
-        dialog.setContentText("Enter Client Name:");
-
-        dialog.showAndWait().ifPresent(name -> {
-            if (!name.isBlank()) {
-                var newProfile = new TallyAutomationApiClient.ClientProfileDto(
-                        null, name.trim(), name.trim(), null, "24", "SUMMARY",
-                        "Purchase Account", "Round Off", true, true, false, false, null
-                );
-                UiTaskExecutor.submitAction(
-                        "save-client-profile",
-                        () -> api.saveProfile(newProfile),
-                        saved -> {
-                            ToastManager.success(cmbClientProfile, "Profile Created", "Created profile: " + saved.clientName());
-                            loadClientProfiles();
-                        },
-                        failure -> AppDialogService.error(cmbClientProfile, "Error", "Profile Error", "Could not save profile: " + failure.getMessage())
-                );
-            }
-        });
-    }
-
-    @FXML
-    private void handleUploadBills() {
+    public void handleUploadBills() {
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Select Bills & Invoices to Process");
+        chooser.setTitle("Select Purchase Bills & Vouchers");
         chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Supported Files (*.pdf, *.jpg, *.png, *.xlsx)", "*.pdf", "*.jpg", "*.png", "*.xlsx", "*.xls", "*.csv"),
-                new FileChooser.ExtensionFilter("All Files", "*.*")
+                new FileChooser.ExtensionFilter("Supported Invoices", "*.pdf", "*.xlsx", "*.xls", "*.csv", "*.png", "*.jpg", "*.jpeg"),
+                new FileChooser.ExtensionFilter("PDF Documents", "*.pdf"),
+                new FileChooser.ExtensionFilter("Excel Spreadsheets", "*.xlsx", "*.xls", "*.csv"),
+                new FileChooser.ExtensionFilter("Image Receipts", "*.png", "*.jpg", "*.jpeg")
         );
 
         List<File> files = chooser.showOpenMultipleDialog(tblBills.getScene().getWindow());
@@ -493,276 +368,258 @@ public class BillToTallyController implements ScreenLifecycle {
     }
 
     private void processUploadedFiles(List<File> files) {
-        if (files == null || files.isEmpty()) return;
-
-        String selectedClient = cmbClientProfile.getValue();
-        Long clientId = selectedClient != null && profilesByName.containsKey(selectedClient)
-                ? profilesByName.get(selectedClient).id()
-                : null;
-
-        String user = SessionService.current() != null ? SessionService.current().getFullName() : "Admin";
-        String defaultParty = selectedClient != null ? selectedClient : "Apex IT Peripherals";
+        String profileName = cmbClientProfile.getValue();
+        TallyAutomationApiClient.ClientProfileDto profile = (profileName != null) ? profilesByName.get(profileName) : null;
+        Long profileId = (profile != null) ? profile.id() : null;
+        String defaultLedger = (profile != null) ? profile.clientName() : null;
 
         UiTaskExecutor.submitAction(
-                "create-tally-batch",
+                "parse-and-ingest-bills",
                 () -> {
-                    var batch = api.createBatch(clientId, "BATCH-" + System.currentTimeMillis(), files.size(), user);
-                    this.activeBatchId = batch.id();
-
-                    for (File f : files) {
-                        var extracted = TallyDocumentParser.parseDocument(f, batch.id(), clientId, defaultParty);
-                        api.saveBill(extracted);
+                    Long batchId = activeBatchId;
+                    String username = SessionService.current() != null ? SessionService.current().getUsername() : "System";
+                    if (batchId == null) {
+                        var batch = api.createBatch(
+                                profileId,
+                                "Batch " + DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm").format(java.time.LocalDateTime.now()),
+                                files.size(),
+                                username
+                        );
+                        batchId = batch.id();
                     }
-                    return batch;
+
+                    List<TallyAutomationApiClient.BillRecordDto> ingested = new ArrayList<>();
+                    for (File f : files) {
+                        try {
+                            var record = TallyDocumentParser.parseDocument(f, batchId, profileId, defaultLedger);
+                            var saved = api.saveBill(record);
+                            ingested.add(saved);
+                        } catch (Exception ex) {
+                            log.error("Failed to parse or save voucher {}: {}", f.getName(), ex.getMessage());
+                        }
+                    }
+                    return ingested;
                 },
-                batch -> {
-                    ToastManager.success(tblBills, "Batch Ingested", "Processed " + files.size() + " bills in batch " + batch.batchReference());
-                    org.example.service.NotificationService.createNotification(
-                            org.example.service.NotificationService.Category.IMPORTS,
-                            "Tally Batch Ingested",
-                            "Processed " + files.size() + " bills in batch " + batch.batchReference(),
-                            "INFO",
-                            "/fxml/pages/BillToTally.fxml",
-                            batch.batchReference()
-                    );
-                    reloadActiveBatch();
+                ingested -> {
+                    if (!ingested.isEmpty()) {
+                        activeBatchId = ingested.getFirst().batchId();
+                    }
+                    billsList.setAll(ingested);
+                    if (!ingested.isEmpty()) {
+                        tblBills.getSelectionModel().selectFirst();
+                    }
+                    ToastManager.success(tblBills, "Ingestion Complete", "Loaded " + ingested.size() + " vouchers successfully.");
                 },
-                failure -> AppDialogService.error(tblBills, "Upload Failed", "Ingestion Error", failure.getMessage())
+                failure -> ToastManager.error(tblBills, "Ingestion Failed", failure.getMessage())
         );
     }
 
     @FXML
-    private void handleDeleteBill() {
-        var selected = tblBills.getSelectionModel().getSelectedItem();
-        if (selected == null) {
-            ToastManager.warning(tblBills, "No Selection", "Select a bill voucher to delete.");
+    public void handleDeleteBill() {
+        var bill = tblBills.getSelectionModel().getSelectedItem();
+        if (bill == null || bill.id() == null) {
+            ToastManager.info(tblBills, "Select Voucher", "Please select a bill from the table to delete.");
             return;
         }
 
+        boolean confirm = AppDialogService.confirm(
+                tblBills,
+                "Delete Voucher",
+                "Delete voucher " + bill.invoiceNumber() + "?",
+                "Are you sure you want to remove this extracted bill from the current batch?"
+        );
+        if (!confirm) return;
+
         UiTaskExecutor.submitAction(
-                "delete-bill-" + selected.id(),
-                () -> { api.deleteBill(selected.id()); return null; },
+                "delete-bill-" + bill.id(),
+                () -> {
+                    api.deleteBill(bill.id());
+                    return true;
+                },
                 ok -> {
-                    ToastManager.info(tblBills, "Bill Deleted", "Deleted voucher " + selected.invoiceNumber());
-                    reloadActiveBatch();
+                    billsList.remove(bill);
+                    lineItemsList.clear();
+                    ToastManager.success(tblBills, "Deleted", "Removed voucher " + bill.invoiceNumber());
                 },
                 failure -> ToastManager.error(tblBills, "Delete Failed", failure.getMessage())
         );
     }
 
     @FXML
-    private void handleRecalculateAccuracy() {
-        var selected = tblBills.getSelectionModel().getSelectedItem();
-        if (selected == null) {
-            ToastManager.warning(tblBills, "No Selection", "Select a bill voucher to re-calculate.");
+    public void handleRecalculateAccuracy() {
+        if (activeBatchId == null) {
+            ToastManager.info(tblBills, "No Batch", "Please upload or select bills before re-calculating math.");
             return;
         }
 
         UiTaskExecutor.submitAction(
-                "recalc-bill-" + selected.id(),
-                () -> api.saveBill(selected),
-                saved -> {
-                    ToastManager.success(tblBills, "Re-Calculated", "Accuracy score updated to " + saved.accuracyPercentage() + "%");
-                    reloadActiveBatch();
-                },
-                failure -> ToastManager.error(tblBills, "Recalculate Failed", failure.getMessage())
-        );
-    }
-
-    @FXML
-    private void handleZoomIn() {
-        currentZoomScale = Math.min(4.0, currentZoomScale + 0.25);
-        applyZoomAndRotation();
-    }
-
-    @FXML
-    private void handleZoomOut() {
-        currentZoomScale = Math.max(0.25, currentZoomScale - 0.25);
-        applyZoomAndRotation();
-    }
-
-    @FXML
-    private void handleRotate() {
-        currentRotation = (currentRotation + 90) % 360;
-        applyZoomAndRotation();
-    }
-
-    @FXML
-    private void handleFit() {
-        currentZoomScale = 1.0;
-        currentRotation = 0.0;
-        applyZoomAndRotation();
-    }
-
-    @FXML
-    private void handlePushToTally() {
-        if (activeBatchId == null || billsList.isEmpty()) {
-            ToastManager.warning(btnPushTally, "No Active Batch", "Upload bills before pushing to TallyPrime.");
-            return;
-        }
-
-        String url = txtTallyUrl.getText() != null && !txtTallyUrl.getText().isBlank()
-                ? txtTallyUrl.getText().trim()
-                : "http://localhost:9000";
-
-        var req = new TallyAutomationApiClient.TallyExportRequest(activeBatchId, List.of(), "XML", url);
-        UiTaskExecutor.submitAction(
-                "push-to-tally",
+                "recalculate-math",
                 () -> {
-                    // 1. Fetch generated Tally XML vouchers from server
-                    var exportResp = api.exportToTally(req);
-                    String xml = exportResp.payloadContent();
-                    if (xml == null || xml.isBlank()) {
-                        throw new IllegalStateException("Failed to generate Tally XML vouchers for active batch.");
+                    List<TallyAutomationApiClient.BillRecordDto> updated = new ArrayList<>();
+                    for (var b : billsList) {
+                        updated.add(api.saveBill(b));
                     }
-
-                    // 2. Dispatch local HTTP POST directly from Desktop client to local TallyPrime (Port 9000)
-                    try {
-                        HttpClient localHttp = HttpClient.newBuilder()
-                                .connectTimeout(Duration.ofSeconds(6))
-                                .build();
-                        HttpRequest localReq = HttpRequest.newBuilder()
-                                .uri(URI.create(url))
-                                .header("Content-Type", "application/xml; charset=UTF-8")
-                                .timeout(Duration.ofSeconds(15))
-                                .POST(HttpRequest.BodyPublishers.ofString(xml))
-                                .build();
-
-                        HttpResponse<String> tallyResp = localHttp.send(localReq, HttpResponse.BodyHandlers.ofString());
-                        if (tallyResp.statusCode() == 200 && !tallyResp.body().toLowerCase(Locale.ROOT).contains("<lineerror>")) {
-                            return new TallyAutomationApiClient.TallyExportResponse(
-                                    true, billsList.size(), 0,
-                                    "Successfully pushed " + billsList.size() + " vouchers to TallyPrime at " + url,
-                                    tallyResp.body()
-                            );
-                        } else {
-                            return new TallyAutomationApiClient.TallyExportResponse(
-                                    false, 0, billsList.size(),
-                                    "TallyPrime returned error: " + tallyResp.body(),
-                                    tallyResp.body()
-                            );
-                        }
-                    } catch (ConnectException ce) {
-                        throw new ConnectException("Could not connect to TallyPrime at " + url + ".\n\nPlease ensure:\n1. TallyPrime is open on this computer.\n2. Tally ODBC/Server Connectivity is enabled on port 9000.\n(In TallyPrime: F1 Help -> Settings -> Connectivity -> Client/Server configuration -> Port 9000).");
-                    }
+                    return updated;
                 },
-                resp -> {
-                    if (resp.success()) {
-                        AppDialogService.info(btnPushTally, "Tally Push Succeeded", "Vouchers Pushed to TallyPrime", resp.message());
-                        org.example.service.NotificationService.createNotification(
-                                org.example.service.NotificationService.Category.IMPORTS,
-                                "Tally Vouchers Synced",
-                                resp.message(),
-                                "INFO",
-                                "/fxml/pages/BillToTally.fxml",
-                                null
-                        );
-                        reloadActiveBatch();
-                    } else {
-                        AppDialogService.error(btnPushTally, "Tally Push Failed", "Push Failed", resp.message());
-                        org.example.service.NotificationService.createNotification(
-                                org.example.service.NotificationService.Category.IMPORTS,
-                                "Tally Sync Failed",
-                                resp.message(),
-                                "WARNING",
-                                "/fxml/pages/BillToTally.fxml",
-                                null
-                        );
-                    }
+                recalculated -> {
+                    billsList.setAll(recalculated);
+                    ToastManager.success(tblBills, "Math Re-Validated", "Cross-validation re-calculated for " + recalculated.size() + " vouchers.");
                 },
-                failure -> AppDialogService.error(btnPushTally, "Tally Connection Error", "Could not reach TallyPrime", failure.getMessage())
+                failure -> ToastManager.error(tblBills, "Calculation Error", failure.getMessage())
         );
     }
 
     @FXML
-    private void handleExportJson() {
-        if (activeBatchId == null || billsList.isEmpty()) {
-            ToastManager.warning(btnExportJson, "No Active Batch", "Upload bills before exporting JSON.");
+    public void handleExportJson() {
+        if (activeBatchId == null) {
+            ToastManager.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
         }
 
-        var req = new TallyAutomationApiClient.TallyExportRequest(activeBatchId, List.of(), "JSON", null);
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Save TallyPrime JSON");
+        chooser.setInitialFileName("TallyPrime_Batch_" + activeBatchId + ".json");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
+        File file = chooser.showSaveDialog(tblBills.getScene().getWindow());
+        if (file == null) return;
+
         UiTaskExecutor.submitAction(
                 "export-tally-json",
-                () -> api.exportToTally(req),
+                () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "JSON", null)),
                 resp -> {
-                    FileChooser chooser = new FileChooser();
-                    chooser.setTitle("Save TallyPrime JSON Vouchers");
-                    chooser.setInitialFileName("Tally_Vouchers_Batch_" + activeBatchId + ".json");
-                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"));
-                    File target = chooser.showSaveDialog(btnExportJson.getScene().getWindow());
-                    if (target != null) {
-                        try {
-                            Files.writeString(target.toPath(), resp.payloadContent());
-                            ToastManager.success(btnExportJson, "JSON Saved", "Exported vouchers to " + target.getName());
-                        } catch (Exception ex) {
-                            ToastManager.error(btnExportJson, "Save Failed", ex.getMessage());
-                        }
+                    try {
+                        java.nio.file.Files.writeString(file.toPath(), resp.payloadContent() != null ? resp.payloadContent() : "{}");
+                        ToastManager.success(tblBills, "JSON Exported", "Saved Tally JSON to " + file.getName());
+                    } catch (Exception ex) {
+                        ToastManager.error(tblBills, "Save Failed", ex.getMessage());
                     }
                 },
-                failure -> AppDialogService.error(btnExportJson, "Export Failed", "JSON Export Error", failure.getMessage())
+                failure -> ToastManager.error(tblBills, "Export Error", failure.getMessage())
         );
     }
 
     @FXML
-    private void handleExportExcel() {
-        if (activeBatchId == null || billsList.isEmpty()) {
-            ToastManager.warning(btnExportExcel, "No Active Batch", "Upload bills before exporting Excel.");
+    public void handleExportGstPortal() {
+        if (activeBatchId == null) {
+            ToastManager.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
         }
 
-        var req = new TallyAutomationApiClient.TallyExportRequest(activeBatchId, List.of(), "EXCEL", null);
-        UiTaskExecutor.submitAction(
-                "export-tally-excel",
-                () -> api.exportToTally(req),
-                resp -> {
-                    FileChooser chooser = new FileChooser();
-                    chooser.setTitle("Save TallyPrime Excel Vouchers");
-                    chooser.setInitialFileName("Tally_Vouchers_Batch_" + activeBatchId + ".xlsx");
-                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files (*.xlsx)", "*.xlsx"));
-                    File target = chooser.showSaveDialog(btnExportExcel.getScene().getWindow());
-                    if (target != null) {
-                        try {
-                            byte[] bytes = Base64.getDecoder().decode(resp.payloadContent());
-                            Files.write(target.toPath(), bytes);
-                            ToastManager.success(btnExportExcel, "Excel Saved", "Exported vouchers to " + target.getName());
-                        } catch (Exception ex) {
-                            ToastManager.error(btnExportExcel, "Save Failed", ex.getMessage());
-                        }
-                    }
-                },
-                failure -> AppDialogService.error(btnExportExcel, "Export Failed", "Excel Export Error", failure.getMessage())
-        );
-    }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Save GST Portal JSON");
+        chooser.setInitialFileName("GST_Portal_Batch_" + activeBatchId + ".json");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
+        File file = chooser.showSaveDialog(tblBills.getScene().getWindow());
+        if (file == null) return;
 
-    @FXML
-    private void handleExportGstPortal() {
-        if (activeBatchId == null || billsList.isEmpty()) {
-            ToastManager.warning(btnExportJson, "No Active Batch", "Upload bills before exporting GST Portal JSON.");
-            return;
-        }
-
-        var req = new TallyAutomationApiClient.TallyExportRequest(activeBatchId, List.of(), "GST_PORTAL", null);
         UiTaskExecutor.submitAction(
                 "export-gst-portal-json",
-                () -> api.exportToTally(req),
+                () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "GST_PORTAL", null)),
                 resp -> {
-                    FileChooser chooser = new FileChooser();
-                    chooser.setTitle("Save GST Portal (gst.gov.in) B2B JSON");
-                    chooser.setInitialFileName("GST_Portal_Inward_Batch_" + activeBatchId + ".json");
-                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"));
-                    File target = chooser.showSaveDialog(btnExportJson.getScene().getWindow());
-                    if (target != null) {
-                        try {
-                            Files.writeString(target.toPath(), resp.payloadContent());
-                            ToastManager.success(btnExportJson, "GST JSON Saved", "Exported GST Portal JSON to " + target.getName());
-                        } catch (Exception ex) {
-                            ToastManager.error(btnExportJson, "Save Failed", ex.getMessage());
-                        }
+                    try {
+                        java.nio.file.Files.writeString(file.toPath(), resp.payloadContent() != null ? resp.payloadContent() : "{}");
+                        ToastManager.success(tblBills, "GST Exported", "Saved GST Portal JSON to " + file.getName());
+                    } catch (Exception ex) {
+                        ToastManager.error(tblBills, "Save Failed", ex.getMessage());
                     }
                 },
-                failure -> AppDialogService.error(btnExportJson, "Export Failed", "GST Portal JSON Export Error", failure.getMessage())
+                failure -> ToastManager.error(tblBills, "Export Error", failure.getMessage())
         );
     }
 
+    @FXML
+    public void handleExportExcel() {
+        if (activeBatchId == null) {
+            ToastManager.info(tblBills, "No Batch", "Please upload bills before exporting.");
+            return;
+        }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Save Tally Excel Workbook");
+        chooser.setInitialFileName("Tally_Batch_" + activeBatchId + ".xlsx");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Workbook", "*.xlsx"));
+        File file = chooser.showSaveDialog(tblBills.getScene().getWindow());
+        if (file == null) return;
+
+        UiTaskExecutor.submitAction(
+                "export-tally-excel",
+                () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "EXCEL", null)),
+                resp -> {
+                    try {
+                        java.nio.file.Files.writeString(file.toPath(), resp.payloadContent() != null ? resp.payloadContent() : "");
+                        ToastManager.success(tblBills, "Exported", "Saved export to " + file.getName());
+                    } catch (Exception ex) {
+                        ToastManager.error(tblBills, "Save Failed", ex.getMessage());
+                    }
+                },
+                failure -> ToastManager.error(tblBills, "Export Error", failure.getMessage())
+        );
+    }
+
+    @FXML
+    public void handlePushToTally() {
+        if (activeBatchId == null || billsList.isEmpty()) {
+            ToastManager.info(tblBills, "Empty Batch", "No bills available to push to TallyPrime.");
+            return;
+        }
+
+        String targetUrl = txtTallyUrl.getText().trim();
+        if (targetUrl.isBlank()) {
+            ToastManager.error(tblBills, "URL Required", "Please specify TallyPrime HTTP port (e.g. http://localhost:9000).");
+            return;
+        }
+
+        boolean confirm = AppDialogService.confirm(
+                tblBills,
+                "Push to TallyPrime",
+                "Push " + billsList.size() + " vouchers to TallyPrime?",
+                "This will transmit XML vouchers directly to TallyPrime at " + targetUrl + "."
+        );
+        if (!confirm) return;
+
+        UiTaskExecutor.submitAction(
+                "push-to-tally",
+                () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "HTTP", targetUrl)),
+                resp -> {
+                    if (resp.success()) {
+                        ToastManager.success(tblBills, "Pushed to Tally", "Vouchers created successfully in TallyPrime!");
+                        reloadActiveBatch();
+                    } else {
+                        ToastManager.error(tblBills, "Tally Response", resp.message());
+                    }
+                },
+                failure -> {
+                    if (failure.getCause() instanceof ConnectException || failure instanceof ConnectException) {
+                        ToastManager.error(tblBills, "Tally Connection Error",
+                                "Could not connect to TallyPrime at " + targetUrl + ". Ensure TallyPrime is running with ODBC/HTTP Server enabled on port 9000.");
+                    } else {
+                        ToastManager.error(tblBills, "Tally Push Error", failure.getMessage());
+                    }
+                }
+        );
+    }
+
+    @FXML
+    public void handleNewClientProfile() {
+        TextInputDialog d = new org.example.util.OwnedTextInputDialog();
+        d.setTitle("New Client Profile");
+        d.setHeaderText("Create Client Profile for Bill-to-Tally");
+        d.setContentText("Client Company Name:");
+        Optional<String> res = d.showAndWait();
+        if (res.isPresent() && !res.get().isBlank()) {
+            String name = res.get().trim();
+            UiTaskExecutor.submitAction(
+                    "create-client-profile",
+                    () -> api.saveProfile(new TallyAutomationApiClient.ClientProfileDto(
+                            null, name, name, "24AABCA0000A1Z1", "24", "ITEM",
+                            "Purchase Account", "Round Off", true, true, false, false, "{}"
+                    )),
+                    created -> {
+                        loadClientProfiles();
+                        ToastManager.success(tblBills, "Profile Created", "Profile '" + created.clientName() + "' created.");
+                    },
+                    failure -> ToastManager.error(tblBills, "Profile Error", failure.getMessage())
+            );
+        }
+    }
 }

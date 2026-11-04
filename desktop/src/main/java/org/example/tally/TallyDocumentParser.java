@@ -31,9 +31,9 @@ public final class TallyDocumentParser {
     private static final Pattern SGST_PATTERN = Pattern.compile("(?i)(?:SGST|UTGST)[\\s:₹Rs.]*([\\d,]+\\.\\d{2}|\\b\\d+\\b)");
     private static final Pattern IGST_PATTERN = Pattern.compile("(?i)(?:IGST)[\\s:₹Rs.]*([\\d,]+\\.\\d{2}|\\b\\d+\\b)");
 
-    // Table line pattern: Sl, Item Description, HSN/SAC, Qty, UOM, (optional Rate), (optional Amount)
+    // Table line pattern: Optional Sl, Item Description, HSN/SAC, Qty, UOM, (optional Rate), (optional Tax%), (optional Amount)
     private static final Pattern ITEM_ROW_PATTERN = Pattern.compile(
-            "^\\s*(\\d{1,3})\\s+([A-Za-z0-9\\s\\-()#&.,/]+?)\\s+(\\d{4,8})\\s+(\\d+(?:\\.\\d+)?)\\s+([A-Za-z]{2,5})(?:\\s+([\\d,]+\\.?\\d*))?(?:\\s+([\\d,]+\\.?\\d*))?\\s*$"
+            "^\\s*(?:(\\d{1,3})\\s+)?([A-Za-z0-9\\s\\-()#&.,/]+?)\\s+(\\d{4,8})\\s+(\\d+(?:\\.\\d+)?)\\s+([A-Za-z]{2,5})(?:\\s+([\\d,]+\\.?\\d*))?(?:\\s+(\\d{1,2}(?:\\.\\d+)?%?))?(?:\\s+([\\d,]+\\.?\\d*))?\\s*$"
     );
 
     private TallyDocumentParser() {}
@@ -91,7 +91,6 @@ public final class TallyDocumentParser {
                 String foundGstin = gstinMatcher.group(1);
                 if (vendorGstin == null) {
                     vendorGstin = foundGstin;
-                    // If vendor name not yet captured, check line above
                     if (vendorName == null && i > 0) {
                         String prev = lines[i - 1].trim();
                         if (isProminentName(prev)) vendorName = prev;
@@ -148,8 +147,35 @@ public final class TallyDocumentParser {
                 String hsn = itemMatcher.group(3).trim();
                 BigDecimal qty = parseDecimal(itemMatcher.group(4));
                 String uom = itemMatcher.group(5).trim().toUpperCase(Locale.ROOT);
-                BigDecimal rate = itemMatcher.group(6) != null ? parseDecimal(itemMatcher.group(6)) : BigDecimal.ZERO;
-                BigDecimal lineAmount = itemMatcher.group(7) != null ? parseDecimal(itemMatcher.group(7)) : qty.multiply(rate);
+                BigDecimal g6 = itemMatcher.group(6) != null ? parseDecimal(itemMatcher.group(6)) : BigDecimal.ZERO;
+                String g7Str = itemMatcher.group(7) != null ? itemMatcher.group(7).trim() : null;
+                BigDecimal g8 = itemMatcher.group(8) != null ? parseDecimal(itemMatcher.group(8)) : BigDecimal.ZERO;
+
+                BigDecimal rate = g6;
+                BigDecimal taxRate = new BigDecimal("18.00");
+                BigDecimal lineAmount;
+
+                if (g8.compareTo(BigDecimal.ZERO) > 0) {
+                    lineAmount = g8;
+                    if (g7Str != null && !g7Str.isBlank()) {
+                        taxRate = parseDecimal(g7Str.replace("%", ""));
+                    }
+                } else if (g7Str != null && !g7Str.isBlank()) {
+                    if (g7Str.endsWith("%")) {
+                        taxRate = parseDecimal(g7Str.replace("%", ""));
+                        lineAmount = qty.multiply(rate);
+                    } else {
+                        BigDecimal candidate = parseDecimal(g7Str);
+                        if (candidate.compareTo(rate) > 0) {
+                            lineAmount = candidate;
+                        } else {
+                            taxRate = candidate;
+                            lineAmount = qty.multiply(rate);
+                        }
+                    }
+                } else {
+                    lineAmount = qty.multiply(rate);
+                }
 
                 if (rate.compareTo(BigDecimal.ZERO) == 0 && qty.compareTo(BigDecimal.ZERO) > 0 && lineAmount.compareTo(BigDecimal.ZERO) > 0) {
                     rate = lineAmount.divide(qty, 2, RoundingMode.HALF_UP);
@@ -166,7 +192,7 @@ public final class TallyDocumentParser {
                         uom,
                         rate,
                         BigDecimal.ZERO,
-                        new BigDecimal("18.00"),
+                        taxRate,
                         lineAmount,
                         new BigDecimal("100.00"),
                         ""
@@ -174,9 +200,9 @@ public final class TallyDocumentParser {
             }
         }
 
-        // Post-processing and sane defaults
+        // Vendor name discovery
         if (vendorName == null) {
-            for (int i = 0; i < Math.min(6, lines.length); i++) {
+            for (int i = 0; i < Math.min(8, lines.length); i++) {
                 String candidate = lines[i].trim();
                 if (isProminentName(candidate)) {
                     vendorName = candidate;
@@ -185,7 +211,7 @@ public final class TallyDocumentParser {
             }
         }
         if (vendorName == null || vendorName.isBlank()) {
-            vendorName = defaultPartyLedger != null && !defaultPartyLedger.isBlank() ? defaultPartyLedger : "Apex IT Peripherals";
+            vendorName = defaultPartyLedger != null && !defaultPartyLedger.isBlank() ? defaultPartyLedger : "";
         }
 
         if (invNo == null || invNo.isBlank()) {
@@ -195,7 +221,7 @@ public final class TallyDocumentParser {
             invDate = LocalDate.now();
         }
 
-        // Calculate sum of line items if available
+        // Sum of line items
         BigDecimal itemSum = items.stream()
                 .map(TallyAutomationApiClient.BillLineItemDto::taxableAmount)
                 .filter(Objects::nonNull)
@@ -205,26 +231,33 @@ public final class TallyDocumentParser {
             taxable = itemSum;
         }
         if (taxable == null) {
-            taxable = new BigDecimal("10000.00");
+            taxable = BigDecimal.ZERO;
         }
 
         BigDecimal totalGst = cgst.add(sgst).add(igst);
-        if (totalGst.compareTo(BigDecimal.ZERO) == 0) {
+        if (totalGst.compareTo(BigDecimal.ZERO) == 0 && taxable.compareTo(BigDecimal.ZERO) > 0) {
+            // Determine inter-state vs intra-state tax allocation based on GSTIN state code (24 = Gujarat)
+            boolean isInterState = vendorGstin != null && !vendorGstin.isBlank() && !vendorGstin.startsWith("24");
             totalGst = taxable.multiply(new BigDecimal("0.18")).setScale(2, RoundingMode.HALF_UP);
-            cgst = totalGst.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
-            sgst = totalGst.subtract(cgst);
+            if (isInterState) {
+                igst = totalGst;
+            } else {
+                cgst = totalGst.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
+                sgst = totalGst.subtract(cgst);
+            }
         }
 
         if (grandTotal == null || grandTotal.compareTo(BigDecimal.ZERO) == 0) {
             grandTotal = taxable.add(totalGst).setScale(2, RoundingMode.HALF_UP);
         }
 
-        // Cross-validation math accuracy calculation
         BigDecimal accuracy = calculateAccuracy(taxable, totalGst, grandTotal, items);
 
         String partyLedger = (defaultPartyLedger != null && !defaultPartyLedger.isBlank())
                 ? defaultPartyLedger
-                : vendorName;
+                : (!vendorName.isBlank() ? vendorName : "Purchase Account");
+
+        String status = items.isEmpty() && taxable.compareTo(BigDecimal.ZERO) == 0 ? "NEEDS_REVIEW" : "EXTRACTED";
 
         return new TallyAutomationApiClient.BillRecordDto(
                 null,
@@ -234,7 +267,7 @@ public final class TallyDocumentParser {
                 invNo,
                 invDate,
                 vendorName,
-                vendorGstin != null ? vendorGstin : "24AABCA5544E1Z1",
+                vendorGstin != null ? vendorGstin : "",
                 partyLedger,
                 "Purchase Account",
                 null,
@@ -246,9 +279,9 @@ public final class TallyDocumentParser {
                 BigDecimal.ZERO,
                 grandTotal,
                 accuracy,
-                accuracy.compareTo(new BigDecimal("95.00")) >= 0 ? "Document mathematically verified." : "Cross-check tax totals.",
+                items.isEmpty() ? "No line items detected. Please verify or inspect document." : "Document parsed with " + items.size() + " line items.",
                 file.getAbsolutePath(),
-                "EXTRACTED",
+                status,
                 null,
                 items
         );
@@ -257,13 +290,14 @@ public final class TallyDocumentParser {
     private static TallyAutomationApiClient.BillRecordDto parseExcel(File file, Long batchId, Long clientProfileId, String defaultPartyLedger) {
         String invNo = generateFallbackInvoiceNo(file.getName());
         LocalDate invDate = LocalDate.now();
-        String vendorName = defaultPartyLedger != null && !defaultPartyLedger.isBlank() ? defaultPartyLedger : "Vendor Supplies";
-        String vendorGstin = "24AABCA5544E1Z1";
+        String vendorName = defaultPartyLedger != null && !defaultPartyLedger.isBlank() ? defaultPartyLedger : "";
+        String vendorGstin = "";
         BigDecimal taxable = BigDecimal.ZERO;
         BigDecimal cgst = BigDecimal.ZERO;
         BigDecimal sgst = BigDecimal.ZERO;
         BigDecimal igst = BigDecimal.ZERO;
         BigDecimal grandTotal = BigDecimal.ZERO;
+
         List<TallyAutomationApiClient.BillLineItemDto> items = new ArrayList<>();
 
         try (FileInputStream fis = new FileInputStream(file);
@@ -316,13 +350,13 @@ public final class TallyDocumentParser {
             log.warn("Excel parse notice for {}: {}", file.getName(), ex.getMessage());
         }
 
-        if (taxable.compareTo(BigDecimal.ZERO) == 0) {
-            taxable = new BigDecimal("10000.00");
+        BigDecimal totalGst = BigDecimal.ZERO;
+        if (taxable.compareTo(BigDecimal.ZERO) > 0) {
+            totalGst = taxable.multiply(new BigDecimal("0.18")).setScale(2, RoundingMode.HALF_UP);
+            cgst = totalGst.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
+            sgst = totalGst.subtract(cgst);
+            grandTotal = taxable.add(totalGst);
         }
-        BigDecimal totalGst = taxable.multiply(new BigDecimal("0.18")).setScale(2, RoundingMode.HALF_UP);
-        cgst = totalGst.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
-        sgst = totalGst.subtract(cgst);
-        grandTotal = taxable.add(totalGst);
 
         BigDecimal accuracy = calculateAccuracy(taxable, totalGst, grandTotal, items);
 
@@ -335,7 +369,7 @@ public final class TallyDocumentParser {
                 invDate,
                 vendorName,
                 vendorGstin,
-                vendorName,
+                !vendorName.isBlank() ? vendorName : (defaultPartyLedger != null ? defaultPartyLedger : "Purchase Account"),
                 "Purchase Account",
                 null,
                 null,
@@ -346,9 +380,9 @@ public final class TallyDocumentParser {
                 BigDecimal.ZERO,
                 grandTotal,
                 accuracy,
-                "Excel sheet rows mapped directly.",
+                items.isEmpty() ? "No excel rows mapped." : "Excel sheet rows mapped directly.",
                 file.getAbsolutePath(),
-                "EXTRACTED",
+                items.isEmpty() ? "NEEDS_REVIEW" : "EXTRACTED",
                 null,
                 items
         );
@@ -369,17 +403,10 @@ public final class TallyDocumentParser {
     private static TallyAutomationApiClient.BillRecordDto parseFallback(File file, Long batchId, Long clientProfileId, String defaultPartyLedger) {
         String invNo = generateFallbackInvoiceNo(file.getName());
         LocalDate invDate = LocalDate.now();
-        String vendorName = defaultPartyLedger != null && !defaultPartyLedger.isBlank() ? defaultPartyLedger : "Apex IT Peripherals";
-        BigDecimal taxable = new BigDecimal("10000.00");
-        BigDecimal cgst = new BigDecimal("900.00");
-        BigDecimal sgst = new BigDecimal("900.00");
-        BigDecimal totalGst = new BigDecimal("1800.00");
-        BigDecimal grandTotal = new BigDecimal("11800.00");
+        String vendorName = defaultPartyLedger != null && !defaultPartyLedger.isBlank() ? defaultPartyLedger : "";
+        BigDecimal zero = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
-        List<TallyAutomationApiClient.BillLineItemDto> items = List.of(
-                new TallyAutomationApiClient.BillLineItemDto(null, null, 1, "Logitech MX Master 3S Wireless Mouse", "Logitech MX Master 3S Wireless Mouse", "847160", new BigDecimal("5"), "PCS", new BigDecimal("1000.00"), BigDecimal.ZERO, new BigDecimal("18.00"), new BigDecimal("5000.00"), new BigDecimal("100.00"), ""),
-                new TallyAutomationApiClient.BillLineItemDto(null, null, 2, "Keychron K2 Mechanical Keyboard", "Keychron K2 Mechanical Keyboard", "847160", new BigDecimal("5"), "PCS", new BigDecimal("1000.00"), BigDecimal.ZERO, new BigDecimal("18.00"), new BigDecimal("5000.00"), new BigDecimal("100.00"), "")
-        );
+        List<TallyAutomationApiClient.BillLineItemDto> items = List.of();
 
         return new TallyAutomationApiClient.BillRecordDto(
                 null,
@@ -389,42 +416,46 @@ public final class TallyDocumentParser {
                 invNo,
                 invDate,
                 vendorName,
-                "24AABCA5544E1Z1",
-                vendorName,
+                "",
+                !vendorName.isBlank() ? vendorName : "Purchase Account",
                 "Purchase Account",
                 null,
                 null,
-                taxable,
-                cgst,
-                sgst,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                grandTotal,
-                new BigDecimal("98.50"),
-                "Document scanned successfully.",
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+                "Document requires manual data entry or inspection.",
                 file.getAbsolutePath(),
-                "EXTRACTED",
+                "NEEDS_REVIEW",
                 null,
                 items
         );
     }
 
     private static BigDecimal calculateAccuracy(BigDecimal taxable, BigDecimal totalGst, BigDecimal grandTotal, List<TallyAutomationApiClient.BillLineItemDto> items) {
+        if (taxable == null || taxable.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+
         BigDecimal score = new BigDecimal("100.00");
-        BigDecimal expectedTotal = taxable.add(totalGst);
+        BigDecimal expectedTotal = taxable.add(totalGst != null ? totalGst : BigDecimal.ZERO);
         BigDecimal diff = grandTotal.subtract(expectedTotal).abs();
 
         if (diff.compareTo(new BigDecimal("1.00")) > 0) {
             score = score.subtract(new BigDecimal("15.00"));
         } else if (diff.compareTo(BigDecimal.ZERO) > 0) {
-            score = score.subtract(new BigDecimal("2.00")); // Minor rounding
+            score = score.subtract(new BigDecimal("2.00"));
         }
 
         if (items.isEmpty()) {
-            score = score.subtract(new BigDecimal("5.00"));
+            score = score.subtract(new BigDecimal("20.00"));
         }
 
-        return score.max(new BigDecimal("50.00")).setScale(2, RoundingMode.HALF_UP);
+        return score.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static String generateFallbackInvoiceNo(String filename) {

@@ -479,11 +479,14 @@ public final class TaxInvoicePdfGenerator {
             widths[i] = Math.max(10f, fact == null ? 10f : fact.length() + 4f);
             total += widths[i];
         }
-        // Normalize array elements to sum to exactly 100.0% to prevent iText TableWidths warning
-        if (total > 0f) {
-            for (int i = 0; i < widths.length; i++) {
-                widths[i] = (widths[i] / total) * 100f;
+        // Normalize array elements to sum strictly <= 100.0% to prevent iText TableWidths warning
+        if (total > 0f && widths.length > 0) {
+            float sum = 0f;
+            for (int i = 0; i < widths.length - 1; i++) {
+                widths[i] = (float) Math.floor(((widths[i] / total) * 100.0) * 100.0) / 100.0f;
+                sum += widths[i];
             }
+            widths[widths.length - 1] = Math.max(0.1f, 100.0f - sum);
         }
         return widths;
     }

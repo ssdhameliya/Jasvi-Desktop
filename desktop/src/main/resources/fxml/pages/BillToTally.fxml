@@ -36,168 +36,72 @@
         </HBox>
     </HBox>
 
-    <!-- 2. Standard Enterprise KPI Row -->
-    <HBox spacing="8" styleClass="standard-kpi-row,recon-metric-row,erp-kpi-section">
-        <!-- Total Bills Card -->
-        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-blue">
-            <StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon"/>
-            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                <HBox alignment="CENTER_LEFT">
-                    <Label text="Total Bills" styleClass="metric-label"/>
-                    <Region HBox.hgrow="ALWAYS"/>
-                    <Label text="Total" styleClass="metric-trend-pill,trend-neutral"/>
-                </HBox>
-                <Label fx:id="lblKpiTotal" text="0" styleClass="metric-value"/>
-                <Label text="Uploaded vouchers" styleClass="metric-note"/>
-            </VBox>
+    <!-- 2. Workspace: Two Full-Width Tables Stacked Vertically -->
+    <!-- Top Table: Master Extracted Bills & Vouchers -->
+    <VBox spacing="6" VBox.vgrow="ALWAYS" minHeight="240" styleClass="approved-card">
+        <padding>
+            <Insets top="8" right="10" bottom="8" left="10"/>
+        </padding>
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Label text="Extracted Bills &amp; Vouchers" styleClass="section-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnDeleteBill" text="Delete" styleClass="approved-button,approved-danger-button" onAction="#handleDeleteBill"/>
+            <Button fx:id="btnRecalculate" text="Re-Calculate Math" styleClass="approved-button,approved-secondary-button" onAction="#handleRecalculateAccuracy"/>
         </HBox>
 
-        <!-- Ready for Tally Card -->
-        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-green">
-            <StackPane fx:id="kpiReadyIcon" styleClass="standard-kpi-icon"/>
-            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                <HBox alignment="CENTER_LEFT">
-                    <Label text="Ready to Export" styleClass="metric-label"/>
-                    <Region HBox.hgrow="ALWAYS"/>
-                    <Label text="Ready" styleClass="metric-trend-pill,trend-positive"/>
-                </HBox>
-                <Label fx:id="lblKpiReady" text="0" styleClass="metric-value"/>
-                <Label text="Accuracy ≥ 95%" styleClass="metric-note"/>
-            </VBox>
+        <TableView fx:id="tblBills" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive">
+            <columns>
+                <TableColumn fx:id="colStatus" text="Status"/>
+                <TableColumn fx:id="colAccuracy" text="Accuracy"/>
+                <TableColumn fx:id="colInvoiceNo" text="Invoice No"/>
+                <TableColumn fx:id="colInvoiceDate" text="Date"/>
+                <TableColumn fx:id="colVendorName" text="Printed Vendor"/>
+                <TableColumn fx:id="colVendorGstin" text="GSTIN"/>
+                <TableColumn fx:id="colPartyLedger" text="Tally Party Ledger"/>
+                <TableColumn fx:id="colTaxable" text="Taxable (₹)"/>
+                <TableColumn fx:id="colTotalGst" text="GST (₹)"/>
+                <TableColumn fx:id="colIgst" text="IGST (₹)"/>
+                <TableColumn fx:id="colGrandTotal" text="Grand Total (₹)"/>
+                <TableColumn fx:id="colActions" text="Actions"/>
+            </columns>
+            <placeholder>
+                <VBox alignment="CENTER" spacing="6">
+                    <Label text="No bills in active batch." styleClass="page-subtitle"/>
+                    <Label text="Click 'Upload Bills' above to import PDF, Excel, or image vouchers." styleClass="muted-label"/>
+                </VBox>
+            </placeholder>
+        </TableView>
+    </VBox>
+
+    <!-- Bottom Detail Table: Line Items (Inventory Mode) -->
+    <VBox fx:id="lineItemsSection" spacing="6" VBox.vgrow="ALWAYS" minHeight="200" styleClass="approved-card">
+        <padding>
+            <Insets top="8" right="10" bottom="8" left="10"/>
+        </padding>
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Label text="Line Items (Inventory Mode)" styleClass="section-title"/>
+            <Label fx:id="lblLineItemBillRef" text="" styleClass="muted-label"/>
         </HBox>
 
-        <!-- Needs Review Card -->
-        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-orange">
-            <StackPane fx:id="kpiReviewIcon" styleClass="standard-kpi-icon"/>
-            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                <HBox alignment="CENTER_LEFT">
-                    <Label text="Needs Review" styleClass="metric-label"/>
-                    <Region HBox.hgrow="ALWAYS"/>
-                    <Label text="Review" styleClass="metric-trend-pill,trend-warning"/>
-                </HBox>
-                <Label fx:id="lblKpiReview" text="0" styleClass="metric-value"/>
-                <Label text="Tax mismatch / Unmapped" styleClass="metric-note"/>
-            </VBox>
-        </HBox>
+        <TableView fx:id="tblLineItems" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive">
+            <columns>
+                <TableColumn fx:id="colLineNo" text="#"/>
+                <TableColumn fx:id="colItemName" text="Extracted Item"/>
+                <TableColumn fx:id="colTallyItem" text="Mapped Tally Item"/>
+                <TableColumn fx:id="colHsn" text="HSN/SAC"/>
+                <TableColumn fx:id="colQty" text="Qty"/>
+                <TableColumn fx:id="colUom" text="Unit"/>
+                <TableColumn fx:id="colRate" text="Rate (₹)"/>
+                <TableColumn fx:id="colLineTaxable" text="Taxable (₹)"/>
+                <TableColumn fx:id="colLineAccuracy" text="Accuracy"/>
+            </columns>
+            <placeholder>
+                <Label text="Select a bill above to view extracted line items." styleClass="muted-label"/>
+            </placeholder>
+        </TableView>
+    </VBox>
 
-        <!-- Exported Card -->
-        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-purple">
-            <StackPane fx:id="kpiExportedIcon" styleClass="standard-kpi-icon"/>
-            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                <HBox alignment="CENTER_LEFT">
-                    <Label text="Exported" styleClass="metric-label"/>
-                    <Region HBox.hgrow="ALWAYS"/>
-                    <Label text="Synced" styleClass="metric-trend-pill,trend-info"/>
-                </HBox>
-                <Label fx:id="lblKpiExported" text="0" styleClass="metric-value"/>
-                <Label text="Pushed to TallyPrime" styleClass="metric-note"/>
-            </VBox>
-        </HBox>
-
-        <!-- Total Value Card -->
-        <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,recon-metric-card,kpi-blue">
-            <StackPane fx:id="kpiTotalValueIcon" styleClass="standard-kpi-icon"/>
-            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                <HBox alignment="CENTER_LEFT">
-                    <Label text="Batch Gross" styleClass="metric-label"/>
-                    <Region HBox.hgrow="ALWAYS"/>
-                    <Label text="Value" styleClass="metric-trend-pill,trend-neutral"/>
-                </HBox>
-                <Label fx:id="lblKpiTotalValue" text="₹ 0.00" styleClass="metric-value"/>
-                <Label text="Total vouchers value" styleClass="metric-note"/>
-            </VBox>
-        </HBox>
-    </HBox>
-
-    <!-- 3. Workspace: Main Master-Detail SplitPane -->
-    <SplitPane orientation="HORIZONTAL" dividerPositions="0.65" VBox.vgrow="ALWAYS">
-        <!-- Left Pane: Master Bills & Detail Line Items -->
-        <VBox spacing="10">
-            <!-- Master Bills Table Card -->
-            <VBox spacing="6" VBox.vgrow="ALWAYS" styleClass="approved-card">
-                <padding>
-                    <Insets top="8" right="10" bottom="8" left="10"/>
-                </padding>
-                <HBox spacing="10" alignment="CENTER_LEFT">
-                    <Label text="Extracted Bills &amp; Vouchers" styleClass="section-title"/>
-                    <Region HBox.hgrow="ALWAYS"/>
-                    <Button fx:id="btnDeleteBill" text="Delete" styleClass="approved-button,approved-danger-button" onAction="#handleDeleteBill"/>
-                    <Button fx:id="btnRecalculate" text="Re-Calculate Math" styleClass="approved-button,approved-secondary-button" onAction="#handleRecalculateAccuracy"/>
-                </HBox>
-
-                <TableView fx:id="tblBills" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive">
-                    <columns>
-                        <TableColumn fx:id="colStatus" text="Status"/>
-                        <TableColumn fx:id="colAccuracy" text="Accuracy"/>
-                        <TableColumn fx:id="colInvoiceNo" text="Invoice No"/>
-                        <TableColumn fx:id="colInvoiceDate" text="Date"/>
-                        <TableColumn fx:id="colVendorName" text="Printed Vendor"/>
-                        <TableColumn fx:id="colPartyLedger" text="Tally Party Ledger"/>
-                        <TableColumn fx:id="colTaxable" text="Taxable (₹)"/>
-                        <TableColumn fx:id="colTotalGst" text="Total GST (₹)"/>
-                        <TableColumn fx:id="colGrandTotal" text="Grand Total (₹)"/>
-                    </columns>
-                    <placeholder>
-                        <VBox alignment="CENTER" spacing="6">
-                            <Label text="No bills in active batch." styleClass="page-subtitle"/>
-                            <Label text="Drag &amp; drop PDF, Excel, or image invoice files here, or click 'Upload Bills'." styleClass="muted-label"/>
-                        </VBox>
-                    </placeholder>
-                </TableView>
-            </VBox>
-
-            <!-- Bottom Detail Table (Line Items for ITEM Mode) -->
-            <VBox fx:id="lineItemsSection" spacing="6" prefHeight="220" styleClass="approved-card">
-                <padding>
-                    <Insets top="8" right="10" bottom="8" left="10"/>
-                </padding>
-                <HBox spacing="10" alignment="CENTER_LEFT">
-                    <Label text="Line Items (Inventory Mode)" styleClass="section-title"/>
-                    <Label fx:id="lblLineItemBillRef" text="" styleClass="muted-label"/>
-                </HBox>
-
-                <TableView fx:id="tblLineItems" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive">
-                    <columns>
-                        <TableColumn fx:id="colLineNo" text="#"/>
-                        <TableColumn fx:id="colItemName" text="Extracted Item"/>
-                        <TableColumn fx:id="colTallyItem" text="Mapped Tally Item"/>
-                        <TableColumn fx:id="colHsn" text="HSN/SAC"/>
-                        <TableColumn fx:id="colQty" text="Qty"/>
-                        <TableColumn fx:id="colUom" text="Unit"/>
-                        <TableColumn fx:id="colRate" text="Rate (₹)"/>
-                        <TableColumn fx:id="colLineTaxable" text="Taxable (₹)"/>
-                        <TableColumn fx:id="colLineAccuracy" text="Accuracy"/>
-                    </columns>
-                    <placeholder>
-                        <Label text="Select a bill above to view extracted line items." styleClass="muted-label"/>
-                    </placeholder>
-                </TableView>
-            </VBox>
-        </VBox>
-
-        <!-- Right Pane: Zoomable Document Viewer -->
-        <VBox spacing="8" styleClass="approved-card">
-            <padding>
-                <Insets top="8" right="10" bottom="8" left="10"/>
-            </padding>
-            <HBox spacing="8" alignment="CENTER_LEFT">
-                <Label text="Document Inspection" styleClass="section-title"/>
-                <Region HBox.hgrow="ALWAYS"/>
-                <Button fx:id="btnZoomIn" text="+" styleClass="approved-button,approved-secondary-button" onAction="#handleZoomIn"/>
-                <Button fx:id="btnZoomOut" text="-" styleClass="approved-button,approved-secondary-button" onAction="#handleZoomOut"/>
-                <Button fx:id="btnRotate" text="Rotate" styleClass="approved-button,approved-secondary-button" onAction="#handleRotate"/>
-                <Button fx:id="btnFit" text="Fit" styleClass="approved-button,approved-secondary-button" onAction="#handleFit"/>
-            </HBox>
-
-            <ScrollPane fx:id="imageScrollPane" fitToWidth="true" fitToHeight="true" VBox.vgrow="ALWAYS" styleClass="document-preview-scroll">
-                <StackPane fx:id="imageContainer" alignment="CENTER">
-                    <Label fx:id="lblNoPreview" text="Select a bill to view original document image." styleClass="muted-label"/>
-                </StackPane>
-            </ScrollPane>
-        </VBox>
-    </SplitPane>
-
-    <!-- 4. Bottom Action Bar (Push / Export) -->
+    <!-- 3. Bottom Action Bar (Push / Export) -->
     <HBox spacing="12" alignment="CENTER_RIGHT" styleClass="approved-card">
         <padding>
             <Insets top="10" right="16" bottom="10" left="16"/>

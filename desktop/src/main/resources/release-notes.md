@@ -1,3 +1,12 @@
+# What's New in DSE ERP v11.0.39
+
+### WhatsApp Transaction Isolation, Communication Center Dual-Channel Re-send, Bill-to-Tally Automation Streamlining & iText TableWidths Silencing
+- **WhatsApp Transaction Isolation & Rollback Prevention**: Decoupled outbound HTTP network transmission in `BusinessWhatsappService` from active database transactions, eliminating `UnexpectedRollbackException` and ensuring messages sent via WAHA are not falsely reported as failed. Isolated audit log persistence into independent `REQUIRES_NEW` transactions with safe entity resolution.
+- **Communication Center Dual-Channel Re-Send with Live Previews**: Added interactive `Re-send` buttons for both Email and WhatsApp in Communication Center. Resending now launches `WhatsappTransmissionDialog` and `EmailTransmissionDialog` with draft previews and monitors execution via `LiveOperationDialog` with multi-stage progress reporting.
+- **Bill-to-Tally UI Streamlining & Purged Mock Data**: Purged all placeholder/mock data (`Logitech`, `Keychron`, `INV-9584`, `10000.00`) from `TallyDocumentParser`. Streamlined screen into two full-width tables (`Extracted Bills & Vouchers` and `Line Items`) without side panes or KPI cards. Added dedicated `GSTIN`, `GST`, `IGST`, and `Actions` columns, and integrated the full-size `TallyDocumentInspectionDialog` modal popup with high-resolution zooming, rotation, and paging.
+- **iText TableWidths Warning Elimination**: Implemented strict percent array normalization in `ScheduledReportExportService`, `UnifiedReportExportService`, `ProfessionalDocumentRenderer`, and `TaxInvoicePdfGenerator`, ensuring all table column widths sum strictly <= 100.0% and eliminating server warnings.
+- **CI Test Runner Memory Hardening**: Configured `maven-surefire-plugin` in root `pom.xml` with explicit JVM heap bounds (`-Xmx1024m -XX:+UseG1GC`) and single-fork execution to guarantee stable, deterministic CI execution on Windows runners.
+
 # What's New in DSE ERP v11.0.38
 
 ### WhatsApp Multi-Channel Live Auto-Fallback, Hibernate Session Protection & Protocol Governance

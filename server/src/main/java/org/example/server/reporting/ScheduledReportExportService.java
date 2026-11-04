@@ -189,10 +189,25 @@ public final class ScheduledReportExportService {
         doc.add(table);
     }
 
+        private static float[] normalizePercentWidths(float[] raw) {
+        if (raw == null || raw.length == 0) return new float[0];
+        float total = 0f;
+        for (float w : raw) total += w;
+        if (total <= 0f) return raw;
+        float[] res = new float[raw.length];
+        float sum = 0f;
+        for (int i = 0; i < raw.length - 1; i++) {
+            res[i] = (float) Math.floor(((raw[i] / total) * 100.0) * 100.0) / 100.0f;
+            sum += res[i];
+        }
+        res[raw.length - 1] = Math.max(0.1f, 100.0f - sum);
+        return res;
+    }
+
     private static void addTable(Document doc, ReportResult result, List<Integer> positions) {
         if (positions.isEmpty()) { doc.add(new Paragraph("No visible columns selected.")); return; }
         float[] widths = new float[positions.size()]; for (int i = 0; i < positions.size(); i++) widths[i] = (float)Math.max(60, result.columns().get(positions.get(i)).preferredWidth());
-        Table table = new Table(UnitValue.createPercentArray(widths)).useAllAvailableWidth().setFontSize(6.8f);
+        Table table = new Table(UnitValue.createPercentArray(normalizePercentWidths(widths))).useAllAvailableWidth().setFontSize(6.8f);
         for (int p : positions) {
             ReportColumn col = result.columns().get(p);
             table.addHeaderCell(new Cell().add(new Paragraph(col.label()).setBold()).setBackgroundColor(NAVY).setFontColor(ColorConstants.WHITE).setPadding(4).setTextAlignment(col.numeric() ? TextAlignment.RIGHT : TextAlignment.LEFT));
