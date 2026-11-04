@@ -133,7 +133,14 @@ compile & test.             Zero edits without OK.      Local IntelliJ (.idea sa
 
 ### Rule 10: Automation Gate Compliance & Continuous Self-Learning from CI
 - Whenever buttons, FXML elements, or controllers change, all automation gates (`SharedUiOwnershipContractTest`, `audit-release-gates.py`, UI design system audits) must pass locally.
-- **Continuous Self-Learning from CI:** If GitHub Actions CI ever rejects or fails a build, immediately analyze the root cause, document the prevention rule, update `dse-erp-master-protocol.md`, and adhere to it permanently.
+- **Mandatory Full Reactor Pre-Flight Test:** Never run tests on a single submodule alone (e.g. `-pl server`). Before opening any PR or pushing code to Tier 4, execute a full reactor test run (`.\mvnw.cmd test` or `./mvnw test` across all modules: parent, shared, server, desktop) and verify 0 failures and 0 errors.
+- **Source-Scanning Contract Test Invariance:** Architecture contract tests (`SharedUiOwnershipContractTest`, `GlobalUiContractTest`, `UiArchitectureContractTest`) perform exact string pattern checks on Java source files. When modifying controllers or actions, maintain strict compatibility with the token patterns expected by the contract tests (e.g., whitespace and style class sequences).
+- **Outbound HTTP / External Network Decoupling from Transactions:** Never invoke external third-party HTTP endpoints (such as WAHA WhatsApp or Mail server) inside a database `@Transactional` block. Auxiliary audit persistence must use `@Transactional(propagation = Propagation.REQUIRES_NEW)` so network failures or secondary log errors cannot roll back successful communication transmissions.
+- **Continuous Self-Learning from CI:** If GitHub Actions CI ever rejects or fails a build:
+  1. Immediately extract the failed step logs via `gh run view <run-id> --log-failed`.
+  2. Pinpoint the root cause down to the exact test or assertion failure.
+  3. Formulate the permanent prevention rule, update `dse-erp-master-protocol.md`, and synchronize to all repos and tiers via `python scripts/sync-to-all.py`.
+  4. Adhere to the prevention rule permanently in all future turns.
 
 ### Rule 11: Colorized Status Labels and Table Cell Data
 - All status badges, critical table cell data (e.g. amounts, balances, invoice status, dates, active/inactive), and key labels must use semantic colors defined by the theme CSS system for maximum contrast and visual hierarchy.
