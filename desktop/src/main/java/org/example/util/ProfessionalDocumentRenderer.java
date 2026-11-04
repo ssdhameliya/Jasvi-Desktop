@@ -690,9 +690,24 @@ public final class ProfessionalDocumentRenderer {
     }
 
     /** Bill/ship/tax cards, or the dedicated party and return cards for returns. */
+        private static float[] normalizePercentWidths(float[] raw) {
+        if (raw == null || raw.length == 0) return new float[0];
+        float total = 0f;
+        for (float w : raw) total += w;
+        if (total <= 0f) return raw;
+        float[] res = new float[raw.length];
+        float sum = 0f;
+        for (int i = 0; i < raw.length - 1; i++) {
+            res[i] = (float) Math.floor(((raw[i] / total) * 100.0) * 100.0) / 100.0f;
+            sum += res[i];
+        }
+        res[raw.length - 1] = Math.max(0.1f, 100.0f - sum);
+        return res;
+    }
+
     private static Table referencePartyArea(Data data, Color accent, Kind kind) {
         boolean returns = data.refund;
-        float[] widths = returns ? new float[]{1, 1} : new float[]{1, 1, 1};
+        float[] widths = returns ? new float[]{50f, 50f} : new float[]{33.33f, 33.33f, 33.34f};
         Table cards = new Table(UnitValue.createPercentArray(widths)).useAllAvailableWidth();
         cards.setHorizontalBorderSpacing(6);
         if (returns) {
@@ -874,7 +889,7 @@ public final class ProfessionalDocumentRenderer {
             headers = new String[]{"#", "ITEM CODE", "DESCRIPTION", "QTY", "RATE (INR)", "DISCOUNT", "TAX (%)", "AMOUNT (INR)"};
             widths = new float[]{.3f,.85f,2.25f,.55f,.78f,.68f,.58f,1.05f};
         }
-        Table table = new Table(UnitValue.createPercentArray(widths)).useAllAvailableWidth();
+        Table table = new Table(UnitValue.createPercentArray(normalizePercentWidths(widths))).useAllAvailableWidth();
         // The table grows with its real rows. iText splits it across pages and
         // automatically repeats the header on every continuation page.
         table.setKeepTogether(false);
@@ -1035,7 +1050,7 @@ public final class ProfessionalDocumentRenderer {
 
         Cell approvals = new Cell(1, 2).setBorder(new SolidBorder(PDF_LINE, .7f)).setPadding(6);
         Table approvalTable = new Table(UnitValue.createPercentArray(
-            kind == Kind.SALES_REFUND ? new float[]{1,1,1} : new float[]{1,1,1,1})).useAllAvailableWidth();
+            kind == Kind.SALES_REFUND ? new float[]{1,1,1} : new float[]{25f, 25f, 25f, 25f})).useAllAvailableWidth();
         approvalTable.addCell(approvalCell("PREPARED BY", accent));
         if (kind == Kind.PURCHASE_REFUND) {
             approvalTable.addCell(approvalCell("RECEIVED BY (WAREHOUSE)", accent));
@@ -1218,7 +1233,7 @@ public final class ProfessionalDocumentRenderer {
     }
 
     private static Table referenceFooterBand(Color accent, Kind kind) {
-        Table footer = new Table(UnitValue.createPercentArray(new float[]{1,1,1,1})).useAllAvailableWidth();
+        Table footer = new Table(UnitValue.createPercentArray(new float[]{25f, 25f, 25f, 25f})).useAllAvailableWidth();
         footer.setBackgroundColor(accent);
         String[] values = {config("company.phone", ""), config("company.email", ""),
             config("company.website", ""), config("company.state", "India")};

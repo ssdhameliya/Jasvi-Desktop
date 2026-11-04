@@ -12,6 +12,7 @@ import org.example.server.util.BusinessClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
@@ -274,7 +275,6 @@ public class BusinessWhatsappService {
         return wahaClient.getQrCode(settings.endpoint(), settings.apiKey(), session);
     }
 
-    @Transactional
     public WahaDtos.SendResponse sendDocument(WahaDtos.DocumentSendRequest req) {
         if (req == null) throw new IllegalArgumentException("Request cannot be null");
         WahaDtos.WahaSettingsDto settings = getSettings();
@@ -333,7 +333,7 @@ public class BusinessWhatsappService {
         return response;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordDocumentCommunicationAudit(String entityType, Integer entityId, String recipientPhone,
                                                  String docNumber, boolean success, String errorMessage) {
         try {
@@ -362,7 +362,6 @@ public class BusinessWhatsappService {
         }
     }
 
-    @Transactional
     public WahaDtos.SendResponse sendText(WahaDtos.TextSendRequest req) {
         if (req == null) throw new IllegalArgumentException("Request cannot be null");
         WahaDtos.WahaSettingsDto settings = getSettings();
@@ -381,7 +380,7 @@ public class BusinessWhatsappService {
         return response;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordTextCommunicationAudit(String recipientPhone, boolean success, String errorMessage) {
         try {
             String status = success ? "SENT" : "FAILED";
@@ -487,18 +486,23 @@ public class BusinessWhatsappService {
         }
 
         final String fallbackPhone = targetPhone;
-        return channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc().stream()
-                .findFirst()
-                .orElseGet(() -> {
-                    WhatsappSenderChannelEntity fallback = new WhatsappSenderChannelEntity();
-                    fallback.setChannelCode("DEFAULT");
-                    fallback.setDisplayName("Default WhatsApp");
-                    fallback.setSessionName("default");
-                    fallback.setPhoneNumber(fallbackPhone);
-                    fallback.setIsDefault(true);
-                    fallback.setIsActive(true);
-                    return channelRepo.save(fallback);
-                });
+        var activeList = channelRepo.findAllByIsActiveTrueOrderByIsDefaultDescDisplayNameAsc();
+        if (!activeList.isEmpty()) {
+            return activeList.getFirst();
+        }
+        var anyList = channelRepo.findAll();
+        if (!anyList.isEmpty()) {
+            return anyList.getFirst();
+        }
+        WhatsappSenderChannelEntity fallback = new WhatsappSenderChannelEntity();
+        fallback.setId(1L);
+        fallback.setChannelCode("DEFAULT");
+        fallback.setDisplayName("Default WhatsApp");
+        fallback.setSessionName("default");
+        fallback.setPhoneNumber(fallbackPhone);
+        fallback.setIsDefault(true);
+        fallback.setIsActive(true);
+        return fallback;
     }
 
     public static String formatChatId(String raw) {
