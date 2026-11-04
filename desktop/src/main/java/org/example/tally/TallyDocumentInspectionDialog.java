@@ -161,6 +161,15 @@ public final class TallyDocumentInspectionDialog {
             controls.getChildren().add(financialLabel);
         }
 
+        Button btnMinimize = new Button("Minimize");
+        btnMinimize.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnMinimize.setGraphic(IconFactory.compactIcon("minimum", 14));
+        btnMinimize.setOnAction(ev -> {
+            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
+                stage.setIconified(true);
+            }
+        });
+
         Button btnMaximize = new Button("Maximize");
         btnMaximize.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnMaximize.setGraphic(IconFactory.compactIcon("fullscreen", 14));
@@ -178,8 +187,31 @@ public final class TallyDocumentInspectionDialog {
         btnClose.setGraphic(IconFactory.compactIcon("cancel", 14));
         btnClose.setOnAction(ev -> dialog.close());
 
-        controls.getChildren().addAll(btnMaximize, btnClose);
+        controls.getChildren().addAll(btnMinimize, btnMaximize, btnClose);
         header.getChildren().addAll(iconHolder, titleBox, spacer, controls);
+
+        final double[] dragDelta = new double[2];
+        header.setOnMousePressed(e -> {
+            if (header.getScene() != null && header.getScene().getWindow() instanceof Stage stage) {
+                dragDelta[0] = stage.getX() - e.getScreenX();
+                dragDelta[1] = stage.getY() - e.getScreenY();
+            }
+        });
+        header.setOnMouseDragged(e -> {
+            if (header.getScene() != null && header.getScene().getWindow() instanceof Stage stage && !stage.isMaximized()) {
+                stage.setX(e.getScreenX() + dragDelta[0]);
+                stage.setY(e.getScreenY() + dragDelta[1]);
+            }
+        });
+        header.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2 && dialog.getDialogPane().getScene() != null
+                    && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
+                boolean isMax = stage.isMaximized();
+                stage.setMaximized(!isMax);
+                btnMaximize.setText(!isMax ? "Restore" : "Maximize");
+                btnMaximize.setGraphic(IconFactory.compactIcon(!isMax ? "restore" : "fullscreen", 14));
+            }
+        });
         return header;
     }
 

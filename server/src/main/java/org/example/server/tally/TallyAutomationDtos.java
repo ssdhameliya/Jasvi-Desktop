@@ -8,6 +8,14 @@ import java.util.List;
 public final class TallyAutomationDtos {
     private TallyAutomationDtos() {}
 
+    public record GstFilingStatusDto(
+        String financialYear,
+        String returnType,
+        String taxPeriod,
+        String dateOfFiling,
+        String status
+    ) {}
+
     public record ClientProfileDto(
         Long id,
         String clientName,
@@ -18,6 +26,12 @@ public final class TallyAutomationDtos {
         String address,
         String gstStatus,
         String taxpayerType,
+        String registrationDate,
+        String constitutionOfBusiness,
+        String stateJurisdiction,
+        String centerJurisdiction,
+        String natureOfBusiness,
+        String filingStatusJson,
         String stateCode,
         String defaultMode,
         String defaultPurchaseLedger,
@@ -27,7 +41,35 @@ public final class TallyAutomationDtos {
         boolean showCostCenter,
         boolean showPoReference,
         String excelColumnMappingJson
-    ) {}
+    ) {
+        public ClientProfileDto(
+            Long id,
+            String clientName,
+            String tallyCompanyName,
+            String gstin,
+            String tradeName,
+            String legalName,
+            String address,
+            String gstStatus,
+            String taxpayerType,
+            String stateCode,
+            String defaultMode,
+            String defaultPurchaseLedger,
+            String defaultRoundoffLedger,
+            boolean showGstColumns,
+            boolean showHsnColumn,
+            boolean showCostCenter,
+            boolean showPoReference,
+            String excelColumnMappingJson
+        ) {
+            this(
+                id, clientName, tallyCompanyName, gstin, tradeName, legalName, address,
+                gstStatus, taxpayerType, null, null, null, null, null, null, stateCode,
+                defaultMode, defaultPurchaseLedger, defaultRoundoffLedger, showGstColumns,
+                showHsnColumn, showCostCenter, showPoReference, excelColumnMappingJson
+            );
+        }
+    }
 
     public record ClientDirectoryRowDto(
         Long id,
@@ -39,6 +81,12 @@ public final class TallyAutomationDtos {
         String address,
         String gstStatus,
         String taxpayerType,
+        String registrationDate,
+        String constitutionOfBusiness,
+        String stateJurisdiction,
+        String centerJurisdiction,
+        String natureOfBusiness,
+        String filingStatusJson,
         long templateCount,
         OffsetDateTime updatedAt
     ) {}
@@ -51,6 +99,12 @@ public final class TallyAutomationDtos {
         String status,
         String taxpayerType,
         String stateCode,
+        String registrationDate,
+        String constitutionOfBusiness,
+        String stateJurisdiction,
+        String centerJurisdiction,
+        String natureOfBusiness,
+        List<GstFilingStatusDto> filings,
         boolean isValid
     ) {}
 

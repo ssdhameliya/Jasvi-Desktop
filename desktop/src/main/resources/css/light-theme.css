@@ -18708,3 +18708,16 @@
 .spreadsheet-grid {
     -fx-background-color: #f8fafc;
 }
+
+/* Colorized Semantic Facts and Profile Labels (v11.0.42) */
+.accent-label-purple { -fx-text-fill: #7c3aed; -fx-font-weight: bold; }
+.accent-label-blue { -fx-text-fill: #0284c7; -fx-font-weight: bold; }
+.accent-label-amber { -fx-text-fill: #d97706; -fx-font-weight: bold; }
+.accent-label-green { -fx-text-fill: #16a34a; -fx-font-weight: bold; }
+.accent-label-rose { -fx-text-fill: #e11d48; -fx-font-weight: bold; }
+.accent-label-indigo { -fx-text-fill: #4f46e5; -fx-font-weight: bold; }
+.fact-value-text { -fx-text-fill: #0f172a; -fx-font-weight: 600; -fx-font-size: 13px; }
+.dialog-text-area { -fx-text-fill: #0f172a; -fx-font-size: 13px; }
+.dialog-text-area .content { -fx-background-color: #ffffff; }
+.dialog-read-only-text { -fx-opacity: 0.95; -fx-font-family: 'Consolas', 'Courier New', monospace; -fx-text-fill: #1e293b; }
+.dialog-read-only-text .content { -fx-background-color: #f8fafc; }

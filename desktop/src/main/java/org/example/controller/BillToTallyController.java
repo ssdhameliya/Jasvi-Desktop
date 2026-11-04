@@ -41,6 +41,7 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML private StackPane headerIconHolder;
     @FXML private ComboBox<String> cmbClientProfile;
+    @FXML private Label lblTemplateVersion;
     @FXML private Button btnNewClient;
     @FXML private Button btnUploadBills;
 
@@ -318,6 +319,141 @@ public class BillToTallyController implements ScreenLifecycle {
                 },
                 failure -> ToastManager.error(cmbClientProfile, "Profiles Failed", "Could not load client profiles: " + failure.getMessage())
         );
+    }
+
+        private void applyTemplateForClient(TallyAutomationApiClient.ClientProfileDto client) {
+        if (client == null) return;
+        String gstin = client.gstin();
+        if (gstin == null || gstin.isBlank()) {
+            if (lblTemplateVersion != null) {
+                lblTemplateVersion.setText("Template: Default");
+                lblTemplateVersion.getStyleClass().setAll("status-badge", "erp-badge-slate");
+            }
+            return;
+        }
+
+        UiTaskExecutor.submitAction(
+                "load-client-template-" + gstin,
+                () -> api.listTemplatesByGstin(gstin),
+                templates -> {
+                    if (templates == null || templates.isEmpty()) {
+                        if (lblTemplateVersion != null) {
+                            lblTemplateVersion.setText("Template: Default");
+                            lblTemplateVersion.getStyleClass().setAll("status-badge", "erp-badge-slate");
+                        }
+                        return;
+                    }
+
+                    var template = templates.stream().filter(TallyAutomationApiClient.TemplateVersionDto::isLocked).findFirst()
+                            .orElse(templates.get(0));
+
+                    if (lblTemplateVersion != null) {
+                        lblTemplateVersion.setText("Template: " + template.versionCode() + (template.isLocked() ? " (Locked)" : " (Draft)"));
+                        lblTemplateVersion.getStyleClass().setAll("status-badge", template.isLocked() ? "status-active" : "erp-badge-amber");
+                    }
+
+                    rebuildTablesFromTemplate(template);
+                },
+                err -> log.debug("Template lookup failed: {}", err.getMessage())
+        );
+    }
+
+    private void rebuildTablesFromTemplate(TallyAutomationApiClient.TemplateVersionDto t) {
+        if (t == null) return;
+        try {
+            // 1. Rebuild tblBills columns from headerFieldsJson
+            if (t.headerFieldsJson() != null && !t.headerFieldsJson().isBlank()) {
+                List<String> headers = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readValue(t.headerFieldsJson(), new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+
+                List<TableColumn<TallyAutomationApiClient.BillRecordDto, ?>> newCols = new ArrayList<>();
+                newCols.add(colStatus);
+                newCols.add(colAccuracy);
+
+                for (String h : headers) {
+                    String lower = h.toLowerCase(Locale.ROOT);
+                    if (lower.contains("invoice no") || lower.contains("inv no") || lower.contains("bill no")) {
+                        newCols.add(colInvoiceNo);
+                    } else if (lower.contains("date")) {
+                        newCols.add(colInvoiceDate);
+                    } else if (lower.contains("vendor") || lower.contains("supplier") || lower.contains("party name")) {
+                        newCols.add(colVendorName);
+                    } else if (lower.contains("gstin")) {
+                        newCols.add(colVendorGstin);
+                    } else if (lower.contains("taxable")) {
+                        newCols.add(colTaxable);
+                    } else if (lower.contains("cgst")) {
+                        TableColumn<TallyAutomationApiClient.BillRecordDto, String> c = new TableColumn<>(h);
+                        c.setCellValueFactory(row -> new SimpleStringProperty(row.getValue().cgstAmount() != null ? "₹" + row.getValue().cgstAmount().toPlainString() : "₹0.00"));
+                        newCols.add(c);
+                    } else if (lower.contains("sgst")) {
+                        TableColumn<TallyAutomationApiClient.BillRecordDto, String> c = new TableColumn<>(h);
+                        c.setCellValueFactory(row -> new SimpleStringProperty(row.getValue().sgstAmount() != null ? "₹" + row.getValue().sgstAmount().toPlainString() : "₹0.00"));
+                        newCols.add(c);
+                    } else if (lower.contains("igst")) {
+                        newCols.add(colIgst);
+                    } else if (lower.contains("total")) {
+                        newCols.add(colGrandTotal);
+                    } else {
+                        TableColumn<TallyAutomationApiClient.BillRecordDto, String> c = new TableColumn<>(h);
+                        c.setCellValueFactory(row -> new SimpleStringProperty(""));
+                        newCols.add(c);
+                    }
+                }
+
+                if (colActions != null && !newCols.contains(colActions)) {
+                    newCols.add(colActions);
+                }
+
+                tblBills.getColumns().setAll(newCols);
+            }
+
+            // 2. Rebuild tblLineItems columns from itemColumnsJson
+            if (t.itemColumnsJson() != null && !t.itemColumnsJson().isBlank()) {
+                com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(t.itemColumnsJson());
+                if (root.isArray() && root.size() > 0) {
+                    List<TableColumn<TallyAutomationApiClient.BillLineItemDto, ?>> itemCols = new ArrayList<>();
+                    itemCols.add(colLineNo);
+
+                    for (com.fasterxml.jackson.databind.JsonNode node : root) {
+                        String header = node.path("headerLabel").asText(node.path("colHeader").asText(""));
+                        String canon = node.path("canonicalField").asText("");
+                        if (header.isBlank()) continue;
+
+                        String lower = (header + " " + canon).toLowerCase(Locale.ROOT);
+                        if (lower.contains("item") || lower.contains("description") || lower.contains("particulars")) {
+                            itemCols.add(colItemName);
+                        } else if (lower.contains("hsn") || lower.contains("sac")) {
+                            itemCols.add(colHsn);
+                        } else if (lower.contains("qty") || lower.contains("quantity")) {
+                            itemCols.add(colQty);
+                        } else if (lower.contains("unit") || lower.contains("uom")) {
+                            itemCols.add(colUom);
+                        } else if (lower.contains("rate") || lower.contains("price")) {
+                            itemCols.add(colRate);
+                        } else if (lower.contains("gst") || lower.contains("tax%")) {
+                            TableColumn<TallyAutomationApiClient.BillLineItemDto, String> c = new TableColumn<>(header);
+                            c.setCellValueFactory(r -> new SimpleStringProperty(r.getValue().taxRate() != null ? r.getValue().taxRate().toPlainString() + "%" : "0%"));
+                            itemCols.add(c);
+                        } else if (lower.contains("discount") || lower.contains("disc")) {
+                            TableColumn<TallyAutomationApiClient.BillLineItemDto, String> c = new TableColumn<>(header);
+                            c.setCellValueFactory(r -> new SimpleStringProperty(r.getValue().discountAmount() != null ? "₹" + r.getValue().discountAmount().toPlainString() : "₹0.00"));
+                            itemCols.add(c);
+                        } else if (lower.contains("amount") || lower.contains("net") || lower.contains("total") || lower.contains("taxable")) {
+                            itemCols.add(colLineTaxable);
+                        }
+                    }
+
+                    if (!itemCols.contains(colLineAccuracy)) {
+                        itemCols.add(colLineAccuracy);
+                    }
+
+                    tblLineItems.getColumns().setAll(itemCols);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Dynamic table columns reconstruction failed: {}", ex.getMessage());
+        }
     }
 
     private void reloadActiveBatch() {
