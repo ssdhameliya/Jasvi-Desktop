@@ -69,7 +69,7 @@ All 4 ecosystem repositories (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, 
 
 ---
 
-## The Canonical Operating, Engineering & UI/UX Rules (Strictly Binding)
+## The 20 Canonical Operating, Engineering & UI/UX Rules (Strictly Binding)
 
 ### Rule 1: Zero Extraneous Files Across All Copies (No .txt, .log, arbitrary .md, defect dumps)
 - **NEVER** create, add, or sync any extraneous file into ANY repository workspace or tier (`D:\Antigravity-Dev\`, `D:\JavaProject\`, `D:\GitHub\ReleaseSource-*`, `D:\GitHub\`).
@@ -83,7 +83,9 @@ All 4 ecosystem repositories (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, 
 - Once an application version is built, tagged, or live (e.g. `v11.0.44`), any subsequent user request, bug fix, or feature automatically targets the **NEXT incremental release version** (e.g. `v11.0.45`).
 - Automatically manage version numbering in `.mvn/maven.config`, release notes in `release-notes.md`, and Flyway migration file prefixes (e.g. `V11_0_45__*.sql`).
 
-### Rule 3: Cumulative Context & Multi-Question Synthesis (Zero Dropped Questions)
+### Rule 3: Smart AI Global Synthesis & Cumulative Multi-Turn Context (Zero Dropped Questions & Zero Hasty Answers)
+- **Never answer hastily or superficially** based solely on the user's latest question in isolation.
+- Act as an intelligent, holistic system architect: review all previous turns, questions, attachments, and open defects globally.
 - When the user asks follow-up questions, adds constraints, or poses 10 to 20 inquiries across multiple turns, answering new questions must **NEVER** cause prior questions or findings to be lost.
 - Responses must synthesize cumulative context, maintaining a unified summary of all previous inquiries and answers alongside the current request so that both parties remain 100% aligned.
 
@@ -95,13 +97,13 @@ All 4 ecosystem repositories (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, 
 - Every screen, component, modal dialog, and table must render flawlessly with full visual parity in both Light and Dark themes.
 - **Zero Controller Color Leaks:** NEVER place hex colors (`#[0-9A-Fa-f]{6}`) or inline JavaFX color properties (`-fx-background-color`, `-fx-text-fill`, `-fx-icon-color`, `-fx-border-color`) inside Java controllers (`desktop/src/main/java/org/example/controller/`). Always use CSS classes (`getStyleClass().add(...)`).
 
-### Rule 6: Colorized KPI Summary Cards
-- Every KPI card across all screens must have its **Label**, **Icon**, and **Value** styled in semantic colors (using theme accent/success/warning/primary/info CSS classes).
+### Rule 6: Colorized Dynamic KPI Summary Cards
+- Every KPI card across all screens must have its **Label**, **Icon**, and **Value** styled in distinct semantic colors (using theme accent/success/warning/primary/info CSS classes).
 - Plain, unstyled monochrome or muted grey text is strictly prohibited.
 
-### Rule 7: Dynamic Responsive Table Headers
-- Table columns must **NEVER** have hardcoded fixed widths (`prefWidth="..."`) in FXML.
-- Dynamic width distribution / percentage allocation must be used (matching standard screen conventions) so columns scale cleanly with window resizing and avoid clipping or horizontal scrollbars.
+### Rule 7: Dynamic Responsive Table Widths & Headers
+- Table columns must **NEVER** have hardcoded fixed widths (`prefWidth="..."`) in FXML or Java controllers.
+- Dynamic width distribution / percentage allocation (`table.widthProperty().multiply(...)`) must be used (matching standard screen conventions) so columns scale cleanly with window resizing and avoid clipping or horizontal scrollbars.
 
 ### Rule 8: Colorized Action Lists & Context Menus
 - All action lists, dropdown actions, table row context menus, and action drawers must have both **Icon** and **Label** rendered in semantic theme colors.
@@ -112,13 +114,25 @@ All 4 ecosystem repositories (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, 
 
 ### Rule 10: Automation Gate Compliance & Continuous Self-Learning from CI
 - Whenever buttons, FXML elements, or controllers change, all automation gates (`SharedUiOwnershipContractTest`, `audit-release-gates.py`, UI design system audits) must pass locally.
-- **Continuous Self-Learning from CI:** If GitHub Actions CI ever rejects or fails a build, immediately analyze the root cause, document the prevention rule, update `dse-erp-master-protocol.md`, and adhere to it permanently.
+- **Pre-Validation Guarantee:** Adding, moving, or removing UI elements directly impacts automated CI validation; conduct rigorous local pre-validation before any release is triggered.
+- **Mandatory Full Reactor Pre-Flight Test:** Never run tests on a single submodule alone (e.g. `-pl server`). Before opening any PR or pushing code to Tier 4, execute a full reactor test run (`.\mvnw.cmd test` or `./mvnw test` across all modules: parent, shared, server, desktop) and verify 0 failures and 0 errors.
+- **Source-Scanning Contract Test Invariance:** Architecture contract tests (`SharedUiOwnershipContractTest`, `GlobalUiContractTest`, `UiArchitectureContractTest`) perform exact string pattern checks on Java source files. When modifying controllers or actions, maintain strict compatibility with the token patterns expected by the contract tests (e.g., whitespace and style class sequences).
+- **Outbound HTTP / External Network Decoupling from Transactions:** Never invoke external third-party HTTP endpoints (such as WAHA WhatsApp or Mail server) inside a database `@Transactional` block. Auxiliary audit persistence must use `@Transactional(propagation = Propagation.REQUIRES_NEW)` so network failures or secondary log errors cannot roll back successful communication transmissions.
+- **Continuous Self-Learning from CI:** If GitHub Actions CI ever rejects or fails a build:
+  1. Immediately extract the failed step logs via `gh run view <run-id> --log-failed`.
+  2. Pinpoint the root cause down to the exact test or assertion failure.
+  3. Formulate the permanent prevention rule, update `dse-erp-master-protocol.md`, and synchronize to all repos and tiers via `python scripts/sync-to-all.py`.
+  4. Adhere to the prevention rule permanently in all future turns.
 
-### Rule 11: Colorized Status Labels and Table Cell Data
+### Rule 11: Colorful Label Icons, Semantic Theme-Colored Values & Status Badges
+- Every form field label, property header, and metadata descriptor must feature an appropriate, colorful semantic icon (reusing standardized icons per Rule 9, without assigning conflicting icons like generic user icons to unrelated fields).
+- Both the label name AND its displayed value must be styled in vibrant, distinct semantic theme colors (via CSS style classes) rather than plain unstyled text, ensuring high contrast, clarity, and visual hierarchy.
 - All status badges, critical table cell data (e.g. amounts, balances, invoice status, dates, active/inactive), and key labels must use semantic colors defined by the theme CSS system for maximum contrast and visual hierarchy.
 
-### Rule 12: Responsive Modal & Popup Window Sizing
-- Dialog popups, alert boxes, and modal windows must have sufficient width and height (with appropriate `minWidth`, `minHeight`, and responsive bounds) so that text is never truncated, buttons are fully visible, and scrollbars do not cause clipped UI.
+### Rule 12: Content-Adaptive Dialog & Modal Bounds (Zero Truncation Guarantee)
+- All modal dialogs, alert boxes, action drawers, and inspect popups must provide generous internal spacing, margins, and padding.
+- **Zero Truncation Guarantee:** Under NO circumstances may any container, button, label, table header, or table cell data be clipped, cut off, or ellipsized with dots (`...`).
+- Implement dynamic, content-driven auto-sizing rules (`minWidth`, `minHeight`, responsive bounds calculation) so dialogs and popups adapt cleanly to their content across varying resolutions without causing rendering lag or performance bottlenecks. Popups and inspect modals must also support dragging and window repositioning/resizing.
 
 ### Rule 13: Settings-Driven Date Formatting
 - Date display and parsing across all screens, tables, PDF generators, and forms must strictly follow application configuration / user profile date settings (`AppConfig`), never arbitrary or hardcoded date format strings.
@@ -148,48 +162,22 @@ All 4 ecosystem repositories (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, 
 - **Zero Silent Deferrals:** If an item cannot be completed due to missing technical dependencies, it must NEVER be silently omitted. It must be explicitly highlighted to the user with actionable next steps, keeping the scope transparent and unbroken.
 - **Mandatory Proactive Defect Disclosure:** If ANY regression was identified and resolved during the build, test, or CI cycle, it must be explicitly reported to the user in the completion audit.
 
----
-
-## Rules When Building the Desktop Application
-
-### Rule D1: Zero Mock or Dummy Data in Builds (Authentic Integration Guarantee)
+### Rule 17: Zero Mock or Dummy Data in Builds (Authentic Integration Guarantee)
 - **Never** use mock, simulated, placeholder, or hardcoded dummy data as part of any desktop build, screen, or release.
 - All application features—including Live GST lookups, Bill-to-Tally automation, OCR extraction, inventory tables, and document templates—must integrate with real database persistence, authentic live REST endpoints, and valid Spring Boot services.
 - If an external integration or live API is temporarily unreachable or unauthenticated, surface real error feedback and live connectivity state to the user (e.g. RFC 7807 ProblemDetail) rather than silently substituting fake or simulated data.
 
-### Rule D2: Dynamic Responsive Table Widths & Colorized KPI Cards
-- **Dynamic Table Widths:** Table columns must **NEVER** have hardcoded fixed widths (`prefWidth="..."`) in FXML. Every table must use dynamic width distribution / percentage allocation (`table.widthProperty().multiply(...)`) to scale fluidly with window resizing and prevent truncated text or horizontal scrollbars.
-- **Colorized Dynamic KPI Cards:** Every KPI summary card across all screens must have its **Icon**, **Label**, and **Value** rendered in distinct semantic colors (using theme `.accent`, `.success`, `.warning`, `.primary`, and `.info` CSS classes). Monochrome or muted grey text is strictly forbidden.
-
-### Rule D3: Content-Adaptive Dialog & Modal Bounds (Zero Truncation Guarantee)
-- All modal dialogs, alert boxes, action drawers, and inspect popups must provide generous internal spacing, margins, and padding.
-- **Zero Truncation Guarantee:** Under NO circumstances may any container, button, label, table header, or table cell data be clipped, cut off, or ellipsized with dots (`...`).
-- Implement dynamic, content-driven auto-sizing rules (`minWidth`, `minHeight`, responsive bounds calculation) so dialogs and popups adapt cleanly to their content across varying resolutions without causing rendering lag or performance bottlenecks. Popups and inspect modals must also support dragging and window repositioning/resizing.
-
-### Rule D4: Exhaustive Pre-Change Dependency & Linked Functionality Blast Radius Audit
+### Rule 18: Exhaustive Pre-Change Dependency & Linked Functionality Blast Radius Audit
 - Before changing any code, method, DTO, shared utility, or CSS class, first check how many functionalities across the application are linked to that code.
 - If a proposed change is linked to 50, 60, or more places across the codebase, exhaustively investigate all linked call sites and confirm that modifying the code will not break, regress, or alter behavior in any connected functionality.
 - Explicitly document the full linked functionality inventory and ripple impact assessment in the Tier 2 investigation report before requesting approval.
 
-### Rule D5: Zero Assumptions & Interactive User Clarification on Prompt
+### Rule 19: Zero Assumptions & Interactive User Clarification on Prompt
 - **Never assume anything.** If requirements, edge cases, UX workflows, or technical options are ambiguous or unclear, do not guess or unilaterally proceed.
 - Ask questions directly to the user on the prompt, presenting clear ideas and structured options for the user to review and select.
 - **Strict Binding Constraint:** NEVER build, alter, or commit any code without the user's explicit prior confirmation and approval of the plan.
 
-### Rule D6: Colorful Label Icons & Semantic Theme-Colored Values
-- Every form field label, property header, and metadata descriptor must feature an appropriate, colorful semantic icon (reusing standardized icons per Rule 9, without assigning conflicting icons like generic user icons to unrelated fields).
-- Both the label name AND its displayed value must be styled in vibrant, distinct semantic theme colors (via CSS style classes) rather than plain unstyled text, ensuring high contrast, clarity, and visual hierarchy.
-
-### Rule D7: Architectural Cohesion & Non-Duplication (Zero Competing Logic)
+### Rule 20: Architectural Cohesion & Non-Duplication (Zero Competing Logic)
 - When introducing or updating code, ensure the new implementation does not duplicate existing classes, services, or helper functions.
 - Ensure new code and existing code do not fight each other or cause race conditions, double background triggers, or conflicting UI notifications (e.g. eliminating race conditions that produce concurrent "Clients Loaded" and "Load Failed: This action is already in progress" toasts).
 - Maintain single, deterministic sources of truth across controllers and background task executors.
-
-### Rule D8: Dual-Theme Parity & GitHub CI Automation Gate Pre-Validation
-- Whenever creating or modifying any screen, dialog, popup, or button, ensure complete visual parity and flawless rendering in **both Dark and Light themes** with zero controller color leaks (CSS classes only).
-- In addition, pre-validate against all local and CI release gates (`SharedUiOwnershipContractTest`, `audit-release-gates.py`) because adding, moving, or removing UI elements directly impacts automated CI validation. All gates must pass cleanly before any release is triggered.
-
-### Rule D9: Smart AI Global Synthesis & Cumulative Multi-Turn Context (Zero Hasty Answers)
-- **Never answer hastily or superficially** based solely on the user's latest question in isolation.
-- Act as an intelligent, holistic system architect: review all previous turns, questions, attachments, and open defects globally.
-- Synthesize the entire cumulative conversation context, maintaining a unified understanding of all open issues, requirements, and user feedback when proposing plans, finalizing scopes, and delivering audits.
