@@ -1,75 +1,114 @@
-# Global User Environment & Workspace Conventions
+# Jasvi Ecosystem Master Protocol & Unified Environment Constitution
 
-## Jasvi ERP Unified Operational Lifecycle & Approval Workflow
-All 4 ecosystem repositories (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, `Jasvi-Mobile`) strictly follow this operational pattern:
-
-1. **Tier 1: Antigravity Active Dev Workspace:** `D:\Antigravity-Dev\<Repo>`
-   - The primary active coding workshop. All code modifications, refactoring, compiler checks (`mvn clean test`, etc.), and quality gate validations are performed here first.
-   - Zero extraneous files are permitted here.
-
-2. **Tier 2: Upfront Architectural Investigation & Root Cause Plan Phase**
-   - Conducted strictly under Tier 1 workspace (`D:\Antigravity-Dev\<Repo>`).
-   - On every user request, bug report, or feature build, conduct an exhaustive end-to-end investigation across the entire stack:
-     - **FXML:** Layouts, hierarchies, tables, buttons, responsive sizing.
-     - **Controller:** State, event handlers, background task executors, CSS style class binding.
-     - **DTO & Shared Contracts:** Calculation engines, payload shapes, serialization, validation.
-     - **API & REST Endpoints:** Spring Boot `@RestController`, routes, query parameters, status codes.
-     - **Server Services & Repositories:** Business logic, transactions, entity relationships, query performance.
-     - **Database & Migrations:** PostgreSQL schema, Flyway migrations, constraints, foreign keys.
-   - **Mandatory Investigation Presentation Structure:**
-     - **The Why (Root Cause):** Grounded in concrete code evidence.
-     - **The How (Step-by-Step Plan):** Concrete modifications to apply with impacted files and line ranges.
-     - **Canonical Rules Followed:** Explicit list of which canonical rules were evaluated and applied (e.g., Rule 4 Java 25, Rule 5 Theme Parity & Zero Color Leaks, Rule 6 Colorized KPIs, Rule 7 Dynamic Tables, Rule 8 Colorized Actions, Rule 9 Uniform Icons, Rule 11 Colorized Status, Rule 12 Responsive Bounds, Rule 13 Settings Dates, etc.).
-     - **Linked Functionality Count & Inventory:** Exact count and list of all linked functionalities, screens, and endpoints connected to this code path.
-     - **Ripple Impact Assessment:** Concrete breakdown of how many downstream functionalities will be influenced or touched.
-     - **Explicit Zero-Regression Guarantee:** Verifiable safeguards proving existing functionality will not break.
-   - **STRICT BINDING CONSTRAINT:** **NEVER build, modify, or update code until the user has explicitly confirmed and approved the plan.**
-
-3. **Clubbed Tier 3 & Tier 4: Approval & Execution Modes**
-   The execution and release phases are strictly separated by the user's explicit command:
-   
-   - **Mode A: Local Dev Approval (`"approved"` / `"apply fix"`):**
-     - Triggered when the user confirms with **"approved"** (or requests local application).
-     - Antigravity works strictly in Tier 1 (`D:\Antigravity-Dev\<Repo>`) to apply and resolve all issues, defects, and enhancements.
-     - Runs local compiler checks, unit/integration tests, and automated release gates (`python scripts/audit-release-gates.py`).
-     - **STRICT LOCAL ISOLATION:** All code changes remain strictly inside Antigravity's active dev workspace (`D:\Antigravity-Dev\<Repo>`).
-     - **Does NOT push to GitHub.**
-     - **Does NOT sync to other folders** (Tier 2 IntelliJ copy `D:\JavaProject` and Tier 3 Staging mirror `D:\GitHub\ReleaseSource` are not touched).
-     - Reports local verification results to the user.
-
-   - **Mode B: GitHub Release & Universal Sync (`"approved and push to github"` / `"sync and push to github"` / `"sync and release"`):**
-     - Triggered when the user explicitly confirms **"approved and push to github"** or **"sync and push to github"**.
-     - Antigravity applies all approved fixes in Tier 1 (`D:\Antigravity-Dev\<Repo>`) and validates local compiler and release gates.
-     - **Synchronizes all copies to all folders:**
-       - **Tier 2 (User's Protected IntelliJ Copy):** `D:\JavaProject\<Repo>` (IntelliJ `.idea` directory is strictly protected and never overwritten).
-       - **Tier 3 (Verified Pre-Release Staging Mirror):** `D:\GitHub\ReleaseSource-<Repo>`.
-       - **Tier 4 (GitHub Production Repo):** `D:\GitHub\<Repo>`.
-     - In Tier 4 repository (`D:\GitHub\<Repo>`):
-       - Creates a release branch (`release-vXX.X.XX`).
-       - Commits and pushes to remote.
-       - Opens a Pull Request (PR) to `main`.
-       - Enables auto-merge (or merges once all PR CI checks turn GREEN).
-       - Monitors `main` branch until CI workflow run is completely GREEN.
-       - Creates and pushes release tag (`vXX.X.XX`) on the verified green `main` commit to trigger official release packaging.
-       - Monitors and confirms release build and server deployment complete successfully.
-
-4. **Post-Release Green Completion Audit (Mandatory Once GitHub is Green)**
-   Once GitHub Actions CI, binaries, and deployments are completely **GREEN**, Antigravity MUST output a structured final audit containing:
-   - **Original Scope Reconciliation:** Exact recap of what was requested and approved.
-   - **The How (Implementation Details):** Concrete breakdown of how each item was built/fixed, including exact file paths, classes, and line references.
-   - **Linked Functionalities Impacted:** Full inventory and exact count of all functionalities linked to and affected by this fix.
-   - **Zero-Regression Guarantee & Proactive Defect Transparency:**
-     - Verifiable confirmation that no existing workflows were broken.
-     - **Mandatory Defect Transparency:** If ANY regression or unexpected failure was discovered during local testing or CI builds, Antigravity MUST explicitly declare:
-       > *"During automated test execution / CI validation, regression [Issue X] was detected in [Component Y]. It was immediately diagnosed, corrected, and verified before release."*
-
-5. **Protected Local Runtime Workspace:** `D:\DSE Production`
-   - Live PostgreSQL database (`port 55432`), configs, runtime logs, attachments, backups.
-   - **NEVER** run destructive SQL (`TRUNCATE`, `DROP`, `DELETE`) or alter database/runtime files here unless explicitly instructed.
+> **Single Source of Truth** for the unified Jasvi ERP ecosystem (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, `Jasvi-Mobile`).  
+> **Antigravity Enforcement:** This document is automatically loaded by Antigravity on every conversation. All rules, boundaries, and checklists herein are strictly binding.  
+> **Last Updated:** 2026-11-05 — Streamlined 5-Tier Operational Lifecycle, Clubbed Approval & Release Execution Modes, Enhanced Tier 2 Investigation Reporting (Rules Followed, Linked Functionalities Count, Ripple Impact), Post-Release Green Completion Audit with Proactive Defect Disclosure, and Permanent Universal Synchronizer (`scripts/sync-to-all.py`).
 
 ---
 
-## The 20 Canonical Operating, Engineering & UI/UX Rules (Strictly Binding)
+## ⚡ Quick-Reference Executive Summary
+
+### 1. The 4 Applications at a Glance
+All 4 client applications communicate with **one shared Spring Boot backend** and **one PostgreSQL 16 database**:
+
+```
+                       [ Spring Boot Backend + PostgreSQL DB ]
+                                          │
+       ┌──────────────────┬───────────────┴───────────────┬──────────────────┐
+       ▼                  ▼                               ▼                  ▼
+1. Desktop App     2. Web Admin Portal             3. UserView Showcase   4. Mobile App
+   (JavaFX 25)        (HTML5/CSS3/JS)                 (Dynamic 3D Portal)    (KMP / PWA)
+   Flagship office    Full cloud browser ERP          Public machinery       Mobile app for
+   workstation app.   for accounting/warehouse.       catalog & RFQ quotes.  sales & warehouse.
+```
+
+| Application | Tech Stack | Role & Target Audience | Live Cloud URL | Repository |
+| :--- | :--- | :--- | :--- | :--- |
+| **`Jasvi-Desktop`** | JavaFX 25 + Spring Boot | Main enterprise workstation system (74 FXML pages) | Local Workstation | `ssdhameliya/Jasvi-Desktop` |
+| **`Jasvi-Admin`** | Pure HTML5 / CSS3 / ES6 | Web ERP admin client for remote staff | `https://erp.jasviindustries.in` | `ssdhameliya/Jasvi-Admin` |
+| **`Jasvi-UserView`**| HTML5 / Swiper / 3D | Public showcase, machine specifications, RFQs | `https://jasviindustries.in` | `ssdhameliya/Jasvi-UserView` |
+| **`Jasvi-Mobile`** | Kotlin Multiplatform / PWA | Cross-platform mobile gateway | `https://mobile-uat.jasviindustries.in` | `ssdhameliya/Jasvi-Mobile` |
+
+---
+
+## 1. The Unified Operational Lifecycle & Approval Workflow
+
+Code and tasks progress in strictly one safe, orderly, verified direction:
+
+```
+[ Tier 1: Dev ]       ──►   [ Tier 2: Plan ]      ──►   [ Mode A: "approved" ]       ──►   [ Mode B: "push to github" ]
+D:\Antigravity-Dev          Stack Investigation         Strictly Local Tier 1 Fix          Universal Sync to All Folders
+Active dev,                 Rules & Linked Function     Local compile & tests.             PR, Auto-Merge, Tag until Green
+clean compile & test.       Inventory & Ripple Impact.  Zero sync/push to other tiers.     Post-Release Green Audit Report.
+```
+
+### 1.1 Tier 1: Antigravity Active Dev Workspace (`D:\Antigravity-Dev\<Repo>`)
+- The AI's active workshop where all active code editing, refactoring, unit tests, and compiler checks (`mvn clean test`, etc.) occur first.
+- Zero extraneous files (`.txt`, arbitrary `.md`, defect logs) are permitted here.
+
+### 1.2 Tier 2: Upfront Architectural Investigation & Root Cause Plan Phase
+- Conducted strictly under Tier 1 workspace (`D:\Antigravity-Dev\<Repo>`).
+- On every user request, bug report, or feature build, conduct an exhaustive end-to-end investigation across the entire stack:
+  - **FXML:** Layouts, hierarchies, tables, buttons, responsive sizing.
+  - **Controller:** State, event handlers, background task executors, CSS style class binding.
+  - **DTO & Shared Contracts:** Calculation engines, payload shapes, serialization, validation.
+  - **API & REST Endpoints:** Spring Boot `@RestController`, routes, query parameters, status codes.
+  - **Server Services & Repositories:** Business logic, transactions, entity relationships, query performance.
+  - **Database & Migrations:** PostgreSQL schema, Flyway migrations, constraints, foreign keys.
+- **Mandatory Investigation Presentation Structure:**
+  - **The Why (Root Cause):** Grounded in concrete code evidence.
+  - **The How (Step-by-Step Plan):** Concrete modifications to apply with impacted files and line ranges.
+  - **Canonical Rules Followed:** Explicit list of which canonical rules were evaluated and applied (e.g., Rule 4 Java 25, Rule 5 Theme Parity & Zero Color Leaks, Rule 6 Colorized KPIs, Rule 7 Dynamic Tables, Rule 8 Colorized Actions, Rule 9 Uniform Icons, Rule 11 Colorized Status, Rule 12 Responsive Bounds, Rule 13 Settings Dates, etc.).
+  - **Linked Functionality Count & Inventory:** Exact count and list of all linked functionalities, screens, and endpoints connected to this code path.
+  - **Ripple Impact Assessment:** Concrete breakdown of how many downstream functionalities will be influenced or touched.
+  - **Explicit Zero-Regression Guarantee:** Verifiable safeguards proving existing functionality will not break.
+- **STRICT BINDING CONSTRAINT:** **NEVER build, modify, or update code until the user has explicitly confirmed and approved the plan.**
+
+### 1.3 Clubbed Tier 3 & Tier 4: Approval & Execution Modes
+The execution and release phases are strictly governed by the user's explicit command:
+
+- **Mode A: Local Dev Approval (`"approved"` / `"apply fix"`):**
+  - Triggered when the user confirms with **"approved"** (or requests local application).
+  - Antigravity works strictly in Tier 1 (`D:\Antigravity-Dev\<Repo>`) to apply and resolve all issues, defects, and enhancements.
+  - Runs local compiler checks, unit/integration tests, and automated release gates (`python scripts/audit-release-gates.py`).
+  - **STRICT LOCAL ISOLATION:** All code changes remain strictly inside Antigravity's active dev workspace (`D:\Antigravity-Dev\<Repo>`).
+  - **Does NOT push to GitHub.**
+  - **Does NOT sync to other folders** (Tier 2 IntelliJ copy `D:\JavaProject` and Tier 3 Staging mirror `D:\GitHub\ReleaseSource` are not touched).
+  - Reports local verification results to the user.
+
+- **Mode B: GitHub Release & Universal Sync (`"approved and push to github"` / `"sync and push to github"` / `"sync and release"`):**
+  - Triggered when the user explicitly confirms **"approved and push to github"** or **"sync and push to github"**.
+  - Antigravity applies all approved fixes in Tier 1 (`D:\Antigravity-Dev\<Repo>`) and validates local compiler and release gates.
+  - **Synchronizes all copies to all folders:**
+    - **Tier 2 (User's Protected IntelliJ Copy):** `D:\JavaProject\<Repo>` (IntelliJ `.idea` directory is strictly protected and never overwritten).
+    - **Tier 3 (Verified Pre-Release Staging Mirror):** `D:\GitHub\ReleaseSource-<Repo>`.
+    - **Tier 4 (GitHub Production Repo):** `D:\GitHub\<Repo>`.
+  - In Tier 4 repository (`D:\GitHub\<Repo>`):
+    - Creates a release branch (`release-vXX.X.XX`).
+    - Commits and pushes to remote.
+    - Opens a Pull Request (PR) to `main`.
+    - Enables auto-merge (or merges once all PR CI checks turn GREEN).
+    - Monitors `main` branch until CI workflow run is completely GREEN.
+    - Creates and pushes release tag (`vXX.X.XX`) on the verified green `main` commit to trigger official release packaging.
+    - Monitors and confirms release build and server deployment complete successfully.
+
+### 1.4 Post-Release Green Completion Audit (Mandatory Once GitHub is Green)
+Once GitHub Actions CI, binaries, and deployments are completely **GREEN**, Antigravity MUST output a structured final audit containing:
+1. **Original Scope Reconciliation:** Exact recap of what was requested and approved.
+2. **The How (Implementation Details):** Concrete breakdown of how each item was built/fixed, including exact file paths, classes, and line references.
+3. **Linked Functionalities Impacted:** Full inventory and exact count of all functionalities linked to and affected by this fix.
+4. **Zero-Regression Guarantee & Proactive Defect Transparency:**
+   - Verifiable confirmation that no existing workflows were broken.
+   - **Mandatory Defect Transparency:** If ANY regression or unexpected failure was discovered during local testing or CI builds, Antigravity MUST explicitly declare:
+     > *"During automated test execution / CI validation, regression [Issue X] was detected in [Component Y]. It was immediately diagnosed, corrected, and verified before release."*
+
+### 1.5 Protected Local Runtime Workspace: `D:\DSE Production`
+- Live PostgreSQL database (`port 55432`), configs, runtime logs, attachments, backups.
+- **NEVER** run destructive SQL (`TRUNCATE`, `DROP`, `DELETE`) or alter database/runtime files here unless explicitly instructed.
+
+---
+
+## 2. The 20 Canonical Operating, Engineering & UI/UX Rules
 
 ### Rule 1: Zero Extraneous Files Across All Copies (No .txt, .log, arbitrary .md, defect dumps)
 - **NEVER** create, add, or sync any extraneous file into ANY repository workspace or tier (`D:\Antigravity-Dev\`, `D:\JavaProject\`, `D:\GitHub\ReleaseSource-*`, `D:\GitHub\`).
@@ -181,3 +220,26 @@ All 4 ecosystem repositories (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, 
 - When introducing or updating code, ensure the new implementation does not duplicate existing classes, services, or helper functions.
 - Ensure new code and existing code do not fight each other or cause race conditions, double background triggers, or conflicting UI notifications (e.g. eliminating race conditions that produce concurrent "Clients Loaded" and "Load Failed: This action is already in progress" toasts).
 - Maintain single, deterministic sources of truth across controllers and background task executors.
+
+---
+
+## 3. Cloud Infrastructure & Oracle OCI Architecture Reference
+
+All Oracle Cloud Infrastructure (OCI), DNS records, IP addresses, systemd units, Caddy reverse proxy configs, and PostgreSQL tuning specifications have been permanently decoupled into:
+
+👉 **[`oracle.md`](oracle.md)**
+
+Refer to `oracle.md` for:
+- Hostinger DNS Records (subdomains, target IPs, roles).
+- OCI Server Specifications (PROD `130.210.35.1`, UAT `144.24.109.1`, RAM, Disk, SSH keys).
+- Systemd Service Units (`dse-erp-prod.service`, `dse-erp-uat.service`).
+- Caddy Reverse Proxy Configuration (`/etc/caddy/Caddyfile`).
+- PostgreSQL OCI Tuning (`postgresql.conf`).
+- Live health check, inspection, and service management commands.
+
+---
+
+## 4. Master Rollback History & Parity Reference
+* **Core Git Tag:** `v11.0.0` (PR #70)
+* **Web Git Tag:** `web-v11.0.0.01`
+* **Current Production Version:** Governed by `.mvn/maven.config` and `desktop/src/main/resources/release-notes.md`.
