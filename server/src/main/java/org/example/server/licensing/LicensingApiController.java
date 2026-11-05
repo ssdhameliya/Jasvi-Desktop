@@ -51,28 +51,66 @@ public class LicensingApiController {
     ) {}
 
     @PostMapping("/activate")
-    public ResponseEntity<?> activate(@RequestBody ActivateRequest req) {
-        if (req == null || req.licenseKey() == null || req.signature() == null) {
+    public ResponseEntity<?> activate(@RequestBody Map<String, Object> body) {
+        if (body == null || body.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Empty license activation payload"));
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payloadMap = (body.get("payload") instanceof Map<?, ?> m)
+                ? (Map<String, Object>) m
+                : body;
+
+        String signature = (String) body.get("signature");
+        if (signature == null && body.get("header") instanceof Map<?, ?> h) {
+            signature = (String) h.get("signature");
+        }
+        if (signature == null && payloadMap.get("signature") != null) {
+            signature = String.valueOf(payloadMap.get("signature"));
+        }
+
+        String licenseKey = (String) payloadMap.get("licenseKey");
+        if (licenseKey == null) licenseKey = (String) payloadMap.get("key");
+        if (licenseKey == null && body.get("header") instanceof Map<?, ?> h) {
+            licenseKey = (String) h.get("key");
+        }
+
+        if (licenseKey == null || signature == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "Missing license key or cryptographic signature"));
         }
 
+        String companyName = payloadMap.get("companyName") != null ? String.valueOf(payloadMap.get("companyName")) : "Jasvi Client";
+        String machineHash = payloadMap.get("machineHash") != null ? String.valueOf(payloadMap.get("machineHash")) : HardwareFingerprintUtil.getMachineHash();
+        String tier = payloadMap.get("tier") != null ? String.valueOf(payloadMap.get("tier")) : "GOLD";
+        Instant validFrom = parseInstant(payloadMap.get("validFrom"), Instant.now());
+        Instant validUntil = parseInstant(payloadMap.get("validUntil"), Instant.now().plus(365, ChronoUnit.DAYS));
+        int gracePeriodDays = payloadMap.get("gracePeriodDays") instanceof Number n ? n.intValue() : 14;
+        int maxUsers = payloadMap.get("maxUsers") instanceof Number n ? n.intValue() : 5;
+        @SuppressWarnings("unchecked")
+        List<String> features = payloadMap.get("features") instanceof List<?> list
+                ? list.stream().map(Object::toString).toList()
+                : List.of("GST_INVOICE", "EWAY_BILL", "CLOUD_BACKUP");
+
         LicensePayload payload = new LicensePayload(
-                req.licenseKey(),
-                req.companyName() == null ? "Jasvi Client" : req.companyName(),
-                req.machineHash() == null ? HardwareFingerprintUtil.getMachineHash() : req.machineHash(),
-                req.tier() == null ? "SILVER" : req.tier(),
-                req.validFrom() == null ? Instant.now() : req.validFrom(),
-                req.validUntil() == null ? Instant.now().plus(365, ChronoUnit.DAYS) : req.validUntil(),
-                req.gracePeriodDays() == null ? 14 : req.gracePeriodDays(),
-                req.maxUsers() == null ? 1 : req.maxUsers(),
-                req.features() == null ? List.of("GST_INVOICE", "EWAY_BILL") : req.features()
+                licenseKey, companyName, machineHash, tier, validFrom, validUntil,
+                gracePeriodDays, maxUsers, features
         );
 
         try {
-            boolean ok = verifier.activateLicense(payload, req.signature());
+            boolean ok = verifier.activateLicense(payload, signature);
             return ResponseEntity.ok(Map.of("success", ok, "status", verifier.checkLicense()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    private static Instant parseInstant(Object val, Instant defaultVal) {
+        if (val == null) return defaultVal;
+        if (val instanceof Instant i) return i;
+        try {
+            return Instant.parse(String.valueOf(val));
+        } catch (Exception e) {
+            return defaultVal;
         }
     }
 

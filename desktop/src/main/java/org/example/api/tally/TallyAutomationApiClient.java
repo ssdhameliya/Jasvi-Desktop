@@ -124,6 +124,12 @@ public class TallyAutomationApiClient {
             OffsetDateTime updatedAt
     ) {}
 
+    public record HsnItemDto(
+            String hsnCode,
+            String description,
+            String category
+    ) {}
+
     public record GstPortalProfileDto(
             String gstin,
             String legalName,
@@ -138,8 +144,35 @@ public class TallyAutomationApiClient {
             String centerJurisdiction,
             String natureOfBusiness,
             List<GstFilingStatusDto> filings,
-            boolean isValid
-    ) {}
+            boolean isValid,
+            String hsnGoodsServices,
+            String aadhaarAuthenticated,
+            String ekycVerified,
+            String natureOfBusinessActivities
+    ) {
+        public GstPortalProfileDto(
+                String gstin,
+                String legalName,
+                String tradeName,
+                String address,
+                String status,
+                String taxpayerType,
+                String stateCode,
+                String registrationDate,
+                String constitutionOfBusiness,
+                String stateJurisdiction,
+                String centerJurisdiction,
+                String natureOfBusiness,
+                List<GstFilingStatusDto> filings,
+                boolean isValid
+        ) {
+            this(
+                    gstin, legalName, tradeName, address, status, taxpayerType, stateCode,
+                    registrationDate, constitutionOfBusiness, stateJurisdiction, centerJurisdiction,
+                    natureOfBusiness, filings, isValid, null, null, null, null
+            );
+        }
+    }
 
     public record GstinVerificationRequest(
             String gstin

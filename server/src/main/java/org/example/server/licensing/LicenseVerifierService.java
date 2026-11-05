@@ -146,7 +146,9 @@ public class LicenseVerifierService {
         boolean machineMatches = currentMachineHash.equalsIgnoreCase(machineHash)
                 || currentMachineHash.equalsIgnoreCase(targetClean)
                 || currentDisplayId.equalsIgnoreCase(targetClean)
-                || currentMachineHash.toUpperCase(java.util.Locale.ROOT).startsWith(targetClean.toUpperCase(java.util.Locale.ROOT));
+                || currentMachineHash.toUpperCase(java.util.Locale.ROOT).startsWith(targetClean.toUpperCase(java.util.Locale.ROOT))
+                || targetClean.toUpperCase(java.util.Locale.ROOT).startsWith(currentDisplayId.toUpperCase(java.util.Locale.ROOT))
+                || currentDisplayId.toUpperCase(java.util.Locale.ROOT).startsWith(targetClean.toUpperCase(java.util.Locale.ROOT));
         if (!machineMatches) {
             log.warn("[LicenseVerifier] Machine mismatch. Expected {}, Current {}", machineHash, currentMachineHash);
             return new LicenseStatus(

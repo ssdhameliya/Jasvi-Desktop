@@ -79,6 +79,15 @@ public class ClientProfileEntity {
     @Column(name = "excel_column_mapping_json", columnDefinition = "TEXT")
     private String excelColumnMappingJson;
 
+    @Column(name = "hsn_goods_services", columnDefinition = "TEXT")
+    private String hsnGoodsServices;
+
+    @Column(name = "effective_date")
+    private String effectiveDate;
+
+    @Column(name = "core_business_activity")
+    private String coreBusinessActivity;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -133,6 +142,12 @@ public class ClientProfileEntity {
     public void setShowPoReference(Boolean showPoReference) { this.showPoReference = showPoReference; }
     public String getExcelColumnMappingJson() { return excelColumnMappingJson; }
     public void setExcelColumnMappingJson(String excelColumnMappingJson) { this.excelColumnMappingJson = excelColumnMappingJson; }
+    public String getHsnGoodsServices() { return hsnGoodsServices; }
+    public void setHsnGoodsServices(String hsnGoodsServices) { this.hsnGoodsServices = hsnGoodsServices; }
+    public String getEffectiveDate() { return effectiveDate; }
+    public void setEffectiveDate(String effectiveDate) { this.effectiveDate = effectiveDate; }
+    public String getCoreBusinessActivity() { return coreBusinessActivity; }
+    public void setCoreBusinessActivity(String coreBusinessActivity) { this.coreBusinessActivity = coreBusinessActivity; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }

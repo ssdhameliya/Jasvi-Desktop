@@ -2,6 +2,7 @@ package org.example.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -29,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ClientTemplateController implements ScreenLifecycle {
     private static final Logger log = LoggerFactory.getLogger(ClientTemplateController.class);
@@ -54,8 +56,15 @@ public class ClientTemplateController implements ScreenLifecycle {
     @FXML private Label lblLockStatus;
     @FXML private HBox boxVersionPills;
 
-    @FXML private FlowPane flowDocumentHeaders;
+    @FXML private TableView<DocumentHeaderRow> tableDocumentHeaders;
+    @FXML private TableColumn<DocumentHeaderRow, Number> colHdrOrder;
+    @FXML private TableColumn<DocumentHeaderRow, String> colHdrLabel;
+    @FXML private TableColumn<DocumentHeaderRow, String> colHdrCanonical;
+    @FXML private TableColumn<DocumentHeaderRow, String> colHdrSample;
+    @FXML private TableColumn<DocumentHeaderRow, Boolean> colHdrRequired;
+    @FXML private TableColumn<DocumentHeaderRow, Void> colHdrActions;
     @FXML private Button btnAddHeaderField;
+    @FXML private Button btnResetHeaders;
 
     @FXML private TableView<ColumnRow> tableColumnsBlueprint;
     @FXML private TableColumn<ColumnRow, Number> colOrder;
@@ -69,7 +78,51 @@ public class ClientTemplateController implements ScreenLifecycle {
 
     private final TallyAutomationApiClient api = new TallyAutomationApiClient();
     private final ObservableList<ColumnRow> columnsList = FXCollections.observableArrayList();
-    private final ObservableList<String> documentHeadersList = FXCollections.observableArrayList();
+    private final ObservableList<DocumentHeaderRow> documentHeadersList = FXCollections.observableArrayList();
+
+
+
+    public static final class DocumentHeaderRow {
+
+        final SimpleIntegerProperty order = new SimpleIntegerProperty();
+
+        final SimpleStringProperty headerLabel = new SimpleStringProperty();
+
+        final SimpleStringProperty canonicalField = new SimpleStringProperty();
+
+        final SimpleStringProperty sampleValue = new SimpleStringProperty();
+
+        final SimpleBooleanProperty isRequired = new SimpleBooleanProperty();
+
+
+
+        public DocumentHeaderRow(int order, String headerLabel, String canonicalField, String sampleValue, boolean isRequired) {
+
+            this.order.set(order);
+
+            this.headerLabel.set(headerLabel);
+
+            this.canonicalField.set(canonicalField);
+
+            this.sampleValue.set(sampleValue != null ? sampleValue : "—");
+
+            this.isRequired.set(isRequired);
+
+        }
+
+
+
+        public int getOrder() { return order.get(); }
+
+        public String getHeaderLabel() { return headerLabel.get(); }
+
+        public String getCanonicalField() { return canonicalField.get(); }
+
+        public String getSampleValue() { return sampleValue.get(); }
+
+        public boolean isRequired() { return isRequired.get(); }
+
+    }
     private final List<TallyAutomationApiClient.TemplateVersionDto> currentVersions = new ArrayList<>();
 
     private TallyAutomationApiClient.ClientProfileDto activeClient = null;
@@ -103,7 +156,9 @@ public class ClientTemplateController implements ScreenLifecycle {
         if (btnAddColumn != null) btnAddColumn.setGraphic(IconFactory.compactIcon("add", 12));
         if (btnReDetect != null) btnReDetect.setGraphic(IconFactory.compactIcon("refresh", 12));
 
+        if (btnResetHeaders != null) btnResetHeaders.setGraphic(IconFactory.compactIcon("refresh", 12));
         setupClientProfileSelector();
+        setupDocumentHeadersTable();
         setupColumnsBlueprintTable();
     }
 
@@ -127,6 +182,190 @@ public class ClientTemplateController implements ScreenLifecycle {
             if (n != null) onClientSelected(n);
         });
     }
+
+    private void setupDocumentHeadersTable() {
+
+        if (tableDocumentHeaders == null) return;
+
+
+
+        // Dynamic responsive column widths per Rule 7
+
+        colHdrOrder.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.08));
+
+        colHdrLabel.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.24));
+
+        colHdrCanonical.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.24));
+
+        colHdrSample.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.20));
+
+        colHdrRequired.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.10));
+
+        colHdrActions.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.14));
+
+
+
+        colHdrOrder.setCellValueFactory(cell -> cell.getValue().order);
+
+        colHdrLabel.setCellValueFactory(cell -> cell.getValue().headerLabel);
+
+        colHdrCanonical.setCellValueFactory(cell -> cell.getValue().canonicalField);
+
+        colHdrSample.setCellValueFactory(cell -> cell.getValue().sampleValue);
+
+        colHdrRequired.setCellValueFactory(cell -> cell.getValue().isRequired);
+
+
+
+        colHdrActions.setCellFactory(col -> new TableCell<>() {
+
+            private final Button btnUp = new Button("↑");
+
+            private final Button btnDown = new Button("↓");
+
+            private final Button btnDel = new Button("✕");
+
+            private final HBox box = new HBox(4, btnUp, btnDown, btnDel);
+
+
+
+            {
+
+                btnUp.getStyleClass().addAll("approved-button", "approved-secondary-button", "compact-action-button");
+
+                btnUp.setTooltip(new Tooltip("Move Header Up"));
+
+                btnUp.setOnAction(ev -> moveHeaderRow(getIndex(), -1));
+
+
+
+                btnDown.getStyleClass().addAll("approved-button", "approved-secondary-button", "compact-action-button");
+
+                btnDown.setTooltip(new Tooltip("Move Header Down"));
+
+                btnDown.setOnAction(ev -> moveHeaderRow(getIndex(), 1));
+
+
+
+                btnDel.getStyleClass().addAll("approved-button", "approved-danger-button", "compact-action-button");
+
+                btnDel.setTooltip(new Tooltip("Delete Header"));
+
+                btnDel.setOnAction(ev -> {
+
+                    int idx = getIndex();
+
+                    if (idx >= 0 && idx < documentHeadersList.size()) {
+
+                        documentHeadersList.remove(idx);
+
+                        reorderHeaderRows();
+
+                    }
+
+                });
+
+            }
+
+
+
+            @Override
+
+            protected void updateItem(Void item, boolean empty) {
+
+                super.updateItem(item, empty);
+
+                setGraphic(empty ? null : box);
+
+                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+
+            }
+
+        });
+
+
+
+        tableDocumentHeaders.setItems(documentHeadersList);
+
+        populateDefaultDocumentHeaders();
+
+    }
+
+
+
+    private void moveHeaderRow(int idx, int dir) {
+
+        int target = idx + dir;
+
+        if (target >= 0 && target < documentHeadersList.size()) {
+
+            DocumentHeaderRow r = documentHeadersList.remove(idx);
+
+            documentHeadersList.add(target, r);
+
+            reorderHeaderRows();
+
+        }
+
+    }
+
+
+
+    private void reorderHeaderRows() {
+
+        for (int i = 0; i < documentHeadersList.size(); i++) {
+
+            documentHeadersList.get(i).order.set(i + 1);
+
+        }
+
+    }
+
+
+
+    private void populateDefaultDocumentHeaders() {
+
+        documentHeadersList.setAll(
+
+                new DocumentHeaderRow(1, "Invoice Number", "Invoice Number", "INV-2026-089", true),
+
+                new DocumentHeaderRow(2, "Invoice Date", "Invoice Date", "24/10/2026", true),
+
+                new DocumentHeaderRow(3, "Due Date", "Due Date", "08/11/2026", false),
+
+                new DocumentHeaderRow(4, "Customer PO No", "Customer PO Reference", "PO-9921", false),
+
+                new DocumentHeaderRow(5, "E-Way Bill No", "E-Way Bill Number", "241289381928", false),
+
+                new DocumentHeaderRow(6, "Taxable Amount", "Taxable Value", "₹ 1,25,000.00", true),
+
+                new DocumentHeaderRow(7, "CGST Amount", "CGST", "₹ 11,250.00", false),
+
+                new DocumentHeaderRow(8, "SGST Amount", "SGST", "₹ 11,250.00", false),
+
+                new DocumentHeaderRow(9, "IGST Amount", "IGST", "₹ 0.00", false),
+
+                new DocumentHeaderRow(10, "Round Off", "Round Off", "₹ 0.40", false),
+
+                new DocumentHeaderRow(11, "Grand Total", "Grand Total Amount", "₹ 1,47,500.40", true)
+
+        );
+
+    }
+
+
+
+    @FXML
+
+    public void handleResetHeaders() {
+
+        populateDefaultDocumentHeaders();
+
+        ToastManager.info(tableColumnsBlueprint, "Headers Reset", "Document headers reset to standard ERP extraction blueprint.");
+
+    }
+
+
 
     private void setupColumnsBlueprintTable() {
         if (tableColumnsBlueprint == null) return;
@@ -267,13 +506,32 @@ public class ClientTemplateController implements ScreenLifecycle {
         documentHeadersList.clear();
         try {
             if (t.headerFieldsJson() != null && !t.headerFieldsJson().isBlank()) {
-                List<String> hdrs = MAPPER.readValue(t.headerFieldsJson(), new TypeReference<>() {});
-                documentHeadersList.addAll(hdrs);
+                JsonNode root = MAPPER.readTree(t.headerFieldsJson());
+                if (root.isArray()) {
+                    int orderIdx = 1;
+                    for (JsonNode n : root) {
+                        if (n.isObject()) {
+                            int ord = n.has("order") ? n.get("order").asInt(orderIdx) : orderIdx;
+                            String lbl = n.has("headerLabel") ? n.get("headerLabel").asText() : "";
+                            String can = n.has("canonicalField") ? n.get("canonicalField").asText() : lbl;
+                            String smp = n.has("sampleValue") ? n.get("sampleValue").asText() : "—";
+                            boolean req = !n.has("isRequired") || n.get("isRequired").asBoolean(true);
+                            documentHeadersList.add(new DocumentHeaderRow(ord, lbl, can, smp, req));
+                        } else if (n.isTextual()) {
+                            String s = n.asText();
+                            documentHeadersList.add(new DocumentHeaderRow(orderIdx, s, s, "—", true));
+                        }
+                        orderIdx++;
+                    }
+                }
             }
-        } catch (Exception ex) {
-            documentHeadersList.addAll(List.of("Invoice No", "Invoice Date", "Vendor Name", "GSTIN", "Taxable Amount", "CGST", "SGST", "IGST", "Grand Total"));
+        } catch (Exception ignored) {}
+
+        if (documentHeadersList.isEmpty()) {
+            populateDefaultDocumentHeaders();
+        } else {
+            reorderHeaderRows();
         }
-        renderHeaderChips();
 
         // Populate Item Columns Blueprint
         columnsList.clear();
@@ -323,41 +581,62 @@ public class ClientTemplateController implements ScreenLifecycle {
         );
     }
 
-    private void renderHeaderChips() {
-        if (flowDocumentHeaders == null) return;
-        flowDocumentHeaders.getChildren().clear();
-
-        for (String hdr : documentHeadersList) {
-            HBox chip = new HBox(6);
-            chip.setAlignment(Pos.CENTER_LEFT);
-            chip.setPadding(new Insets(4, 10, 4, 10));
-            chip.getStyleClass().addAll("header-chip", "erp-badge-blue");
-
-            Label lbl = new Label(hdr);
-            Button btnRemove = new Button("✕");
-            btnRemove.getStyleClass().addAll("chip-remove-button");
-            btnRemove.setOnAction(ev -> {
-                documentHeadersList.remove(hdr);
-                renderHeaderChips();
-            });
-
-            chip.getChildren().addAll(lbl, btnRemove);
-            flowDocumentHeaders.getChildren().add(chip);
-        }
-    }
-
     @FXML
     public void handleAddHeaderField() {
-        TextInputDialog dialog = new org.example.util.OwnedTextInputDialog();
-        dialog.setTitle("Add Header Field");
-        dialog.setHeaderText("Add an additional document-level header label (e.g. PO Number, Vehicle No, TCS Amount)");
-        dialog.setContentText("Header Label:");
-        dialog.showAndWait().ifPresent(txt -> {
-            String clean = txt.trim();
-            if (!clean.isEmpty() && !documentHeadersList.contains(clean)) {
-                documentHeadersList.add(clean);
-                renderHeaderChips();
+        Dialog<DocumentHeaderRow> dialog = new org.example.util.OwnedDialog<>();
+        dialog.setTitle("Add High-Level Document Header");
+        dialog.setHeaderText("Define a document-level header extracted from the bill top.");
+        dialog.getDialogPane().getStyleClass().addAll("approved-dialog");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(16));
+
+        TextField txtLabel = new TextField();
+        txtLabel.setPromptText("e.g. PO Number, Vehicle No, TCS");
+        txtLabel.getStyleClass().add("approved-input");
+
+        ComboBox<String> cmbCanonical = new ComboBox<>(FXCollections.observableArrayList(
+                "Invoice Number", "Invoice Date", "Due Date", "Customer PO Reference",
+                "E-Way Bill Number", "Taxable Value", "CGST", "SGST", "IGST",
+                "Round Off", "Grand Total Amount", "Custom Header"
+        ));
+        cmbCanonical.setValue("Invoice Number");
+        cmbCanonical.getStyleClass().add("approved-input");
+
+        TextField txtSample = new TextField();
+        txtSample.setPromptText("e.g. PO-88192");
+        txtSample.getStyleClass().add("approved-input");
+
+        CheckBox chkReq = new CheckBox("Required Document Header");
+        chkReq.setSelected(true);
+
+        grid.addRow(0, new Label("Header Label *"), txtLabel);
+        grid.addRow(1, new Label("Mapped Field"), cmbCanonical);
+        grid.addRow(2, new Label("Sample Value"), txtSample);
+        grid.addRow(3, new Label(""), chkReq);
+
+        dialog.getDialogPane().setContent(grid);
+        ButtonType btnAdd = new ButtonType("Add Header", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnAdd, ButtonType.CANCEL);
+
+        dialog.setResultConverter(b -> {
+            if (b == btnAdd && !txtLabel.getText().trim().isEmpty()) {
+                return new DocumentHeaderRow(
+                        documentHeadersList.size() + 1,
+                        txtLabel.getText().trim(),
+                        cmbCanonical.getValue(),
+                        txtSample.getText().trim(),
+                        chkReq.isSelected()
+                );
             }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(row -> {
+            documentHeadersList.add(row);
+            reorderHeaderRows();
         });
     }
 
@@ -519,7 +798,27 @@ public class ClientTemplateController implements ScreenLifecycle {
         }
 
         try {
-            String headersJson = MAPPER.writeValueAsString(documentHeadersList);
+            List<Map<String, Object>> hdrDefs = new ArrayList<>();
+
+            for (DocumentHeaderRow r : documentHeadersList) {
+
+                hdrDefs.add(Map.of(
+
+                        "order", r.order.get(),
+
+                        "headerLabel", r.headerLabel.get(),
+
+                        "canonicalField", r.canonicalField.get(),
+
+                        "sampleValue", r.sampleValue.get(),
+
+                        "isRequired", r.isRequired.get()
+
+                ));
+
+            }
+
+            String headersJson = MAPPER.writeValueAsString(hdrDefs);
             List<TallyAutomationApiClient.TemplateColumnDef> colDefs = new ArrayList<>();
             for (ColumnRow r : columnsList) {
                 colDefs.add(new TallyAutomationApiClient.TemplateColumnDef(
@@ -545,7 +844,7 @@ public class ClientTemplateController implements ScreenLifecycle {
                     true,
                     true, // Locked
                     activeClient.gstin(),
-                    String.join(",", documentHeadersList),
+                    documentHeadersList.stream().map(DocumentHeaderRow::getHeaderLabel).collect(Collectors.joining(",")),
                     headersJson,
                     columnsJson,
                     activeSampleFile != null ? activeSampleFile.getAbsolutePath() : null,

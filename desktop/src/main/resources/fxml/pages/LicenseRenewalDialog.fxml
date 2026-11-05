@@ -6,7 +6,7 @@
 
 <BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="org.example.controller.LicenseRenewalDialogController"
-            prefWidth="860" prefHeight="660" minWidth="780" minHeight="580"
+            prefWidth="880" prefHeight="680" minWidth="800" minHeight="600"
             styleClass="entity-dialog,premium-entity-dialog,approved-ui">
     <top>
         <VBox spacing="6" styleClass="premium-dialog-header">
@@ -24,120 +24,153 @@
         </VBox>
     </top>
     <center>
-        <ScrollPane fitToWidth="true" fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" styleClass="edge-to-edge">
-            <HBox spacing="16" styleClass="premium-dialog-content">
-                <padding>
-                    <Insets top="16" right="20" bottom="16" left="20"/>
-                </padding>
+        <TabPane fx:id="tabPaneLicensing" tabClosingPolicy="UNAVAILABLE" styleClass="approved-tab-pane,erp-tabs">
+            <!-- TAB 1: Subscription & Machine Activation -->
+            <Tab fx:id="tabSubscription" text="Subscription &amp; Machine Activation">
+                <ScrollPane fitToWidth="true" fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" styleClass="edge-to-edge">
+                    <HBox spacing="16" styleClass="premium-dialog-content">
+                        <padding>
+                            <Insets top="16" right="20" bottom="16" left="20"/>
+                        </padding>
 
-                <!-- Left Card: Instant Direct UPI QR Renewal -->
-                <VBox spacing="14" styleClass="approved-card" HBox.hgrow="ALWAYS" maxWidth="410" alignment="TOP_CENTER">
-                    <padding>
-                        <Insets top="18" right="18" bottom="18" left="18"/>
-                    </padding>
-                    <Label text="Instant Renewal via UPI" styleClass="field-label,email-transmission-field-bold"/>
-                    <Label text="Scan with Google Pay, PhonePe, or Paytm" styleClass="page-subtitle"/>
+                        <!-- Left Card: Instant Direct UPI QR Renewal -->
+                        <VBox spacing="14" styleClass="approved-card" HBox.hgrow="ALWAYS" maxWidth="410" alignment="TOP_CENTER">
+                            <padding>
+                                <Insets top="18" right="18" bottom="18" left="18"/>
+                            </padding>
+                            <Label text="Instant Renewal via UPI" styleClass="field-label,email-transmission-field-bold"/>
+                            <Label text="Scan with Google Pay, PhonePe, or Paytm" styleClass="page-subtitle"/>
 
-                    <!-- QR Container -->
-                    <StackPane styleClass="barcode-sticker-mockup" minWidth="220" minHeight="220" maxWidth="240" maxHeight="240" alignment="CENTER">
-                        <ImageView fx:id="imgUpiQr" fitWidth="220" fitHeight="220" preserveRatio="true"/>
-                    </StackPane>
+                            <!-- QR Container -->
+                            <StackPane styleClass="barcode-sticker-mockup" minWidth="220" minHeight="220" maxWidth="240" maxHeight="240" alignment="CENTER">
+                                <ImageView fx:id="imgUpiQr" fitWidth="220" fitHeight="220" preserveRatio="true"/>
+                            </StackPane>
 
-                    <VBox spacing="4" alignment="CENTER">
-                        <Label fx:id="lblAmountDisplay" text="₹3,500 + GST = ₹4,130 / Year" styleClass="barcode-sticker-price"/>
-                        <Label fx:id="lblVpaDisplay" text="VPA: jasviindustries@icici" styleClass="page-subtitle"/>
-                    </VBox>
+                            <VBox spacing="4" alignment="CENTER">
+                                <Label fx:id="lblAmountDisplay" text="₹3,500 + GST = ₹4,130 / Year" styleClass="barcode-sticker-price"/>
+                                <Label fx:id="lblVpaDisplay" text="VPA: jasviindustries@icici" styleClass="page-subtitle"/>
+                            </VBox>
 
-                    <Button fx:id="btnCopyUpiUri" text="Copy UPI Payment String" onAction="#handleCopyUpiString" styleClass="email-transmission-preview-btn" maxWidth="240"/>
-                    <Label text="Once paid, your license automatically renews via cloud sync, or load your activation file on the right." styleClass="page-subtitle" wrapText="true" textAlignment="CENTER"/>
-                </VBox>
+                            <Button fx:id="btnCopyUpiUri" text="Copy UPI Payment String" onAction="#handleCopyUpiString" styleClass="email-transmission-preview-btn" maxWidth="240"/>
+                            <Label text="Once paid, your license automatically renews via cloud sync, or load your activation file on the right." styleClass="page-subtitle" wrapText="true" textAlignment="CENTER"/>
+                        </VBox>
 
-                <!-- Right Card: Machine Status & Offline Activation -->
-                <VBox spacing="14" styleClass="approved-card" HBox.hgrow="ALWAYS" alignment="TOP_LEFT">
-                    <padding>
-                        <Insets top="18" right="18" bottom="18" left="18"/>
-                    </padding>
-                    <Label text="Machine Hardware &amp; License Status" styleClass="field-label,email-transmission-field-bold"/>
+                        <!-- Right Card: Machine Status & Offline Activation -->
+                        <VBox spacing="14" styleClass="approved-card" HBox.hgrow="ALWAYS" alignment="TOP_LEFT">
+                            <padding>
+                                <Insets top="18" right="18" bottom="18" left="18"/>
+                            </padding>
+                            <Label text="Machine Hardware &amp; License Status" styleClass="field-label,email-transmission-field-bold"/>
 
-                    <VBox spacing="6" styleClass="email-transmission-sig-box">
-                        <HBox alignment="CENTER_LEFT" spacing="6">
-                            <Label text="Machine Hardware ID:" styleClass="settings-form-label"/>
-                            <Region HBox.hgrow="ALWAYS"/>
-                            <Button fx:id="btnCopyMachineId" text="Copy ID" onAction="#handleCopyMachineId" styleClass="btn-secondary"/>
-                        </HBox>
-                        <TextField fx:id="txtMachineId" editable="false" styleClass="approved-input"/>
-                    </VBox>
+                            <VBox spacing="6" styleClass="email-transmission-sig-box">
+                                <HBox alignment="CENTER_LEFT" spacing="6">
+                                    <Label text="Machine Hardware ID:" styleClass="settings-form-label"/>
+                                    <Region HBox.hgrow="ALWAYS"/>
+                                    <Button fx:id="btnCopyMachineId" text="Copy ID" onAction="#handleCopyMachineId" styleClass="btn-secondary"/>
+                                </HBox>
+                                <TextField fx:id="txtMachineId" editable="false" styleClass="approved-input"/>
+                            </VBox>
 
-                    <GridPane hgap="12" vgap="8">
-                        <columnConstraints>
-                            <ColumnConstraints minWidth="110"/>
-                            <ColumnConstraints hgrow="ALWAYS"/>
-                        </columnConstraints>
-                        <Label text="Company:" GridPane.rowIndex="0" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                        <Label fx:id="lblCompany" text="-" GridPane.rowIndex="0" GridPane.columnIndex="1" styleClass="field-label"/>
+                            <GridPane hgap="12" vgap="8">
+                                <columnConstraints>
+                                    <ColumnConstraints minWidth="110"/>
+                                    <ColumnConstraints hgrow="ALWAYS"/>
+                                </columnConstraints>
+                                <Label text="Company:" GridPane.rowIndex="0" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                                <Label fx:id="lblCompany" text="-" GridPane.rowIndex="0" GridPane.columnIndex="1" styleClass="field-label"/>
 
-                        <Label text="Plan Tier:" GridPane.rowIndex="1" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                        <Label fx:id="lblTier" text="-" GridPane.rowIndex="1" GridPane.columnIndex="1" styleClass="field-label"/>
+                                <Label text="Plan Tier:" GridPane.rowIndex="1" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                                <Label fx:id="lblTier" text="-" GridPane.rowIndex="1" GridPane.columnIndex="1" styleClass="field-label"/>
 
-                        <Label text="Valid Until:" GridPane.rowIndex="2" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                        <Label fx:id="lblValidUntil" text="-" GridPane.rowIndex="2" GridPane.columnIndex="1" styleClass="field-label"/>
+                                <Label text="Valid Until:" GridPane.rowIndex="2" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                                <Label fx:id="lblValidUntil" text="-" GridPane.rowIndex="2" GridPane.columnIndex="1" styleClass="field-label"/>
 
-                        <Label text="Days Remaining:" GridPane.rowIndex="3" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                        <Label fx:id="lblDaysRemaining" text="-" GridPane.rowIndex="3" GridPane.columnIndex="1" styleClass="field-label"/>
-                    </GridPane>
+                                <Label text="Days Remaining:" GridPane.rowIndex="3" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                                <Label fx:id="lblDaysRemaining" text="-" GridPane.rowIndex="3" GridPane.columnIndex="1" styleClass="field-label"/>
+                            </GridPane>
 
-                    <Separator/>
+                            <Separator/>
 
-                    <Label text="Manual / Offline Activation" styleClass="field-label,email-transmission-field-bold"/>
-                    <Label text="Load your cryptographically signed jasvi.lic file issued by Jasvi:" styleClass="page-subtitle"/>
+                            <Label text="Manual / Offline Activation" styleClass="field-label,email-transmission-field-bold"/>
+                            <Label text="Load your cryptographically signed license file (.jlic, .lic, or .json):" styleClass="page-subtitle"/>
 
-                    <HBox spacing="8" alignment="CENTER_LEFT">
-                        <Button fx:id="btnBrowseLicenseFile" text="Browse jasvi.lic File..." onAction="#handleBrowseLicenseFile" styleClass="btn-primary"/>
-                        <Label fx:id="lblSelectedFile" text="No file selected" styleClass="page-subtitle" HBox.hgrow="ALWAYS"/>
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <Button fx:id="btnBrowseLicenseFile" text="Browse License File..." onAction="#handleBrowseLicenseFile" styleClass="btn-primary"/>
+                                <Label fx:id="lblSelectedFile" text="No file selected" styleClass="page-subtitle" HBox.hgrow="ALWAYS"/>
+                            </HBox>
+
+                            <VBox spacing="6">
+                                <Label text="Or paste raw license activation token:" styleClass="settings-form-label"/>
+                                <TextArea fx:id="txtRawLicensePayload" prefRowCount="3" promptText="Paste Base64 or JSON license payload here..." styleClass="email-transmission-body-area" wrapText="true"/>
+                            </VBox>
+
+                            <HBox alignment="CENTER_RIGHT" spacing="10">
+                                <Button fx:id="btnApplyActivation" text="Apply &amp; Activate License" onAction="#handleApplyActivation" styleClass="btn-success"/>
+                            </HBox>
+                        </VBox>
                     </HBox>
+                </ScrollPane>
+            </Tab>
 
-                    <VBox spacing="6">
-                        <Label text="Or paste raw license activation token:" styleClass="settings-form-label"/>
-                        <TextArea fx:id="txtRawLicensePayload" prefRowCount="3" promptText="Paste Base64 or JSON license payload here..." styleClass="email-transmission-body-area" wrapText="true"/>
+            <!-- TAB 2: Master Licensor Studio (SUPER ADMIN ONLY) -->
+            <Tab fx:id="tabMasterLicensor" text="Master Licensor Studio">
+                <ScrollPane fitToWidth="true" fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" styleClass="edge-to-edge">
+                    <VBox spacing="14" styleClass="premium-dialog-content">
+                        <padding>
+                            <Insets top="18" right="24" bottom="18" left="24"/>
+                        </padding>
+
+                        <VBox spacing="14" styleClass="approved-card" maxWidth="750">
+                            <padding>
+                                <Insets top="18" right="20" bottom="18" left="20"/>
+                            </padding>
+                            <HBox alignment="CENTER_LEFT" spacing="10">
+                                <Label text="Master Licensor Studio — Issue Client License" styleClass="field-label,accent-label-purple,email-transmission-field-bold"/>
+                                <Region HBox.hgrow="ALWAYS"/>
+                                <Label text="SUPER ADMIN ONLY" styleClass="status-badge,badge-info"/>
+                            </HBox>
+                            <Label text="Cryptographically sign an offline license file (.jlic, .lic, or .json) bound to any client computer:" styleClass="page-subtitle"/>
+
+                            <GridPane hgap="12" vgap="8">
+                                <columnConstraints>
+                                    <ColumnConstraints minWidth="130"/>
+                                    <ColumnConstraints hgrow="ALWAYS"/>
+                                </columnConstraints>
+                                <Label text="Client Company:" GridPane.rowIndex="0" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                                <TextField fx:id="txtClientCompany" promptText="e.g. Apex Industries" GridPane.rowIndex="0" GridPane.columnIndex="1" styleClass="approved-input"/>
+
+                                <Label text="Client Machine ID:" GridPane.rowIndex="1" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                                <TextField fx:id="txtClientMachineId" promptText="e.g. A8F9-42E1-7BC3-9901" GridPane.rowIndex="1" GridPane.columnIndex="1" styleClass="approved-input"/>
+
+                                <Label text="Plan Tier:" GridPane.rowIndex="2" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                                <ComboBox fx:id="cmbGenTier" maxWidth="Infinity" GridPane.rowIndex="2" GridPane.columnIndex="1" styleClass="approved-combo"/>
+
+                                <Label text="Validity Duration:" GridPane.rowIndex="3" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                                <ComboBox fx:id="cmbGenDuration" maxWidth="Infinity" GridPane.rowIndex="3" GridPane.columnIndex="1" styleClass="approved-combo"/>
+
+                                <Label text="Export Format:" GridPane.rowIndex="4" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                                <ComboBox fx:id="cmbGenFormat" maxWidth="Infinity" GridPane.rowIndex="4" GridPane.columnIndex="1" styleClass="approved-combo"/>
+                            </GridPane>
+
+                            <HBox alignment="CENTER_RIGHT" spacing="10">
+                                <Button fx:id="btnGenerateClientLicense" text="Generate &amp; Save Client License..." onAction="#handleGenerateClientLicense" styleClass="btn-primary"/>
+                            </HBox>
+
+                            <Separator/>
+
+                            <VBox spacing="6">
+                                <HBox alignment="CENTER_LEFT" spacing="8">
+                                    <Label text="Generated License Payload Preview:" styleClass="settings-form-label"/>
+                                    <Region HBox.hgrow="ALWAYS"/>
+                                    <Button fx:id="btnCopyGeneratedToken" text="Copy Generated Token" onAction="#handleCopyGeneratedToken" styleClass="btn-secondary"/>
+                                </HBox>
+                                <TextArea fx:id="txtGeneratedPreview" prefRowCount="4" editable="false" promptText="Generated license JSON payload will appear here..." styleClass="email-transmission-body-area" wrapText="true"/>
+                            </VBox>
+                        </VBox>
                     </VBox>
-
-                    <HBox alignment="CENTER_RIGHT" spacing="10">
-                        <Button fx:id="btnApplyActivation" text="Apply &amp; Activate License" onAction="#handleApplyActivation" styleClass="btn-success"/>
-                    </HBox>
-
-                    <!-- Super Admin Generator -->
-                    <VBox fx:id="vboxSuperLicensor" spacing="10" managed="false" visible="false" styleClass="email-transmission-sig-box">
-                        <Separator/>
-                        <HBox alignment="CENTER_LEFT" spacing="8">
-                            <Label text="Master Licensor Studio — Issue Client License" styleClass="field-label,accent-label-purple,email-transmission-field-bold"/>
-                            <Region HBox.hgrow="ALWAYS"/>
-                            <Label text="SUPER ADMIN ONLY" styleClass="status-badge,badge-info"/>
-                        </HBox>
-                        <Label text="Sign a .jlic license file bound to any client computer:" styleClass="page-subtitle"/>
-                        <GridPane hgap="10" vgap="6">
-                            <columnConstraints>
-                                <ColumnConstraints minWidth="110"/>
-                                <ColumnConstraints hgrow="ALWAYS"/>
-                            </columnConstraints>
-                            <Label text="Client Company:" GridPane.rowIndex="0" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                            <TextField fx:id="txtClientCompany" promptText="e.g. Apex Industries" GridPane.rowIndex="0" GridPane.columnIndex="1" styleClass="approved-input"/>
-
-                            <Label text="Client Machine ID:" GridPane.rowIndex="1" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                            <TextField fx:id="txtClientMachineId" promptText="e.g. A8F9-42E1-7BC3-9901" GridPane.rowIndex="1" GridPane.columnIndex="1" styleClass="approved-input"/>
-
-                            <Label text="Plan Tier:" GridPane.rowIndex="2" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                            <ComboBox fx:id="cmbGenTier" maxWidth="Infinity" GridPane.rowIndex="2" GridPane.columnIndex="1" styleClass="approved-combo"/>
-
-                            <Label text="Validity Duration:" GridPane.rowIndex="3" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                            <ComboBox fx:id="cmbGenDuration" maxWidth="Infinity" GridPane.rowIndex="3" GridPane.columnIndex="1" styleClass="approved-combo"/>
-                        </GridPane>
-                        <HBox alignment="CENTER_RIGHT" spacing="10">
-                            <Button fx:id="btnGenerateClientLicense" text="Generate &amp; Save Client License..." onAction="#handleGenerateClientLicense" styleClass="btn-primary"/>
-                        </HBox>
-                    </VBox>
-                </VBox>
-            </HBox>
-        </ScrollPane>
+                </ScrollPane>
+            </Tab>
+        </TabPane>
     </center>
     <bottom>
         <HBox alignment="CENTER_RIGHT" spacing="12" styleClass="premium-dialog-footer">

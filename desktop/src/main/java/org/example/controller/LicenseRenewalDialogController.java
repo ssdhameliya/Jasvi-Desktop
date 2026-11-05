@@ -57,12 +57,17 @@ public class LicenseRenewalDialogController {
     @FXML private Button btnApplyActivation;
     @FXML private Button btnClose;
 
-    @FXML private VBox vboxSuperLicensor;
+    @FXML private TabPane tabPaneLicensing;
+    @FXML private Tab tabSubscription;
+    @FXML private Tab tabMasterLicensor;
     @FXML private TextField txtClientCompany;
     @FXML private TextField txtClientMachineId;
     @FXML private ComboBox<String> cmbGenTier;
     @FXML private ComboBox<String> cmbGenDuration;
+    @FXML private ComboBox<String> cmbGenFormat;
     @FXML private Button btnGenerateClientLicense;
+    @FXML private TextArea txtGeneratedPreview;
+    @FXML private Button btnCopyGeneratedToken;
 
     private final LicenseApiClient api = new LicenseApiClient();
     private final ObjectMapper json = ApiRuntime.JSON;
@@ -78,19 +83,20 @@ public class LicenseRenewalDialogController {
         refreshStatus();
 
         boolean isSuper = org.example.service.SessionService.isSuperAdmin();
-        if (vboxSuperLicensor != null) {
-            vboxSuperLicensor.setManaged(isSuper);
-            vboxSuperLicensor.setVisible(isSuper);
+        if (!isSuper && tabPaneLicensing != null && tabMasterLicensor != null) {
+            tabPaneLicensing.getTabs().remove(tabMasterLicensor);
         }
-        if (isSuper) {
-            if (cmbGenTier != null) {
-                cmbGenTier.getItems().setAll("GOLD (5 Users)", "SILVER (1 User)", "PLATINUM (20 Users)");
-                cmbGenTier.getSelectionModel().selectFirst();
-            }
-            if (cmbGenDuration != null) {
-                cmbGenDuration.getItems().setAll("365 Days (1 Year)", "730 Days (2 Years)", "30 Days (Evaluation Trial)", "1095 Days (3 Years)");
-                cmbGenDuration.getSelectionModel().selectFirst();
-            }
+        if (cmbGenTier != null) {
+            cmbGenTier.getItems().setAll("GOLD (5 Users)", "SILVER (1 User)", "PLATINUM (20 Users)");
+            cmbGenTier.getSelectionModel().selectFirst();
+        }
+        if (cmbGenDuration != null) {
+            cmbGenDuration.getItems().setAll("365 Days (1 Year)", "730 Days (2 Years)", "30 Days (Evaluation Trial)", "1095 Days (3 Years)");
+            cmbGenDuration.getSelectionModel().selectFirst();
+        }
+        if (cmbGenFormat != null) {
+            cmbGenFormat.getItems().setAll("Jasvi Signed License (*.jlic)", "Enterprise License (*.lic)", "Universal JSON License (*.json)");
+            cmbGenFormat.getSelectionModel().selectFirst();
         }
     }
 
@@ -194,15 +200,18 @@ public class LicenseRenewalDialogController {
     @FXML
     private void handleBrowseLicenseFile() {
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Select jasvi.lic License File");
+        chooser.setTitle("Select License File (.jlic, .lic, .json)");
         chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("License Files (*.lic, *.json)", "*.lic", "*.json"),
-                new FileChooser.ExtensionFilter("All Files", "*.*")
+                new FileChooser.ExtensionFilter("All Supported License Files (*.jlic, *.lic, *.json)", "*.jlic", "*.lic", "*.json"),
+                new FileChooser.ExtensionFilter("Jasvi License (*.jlic)", "*.jlic"),
+                new FileChooser.ExtensionFilter("Enterprise License (*.lic)", "*.lic"),
+                new FileChooser.ExtensionFilter("Universal JSON (*.json)", "*.json"),
+                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
         );
         File file = chooser.showOpenDialog(btnClose.getScene().getWindow());
         if (file != null) {
             try {
-                String content = Files.readString(file.toPath());
+                String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
                 lblSelectedFile.setText(file.getName());
                 txtRawLicensePayload.setText(content);
             } catch (Exception e) {
@@ -266,6 +275,10 @@ public class LicenseRenewalDialogController {
         String durChoice = (cmbGenDuration == null || cmbGenDuration.getValue() == null) ? "365" : cmbGenDuration.getValue();
         int days = durChoice.startsWith("30") ? 30 : (durChoice.startsWith("730") ? 730 : (durChoice.startsWith("1095") ? 1095 : 365));
 
+        String formatChoice = (cmbGenFormat == null || cmbGenFormat.getValue() == null) ? ".jlic" : cmbGenFormat.getValue();
+        String extension = formatChoice.contains(".lic") ? ".lic" : (formatChoice.contains(".json") ? ".json" : ".jlic");
+        String extDesc = formatChoice.contains(".lic") ? "Enterprise License (*.lic)" : (formatChoice.contains(".json") ? "Universal JSON (*.json)" : "Jasvi License (*.jlic)");
+
         Map<String, Object> req = Map.of(
                 "companyName", company,
                 "machineId", machine,
@@ -281,14 +294,18 @@ public class LicenseRenewalDialogController {
                     try {
                         Object licObj = resp.get("licenseJson");
                         String licJson = json.writerWithDefaultPrettyPrinter().writeValueAsString(licObj);
+                        if (txtGeneratedPreview != null) {
+                            txtGeneratedPreview.setText(licJson);
+                        }
                         ClipboardContent cb = new ClipboardContent();
                         cb.putString(licJson);
                         Clipboard.getSystemClipboard().setContent(cb);
 
                         FileChooser chooser = new FileChooser();
-                        chooser.setTitle("Save Client License (.jlic)");
-                        chooser.setInitialFileName(company.replaceAll("[^a-zA-Z0-9_-]", "_") + ".jlic");
-                        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Jasvi License (*.jlic)", "*.jlic"));
+                        chooser.setTitle("Save Client License (" + extension + ")");
+                        chooser.setInitialFileName(company.replaceAll("[^a-zA-Z0-9_-]", "_") + extension);
+                        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(extDesc, "*" + extension));
+                        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All Files (*.*)", "*.*"));
                         File saveFile = chooser.showSaveDialog(btnClose.getScene().getWindow());
                         if (saveFile != null) {
                             Files.writeString(saveFile.toPath(), licJson, StandardCharsets.UTF_8);
@@ -302,6 +319,16 @@ public class LicenseRenewalDialogController {
                 },
                 err -> AppDialogService.error(btnClose, "Generation Failed", "Could not generate client license", err.getMessage())
         );
+    }
+
+    @FXML
+    private void handleCopyGeneratedToken() {
+        if (txtGeneratedPreview != null && !txtGeneratedPreview.getText().isBlank()) {
+            ClipboardContent cb = new ClipboardContent();
+            cb.putString(txtGeneratedPreview.getText());
+            Clipboard.getSystemClipboard().setContent(cb);
+            ToastManager.info(btnClose, "Copied", "Generated license token copied to clipboard!");
+        }
     }
 
     @FXML
