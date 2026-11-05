@@ -29,10 +29,6 @@ from pathlib import Path
 REPOS = ["Jasvi-Desktop", "Jasvi-Admin", "Jasvi-UserView", "Jasvi-Mobile"]
 
 SOURCE_ROOT = Path(r"D:\Antigravity-Dev\Jasvi-Desktop")
-PROTOCOL_FILE = SOURCE_ROOT / "dse-erp-master-protocol.md"
-GEMINI_FILE = SOURCE_ROOT / "GEMINI.md"
-GLOBAL_RULE = Path(r"C:\Users\JATIN DHAMELIYA\.gemini\config\rules\dse-erp-master-protocol.md")
-GLOBAL_GEMINI = Path(r"C:\Users\JATIN DHAMELIYA\.gemini\config\GEMINI.md")
 
 # Google Drive Cloud Mirror Registry (Folder 'JavaFx': 1Nn2wQWrNETBUNHbAAbYriWNeu_nXai7l)
 GDRIVE_REGISTRY = {
@@ -43,66 +39,14 @@ GDRIVE_REGISTRY = {
 }
 
 EXCLUDE_DIRS = {".git", ".idea", "target", "build", ".gradle", "node_modules"}
-
-TARGET_DIRS = [
-    # Tier 1
-    Path(r"D:\Antigravity-Dev\Jasvi-Admin"),
-    Path(r"D:\Antigravity-Dev\Jasvi-UserView"),
-    Path(r"D:\Antigravity-Dev\Jasvi-Mobile"),
-    # Tier 2
-    Path(r"D:\JavaProject\Jasvi-Desktop"),
-    Path(r"D:\JavaProject\Jasvi-Admin"),
-    Path(r"D:\JavaProject\Jasvi-UserView"),
-    Path(r"D:\JavaProject\Jasvi-Mobile"),
-    # Tier 3
-    Path(r"D:\GitHub\ReleaseSource-Desktop"),
-    Path(r"D:\GitHub\ReleaseSource-Jasvi-Desktop"),
-    Path(r"D:\GitHub\ReleaseSource-Admin"),
-    Path(r"D:\GitHub\ReleaseSource-Jasvi-Admin"),
-    Path(r"D:\GitHub\ReleaseSource-UserView"),
-    Path(r"D:\GitHub\ReleaseSource-Mobile"),
-    # Tier 4
-    Path(r"D:\GitHub\Jasvi-Desktop"),
-    Path(r"D:\GitHub\Jasvi-Admin"),
-    Path(r"D:\GitHub\Jasvi-UserView"),
-    Path(r"D:\GitHub\Jasvi-Mobile"),
-]
+EXCLUDE_FILES = {"gemini-desktop.md", "GEMINI.md", "dse-erp-master-protocol.md", "oracle.md", "github.md"}
 
 def sync_protocol_and_docs():
     print("=" * 70)
-    print("JASVI ECOSYSTEM PROTOCOL & DOCS UNIVERSAL SYNCHRONIZATION")
+    print("JASVI ECOSYSTEM PROTOCOL & DOCS CHECK")
     print("=" * 70)
-
-    if not PROTOCOL_FILE.exists():
-        print(f"ERROR: Source protocol file not found at {PROTOCOL_FILE}")
-        sys.exit(1)
-
-    synced_count = 0
-
-    # 1. Sync global rules
-    if GLOBAL_RULE.parent.exists():
-        shutil.copy2(PROTOCOL_FILE, GLOBAL_RULE)
-        print(f"[OK] Global Rule: {GLOBAL_RULE}")
-        synced_count += 1
-    if GLOBAL_GEMINI.parent.exists() and GEMINI_FILE.exists():
-        shutil.copy2(GEMINI_FILE, GLOBAL_GEMINI)
-        print(f"[OK] Global GEMINI: {GLOBAL_GEMINI}")
-        synced_count += 1
-
-    # 2. Sync to all existing target repository directories
-    for target in TARGET_DIRS:
-        if target.exists():
-            dest_protocol = target / "dse-erp-master-protocol.md"
-            shutil.copy2(PROTOCOL_FILE, dest_protocol)
-
-            if GEMINI_FILE.exists():
-                dest_gemini = target / "GEMINI.md"
-                shutil.copy2(GEMINI_FILE, dest_gemini)
-
-            print(f"[OK] Synced to: {target}")
-            synced_count += 1
-
-    print(f"\nProtocol & docs synchronized successfully across {synced_count} locations.")
+    print("[INFO] gemini-desktop.md is strictly kept only in Antigravity-Dev (D:\\Antigravity-Dev\\Jasvi-Desktop)")
+    print("[INFO] Protocol and gemini files are strictly excluded from repository sync per user rule.")
 
 def sync_code(repo_name="Jasvi-Desktop", include_tier4=False):
     print("\n" + "=" * 70)
@@ -137,7 +81,8 @@ def sync_code(repo_name="Jasvi-Desktop", include_tier4=False):
             "/COPY:DAT",
             "/R:1",
             "/W:1",
-            "/XD", ".git", ".idea", "target", "node_modules", "build", ".gradle"
+            "/XD", ".git", ".idea", "target", "node_modules", "build", ".gradle",
+            "/XF", "gemini-desktop.md", "GEMINI.md", "dse-erp-master-protocol.md", "oracle.md", "github.md"
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         # Robocopy return codes 0-7 mean success
