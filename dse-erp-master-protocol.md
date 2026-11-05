@@ -36,9 +36,9 @@ All 4 client applications communicate with **one shared Spring Boot backend** an
 Code and tasks progress in strictly one safe, orderly, verified direction:
 
 ```
-[ Tier 1: Dev ]       ──►   [ Tier 2: Plan ]      ──►   [ Mode A: "approved" ]       ──►   [ Mode B: "push to github" ]   ──►   [ Tier 5: GDrive ]
-D:\Antigravity-Dev          Stack Investigation         Strictly Local Tier 1 Fix          Universal Sync to All Folders        In-place synced clean
-Active dev,                 Rules & Linked Function     Local compile & tests.             PR, Auto-Merge, Tag until Green      cloud project mirror.
+[ Tier 1: Dev ]       ──►   [ Tier 2: Plan ]      ──►   [ Mode A: "approved" ]       ──►   [ Mode B: "push to github" ]
+D:\Antigravity-Dev          Stack Investigation         Strictly Local Tier 1 Fix          Universal Sync to All Folders
+Active dev,                 Rules & Linked Function     Local compile & tests.             PR, Auto-Merge, Tag until Green
 clean compile & test.       Inventory & Ripple Impact.  Zero sync/push to other tiers.     Post-Release Green Audit Report.
 ```
 
@@ -102,21 +102,7 @@ Once GitHub Actions CI, binaries, and deployments are completely **GREEN**, Anti
    - **Mandatory Defect Transparency:** If ANY regression or unexpected failure was discovered during local testing or CI builds, Antigravity MUST explicitly declare:
      > *"During automated test execution / CI validation, regression [Issue X] was detected in [Component Y]. It was immediately diagnosed, corrected, and verified before release."*
 
-### 1.5 Tier 5: Cloud Backup Mirror (Google Drive Integration)
-- Keeps all 4 ecosystem repositories permanently backed up and synchronized to Google Drive in both **uncompressed source directory trees** (for mobile Gemini app direct reading and AI indexing) and **in-place clean snapshot archives (`.zip`)**.
-- **Root Parent Folder (`JavaFx`):** `1Nn2wQWrNETBUNHbAAbYriWNeu_nXai7l` ([View on Drive](https://drive.google.com/drive/folders/1Nn2wQWrNETBUNHbAAbYriWNeu_nXai7l))
-- **Registered Subfolders & In-Place Archive File IDs:**
-  | Project Repository | Google Drive Subfolder ID | In-Place Archive File ID | Direct Drive Link |
-  | :--- | :---: | :---: | :--- |
-  | **`Jasvi-Desktop`** | `1gBQWeTodjuxQmUHuWzEiE-MoRRC5W7qA` | `1oOjUnxuiJhq5SV4iO5UHN1G-oYFEhNwX` | [Jasvi-Desktop Folder](https://drive.google.com/drive/folders/1gBQWeTodjuxQmUHuWzEiE-MoRRC5W7qA) |
-  | **`Jasvi-Admin`** | `10fio8DAwYowAwVM5LyPhe877CXjy5OK3` | `13iMvdV7HqqC-whAknCXi6-rUHCvbOOWA` | [Jasvi-Admin Folder](https://drive.google.com/drive/folders/10fio8DAwYowAwVM5LyPhe877CXjy5OK3) |
-  | **`Jasvi-UserView`**| `1W5yeaVOExL_k5wsYUxVepadRj_MocEcq` | `1cmVdRKGrM1FD5q2gk5GDo9mFj5XZUN9I` | [Jasvi-UserView Folder](https://drive.google.com/drive/folders/1W5yeaVOExL_k5wsYUxVepadRj_MocEcq) |
-  | **`Jasvi-Mobile`** | `104QmrAHnLGHSMrn5zHBPeM-30ZMtOOo4` | `1BoGSpdDLZAREpW2Z5D1nwVHZHLu7fQi1` | [Jasvi-Mobile Folder](https://drive.google.com/drive/folders/104QmrAHnLGHSMrn5zHBPeM-30ZMtOOo4) |
-- **Dual Cloud Sync Mechanism:**
-  1. **Uncompressed Source Trees:** Uploads all source code files (`.java`, `.fxml`, `.html`, `.css`, `.js`, `.sql`, `.json`, `.md`, `.properties`, etc.) into nested folders mirroring the local repository structure with text MIME types, enabling the **Gemini mobile app** to directly read, search, and parse code on mobile devices. Excludes `.git/`, `.idea/`, `target/`, `build/`, `.gradle/`, and `postgresql/` binaries.
-  2. **In-Place Snapshot Archive:** Automated via `python scripts/sync-to-all.py --gdrive` (or `--code --all --gdrive`), updating the root `.zip` file in-place without changing file IDs or breaking links.
-
-### 1.6 Protected Local Runtime Workspace: `D:\DSE Production`
+### 1.5 Protected Local Runtime Workspace: `D:\DSE Production`
 - Live PostgreSQL database (`port 55432`), configs, runtime logs, attachments, backups.
 - **NEVER** run destructive SQL (`TRUNCATE`, `DROP`, `DELETE`) or alter database/runtime files here unless explicitly instructed.
 
@@ -210,16 +196,49 @@ Once GitHub Actions CI, binaries, and deployments are completely **GREEN**, Anti
 
 ---
 
-## 3. The "Desktop is King" Parity Rule (7-Point Golden Inspection)
+## 3. Rules When Building the Desktop Application
 
-Whenever implementing or debugging features on Web, UserView, or Mobile, Desktop is the golden reference:
-1. **Layout Parity:** Mirror exact column orders, headers, dynamic widths, modals, and drawers.
-2. **Screen Init:** Load exact master bootstrap data and default to past 6 months (`today.minusMonths(6)`).
-3. **Calculation Engine:** Match `DocumentCalculationEngine.java` math, GST intra/inter splits, and `RoundingMode.HALF_UP`.
-4. **REST Contracts:** Align 100% with Spring Boot `@RestController` DTOs and Bearer JWT auth.
-5. **Database Models:** Match JPA entities and PostgreSQL table constraints.
-6. **Input Events:** Auto-populate customer addresses, item rates, HSN codes, and tax rates on selection.
-7. **Zero Mock Data:** Real database persistence and RFC 7807 (`ProblemDetail`) error handling only.
+### Rule D1: Zero Mock or Dummy Data in Builds (Authentic Integration Guarantee)
+- **Never** use mock, simulated, placeholder, or hardcoded dummy data as part of any desktop build, screen, or release.
+- All application features—including Live GST lookups, Bill-to-Tally automation, OCR extraction, inventory tables, and document templates—must integrate with real database persistence, authentic live REST endpoints, and valid Spring Boot services.
+- If an external integration or live API is temporarily unreachable or unauthenticated, surface real error feedback and live connectivity state to the user (e.g. RFC 7807 ProblemDetail) rather than silently substituting fake or simulated data.
+
+### Rule D2: Dynamic Responsive Table Widths & Colorized KPI Cards
+- **Dynamic Table Widths:** Table columns must **NEVER** have hardcoded fixed widths (`prefWidth="..."`) in FXML. Every table must use dynamic width distribution / percentage allocation (`table.widthProperty().multiply(...)`) to scale fluidly with window resizing and prevent truncated text or horizontal scrollbars.
+- **Colorized Dynamic KPI Cards:** Every KPI summary card across all screens must have its **Icon**, **Label**, and **Value** rendered in distinct semantic colors (using theme `.accent`, `.success`, `.warning`, `.primary`, and `.info` CSS classes). Monochrome or muted grey text is strictly forbidden.
+
+### Rule D3: Content-Adaptive Dialog & Modal Bounds (Zero Truncation Guarantee)
+- All modal dialogs, alert boxes, action drawers, and inspect popups must provide generous internal spacing, margins, and padding.
+- **Zero Truncation Guarantee:** Under NO circumstances may any container, button, label, table header, or table cell data be clipped, cut off, or ellipsized with dots (`...`).
+- Implement dynamic, content-driven auto-sizing rules (`minWidth`, `minHeight`, responsive bounds calculation) so dialogs and popups adapt cleanly to their content across varying resolutions without causing rendering lag or performance bottlenecks. Popups and inspect modals must also support dragging and window repositioning/resizing.
+
+### Rule D4: Exhaustive Pre-Change Dependency & Linked Functionality Blast Radius Audit
+- Before changing any code, method, DTO, shared utility, or CSS class, first check how many functionalities across the application are linked to that code.
+- If a proposed change is linked to 50, 60, or more places across the codebase, exhaustively investigate all linked call sites and confirm that modifying the code will not break, regress, or alter behavior in any connected functionality.
+- Explicitly document the full linked functionality inventory and ripple impact assessment in the Tier 2 investigation report before requesting approval.
+
+### Rule D5: Zero Assumptions & Interactive User Clarification on Prompt
+- **Never assume anything.** If requirements, edge cases, UX workflows, or technical options are ambiguous or unclear, do not guess or unilaterally proceed.
+- Ask questions directly to the user on the prompt, presenting clear ideas and structured options for the user to review and select.
+- **Strict Binding Constraint:** NEVER build, alter, or commit any code without the user's explicit prior confirmation and approval of the plan.
+
+### Rule D6: Colorful Label Icons & Semantic Theme-Colored Values
+- Every form field label, property header, and metadata descriptor must feature an appropriate, colorful semantic icon (reusing standardized icons per Rule 9, without assigning conflicting icons like generic user icons to unrelated fields).
+- Both the label name AND its displayed value must be styled in vibrant, distinct semantic theme colors (via CSS style classes) rather than plain unstyled text, ensuring high contrast, clarity, and visual hierarchy.
+
+### Rule D7: Architectural Cohesion & Non-Duplication (Zero Competing Logic)
+- When introducing or updating code, ensure the new implementation does not duplicate existing classes, services, or helper functions.
+- Ensure new code and existing code do not fight each other or cause race conditions, double background triggers, or conflicting UI notifications (e.g. eliminating race conditions that produce concurrent "Clients Loaded" and "Load Failed: This action is already in progress" toasts).
+- Maintain single, deterministic sources of truth across controllers and background task executors.
+
+### Rule D8: Dual-Theme Parity & GitHub CI Automation Gate Pre-Validation
+- Whenever creating or modifying any screen, dialog, popup, or button, ensure complete visual parity and flawless rendering in **both Dark and Light themes** with zero controller color leaks (CSS classes only).
+- In addition, pre-validate against all local and CI release gates (`SharedUiOwnershipContractTest`, `audit-release-gates.py`) because adding, moving, or removing UI elements directly impacts automated CI validation. All gates must pass cleanly before any release is triggered.
+
+### Rule D9: Smart AI Global Synthesis & Cumulative Multi-Turn Context (Zero Hasty Answers)
+- **Never answer hastily or superficially** based solely on the user's latest question in isolation.
+- Act as an intelligent, holistic system architect: review all previous turns, questions, attachments, and open defects globally.
+- Synthesize the entire cumulative conversation context, maintaining a unified understanding of all open issues, requirements, and user feedback when proposing plans, finalizing scopes, and delivering audits.
 
 ---
 

@@ -147,3 +147,49 @@ All 4 ecosystem repositories (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, 
   5. **Status:** Explicit verification (`[100% COMPLETE - VERIFIED]`).
 - **Zero Silent Deferrals:** If an item cannot be completed due to missing technical dependencies, it must NEVER be silently omitted. It must be explicitly highlighted to the user with actionable next steps, keeping the scope transparent and unbroken.
 - **Mandatory Proactive Defect Disclosure:** If ANY regression was identified and resolved during the build, test, or CI cycle, it must be explicitly reported to the user in the completion audit.
+
+---
+
+## Rules When Building the Desktop Application
+
+### Rule D1: Zero Mock or Dummy Data in Builds (Authentic Integration Guarantee)
+- **Never** use mock, simulated, placeholder, or hardcoded dummy data as part of any desktop build, screen, or release.
+- All application features—including Live GST lookups, Bill-to-Tally automation, OCR extraction, inventory tables, and document templates—must integrate with real database persistence, authentic live REST endpoints, and valid Spring Boot services.
+- If an external integration or live API is temporarily unreachable or unauthenticated, surface real error feedback and live connectivity state to the user (e.g. RFC 7807 ProblemDetail) rather than silently substituting fake or simulated data.
+
+### Rule D2: Dynamic Responsive Table Widths & Colorized KPI Cards
+- **Dynamic Table Widths:** Table columns must **NEVER** have hardcoded fixed widths (`prefWidth="..."`) in FXML. Every table must use dynamic width distribution / percentage allocation (`table.widthProperty().multiply(...)`) to scale fluidly with window resizing and prevent truncated text or horizontal scrollbars.
+- **Colorized Dynamic KPI Cards:** Every KPI summary card across all screens must have its **Icon**, **Label**, and **Value** rendered in distinct semantic colors (using theme `.accent`, `.success`, `.warning`, `.primary`, and `.info` CSS classes). Monochrome or muted grey text is strictly forbidden.
+
+### Rule D3: Content-Adaptive Dialog & Modal Bounds (Zero Truncation Guarantee)
+- All modal dialogs, alert boxes, action drawers, and inspect popups must provide generous internal spacing, margins, and padding.
+- **Zero Truncation Guarantee:** Under NO circumstances may any container, button, label, table header, or table cell data be clipped, cut off, or ellipsized with dots (`...`).
+- Implement dynamic, content-driven auto-sizing rules (`minWidth`, `minHeight`, responsive bounds calculation) so dialogs and popups adapt cleanly to their content across varying resolutions without causing rendering lag or performance bottlenecks. Popups and inspect modals must also support dragging and window repositioning/resizing.
+
+### Rule D4: Exhaustive Pre-Change Dependency & Linked Functionality Blast Radius Audit
+- Before changing any code, method, DTO, shared utility, or CSS class, first check how many functionalities across the application are linked to that code.
+- If a proposed change is linked to 50, 60, or more places across the codebase, exhaustively investigate all linked call sites and confirm that modifying the code will not break, regress, or alter behavior in any connected functionality.
+- Explicitly document the full linked functionality inventory and ripple impact assessment in the Tier 2 investigation report before requesting approval.
+
+### Rule D5: Zero Assumptions & Interactive User Clarification on Prompt
+- **Never assume anything.** If requirements, edge cases, UX workflows, or technical options are ambiguous or unclear, do not guess or unilaterally proceed.
+- Ask questions directly to the user on the prompt, presenting clear ideas and structured options for the user to review and select.
+- **Strict Binding Constraint:** NEVER build, alter, or commit any code without the user's explicit prior confirmation and approval of the plan.
+
+### Rule D6: Colorful Label Icons & Semantic Theme-Colored Values
+- Every form field label, property header, and metadata descriptor must feature an appropriate, colorful semantic icon (reusing standardized icons per Rule 9, without assigning conflicting icons like generic user icons to unrelated fields).
+- Both the label name AND its displayed value must be styled in vibrant, distinct semantic theme colors (via CSS style classes) rather than plain unstyled text, ensuring high contrast, clarity, and visual hierarchy.
+
+### Rule D7: Architectural Cohesion & Non-Duplication (Zero Competing Logic)
+- When introducing or updating code, ensure the new implementation does not duplicate existing classes, services, or helper functions.
+- Ensure new code and existing code do not fight each other or cause race conditions, double background triggers, or conflicting UI notifications (e.g. eliminating race conditions that produce concurrent "Clients Loaded" and "Load Failed: This action is already in progress" toasts).
+- Maintain single, deterministic sources of truth across controllers and background task executors.
+
+### Rule D8: Dual-Theme Parity & GitHub CI Automation Gate Pre-Validation
+- Whenever creating or modifying any screen, dialog, popup, or button, ensure complete visual parity and flawless rendering in **both Dark and Light themes** with zero controller color leaks (CSS classes only).
+- In addition, pre-validate against all local and CI release gates (`SharedUiOwnershipContractTest`, `audit-release-gates.py`) because adding, moving, or removing UI elements directly impacts automated CI validation. All gates must pass cleanly before any release is triggered.
+
+### Rule D9: Smart AI Global Synthesis & Cumulative Multi-Turn Context (Zero Hasty Answers)
+- **Never answer hastily or superficially** based solely on the user's latest question in isolation.
+- Act as an intelligent, holistic system architect: review all previous turns, questions, attachments, and open defects globally.
+- Synthesize the entire cumulative conversation context, maintaining a unified understanding of all open issues, requirements, and user feedback when proposing plans, finalizing scopes, and delivering audits.
