@@ -30,7 +30,6 @@ REPOS = ["Jasvi-Desktop", "Jasvi-Admin", "Jasvi-UserView", "Jasvi-Mobile"]
 
 SOURCE_ROOT = Path(r"D:\Antigravity-Dev\Jasvi-Desktop")
 PROTOCOL_FILE = SOURCE_ROOT / "dse-erp-master-protocol.md"
-ORACLE_FILE = SOURCE_ROOT / "oracle.md"
 GEMINI_FILE = SOURCE_ROOT / "GEMINI.md"
 GLOBAL_RULE = Path(r"C:\Users\JATIN DHAMELIYA\.gemini\config\rules\dse-erp-master-protocol.md")
 GLOBAL_GEMINI = Path(r"C:\Users\JATIN DHAMELIYA\.gemini\config\GEMINI.md")
@@ -95,10 +94,6 @@ def sync_protocol_and_docs():
         if target.exists():
             dest_protocol = target / "dse-erp-master-protocol.md"
             shutil.copy2(PROTOCOL_FILE, dest_protocol)
-
-            if ORACLE_FILE.exists():
-                dest_oracle = target / "oracle.md"
-                shutil.copy2(ORACLE_FILE, dest_oracle)
 
             if GEMINI_FILE.exists():
                 dest_gemini = target / "GEMINI.md"
