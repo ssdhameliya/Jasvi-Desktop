@@ -156,10 +156,10 @@ public final class GstFullDetailsDialog {
 
         dialog.setOnShown(ev -> {
             if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage stage) {
-                stage.setMinWidth(920);
-                stage.setMinHeight(680);
-                stage.setWidth(1020);
-                stage.setHeight(760);
+                stage.setMinWidth(1100);
+                stage.setMinHeight(780);
+                stage.setWidth(1150);
+                stage.setHeight(820);
             }
         });
 
@@ -363,13 +363,12 @@ public final class GstFullDetailsDialog {
 
         header.getChildren().addAll(icon, title, spacer, btnOpenPortal, btnCopy);
 
-        TextArea txtAddress = new TextArea(address != null ? address : "No address available");
-        txtAddress.setEditable(false);
-        txtAddress.setWrapText(true);
-        txtAddress.setPrefRowCount(2);
-        txtAddress.getStyleClass().addAll("approved-input", "dialog-read-only-text", "dialog-text-area");
+        Label lblAddressVal = new Label(address != null && !address.isBlank() ? address : "No address available");
+        lblAddressVal.setWrapText(true);
+        lblAddressVal.getStyleClass().addAll("fact-value-text", "address-text-display");
+        lblAddressVal.setPadding(new Insets(8, 10, 8, 10));
 
-        box.getChildren().addAll(header, txtAddress);
+        box.getChildren().addAll(header, lblAddressVal);
         return box;
     }
 

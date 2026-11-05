@@ -146,7 +146,7 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private StackPane panelHost;
     @FXML private ScrollPane panelScroll;
 
-    @FXML private Button btnCheckUpdates,btnTestEmail,btnSaveSettings;
+    @FXML private Button btnCheckUpdates,btnTestEmail,btnSaveSettings,btnRemoteAccess;
     @FXML private VBox panelSecurity;
     @FXML private TextField txtSessionTimeoutMinutes, txtSessionWarningMinutes;
     @FXML private ComboBox<String> cmbMfaPolicy;
@@ -549,6 +549,7 @@ public class SettingsController implements ScreenLifecycle {
         if (fragmentLoading || rootInitialized) return;
         rootInitialized = true;
         if(btnTestEmail!=null) org.example.util.UiActionIcons.apply(btnTestEmail,"email","Test Email");
+        if(btnRemoteAccess!=null) org.example.util.UiActionIcons.apply(btnRemoteAccess,"server","Remote Access");
         if(btnSaveSettings!=null) org.example.util.UiActionIcons.apply(btnSaveSettings,"save","Save Company");
         showRequestedSection();
     }
@@ -3915,6 +3916,11 @@ private record AssetPreviewRequest(
 
     private String valueOrEmpty(ComboBox<String> comboBox) {
         return comboBox == null || comboBox.getValue() == null ? "" : comboBox.getValue().trim();
+    }
+
+    @FXML
+    private void openRemoteAccessDialog() {
+        RemoteAccessDialogController.show(panelHost != null && panelHost.getScene() != null ? panelHost.getScene().getWindow() : null);
     }
 
     /* =========================================================

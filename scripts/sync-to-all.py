@@ -31,6 +31,7 @@ REPOS = ["Jasvi-Desktop", "Jasvi-Admin", "Jasvi-UserView", "Jasvi-Mobile"]
 SOURCE_ROOT = Path(r"D:\Antigravity-Dev\Jasvi-Desktop")
 PROTOCOL_FILE = SOURCE_ROOT / "dse-erp-master-protocol.md"
 ORACLE_FILE = SOURCE_ROOT / "oracle.md"
+GEMINI_FILE = SOURCE_ROOT / "GEMINI.md"
 GLOBAL_RULE = Path(r"C:\Users\JATIN DHAMELIYA\.gemini\config\rules\dse-erp-master-protocol.md")
 GLOBAL_GEMINI = Path(r"C:\Users\JATIN DHAMELIYA\.gemini\config\GEMINI.md")
 
@@ -84,6 +85,10 @@ def sync_protocol_and_docs():
         shutil.copy2(PROTOCOL_FILE, GLOBAL_RULE)
         print(f"[OK] Global Rule: {GLOBAL_RULE}")
         synced_count += 1
+    if GLOBAL_GEMINI.parent.exists() and GEMINI_FILE.exists():
+        shutil.copy2(GEMINI_FILE, GLOBAL_GEMINI)
+        print(f"[OK] Global GEMINI: {GLOBAL_GEMINI}")
+        synced_count += 1
 
     # 2. Sync to all existing target repository directories
     for target in TARGET_DIRS:
@@ -94,6 +99,10 @@ def sync_protocol_and_docs():
             if ORACLE_FILE.exists():
                 dest_oracle = target / "oracle.md"
                 shutil.copy2(ORACLE_FILE, dest_oracle)
+
+            if GEMINI_FILE.exists():
+                dest_gemini = target / "GEMINI.md"
+                shutil.copy2(GEMINI_FILE, dest_gemini)
 
             print(f"[OK] Synced to: {target}")
             synced_count += 1

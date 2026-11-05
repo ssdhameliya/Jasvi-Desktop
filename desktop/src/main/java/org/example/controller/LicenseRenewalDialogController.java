@@ -66,6 +66,9 @@ public class LicenseRenewalDialogController {
     @FXML private ComboBox<String> cmbGenDuration;
     @FXML private ComboBox<String> cmbGenFormat;
     @FXML private Button btnGenerateClientLicense;
+    @FXML private Button btnSelfActivateNow;
+    @FXML private Button btnUseMyCompany;
+    @FXML private Button btnUseCurrentMachineId;
     @FXML private TextArea txtGeneratedPreview;
     @FXML private Button btnCopyGeneratedToken;
 
@@ -329,6 +332,96 @@ public class LicenseRenewalDialogController {
             Clipboard.getSystemClipboard().setContent(cb);
             ToastManager.info(btnClose, "Copied", "Generated license token copied to clipboard!");
         }
+    }
+
+    public static void show(javafx.stage.Window owner, int defaultTabIndex) {
+        try {
+            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(LicenseRenewalDialogController.class.getResource("/fxml/pages/LicenseRenewalDialog.fxml"));
+            javafx.scene.Parent root = loader.load();
+            LicenseRenewalDialogController controller = loader.getController();
+            if (controller != null) {
+                controller.selectTab(defaultTabIndex);
+            }
+            javafx.stage.Stage stage = new javafx.stage.Stage();
+            stage.setTitle("Jasvi Desktop Subscription & Licensing");
+            stage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+            if (owner != null) {
+                stage.initOwner(owner);
+            }
+            stage.setScene(new javafx.scene.Scene(root));
+            stage.show();
+        } catch (Exception e) {
+            org.example.util.AppDialogService.error(null, "Licensing", "Could not open Licensing", e.getMessage());
+        }
+    }
+
+    public void selectTab(int index) {
+        Platform.runLater(() -> {
+            if (tabPaneLicensing != null && index >= 0 && index < tabPaneLicensing.getTabs().size()) {
+                tabPaneLicensing.getSelectionModel().select(index);
+            }
+        });
+    }
+
+    @FXML
+    private void handleUseMyCompany() {
+        String comp = lblCompany != null ? lblCompany.getText() : null;
+        if (comp == null || comp.isBlank() || "-".equals(comp) || comp.contains("Evaluation")) {
+            comp = "JASVI INDUSTRIES";
+        }
+        if (txtClientCompany != null) {
+            txtClientCompany.setText(comp);
+        }
+    }
+
+    @FXML
+    private void handleUseCurrentMachineId() {
+        if (txtClientMachineId != null) {
+            txtClientMachineId.setText(HardwareFingerprintUtil.getDisplayMachineId());
+        }
+    }
+
+    @FXML
+    private void handleSelfActivateNow() {
+        handleUseCurrentMachineId();
+        if (txtClientCompany != null && (txtClientCompany.getText() == null || txtClientCompany.getText().isBlank())) {
+            handleUseMyCompany();
+        }
+
+        String company = txtClientCompany != null ? txtClientCompany.getText().trim() : "JASVI INDUSTRIES";
+        String machine = txtClientMachineId != null ? txtClientMachineId.getText().trim() : HardwareFingerprintUtil.getDisplayMachineId();
+        String durChoice = (cmbGenDuration == null || cmbGenDuration.getValue() == null) ? "365" : cmbGenDuration.getValue();
+        int days = durChoice.startsWith("30") ? 30 : (durChoice.startsWith("730") ? 730 : (durChoice.startsWith("1095") ? 1095 : 365));
+        String tier = cmbGenTier != null ? cmbGenTier.getValue().split(" ")[0].trim() : "GOLD";
+        int users = "GOLD".equalsIgnoreCase(tier) ? 5 : ("PLATINUM".equalsIgnoreCase(tier) ? 20 : 1);
+
+        Map<String, Object> req = Map.of(
+                "companyName", company,
+                "machineId", machine,
+                "days", days,
+                "tier", tier,
+                "maxUsers", users
+        );
+
+        UiTaskExecutor.submitAction(
+                "self-activate-now",
+                () -> api.issueClientLicense(req),
+                resp -> {
+                    try {
+                        Object licJsonObj = resp.get("licenseJson");
+                        if (licJsonObj == null) {
+                            throw new IllegalStateException("Missing licenseJson in issue response");
+                        }
+                        api.activate(licJsonObj);
+                        refreshStatus();
+                        selectTab(0);
+                        ToastManager.success(btnClose, "Self-Activation Success", "License activated and locked to this computer successfully!");
+                    } catch (Exception ex) {
+                        AppDialogService.error(btnClose, "Activation Error", "Could not activate generated license", ex.getMessage());
+                    }
+                },
+                err -> AppDialogService.error(btnClose, "Activation Failed", "Could not generate client license", err.getMessage())
+        );
     }
 
     @FXML

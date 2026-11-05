@@ -1,3 +1,15 @@
+# What's New in DSE ERP v11.0.45
+
+### Super Admin Client Registry, Zero-Cost Cloudflare Tunnel Remote Sync, Hardware Mismatch Fix, and Dynamic Client Templates
+- **Master Client Companies Registry (Super Admin Hub)**: Dedicated management screen (`ClientRegistry.fxml`) with 4 colorized KPI cards (Total Sold, Active Licenses, Expiring in 30 Days, ARR), percentage-based dynamic table, and 1-click renewal actions (`Renew +1 Year`, `Custom Days`, `Copy Token`, `Export .jlic`, `WhatsApp Renewal`, `Revoke`).
+- **Zero-Config Cloudflare Tunnel Remote Multi-User Access**: Integrated `CloudflareTunnelService` managing `cloudflared` daemon in a virtual thread. Added `RemoteAccessDialog.fxml` under Settings allowing client companies to sync remote branch offices over HTTPS with zero VPN setup, zero static IPs, and ₹0 server cost.
+- **Hardware-Locked Machine Fingerprint Enforcement & Self-Activation**: Installed strict host hardware validation in `LicenseVerifierService.activateLicense()` before writing to DB, rejecting cross-machine activations with clear error feedback. Added 1-click helper buttons (`[Use Current Machine ID]`, `[Use My Company]`, and `[Activate on This Computer Now]`) to Master Licensor Studio.
+- **Distinct Profile Menu Routing**: "Subscription & Licensing" opens Tab 0 (*Subscription & Machine Activation*); "Master Licensor Studio" opens Tab 1 (*Master Licensor Studio*); "Master Client Registry" opens the client management hub (restricted strictly to `SUPER_ADMIN`).
+- **Client Template Intelligent Regex OCR & Zero Scrollbars**: Replaced static mock rows with intelligent regex OCR detection matching real invoice headers and item columns. Converted the cramped stacked cards into a clean 2-Tab blueprint layout eliminating all internal table scrollbars. Added `[✕ Delete Version]` button.
+- **GST Full Details Dialog — High-Contrast Address & Zero Scrollbars**: Fixed dark theme `-fx-text-fill` for `.text-area`, replaced address box with high-contrast label, and expanded dialog bounds to `1150 x 820` with balanced side-by-side layout eliminating all vertical scrollbars.
+- **Add Client Modal — Complete GST Dossier (880px Layout)**: Expanded the "Add Client via GSTIN" dialog to an 880px two-column layout showing the full GST dossier (Legal Name, Trade Name, GSTIN, Constitution, Taxpayer Type, Dates, Jurisdictions, Address, Goods & Services) with zero scrollbar.
+- **Bill to Tally — Clutter Removal & Dynamic Template Version Selector**: Removed redundant `[+ New Profile]` button. Added `cmbTemplateVersion` dropdown allowing users to select which client template version governs extraction, dynamically generating table columns directly from the active template blueprint with zero mock data.
+
 # What's New in DSE ERP v11.0.44
 
 ### Authoritative Live GST Taxpayer Intelligence, High-Level Document Header Blueprints, 2-Tab Licensor Studio & Multi-Format Licensing

@@ -123,6 +123,7 @@ allowed_current_literals = {
     str((ROOT / "rollback.md").resolve()),
     str((ROOT / "dse-erp-master-protocol.md").resolve()),
     str((ROOT / "oracle.md").resolve()),
+    str((ROOT / "GEMINI.md").resolve()),
 }
 # Prune generated/build/runtime trees before traversal rather than discovering every file and
 # filtering afterwards. This keeps the aggregate release gate fast after Maven/JavaFX evidence runs.

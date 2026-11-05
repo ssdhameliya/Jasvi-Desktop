@@ -30,7 +30,7 @@ public class LicenseSecurityInterceptor implements HandlerInterceptor {
         }
 
         String uri = request.getRequestURI();
-        if (uri.startsWith("/api/license") || uri.startsWith("/api/auth") || uri.startsWith("/api/setup")
+        if (uri.startsWith("/api/license") || uri.startsWith("/api/remote-access") || uri.startsWith("/api/auth") || uri.startsWith("/api/setup")
                 || uri.startsWith("/actuator") || uri.startsWith("/api/health")
                 || uri.endsWith("/verify-gstin") || uri.startsWith("/api/support/search")) {
             return true;
