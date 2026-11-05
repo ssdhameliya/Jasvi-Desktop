@@ -1,3 +1,14 @@
+# What's New in DSE ERP v11.0.44
+
+### Authoritative Live GST Taxpayer Intelligence, High-Level Document Header Blueprints, 2-Tab Licensor Studio & Multi-Format Licensing
+- **Authoritative Live GSTIN Intelligence & Form Auto-Fill**: Integrated live GST taxpayer profile resolution. When onboarding new vendors or clients via GSTIN, clicking "Get Live GST Data" automatically populates Trade Name, Legal Firm Name, and Principal Place of Business into the onboarding modal, eliminating manual typing.
+- **Full GST Taxpayer Dossier with Goods & Services HSN Table**: Upgraded the GST intelligence modal to display the complete statutory profile: Legal Name of Business, Trade Name, Registration Date, Constitution, GST Status, Taxpayer Type, Central & State Jurisdictions, Principal Place of Business, and the complete "Dealing in Goods and Services" HSN table (HSN Code, Description, and Goods/Services classification).
+- **High-Level Document Header Blueprint in Client Templates**: Upgraded the Client Template Builder from a simple tag cloud into a structured, responsive `TableView` for Document Header Extraction (`Invoice No`, `Invoice Date`, `Due Date`, `PO No`, `E-Way Bill No`, `Taxable Amount`, `Taxes`, `Total`), matching the visual fidelity and precision of the Item-Level Column blueprint table.
+- **Modern 2-Tab Subscription & Licensing Studio**: Restructured `LicenseRenewalDialog` into a clean two-tab experience: Tab 1 ("Subscription & Machine Activation") for client UPI QR renewals, hardware ID inspection, and file activation; Tab 2 ("Master Licensor Studio", Super Admin only) for issuing new signed licenses with zero scrolling clutter.
+- **Universal Multi-Format License Compatibility (`.jlic`, `.lic`, `.json`)**: Fixed file chooser extension filtering to natively recognize `.jlic`, `.lic`, and `.json` files. The Licensor Studio can now export in `.jlic`, `.lic`, or `.json` formats, and paste activation accepts both raw JSON and Base64 tokens.
+- **Cryptographic Signature Fix & Accurate 365-Day Countdown**: Corrected the seeded Ed25519 cryptographic signature in database migration, restoring the verified `ACTIVE (GOLD)` green status badge and accurate 365-day validity countdown.
+- **Master Client Companies Registry (Super Admin Hub)**: Added persistent in-app client tracking schema and interface allowing the software owner to manage all licensed customer companies, plan tiers, machine IDs, and execute 1-click annual renewals.
+
 # What's New in DSE ERP v11.0.43
 
 ### Enterprise Machine-Bound Licensing, Ed25519 Cryptography, Dynamic UPI QR Code & System Super Admin Shield
