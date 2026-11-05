@@ -44,3 +44,11 @@ __pycache__/
 
 # Antigravity local agent internal config
 .agents/
+
+# Local rules and infrastructure credentials (must never be committed)
+GEMINI.md
+gemini-desktop.md
+dse-erp-master-protocol.md
+oracle.md
+github.md
+
