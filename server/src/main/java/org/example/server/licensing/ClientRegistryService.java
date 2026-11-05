@@ -23,11 +23,10 @@ public class ClientRegistryService {
     private static final String DEFAULT_PRIV_KEY = "MC4CAQAwBQYDK2VwBCIEIOzrtL2IsC8IKub6TbLVTvXk4kw/FmOmeA0UUEnHFvCA";
 
     private final JpaNativeRepository jdbc;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public ClientRegistryService(JpaNativeRepository jdbc, ObjectMapper objectMapper) {
+    public ClientRegistryService(JpaNativeRepository jdbc) {
         this.jdbc = jdbc;
-        this.objectMapper = objectMapper;
         initDefaultClientsIfEmpty();
     }
 
