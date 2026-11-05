@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for the unified Jasvi ERP ecosystem (`Jasvi-Desktop`, `Jasvi-Admin`, `Jasvi-UserView`, `Jasvi-Mobile`).  
 > **Antigravity Enforcement:** This document is automatically loaded by Antigravity on every conversation. All rules, boundaries, and checklists herein are strictly binding.  
-> **Last Updated:** 2026-11-04 — Full 4-Tier Operational Lifecycle Architecture, 15 Canonical Engineering & UI/UX Rules, OCI Infrastructure Decoupling (`oracle.md`), and Permanent Universal Synchronizer (`scripts/sync-to-all.py`).
+> **Last Updated:** 2026-11-05 — Streamlined 5-Tier Operational Lifecycle, Clubbed Approval & Release Execution Modes, Enhanced Tier 2 Investigation Reporting (Rules Followed, Linked Functionalities Count, Ripple Impact), Post-Release Green Completion Audit with Proactive Defect Disclosure, and Permanent Universal Synchronizer (`scripts/sync-to-all.py`).
 
 ---
 
@@ -31,20 +31,20 @@ All 4 client applications communicate with **one shared Spring Boot backend** an
 
 ---
 
-## 1. The Unified 5-Tier Operational Lifecycle (How Code & Workflows Move)
+## 1. The Unified Operational Lifecycle & Approval Workflow
 
 Code and tasks progress in strictly one safe, orderly, verified direction:
 
 ```
-[ Tier 1: Dev ]       ──►   [ Tier 2: Plan ]      ──►   [ Tier 3: Staging ]   ──►   [ Tier 4: GitHub ]    ──►   [ Tier 5: Google Drive ]
-D:\Antigravity-Dev          Investigation & Plan        D:\GitHub\ReleaseSource     D:\GitHub\                  JavaFx / <Repo> Folder
-Active coding,              End-to-End Analysis.        Sync on "approved".         PR, Auto-Merge, Tag         In-place synced clean
-compile & test.             Zero edits without OK.      Local IntelliJ (.idea safe) on "push to github".        cloud project mirror.
+[ Tier 1: Dev ]       ──►   [ Tier 2: Plan ]      ──►   [ Mode A: "approved" ]       ──►   [ Mode B: "push to github" ]   ──►   [ Tier 5: GDrive ]
+D:\Antigravity-Dev          Stack Investigation         Strictly Local Tier 1 Fix          Universal Sync to All Folders        In-place synced clean
+Active dev,                 Rules & Linked Function     Local compile & tests.             PR, Auto-Merge, Tag until Green      cloud project mirror.
+clean compile & test.       Inventory & Ripple Impact.  Zero sync/push to other tiers.     Post-Release Green Audit Report.
 ```
 
 ### 1.1 Tier 1: Antigravity Active Dev Workspace (`D:\Antigravity-Dev\<Repo>`)
 - The AI's active workshop where all active code editing, refactoring, unit tests, and compiler checks (`mvn clean test`, etc.) occur first.
-- Zero extraneous files are permitted here.
+- Zero extraneous files (`.txt`, arbitrary `.md`, defect logs) are permitted here.
 
 ### 1.2 Tier 2: Upfront Architectural Investigation & Root Cause Plan Phase
 - Conducted strictly under Tier 1 workspace (`D:\Antigravity-Dev\<Repo>`).
@@ -55,34 +55,52 @@ compile & test.             Zero edits without OK.      Local IntelliJ (.idea sa
   - **API & REST Endpoints:** Spring Boot `@RestController`, routes, query parameters, status codes.
   - **Server Services & Repositories:** Business logic, transactions, entity relationships, query performance.
   - **Database & Migrations:** PostgreSQL schema, Flyway migrations, constraints, foreign keys.
-- Present a clear report containing:
+- **Mandatory Investigation Presentation Structure:**
   - **The Why (Root Cause):** Grounded in concrete code evidence.
-  - **The How (Step-by-Step Plan):** Concrete modifications to apply.
-  - **Impacted Files & Line Ranges:** Full inventory of all files touched.
-  - **Multi-Hop Linkage Analysis:** Downstream ripple effect (Function A ──► Function B ──► Screens 1 through 10+).
+  - **The How (Step-by-Step Plan):** Concrete modifications to apply with impacted files and line ranges.
+  - **Canonical Rules Followed:** Explicit list of which canonical rules were evaluated and applied (e.g., Rule 4 Java 25, Rule 5 Theme Parity & Zero Color Leaks, Rule 6 Colorized KPIs, Rule 7 Dynamic Tables, Rule 8 Colorized Actions, Rule 9 Uniform Icons, Rule 11 Colorized Status, Rule 12 Responsive Bounds, Rule 13 Settings Dates, etc.).
+  - **Linked Functionality Count & Inventory:** Exact count and list of all linked functionalities, screens, and endpoints connected to this code path.
+  - **Ripple Impact Assessment:** Concrete breakdown of how many downstream functionalities will be influenced or touched.
   - **Explicit Zero-Regression Guarantee:** Verifiable safeguards proving existing functionality will not break.
 - **STRICT BINDING CONSTRAINT:** **NEVER build, modify, or update code until the user has explicitly confirmed and approved the plan.**
 
-### 1.3 Tier 3: User Local Approval Phase ("approved" / "apply fix")
-- Triggered when the user confirms with **"approved"** (or requests local application).
-- Apply the approved fix strictly in the Tier 1 workspace (`D:\Antigravity-Dev\<Repo>`).
-- Run local compiler checks, unit/integration tests, and automated release gates (`python scripts/audit-release-gates.py`).
-- Synchronize all local testing copies using `python scripts/sync-to-all.py --code --repo <Repo>`:
-  - **Tier 2 (User's Protected IntelliJ Copy):** `D:\JavaProject\<Repo>` (IntelliJ `.idea` directory is strictly protected and never overwritten).
-  - **Tier 3 (Verified Pre-Release Staging Mirror):** `D:\GitHub\ReleaseSource-<Repo>`.
-- Provide the user with exact verification steps for local testing.
+### 1.3 Clubbed Tier 3 & Tier 4: Approval & Execution Modes
+The execution and release phases are strictly governed by the user's explicit command:
 
-### 1.4 Tier 4: User GitHub Release Authorization ("approved and push to github" / "sync and release")
-- Triggered when the user explicitly confirms **"approved and push to github"** (or "release the code").
-- Ensure the fix is verified in Tier 1 and synced across Tier 2, Tier 3, and Tier 4 (`D:\GitHub\<Repo>`).
-- In Tier 4 repository:
-  - Create a release branch (`release-vXX.X.XX`).
-  - Commit and push to remote.
-  - Open a Pull Request (PR) to `main`.
-  - Enable auto-merge (or merge once all PR CI checks turn GREEN).
-  - Monitor `main` branch until CI workflow run is completely GREEN.
-  - Create and push release tag (`vXX.X.XX`) on the verified green `main` commit to kick off the official release build.
-  - Monitor and confirm the release build completes successfully.
+- **Mode A: Local Dev Approval (`"approved"` / `"apply fix"`):**
+  - Triggered when the user confirms with **"approved"** (or requests local application).
+  - Antigravity works strictly in Tier 1 (`D:\Antigravity-Dev\<Repo>`) to apply and resolve all issues, defects, and enhancements.
+  - Runs local compiler checks, unit/integration tests, and automated release gates (`python scripts/audit-release-gates.py`).
+  - **STRICT LOCAL ISOLATION:** All code changes remain strictly inside Antigravity's active dev workspace (`D:\Antigravity-Dev\<Repo>`).
+  - **Does NOT push to GitHub.**
+  - **Does NOT sync to other folders** (Tier 2 IntelliJ copy `D:\JavaProject` and Tier 3 Staging mirror `D:\GitHub\ReleaseSource` are not touched).
+  - Reports local verification results to the user.
+
+- **Mode B: GitHub Release & Universal Sync (`"approved and push to github"` / `"sync and push to github"` / `"sync and release"`):**
+  - Triggered when the user explicitly confirms **"approved and push to github"** or **"sync and push to github"**.
+  - Antigravity applies all approved fixes in Tier 1 (`D:\Antigravity-Dev\<Repo>`) and validates local compiler and release gates.
+  - **Synchronizes all copies to all folders:**
+    - **Tier 2 (User's Protected IntelliJ Copy):** `D:\JavaProject\<Repo>` (IntelliJ `.idea` directory is strictly protected and never overwritten).
+    - **Tier 3 (Verified Pre-Release Staging Mirror):** `D:\GitHub\ReleaseSource-<Repo>`.
+    - **Tier 4 (GitHub Production Repo):** `D:\GitHub\<Repo>`.
+  - In Tier 4 repository (`D:\GitHub\<Repo>`):
+    - Creates a release branch (`release-vXX.X.XX`).
+    - Commits and pushes to remote.
+    - Opens a Pull Request (PR) to `main`.
+    - Enables auto-merge (or merges once all PR CI checks turn GREEN).
+    - Monitors `main` branch until CI workflow run is completely GREEN.
+    - Creates and pushes release tag (`vXX.X.XX`) on the verified green `main` commit to trigger official release packaging.
+    - Monitors and confirms release build and server deployment complete successfully.
+
+### 1.4 Post-Release Green Completion Audit (Mandatory Once GitHub is Green)
+Once GitHub Actions CI, binaries, and deployments are completely **GREEN**, Antigravity MUST output a structured final audit containing:
+1. **Original Scope Reconciliation:** Exact recap of what was requested and approved.
+2. **The How (Implementation Details):** Concrete breakdown of how each item was built/fixed, including exact file paths, classes, and line references.
+3. **Linked Functionalities Impacted:** Full inventory and exact count of all functionalities linked to and affected by this fix.
+4. **Zero-Regression Guarantee & Proactive Defect Transparency:**
+   - Verifiable confirmation that no existing workflows were broken.
+   - **Mandatory Defect Transparency:** If ANY regression or unexpected failure was discovered during local testing or CI builds, Antigravity MUST explicitly declare:
+     > *"During automated test execution / CI validation, regression [Issue X] was detected in [Component Y]. It was immediately diagnosed, corrected, and verified before release."*
 
 ### 1.5 Tier 5: Cloud Backup Mirror (Google Drive Integration)
 - Keeps all 4 ecosystem repositories permanently backed up and synchronized to Google Drive in both **uncompressed source directory trees** (for mobile Gemini app direct reading and AI indexing) and **in-place clean snapshot archives (`.zip`)**.
@@ -104,7 +122,7 @@ compile & test.             Zero edits without OK.      Local IntelliJ (.idea sa
 
 ---
 
-## 2. The 15 Canonical Operating, Engineering & UI/UX Rules
+## 2. The 16 Canonical Operating, Engineering & UI/UX Rules
 
 ### Rule 1: Zero Extraneous Files Across All Copies (No .txt, .log, arbitrary .md, defect dumps)
 - **NEVER** create, add, or sync any extraneous file into ANY repository workspace or tier (`D:\Antigravity-Dev\`, `D:\JavaProject\`, `D:\GitHub\ReleaseSource-*`, `D:\GitHub\`).
@@ -115,8 +133,8 @@ compile & test.             Zero edits without OK.      Local IntelliJ (.idea sa
 - **Mandatory Universal Protocol Synchronization:** Whenever `dse-erp-master-protocol.md`, `oracle.md`, or `GEMINI.md` is updated, run `python scripts/sync-to-all.py` to synchronize across all 4 ecosystem repositories and tiers.
 
 ### Rule 2: Automatic Next-Release Version Targeting
-- Once an application version is built, tagged, or live (e.g. `v11.0.37`), any subsequent user request, bug fix, or feature automatically targets the **NEXT incremental release version** (e.g. `v11.0.38`).
-- Automatically manage version numbering in `.mvn/maven.config`, release notes in `release-notes.md`, and Flyway migration file prefixes (e.g. `V11_0_38__*.sql`).
+- Once an application version is built, tagged, or live (e.g. `v11.0.44`), any subsequent user request, bug fix, or feature automatically targets the **NEXT incremental release version** (e.g. `v11.0.45`).
+- Automatically manage version numbering in `.mvn/maven.config`, release notes in `release-notes.md`, and Flyway migration file prefixes (e.g. `V11_0_45__*.sql`).
 
 ### Rule 3: Cumulative Context & Multi-Question Synthesis (Zero Dropped Questions)
 - When the user asks follow-up questions, adds constraints, or poses 10 to 20 inquiries across multiple turns, answering new questions must **NEVER** cause prior questions or findings to be lost.
@@ -178,6 +196,17 @@ compile & test.             Zero edits without OK.      Local IntelliJ (.idea sa
   3. **Lean Code & Anti-Bloat Gate (`ponytail`):** Audits for minimal surgical diffs, zero dead code, and zero dependency creep.
   4. **Application Vendor Plugin Health Gate (`jspdf`, `xlsx`, `swiper`):** Verifies availability guards (`window.jspdf`, `window.XLSX`, `window.Swiper`) and preserves pure deterministic calculations (`DocumentCalculationEngine.js`).
   5. **Desktop Theme Ownership & Release Contract Gate (`SharedUiOwnershipContractTest` & `audit-release-gates.py`):** Enforces zero controller color leaks and 100% gate compliance before syncing or releasing.
+
+### Rule 16: Mandatory Scope Reconciliation & Build Completion Audit (100% Delivery Guarantee)
+- **Zero Dropped or Deferred Scope Items:** Every single deliverable agreed upon in an approved scope plan, scope artifact (`scope*.md`), or user request prompt is strictly binding. No build, PR, or release may be declared complete until 100% of all scoped items are fully implemented, verified, and reconciled against the codebase.
+- **Mandatory End-of-Build Audit Summary:** At the completion of every build or release turn, Antigravity MUST output a structured **Scope Reconciliation Audit Table** containing:
+  1. **Feature / Component:** Every scoped feature, screen, endpoint, and bug fix.
+  2. **Scoped Requirement:** Concrete specification promised in the scope.
+  3. **Built Deliverable:** Exact file paths, methods, and line ranges where the code was built.
+  4. **Rule & Quality Gate Compliance:** Verification against canonical rules (Rule 5 Theme Parity & Zero Color Leaks, Rule 6 Colorized KPI Cards, Rule 7 Dynamic Tables, Rule 8 Colorized Actions, Rule 9 Uniform Icons, Rule 11 Colorized Status Badges, Rule 12 Responsive Modal Bounds).
+  5. **Status:** Explicit verification (`[100% COMPLETE - VERIFIED]`).
+- **Zero Silent Deferrals:** If an item cannot be completed due to missing technical dependencies, it must NEVER be silently omitted. It must be explicitly highlighted to the user with actionable next steps, keeping the scope transparent and unbroken.
+- **Mandatory Proactive Defect Disclosure:** If ANY regression was identified and resolved during the build, test, or CI cycle, it must be explicitly reported to the user in the completion audit.
 
 ---
 
