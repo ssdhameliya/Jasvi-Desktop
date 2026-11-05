@@ -1790,11 +1790,11 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private void openBackupRestore() { openPage(null, "Backup & Restore", "/fxml/pages/BackupRestore.fxml"); }
     @FXML private void openDataImport() { openPage(null, "Data Import", "/fxml/pages/Import.fxml"); }
     @FXML private void openLicenseRenewalDialog() {
-        LicenseRenewalDialogController.show(contentPane != null && contentPane.getScene() != null ? contentPane.getScene().getWindow() : null, 0);
+        LicenseRenewalDialogController.show(contentPane != null && contentPane.getScene() != null ? contentPane.getScene().getWindow() : null);
     }
 
     @FXML private void openMasterLicensorStudio() {
-        LicenseRenewalDialogController.show(contentPane != null && contentPane.getScene() != null ? contentPane.getScene().getWindow() : null, 1);
+        openClientRegistry();
     }
 
     @FXML private void openClientRegistry() {

@@ -1,3 +1,19 @@
+# What's New in DSE ERP v11.0.46
+
+### Complete Licensing Architecture Streamline, Zero-Scrollbar Modals, Auto-Binding Host Engine & Full UI Parity
+- **Elimination of Screen Load Race Condition (Rule 20)**: Removed premature data loading from `ClientRegistryController.initialize()`, delegating data loading strictly to `onScreenShown()`, guarded with atomic `UiTaskExecutor.actionInProgress()` verification to permanently prevent "This action is already in progress" error modals.
+- **Canonical ERP Actions MenuButton (Rule 8 & Rule 9)**: Replaced disparate mini-buttons in Client Registry table with the standard `MenuButton("Actions")` featuring `table-action-menu`, `approved-row-action`, and canonical icons (`Renew +1 Year`, `Custom Renewal Days...`, `Copy License Token`, `Export .jlic File`, `Send via WhatsApp`, `Revoke License`).
+- **Flagship Dashboard KPI Parity (Rule 6)**: Transformed Client Registry KPI summaries into canonical horizontal cards (`standard-kpi-card,sales-metric-card,kpi-blue/green/orange/purple`) featuring left-aligned icons, caption labels, trend pills, prominent metric values, and descriptive subtitles.
+- **Zero Truncation Guarantee on Machine Hardware IDs (Rule 12)**: Adjusted column widths in Client Registry to allocate 20% to `colMachineId`, ensuring 19-character hardware IDs (`XXXX-XXXX-XXXX-XXXX`) render fully without ellipsis dots (`...`).
+- **Settings-Driven Date Formatting (Rule 13)**: Replaced hardcoded ISO dates in Client Registry with user-configured date formatting via `BusinessClock.formatDate()`.
+- **Dedicated Single-View Subscription Dialog (Rule 12 & Rule 20)**: Eliminated tabs and ScrollPane from `LicenseRenewalDialog.fxml`, creating a spacious, modern 2-card layout (`960x720`) with **zero scrollbars**. Features dynamic Bharat UPI QR renewal, live hardware status, and 1-click computer activation.
+- **1-Click Host Computer Auto-Binding & Activation**: Wired `[Activate on This Computer Now]` to read the active machine hardware ID directly, generate and cryptographically sign an authentic license, apply it to `app_license`, and activate immediately without hardware lock rejections.
+- **Clean Navigation Separation (Rule 20)**: Separated user subscription renewal from Master Licensor Studio. "Subscription & Licensing" opens the focused single-view dialog; "Master Licensor Studio" routes directly to the full-screen `ClientRegistry.fxml` hub.
+- **Hardware Display ID Sanitization**: Updated `formatDisplayId()` across `LicenseVerifierService` and `HardwareFingerprintUtil` to strip hyphens and non-hex characters before chunking, permanently eliminating mangled strings like `"F12D--C2C-0-AA-DE-1"`.
+- **Header Icon Normalization (Rule 9)**: Mapped `"shield"` alias to `fas-shield-alt` in `IconFactory`, resolving the fallback question mark `?` icon.
+- **Full GST Intelligence & Composite Address Assembly**: Fixed Registered Address box in `GstFullDetailsDialog` to display full physical premises addresses, and expanded dialog bounds to `1200x860` with zero content clipping.
+- **Clean Architecture & Dead Code Elimination (Rule 17)**: Removed obsolete `handleNewClientProfile()` stub and hardcoded sample GSTINs from `BillToTallyController`.
+
 # What's New in DSE ERP v11.0.45
 
 ### Super Admin Client Registry, Zero-Cost Cloudflare Tunnel Remote Sync, Hardware Mismatch Fix, and Dynamic Client Templates

@@ -37,7 +37,7 @@ public class ClientRegistryService {
                 // Seed anchor client
                 registerClient(Map.of(
                         "companyName", "JASVI INDUSTRIES",
-                        "machineId", "F12D-C2C0-AADE-15EB",
+                        "machineId", HardwareFingerprintUtil.getDisplayMachineId(),
                         "contactPerson", "Bipin Dhameliya",
                         "phone", "9597544008",
                         "email", "jasviindustries@gmail.com",

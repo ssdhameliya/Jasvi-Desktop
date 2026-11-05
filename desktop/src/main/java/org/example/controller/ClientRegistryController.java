@@ -17,6 +17,7 @@ import org.example.api.licensing.ClientRegistryApiClient;
 import org.example.navigation.ScreenLifecycle;
 import org.example.shared.licensing.HardwareFingerprintUtil;
 import org.example.util.AppDialogService;
+import org.example.util.BusinessClock;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
 import org.example.util.OwnedDialog;
@@ -48,10 +49,6 @@ public class ClientRegistryController implements ScreenLifecycle {
     @FXML private Button btnRefresh;
     @FXML private Button btnResetFilter;
 
-    @FXML private VBox cardKpiTotal;
-    @FXML private VBox cardKpiActive;
-    @FXML private VBox cardKpiExpiring;
-    @FXML private VBox cardKpiArr;
     @FXML private StackPane kpiTotalIcon;
     @FXML private StackPane kpiActiveIcon;
     @FXML private StackPane kpiExpiringIcon;
@@ -98,21 +95,20 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         setupTableColumns();
         setupFiltering();
-        loadDataAsync();
     }
 
     private void setupTableColumns() {
         if (tableClients == null) return;
 
         // Dynamic responsive column widths per Rule 7 (sum = 1.00)
-        colStatus.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.09));
+        colStatus.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.08));
         colCompany.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.20));
-        colMachineId.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.16));
-        colContact.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.15));
+        colMachineId.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.20));
+        colContact.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.14));
         colTier.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.10));
         colAnnualFee.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.09));
-        colValidUntil.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.10));
-        colActions.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.11));
+        colValidUntil.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.09));
+        colActions.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.10));
 
         // 1. Status Column with Semantic Badges (Rule 11)
         colStatus.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("status", "ACTIVE"))));
@@ -177,14 +173,13 @@ public class ClientRegistryController implements ScreenLifecycle {
             return new SimpleStringProperty("₹3,500.00");
         });
 
-        // 7. Valid Until
+        // 7. Valid Until (Rule 13: settings-driven date formatting)
         colValidUntil.setCellValueFactory(cell -> {
             Object vu = cell.getValue().get("valid_until");
             if (vu != null) {
                 String str = vu.toString();
                 try {
-                    Instant inst = Instant.parse(str);
-                    return new SimpleStringProperty(DISPLAY_DATE.format(inst.atZone(java.time.ZoneId.systemDefault())));
+                    return new SimpleStringProperty(BusinessClock.formatDate(str));
                 } catch (Exception ignored) {
                     return new SimpleStringProperty(str.length() > 10 ? str.substring(0, 10) : str);
                 }
@@ -194,64 +189,65 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         // 8. Colorized Actions (Rule 8 & 9)
         colActions.setCellFactory(col -> new TableCell<>() {
-            private final Button btnRenew = new Button();
-            private final Button btnMore = new Button();
-            private final HBox box = new HBox(6, btnRenew, btnMore);
+            private final MenuButton actionsBtn = new MenuButton("Actions");
 
             {
-                box.setAlignment(Pos.CENTER);
-                btnRenew.setGraphic(IconFactory.compactIcon("refresh", 13));
-                btnRenew.setTooltip(new Tooltip("Renew +1 Year"));
-                btnRenew.getStyleClass().addAll("btn-table-action", "btn-renew-action");
+                actionsBtn.getStyleClass().addAll("table-action-menu", "approved-row-action");
+                actionsBtn.setGraphic(IconFactory.compactIcon("actions", 14));
+                actionsBtn.setContentDisplay(ContentDisplay.LEFT);
+                actionsBtn.setGraphicTextGap(6);
 
-                btnMore.setGraphic(IconFactory.compactIcon("more", 13));
-                btnMore.setTooltip(new Tooltip("More Actions"));
-                btnMore.getStyleClass().addAll("btn-table-action", "btn-more-action");
-
-                btnRenew.setOnAction(e -> {
+                MenuItem miRenew = new MenuItem("Renew (+1 Year)");
+                miRenew.setGraphic(IconFactory.compactIcon("refresh", 13));
+                miRenew.setOnAction(e -> {
                     Map<String, Object> item = getTableView().getItems().get(getIndex());
-                    handleRenewClient(item, 365);
+                    if (item != null) handleRenewClient(item, 365);
                 });
 
-                btnMore.setOnAction(e -> {
+                MenuItem miRenewCustom = new MenuItem("Custom Renewal Days...");
+                miRenewCustom.setGraphic(IconFactory.compactIcon("calendar", 13));
+                miRenewCustom.setOnAction(e -> {
                     Map<String, Object> item = getTableView().getItems().get(getIndex());
-                    showContextMenu(item, btnMore);
+                    if (item != null) promptCustomRenewal(item);
                 });
+
+                MenuItem miCopyToken = new MenuItem("Copy License Token");
+                miCopyToken.setGraphic(IconFactory.compactIcon("copy", 13));
+                miCopyToken.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) copyLicenseToken(item);
+                });
+
+                MenuItem miExport = new MenuItem("Export .jlic File");
+                miExport.setGraphic(IconFactory.compactIcon("download", 13));
+                miExport.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) exportLicenseFile(item);
+                });
+
+                MenuItem miWhatsApp = new MenuItem("Send via WhatsApp");
+                miWhatsApp.setGraphic(IconFactory.compactIcon("share", 13));
+                miWhatsApp.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) sendWhatsApp(item);
+                });
+
+                MenuItem miRevoke = new MenuItem("Revoke License");
+                miRevoke.setGraphic(IconFactory.compactIcon("delete", 13));
+                miRevoke.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) handleRevokeClient(item);
+                });
+
+                actionsBtn.getItems().addAll(miRenew, miRenewCustom, miCopyToken, miExport, miWhatsApp, new SeparatorMenuItem(), miRevoke);
             }
 
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                setGraphic(empty ? null : box);
+                setGraphic(empty ? null : actionsBtn);
             }
         });
-    }
-
-    private void showContextMenu(Map<String, Object> item, Button anchor) {
-        ContextMenu menu = new ContextMenu();
-
-        MenuItem miRenewCustom = new MenuItem("Custom Renewal Days...");
-        miRenewCustom.setGraphic(IconFactory.compactIcon("calendar", 14));
-        miRenewCustom.setOnAction(e -> promptCustomRenewal(item));
-
-        MenuItem miCopyToken = new MenuItem("Copy License Token");
-        miCopyToken.setGraphic(IconFactory.compactIcon("copy", 14));
-        miCopyToken.setOnAction(e -> copyLicenseToken(item));
-
-        MenuItem miExport = new MenuItem("Export .jlic File");
-        miExport.setGraphic(IconFactory.compactIcon("download", 14));
-        miExport.setOnAction(e -> exportLicenseFile(item));
-
-        MenuItem miWhatsApp = new MenuItem("Send via WhatsApp");
-        miWhatsApp.setGraphic(IconFactory.compactIcon("share", 14));
-        miWhatsApp.setOnAction(e -> sendWhatsApp(item));
-
-        MenuItem miRevoke = new MenuItem("Revoke License");
-        miRevoke.setGraphic(IconFactory.compactIcon("delete", 14));
-        miRevoke.setOnAction(e -> handleRevokeClient(item));
-
-        menu.getItems().addAll(miRenewCustom, miCopyToken, miExport, miWhatsApp, new SeparatorMenuItem(), miRevoke);
-        menu.show(anchor, javafx.geometry.Side.BOTTOM, 0, 0);
     }
 
     private void setupFiltering() {
@@ -286,6 +282,9 @@ public class ClientRegistryController implements ScreenLifecycle {
     }
 
     private void loadDataAsync() {
+        if (UiTaskExecutor.actionInProgress("load-client-registry")) {
+            return;
+        }
         UiTaskExecutor.submitAction(
                 "load-client-registry",
                 () -> {

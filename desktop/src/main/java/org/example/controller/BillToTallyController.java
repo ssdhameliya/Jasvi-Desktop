@@ -828,28 +828,4 @@ public class BillToTallyController implements ScreenLifecycle {
             return new byte[0];
         }
     }
-
-    @FXML
-    public void handleNewClientProfile() {
-        TextInputDialog d = new org.example.util.OwnedTextInputDialog();
-        d.setTitle("New Client Profile");
-        d.setHeaderText("Create Client Profile for Bill-to-Tally");
-        d.setContentText("Client Company Name:");
-        Optional<String> res = d.showAndWait();
-        if (res.isPresent() && !res.get().isBlank()) {
-            String name = res.get().trim();
-            UiTaskExecutor.submitAction(
-                    "create-client-profile",
-                    () -> api.saveProfile(new TallyAutomationApiClient.ClientProfileDto(
-                            null, name, name, "24AABCA0000A1Z1", name, name, "", "ACTIVE", "Regular", "24", "ITEM",
-                            "Purchase Account", "Round Off", true, true, false, false, "{}"
-                    )),
-                    created -> {
-                        loadClientProfiles();
-                        ToastManager.success(tblBills, "Profile Created", "Profile '" + created.clientName() + "' created.");
-                    },
-                    failure -> ToastManager.error(tblBills, "Profile Error", failure.getMessage())
-            );
-        }
-    }
 }
