@@ -165,14 +165,18 @@ public final class HardwareFingerprintUtil {
     }
 
     private static String formatDisplayId(String hash) {
-        if (hash == null || hash.length() < 16) {
+        if (hash == null) {
             return "JASVI-UNASSIGNED";
         }
+        String clean = hash.replace("-", "").replaceAll("[^A-Fa-f0-9]", "");
+        if (clean.length() < 16) {
+            return hash.trim().isEmpty() ? "JASVI-UNASSIGNED" : hash.trim();
+        }
         return String.format("%s-%s-%s-%s",
-                hash.substring(0, 4),
-                hash.substring(4, 8),
-                hash.substring(8, 12),
-                hash.substring(12, 16)
+                clean.substring(0, 4),
+                clean.substring(4, 8),
+                clean.substring(8, 12),
+                clean.substring(12, 16)
         );
     }
 }

@@ -10,8 +10,8 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.example.api.ApiRuntime;
@@ -51,26 +51,12 @@ public class LicenseRenewalDialogController {
     @FXML private Label lblValidUntil;
     @FXML private Label lblDaysRemaining;
 
+    @FXML private Button btnSelfActivateNow;
     @FXML private Button btnBrowseLicenseFile;
     @FXML private Label lblSelectedFile;
     @FXML private TextArea txtRawLicensePayload;
     @FXML private Button btnApplyActivation;
     @FXML private Button btnClose;
-
-    @FXML private TabPane tabPaneLicensing;
-    @FXML private Tab tabSubscription;
-    @FXML private Tab tabMasterLicensor;
-    @FXML private TextField txtClientCompany;
-    @FXML private TextField txtClientMachineId;
-    @FXML private ComboBox<String> cmbGenTier;
-    @FXML private ComboBox<String> cmbGenDuration;
-    @FXML private ComboBox<String> cmbGenFormat;
-    @FXML private Button btnGenerateClientLicense;
-    @FXML private Button btnSelfActivateNow;
-    @FXML private Button btnUseMyCompany;
-    @FXML private Button btnUseCurrentMachineId;
-    @FXML private TextArea txtGeneratedPreview;
-    @FXML private Button btnCopyGeneratedToken;
 
     private final LicenseApiClient api = new LicenseApiClient();
     private final ObjectMapper json = ApiRuntime.JSON;
@@ -79,28 +65,13 @@ public class LicenseRenewalDialogController {
     @FXML
     private void initialize() {
         if (headerIconHolder != null) {
-            headerIconHolder.getChildren().setAll(IconFactory.compactIcon("shield", 18));
+            headerIconHolder.getChildren().setAll(IconFactory.compactIcon("security", 20));
         }
-        txtMachineId.setText(HardwareFingerprintUtil.getDisplayMachineId());
+        if (txtMachineId != null) {
+            txtMachineId.setText(HardwareFingerprintUtil.getDisplayMachineId());
+        }
         renderUpiQrCode("3500.00");
         refreshStatus();
-
-        boolean isSuper = org.example.service.SessionService.isSuperAdmin();
-        if (!isSuper && tabPaneLicensing != null && tabMasterLicensor != null) {
-            tabPaneLicensing.getTabs().remove(tabMasterLicensor);
-        }
-        if (cmbGenTier != null) {
-            cmbGenTier.getItems().setAll("GOLD (5 Users)", "SILVER (1 User)", "PLATINUM (20 Users)");
-            cmbGenTier.getSelectionModel().selectFirst();
-        }
-        if (cmbGenDuration != null) {
-            cmbGenDuration.getItems().setAll("365 Days (1 Year)", "730 Days (2 Years)", "30 Days (Evaluation Trial)", "1095 Days (3 Years)");
-            cmbGenDuration.getSelectionModel().selectFirst();
-        }
-        if (cmbGenFormat != null) {
-            cmbGenFormat.getItems().setAll("Jasvi Signed License (*.jlic)", "Enterprise License (*.lic)", "Universal JSON License (*.json)");
-            cmbGenFormat.getSelectionModel().selectFirst();
-        }
     }
 
     private void renderUpiQrCode(String amount) {
@@ -126,9 +97,15 @@ public class LicenseRenewalDialogController {
                     return baos.toByteArray();
                 },
                 pngBytes -> {
-                    imgUpiQr.setImage(new Image(new ByteArrayInputStream(pngBytes)));
-                    lblAmountDisplay.setText("₹" + amount + " + GST = ₹4,130 / Year");
-                    lblVpaDisplay.setText("VPA: jasviindustries@icici");
+                    if (imgUpiQr != null) {
+                        imgUpiQr.setImage(new Image(new ByteArrayInputStream(pngBytes)));
+                    }
+                    if (lblAmountDisplay != null) {
+                        lblAmountDisplay.setText("₹" + amount + " + GST = ₹4,130 / Year");
+                    }
+                    if (lblVpaDisplay != null) {
+                        lblVpaDisplay.setText("VPA: jasviindustries@icici");
+                    }
                 },
                 err -> AppDialogService.error(btnClose, "QR Render Error", "Failed to render UPI QR", err.getMessage())
         );
@@ -140,8 +117,10 @@ public class LicenseRenewalDialogController {
                 api::getStatus,
                 this::applyStatus,
                 err -> {
-                    lblHeaderBadge.setText("OFFLINE / UNVERIFIED");
-                    lblHeaderBadge.getStyleClass().setAll("status-badge", "badge-warning");
+                    if (lblHeaderBadge != null) {
+                        lblHeaderBadge.setText("OFFLINE / UNVERIFIED");
+                        lblHeaderBadge.getStyleClass().setAll("status-badge", "badge-warning");
+                    }
                 }
         );
     }
@@ -149,45 +128,55 @@ public class LicenseRenewalDialogController {
     private void applyStatus(LicenseApiClient.LicenseStatusDto dto) {
         if (dto == null) return;
 
-        lblCompany.setText(dto.companyName() != null ? dto.companyName() : "-");
-        lblTier.setText(dto.tier() != null ? dto.tier() : "SILVER");
-        lblValidUntil.setText(dto.validUntil() != null
-                ? DateTimeFormatter.ISO_INSTANT.format(dto.validUntil()) : "-");
-        lblDaysRemaining.setText(dto.daysRemaining() + " Days");
+        if (lblCompany != null) lblCompany.setText(dto.companyName() != null ? dto.companyName() : "-");
+        if (lblTier != null) lblTier.setText(dto.tier() != null ? dto.tier() : "GOLD");
+        if (lblValidUntil != null) {
+            lblValidUntil.setText(dto.validUntil() != null
+                    ? DateTimeFormatter.ISO_INSTANT.format(dto.validUntil()) : "-");
+        }
+        if (lblDaysRemaining != null) lblDaysRemaining.setText(dto.daysRemaining() + " Days");
 
-        lblHeaderBadge.getStyleClass().clear();
-        lblHeaderBadge.getStyleClass().add("status-badge");
+        if (lblHeaderBadge != null) {
+            lblHeaderBadge.getStyleClass().clear();
+            lblHeaderBadge.getStyleClass().add("status-badge");
 
-        switch (dto.status()) {
-            case "ACTIVE" -> {
-                lblHeaderBadge.setText("ACTIVE");
-                lblHeaderBadge.getStyleClass().add("badge-success");
-            }
-            case "EXPIRING_SOON" -> {
-                lblHeaderBadge.setText("EXPIRING IN " + dto.daysRemaining() + " DAYS");
-                lblHeaderBadge.getStyleClass().add("badge-warning");
-            }
-            case "EXPIRED" -> {
-                lblHeaderBadge.setText("EXPIRED");
-                lblHeaderBadge.getStyleClass().add("badge-danger");
-            }
-            case "CLOCK_TAMPERED" -> {
-                lblHeaderBadge.setText("CLOCK TAMPERED");
-                lblHeaderBadge.getStyleClass().add("badge-danger");
-            }
-            default -> {
-                lblHeaderBadge.setText(dto.status());
-                lblHeaderBadge.getStyleClass().add("badge-info");
+            switch (dto.status()) {
+                case "ACTIVE" -> {
+                    lblHeaderBadge.setText("ACTIVE");
+                    lblHeaderBadge.getStyleClass().add("badge-active");
+                }
+                case "EXPIRING_SOON" -> {
+                    lblHeaderBadge.setText("EXPIRING IN " + dto.daysRemaining() + " DAYS");
+                    lblHeaderBadge.getStyleClass().add("badge-warning");
+                }
+                case "EXPIRED" -> {
+                    lblHeaderBadge.setText("EXPIRED");
+                    lblHeaderBadge.getStyleClass().add("badge-cancelled");
+                }
+                case "MACHINE_MISMATCH" -> {
+                    lblHeaderBadge.setText("MACHINE MISMATCH");
+                    lblHeaderBadge.getStyleClass().add("badge-cancelled");
+                }
+                case "CLOCK_TAMPERED" -> {
+                    lblHeaderBadge.setText("CLOCK TAMPERED");
+                    lblHeaderBadge.getStyleClass().add("badge-cancelled");
+                }
+                default -> {
+                    lblHeaderBadge.setText(dto.status());
+                    lblHeaderBadge.getStyleClass().add("badge-warning");
+                }
             }
         }
     }
 
     @FXML
     private void handleCopyMachineId() {
-        ClipboardContent content = new ClipboardContent();
-        content.putString(txtMachineId.getText());
-        Clipboard.getSystemClipboard().setContent(content);
-        ToastManager.info(btnClose, "Copied", "Machine ID copied: " + txtMachineId.getText());
+        if (txtMachineId != null) {
+            ClipboardContent content = new ClipboardContent();
+            content.putString(txtMachineId.getText());
+            Clipboard.getSystemClipboard().setContent(content);
+            ToastManager.info(btnClose, "Copied", "Machine ID copied: " + txtMachineId.getText());
+        }
     }
 
     @FXML
@@ -201,21 +190,53 @@ public class LicenseRenewalDialogController {
     }
 
     @FXML
-    private void handleBrowseLicenseFile() {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Select License File (.jlic, .lic, .json)");
-        chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("All Supported License Files (*.jlic, *.lic, *.json)", "*.jlic", "*.lic", "*.json"),
-                new FileChooser.ExtensionFilter("Jasvi License (*.jlic)", "*.jlic"),
-                new FileChooser.ExtensionFilter("Enterprise License (*.lic)", "*.lic"),
-                new FileChooser.ExtensionFilter("Universal JSON (*.json)", "*.json"),
-                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+    private void handleSelfActivateNow() {
+        String company = (lblCompany != null && !lblCompany.getText().isBlank() && !"-".equals(lblCompany.getText()))
+                ? lblCompany.getText().trim()
+                : "JASVI INDUSTRIES";
+        String machineId = HardwareFingerprintUtil.getDisplayMachineId();
+
+        Map<String, Object> req = Map.of(
+                "companyName", company,
+                "machineId", machineId,
+                "days", 365,
+                "tier", "GOLD",
+                "maxUsers", 5
         );
-        File file = chooser.showOpenDialog(btnClose.getScene().getWindow());
+
+        UiTaskExecutor.submitAction(
+                "self-activate-now",
+                () -> api.issueClientLicense(req),
+                resp -> {
+                    try {
+                        Object licJsonObj = resp.get("licenseJson");
+                        if (licJsonObj == null) {
+                            throw new IllegalStateException("Missing licenseJson in issue response");
+                        }
+                        api.activate(licJsonObj);
+                        refreshStatus();
+                        ToastManager.success(btnClose, "Computer Activated", "License activated and locked to this computer successfully!");
+                    } catch (Exception ex) {
+                        AppDialogService.error(btnClose, "Activation Error", "Could not activate generated license", ex.getMessage());
+                    }
+                },
+                err -> AppDialogService.error(btnClose, "Activation Failed", "Could not generate client license", err.getMessage())
+        );
+    }
+
+    @FXML
+    private void handleBrowseLicenseFile() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Select Jasvi License File");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Jasvi License Files (*.jlic, *.lic, *.json)", "*.jlic", "*.lic", "*.json"),
+                new FileChooser.ExtensionFilter("All Files", "*.*")
+        );
+        File file = fileChooser.showOpenDialog(btnClose.getScene().getWindow());
         if (file != null) {
+            lblSelectedFile.setText(file.getName());
             try {
                 String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
-                lblSelectedFile.setText(file.getName());
                 txtRawLicensePayload.setText(content);
             } catch (Exception e) {
                 AppDialogService.error(btnClose, "File Error", "Could not read license file", e.getMessage());
@@ -234,7 +255,7 @@ public class LicenseRenewalDialogController {
         String trimmed = raw.trim();
         if (trimmed.length() <= 32 && !trimmed.startsWith("{") && !trimmed.startsWith("[")) {
             AppDialogService.warning(btnClose, "Machine ID Detected", "Full License JSON Required",
-                    "You entered a Machine Hardware ID (" + trimmed + ").\n\nPlease paste the complete cryptographically signed License JSON issued by Jasvi, or click 'Browse jasvi.lic File' to select your license file.");
+                    "You entered a Machine Hardware ID (" + trimmed + ").\n\nPlease paste the complete cryptographically signed License JSON issued by Jasvi, or click 'Browse License File' to select your license file.");
             return;
         }
 
@@ -245,11 +266,12 @@ public class LicenseRenewalDialogController {
                     try {
                         root = json.readTree(raw);
                     } catch (Exception parseEx) {
-                        throw new IllegalArgumentException("The provided text is not valid JSON. Please paste the complete license JSON payload or click 'Browse jasvi.lic File'.", parseEx);
+                        throw new IllegalArgumentException("The provided text is not valid JSON. Please paste the complete license JSON payload or click 'Browse License File'.", parseEx);
                     }
                     if (root == null || !root.isObject()) {
                         throw new IllegalArgumentException("Invalid license format: Expected a JSON object containing license header, payload, and signature.");
                     }
+                    @SuppressWarnings("unchecked")
                     Map<String, Object> payloadMap = json.convertValue(root, Map.class);
                     return api.activate(payloadMap);
                 },
@@ -262,88 +284,23 @@ public class LicenseRenewalDialogController {
     }
 
     @FXML
-    private void handleGenerateClientLicense() {
-        String company = txtClientCompany == null || txtClientCompany.getText() == null ? "" : txtClientCompany.getText().trim();
-        String machine = txtClientMachineId == null || txtClientMachineId.getText() == null ? "" : txtClientMachineId.getText().trim();
-        if (company.isBlank() || machine.isBlank()) {
-            AppDialogService.warning(btnClose, "Missing Information", "Company Name & Machine ID Required",
-                    "Please enter both the Client Company Name and their 16-character Machine Hardware ID.");
-            return;
+    private void handleClose() {
+        Stage stage = (Stage) btnClose.getScene().getWindow();
+        if (stage != null) {
+            stage.close();
         }
-
-        String tierChoice = (cmbGenTier == null || cmbGenTier.getValue() == null) ? "GOLD" : cmbGenTier.getValue();
-        String tier = tierChoice.startsWith("SILVER") ? "SILVER" : (tierChoice.startsWith("PLATINUM") ? "PLATINUM" : "GOLD");
-        int maxUsers = "SILVER".equals(tier) ? 1 : ("PLATINUM".equals(tier) ? 20 : 5);
-
-        String durChoice = (cmbGenDuration == null || cmbGenDuration.getValue() == null) ? "365" : cmbGenDuration.getValue();
-        int days = durChoice.startsWith("30") ? 30 : (durChoice.startsWith("730") ? 730 : (durChoice.startsWith("1095") ? 1095 : 365));
-
-        String formatChoice = (cmbGenFormat == null || cmbGenFormat.getValue() == null) ? ".jlic" : cmbGenFormat.getValue();
-        String extension = formatChoice.contains(".lic") ? ".lic" : (formatChoice.contains(".json") ? ".json" : ".jlic");
-        String extDesc = formatChoice.contains(".lic") ? "Enterprise License (*.lic)" : (formatChoice.contains(".json") ? "Universal JSON (*.json)" : "Jasvi License (*.jlic)");
-
-        Map<String, Object> req = Map.of(
-                "companyName", company,
-                "machineId", machine,
-                "days", days,
-                "tier", tier,
-                "maxUsers", maxUsers
-        );
-
-        UiTaskExecutor.submitAction(
-                "issue-client-license",
-                () -> api.issueClientLicense(req),
-                resp -> {
-                    try {
-                        Object licObj = resp.get("licenseJson");
-                        String licJson = json.writerWithDefaultPrettyPrinter().writeValueAsString(licObj);
-                        if (txtGeneratedPreview != null) {
-                            txtGeneratedPreview.setText(licJson);
-                        }
-                        ClipboardContent cb = new ClipboardContent();
-                        cb.putString(licJson);
-                        Clipboard.getSystemClipboard().setContent(cb);
-
-                        FileChooser chooser = new FileChooser();
-                        chooser.setTitle("Save Client License (" + extension + ")");
-                        chooser.setInitialFileName(company.replaceAll("[^a-zA-Z0-9_-]", "_") + extension);
-                        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(extDesc, "*" + extension));
-                        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All Files (*.*)", "*.*"));
-                        File saveFile = chooser.showSaveDialog(btnClose.getScene().getWindow());
-                        if (saveFile != null) {
-                            Files.writeString(saveFile.toPath(), licJson, StandardCharsets.UTF_8);
-                            ToastManager.success(btnClose, "License Created", "License saved to " + saveFile.getName() + " and copied to clipboard!");
-                        } else {
-                            ToastManager.info(btnClose, "License Copied", "License JSON copied to clipboard!");
-                        }
-                    } catch (Exception ex) {
-                        AppDialogService.error(btnClose, "Save Error", "Could not export license", ex.getMessage());
-                    }
-                },
-                err -> AppDialogService.error(btnClose, "Generation Failed", "Could not generate client license", err.getMessage())
-        );
     }
 
-    @FXML
-    private void handleCopyGeneratedToken() {
-        if (txtGeneratedPreview != null && !txtGeneratedPreview.getText().isBlank()) {
-            ClipboardContent cb = new ClipboardContent();
-            cb.putString(txtGeneratedPreview.getText());
-            Clipboard.getSystemClipboard().setContent(cb);
-            ToastManager.info(btnClose, "Copied", "Generated license token copied to clipboard!");
-        }
+    public static void show(javafx.stage.Window owner) {
+        show(owner, 0);
     }
 
     public static void show(javafx.stage.Window owner, int defaultTabIndex) {
         try {
             javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(LicenseRenewalDialogController.class.getResource("/fxml/pages/LicenseRenewalDialog.fxml"));
             javafx.scene.Parent root = loader.load();
-            LicenseRenewalDialogController controller = loader.getController();
-            if (controller != null) {
-                controller.selectTab(defaultTabIndex);
-            }
             javafx.stage.Stage stage = new javafx.stage.Stage();
-            stage.setTitle("Jasvi Desktop Subscription & Licensing");
+            stage.setTitle("Jasvi Desktop Subscription & Machine Activation");
             stage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
             if (owner != null) {
                 stage.initOwner(owner);
@@ -352,83 +309,6 @@ public class LicenseRenewalDialogController {
             stage.show();
         } catch (Exception e) {
             org.example.util.AppDialogService.error(null, "Licensing", "Could not open Licensing", e.getMessage());
-        }
-    }
-
-    public void selectTab(int index) {
-        Platform.runLater(() -> {
-            if (tabPaneLicensing != null && index >= 0 && index < tabPaneLicensing.getTabs().size()) {
-                tabPaneLicensing.getSelectionModel().select(index);
-            }
-        });
-    }
-
-    @FXML
-    private void handleUseMyCompany() {
-        String comp = lblCompany != null ? lblCompany.getText() : null;
-        if (comp == null || comp.isBlank() || "-".equals(comp) || comp.contains("Evaluation")) {
-            comp = "JASVI INDUSTRIES";
-        }
-        if (txtClientCompany != null) {
-            txtClientCompany.setText(comp);
-        }
-    }
-
-    @FXML
-    private void handleUseCurrentMachineId() {
-        if (txtClientMachineId != null) {
-            txtClientMachineId.setText(HardwareFingerprintUtil.getDisplayMachineId());
-        }
-    }
-
-    @FXML
-    private void handleSelfActivateNow() {
-        handleUseCurrentMachineId();
-        if (txtClientCompany != null && (txtClientCompany.getText() == null || txtClientCompany.getText().isBlank())) {
-            handleUseMyCompany();
-        }
-
-        String company = txtClientCompany != null ? txtClientCompany.getText().trim() : "JASVI INDUSTRIES";
-        String machine = txtClientMachineId != null ? txtClientMachineId.getText().trim() : HardwareFingerprintUtil.getDisplayMachineId();
-        String durChoice = (cmbGenDuration == null || cmbGenDuration.getValue() == null) ? "365" : cmbGenDuration.getValue();
-        int days = durChoice.startsWith("30") ? 30 : (durChoice.startsWith("730") ? 730 : (durChoice.startsWith("1095") ? 1095 : 365));
-        String tier = cmbGenTier != null ? cmbGenTier.getValue().split(" ")[0].trim() : "GOLD";
-        int users = "GOLD".equalsIgnoreCase(tier) ? 5 : ("PLATINUM".equalsIgnoreCase(tier) ? 20 : 1);
-
-        Map<String, Object> req = Map.of(
-                "companyName", company,
-                "machineId", machine,
-                "days", days,
-                "tier", tier,
-                "maxUsers", users
-        );
-
-        UiTaskExecutor.submitAction(
-                "self-activate-now",
-                () -> api.issueClientLicense(req),
-                resp -> {
-                    try {
-                        Object licJsonObj = resp.get("licenseJson");
-                        if (licJsonObj == null) {
-                            throw new IllegalStateException("Missing licenseJson in issue response");
-                        }
-                        api.activate(licJsonObj);
-                        refreshStatus();
-                        selectTab(0);
-                        ToastManager.success(btnClose, "Self-Activation Success", "License activated and locked to this computer successfully!");
-                    } catch (Exception ex) {
-                        AppDialogService.error(btnClose, "Activation Error", "Could not activate generated license", ex.getMessage());
-                    }
-                },
-                err -> AppDialogService.error(btnClose, "Activation Failed", "Could not generate client license", err.getMessage())
-        );
-    }
-
-    @FXML
-    private void handleClose() {
-        Stage stage = (Stage) btnClose.getScene().getWindow();
-        if (stage != null) {
-            stage.close();
         }
     }
 }

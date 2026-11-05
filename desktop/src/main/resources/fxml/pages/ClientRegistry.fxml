@@ -23,48 +23,79 @@
                 styleClass="approved-button,approved-secondary-button"/>
     </HBox>
 
-    <!-- 2. KPI Summary Strip (Rule 6 compliant) -->
-    <GridPane hgap="12" vgap="0" styleClass="erp-kpi-section,erp-kpi-single-row">
-        <VBox fx:id="cardKpiTotal" spacing="4" styleClass="erp-kpi-card,kpi-blue" GridPane.columnIndex="0">
-            <HBox alignment="CENTER_LEFT" spacing="8">
-                <StackPane fx:id="kpiTotalIcon" styleClass="erp-kpi-icon"/>
-                <Label text="Total Registered Clients" styleClass="erp-kpi-caption"/>
-            </HBox>
-            <Label fx:id="lblKpiTotal" text="0" styleClass="erp-kpi-value"/>
-        </VBox>
-        <VBox fx:id="cardKpiActive" spacing="4" styleClass="erp-kpi-card,kpi-green" GridPane.columnIndex="1">
-            <HBox alignment="CENTER_LEFT" spacing="8">
-                <StackPane fx:id="kpiActiveIcon" styleClass="erp-kpi-icon"/>
-                <Label text="Active Subscriptions" styleClass="erp-kpi-caption"/>
-            </HBox>
-            <Label fx:id="lblKpiActive" text="0" styleClass="erp-kpi-value"/>
-        </VBox>
-        <VBox fx:id="cardKpiExpiring" spacing="4" styleClass="erp-kpi-card,kpi-amber" GridPane.columnIndex="2">
-            <HBox alignment="CENTER_LEFT" spacing="8">
-                <StackPane fx:id="kpiExpiringIcon" styleClass="erp-kpi-icon"/>
-                <Label text="Expiring in 30 Days" styleClass="erp-kpi-caption"/>
-            </HBox>
-            <Label fx:id="lblKpiExpiring" text="0" styleClass="erp-kpi-value"/>
-        </VBox>
-        <VBox fx:id="cardKpiArr" spacing="4" styleClass="erp-kpi-card,kpi-purple" GridPane.columnIndex="3">
-            <HBox alignment="CENTER_LEFT" spacing="8">
-                <StackPane fx:id="kpiArrIcon" styleClass="erp-kpi-icon"/>
-                <Label text="Annual Recurring Revenue (ARR)" styleClass="erp-kpi-caption"/>
-            </HBox>
-            <Label fx:id="lblKpiArr" text="₹0" styleClass="erp-kpi-value"/>
-        </VBox>
+    <!-- 2. KPI Summary Strip (Rule 6 compliant - canonical DashboardHome structure) -->
+    <GridPane hgap="12" vgap="12" styleClass="approved-kpi-grid,approved-kpi,erp-kpi-section">
+        <!-- KPI 1: Total Registered Clients -->
+        <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="Infinity" HBox.hgrow="ALWAYS"
+              styleClass="standard-kpi-card,sales-metric-card,sales-metric-total,kpi-sales,kpi-blue" GridPane.columnIndex="0">
+            <StackPane fx:id="kpiTotalIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Total Registered Clients" styleClass="approved-kpi-caption,metric-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Clients" styleClass="metric-trend-pill,trend-neutral"/>
+                </HBox>
+                <Label fx:id="lblKpiTotal" text="0" styleClass="approved-kpi-value,metric-value"/>
+                <Label text="Licensed Enterprise Accounts" styleClass="approved-kpi-note,metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- KPI 2: Active Subscriptions -->
+        <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="Infinity" HBox.hgrow="ALWAYS"
+              styleClass="standard-kpi-card,sales-metric-card,sales-metric-due,kpi-cash,kpi-green" GridPane.columnIndex="1">
+            <StackPane fx:id="kpiActiveIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Active Subscriptions" styleClass="approved-kpi-caption,metric-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Active" styleClass="metric-trend-pill,trend-positive"/>
+                </HBox>
+                <Label fx:id="lblKpiActive" text="0" styleClass="approved-kpi-value,metric-value"/>
+                <Label text="Valid Computer Bound Licenses" styleClass="approved-kpi-note,metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- KPI 3: Expiring in 30 Days -->
+        <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="Infinity" HBox.hgrow="ALWAYS"
+              styleClass="standard-kpi-card,sales-metric-card,sales-metric-today,kpi-purchase,kpi-orange" GridPane.columnIndex="2">
+            <StackPane fx:id="kpiExpiringIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Expiring in 30 Days" styleClass="approved-kpi-caption,metric-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Attention" styleClass="metric-trend-pill,trend-warning"/>
+                </HBox>
+                <Label fx:id="lblKpiExpiring" text="0" styleClass="approved-kpi-value,metric-value"/>
+                <Label text="Follow-up &amp; Renewal Reminders" styleClass="approved-kpi-note,metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- KPI 4: Annual Recurring Revenue (ARR) -->
+        <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="Infinity" HBox.hgrow="ALWAYS"
+              styleClass="standard-kpi-card,sales-metric-card,sales-metric-pending,kpi-receivable,kpi-purple" GridPane.columnIndex="3">
+            <StackPane fx:id="kpiArrIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Annual Recurring Revenue" styleClass="approved-kpi-caption,metric-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="ARR" styleClass="metric-trend-pill,trend-positive"/>
+                </HBox>
+                <Label fx:id="lblKpiArr" text="₹0.00" styleClass="approved-kpi-value,metric-value"/>
+                <Label text="Projected License Run-Rate" styleClass="approved-kpi-note,metric-note"/>
+            </VBox>
+        </HBox>
     </GridPane>
 
     <!-- 3. Toolbar & Search -->
     <HBox alignment="CENTER_LEFT" spacing="10" styleClass="approved-card,clients-search-strip">
         <TextField fx:id="txtSearch" promptText="Search by Company, Machine ID, Contact Person, or Phone..."
                    HBox.hgrow="ALWAYS" styleClass="approved-input,search-field"/>
-        <ComboBox fx:id="cmbFilterStatus" promptText="Filter Status" prefWidth="160" styleClass="approved-input"/>
+        <ComboBox fx:id="cmbFilterStatus" promptText="Filter Status" prefWidth="160" styleClass="approved-combo"/>
         <Button fx:id="btnResetFilter" text="Reset" onAction="#handleResetFilter"
                 styleClass="approved-button,approved-secondary-button"/>
     </HBox>
 
-    <!-- 4. Client Registry Table (Rule 7 compliant: dynamic widths) -->
+    <!-- 4. Client Registry Table (Rule 7 compliant: dynamic responsive widths, Rule 12 zero truncation) -->
     <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,table-container-card">
         <TableView fx:id="tableClients" VBox.vgrow="ALWAYS" styleClass="approved-table,clients-directory-table">
             <placeholder>

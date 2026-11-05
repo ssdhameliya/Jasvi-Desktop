@@ -963,7 +963,7 @@ public final class IconFactory {
             case "minimum" -> "fas-level-down-alt";
             case "source" -> "fas-database";
             case "role" -> "fas-user-shield";
-            case "security" -> "fas-shield-alt";
+            case "security", "shield" -> "fas-shield-alt";
             case "communication" -> "fas-comments";
             case "location" -> "fas-map-marker-alt";
             case "warning" -> "fas-exclamation-circle";
@@ -1031,7 +1031,7 @@ public final class IconFactory {
             case "preserve" -> "green";
             case "installer" -> "orange";
             case "login", "test" -> "blue";
-            case "security", "access" -> "indigo";
+            case "security", "shield", "access" -> "indigo";
             case "ledger" -> "blue";
             case "automation" -> "teal";
             case "module" -> "purple";
