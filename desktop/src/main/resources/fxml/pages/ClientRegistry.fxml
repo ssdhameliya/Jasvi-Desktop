@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.example.controller.ClientRegistryController"
+      spacing="14" styleClass="clients-directory-page,approved-screen,erp-screen-root">
+
+    <!-- 1. Header Identity Strip -->
+    <HBox alignment="CENTER_LEFT" spacing="12" styleClass="approved-page-header,erp-page-identity-header">
+        <StackPane fx:id="pageIcon" prefWidth="42" prefHeight="42" styleClass="approved-page-icon,clients-page-icon"/>
+        <VBox spacing="2">
+            <Label text="Master Client Companies Registry" styleClass="approved-page-title"/>
+            <Label text="Centralized license issuance, annual renewal management, machine fingerprinting, and ARR revenue tracking"
+                   styleClass="approved-page-subtitle"/>
+        </VBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="btnRegisterClient" text="+ Register New Client" onAction="#handleRegisterClient"
+                styleClass="approved-button,approved-primary-button"/>
+        <Button fx:id="btnRefresh" text="Refresh" onAction="#handleRefresh"
+                styleClass="approved-button,approved-secondary-button"/>
+    </HBox>
+
+    <!-- 2. KPI Summary Strip (Rule 6 compliant) -->
+    <GridPane hgap="12" vgap="0" styleClass="erp-kpi-section,erp-kpi-single-row">
+        <VBox fx:id="cardKpiTotal" spacing="4" styleClass="erp-kpi-card,kpi-blue" GridPane.columnIndex="0">
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <StackPane fx:id="kpiTotalIcon" styleClass="erp-kpi-icon"/>
+                <Label text="Total Registered Clients" styleClass="erp-kpi-caption"/>
+            </HBox>
+            <Label fx:id="lblKpiTotal" text="0" styleClass="erp-kpi-value"/>
+        </VBox>
+        <VBox fx:id="cardKpiActive" spacing="4" styleClass="erp-kpi-card,kpi-green" GridPane.columnIndex="1">
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <StackPane fx:id="kpiActiveIcon" styleClass="erp-kpi-icon"/>
+                <Label text="Active Subscriptions" styleClass="erp-kpi-caption"/>
+            </HBox>
+            <Label fx:id="lblKpiActive" text="0" styleClass="erp-kpi-value"/>
+        </VBox>
+        <VBox fx:id="cardKpiExpiring" spacing="4" styleClass="erp-kpi-card,kpi-amber" GridPane.columnIndex="2">
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <StackPane fx:id="kpiExpiringIcon" styleClass="erp-kpi-icon"/>
+                <Label text="Expiring in 30 Days" styleClass="erp-kpi-caption"/>
+            </HBox>
+            <Label fx:id="lblKpiExpiring" text="0" styleClass="erp-kpi-value"/>
+        </VBox>
+        <VBox fx:id="cardKpiArr" spacing="4" styleClass="erp-kpi-card,kpi-purple" GridPane.columnIndex="3">
+            <HBox alignment="CENTER_LEFT" spacing="8">
+                <StackPane fx:id="kpiArrIcon" styleClass="erp-kpi-icon"/>
+                <Label text="Annual Recurring Revenue (ARR)" styleClass="erp-kpi-caption"/>
+            </HBox>
+            <Label fx:id="lblKpiArr" text="₹0" styleClass="erp-kpi-value"/>
+        </VBox>
+    </GridPane>
+
+    <!-- 3. Toolbar & Search -->
+    <HBox alignment="CENTER_LEFT" spacing="10" styleClass="approved-card,clients-search-strip">
+        <TextField fx:id="txtSearch" promptText="Search by Company, Machine ID, Contact Person, or Phone..."
+                   HBox.hgrow="ALWAYS" styleClass="approved-input,search-field"/>
+        <ComboBox fx:id="cmbFilterStatus" promptText="Filter Status" prefWidth="160" styleClass="approved-input"/>
+        <Button fx:id="btnResetFilter" text="Reset" onAction="#handleResetFilter"
+                styleClass="approved-button,approved-secondary-button"/>
+    </HBox>
+
+    <!-- 4. Client Registry Table (Rule 7 compliant: dynamic widths) -->
+    <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,table-container-card">
+        <TableView fx:id="tableClients" VBox.vgrow="ALWAYS" styleClass="approved-table,clients-directory-table">
+            <placeholder>
+                <Label text="No registered clients found. Click '+ Register New Client' to issue a license." styleClass="muted-label"/>
+            </placeholder>
+            <columns>
+                <TableColumn fx:id="colStatus" text="Status"/>
+                <TableColumn fx:id="colCompany" text="Client Company"/>
+                <TableColumn fx:id="colMachineId" text="Machine Hardware ID"/>
+                <TableColumn fx:id="colContact" text="Contact &amp; Phone"/>
+                <TableColumn fx:id="colTier" text="Tier &amp; Users"/>
+                <TableColumn fx:id="colAnnualFee" text="Annual Fee (₹)"/>
+                <TableColumn fx:id="colValidUntil" text="Valid Until"/>
+                <TableColumn fx:id="colActions" text="Actions"/>
+            </columns>
+        </TableView>
+    </VBox>
+</VBox>

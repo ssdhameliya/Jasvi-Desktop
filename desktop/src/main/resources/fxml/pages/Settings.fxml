@@ -24,6 +24,12 @@
 
             </VBox>
 
+            <Button fx:id="btnRemoteAccess" text="Remote Access" onAction="#openRemoteAccessDialog" styleClass="settings-action-button,settings-secondary-button">
+                <graphic>
+                    <SVGPath content="M4 4h12v12H4V4zm2 2v8h8V6H6zm10 2h2v4h-2V8zM2 8h2v4H2V8z" styleClass="settings-button-icon"/>
+                </graphic>
+            </Button>
+
             <Button fx:id="btnTestEmail" text="Test Email" onAction="#testEmail" styleClass="settings-action-button,settings-secondary-button">
 
                 <graphic>

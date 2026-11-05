@@ -326,6 +326,10 @@ public class TallyAutomationApiClient {
         return post("/api/tally-automation/templates/" + templateId + "/lock", null, TemplateVersionDto.class);
     }
 
+    public void deleteTemplate(Long templateId) {
+        delete("/api/tally-automation/templates/" + templateId);
+    }
+
     public UploadBatchDto createBatch(Long clientProfileId, String reference, int totalFiles, String user) {
         String path = "/api/tally-automation/batches?totalFiles=" + totalFiles
                 + (clientProfileId != null ? "&clientProfileId=" + clientProfileId : "")

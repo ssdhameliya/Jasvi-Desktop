@@ -81,57 +81,71 @@
             <HBox fx:id="boxVersionPills" spacing="6" alignment="CENTER_LEFT"/>
             <Button fx:id="btnNewVersion" text="+ New Version" onAction="#handleNewVersion"
                     styleClass="approved-button,approved-secondary-button,compact-action-button"/>
+            <Button fx:id="btnDeleteVersion" text="✕ Delete Version" onAction="#handleDeleteVersion"
+                    styleClass="approved-button,btn-danger,compact-action-button"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Label fx:id="lblLockStatus" text="Status: DRAFT (Unlocked)" styleClass="lock-status-badge,erp-badge-amber"/>
         </HBox>
     </VBox>
 
-    <!-- 3. PANEL 2: High-Level Document Headers Extraction Blueprint -->
-    <VBox spacing="8" styleClass="approved-card,template-headers-card" minHeight="240" prefHeight="260">
-        <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label text="High-Level Document Headers Blueprint" styleClass="section-card-title"/>
-            <Label text="(Document-level headers extracted from bill top e.g. Invoice No, Date, PO, Taxes, Total)"
-                   styleClass="caption-label"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnAddHeaderField" text="+ Add Header Field" onAction="#handleAddHeaderField"
-                    styleClass="approved-button,approved-secondary-button,compact-action-button"/>
-            <Button fx:id="btnResetHeaders" text="Reset Standard Headers" onAction="#handleResetHeaders"
-                    styleClass="approved-button,approved-secondary-button,compact-action-button"/>
-        </HBox>
-        <TableView fx:id="tableDocumentHeaders" VBox.vgrow="ALWAYS" styleClass="approved-table,headers-blueprint-table">
-            <columns>
-                <TableColumn fx:id="colHdrOrder" text="Order"/>
-                <TableColumn fx:id="colHdrLabel" text="Header Label"/>
-                <TableColumn fx:id="colHdrCanonical" text="Mapped Field"/>
-                <TableColumn fx:id="colHdrSample" text="Sample Extracted Value"/>
-                <TableColumn fx:id="colHdrRequired" text="Required"/>
-                <TableColumn fx:id="colHdrActions" text="Actions"/>
-            </columns>
-        </TableView>
-    </VBox>
+    <!-- 3. Dynamic 2-Tab Blueprint Workspace (Eliminating all cramped scrollbars) -->
+    <TabPane fx:id="tabPaneBlueprint" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS" styleClass="approved-tab-pane,erp-tabs">
+        <!-- TAB 1: High-Level Document Headers Blueprint -->
+        <Tab fx:id="tabDocumentHeaders" text="High-Level Document Headers Blueprint">
+            <VBox spacing="8" styleClass="approved-card,template-headers-card" VBox.vgrow="ALWAYS">
+                <padding>
+                    <Insets top="12" right="16" bottom="12" left="16"/>
+                </padding>
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="High-Level Document Headers Blueprint" styleClass="section-card-title"/>
+                    <Label text="(Document-level headers extracted from bill top e.g. Invoice No, Date, PO, Taxes, Total)"
+                           styleClass="caption-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="btnAddHeaderField" text="+ Add Header Field" onAction="#handleAddHeaderField"
+                            styleClass="approved-button,approved-secondary-button,compact-action-button"/>
+                    <Button fx:id="btnResetHeaders" text="Reset Standard Headers" onAction="#handleResetHeaders"
+                            styleClass="approved-button,approved-secondary-button,compact-action-button"/>
+                </HBox>
+                <TableView fx:id="tableDocumentHeaders" VBox.vgrow="ALWAYS" styleClass="approved-table,headers-blueprint-table">
+                    <columns>
+                        <TableColumn fx:id="colHdrOrder" text="Order"/>
+                        <TableColumn fx:id="colHdrLabel" text="Header Label"/>
+                        <TableColumn fx:id="colHdrCanonical" text="Mapped Field"/>
+                        <TableColumn fx:id="colHdrSample" text="Sample Extracted Value"/>
+                        <TableColumn fx:id="colHdrRequired" text="Required"/>
+                        <TableColumn fx:id="colHdrActions" text="Actions"/>
+                    </columns>
+                </TableView>
+            </VBox>
+        </Tab>
 
-    <!-- 4. PANEL 3: Item-Level Table Headers Blueprint (Dynamic Line Items Schema) -->
-    <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,template-items-card">
-        <HBox alignment="CENTER_LEFT" spacing="10">
-            <Label text="Item-Level Table Column Blueprint" styleClass="section-card-title"/>
-            <Label text="(Columns extracted from line items table. These define the dynamic table headers in Bill to Tally)"
-                   styleClass="caption-label"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnAddColumn" text="+ Add Column Header" onAction="#handleAddColumn"
-                    styleClass="approved-button,approved-secondary-button,compact-action-button"/>
-            <Button fx:id="btnReDetect" text="Re-Detect from Sample" onAction="#handleReDetect"
-                    styleClass="approved-button,approved-secondary-button,compact-action-button"/>
-        </HBox>
-
-        <TableView fx:id="tableColumnsBlueprint" VBox.vgrow="ALWAYS" styleClass="approved-table,columns-blueprint-table">
-            <columns>
-                <TableColumn fx:id="colOrder" text="Order"/>
-                <TableColumn fx:id="colHeaderLabel" text="Header Label"/>
-                <TableColumn fx:id="colCanonicalField" text="Mapped Field"/>
-                <TableColumn fx:id="colDataType" text="Data Type"/>
-                <TableColumn fx:id="colRequired" text="Required"/>
-                <TableColumn fx:id="colActions" text="Actions"/>
-            </columns>
-        </TableView>
-    </VBox>
+        <!-- TAB 2: Item-Level Table Columns Blueprint -->
+        <Tab fx:id="tabItemColumns" text="Item-Level Table Columns Blueprint">
+            <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,template-items-card">
+                <padding>
+                    <Insets top="12" right="16" bottom="12" left="16"/>
+                </padding>
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Item-Level Table Column Blueprint" styleClass="section-card-title"/>
+                    <Label text="(Columns extracted from line items table. These define the dynamic table headers in Bill to Tally)"
+                           styleClass="caption-label"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="btnAddColumn" text="+ Add Column Header" onAction="#handleAddColumn"
+                            styleClass="approved-button,approved-secondary-button,compact-action-button"/>
+                    <Button fx:id="btnReDetect" text="Re-Detect from Sample" onAction="#handleReDetect"
+                            styleClass="approved-button,approved-secondary-button,compact-action-button"/>
+                </HBox>
+                <TableView fx:id="tableColumnsBlueprint" VBox.vgrow="ALWAYS" styleClass="approved-table,columns-blueprint-table">
+                    <columns>
+                        <TableColumn fx:id="colOrder" text="Order"/>
+                        <TableColumn fx:id="colHeaderLabel" text="Header Label"/>
+                        <TableColumn fx:id="colCanonicalField" text="Mapped Field"/>
+                        <TableColumn fx:id="colDataType" text="Data Type"/>
+                        <TableColumn fx:id="colRequired" text="Required"/>
+                        <TableColumn fx:id="colActions" text="Actions"/>
+                    </columns>
+                </TableView>
+            </VBox>
+        </Tab>
+    </TabPane>
 </VBox>

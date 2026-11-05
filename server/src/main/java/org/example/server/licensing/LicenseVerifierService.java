@@ -140,17 +140,8 @@ public class LicenseVerifierService {
         }
 
         // 2. Machine Hardware Fingerprint Verification
-        String currentMachineHash = HardwareFingerprintUtil.getMachineHash();
-        String currentDisplayId = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "");
-        String targetClean = machineHash.replace("-", "").trim();
-        boolean machineMatches = currentMachineHash.equalsIgnoreCase(machineHash)
-                || currentMachineHash.equalsIgnoreCase(targetClean)
-                || currentDisplayId.equalsIgnoreCase(targetClean)
-                || currentMachineHash.toUpperCase(java.util.Locale.ROOT).startsWith(targetClean.toUpperCase(java.util.Locale.ROOT))
-                || targetClean.toUpperCase(java.util.Locale.ROOT).startsWith(currentDisplayId.toUpperCase(java.util.Locale.ROOT))
-                || currentDisplayId.toUpperCase(java.util.Locale.ROOT).startsWith(targetClean.toUpperCase(java.util.Locale.ROOT));
-        if (!machineMatches) {
-            log.warn("[LicenseVerifier] Machine mismatch. Expected {}, Current {}", machineHash, currentMachineHash);
+        if (!isMachineMatch(machineHash)) {
+            log.warn("[LicenseVerifier] Machine mismatch. Expected {}, Current {}", machineHash, HardwareFingerprintUtil.getMachineHash());
             return new LicenseStatus(
                     Status.MACHINE_MISMATCH,
                     licenseKey,
@@ -222,13 +213,27 @@ public class LicenseVerifierService {
             throw new IllegalArgumentException("Invalid cryptographic signature on license payload.");
         }
 
+        if (!isMachineMatch(payload.machineHash())) {
+            throw new IllegalArgumentException(
+                    "Hardware mismatch: License is locked to machine ID " + formatDisplayId(payload.machineHash()) +
+                    ", but this computer's machine ID is " + HardwareFingerprintUtil.getDisplayMachineId() +
+                    ". Please generate or request a license matching this computer's Machine ID."
+            );
+        }
+
         jdbc.update(
                 "INSERT INTO app_license (license_key, company_name, machine_hash, tier, valid_from, valid_until, " +
                         "grace_period_days, max_users, features, signature, canonical_payload, last_verified_at, status) " +
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'ACTIVE') " +
                         "ON CONFLICT (license_key) DO UPDATE SET " +
+                        "company_name = EXCLUDED.company_name, " +
+                        "machine_hash = EXCLUDED.machine_hash, " +
+                        "tier = EXCLUDED.tier, " +
+                        "valid_from = EXCLUDED.valid_from, " +
                         "valid_until = EXCLUDED.valid_until, " +
                         "grace_period_days = EXCLUDED.grace_period_days, " +
+                        "max_users = EXCLUDED.max_users, " +
+                        "features = EXCLUDED.features, " +
                         "signature = EXCLUDED.signature, " +
                         "canonical_payload = EXCLUDED.canonical_payload, " +
                         "last_verified_at = CURRENT_TIMESTAMP, " +
@@ -248,6 +253,19 @@ public class LicenseVerifierService {
 
         cachedStatus.set(null);
         return true;
+    }
+
+    public boolean isMachineMatch(String machineHash) {
+        if (machineHash == null || machineHash.isBlank()) return false;
+        String currentMachineHash = HardwareFingerprintUtil.getMachineHash();
+        String currentDisplayId = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").trim();
+        String targetClean = machineHash.replace("-", "").trim();
+        return currentMachineHash.equalsIgnoreCase(machineHash)
+                || currentMachineHash.equalsIgnoreCase(targetClean)
+                || currentDisplayId.equalsIgnoreCase(targetClean)
+                || currentMachineHash.toUpperCase(java.util.Locale.ROOT).startsWith(targetClean.toUpperCase(java.util.Locale.ROOT))
+                || targetClean.toUpperCase(java.util.Locale.ROOT).startsWith(currentDisplayId.toUpperCase(java.util.Locale.ROOT))
+                || currentDisplayId.toUpperCase(java.util.Locale.ROOT).startsWith(targetClean.toUpperCase(java.util.Locale.ROOT));
     }
 
     private boolean isClockTampered() {

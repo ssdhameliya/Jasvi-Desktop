@@ -356,6 +356,12 @@ public class TallyAutomationService {
         return toTemplateDto(entity);
     }
 
+    @Transactional
+    public void deleteTemplate(Long templateId) {
+        if (templateId == null || templateId <= 0) return;
+        templateRepo.deleteById(templateId);
+    }
+
     /* =========================================================================
        2. UPLOAD BATCHES
        ========================================================================= */

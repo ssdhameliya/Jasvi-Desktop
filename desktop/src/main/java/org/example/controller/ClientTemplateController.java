@@ -48,6 +48,10 @@ public class ClientTemplateController implements ScreenLifecycle {
     @FXML private ComboBox<TallyAutomationApiClient.ClientProfileDto> cmbClientProfile;
     @FXML private Button btnUploadSample;
     @FXML private Button btnViewTemplateDoc;
+    @FXML private Button btnDeleteVersion;
+    @FXML private TabPane tabPaneBlueprint;
+    @FXML private Tab tabDocumentHeaders;
+    @FXML private Tab tabItemColumns;
 
     @FXML private Label lblFirmName;
     @FXML private Label lblGstin;
@@ -152,6 +156,7 @@ public class ClientTemplateController implements ScreenLifecycle {
         if (btnBackToDirectory != null) btnBackToDirectory.setGraphic(IconFactory.compactIcon("previous", 14));
         if (btnUploadSample != null) btnUploadSample.setGraphic(IconFactory.compactIcon("upload", 14));
         if (btnViewTemplateDoc != null) btnViewTemplateDoc.setGraphic(IconFactory.compactIcon("view", 14));
+        if (btnDeleteVersion != null) btnDeleteVersion.setGraphic(IconFactory.compactIcon("delete", 12));
         if (btnAddHeaderField != null) btnAddHeaderField.setGraphic(IconFactory.compactIcon("add", 12));
         if (btnAddColumn != null) btnAddColumn.setGraphic(IconFactory.compactIcon("add", 12));
         if (btnReDetect != null) btnReDetect.setGraphic(IconFactory.compactIcon("refresh", 12));
@@ -324,33 +329,19 @@ public class ClientTemplateController implements ScreenLifecycle {
 
 
     private void populateDefaultDocumentHeaders() {
-
         documentHeadersList.setAll(
-
-                new DocumentHeaderRow(1, "Invoice Number", "Invoice Number", "INV-2026-089", true),
-
-                new DocumentHeaderRow(2, "Invoice Date", "Invoice Date", "24/10/2026", true),
-
-                new DocumentHeaderRow(3, "Due Date", "Due Date", "08/11/2026", false),
-
-                new DocumentHeaderRow(4, "Customer PO No", "Customer PO Reference", "PO-9921", false),
-
-                new DocumentHeaderRow(5, "E-Way Bill No", "E-Way Bill Number", "241289381928", false),
-
-                new DocumentHeaderRow(6, "Taxable Amount", "Taxable Value", "₹ 1,25,000.00", true),
-
-                new DocumentHeaderRow(7, "CGST Amount", "CGST", "₹ 11,250.00", false),
-
-                new DocumentHeaderRow(8, "SGST Amount", "SGST", "₹ 11,250.00", false),
-
-                new DocumentHeaderRow(9, "IGST Amount", "IGST", "₹ 0.00", false),
-
-                new DocumentHeaderRow(10, "Round Off", "Round Off", "₹ 0.40", false),
-
-                new DocumentHeaderRow(11, "Grand Total", "Grand Total Amount", "₹ 1,47,500.40", true)
-
+                new DocumentHeaderRow(1, "Invoice Number", "Invoice Number", "—", true),
+                new DocumentHeaderRow(2, "Invoice Date", "Invoice Date", "—", true),
+                new DocumentHeaderRow(3, "Due Date", "Due Date", "—", false),
+                new DocumentHeaderRow(4, "Customer PO No", "Customer PO Reference", "—", false),
+                new DocumentHeaderRow(5, "E-Way Bill No", "E-Way Bill Number", "—", false),
+                new DocumentHeaderRow(6, "Taxable Amount", "Taxable Value", "—", true),
+                new DocumentHeaderRow(7, "CGST Amount", "CGST", "—", false),
+                new DocumentHeaderRow(8, "SGST Amount", "SGST", "—", false),
+                new DocumentHeaderRow(9, "IGST Amount", "IGST", "—", false),
+                new DocumentHeaderRow(10, "Round Off", "Round Off", "—", false),
+                new DocumentHeaderRow(11, "Grand Total", "Grand Total Amount", "—", true)
         );
-
     }
 
 
@@ -732,30 +723,125 @@ public class ClientTemplateController implements ScreenLifecycle {
     private void detectHeadersFromOcrLines(List<String> lines) {
         List<ColumnRow> detected = new ArrayList<>();
         int colOrderIdx = 1;
+        Set<String> matchedColumns = new HashSet<>();
+
+        // Regex patterns for item table column extraction
+        java.util.regex.Pattern pItem = java.util.regex.Pattern.compile("(?i).*(item\\s*name|item\\s*desc|description|particular|product|goods|article).*");
+        java.util.regex.Pattern pHsn = java.util.regex.Pattern.compile("(?i).*(hsn|sac|tariff|commodity).*");
+        java.util.regex.Pattern pQty = java.util.regex.Pattern.compile("(?i).*(qty|quantity|billing\\s*qty|billed\\s*qty|nos|pcs).*");
+        java.util.regex.Pattern pUom = java.util.regex.Pattern.compile("(?i).*(unit|uom|pkg|measure).*");
+        java.util.regex.Pattern pRate = java.util.regex.Pattern.compile("(?i).*(unit\\s*rate|rate|price|unit\\s*price|mrp).*");
+        java.util.regex.Pattern pTax = java.util.regex.Pattern.compile("(?i).*(gst\\s*%|tax\\s*%|rate\\s*%).*");
+        java.util.regex.Pattern pDisc = java.util.regex.Pattern.compile("(?i).*(disc|discount|trade\\s*disc).*");
+        java.util.regex.Pattern pTotal = java.util.regex.Pattern.compile("(?i).*(taxable\\s*amt|taxable\\s*value|net\\s*amt|amount|total).*");
+
+        // Scan tokens across OCR lines
         for (String l : lines) {
-            String trimmed = l.trim();
-            if (trimmed.equalsIgnoreCase("Particulars / Item Name") || trimmed.equalsIgnoreCase("Description") || trimmed.equalsIgnoreCase("Item Description")) {
-                detected.add(new ColumnRow(colOrderIdx++, trimmed, "Item Description", "Text", true));
-            } else if (trimmed.equalsIgnoreCase("HSN/SAC") || trimmed.equalsIgnoreCase("HSN")) {
-                detected.add(new ColumnRow(colOrderIdx++, trimmed, "HSN/SAC", "Text", true));
-            } else if (trimmed.equalsIgnoreCase("Qty") || trimmed.equalsIgnoreCase("Quantity")) {
-                detected.add(new ColumnRow(colOrderIdx++, trimmed, "Quantity", "Decimal", true));
-            } else if (trimmed.equalsIgnoreCase("Unit") || trimmed.equalsIgnoreCase("UOM")) {
-                detected.add(new ColumnRow(colOrderIdx++, trimmed, "Unit of Measure", "Text", true));
-            } else if (trimmed.equalsIgnoreCase("Rate") || trimmed.equalsIgnoreCase("Price")) {
-                detected.add(new ColumnRow(colOrderIdx++, trimmed, "Unit Rate", "Currency", true));
-            } else if (trimmed.equalsIgnoreCase("GST%") || trimmed.equalsIgnoreCase("Tax%")) {
-                detected.add(new ColumnRow(colOrderIdx++, trimmed, "Tax Percentage", "Percentage", true));
-            } else if (trimmed.equalsIgnoreCase("Discount") || trimmed.equalsIgnoreCase("Disc")) {
-                detected.add(new ColumnRow(colOrderIdx++, trimmed, "Line Discount", "Currency", false));
-            } else if (trimmed.equalsIgnoreCase("Net Amt") || trimmed.equalsIgnoreCase("Amount") || trimmed.equalsIgnoreCase("Total")) {
-                detected.add(new ColumnRow(colOrderIdx++, trimmed, "Line Total Amount", "Currency", true));
+            String[] tokens = l.split("[|,\t]+|\\s{2,}");
+            for (String tok : tokens) {
+                String trimmed = tok.trim();
+                if (trimmed.length() < 2) continue;
+
+                if (pItem.matcher(trimmed).matches() && !matchedColumns.contains("Item Description")) {
+                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Item Description", "Text", true));
+                    matchedColumns.add("Item Description");
+                } else if (pHsn.matcher(trimmed).matches() && !matchedColumns.contains("HSN/SAC")) {
+                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "HSN/SAC", "Text", true));
+                    matchedColumns.add("HSN/SAC");
+                } else if (pQty.matcher(trimmed).matches() && !matchedColumns.contains("Quantity")) {
+                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Quantity", "Decimal", true));
+                    matchedColumns.add("Quantity");
+                } else if (pUom.matcher(trimmed).matches() && !matchedColumns.contains("Unit of Measure")) {
+                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Unit of Measure", "Text", true));
+                    matchedColumns.add("Unit of Measure");
+                } else if (pRate.matcher(trimmed).matches() && !matchedColumns.contains("Unit Rate")) {
+                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Unit Rate", "Currency", true));
+                    matchedColumns.add("Unit Rate");
+                } else if (pTax.matcher(trimmed).matches() && !matchedColumns.contains("Tax Percentage")) {
+                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Tax Percentage", "Percentage", true));
+                    matchedColumns.add("Tax Percentage");
+                } else if (pDisc.matcher(trimmed).matches() && !matchedColumns.contains("Line Discount")) {
+                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Line Discount", "Currency", false));
+                    matchedColumns.add("Line Discount");
+                } else if (pTotal.matcher(trimmed).matches() && !matchedColumns.contains("Line Total Amount")) {
+                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Line Total Amount", "Currency", true));
+                    matchedColumns.add("Line Total Amount");
+                }
             }
         }
+
         if (!detected.isEmpty()) {
             columnsList.setAll(detected);
             reorderRows();
         }
+
+        // Extract Document-Level Headers from sample lines
+        java.util.regex.Pattern pInvNo = java.util.regex.Pattern.compile("(?i)(?:inv(?:oice)?|bill)(?:\\s*(?:no|num|number|#))?[:\\s]*([A-Za-z0-9\\/-]+)");
+        java.util.regex.Pattern pInvDate = java.util.regex.Pattern.compile("(?i)(?:inv(?:oice)?\\s*date|dated|date)[:\\s]*([0-9]{1,2}[\\/\\-\\.][0-9]{1,2}[\\/\\-\\.][0-9]{2,4})");
+        java.util.regex.Pattern pPo = java.util.regex.Pattern.compile("(?i)(?:po|order)(?:\\s*(?:no|num|number|ref))?[:\\s]*([A-Za-z0-9\\/-]+)");
+        java.util.regex.Pattern pTotalAmt = java.util.regex.Pattern.compile("(?i)(?:grand\\s*total|invoice\\s*total|total\\s*amount)[:\\s₹rs\\.]*([0-9,]+\\.[0-9]{2})");
+
+        for (String l : lines) {
+            java.util.regex.Matcher m = pInvNo.matcher(l);
+            if (m.find()) setHeaderSampleValue("Invoice Number", m.group(1));
+
+            m = pInvDate.matcher(l);
+            if (m.find()) setHeaderSampleValue("Invoice Date", m.group(1));
+
+            m = pPo.matcher(l);
+            if (m.find()) setHeaderSampleValue("Customer PO Reference", m.group(1));
+
+            m = pTotalAmt.matcher(l);
+            if (m.find()) setHeaderSampleValue("Grand Total Amount", "₹ " + m.group(1));
+        }
+    }
+
+    private void setHeaderSampleValue(String canonicalField, String val) {
+        if (val == null || val.isBlank()) return;
+        for (DocumentHeaderRow r : documentHeadersList) {
+            if (canonicalField.equalsIgnoreCase(r.canonicalField.get())) {
+                r.sampleValue.set(val.trim());
+                break;
+            }
+        }
+    }
+
+    @FXML
+    public void handleDeleteVersion() {
+        if (activeTemplate == null || activeTemplate.id() == null || activeTemplate.id() <= 0) {
+            ToastManager.warning(tableColumnsBlueprint, "Cannot Delete", "No saved template version selected to delete.");
+            return;
+        }
+
+        String vCode = activeTemplate.versionCode() != null ? activeTemplate.versionCode() : "this";
+        Alert alert = new OwnedAlert(Alert.AlertType.CONFIRMATION,
+                "Are you sure you want to permanently delete template version " + vCode + "?",
+                ButtonType.YES, ButtonType.NO);
+        alert.setTitle("Confirm Delete Version");
+        alert.setHeaderText("Delete Template Version " + vCode);
+        alert.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.YES) {
+                Long templateId = activeTemplate.id();
+                UiTaskExecutor.submitAction(
+                        "delete-template-version",
+                        () -> {
+                            api.deleteTemplate(templateId);
+                            return true;
+                        },
+                        ok -> {
+                            ToastManager.success(tableColumnsBlueprint, "Version Deleted", "Template version " + vCode + " was deleted.");
+                            currentVersions.removeIf(v -> Objects.equals(v.id(), templateId));
+                            if (!currentVersions.isEmpty()) {
+                                selectTemplateVersion(currentVersions.get(0));
+                            } else {
+                                initDefaultVersion("v1");
+                            }
+                            renderVersionPills();
+                        },
+                        err -> AppDialogService.error(tableColumnsBlueprint, "Delete Error", "Could not delete template version", err.getMessage())
+                );
+            }
+        });
     }
 
     @FXML

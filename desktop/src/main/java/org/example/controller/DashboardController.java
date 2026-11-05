@@ -270,10 +270,15 @@ public class DashboardController implements ScreenLifecycle {
             menuUser.setText(SessionService.current().getFullName());
             if (lblSidebarUser != null) lblSidebarUser.setText(SessionService.current().getFullName());
             if (SessionService.isSuperAdmin()) {
+                javafx.scene.control.MenuItem superRegistryItem = new javafx.scene.control.MenuItem("Master Client Registry");
+                superRegistryItem.setOnAction(e -> openClientRegistry());
+                superRegistryItem.setGraphic(IconFactory.compactIcon("users", 15));
+                menuUser.getItems().add(0, superRegistryItem);
+
                 javafx.scene.control.MenuItem superItem = new javafx.scene.control.MenuItem("Master Licensor Studio");
-                superItem.setOnAction(e -> openLicenseRenewalDialog());
+                superItem.setOnAction(e -> openMasterLicensorStudio());
                 superItem.setGraphic(IconFactory.compactIcon("shield", 15));
-                menuUser.getItems().add(0, superItem);
+                menuUser.getItems().add(1, superItem);
             }
         }
         configureProfileMenuIcons();
@@ -1785,20 +1790,19 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private void openBackupRestore() { openPage(null, "Backup & Restore", "/fxml/pages/BackupRestore.fxml"); }
     @FXML private void openDataImport() { openPage(null, "Data Import", "/fxml/pages/Import.fxml"); }
     @FXML private void openLicenseRenewalDialog() {
-        try {
-            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(getClass().getResource("/fxml/pages/LicenseRenewalDialog.fxml"));
-            javafx.scene.Parent root = loader.load();
-            javafx.stage.Stage stage = new javafx.stage.Stage();
-            stage.setTitle("Jasvi Desktop Subscription & Licensing");
-            stage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
-            if (contentPane != null && contentPane.getScene() != null) {
-                stage.initOwner(contentPane.getScene().getWindow());
-            }
-            stage.setScene(new javafx.scene.Scene(root));
-            stage.show();
-        } catch (Exception e) {
-            org.example.util.AppDialogService.error(contentPane, "Licensing", "Could not open Licensing", e.getMessage());
-        }
+        LicenseRenewalDialogController.show(contentPane != null && contentPane.getScene() != null ? contentPane.getScene().getWindow() : null, 0);
+    }
+
+    @FXML private void openMasterLicensorStudio() {
+        LicenseRenewalDialogController.show(contentPane != null && contentPane.getScene() != null ? contentPane.getScene().getWindow() : null, 1);
+    }
+
+    @FXML private void openClientRegistry() {
+        openPage(null, "Client Registry", "/fxml/pages/ClientRegistry.fxml");
+    }
+
+    @FXML private void openRemoteAccessDialog() {
+        RemoteAccessDialogController.show(contentPane != null && contentPane.getScene() != null ? contentPane.getScene().getWindow() : null);
     }
 
     @FXML

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="org.example.controller.RemoteAccessDialogController"
+            prefWidth="780" prefHeight="620" minWidth="720" minHeight="560"
+            styleClass="entity-dialog,premium-entity-dialog,approved-ui">
+    <top>
+        <VBox spacing="6" styleClass="premium-dialog-header">
+            <padding>
+                <Insets top="18" right="24" bottom="14" left="24"/>
+            </padding>
+            <HBox alignment="CENTER_LEFT" spacing="12">
+                <StackPane fx:id="headerIconHolder" minWidth="32" minHeight="32" styleClass="auth-logo-badge"/>
+                <VBox spacing="2" HBox.hgrow="ALWAYS">
+                    <Label text="Remote &amp; Multi-Branch Access" styleClass="page-title"/>
+                    <Label text="Secure Cloudflare Tunnel for branch offices, remote staff, and mobile access (₹0 Server Cost)" styleClass="page-subtitle"/>
+                </VBox>
+                <Label fx:id="lblTunnelStatusBadge" text="OFFLINE" styleClass="status-badge,badge-inactive"/>
+            </HBox>
+        </VBox>
+    </top>
+    <center>
+        <ScrollPane fitToWidth="true" fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" styleClass="edge-to-edge">
+            <VBox spacing="16" styleClass="premium-dialog-content">
+                <padding>
+                    <Insets top="18" right="24" bottom="18" left="24"/>
+                </padding>
+
+                <!-- Tunnel Control Card -->
+                <VBox spacing="14" styleClass="approved-card">
+                    <padding>
+                        <Insets top="18" right="20" bottom="18" left="20"/>
+                    </padding>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <VBox spacing="3" HBox.hgrow="ALWAYS">
+                            <Label text="Encrypted Cloudflare Tunnel Service" styleClass="field-label,email-transmission-field-bold"/>
+                            <Label text="Creates a high-speed, secure HTTPS gateway pointing directly to your local Jasvi database server." styleClass="page-subtitle"/>
+                        </VBox>
+                        <Button fx:id="btnToggleTunnel" text="Start Remote Sharing" onAction="#handleToggleTunnel" styleClass="btn-primary"/>
+                    </HBox>
+
+                    <Separator/>
+
+                    <!-- Connection Endpoint Box -->
+                    <VBox spacing="8">
+                        <Label text="Live Public HTTPS Connection Endpoint:" styleClass="settings-form-label"/>
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <TextField fx:id="txtLiveUrl" promptText="Tunnel is currently offline. Click 'Start Remote Sharing' to generate endpoint."
+                                       editable="false" HBox.hgrow="ALWAYS" styleClass="approved-input"/>
+                            <Button fx:id="btnCopyUrl" text="Copy Link" onAction="#handleCopyUrl" styleClass="btn-secondary"/>
+                            <Button fx:id="btnOpenBrowser" text="Open in Browser" onAction="#handleOpenBrowser" styleClass="btn-secondary"/>
+                        </HBox>
+                        <Label fx:id="lblTunnelUptime" text="Uptime: 00:00:00" styleClass="page-subtitle"/>
+                    </VBox>
+                </VBox>
+
+                <!-- 2-Column Split: QR Code & Setup Guide -->
+                <HBox spacing="16">
+                    <!-- Left: Mobile QR Card -->
+                    <VBox spacing="12" styleClass="approved-card" alignment="TOP_CENTER" prefWidth="280">
+                        <padding>
+                            <Insets top="16" right="16" bottom="16" left="16"/>
+                        </padding>
+                        <Label text="Mobile &amp; Tablet Quick Connect" styleClass="field-label,email-transmission-field-bold"/>
+                        <Label text="Scan with camera to open instantly" styleClass="page-subtitle"/>
+                        <StackPane fx:id="qrHolder" styleClass="barcode-sticker-mockup" minWidth="200" minHeight="200" maxWidth="210" maxHeight="210" alignment="CENTER">
+                            <ImageView fx:id="imgQrCode" fitWidth="190" fitHeight="190" preserveRatio="true"/>
+                            <Label fx:id="lblQrPlaceholder" text="Start tunnel to view QR" styleClass="muted-label"/>
+                        </StackPane>
+                    </VBox>
+
+                    <!-- Right: Multi-Branch Setup Guide -->
+                    <VBox spacing="12" styleClass="approved-card" HBox.hgrow="ALWAYS">
+                        <padding>
+                            <Insets top="16" right="18" bottom="16" left="18"/>
+                        </padding>
+                        <Label text="Multi-Branch &amp; Remote Staff Setup Instructions" styleClass="field-label,email-transmission-field-bold"/>
+                        <VBox spacing="10">
+                            <Label text="1. Keep this main computer powered on with Jasvi Desktop running during office hours." styleClass="field-label" wrapText="true"/>
+                            <Label text="2. Click 'Start Remote Sharing' to get your encrypted HTTPS endpoint." styleClass="field-label" wrapText="true"/>
+                            <Label text="3. In remote branch laptops, go to Login screen ➔ Server Settings and paste the HTTPS endpoint." styleClass="field-label" wrapText="true"/>
+                            <Label text="4. All branch billing, stock updates, and accounts will synchronize in real-time with zero database latency." styleClass="field-label" wrapText="true"/>
+                            <Label text="5. ₹0 infrastructure cost — no fixed IP, no VPN, and no expensive AWS/Azure cloud server required." styleClass="field-label,accent-label-purple" wrapText="true"/>
+                        </VBox>
+                    </VBox>
+                </HBox>
+            </VBox>
+        </ScrollPane>
+    </center>
+    <bottom>
+        <HBox alignment="CENTER_RIGHT" spacing="12" styleClass="premium-dialog-footer">
+            <padding>
+                <Insets top="12" right="24" bottom="14" left="24"/>
+            </padding>
+            <Button fx:id="btnClose" text="Close" onAction="#handleClose" styleClass="btn-secondary"/>
+        </HBox>
+    </bottom>
+</BorderPane>

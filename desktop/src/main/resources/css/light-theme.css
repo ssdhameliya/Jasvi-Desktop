@@ -18721,3 +18721,12 @@
 .dialog-text-area .content { -fx-background-color: #ffffff; }
 .dialog-read-only-text { -fx-opacity: 0.95; -fx-font-family: 'Consolas', 'Courier New', monospace; -fx-text-fill: #1e293b; }
 .dialog-read-only-text .content { -fx-background-color: #f8fafc; }
+.dialog-read-only-text .text, .dialog-text-area .text, .dialog-read-only-text .content .text, .dialog-text-area .content .text {
+    -fx-fill: #0f172a;
+}
+.address-text-display {
+    -fx-text-fill: #0f172a;
+    -fx-font-size: 13px;
+    -fx-font-family: 'Segoe UI', system-ui, sans-serif;
+    -fx-line-spacing: 3px;
+}

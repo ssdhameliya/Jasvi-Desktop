@@ -61,6 +61,11 @@ public class TallyAutomationController {
         return service.lockTemplate(id);
     }
 
+    @DeleteMapping("/templates/{id}")
+    public void deleteTemplate(@PathVariable Long id) {
+        service.deleteTemplate(id);
+    }
+
     @PostMapping("/batches")
     public TallyAutomationDtos.UploadBatchDto createBatch(
             @RequestParam(required = false) Long clientProfileId,
