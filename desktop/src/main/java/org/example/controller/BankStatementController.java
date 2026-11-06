@@ -269,7 +269,9 @@ public class BankStatementController implements ScreenLifecycle {
         colDebit.setCellValueFactory(v->v.getValue().debit); colCredit.setCellValueFactory(v->v.getValue().credit); colBalance.setCellValueFactory(v->v.getValue().balance);
         colStatus.setCellValueFactory(v->v.getValue().status); colMatch.setCellValueFactory(v->v.getValue().match);
         colMatch.setMinWidth(220);
-        moneyCell(colDebit,true); moneyCell(colCredit,false); moneyCell(colBalance,false);
+        colDebit.setCellFactory(c -> SemanticTableCells.amount("debit"));
+        colCredit.setCellFactory(c -> SemanticTableCells.amount("credit"));
+        colBalance.setCellFactory(c -> SemanticTableCells.amount("balance"));
         colStatus.setCellFactory(c->SemanticTableCells.status("bank"));
         colMatch.setCellFactory(c->new TableCell<>(){
             @Override protected void updateItem(String text,boolean empty){
@@ -309,10 +311,7 @@ public class BankStatementController implements ScreenLifecycle {
     }
 
     private void moneyCell(TableColumn<Row,Number> col,boolean debit){
-        col.setCellFactory(c->new TableCell<>(){@Override protected void updateItem(Number n,boolean empty){
-            super.updateItem(n,empty); getStyleClass().removeAll("erp-value-positive","erp-value-negative"); if(empty||n==null){setText(null);return;} setText(String.format(Locale.ENGLISH,"%,.2f",n.doubleValue()));
-            if(n.doubleValue()>0)getStyleClass().add(debit?"erp-value-negative":"erp-value-positive");
-        }});
+        col.setCellFactory(c -> SemanticTableCells.amount(debit ? "debit" : "credit"));
     }
 
     private MenuButton actionMenu(Row row){
@@ -1141,7 +1140,9 @@ public class BankStatementController implements ScreenLifecycle {
         outstanding.setCellValueFactory(v->v.getValue().outstanding);
         outstanding.setMinWidth(130); outstanding.setPrefWidth(140);
 
-        for(var c:List.of(total,paid,outstanding))c.setCellFactory(x->new TableCell<>(){@Override protected void updateItem(Number n,boolean empty){super.updateItem(n,empty);setText(empty||n==null?null:"₹ "+money(n.doubleValue()));}});
+        total.setCellFactory(x -> SemanticTableCells.amount("total"));
+        paid.setCellFactory(x -> SemanticTableCells.amount("paid"));
+        outstanding.setCellFactory(x -> SemanticTableCells.amount("balance"));
 
         TableColumn<CandidateRow,Double> allocation=new TableColumn<>("Allocation");
         allocation.setCellValueFactory(v->v.getValue().allocation.asObject());
@@ -1150,6 +1151,7 @@ public class BankStatementController implements ScreenLifecycle {
         allocation.setMinWidth(130); allocation.setPrefWidth(140);
 
         candidatesTable.getColumns().setAll(selected,score,type,document,party,date,total,paid,outstanding,allocation);
+        DynamicTableLayoutManager.install(candidatesTable);
         CheckBox selectAllCandidates=new CheckBox();
         selectAllCandidates.getProperties().put("erp.icon.skip",true);
         selectAllCandidates.setTooltip(new Tooltip("Select all visible match candidates"));
@@ -1411,8 +1413,7 @@ public class BankStatementController implements ScreenLifecycle {
                 setText(null); setGraphic(null);
                 if (empty || s == null) return;
                 Label lbl = new Label(s);
-                lbl.getStyleClass().add("erp-primary-label");
-                lbl.setStyle("-fx-font-weight: 700;");
+                lbl.getStyleClass().addAll("erp-primary-label", "bold-value-label");
                 lbl.setTooltip(new Tooltip(s));
                 setGraphic(lbl);
             }
@@ -1438,17 +1439,8 @@ public class BankStatementController implements ScreenLifecycle {
         });
 
         TableColumn<LinkedTargetItem, Number> colAmount = new TableColumn<>("Allocated Amount");
-        colAmount.setMinWidth(140);
-        colAmount.setPrefWidth(150);
         colAmount.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().amount));
-        colAmount.setCellFactory(c -> new TableCell<>() {
-            @Override protected void updateItem(Number value, boolean empty) {
-                super.updateItem(value, empty);
-                getStyleClass().remove("erp-quantity-positive");
-                setText(empty || value == null ? null : "₹ " + money(value.doubleValue()));
-                if (!empty) getStyleClass().add("erp-quantity-positive");
-            }
-        });
+        colAmount.setCellFactory(c -> SemanticTableCells.amount("amount"));
 
         TableColumn<LinkedTargetItem, Number> colRoundOff = new TableColumn<>("Round-off");
         colRoundOff.setMinWidth(110);
@@ -1491,6 +1483,7 @@ public class BankStatementController implements ScreenLifecycle {
         IconFactory.applyTableHeaderIcon(colRoundOff, "warning");
         IconFactory.applyTableHeaderIcon(colAction, "actions");
         linkedTable.getColumns().setAll(colRole, colDoc, colType, colAmount, colRoundOff, colAction);
+        DynamicTableLayoutManager.install(linkedTable);
 
         double totalAllocated = targets.stream().mapToDouble(x -> x.amount).sum();
         double roundOffTotal = targets.stream().mapToDouble(x -> x.roundOff).sum();

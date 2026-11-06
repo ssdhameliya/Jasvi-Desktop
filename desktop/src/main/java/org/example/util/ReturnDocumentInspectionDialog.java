@@ -40,57 +40,28 @@ public final class ReturnDocumentInspectionDialog {
         final ReturnApiClient api = (returnApiClient != null) ? returnApiClient : new ReturnApiClient();
         final SupportApiClient support = (supportApiClient != null) ? supportApiClient : new SupportApiClient();
 
-        OwnedDialog<ButtonType> dialog = new OwnedDialog<>(ownerNode);
-        dialog.setTitle((isSalesReturn ? "Sales Return Inspection — " : "Purchase Return Inspection — ") + returnNo);
-        dialog.setHeaderText(null);
-        dialog.setResizable(true);
-
-        DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("erp-document-inspection-dialog", "return-inspection-dialog", "approved-ui");
-        pane.getProperties().put("dse.dialog.presented", true);
-        PopupTableWorkspace.applyInspectionSizing(dialog, ownerNode);
-
-        boolean isDark = ThemeManager.isDark();
-        String hostBg = isDark ? "#0d1527" : "#ffffff";
-        String hostBorder = isDark ? "rgba(148, 163, 184, 0.22)" : "#cbd5e1";
-        String hostShadow = isDark
-                ? "dropshadow(gaussian, rgba(0, 0, 0, 0.70), 32, 0.2, 0, 10)"
-                : "dropshadow(gaussian, rgba(15, 23, 42, 0.20), 32, 0.15, 0, 10)";
-
-        StackPane host = new StackPane();
-        host.getStyleClass().addAll("document-inspection-host", "erp-ui-standard");
-        host.setStyle(String.format(
-                "-fx-background-color: %s; -fx-background-radius: 14; -fx-border-color: %s; -fx-border-radius: 14; -fx-border-width: 1; -fx-effect: %s;",
-                hostBg, hostBorder, hostShadow));
+        var shell = DocumentInspectionScaffold.createShell(ownerNode,
+                (isSalesReturn ? "Sales Return Inspection — " : "Purchase Return Inspection — ") + returnNo,
+                "return-inspection-dialog");
 
         Classy3DLoadingView loadingSkeleton = Classy3DLoadingView.createTableSkeleton(
                 (isSalesReturn ? "Loading Sales Return Details — " : "Loading Purchase Return Details — ") + returnNo,
                 "Synchronizing return lines, inventory restoration status, and refund settlements…");
-        host.getChildren().setAll(loadingSkeleton);
-        pane.setContent(host);
-        pane.getButtonTypes().add(ButtonType.CLOSE);
-
-        dialog.setOnShowing(ev -> {
-            Node defaultButtonBar = pane.lookup(".button-bar");
-            if (defaultButtonBar != null) {
-                defaultButtonBar.setVisible(false);
-                defaultButtonBar.setManaged(false);
-            }
-        });
+        shell.host().getChildren().setAll(loadingSkeleton);
 
         UiTaskExecutor.submitLatest("return-inspection-" + returnNo,
                 () -> api.details(returnNo),
                 details -> {
                     if (details != null) {
-                        dialog.setTitle((isSalesReturn ? "Sales Return Inspection — " : "Purchase Return Inspection — ") + details.no());
-                        renderContent(dialog, host, details, isSalesReturn, api, support, onUpdated);
+                        shell.dialog().setTitle((isSalesReturn ? "Sales Return Inspection — " : "Purchase Return Inspection — ") + details.no());
+                        renderContent(shell.dialog(), shell.host(), details, isSalesReturn, api, support, onUpdated);
                     } else {
-                        ToastManager.error(pane, "Not Found", "Return record could not be loaded for " + returnNo);
+                        ToastManager.error(shell.pane(), "Not Found", "Return record could not be loaded for " + returnNo);
                     }
                 },
-                ex -> ToastManager.error(pane, "Failed to load", ex.getMessage()));
+                ex -> ToastManager.error(shell.pane(), "Failed to load", ex.getMessage()));
 
-        dialog.showAndWait();
+        shell.dialog().showAndWait();
     }
 
     private static void renderContent(Dialog<?> dialog, StackPane host, ReturnApiClient.Details currentDetails, boolean isSalesReturn, ReturnApiClient api, SupportApiClient support, Runnable onUpdated) {
@@ -126,182 +97,68 @@ public final class ReturnDocumentInspectionDialog {
         // Action Dock
         HBox actionDock = buildActionDock(currentDetails, isSalesReturn, dialog, host, api, support, onUpdated);
 
-        VBox contentBox = new VBox(12, headerHero, metricStrip, tabPane, actionDock);
-        contentBox.setPadding(new Insets(16, 20, 16, 20));
-        contentBox.getStyleClass().addAll("document-inspection-content", "erp-ui-standard");
-        contentBox.setStyle("-fx-background-color: transparent;");
-        VBox.setVgrow(contentBox, Priority.ALWAYS);
-
+        VBox contentBox = DocumentInspectionScaffold.assembleContent(headerHero, metricStrip, tabPane, actionDock);
         host.getChildren().setAll(contentBox);
     }
 
     private static HBox buildHeaderHero(ReturnApiClient.Details details, boolean isSales, Dialog<?> dialog) {
-        Label iconLabel = new Label();
-        iconLabel.setGraphic(IconFactory.icon("return", 32));
-        iconLabel.getStyleClass().add("inspection-hero-icon");
-
-        Label docTypeLabel = new Label(isSales ? "SALES RETURN DOCUMENT" : "PURCHASE RETURN DOCUMENT");
-        docTypeLabel.getStyleClass().add("inspection-kicker");
-
-        Label docNoLabel = new Label(details.no());
-        docNoLabel.getStyleClass().addAll("inspection-hero-title", "sales-detail-invoice");
-
-        Button btnCopy = new Button();
-        btnCopy.setGraphic(IconFactory.compactIcon("copy", 13));
-        btnCopy.setTooltip(new Tooltip("Copy return reference number"));
-        btnCopy.getStyleClass().addAll("icon-button", "copy-ref-button", "approved-button");
-        btnCopy.setOnAction(e -> {
-            Clipboard clipboard = Clipboard.getSystemClipboard();
-            ClipboardContent content = new ClipboardContent();
-            content.putString(details.no());
-            clipboard.setContent(content);
-            ToastManager.info(dialog.getDialogPane(), "Copied", details.no() + " copied to clipboard.");
-        });
-
-        HBox docNoBox = new HBox(8, docNoLabel, btnCopy);
-        docNoBox.setAlignment(Pos.CENTER_LEFT);
-
         String dateStr = BusinessClock.formatDate(details.date());
         String timeStr = details.createdAt() != null && !details.createdAt().isBlank()
                 ? BusinessClock.formatTimestamp(details.createdAt())
                 : "";
-        Label metaLabel = new Label("Return Date: " + dateStr + (timeStr.isBlank() ? "" : "  •  Created: " + timeStr));
-        metaLabel.getStyleClass().add("inspection-meta-label");
-
-        VBox titleBox = new VBox(2, docTypeLabel, docNoBox, metaLabel);
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        // Status Badges Strip
-        HBox statusStrip = new HBox(8);
-        statusStrip.setAlignment(Pos.CENTER_RIGHT);
+        String meta = "Return Date: " + dateStr + (timeStr.isBlank() ? "" : "  •  Created: " + timeStr);
 
         String status = safe(details.status()).toUpperCase(Locale.ROOT);
         if (status.isBlank()) status = "PENDING APPROVAL";
-        Label statusPill = createPill(status,
+        Label statusPill = DocumentInspectionScaffold.createPill(status,
                 status.equals("APPROVED") ? "pill-success" : status.contains("REJECT") || status.contains("CANCEL") ? "pill-danger" : "pill-warning",
                 status.equals("APPROVED") ? "complete" : status.contains("REJECT") ? "error" : "reminder");
 
         String refundStatus = safe(details.refundStatus()).toUpperCase(Locale.ROOT);
         if (refundStatus.isBlank()) refundStatus = "PENDING";
-        Label refundPill = createPill(refundStatus,
+        Label refundPill = DocumentInspectionScaffold.createPill(refundStatus,
                 refundStatus.equals("REFUNDED") || refundStatus.equals("SETTLED") ? "pill-success" : refundStatus.equals("PARTIAL") ? "pill-warning" : "pill-danger",
                 refundStatus.equals("REFUNDED") || refundStatus.equals("SETTLED") ? "payment" : "balance");
 
-        statusStrip.getChildren().addAll(statusPill, refundPill);
+        List<Node> pills = List.of(statusPill, refundPill);
 
-        Button btnHeroClose = new Button();
-        btnHeroClose.setGraphic(SemanticIconManager.compact("close", 14));
-        btnHeroClose.getStyleClass().addAll("dse-dialog-close", "icon-button");
-        btnHeroClose.setTooltip(new Tooltip("Close"));
-        btnHeroClose.setOnAction(e -> dialog.close());
-        statusStrip.getChildren().add(btnHeroClose);
-
-        HBox hero = new HBox(12, iconLabel, titleBox, spacer, statusStrip);
-        hero.setAlignment(Pos.CENTER_LEFT);
-        hero.getStyleClass().add("inspection-hero-bar");
-
-        final double[] dragDelta = new double[2];
-        hero.setOnMousePressed(mouseEvent -> {
-            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() != null) {
-                Window w = dialog.getDialogPane().getScene().getWindow();
-                dragDelta[0] = w.getX() - mouseEvent.getScreenX();
-                dragDelta[1] = w.getY() - mouseEvent.getScreenY();
-            }
-        });
-        hero.setOnMouseDragged(mouseEvent -> {
-            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() != null) {
-                Window w = dialog.getDialogPane().getScene().getWindow();
-                w.setX(mouseEvent.getScreenX() + dragDelta[0]);
-                w.setY(mouseEvent.getScreenY() + dragDelta[1]);
-            }
-        });
-
-        return hero;
-    }
-
-    private static Label createPill(String text, String pillClass, String iconSemantic) {
-        Label pill = new Label(text);
-        pill.getStyleClass().addAll("status-pill", pillClass);
-        pill.setGraphic(IconFactory.compactIcon(iconSemantic, 13));
-        pill.setGraphicTextGap(5);
-        return pill;
+        String kicker = isSales ? "SALES RETURN DOCUMENT" : "PURCHASE RETURN DOCUMENT";
+        return DocumentInspectionScaffold.buildHeaderHero(dialog, "return", kicker, details.no(), meta, pills);
     }
 
     private static HBox buildOverviewCards(ReturnApiClient.Details details, boolean isSales) {
         String partyTitle = isSales ? "Customer Details" : "Supplier Details";
         String partySemantic = isSales ? "customer" : "supplier";
-        VBox card1 = createSummaryCard(partyTitle, partySemantic,
+        VBox card1 = DocumentInspectionScaffold.createSummaryCard(partyTitle, partySemantic,
                 List.of(
-                        new FieldPair("Party Name", safe(details.party()), partySemantic, true),
-                        new FieldPair("Original Invoice", safe(details.invoice()), "document", false),
-                        new FieldPair("Return Type", safe(details.type()), "return", false)
+                        new DocumentInspectionScaffold.FieldPair("Party Name", safe(details.party()), partySemantic, true),
+                        new DocumentInspectionScaffold.FieldPair("Original Invoice", safe(details.invoice()), "document", false),
+                        new DocumentInspectionScaffold.FieldPair("Return Type", safe(details.type()), "return", false)
                 ));
 
-        VBox card2 = createSummaryCard("Return Value", "currency",
+        VBox card2 = DocumentInspectionScaffold.createSummaryCard("Return Value", "currency",
                 List.of(
-                        new FieldPair("Return Total", money(details.total()), "currency", true),
-                        new FieldPair("Refunded Amount", money(details.refund()), "complete", false),
-                        new FieldPair("Pending Settlement", money(Math.max(0, details.total() - details.refund())),
+                        new DocumentInspectionScaffold.FieldPair("Return Total", money(details.total()), "currency", true),
+                        new DocumentInspectionScaffold.FieldPair("Refunded Amount", money(details.refund()), "complete", false),
+                        new DocumentInspectionScaffold.FieldPair("Pending Settlement", money(Math.max(0, details.total() - details.refund())),
                                 (details.total() - details.refund()) > .009 ? "balance" : "complete", true)
                 ));
 
-        VBox card3 = createSummaryCard("Approval & Status", "status",
+        VBox card3 = DocumentInspectionScaffold.createSummaryCard("Approval & Status", "status",
                 List.of(
-                        new FieldPair("Approval Status", safe(details.status()), "status", true),
-                        new FieldPair("Settlement State", safe(details.refundStatus()), "payment", false),
-                        new FieldPair("Return Currency", safe(details.currency()).isBlank() ? "INR" : details.currency(), "currency", false)
+                        new DocumentInspectionScaffold.FieldPair("Approval Status", safe(details.status()), "status", true),
+                        new DocumentInspectionScaffold.FieldPair("Settlement State", safe(details.refundStatus()), "payment", false),
+                        new DocumentInspectionScaffold.FieldPair("Return Currency", safe(details.currency()).isBlank() ? "INR" : details.currency(), "currency", false)
                 ));
 
-        VBox card4 = createSummaryCard("Timeline & Audit", "calendar",
+        VBox card4 = DocumentInspectionScaffold.createSummaryCard("Timeline & Audit", "calendar",
                 List.of(
-                        new FieldPair("Return Date", BusinessClock.formatDate(details.date()), "calendar", false),
-                        new FieldPair("Created", BusinessClock.formatTimestamp(details.createdAt()), "calendar", false),
-                        new FieldPair("Last Updated", BusinessClock.formatTimestamp(details.updatedAt()), "calendar", false)
+                        new DocumentInspectionScaffold.FieldPair("Return Date", BusinessClock.formatDate(details.date()), "calendar", false),
+                        new DocumentInspectionScaffold.FieldPair("Created", BusinessClock.formatTimestamp(details.createdAt()), "calendar", false),
+                        new DocumentInspectionScaffold.FieldPair("Last Updated", BusinessClock.formatTimestamp(details.updatedAt()), "calendar", false)
                 ));
 
-        HBox strip = new HBox(12, card1, card2, card3, card4);
-        strip.getStyleClass().add("inspection-overview-strip");
-        HBox.setHgrow(card1, Priority.ALWAYS);
-        HBox.setHgrow(card2, Priority.ALWAYS);
-        HBox.setHgrow(card3, Priority.ALWAYS);
-        HBox.setHgrow(card4, Priority.ALWAYS);
-        return strip;
-    }
-
-    private static record FieldPair(String label, String value, String semantic, boolean bold) {}
-
-    private static VBox createSummaryCard(String title, String iconSemantic, List<FieldPair> fields) {
-        Label titleLabel = new Label(title);
-        titleLabel.setGraphic(IconFactory.compactIcon(iconSemantic, 14));
-        titleLabel.setGraphicTextGap(6);
-        titleLabel.getStyleClass().add("inspection-card-title");
-
-        GridPane grid = new GridPane();
-        grid.setHgap(8);
-        grid.setVgap(4);
-
-        int row = 0;
-        for (FieldPair fp : fields) {
-            Label lbl = new Label(fp.label() + ":");
-            lbl.getStyleClass().add("inspection-card-caption");
-
-            Label val = new Label(fp.value());
-            val.getStyleClass().add("inspection-card-value");
-            if (fp.bold()) val.getStyleClass().add("inspection-value-bold");
-            if (fp.semantic().equals("complete")) val.getStyleClass().add("summary-paid");
-            else if (fp.semantic().equals("balance")) val.getStyleClass().add("summary-balance");
-
-            grid.add(lbl, 0, row);
-            grid.add(val, 1, row);
-            row++;
-        }
-
-        VBox card = new VBox(8, titleLabel, grid);
-        card.getStyleClass().addAll("inspection-card", "erp-detail-drawer-card");
-        card.setPadding(new Insets(10, 12, 10, 12));
-        return card;
+        return DocumentInspectionScaffold.createSummaryStrip(card1, card2, card3, card4);
     }
 
     private static Node buildItemsTabContent(ReturnApiClient.Details details) {
@@ -576,18 +433,7 @@ public final class ReturnDocumentInspectionDialog {
     }
 
     private static void addDetailRow(GridPane grid, int row, String caption, String value, String semantic) {
-        Label capLbl = new Label(caption);
-        capLbl.setGraphic(IconFactory.compactIcon(semantic, 14));
-        capLbl.setGraphicTextGap(6);
-        capLbl.getStyleClass().addAll("inspection-card-caption", "erp-drawer-caption");
-        capLbl.setMinWidth(180);
-
-        Label valLbl = new Label(value);
-        valLbl.getStyleClass().addAll("inspection-card-value", "erp-drawer-value");
-        valLbl.setWrapText(true);
-
-        grid.add(capLbl, 0, row);
-        grid.add(valLbl, 1, row);
+        DocumentInspectionScaffold.addDetailRow(grid, row, caption, value, semantic);
     }
 
     private static HBox buildActionDock(ReturnApiClient.Details details, boolean isSales, Dialog<?> dialog, StackPane host, ReturnApiClient api, SupportApiClient support, Runnable onUpdated) {
@@ -827,10 +673,10 @@ public final class ReturnDocumentInspectionDialog {
     }
 
     private static String money(double value) {
-        return NumberFormat.getCurrencyInstance(Locale.of("en", "IN")).format(value).replace("₹", "₹ ");
+        return DocumentInspectionScaffold.money(value);
     }
 
     private static String safe(String s) {
-        return s == null ? "" : s.trim();
+        return DocumentInspectionScaffold.safe(s);
     }
 }

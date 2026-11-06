@@ -29,9 +29,9 @@
         <!-- Client Profile Selector & Ingestion Controls -->
         <HBox spacing="10" alignment="CENTER_RIGHT">
             <Label text="Client Profile:" styleClass="form-field-label"/>
-            <ComboBox fx:id="cmbClientProfile" prefWidth="200" promptText="Select Client..."/>
+            <ComboBox fx:id="cmbClientProfile" prefWidth="250" promptText="Select Client..." styleClass="approved-input"/>
             <Label text="Template:" styleClass="form-field-label"/>
-            <ComboBox fx:id="cmbTemplateVersion" prefWidth="160" promptText="Select Version..."/>
+            <ComboBox fx:id="cmbTemplateVersion" prefWidth="180" promptText="Select Version..." styleClass="approved-input"/>
             <Separator orientation="VERTICAL"/>
             <Button fx:id="btnUploadBills" text="Upload Bills (.pdf, .jpg, .xlsx)" styleClass="approved-button,primary-button" onAction="#handleUploadBills"/>
         </HBox>

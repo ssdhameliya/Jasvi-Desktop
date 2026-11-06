@@ -40,6 +40,7 @@ public final class InvoicePaymentDetailsDialog {
         HBox hero = new HBox(12, IconFactory.icon("payment", 32), new VBox(3, title, subtitle));
         hero.setAlignment(Pos.CENTER_LEFT);
         hero.getStyleClass().add("bank-dialog-hero");
+        DocumentInspectionScaffold.installDragPhysics(hero, dialog);
 
         GridPane metrics = new GridPane();
         metrics.setHgap(12);

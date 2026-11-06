@@ -16361,7 +16361,7 @@
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell .label,
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-status-content .label { -fx-text-fill: #ffffff; }
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-status-glyph,
-.erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-action-glyph { -fx-icon-color: #ffffff; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-action-glyph { -fx-icon-color: #cbd5e1; }
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .row-actions,
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .table-action-menu {
     -fx-background-color: #5b21b6;
@@ -16494,6 +16494,27 @@
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-action-glyph-pink { -fx-icon-color: #fb7185; }
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-action-glyph-teal { -fx-icon-color: #2dd4bf; }
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-action-glyph-indigo { -fx-icon-color: #a5b4fc; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-status-glyph { -fx-icon-color: #94a3b8; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-status-glyph-success { -fx-icon-color: #4ade80; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-status-glyph-warning { -fx-icon-color: #fbbf24; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-status-glyph-danger { -fx-icon-color: #fb7185; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-status-glyph-info { -fx-icon-color: #60a5fa; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-status-glyph-purple { -fx-icon-color: #c4b5fd; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .erp-status-glyph-neutral { -fx-icon-color: #94a3b8; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-blue,
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-blue .label { -fx-text-fill: #86b8ff; -fx-text-background-color: #86b8ff; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-green,
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-green .label { -fx-text-fill: #62e3ad; -fx-text-background-color: #62e3ad; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-orange,
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-orange .label { -fx-text-fill: #ffc66b; -fx-text-background-color: #ffc66b; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-purple,
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-purple .label { -fx-text-fill: #c4b5fd; -fx-text-background-color: #c4b5fd; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-pink,
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-pink .label { -fx-text-fill: #f9a8d4; -fx-text-background-color: #f9a8d4; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-teal,
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-teal .label { -fx-text-fill: #5eead4; -fx-text-background-color: #5eead4; }
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-indigo,
+.erp-ui-standard .erp-table-standard .table-row-cell:selected .table-cell.erp-table-value-colour-indigo .label { -fx-text-fill: #a5b4fc; -fx-text-background-color: #a5b4fc; }
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .row-actions,
 .erp-ui-standard .erp-table-standard .table-row-cell:selected .table-action-menu {
     -fx-background-color: #17283a;
@@ -17044,6 +17065,194 @@
 /* ========================================================================== */
 
 /* ========================================================================== */
+.skeleton-header-row {
+    -fx-border-color: -dse-border;
+    -fx-border-width: 0 0 1px 0;
+}
+.skeleton-table-row {
+    -fx-background-radius: 6px;
+}
+.skeleton-table-row-even {
+    -fx-background-color: -dse-surface-2;
+}
+.skeleton-table-row-odd {
+    -fx-background-color: transparent;
+}
+.ai-scanner-card {
+    -fx-background-color: rgba(56, 189, 248, 0.08);
+    -fx-border-color: rgba(56, 189, 248, 0.35);
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+}
+.ai-scanner-hero {
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+    -fx-text-fill: #38bdf8;
+}
+.ai-scanner-shimmer {
+    -fx-background-color: linear-gradient(to right, #38bdf8, #818cf8, #38bdf8);
+    -fx-background-radius: 2;
+}
+.ai-scanner-status {
+    -fx-font-size: 12px;
+    -fx-text-fill: -dse-text-muted;
+}
+
+.dse-dialog-shell-workspace {
+    -fx-padding: 0;
+}
+.erp-detail-drawer-list {
+    -fx-background-color: -dse-surface-1;
+    -fx-border-color: -dse-border;
+}
+.erp-kpi-managed-icon {
+    -fx-alignment: CENTER;
+}
+.erp-nav-button {
+    -fx-cursor: hand;
+}
+.erp-table-empty-placeholder {
+    -fx-text-fill: -dse-text-muted;
+    -fx-font-size: 13px;
+    -fx-padding: 24px;
+}
+.input-field {
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+.master-role-selected {
+    -fx-background-color: -dse-surface-2;
+}
+.sales-entry-empty-icon {
+    -fx-opacity: 0.6;
+}
+.shortcut-info-scroll {
+    -fx-background-color: transparent;
+}
+.skeleton-pulse-dot {
+    -fx-cursor: wait;
+}
+
+/* Canonical UI Ownership & Status Semantic Classes */
+.field-value {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -dse-text-primary;
+}
+.menu-item.danger-menu-item .label,
+.menu-item.danger-menu-item,
+.danger-menu-item .label,
+.danger-menu-item {
+    -fx-text-fill: #ef4444;
+}
+.menu-item.danger-menu-item:focused,
+.menu-item.danger-menu-item:hover {
+    -fx-background-color: rgba(239, 68, 68, 0.15);
+}
+.erp-primary-label {
+    -fx-font-weight: 700;
+    -fx-font-size: 13px;
+    -fx-text-fill: -dse-text-primary;
+}
+.badge-active {
+    -fx-background-color: rgba(16, 185, 129, 0.20);
+    -fx-text-fill: #34d399;
+    -fx-border-color: rgba(16, 185, 129, 0.40);
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 3 10;
+    -fx-font-weight: 600;
+    -fx-font-size: 11px;
+}
+.badge-cancelled, .badge-inactive, .status-inactive {
+    -fx-background-color: rgba(148, 163, 184, 0.18);
+    -fx-text-fill: #94a3b8;
+    -fx-border-color: rgba(148, 163, 184, 0.35);
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 3 10;
+    -fx-font-weight: 600;
+    -fx-font-size: 11px;
+}
+.badge-warning {
+    -fx-background-color: rgba(245, 158, 11, 0.20);
+    -fx-text-fill: #fbbf24;
+    -fx-border-color: rgba(245, 158, 11, 0.40);
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 3 10;
+    -fx-font-weight: 600;
+    -fx-font-size: 11px;
+}
+.btn-warning {
+    -fx-background-color: #d97706;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: 600;
+    -fx-background-radius: 6;
+    -fx-padding: 6 14;
+}
+.btn-warning:hover {
+    -fx-background-color: #b45309;
+}
+.approved-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -dse-text-primary;
+}
+.approved-checkbox {
+    -fx-cursor: hand;
+}
+.approved-combo {
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+.settings-guidance-box {
+    -fx-background-color: -dse-surface-2;
+    -fx-background-radius: 8;
+    -fx-border-color: -dse-border;
+    -fx-border-radius: 8;
+    -fx-padding: 12 16;
+}
+.settings-preview-dialog {
+    -fx-background-color: -dse-surface-1;
+}
+.table-link {
+    -fx-text-fill: #38bdf8;
+    -fx-underline: false;
+    -fx-cursor: hand;
+}
+.table-link:hover {
+    -fx-text-fill: #7dd3fc;
+    -fx-underline: true;
+}
+.inspection-hero-container {
+    -fx-spacing: 10;
+    -fx-alignment: CENTER_LEFT;
+}
+.inspection-hero-icon {
+    -fx-alignment: CENTER;
+}
+.inspection-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: -dse-text-muted;
+}
+.inspection-kpi-title {
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-text-fill: -dse-text-muted;
+}
+.inspection-kpi-value {
+    -fx-font-size: 15px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -dse-text-primary;
+}
+.showcase-server-dot {
+    -fx-font-size: 14px;
+}
+.showcase-server-url {
+    -fx-font-size: 11px;
+}
+
 /* DSE ERP 10.0.31 — MODERN COLORFUL UI AUTHORITY (DARK )              */
 /* Comprehensive tactile buttons, 1px non-jitter inputs, dropdowns, scrollbars. */
 /* ========================================================================== */

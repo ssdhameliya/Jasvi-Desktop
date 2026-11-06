@@ -29,6 +29,8 @@ import org.example.util.BusinessClock;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
 import org.example.util.ScreenRefreshPolicy;
+import org.example.util.DynamicTableLayoutManager;
+import org.example.util.SemanticTableCells;
 import org.example.util.UiTaskExecutor;
 
 import java.awt.Desktop;
@@ -232,7 +234,12 @@ public final class QuotationEditorController implements ScreenLifecycle {
         colDiscount.setCellValueFactory(v->v.getValue().discount);
         colGst.setCellValueFactory(v->v.getValue().gst);
         colAmount.setCellValueFactory(v->v.getValue().total);
-        for(TableColumn<LineRow,Number> column:List.of(colQty,colRate,colDiscount,colGst,colAmount))column.setCellFactory(c->new TableCell<>(){@Override protected void updateItem(Number value,boolean empty){super.updateItem(value,empty);setText(empty||value==null?null:String.format(Locale.ENGLISH,"%,.2f",value.doubleValue()));setAlignment(Pos.CENTER_RIGHT);}});
+        colQty.setCellFactory(c -> SemanticTableCells.number("qty"));
+        colRate.setCellFactory(c -> SemanticTableCells.amount("rate"));
+        colDiscount.setCellFactory(c -> SemanticTableCells.amount("discount"));
+        colGst.setCellFactory(c -> SemanticTableCells.amount("tax"));
+        colAmount.setCellFactory(c -> SemanticTableCells.amount("total"));
+        DynamicTableLayoutManager.install(tableLines);
         tableLines.getSelectionModel().selectedItemProperty().addListener((o,old,row)->editLine(row));
     }
 

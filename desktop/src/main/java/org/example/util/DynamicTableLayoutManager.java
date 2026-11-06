@@ -87,7 +87,6 @@ public final class DynamicTableLayoutManager {
         if (table.getPlaceholder() == null) {
             Label placeholder = new Label("No records found");
             placeholder.getStyleClass().add("erp-table-empty-placeholder");
-            placeholder.setStyle("-fx-text-fill: -color-fg-muted; -fx-font-size: 13px; -fx-padding: 24px;");
             table.setPlaceholder(placeholder);
         }
 
@@ -242,6 +241,12 @@ public final class DynamicTableLayoutManager {
 
     private static void prepareColumn(TableColumn<?, ?> column) {
         if (column == null || !column.getColumns().isEmpty()) return;
+        if (column.prefWidthProperty().isBound()) {
+            column.prefWidthProperty().unbind();
+        }
+        if (column.minWidthProperty().isBound()) {
+            column.minWidthProperty().unbind();
+        }
         double min = column.getMinWidth();
         if (min <= 10.0) {
             column.setMinWidth(ABSOLUTE_MIN_COLUMN);
@@ -250,7 +255,7 @@ public final class DynamicTableLayoutManager {
         column.setResizable(true);
     }
 
-    private static void layoutNow(TableView<?> table) {
+    public static void layoutNow(TableView<?> table) {
         if (table == null) return;
         List<TableColumn<?, ?>> columns = new ArrayList<>(table.getVisibleLeafColumns());
         if (columns.isEmpty()) return;
@@ -284,9 +289,15 @@ public final class DynamicTableLayoutManager {
         for (int i = 0; i < columns.size(); i++) {
             double width = Math.max(ABSOLUTE_MIN_COLUMN, widths[i]);
             TableColumn<?, ?> column = columns.get(i);
+            if (column.prefWidthProperty().isBound()) {
+                column.prefWidthProperty().unbind();
+            }
             if (Math.abs(column.getPrefWidth() - width) > 0.5) column.setPrefWidth(width);
             double floor = profiles.get(i).floor();
             double min = Math.max(ABSOLUTE_MIN_COLUMN, Math.min(width, floor));
+            if (column.minWidthProperty().isBound()) {
+                column.minWidthProperty().unbind();
+            }
             if (column.getMinWidth() < min) column.setMinWidth(min);
         }
     }

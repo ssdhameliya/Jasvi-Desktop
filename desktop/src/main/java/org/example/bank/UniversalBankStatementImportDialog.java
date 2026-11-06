@@ -130,18 +130,6 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         return !org.example.theme.ThemeManager.isDark();
     }
 
-    private String headingColor() {
-        return lightMode ? "#1e293b" : "#e2e8f0";
-    }
-
-    private String accentColor() {
-        return lightMode ? "#0284c7" : "#38bdf8";
-    }
-
-    private String mutedTextColor() {
-        return lightMode ? "#475569" : "#94a3b8";
-    }
-
     private Node buildHeaderCard() {
         HBox header = new HBox(14);
         header.setAlignment(Pos.CENTER_LEFT);
@@ -154,18 +142,17 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
 
         VBox titleBox = new VBox(2);
         Label title = new Label("DATA LOADER / DATA SHIPPING WIZARD - MODULE: BANK STATEMENT");
-        title.getStyleClass().add("section-title");
-        title.setStyle("-fx-font-weight: 800; -fx-font-size: 15px; -fx-text-fill: " + accentColor() + ";");
+        title.getStyleClass().addAll("section-title", "erp-page-title", "approved-strong-label");
 
         Label sub = new Label("Universal statement ingestion supporting .xlsx, .xls, and .csv across all commercial banking templates with preflight parity.");
-        sub.getStyleClass().add("muted-label");
-        sub.setStyle("-fx-text-fill: " + mutedTextColor() + "; -fx-font-size: 12px;");
+        sub.getStyleClass().addAll("muted-label", "erp-page-subtitle");
         titleBox.getChildren().addAll(title, sub);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         header.getChildren().addAll(icon, titleBox, spacer);
+        org.example.util.DocumentInspectionScaffold.installDragPhysics(header, this);
         return header;
     }
 
@@ -227,7 +214,8 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         btnBrowse.getStyleClass().addAll("approved-button", "primary-button");
         btnBrowse.setOnAction(e -> onBrowseFile());
 
-        lblSelectedFile.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: " + accentColor() + ";");
+        lblSelectedFile.getStyleClass().addAll("erp-table-value-colour-info");
+        lblSelectedFile.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; -fx-font-weight: 600;");
         HBox.setHgrow(lblSelectedFile, Priority.ALWAYS);
 
         controls.getChildren().addAll(btnDownloadTemplate, btnBrowse, lblSelectedFile);
@@ -331,90 +319,51 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         }
         PopupTableWorkspace.prepareTable(table, "erp-table-profile-responsive");
         table.setItems(auditRows);
-        table.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
 
         // 1. Line / Source Index (#)
         TableColumn<UniversalBankStatementParser.AuditRow, Number> colIdx = new TableColumn<>("#");
         colIdx.setCellValueFactory(v -> new SimpleIntegerProperty(v.getValue().sourceIndex()));
-        colIdx.setMinWidth(50);
-        colIdx.setPrefWidth(60);
 
         // 2. Status Badge
         TableColumn<UniversalBankStatementParser.AuditRow, String> colStatus = new TableColumn<>("Status");
         colStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().status()));
-        colStatus.setMinWidth(100);
-        colStatus.setPrefWidth(115);
-        colStatus.setCellFactory(tc -> new TableCell<>() {
-            @Override
-            protected void updateItem(String val, boolean empty) {
-                super.updateItem(val, empty);
-                if (empty || val == null) {
-                    setGraphic(null);
-                    setText(null);
-                } else {
-                    boolean ok = "PASSED".equalsIgnoreCase(val) || "READY".equalsIgnoreCase(val);
-                    Label badge = new Label(ok ? "🟢 VALID" : "🔴 ERROR");
-                    String okStyle = lightMode
-                        ? "-fx-background-color: rgba(16, 185, 129, 0.16); -fx-text-fill: #047857; -fx-padding: 2 8 2 8; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;"
-                        : "-fx-background-color: rgba(52, 211, 153, 0.18); -fx-text-fill: #34d399; -fx-padding: 2 8 2 8; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;";
-                    String errStyle = lightMode
-                        ? "-fx-background-color: rgba(239, 68, 68, 0.16); -fx-text-fill: #b91c1c; -fx-padding: 2 8 2 8; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;"
-                        : "-fx-background-color: rgba(248, 113, 113, 0.22); -fx-text-fill: #f87171; -fx-padding: 2 8 2 8; -fx-background-radius: 4; -fx-font-weight: bold; -fx-font-size: 11px;";
-                    badge.setStyle(ok ? okStyle : errStyle);
-                    setGraphic(badge);
-                    setText(null);
-                }
-            }
-        });
+        colStatus.setCellFactory(c -> SemanticTableCells.status("validation"));
 
         // 3. Date
         TableColumn<UniversalBankStatementParser.AuditRow, String> colDate = new TableColumn<>("Date");
         colDate.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().date()));
-        colDate.setMinWidth(110);
-        colDate.setPrefWidth(125);
 
         // 4. Reference
         TableColumn<UniversalBankStatementParser.AuditRow, String> colRef = new TableColumn<>("Reference / UTR");
         colRef.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().reference()));
-        colRef.setMinWidth(145);
-        colRef.setPrefWidth(175);
 
         // 5. Description / Narration
         TableColumn<UniversalBankStatementParser.AuditRow, String> colDesc = new TableColumn<>("Narration / Description");
         colDesc.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().description()));
-        colDesc.setMinWidth(230);
-        colDesc.setPrefWidth(330);
 
         // 6. Debit
         TableColumn<UniversalBankStatementParser.AuditRow, Number> colDr = new TableColumn<>("Debit (Dr)");
         colDr.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().debit()));
-        colDr.setCellFactory(x -> currencyCell(false));
-        colDr.setMinWidth(115);
-        colDr.setPrefWidth(130);
+        colDr.setCellFactory(x -> SemanticTableCells.amount("debit"));
 
         // 7. Credit
         TableColumn<UniversalBankStatementParser.AuditRow, Number> colCr = new TableColumn<>("Credit (Cr)");
         colCr.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().credit()));
-        colCr.setCellFactory(x -> currencyCell(true));
-        colCr.setMinWidth(115);
-        colCr.setPrefWidth(130);
+        colCr.setCellFactory(x -> SemanticTableCells.amount("credit"));
 
         // 8. Balance
         TableColumn<UniversalBankStatementParser.AuditRow, Number> colBal = new TableColumn<>("Balance");
         colBal.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().balance()));
-        colBal.setCellFactory(x -> currencyCell(false));
-        colBal.setMinWidth(115);
-        colBal.setPrefWidth(130);
+        colBal.setCellFactory(x -> SemanticTableCells.amount("balance"));
 
         // 9. Error Message / Validation Detail
         TableColumn<UniversalBankStatementParser.AuditRow, String> colError = new TableColumn<>("Validation Message");
         colError.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().error() != null ? v.getValue().error() : "Passed all statutory checks"));
-        colError.setMinWidth(220);
-        colError.setPrefWidth(280);
         colError.setCellFactory(tc -> new TableCell<>() {
             @Override
             protected void updateItem(String val, boolean empty) {
                 super.updateItem(val, empty);
+                getStyleClass().removeAll("muted-label", "status-negative");
                 if (empty || val == null) {
                     setText(null);
                     setTooltip(null);
@@ -422,34 +371,16 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                     setText(val);
                     setTooltip(new Tooltip(val));
                     if (val.contains("Passed")) {
-                        setStyle("-fx-text-fill: " + (lightMode ? "#475569" : "#94a3b8") + ";");
+                        getStyleClass().add("muted-label");
                     } else {
-                        setStyle("-fx-text-fill: " + (lightMode ? "#b91c1c" : "#f87171") + "; -fx-font-weight: 700;");
+                        getStyleClass().add("status-negative");
                     }
                 }
             }
         });
 
         table.getColumns().setAll(colIdx, colStatus, colDate, colRef, colDesc, colDr, colCr, colBal, colError);
-    }
-
-    private TableCell<UniversalBankStatementParser.AuditRow, Number> currencyCell(boolean isCredit) {
-        return new TableCell<>() {
-            @Override
-            protected void updateItem(Number val, boolean empty) {
-                super.updateItem(val, empty);
-                if (empty || val == null || val.doubleValue() <= 0) {
-                    setText("-");
-                    setStyle("-fx-alignment: CENTER-RIGHT; -fx-text-fill: #64748b;");
-                } else {
-                    setText(String.format(Locale.ENGLISH, "₹ %,.2f", val.doubleValue()));
-                    String color = isCredit
-                        ? (lightMode ? "#047857" : "#34d399")
-                        : (lightMode ? "#dc2626" : "#f87171");
-                    setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-weight: 600; -fx-text-fill: " + color + ";");
-                }
-            }
-        };
+        DynamicTableLayoutManager.install(table);
     }
 
     private Node buildActionFooter() {

@@ -105,8 +105,7 @@ public final class Classy3DLoadingView extends VBox {
         VBox box = new VBox(10);
         box.setAlignment(Pos.CENTER_LEFT);
         box.setPadding(new Insets(12, 16, 12, 16));
-        box.getStyleClass().addAll("glass-card", "skeleton-pill-hero");
-        box.setStyle("-fx-background-color: rgba(56, 189, 248, 0.08); -fx-border-color: rgba(56, 189, 248, 0.35); -fx-border-radius: 10; -fx-background-radius: 10;");
+        box.getStyleClass().addAll("glass-card", "skeleton-pill-hero", "ai-scanner-card");
 
         Circle pulseDot = new Circle(5.0);
         pulseDot.setFill(Color.web("#38bdf8"));
@@ -121,7 +120,7 @@ public final class Classy3DLoadingView extends VBox {
         dotAnim.play();
 
         Label hero = new Label("Google Antigravity AI Defect Scanner");
-        hero.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #38bdf8;");
+        hero.getStyleClass().add("ai-scanner-hero");
 
         HBox top = new HBox(8, pulseDot, hero);
         top.setAlignment(Pos.CENTER_LEFT);
@@ -129,7 +128,7 @@ public final class Classy3DLoadingView extends VBox {
         Region shimmerBar = new Region();
         shimmerBar.setPrefHeight(4);
         shimmerBar.setMaxWidth(Double.MAX_VALUE);
-        shimmerBar.setStyle("-fx-background-color: linear-gradient(to right, #38bdf8, #818cf8, #38bdf8); -fx-background-radius: 2;");
+        shimmerBar.getStyleClass().add("ai-scanner-shimmer");
 
         Timeline barAnim = new Timeline(
                 new KeyFrame(Duration.ZERO, new KeyValue(shimmerBar.opacityProperty(), 0.3, Interpolator.EASE_BOTH)),
@@ -140,7 +139,7 @@ public final class Classy3DLoadingView extends VBox {
         barAnim.play();
 
         if (statusLabel != null) {
-            statusLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #94a3b8;");
+            statusLabel.getStyleClass().add("ai-scanner-status");
             box.getChildren().addAll(top, shimmerBar, statusLabel);
         } else {
             box.getChildren().addAll(top, shimmerBar);
@@ -196,7 +195,7 @@ public final class Classy3DLoadingView extends VBox {
         HBox headerRow = new HBox(14);
         headerRow.setAlignment(Pos.CENTER_LEFT);
         headerRow.setPadding(new Insets(6, 12, 10, 12));
-        headerRow.setStyle("-fx-border-color: rgba(255,255,255,0.08); -fx-border-width: 0 0 1px 0;");
+        headerRow.getStyleClass().add("skeleton-header-row");
 
         headerRow.getChildren().addAll(
                 createSkeletonBar(36, 14, "skeleton-bar-highlight"),
@@ -216,7 +215,7 @@ public final class Classy3DLoadingView extends VBox {
             HBox row = new HBox(14);
             row.setAlignment(Pos.CENTER_LEFT);
             row.setPadding(new Insets(8, 12, 8, 12));
-            row.setStyle("-fx-background-color: " + (i % 2 == 0 ? "rgba(255,255,255,0.02)" : "transparent") + "; -fx-background-radius: 6px;");
+            row.getStyleClass().addAll("skeleton-table-row", i % 2 == 0 ? "skeleton-table-row-even" : "skeleton-table-row-odd");
 
             // Col 1: Index
             row.getChildren().add(createSkeletonBar(colWidths[0], 12, "skeleton-bar-base"));

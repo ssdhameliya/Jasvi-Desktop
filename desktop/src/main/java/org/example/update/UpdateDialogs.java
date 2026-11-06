@@ -1,7 +1,9 @@
 package org.example.update;
 
 import org.example.util.BusinessClock;
+import org.example.util.DynamicTableLayoutManager;
 import org.example.util.IconFactory;
+import org.example.util.SemanticTableCells;
 
 import org.example.util.OwnedAlert;
 import org.example.util.OwnedDialog;
@@ -461,6 +463,7 @@ public final class UpdateDialogs {
         TableColumn<UpdateHistoryStore.Entry,String> installed = column("Date & Time", e -> BusinessClock.formatTimestamp(e.timestamp()));
         TableColumn<UpdateHistoryStore.Entry,String> channel = column("Channel", UpdateHistoryStore.Entry::channel);
         TableColumn<UpdateHistoryStore.Entry,String> result = column("Result", UpdateHistoryStore.Entry::result);
+        result.setCellFactory(x -> SemanticTableCells.status("status"));
         TableColumn<UpdateHistoryStore.Entry,String> detail = column("Details", UpdateHistoryStore.Entry::detail);
         IconFactory.applyTableHeaderIcon(version, "version");
         IconFactory.applyTableHeaderIcon(installed, "calendar");
@@ -468,6 +471,7 @@ public final class UpdateDialogs {
         IconFactory.applyTableHeaderIcon(result, "status");
         IconFactory.applyTableHeaderIcon(detail, "notes");
         table.getColumns().addAll(version, installed, channel, result, detail);
+        DynamicTableLayoutManager.layoutNow(table);
         List<UpdateHistoryStore.Entry> history = UpdateHistoryStore.read();
         table.getItems().setAll(history);
         table.setPrefHeight(390);

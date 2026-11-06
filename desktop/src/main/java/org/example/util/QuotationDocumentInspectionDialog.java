@@ -42,44 +42,14 @@ public final class QuotationDocumentInspectionDialog {
         final QuotationApiClient api = (quotationApi != null) ? quotationApi : new QuotationApiClient();
         final SupportApiClient support = (supportApi != null) ? supportApi : new SupportApiClient();
 
-        OwnedDialog<ButtonType> dialog = new OwnedDialog<>(ownerNode);
-        dialog.setTitle("Quotation Inspection — " + quote.no());
-        dialog.setHeaderText(null);
-        dialog.setResizable(true);
-
-        DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("erp-document-inspection-dialog", "quotation-inspection-dialog", "approved-ui");
-        pane.getProperties().put("dse.dialog.presented", true);
-        PopupTableWorkspace.applyInspectionSizing(dialog, ownerNode);
-
-        boolean isDark = ThemeManager.isDark();
-        String hostBg = isDark ? "#0d1527" : "#ffffff";
-        String hostBorder = isDark ? "rgba(148, 163, 184, 0.22)" : "#cbd5e1";
-        String hostShadow = isDark
-                ? "dropshadow(gaussian, rgba(0, 0, 0, 0.70), 32, 0.2, 0, 10)"
-                : "dropshadow(gaussian, rgba(15, 23, 42, 0.20), 32, 0.15, 0, 10)";
-
-        StackPane host = new StackPane();
-        host.getStyleClass().addAll("document-inspection-host", "erp-ui-standard");
-        host.setStyle(String.format(
-                "-fx-background-color: %s; -fx-background-radius: 14; -fx-border-color: %s; -fx-border-radius: 14; -fx-border-width: 1; -fx-effect: %s;",
-                hostBg, hostBorder, hostShadow));
-
-        pane.setContent(host);
-        pane.getButtonTypes().add(ButtonType.CLOSE);
-
-        dialog.setOnShowing(ev -> {
-            Node defaultButtonBar = pane.lookup(".button-bar");
-            if (defaultButtonBar != null) {
-                defaultButtonBar.setVisible(false);
-                defaultButtonBar.setManaged(false);
-            }
-        });
+        var shell = DocumentInspectionScaffold.createShell(ownerNode,
+                "Quotation Inspection — " + quote.no(),
+                "quotation-inspection-dialog");
 
         // Instant Shell Mount (0ms): render Header Hero, Metric Cards, Tabs, and Action Dock synchronously
-        renderContent(dialog, host, quote, api, support, onUpdated);
+        renderContent(shell.dialog(), shell.host(), quote, api, support, onUpdated);
 
-        dialog.showAndWait();
+        shell.dialog().showAndWait();
     }
 
     private static void renderContent(Dialog<?> dialog, StackPane host, QuotationApiClient.QuoteDto quote, QuotationApiClient api, SupportApiClient support, Runnable onUpdated) {
@@ -121,183 +91,69 @@ public final class QuotationDocumentInspectionDialog {
         // Action Dock
         HBox actionDock = buildActionDock(quote, dialog, api, support, onUpdated);
 
-        VBox contentBox = new VBox(12, headerHero, metricStrip, tabPane, actionDock);
-        contentBox.setPadding(new Insets(16, 20, 16, 20));
-        contentBox.getStyleClass().addAll("document-inspection-content", "erp-ui-standard");
-        contentBox.setStyle("-fx-background-color: transparent;");
-        VBox.setVgrow(contentBox, Priority.ALWAYS);
-
+        VBox contentBox = DocumentInspectionScaffold.assembleContent(headerHero, metricStrip, tabPane, actionDock);
         host.getChildren().setAll(contentBox);
     }
 
     private static HBox buildHeaderHero(QuotationApiClient.QuoteDto quote, Dialog<?> dialog) {
-        Label iconLabel = new Label();
-        iconLabel.setGraphic(IconFactory.icon("quotation", 32));
-        iconLabel.getStyleClass().add("inspection-hero-icon");
-
-        Label docTypeLabel = new Label("SALES QUOTATION");
-        docTypeLabel.getStyleClass().add("inspection-kicker");
-
-        Label docNoLabel = new Label(quote.no());
-        docNoLabel.getStyleClass().addAll("inspection-hero-title", "sales-detail-invoice");
-
-        Button btnCopy = new Button();
-        btnCopy.setGraphic(IconFactory.compactIcon("copy", 13));
-        btnCopy.setTooltip(new Tooltip("Copy quotation number"));
-        btnCopy.getStyleClass().addAll("icon-button", "copy-ref-button", "approved-button");
-        btnCopy.setOnAction(e -> {
-            Clipboard clipboard = Clipboard.getSystemClipboard();
-            ClipboardContent content = new ClipboardContent();
-            content.putString(quote.no());
-            clipboard.setContent(content);
-            ToastManager.info(dialog.getDialogPane(), "Copied", quote.no() + " copied to clipboard.");
-        });
-
-        HBox docNoBox = new HBox(8, docNoLabel, btnCopy);
-        docNoBox.setAlignment(Pos.CENTER_LEFT);
-
         String dateStr = BusinessClock.formatDate(quote.date());
         String validStr = BusinessClock.formatDate(quote.valid());
-        Label metaLabel = new Label("Quote Date: " + dateStr + (validStr.isBlank() ? "" : "  •  Valid Until: " + validStr));
-        metaLabel.getStyleClass().add("inspection-meta-label");
-
-        VBox titleBox = new VBox(2, docTypeLabel, docNoBox, metaLabel);
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        // Status Badges Strip
-        HBox statusStrip = new HBox(8);
-        statusStrip.setAlignment(Pos.CENTER_RIGHT);
+        String meta = "Quote Date: " + dateStr + (validStr.isBlank() ? "" : "  •  Valid Until: " + validStr);
 
         String status = safe(quote.status()).toUpperCase(Locale.ROOT);
         if (status.isBlank()) status = "DRAFT";
-        Label statusPill = createPill(status,
+        Label statusPill = DocumentInspectionScaffold.createPill(status,
                 status.equals("ACCEPTED") ? "pill-success" : status.equals("EXPIRED") || status.equals("REJECTED") ? "pill-danger" : status.equals("SENT") ? "pill-success" : "pill-warning",
                 status.equals("ACCEPTED") ? "complete" : status.equals("EXPIRED") ? "error" : "reminder");
 
-        statusStrip.getChildren().add(statusPill);
+        List<Node> pills = new ArrayList<>();
+        pills.add(statusPill);
 
         if (!safe(quote.converted()).isBlank()) {
-            Label convPill = createPill("Converted: " + quote.converted(), "pill-success", "sale");
-            statusStrip.getChildren().add(convPill);
+            pills.add(DocumentInspectionScaffold.createPill("Converted: " + quote.converted(), "pill-success", "sale"));
         }
 
-        Button btnHeroClose = new Button();
-        btnHeroClose.setGraphic(SemanticIconManager.compact("close", 14));
-        btnHeroClose.getStyleClass().addAll("dse-dialog-close", "icon-button");
-        btnHeroClose.setTooltip(new Tooltip("Close"));
-        btnHeroClose.setOnAction(e -> dialog.close());
-        statusStrip.getChildren().add(btnHeroClose);
-
-        HBox hero = new HBox(12, iconLabel, titleBox, spacer, statusStrip);
-        hero.setAlignment(Pos.CENTER_LEFT);
-        hero.getStyleClass().add("inspection-hero-bar");
-
-        final double[] dragDelta = new double[2];
-        hero.setOnMousePressed(mouseEvent -> {
-            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() != null) {
-                Window w = dialog.getDialogPane().getScene().getWindow();
-                dragDelta[0] = w.getX() - mouseEvent.getScreenX();
-                dragDelta[1] = w.getY() - mouseEvent.getScreenY();
-            }
-        });
-        hero.setOnMouseDragged(mouseEvent -> {
-            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() != null) {
-                Window w = dialog.getDialogPane().getScene().getWindow();
-                w.setX(mouseEvent.getScreenX() + dragDelta[0]);
-                w.setY(mouseEvent.getScreenY() + dragDelta[1]);
-            }
-        });
-
-        return hero;
-    }
-
-    private static Label createPill(String text, String pillClass, String iconSemantic) {
-        Label pill = new Label(text);
-        pill.getStyleClass().addAll("status-pill", pillClass);
-        pill.setGraphic(IconFactory.compactIcon(iconSemantic, 13));
-        pill.setGraphicTextGap(5);
-        return pill;
+        return DocumentInspectionScaffold.buildHeaderHero(dialog, "quotation", "SALES QUOTATION", quote.no(), meta, pills);
     }
 
     private static HBox buildOverviewCards(QuotationApiClient.QuoteDto quote) {
         String custName = safe(quote.customer()).isBlank() ? "Unknown Customer" : quote.customer();
         String mobile = safe(quote.phone()).isBlank() ? "—" : quote.phone();
         String gstin = safe(quote.gstin()).isBlank() ? "Unregistered" : quote.gstin();
-        VBox card1 = createSummaryCard("Customer Details", "customer",
+        VBox card1 = DocumentInspectionScaffold.createSummaryCard("Customer Details", "customer",
                 List.of(
-                        new FieldPair("Party Name", custName, "customer", true),
-                        new FieldPair("Contact Mobile", mobile, "phone", false),
-                        new FieldPair("Customer GSTIN", gstin, "tax", false)
+                        new DocumentInspectionScaffold.FieldPair("Party Name", custName, "customer", true),
+                        new DocumentInspectionScaffold.FieldPair("Contact Mobile", mobile, "phone", false),
+                        new DocumentInspectionScaffold.FieldPair("Customer GSTIN", gstin, "tax", false)
                 ));
 
-        VBox card2 = createSummaryCard("Quote Financials", "currency",
+        VBox card2 = DocumentInspectionScaffold.createSummaryCard("Quote Financials", "currency",
                 List.of(
-                        new FieldPair("Total Amount", money(quote.amount()), "currency", true),
-                        new FieldPair("Special Discount", money(quote.discount()), "discount", false),
-                        new FieldPair("Valid Until", BusinessClock.formatDate(quote.valid()), "calendar", false)
+                        new DocumentInspectionScaffold.FieldPair("Total Amount", money(quote.amount()), "currency", true),
+                        new DocumentInspectionScaffold.FieldPair("Special Discount", money(quote.discount()), "discount", false),
+                        new DocumentInspectionScaffold.FieldPair("Valid Until", BusinessClock.formatDate(quote.valid()), "calendar", false)
                 ));
 
         String rep = safe(quote.salesperson()).isBlank() ? "Not Assigned" : quote.salesperson();
         String src = safe(quote.source()).isBlank() ? "Direct" : quote.source();
         String created = safe(quote.createdBy()).isBlank() ? "Admin" : quote.createdBy();
-        VBox card3 = createSummaryCard("Sales & Origin", "user",
+        VBox card3 = DocumentInspectionScaffold.createSummaryCard("Sales & Origin", "user",
                 List.of(
-                        new FieldPair("Sales Representative", rep, "user", false),
-                        new FieldPair("Lead Source", src, "source", false),
-                        new FieldPair("Created By", created, "user", false)
+                        new DocumentInspectionScaffold.FieldPair("Sales Representative", rep, "user", false),
+                        new DocumentInspectionScaffold.FieldPair("Lead Source", src, "source", false),
+                        new DocumentInspectionScaffold.FieldPair("Created By", created, "user", false)
                 ));
 
         String follow = safe(quote.followUp()).isBlank() ? "None scheduled" : BusinessClock.formatDate(quote.followUp());
         String conv = safe(quote.converted()).isBlank() ? "Not converted" : quote.converted();
-        VBox card4 = createSummaryCard("Lifecycle Status", "reminder",
+        VBox card4 = DocumentInspectionScaffold.createSummaryCard("Lifecycle Status", "reminder",
                 List.of(
-                        new FieldPair("Follow-up Date", follow, "calendar", false),
-                        new FieldPair("Sale Conversion", conv, safe(quote.converted()).isBlank() ? "reminder" : "complete", true),
-                        new FieldPair("Current State", safe(quote.status()), "status", false)
+                        new DocumentInspectionScaffold.FieldPair("Follow-up Date", follow, "calendar", false),
+                        new DocumentInspectionScaffold.FieldPair("Sale Conversion", conv, safe(quote.converted()).isBlank() ? "reminder" : "complete", true),
+                        new DocumentInspectionScaffold.FieldPair("Current State", safe(quote.status()), "status", false)
                 ));
 
-        HBox strip = new HBox(12, card1, card2, card3, card4);
-        strip.getStyleClass().add("inspection-overview-strip");
-        HBox.setHgrow(card1, Priority.ALWAYS);
-        HBox.setHgrow(card2, Priority.ALWAYS);
-        HBox.setHgrow(card3, Priority.ALWAYS);
-        HBox.setHgrow(card4, Priority.ALWAYS);
-        return strip;
-    }
-
-    private static record FieldPair(String label, String value, String semantic, boolean bold) {}
-
-    private static VBox createSummaryCard(String title, String iconSemantic, List<FieldPair> fields) {
-        Label titleLabel = new Label(title);
-        titleLabel.setGraphic(IconFactory.compactIcon(iconSemantic, 14));
-        titleLabel.setGraphicTextGap(6);
-        titleLabel.getStyleClass().add("inspection-card-title");
-
-        GridPane grid = new GridPane();
-        grid.setHgap(8);
-        grid.setVgap(4);
-
-        int row = 0;
-        for (FieldPair fp : fields) {
-            Label lbl = new Label(fp.label() + ":");
-            lbl.getStyleClass().add("inspection-card-caption");
-
-            Label val = new Label(fp.value());
-            val.getStyleClass().add("inspection-card-value");
-            if (fp.bold()) val.getStyleClass().add("inspection-value-bold");
-            if (fp.semantic().equals("complete")) val.getStyleClass().add("summary-paid");
-
-            grid.add(lbl, 0, row);
-            grid.add(val, 1, row);
-            row++;
-        }
-
-        VBox card = new VBox(8, titleLabel, grid);
-        card.getStyleClass().addAll("inspection-card", "erp-detail-drawer-card");
-        card.setPadding(new Insets(10, 12, 10, 12));
-        return card;
+        return DocumentInspectionScaffold.createSummaryStrip(card1, card2, card3, card4);
     }
 
     private static Node buildItemsTabContent(QuotationApiClient.QuoteDto quote, QuotationApiClient api) {
@@ -557,18 +413,7 @@ public final class QuotationDocumentInspectionDialog {
     }
 
     private static void addDetailRow(GridPane grid, int row, String caption, String value, String semantic) {
-        Label capLbl = new Label(caption);
-        capLbl.setGraphic(IconFactory.compactIcon(semantic, 14));
-        capLbl.setGraphicTextGap(6);
-        capLbl.getStyleClass().addAll("inspection-card-caption", "erp-drawer-caption");
-        capLbl.setMinWidth(180);
-
-        Label valLbl = new Label(value);
-        valLbl.getStyleClass().addAll("inspection-card-value", "erp-drawer-value");
-        valLbl.setWrapText(true);
-
-        grid.add(capLbl, 0, row);
-        grid.add(valLbl, 1, row);
+        DocumentInspectionScaffold.addDetailRow(grid, row, caption, value, semantic);
     }
 
     private static HBox buildActionDock(QuotationApiClient.QuoteDto quote, Dialog<?> dialog, QuotationApiClient api, SupportApiClient support, Runnable onUpdated) {
@@ -774,10 +619,10 @@ public final class QuotationDocumentInspectionDialog {
     }
 
     private static String money(double value) {
-        return NumberFormat.getCurrencyInstance(Locale.of("en", "IN")).format(value).replace("₹", "₹ ");
+        return DocumentInspectionScaffold.money(value);
     }
 
     private static String safe(String s) {
-        return s == null ? "" : s.trim();
+        return DocumentInspectionScaffold.safe(s);
     }
 }

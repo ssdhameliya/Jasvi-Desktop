@@ -84,14 +84,7 @@ public class ClientsDirectoryController implements ScreenLifecycle {
     private void setupTableColumns() {
         if (tableClients == null) return;
 
-        // Dynamic responsive column widths per Rule 7
-        colStatus.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.12));
-        colGstin.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.16));
-        colTradeName.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.20));
-        colLegalName.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.20));
-        colState.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.12));
-        colTemplates.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.08));
-        colActions.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.12));
+        DynamicTableLayoutManager.install(tableClients);
 
         colStatus.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().gstStatus()));
         colStatus.setCellFactory(col -> new TableCell<>() {
@@ -105,9 +98,9 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                     Label badge = new Label(status);
                     badge.getStyleClass().addAll("status-badge");
                     if ("ACTIVE".equalsIgnoreCase(status)) {
-                        badge.getStyleClass().add("status-active");
+                        badge.getStyleClass().addAll("status-positive", "status-active");
                     } else {
-                        badge.getStyleClass().add("status-inactive");
+                        badge.getStyleClass().addAll("status-neutral", "status-inactive");
                     }
                     setGraphic(badge);
                     setContentDisplay(ContentDisplay.GRAPHIC_ONLY);

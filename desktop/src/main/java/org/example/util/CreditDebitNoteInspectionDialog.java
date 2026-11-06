@@ -121,40 +121,11 @@ public final class CreditDebitNoteInspectionDialog {
         if (noteId == null && (noteNo == null || noteNo.isBlank())) return;
 
         if (fallback != null) {
-            OwnedDialog<ButtonType> dialog = new OwnedDialog<>(ownerNode);
-            dialog.setTitle((isCreditNote ? "Sales Credit Note Inspection — " : "Purchase Debit Note Inspection — ") + safe(fallback.noteNo()));
-            dialog.setHeaderText(null);
-            dialog.setResizable(true);
+            var shell = DocumentInspectionScaffold.createShell(ownerNode,
+                    (isCreditNote ? "Sales Credit Note Inspection — " : "Purchase Debit Note Inspection — ") + safe(fallback.noteNo()),
+                    "credit-debit-inspection-dialog");
 
-            DialogPane pane = dialog.getDialogPane();
-            pane.getStyleClass().addAll("erp-document-inspection-dialog", "credit-debit-inspection-dialog", "approved-ui");
-            pane.getProperties().put("dse.dialog.presented", true);
-            PopupTableWorkspace.applyInspectionSizing(dialog, ownerNode);
-
-            boolean isDark = ThemeManager.isDark();
-            String hostBg = isDark ? "#0d1527" : "#ffffff";
-            String hostBorder = isDark ? "rgba(148, 163, 184, 0.22)" : "#cbd5e1";
-            String hostShadow = isDark
-                    ? "dropshadow(gaussian, rgba(0, 0, 0, 0.70), 32, 0.2, 0, 10)"
-                    : "dropshadow(gaussian, rgba(15, 23, 42, 0.20), 32, 0.15, 0, 10)";
-
-            StackPane host = new StackPane();
-            host.getStyleClass().addAll("document-inspection-host", "erp-ui-standard");
-            host.setStyle(String.format(
-                    "-fx-background-color: %s; -fx-background-radius: 14; -fx-border-color: %s; -fx-border-radius: 14; -fx-border-width: 1; -fx-effect: %s;",
-                    hostBg, hostBorder, hostShadow));
-            pane.setContent(host);
-
-            renderDialogContent(dialog, host, fallback, isCreditNote, onUpdated, onReissue);
-
-            pane.getButtonTypes().add(ButtonType.CLOSE);
-            dialog.setOnShowing(ev -> {
-                Node defaultButtonBar = pane.lookup(".button-bar");
-                if (defaultButtonBar != null) {
-                    defaultButtonBar.setVisible(false);
-                    defaultButtonBar.setManaged(false);
-                }
-            });
+            renderDialogContent(shell.dialog(), shell.host(), fallback, isCreditNote, onUpdated, onReissue);
 
             if (noteId != null && (fallback.lines() == null || fallback.lines().isEmpty())) {
                 String endpoint = isCreditNote ? ("/api/credit-notes/" + noteId) : ("/api/debit-notes/" + noteId);
@@ -171,52 +142,23 @@ public final class CreditDebitNoteInspectionDialog {
                     return null;
                 }, loaded -> {
                     if (loaded != null && loaded.lines() != null && !loaded.lines().isEmpty()) {
-                        renderDialogContent(dialog, host, loaded, isCreditNote, onUpdated, onReissue);
+                        renderDialogContent(shell.dialog(), shell.host(), loaded, isCreditNote, onUpdated, onReissue);
                     }
                 }, err -> {});
             }
 
-            dialog.showAndWait();
+            shell.dialog().showAndWait();
             return;
         }
 
-        OwnedDialog<ButtonType> dialog = new OwnedDialog<>(ownerNode);
-        dialog.setTitle((isCreditNote ? "Sales Credit Note Inspection — " : "Purchase Debit Note Inspection — ") + safe(noteNo));
-        dialog.setHeaderText(null);
-        dialog.setResizable(true);
-
-        DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("erp-document-inspection-dialog", "credit-debit-inspection-dialog", "approved-ui");
-        pane.getProperties().put("dse.dialog.presented", true);
-        PopupTableWorkspace.applyInspectionSizing(dialog, ownerNode);
-
-        boolean isDark = ThemeManager.isDark();
-        String hostBg = isDark ? "#0d1527" : "#ffffff";
-        String hostBorder = isDark ? "rgba(148, 163, 184, 0.22)" : "#cbd5e1";
-        String hostShadow = isDark
-                ? "dropshadow(gaussian, rgba(0, 0, 0, 0.70), 32, 0.2, 0, 10)"
-                : "dropshadow(gaussian, rgba(15, 23, 42, 0.20), 32, 0.15, 0, 10)";
-
-        StackPane host = new StackPane();
-        host.getStyleClass().addAll("document-inspection-host", "erp-ui-standard");
-        host.setStyle(String.format(
-                "-fx-background-color: %s; -fx-background-radius: 14; -fx-border-color: %s; -fx-border-radius: 14; -fx-border-width: 1; -fx-effect: %s;",
-                hostBg, hostBorder, hostShadow));
+        var shell = DocumentInspectionScaffold.createShell(ownerNode,
+                (isCreditNote ? "Sales Credit Note Inspection — " : "Purchase Debit Note Inspection — ") + safe(noteNo),
+                "credit-debit-inspection-dialog");
 
         Classy3DLoadingView loadingSkeleton = Classy3DLoadingView.createTableSkeleton(
                 (isCreditNote ? "Loading Sales Credit Note Details — " : "Loading Purchase Debit Note Details — ") + safe(noteNo),
                 "Synchronizing line items, GST credit reversal, and financial allocations…");
-        host.getChildren().setAll(loadingSkeleton);
-        pane.setContent(host);
-        pane.getButtonTypes().add(ButtonType.CLOSE);
-
-        dialog.setOnShowing(ev -> {
-            Node defaultButtonBar = pane.lookup(".button-bar");
-            if (defaultButtonBar != null) {
-                defaultButtonBar.setVisible(false);
-                defaultButtonBar.setManaged(false);
-            }
-        });
+        shell.host().getChildren().setAll(loadingSkeleton);
 
         if (noteId != null) {
             String endpoint = isCreditNote ? ("/api/credit-notes/" + noteId) : ("/api/debit-notes/" + noteId);
@@ -233,14 +175,14 @@ public final class CreditDebitNoteInspectionDialog {
                 return null;
             }, loaded -> {
                 if (loaded != null) {
-                    renderDialogContent(dialog, host, loaded, isCreditNote, onUpdated, onReissue);
+                    renderDialogContent(shell.dialog(), shell.host(), loaded, isCreditNote, onUpdated, onReissue);
                 } else {
-                    ToastManager.error(pane, "Not Found", "Note could not be loaded.");
+                    ToastManager.error(shell.pane(), "Not Found", "Note could not be loaded.");
                 }
-            }, err -> ToastManager.error(pane, "Failed", err.getMessage()));
+            }, err -> ToastManager.error(shell.pane(), "Failed", err.getMessage()));
         }
 
-        dialog.showAndWait();
+        shell.dialog().showAndWait();
     }
 
     private static void renderDialogContent(Dialog<?> dialog, StackPane host, NoteFullDetails details, boolean isCreditNote, Runnable onUpdated, Runnable onReissue) {
@@ -259,7 +201,7 @@ public final class CreditDebitNoteInspectionDialog {
         // Tab 1: Line Items Breakdown
         Tab itemsTab = new Tab("Line Items (" + (details.lines() != null ? details.lines().size() : 0) + ")");
         itemsTab.setGraphic(IconFactory.compactIcon("item", 14));
-        itemsTab.setContent(buildItemsTabContent(details));
+        itemsTab.setContent(buildItemsTabContent(details, isCreditNote));
 
         // Tab 2: Statutory Tax & GL Impact
         Tab statutoryTab = new Tab("GST & General Ledger Impact");
@@ -276,12 +218,7 @@ public final class CreditDebitNoteInspectionDialog {
         // Action Dock
         HBox actionDock = buildActionDock(details, isCreditNote, dialog, onUpdated, onReissue);
 
-        VBox contentBox = new VBox(12, headerHero, metricStrip, tabPane, actionDock);
-        contentBox.setPadding(new Insets(16, 20, 16, 20));
-        contentBox.getStyleClass().addAll("document-inspection-content", "erp-ui-standard");
-        contentBox.setStyle("-fx-background-color: transparent;");
-        VBox.setVgrow(contentBox, Priority.ALWAYS);
-
+        VBox contentBox = DocumentInspectionScaffold.assembleContent(headerHero, metricStrip, tabPane, actionDock);
         host.getChildren().setAll(contentBox);
     }
 
@@ -346,22 +283,7 @@ public final class CreditDebitNoteInspectionDialog {
         hero.setPadding(new Insets(4, 8, 8, 8));
         hero.getStyleClass().add("inspection-hero-container");
 
-        final double[] dragDelta = new double[2];
-        hero.setOnMousePressed(mouseEvent -> {
-            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() != null) {
-                Window w = dialog.getDialogPane().getScene().getWindow();
-                dragDelta[0] = w.getX() - mouseEvent.getScreenX();
-                dragDelta[1] = w.getY() - mouseEvent.getScreenY();
-            }
-        });
-        hero.setOnMouseDragged(mouseEvent -> {
-            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() != null) {
-                Window w = dialog.getDialogPane().getScene().getWindow();
-                w.setX(mouseEvent.getScreenX() + dragDelta[0]);
-                w.setY(mouseEvent.getScreenY() + dragDelta[1]);
-            }
-        });
-
+        DocumentInspectionScaffold.installDragPhysics(hero, dialog);
         return hero;
     }
 
@@ -402,57 +324,46 @@ public final class CreditDebitNoteInspectionDialog {
         return card;
     }
 
-    private static Node buildItemsTabContent(NoteFullDetails details) {
+    private static Node buildItemsTabContent(NoteFullDetails details, boolean isCreditNote) {
         TableView<NoteLineItem> table = new TableView<>();
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        table.getStyleClass().addAll("erp-table-standard", "approved-table-view");
+        PopupTableWorkspace.prepareTable(table, "erp-table-profile-detail");
 
         TableColumn<NoteLineItem, String> colCode = new TableColumn<>("Item Code");
-        colCode.setPrefWidth(100);
         colCode.setCellValueFactory(d -> new ReadOnlyStringWrapper(safe(d.getValue().itemCode())));
 
         TableColumn<NoteLineItem, String> colDesc = new TableColumn<>("Description");
-        colDesc.setPrefWidth(200);
         colDesc.setCellValueFactory(d -> new ReadOnlyStringWrapper(safe(d.getValue().itemDescription())));
 
         TableColumn<NoteLineItem, String> colHsn = new TableColumn<>("HSN/SAC");
-        colHsn.setPrefWidth(90);
         colHsn.setCellValueFactory(d -> new ReadOnlyStringWrapper(safe(d.getValue().hsnSac())));
 
         TableColumn<NoteLineItem, String> colQty = new TableColumn<>("Qty");
-        colQty.setPrefWidth(70);
-        colQty.setStyle("-fx-alignment: CENTER-RIGHT;");
         colQty.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().quantity() != null ? d.getValue().quantity().stripTrailingZeros().toPlainString() : "0"));
+        colQty.setCellFactory(c -> SemanticTableCells.amountString("quantity"));
 
         TableColumn<NoteLineItem, String> colRate = new TableColumn<>("Unit Rate");
-        colRate.setPrefWidth(95);
-        colRate.setStyle("-fx-alignment: CENTER-RIGHT;");
         colRate.setCellValueFactory(d -> new ReadOnlyStringWrapper(money(d.getValue().unitPrice())));
+        colRate.setCellFactory(c -> SemanticTableCells.amountString("rate"));
 
         TableColumn<NoteLineItem, String> colTaxRate = new TableColumn<>("GST %");
-        colTaxRate.setPrefWidth(70);
-        colTaxRate.setStyle("-fx-alignment: CENTER-RIGHT;");
         colTaxRate.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue().gstRate() != null ? d.getValue().gstRate() + "%" : "0%"));
 
         TableColumn<NoteLineItem, String> colTaxable = new TableColumn<>("Taxable");
-        colTaxable.setPrefWidth(105);
-        colTaxable.setStyle("-fx-alignment: CENTER-RIGHT;");
         colTaxable.setCellValueFactory(d -> new ReadOnlyStringWrapper(money(d.getValue().taxableValue())));
+        colTaxable.setCellFactory(c -> SemanticTableCells.amountString("tax"));
 
         TableColumn<NoteLineItem, String> colTaxAmount = new TableColumn<>("GST Amount");
-        colTaxAmount.setPrefWidth(105);
-        colTaxAmount.setStyle("-fx-alignment: CENTER-RIGHT;");
         colTaxAmount.setCellValueFactory(d -> {
             BigDecimal tax = (d.getValue().cgstAmount() != null ? d.getValue().cgstAmount() : BigDecimal.ZERO)
                     .add(d.getValue().sgstAmount() != null ? d.getValue().sgstAmount() : BigDecimal.ZERO)
                     .add(d.getValue().igstAmount() != null ? d.getValue().igstAmount() : BigDecimal.ZERO);
             return new ReadOnlyStringWrapper(money(tax));
         });
+        colTaxAmount.setCellFactory(c -> SemanticTableCells.amountString("tax"));
 
         TableColumn<NoteLineItem, String> colTotal = new TableColumn<>("Line Total");
-        colTotal.setPrefWidth(115);
-        colTotal.setStyle("-fx-alignment: CENTER-RIGHT; -fx-font-weight: bold;");
         colTotal.setCellValueFactory(d -> new ReadOnlyStringWrapper(money(d.getValue().totalLineAmount())));
+        colTotal.setCellFactory(c -> SemanticTableCells.amountString(isCreditNote ? "credit" : "debit"));
 
         table.getColumns().addAll(List.of(colCode, colDesc, colHsn, colQty, colRate, colTaxRate, colTaxable, colTaxAmount, colTotal));
 
@@ -532,18 +443,7 @@ public final class CreditDebitNoteInspectionDialog {
     }
 
     private static void addDetailRow(GridPane grid, int row, String caption, String value, String semantic) {
-        Label capLbl = new Label(caption);
-        capLbl.setGraphic(IconFactory.compactIcon(semantic, 14));
-        capLbl.setGraphicTextGap(6);
-        capLbl.getStyleClass().addAll("inspection-card-caption", "erp-drawer-caption");
-        capLbl.setMinWidth(200);
-
-        Label valLbl = new Label(value);
-        valLbl.getStyleClass().addAll("inspection-card-value", "erp-drawer-value");
-        valLbl.setWrapText(true);
-
-        grid.add(capLbl, 0, row);
-        grid.add(valLbl, 1, row);
+        DocumentInspectionScaffold.addDetailRow(grid, row, caption, value, semantic);
     }
 
     private static HBox buildActionDock(NoteFullDetails details, boolean isCreditNote, Dialog<?> dialog, Runnable onUpdated, Runnable onReissue) {
@@ -700,10 +600,10 @@ public final class CreditDebitNoteInspectionDialog {
     }
 
     private static String money(BigDecimal value) {
-        return CURRENCY.format(value != null ? value : BigDecimal.ZERO).replace("₹", "₹ ");
+        return DocumentInspectionScaffold.money(value);
     }
 
     private static String safe(String s) {
-        return s == null ? "" : s.trim();
+        return DocumentInspectionScaffold.safe(s);
     }
 }

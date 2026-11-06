@@ -1,3 +1,12 @@
+# What's New in DSE ERP v11.0.47
+
+### Dynamic OCR Blueprint Engine, Explicit Completion Confirmation, Zero-Mock GST & Bill to Tally Versioning
+- **Dynamic OCR Blueprint Extraction (Rule 4 & Rule 17)**: Upgraded `ClientTemplateController` to dynamically scan uploaded sample invoices/bills (PNG, JPG, PDF, Excel), extracting all high-level document headers and item-level table columns into live blueprint tables without hardcoded constraints.
+- **Explicit Modal OCR Completion Confirmation (Rule 12)**: Replaced the transient 3-second toast with a dedicated, professional `OwnedDialog` ("OCR Blueprint Extraction Completed") summarizing detected document headers count, table columns count, and guidance before saving.
+- **Bill to Tally Version Dropdown & Dynamic Table Blueprint (Rule 7 & Rule 17)**: Wired `cmbClientProfile` to `applyTemplateForClient`, populating `cmbTemplateVersion` with client template versions and dynamically rebuilding both `tblBills` and `tblLineItems` matching the active version's blueprint with dynamic responsive column width binding.
+- **Elimination of Navigation Concurrency Errors (Rule 20)**: Replaced `UiTaskExecutor.submitAction` with `submitLatest` across `ClientTemplateController` and `BillToTallyController`, permanently resolving spurious `"Load Clients Error: This action is already in progress"` toast notifications.
+- **Zero Mock GST Intelligence Data Guarantee (Rule 17)**: Removed all hardcoded synthetic filings and static HSN lists from `GstFullDetailsDialog` and `TallyAutomationService`. Return filings and business activities are parsed directly from authentic PostgreSQL records or live portal verification, displaying clear empty-state placeholders when unfiled.
+
 # What's New in DSE ERP v11.0.46
 
 ### Complete Licensing Architecture Streamline, Zero-Scrollbar Modals, Auto-Binding Host Engine & Full UI Parity

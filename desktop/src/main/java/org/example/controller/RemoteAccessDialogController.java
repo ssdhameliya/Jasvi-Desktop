@@ -108,10 +108,10 @@ public class RemoteAccessDialogController {
                 lblTunnelStatusBadge.getStyleClass().add("badge-active");
             } else if (isStarting) {
                 lblTunnelStatusBadge.setText("CONNECTING TUNNEL...");
-                lblTunnelStatusBadge.getStyleClass().add("badge-warning");
+                lblTunnelStatusBadge.getStyleClass().addAll("status-warning", "badge-warning");
             } else {
                 lblTunnelStatusBadge.setText("• OFFLINE");
-                lblTunnelStatusBadge.getStyleClass().add("badge-inactive");
+                lblTunnelStatusBadge.getStyleClass().addAll("status-neutral", "badge-inactive");
             }
         }
 

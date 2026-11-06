@@ -25,6 +25,9 @@ import org.example.navigation.ScreenLifecycle;
 import org.example.util.OwnedAlert;
 import org.example.util.OwnedDialog;
 import org.example.util.AppDialogRenderer;
+import org.example.util.DynamicTableLayoutManager;
+import org.example.util.PopupTableWorkspace;
+import org.example.util.SemanticTableCells;
 import org.example.service.BrandingService;
 
 import javafx.collections.FXCollections;
@@ -3087,29 +3090,26 @@ private record AssetPreviewRequest(
 
         TableView<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto> tbl = new TableView<>();
         tbl.setPrefHeight(220);
-        tbl.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        PopupTableWorkspace.prepareTable(tbl, "erp-table-profile-dialog");
 
         TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colCode = new TableColumn<>("Channel Code");
         colCode.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().channelCode()));
-        colCode.setPrefWidth(120);
 
         TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colName = new TableColumn<>("Display Name");
         colName.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().displayName()));
-        colName.setPrefWidth(160);
 
         TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colPhone = new TableColumn<>("Phone Number");
         colPhone.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().phoneNumber() == null ? "-" : d.getValue().phoneNumber()));
-        colPhone.setPrefWidth(130);
 
         TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colStatus = new TableColumn<>("Status");
         colStatus.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().connectionStatus()));
-        colStatus.setPrefWidth(110);
+        colStatus.setCellFactory(c -> SemanticTableCells.status("whatsapp"));
 
         TableColumn<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto, String> colDefault = new TableColumn<>("Default");
         colDefault.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().isDefault() ? "PRIMARY" : "-"));
-        colDefault.setPrefWidth(80);
 
         tbl.getColumns().setAll(colCode, colName, colPhone, colStatus, colDefault);
+        DynamicTableLayoutManager.install(tbl);
 
         Button btnRefreshChannels = new Button("Refresh Channels");
         btnRefreshChannels.getStyleClass().add("secondary-button");
@@ -4246,11 +4246,9 @@ private record AssetPreviewRequest(
         HBox serverStatusRow = new HBox(8);
         serverStatusRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         Label serverDot = new Label("●");
-        serverDot.getStyleClass().addAll("status-positive", "settings-field-hint");
-        serverDot.setStyle("-fx-font-size: 14px;");
+        serverDot.getStyleClass().addAll("status-positive", "settings-field-hint", "showcase-server-dot");
         lblShowcaseServerUrl = new Label("Showcase Web Server Active: http://localhost:8089 (Live interactive 3D model viewer)");
-        lblShowcaseServerUrl.getStyleClass().addAll("page-subtitle", "settings-field-hint");
-        lblShowcaseServerUrl.setStyle("-fx-font-size: 11px;");
+        lblShowcaseServerUrl.getStyleClass().addAll("page-subtitle", "settings-field-hint", "showcase-server-url");
         serverStatusRow.getChildren().addAll(serverDot, lblShowcaseServerUrl);
 
         headerBox.getChildren().addAll(topRow, serverStatusRow);
@@ -4379,15 +4377,14 @@ private record AssetPreviewRequest(
 
     private void renderMachineCard(ShowcaseMachineRow row) {
         VBox card = new VBox(8);
-        card.getStyleClass().addAll("settings-subcard", "card");
-        card.setStyle("-fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 12;");
+        card.getStyleClass().addAll("settings-subcard", "card", "approved-card");
         row.cardNode = card;
 
         HBox top = new HBox(10);
         top.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
 
         Label lblName = new Label("Workstation:");
-        lblName.setStyle("-fx-font-weight: bold;");
+        lblName.getStyleClass().addAll("bold-value-label", "field-label");
         row.txtTitle.setPromptText("Machine Name");
         row.txtTitle.getStyleClass().add("approved-input");
         HBox.setHgrow(row.txtTitle, javafx.scene.layout.Priority.ALWAYS);

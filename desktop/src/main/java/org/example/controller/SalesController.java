@@ -55,6 +55,7 @@ import org.example.service.NotificationService;
 import org.example.service.PartyService;
 import org.example.service.SalesService;
 import org.example.util.IconFactory;
+import org.example.util.SemanticTableCells;
 import org.example.theme.ThemeManager;
 import org.example.util.PlatformUiSupport;
 import org.example.util.UiTaskExecutor;
@@ -1113,79 +1114,10 @@ public class SalesController implements ScreenLifecycle {
 
         colDiscount.setCellFactory(column -> new TextFieldTableCell<>(new DoubleStringConverter()));
 
-        colDiscountAmount.setCellFactory(column -> new TableCell<>() {
-            @Override
-            protected void updateItem(Double value, boolean empty) {
-                super.updateItem(value, empty);
-                setText(empty || value == null ? null : String.format("₹ %.2f", value));
-            }
-        });
-
-        colGstAmount.setCellFactory(column -> new TableCell<>() {
-
-            @Override
-            protected void updateItem(Double value, boolean empty) {
-
-                super.updateItem(value, empty);
-
-                if (empty || value == null) {
-
-                    setText(null);
-
-                } else {
-
-                    setText(
-                            String.format("₹ %.2f", value));
-
-                }
-
-            }
-
-        });
-
-        colNetAmount.setCellFactory(column -> new TableCell<>() {
-
-            @Override
-            protected void updateItem(Double value, boolean empty) {
-
-                super.updateItem(value, empty);
-
-                if (empty || value == null) {
-
-                    setText(null);
-
-                } else {
-
-                    setText(
-                            String.format("₹ %.2f", value));
-
-                }
-
-            }
-
-        });
-
-        colTotal.setCellFactory(column -> new TableCell<>() {
-
-            @Override
-            protected void updateItem(Double value, boolean empty) {
-
-                super.updateItem(value, empty);
-
-                if (empty || value == null) {
-
-                    setText(null);
-
-                } else {
-
-                    setText(
-                            String.format("₹ %.2f", value));
-
-                }
-
-            }
-
-        });
+        colDiscountAmount.setCellFactory(column -> SemanticTableCells.amount("discount"));
+        colGstAmount.setCellFactory(column -> SemanticTableCells.amount("tax"));
+        colNetAmount.setCellFactory(column -> SemanticTableCells.amount("total"));
+        colTotal.setCellFactory(column -> SemanticTableCells.amount("total"));
 
     }
 

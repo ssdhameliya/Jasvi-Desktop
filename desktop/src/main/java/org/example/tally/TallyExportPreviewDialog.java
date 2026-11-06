@@ -6,8 +6,10 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import org.example.api.tally.TallyAutomationApiClient;
+import org.example.util.DynamicTableLayoutManager;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
+import org.example.util.SemanticTableCells;
 import org.example.util.ToastManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,6 +112,7 @@ public final class TallyExportPreviewDialog {
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
         header.getChildren().addAll(iconHolder, titleBox);
+        org.example.util.DocumentInspectionScaffold.installDragPhysics(header, dialog);
 
         // Preview Area
         VBox previewBox = new VBox(8);
@@ -135,9 +138,11 @@ public final class TallyExportPreviewDialog {
             cGstin.setCellValueFactory(v -> new javafx.beans.property.SimpleStringProperty(v.getValue().vendorGstin()));
             TableColumn<TallyAutomationApiClient.BillRecordDto, String> cTotal = new TableColumn<>("Grand Total (₹)");
             cTotal.setCellValueFactory(v -> new javafx.beans.property.SimpleStringProperty(v.getValue().grandTotal() != null ? String.format("₹%,.2f", v.getValue().grandTotal()) : "₹0.00"));
+            cTotal.setCellFactory(x -> SemanticTableCells.amountString("total"));
 
             tblSummary.getColumns().addAll(cInv, cDate, cVendor, cGstin, cTotal);
             if (bills != null) tblSummary.getItems().setAll(bills);
+            DynamicTableLayoutManager.install(tblSummary);
             previewContent = tblSummary;
         } else {
             TextArea txtPayload = new TextArea();

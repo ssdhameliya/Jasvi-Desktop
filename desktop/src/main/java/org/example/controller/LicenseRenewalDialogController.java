@@ -143,27 +143,27 @@ public class LicenseRenewalDialogController {
             switch (dto.status()) {
                 case "ACTIVE" -> {
                     lblHeaderBadge.setText("ACTIVE");
-                    lblHeaderBadge.getStyleClass().add("badge-active");
+                    lblHeaderBadge.getStyleClass().addAll("status-positive", "badge-active");
                 }
                 case "EXPIRING_SOON" -> {
                     lblHeaderBadge.setText("EXPIRING IN " + dto.daysRemaining() + " DAYS");
-                    lblHeaderBadge.getStyleClass().add("badge-warning");
+                    lblHeaderBadge.getStyleClass().addAll("status-warning", "badge-warning");
                 }
                 case "EXPIRED" -> {
                     lblHeaderBadge.setText("EXPIRED");
-                    lblHeaderBadge.getStyleClass().add("badge-cancelled");
+                    lblHeaderBadge.getStyleClass().addAll("status-negative", "badge-cancelled");
                 }
                 case "MACHINE_MISMATCH" -> {
                     lblHeaderBadge.setText("MACHINE MISMATCH");
-                    lblHeaderBadge.getStyleClass().add("badge-cancelled");
+                    lblHeaderBadge.getStyleClass().addAll("status-negative", "badge-cancelled");
                 }
                 case "CLOCK_TAMPERED" -> {
                     lblHeaderBadge.setText("CLOCK TAMPERED");
-                    lblHeaderBadge.getStyleClass().add("badge-cancelled");
+                    lblHeaderBadge.getStyleClass().addAll("status-negative", "badge-cancelled");
                 }
                 default -> {
                     lblHeaderBadge.setText(dto.status());
-                    lblHeaderBadge.getStyleClass().add("badge-warning");
+                    lblHeaderBadge.getStyleClass().addAll("status-neutral", "badge-inactive");
                 }
             }
         }
