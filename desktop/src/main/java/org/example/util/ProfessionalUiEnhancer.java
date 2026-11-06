@@ -927,6 +927,18 @@ public final class ProfessionalUiEnhancer {
             String str = String.valueOf(item);
             setText(str);
             String color = IconFactory.semanticColour(semantic);
+            if (isNumericColumn()) {
+                double num = parseNumeric(item);
+                if (semantic.contains("debit") || semantic.contains("expense") || semantic.contains("withdrawal") || semantic.contains("outflow")) {
+                    color = num > 0.009 ? "pink" : "green";
+                } else if (semantic.contains("credit") || semantic.contains("deposit") || semantic.contains("inflow") || semantic.contains("paid")) {
+                    color = num < -0.009 ? "pink" : "green";
+                } else if (semantic.contains("balance") || semantic.contains("outstanding") || semantic.contains("due")) {
+                    color = num > 0.009 ? "orange" : "green";
+                } else if (num < -0.009) {
+                    color = "pink";
+                }
+            }
             getStyleClass().add("erp-table-value-colour-" + color);
 
             if (isCenteredColumn()) {
@@ -954,6 +966,18 @@ public final class ProfessionalUiEnhancer {
                 setCursor(Cursor.DEFAULT);
                 setTooltip(null);
                 setOnMouseClicked(null);
+            }
+        }
+
+        private static double parseNumeric(Object item) {
+            if (item instanceof Number n) return n.doubleValue();
+            if (item == null) return 0.0;
+            try {
+                String clean = String.valueOf(item).replace("₹", "").replace(",", "").replace(" ", "").trim();
+                if (clean.isBlank() || "-".equals(clean) || "—".equals(clean)) return 0.0;
+                return Double.parseDouble(clean);
+            } catch (Exception ignored) {
+                return 0.0;
             }
         }
     }

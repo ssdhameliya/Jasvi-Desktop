@@ -213,6 +213,179 @@ public final class SemanticTableCells {
         };
     }
 
+    /**
+     * Value-aware semantic renderer for numerical currency and amounts.
+     * Evaluates number polarity, role semantics (credit, debit, balance, total)
+     * and applies canonical theme styles with zero color leaks and right alignment.
+     */
+    public static <S, N extends Number> TableCell<S, N> amount() {
+        return amount("amount");
+    }
+
+    public static <S, N extends Number> TableCell<S, N> amount(String role) {
+        final String r = role == null ? "amount" : role.toLowerCase(Locale.ROOT).trim();
+        return new TableCell<>() {
+            private String currentColour;
+
+            @Override
+            protected void updateItem(N item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    clearColour(this);
+                    currentColour = null;
+                    return;
+                }
+                double val = item.doubleValue();
+                setText(String.format(Locale.of("en", "IN"), "₹ %,.2f", val));
+                setAlignment(Pos.CENTER_RIGHT);
+
+                String targetColour = resolveAmountColour(r, val);
+                if (!java.util.Objects.equals(currentColour, targetColour)) {
+                    clearColour(this);
+                    if (targetColour != null) {
+                        getStyleClass().add("erp-table-value-colour-" + targetColour);
+                    }
+                    currentColour = targetColour;
+                }
+            }
+        };
+    }
+
+    /**
+     * Value-aware semantic renderer for String-formatted currency and amounts.
+     */
+    public static <S> TableCell<S, String> amountString(String role) {
+        final String r = role == null ? "amount" : role.toLowerCase(Locale.ROOT).trim();
+        return new TableCell<>() {
+            private String currentColour;
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null || item.isBlank()) {
+                    setText(null);
+                    setGraphic(null);
+                    clearColour(this);
+                    currentColour = null;
+                    return;
+                }
+                setText(item);
+                setAlignment(Pos.CENTER_RIGHT);
+
+                double val = parseNumeric(item);
+                String targetColour = resolveAmountColour(r, val);
+                if (!java.util.Objects.equals(currentColour, targetColour)) {
+                    clearColour(this);
+                    if (targetColour != null) {
+                        getStyleClass().add("erp-table-value-colour-" + targetColour);
+                    }
+                    currentColour = targetColour;
+                }
+            }
+        };
+    }
+
+    /**
+     * Value-aware semantic renderer for numerical quantities and unformatted decimals.
+     */
+    public static <S, N extends Number> TableCell<S, N> number() {
+        return number("number", 2);
+    }
+
+    public static <S, N extends Number> TableCell<S, N> number(String role) {
+        return number(role, 2);
+    }
+
+    public static <S, N extends Number> TableCell<S, N> number(String role, int decimals) {
+        final String r = role == null ? "number" : role.toLowerCase(Locale.ROOT).trim();
+        final String fmt = "%," + (decimals > 0 ? ("." + decimals) : "") + "f";
+        return new TableCell<>() {
+            private String currentColour;
+
+            @Override
+            protected void updateItem(N item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    clearColour(this);
+                    currentColour = null;
+                    return;
+                }
+                double val = item.doubleValue();
+                setText(String.format(Locale.of("en", "IN"), fmt, val));
+                setAlignment(Pos.CENTER_RIGHT);
+
+                String targetColour = resolveAmountColour(r, val);
+                if (!java.util.Objects.equals(currentColour, targetColour)) {
+                    clearColour(this);
+                    if (targetColour != null) {
+                        getStyleClass().add("erp-table-value-colour-" + targetColour);
+                    }
+                    currentColour = targetColour;
+                }
+            }
+        };
+    }
+
+    private static String resolveAmountColour(String role, double val) {
+        if (role.contains("debit") || role.contains("expense") || role.contains("withdrawal") || role.contains("outflow") || role.contains("refund")) {
+            return val > 0.009 ? "pink" : "green";
+        }
+        if (role.contains("credit") || role.contains("deposit") || role.contains("inflow") || role.contains("paid") || role.contains("receipt")) {
+            return val < -0.009 ? "pink" : "green";
+        }
+        if (role.contains("balance") || role.contains("outstanding") || role.contains("due")) {
+            if (val > 0.009) return "orange";
+            return "green"; // Settled ₹0.00 or credit balance
+        }
+        if (role.contains("tax") || role.contains("gst")) {
+            return "purple";
+        }
+        if (role.contains("discount")) {
+            return "orange";
+        }
+        if (role.contains("qty") || role.contains("quantity") || role.contains("number") || role.contains("rate") || role.contains("price")) {
+            if (val < -0.009) return "pink";
+            return "teal";
+        }
+        if (role.contains("total") || role.contains("invoice") || role.contains("bill") || role.contains("net")) {
+            if (val < -0.009) return "pink";
+            return "blue";
+        }
+        // General amount
+        if (val < -0.009) return "pink";
+        if (val > 0.009) return "green";
+        return "blue";
+    }
+
+    private static void clearColour(TableCell<?, ?> cell) {
+        cell.getStyleClass().removeAll(
+                "erp-table-value-colour-blue",
+                "erp-table-value-colour-green",
+                "erp-table-value-colour-orange",
+                "erp-table-value-colour-purple",
+                "erp-table-value-colour-pink",
+                "erp-table-value-colour-teal",
+                "erp-table-value-colour-indigo",
+                "erp-value-positive",
+                "erp-value-negative"
+        );
+    }
+
+    private static double parseNumeric(String text) {
+        if (text == null) return 0.0;
+        try {
+            String clean = text.replace("₹", "").replace(",", "").replace(" ", "").trim();
+            if (clean.isBlank() || "-".equals(clean) || "—".equals(clean)) return 0.0;
+            return Double.parseDouble(clean);
+        } catch (Exception ignored) {
+            return 0.0;
+        }
+    }
+
     private static Presentation presentation(String role, String value) {
         String v = value.trim().toUpperCase(Locale.ROOT);
         State state = classify(v);

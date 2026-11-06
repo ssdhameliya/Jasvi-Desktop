@@ -31,6 +31,7 @@ import org.example.model.PurchaseCharge;
 import org.example.api.support.SupportApiClient;
 import org.example.navigation.NavigationManager;
 import org.example.util.ScreenRefreshPolicy;
+import org.example.util.SemanticTableCells;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.ItemService;
 import org.example.service.PartyService;
@@ -1509,87 +1510,10 @@ public class PurchaseController implements ScreenLifecycle {
         });
 
         colDiscount.setCellFactory(column -> new TextFieldTableCell<>(new DoubleStringConverter()));
-        colDiscountAmount.setCellFactory(column -> new TableCell<>() {
-            @Override protected void updateItem(Double value, boolean empty) {
-                super.updateItem(value, empty);
-                setText(empty || value == null ? null : String.format("₹ %.2f", value));
-            }
-        });
-
-
-        colGstAmount.setCellFactory(column ->
-            new TableCell<>() {
-
-                @Override
-                protected void updateItem(Double value, boolean empty) {
-
-                    super.updateItem(value, empty);
-
-                    if (empty || value == null) {
-
-                        setText(null);
-
-                    } else {
-
-                        setText(
-                            String.format("₹ %.2f", value)
-                        );
-
-                    }
-                }
-
-            });
-
-
-
-        colNetAmount.setCellFactory(column ->
-            new TableCell<>() {
-
-                @Override
-                protected void updateItem(Double value, boolean empty) {
-
-                    super.updateItem(value, empty);
-
-                    if (empty || value == null) {
-
-                        setText(null);
-
-                    } else {
-
-                        setText(
-                            String.format("₹ %.2f", value)
-                        );
-
-                    }
-                }
-
-            });
-
-
-
-        colTotal.setCellFactory(column ->
-            new TableCell<>() {
-
-                @Override
-                protected void updateItem(Double value, boolean empty) {
-
-                    super.updateItem(value, empty);
-
-                    if (empty || value == null) {
-
-                        setText(null);
-
-                    } else {
-
-                        setText(
-                            String.format("₹ %.2f", value)
-                        );
-
-                    }
-                }
-
-            });
-
+        colDiscountAmount.setCellFactory(column -> SemanticTableCells.amount("discount"));
+        colGstAmount.setCellFactory(column -> SemanticTableCells.amount("tax"));
+        colNetAmount.setCellFactory(column -> SemanticTableCells.amount("total"));
+        colTotal.setCellFactory(column -> SemanticTableCells.amount("total"));
     }
 
     private void setupEditableColumns() {

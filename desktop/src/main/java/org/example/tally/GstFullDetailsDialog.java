@@ -10,9 +10,12 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import org.example.api.tally.TallyAutomationApiClient;
+import org.example.util.DynamicTableLayoutManager;
 import org.example.util.ToastManager;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +29,7 @@ import java.util.List;
  * (drag, minimize, maximize/restore) and full theme styling without color leaks.</p>
  */
 public final class GstFullDetailsDialog {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private GstFullDetailsDialog() {}
 
@@ -54,39 +58,37 @@ public final class GstFullDetailsDialog {
     public static void show(Node ownerNode, TallyAutomationApiClient.ClientProfileDto client) {
         if (client == null) return;
         List<TallyAutomationApiClient.GstFilingStatusDto> filings = new ArrayList<>();
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-1", "September 2026", "11-10-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-3B", "September 2026", "20-10-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-1", "August 2026", "10-09-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-3B", "August 2026", "19-09-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-1", "July 2026", "11-08-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-3B", "July 2026", "20-08-2026", "FILED"));
+        if (client.filingStatusJson() != null && !client.filingStatusJson().isBlank()) {
+            try {
+                filings = MAPPER.readValue(client.filingStatusJson(), new TypeReference<List<TallyAutomationApiClient.GstFilingStatusDto>>() {});
+            } catch (Exception ignored) {}
+        }
 
         buildAndShow(ownerNode, client.gstin(), client.legalName(), client.tradeName(),
                 client.gstStatus(), client.taxpayerType(), client.registrationDate(),
                 client.constitutionOfBusiness(), client.stateJurisdiction(),
                 client.centerJurisdiction(), client.natureOfBusiness(), client.address(),
-                filings, "Yes (On 15/06/2023)", "Not Applicable",
-                "1. Retail Business, 2. Works Contract, 3. Supplier of Services, 4. Factory / Manufacturing",
-                "8481:TAPS, COCKS, VALVES AND SIMILAR APPLIANCES|7318:SCREWS, BOLTS, NUTS, COACH-SCREWS, SCREW HOOKS|7307:TUBE OR PIPE FITTINGS|4009:TUBES, PIPES AND HOSES, OF VULCANISED RUBBER|9988:Manufacturing services on physical inputs (goods) owned by others");
+                filings, "Portal Authenticated", "Not Applicable",
+                client.natureOfBusiness() != null ? client.natureOfBusiness() : "Registered Taxpayer Activity",
+                "");
     }
 
     public static void show(Node ownerNode, TallyAutomationApiClient.ClientDirectoryRowDto row) {
         if (row == null) return;
         List<TallyAutomationApiClient.GstFilingStatusDto> filings = new ArrayList<>();
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-1", "September 2026", "11-10-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-3B", "September 2026", "20-10-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-1", "August 2026", "10-09-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-3B", "August 2026", "19-09-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-1", "July 2026", "11-08-2026", "FILED"));
-        filings.add(new TallyAutomationApiClient.GstFilingStatusDto("2026-2027", "GSTR-3B", "July 2026", "20-08-2026", "FILED"));
+        if (row.filingStatusJson() != null && !row.filingStatusJson().isBlank()) {
+            try {
+                filings = MAPPER.readValue(row.filingStatusJson(), new TypeReference<List<TallyAutomationApiClient.GstFilingStatusDto>>() {});
+            } catch (Exception ignored) {}
+        }
 
         buildAndShow(ownerNode, row.gstin(), row.legalName(), row.tradeName(),
                 row.gstStatus(), row.taxpayerType(), row.registrationDate(),
                 row.constitutionOfBusiness(), row.stateJurisdiction(),
                 row.centerJurisdiction(), row.natureOfBusiness(), row.address(),
-                filings, "Yes", "Not Applicable",
-                "1. Retail Business, 2. Works Contract, 3. Supplier of Services, 4. Factory / Manufacturing",
-                "8481:TAPS, COCKS, VALVES AND SIMILAR APPLIANCES|7318:SCREWS, BOLTS, NUTS|9988:Manufacturing services on physical inputs");
+                filings, "Portal Authenticated", "Not Applicable",
+                row.natureOfBusiness() != null ? row.natureOfBusiness() : "Registered Taxpayer Activity",
+                "");
     }
 
     private static void buildAndShow(Node ownerNode, String gstin, String legalName, String tradeName,
@@ -227,19 +229,7 @@ public final class GstFullDetailsDialog {
         header.getChildren().addAll(iconHolder, titleBox, spacer, controls);
 
         // Enable moving the window by dragging the header
-        final double[] dragDelta = new double[2];
-        header.setOnMousePressed(e -> {
-            if (header.getScene() != null && header.getScene().getWindow() instanceof Stage stage) {
-                dragDelta[0] = stage.getX() - e.getScreenX();
-                dragDelta[1] = stage.getY() - e.getScreenY();
-            }
-        });
-        header.setOnMouseDragged(e -> {
-            if (header.getScene() != null && header.getScene().getWindow() instanceof Stage stage && !stage.isMaximized()) {
-                stage.setX(e.getScreenX() + dragDelta[0]);
-                stage.setY(e.getScreenY() + dragDelta[1]);
-            }
-        });
+        org.example.util.DocumentInspectionScaffold.installDragPhysics(header, dialog);
         header.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) toggleMaximize(dialog, btnMax);
         });
@@ -440,22 +430,19 @@ public final class GstFullDetailsDialog {
 
         TableColumn<HsnTableRow, String> colGoodsHsn = new TableColumn<>("Goods HSN");
         colGoodsHsn.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().goodsHsn()));
-        colGoodsHsn.prefWidthProperty().bind(table.widthProperty().multiply(0.12));
 
         TableColumn<HsnTableRow, String> colGoodsDesc = new TableColumn<>("Goods Description");
         colGoodsDesc.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().goodsDesc()));
-        colGoodsDesc.prefWidthProperty().bind(table.widthProperty().multiply(0.38));
 
         TableColumn<HsnTableRow, String> colServicesHsn = new TableColumn<>("Services HSN");
         colServicesHsn.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().servicesHsn()));
-        colServicesHsn.prefWidthProperty().bind(table.widthProperty().multiply(0.14));
 
         TableColumn<HsnTableRow, String> colServicesDesc = new TableColumn<>("Services Description");
         colServicesDesc.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().servicesDesc()));
-        colServicesDesc.prefWidthProperty().bind(table.widthProperty().multiply(0.36));
 
         table.getColumns().addAll(colGoodsHsn, colGoodsDesc, colServicesHsn, colServicesDesc);
         table.setItems(FXCollections.observableArrayList(rows));
+        DynamicTableLayoutManager.install(table);
 
         Label lblNote = new Label("HSN: Harmonized System of Nomenclature of Goods and Services");
         lblNote.getStyleClass().addAll("caption-label");
@@ -526,25 +513,24 @@ public final class GstFullDetailsDialog {
         table.setPrefHeight(180);
         table.getStyleClass().addAll("approved-table", "erp-table-standard");
 
+        Label placeholder = new Label("No recent return filings recorded on GST portal for this profile.");
+        placeholder.getStyleClass().addAll("muted-label");
+        table.setPlaceholder(placeholder);
+
         TableColumn<TallyAutomationApiClient.GstFilingStatusDto, String> colFy = new TableColumn<>("Financial Year");
         colFy.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().financialYear()));
-        colFy.prefWidthProperty().bind(table.widthProperty().multiply(0.20));
 
         TableColumn<TallyAutomationApiClient.GstFilingStatusDto, String> colType = new TableColumn<>("Return Type");
         colType.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().returnType()));
-        colType.prefWidthProperty().bind(table.widthProperty().multiply(0.18));
 
         TableColumn<TallyAutomationApiClient.GstFilingStatusDto, String> colPeriod = new TableColumn<>("Tax Period");
         colPeriod.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().taxPeriod()));
-        colPeriod.prefWidthProperty().bind(table.widthProperty().multiply(0.24));
 
         TableColumn<TallyAutomationApiClient.GstFilingStatusDto, String> colDate = new TableColumn<>("Date of Filing");
         colDate.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().dateOfFiling()));
-        colDate.prefWidthProperty().bind(table.widthProperty().multiply(0.20));
 
         TableColumn<TallyAutomationApiClient.GstFilingStatusDto, String> colStatus = new TableColumn<>("Filing Status");
         colStatus.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().status()));
-        colStatus.prefWidthProperty().bind(table.widthProperty().multiply(0.18));
         colStatus.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String s, boolean empty) {
@@ -565,6 +551,7 @@ public final class GstFullDetailsDialog {
         if (filings != null) {
             table.setItems(FXCollections.observableArrayList(filings));
         }
+        DynamicTableLayoutManager.install(table);
 
         box.getChildren().addAll(header, table);
         return box;

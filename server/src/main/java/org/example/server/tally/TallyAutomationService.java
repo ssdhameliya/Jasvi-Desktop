@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 @Service
 public class TallyAutomationService {
     private static final Logger log = LoggerFactory.getLogger(TallyAutomationService.class);
+    private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
 
     private final ClientProfileRepository clientRepo;
     private final UploadBatchRepository batchRepo;
@@ -190,6 +191,11 @@ public class TallyAutomationService {
             if (c.getCenterJurisdiction() != null && !c.getCenterJurisdiction().isBlank()) centerJurisdiction = c.getCenterJurisdiction();
             if (c.getNatureOfBusiness() != null && !c.getNatureOfBusiness().isBlank()) natureOfBusiness = c.getNatureOfBusiness();
             if (c.getHsnGoodsServices() != null && !c.getHsnGoodsServices().isBlank()) hsnGoodsServices = c.getHsnGoodsServices();
+            if (c.getFilingStatusJson() != null && !c.getFilingStatusJson().isBlank()) {
+                try {
+                    filings = OBJECT_MAPPER.readValue(c.getFilingStatusJson(), new com.fasterxml.jackson.core.type.TypeReference<List<TallyAutomationDtos.GstFilingStatusDto>>() {});
+                } catch (Exception ignored) {}
+            }
             found = true;
         } else if (partyRepo != null) {
             var party = partyRepo.findAll().stream()
@@ -253,16 +259,6 @@ public class TallyAutomationService {
         }
         if (hsnGoodsServices.isBlank()) {
             hsnGoodsServices = "8481:TAPS, COCKS, VALVES AND SIMILAR APPLIANCES|7318:SCREWS, BOLTS, NUTS, FASTENERS|9988:Manufacturing & business support services";
-        }
-
-        // 4. Default filing history
-        if (filings.isEmpty()) {
-            filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-1", "September 2026", "11-10-2026", "FILED"));
-            filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-3B", "September 2026", "20-10-2026", "FILED"));
-            filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-1", "August 2026", "10-09-2026", "FILED"));
-            filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-3B", "August 2026", "19-09-2026", "FILED"));
-            filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-1", "July 2026", "11-08-2026", "FILED"));
-            filings.add(new TallyAutomationDtos.GstFilingStatusDto("2026-2027", "GSTR-3B", "July 2026", "20-08-2026", "FILED"));
         }
 
         found = true;
@@ -460,7 +456,11 @@ public class TallyAutomationService {
                 line.setUom(itemDto.uom() != null ? itemDto.uom() : "NOS");
                 line.setRate(itemDto.rate() != null ? itemDto.rate() : BigDecimal.ZERO);
                 line.setDiscountAmount(itemDto.discountAmount() != null ? itemDto.discountAmount() : BigDecimal.ZERO);
-                line.setTaxRate(itemDto.taxRate() != null ? itemDto.taxRate() : BigDecimal.ZERO);
+                BigDecimal tr = itemDto.taxRate() != null ? itemDto.taxRate() : BigDecimal.ZERO;
+                if (tr.compareTo(new BigDecimal("100.00")) > 0 || tr.compareTo(BigDecimal.ZERO) < 0) {
+                    tr = new BigDecimal("18.00");
+                }
+                line.setTaxRate(tr.setScale(2, RoundingMode.HALF_UP));
                 line.setTaxableAmount(itemDto.taxableAmount() != null ? itemDto.taxableAmount() : BigDecimal.ZERO);
 
                 // Check line math
@@ -478,7 +478,8 @@ public class TallyAutomationService {
 
         // Validate Accuracy
         AccuracyAudit audit = calculateAccuracy(entity, lineEntities);
-        entity.setAccuracyPercentage(audit.score);
+        BigDecimal score = (audit.score != null) ? audit.score.max(BigDecimal.ZERO).min(new BigDecimal("100.00")) : BigDecimal.ZERO;
+        entity.setAccuracyPercentage(score.setScale(2, RoundingMode.HALF_UP));
         entity.setValidationNotes(audit.notes);
 
         entity = billRepo.save(entity);

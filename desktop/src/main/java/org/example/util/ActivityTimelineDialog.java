@@ -98,18 +98,8 @@ public final class ActivityTimelineDialog {
         pane.getProperties().put("dse.dialog.presented", true);
         PopupTableWorkspace.applyInspectionSizing(dialog, owner);
 
-        boolean isDark = ThemeManager.isDark();
-        String hostBg = isDark ? "#0d1527" : "#ffffff";
-        String hostBorder = isDark ? "rgba(148, 163, 184, 0.22)" : "#cbd5e1";
-        String hostShadow = isDark
-                ? "dropshadow(gaussian, rgba(0, 0, 0, 0.70), 32, 0.2, 0, 10)"
-                : "dropshadow(gaussian, rgba(15, 23, 42, 0.20), 32, 0.15, 0, 10)";
-
         StackPane host = new StackPane();
         host.getStyleClass().addAll("document-inspection-host", "erp-ui-standard");
-        host.setStyle(String.format(
-                "-fx-background-color: %s; -fx-background-radius: 14; -fx-border-color: %s; -fx-border-radius: 14; -fx-border-width: 1; -fx-effect: %s;",
-                hostBg, hostBorder, hostShadow));
 
         final String safeRef = safe(reference);
         final String entityLabel = pretty(entityType);
@@ -556,7 +546,6 @@ public final class ActivityTimelineDialog {
         VBox root = new VBox(10, headerHero, toolbar, table, footer);
         root.setPadding(new Insets(16, 20, 16, 20));
         root.getStyleClass().addAll("document-inspection-content", "erp-ui-standard");
-        root.setStyle(isDark ? "-fx-background-color: #0b1325; -fx-background-radius: 12;" : "-fx-background-color: #f8fafc; -fx-background-radius: 12;");
         VBox.setVgrow(root, Priority.ALWAYS);
 
         host.getChildren().setAll(root);
@@ -629,21 +618,7 @@ public final class ActivityTimelineDialog {
         hero.setPadding(new Insets(2, 6, 8, 6));
         hero.getStyleClass().add("inspection-hero-container");
 
-        final double[] dragDelta = new double[2];
-        hero.setOnMousePressed(mouseEvent -> {
-            Window window = dialog.getDialogPane().getScene().getWindow();
-            if (window != null) {
-                dragDelta[0] = window.getX() - mouseEvent.getScreenX();
-                dragDelta[1] = window.getY() - mouseEvent.getScreenY();
-            }
-        });
-        hero.setOnMouseDragged(mouseEvent -> {
-            Window window = dialog.getDialogPane().getScene().getWindow();
-            if (window != null) {
-                window.setX(mouseEvent.getScreenX() + dragDelta[0]);
-                window.setY(mouseEvent.getScreenY() + dragDelta[1]);
-            }
-        });
+        DocumentInspectionScaffold.installDragPhysics(hero, dialog);
 
         return hero;
     }

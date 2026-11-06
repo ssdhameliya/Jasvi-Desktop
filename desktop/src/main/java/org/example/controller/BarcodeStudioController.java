@@ -444,7 +444,7 @@ public class BarcodeStudioController implements ScreenLifecycle {
         grid.setPadding(new Insets(14));
 
         Label lblItem = new Label(item.itemName != null ? item.itemName : item.itemCode);
-        lblItem.setStyle("-fx-font-weight: bold;");
+        lblItem.getStyleClass().addAll("bold-value-label", "field-label");
 
         TextField txtBarcode = new TextField(item.barcode != null && !item.barcode.isBlank() ? item.barcode : "");
         txtBarcode.setPromptText("Enter or auto-generate barcode / EAN...");
@@ -803,8 +803,7 @@ public class BarcodeStudioController implements ScreenLifecycle {
         });
 
         Label lblHelp = new Label("Only registered orders can be selected to ensure dispatch accuracy and prevent duplicate numbers.");
-        lblHelp.getStyleClass().add("text-muted");
-        lblHelp.setStyle("-fx-font-size: 11px;");
+        lblHelp.getStyleClass().addAll("settings-field-hint", "page-subtitle");
 
         content.getChildren().addAll(new Label("Search Order:"), txtFilter, new Label("Select Order Document:"), cmbOrders, lblHelp);
         pane.setContent(content);

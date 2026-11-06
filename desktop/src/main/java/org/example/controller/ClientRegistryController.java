@@ -18,6 +18,7 @@ import org.example.navigation.ScreenLifecycle;
 import org.example.shared.licensing.HardwareFingerprintUtil;
 import org.example.util.AppDialogService;
 import org.example.util.BusinessClock;
+import org.example.util.DynamicTableLayoutManager;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
 import org.example.util.OwnedDialog;
@@ -100,15 +101,8 @@ public class ClientRegistryController implements ScreenLifecycle {
     private void setupTableColumns() {
         if (tableClients == null) return;
 
-        // Dynamic responsive column widths per Rule 7 (sum = 1.00)
-        colStatus.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.08));
-        colCompany.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.20));
-        colMachineId.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.20));
-        colContact.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.14));
-        colTier.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.10));
-        colAnnualFee.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.09));
-        colValidUntil.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.09));
-        colActions.prefWidthProperty().bind(tableClients.widthProperty().multiply(0.10));
+        // Dynamic responsive column widths per Rule 7
+        DynamicTableLayoutManager.install(tableClients);
 
         // 1. Status Column with Semantic Badges (Rule 11)
         colStatus.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("status", "ACTIVE"))));
@@ -125,11 +119,11 @@ public class ClientRegistryController implements ScreenLifecycle {
                 badge.getStyleClass().add("status-badge");
                 String upper = status.toUpperCase(Locale.ROOT);
                 if ("ACTIVE".equals(upper)) {
-                    badge.getStyleClass().add("badge-active");
+                    badge.getStyleClass().addAll("status-positive", "badge-active");
                 } else if ("REVOKED".equals(upper)) {
-                    badge.getStyleClass().add("badge-cancelled");
+                    badge.getStyleClass().addAll("status-negative", "badge-cancelled");
                 } else {
-                    badge.getStyleClass().add("badge-warning");
+                    badge.getStyleClass().addAll("status-warning", "badge-warning");
                 }
                 setGraphic(badge);
                 setContentDisplay(ContentDisplay.GRAPHIC_ONLY);

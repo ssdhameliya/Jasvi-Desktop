@@ -17,6 +17,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.poi.ss.usermodel.*;
 import org.example.api.tally.TallyAutomationApiClient;
+import org.example.util.DynamicTableLayoutManager;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
 import org.example.util.PopupTableWorkspace;
@@ -190,19 +191,7 @@ public final class TallyDocumentInspectionDialog {
         controls.getChildren().addAll(btnMinimize, btnMaximize, btnClose);
         header.getChildren().addAll(iconHolder, titleBox, spacer, controls);
 
-        final double[] dragDelta = new double[2];
-        header.setOnMousePressed(e -> {
-            if (header.getScene() != null && header.getScene().getWindow() instanceof Stage stage) {
-                dragDelta[0] = stage.getX() - e.getScreenX();
-                dragDelta[1] = stage.getY() - e.getScreenY();
-            }
-        });
-        header.setOnMouseDragged(e -> {
-            if (header.getScene() != null && header.getScene().getWindow() instanceof Stage stage && !stage.isMaximized()) {
-                stage.setX(e.getScreenX() + dragDelta[0]);
-                stage.setY(e.getScreenY() + dragDelta[1]);
-            }
-        });
+        org.example.util.DocumentInspectionScaffold.installDragPhysics(header, dialog);
         header.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2 && dialog.getDialogPane().getScene() != null
                     && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
@@ -446,6 +435,7 @@ public final class TallyDocumentInspectionDialog {
             tableData.add(rows.get(r));
         }
         table.setItems(tableData);
+        DynamicTableLayoutManager.install(table);
         return table;
     }
 
@@ -484,6 +474,7 @@ public final class TallyDocumentInspectionDialog {
                 tableData.add(row);
             }
             table.setItems(tableData);
+            DynamicTableLayoutManager.install(table);
 
             state.contentArea.getChildren().setAll(table);
             if (state.pageLabel != null) state.pageLabel.setText(tableData.size() + " CSV Rows");

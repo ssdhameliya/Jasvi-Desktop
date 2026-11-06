@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 set -eu
-MAVEN_VERSION="3.9.11"
+MAVEN_VERSION="3.10.0"
 BASE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 MAVEN_USER_HOME=${MAVEN_USER_HOME:-"$HOME/.m2"}
 DIST_DIR="$MAVEN_USER_HOME/wrapper/dists/apache-maven-$MAVEN_VERSION"

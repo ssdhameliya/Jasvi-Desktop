@@ -46,46 +46,16 @@ public final class PurchaseDocumentInspectionDialog {
         final SupportApiClient support = (supportClient != null) ? supportClient : new SupportApiClient();
         final PurchaseService purchaseService = new PurchaseService();
 
-        OwnedDialog<ButtonType> dialog = new OwnedDialog<>(ownerNode);
-        dialog.setTitle("Purchase Invoice — " + currentPurchase.getInvoiceNo());
-        dialog.setHeaderText(null);
-        dialog.setResizable(true);
-
-        DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("erp-document-inspection-dialog", "purchase-inspection-dialog", "approved-ui");
-        pane.getProperties().put("dse.dialog.presented", true);
-        PopupTableWorkspace.applyInspectionSizing(dialog, ownerNode);
-
-        boolean isDark = ThemeManager.isDark();
-        String hostBg = isDark ? "#0d1527" : "#ffffff";
-        String hostBorder = isDark ? "rgba(148, 163, 184, 0.22)" : "#cbd5e1";
-        String hostShadow = isDark
-                ? "dropshadow(gaussian, rgba(0, 0, 0, 0.70), 32, 0.2, 0, 10)"
-                : "dropshadow(gaussian, rgba(15, 23, 42, 0.20), 32, 0.15, 0, 10)";
-
-        StackPane host = new StackPane();
-        host.getStyleClass().addAll("document-inspection-host", "erp-ui-standard");
-        host.setStyle(String.format(
-                "-fx-background-color: %s; -fx-background-radius: 14; -fx-border-color: %s; -fx-border-radius: 14; -fx-border-width: 1; -fx-effect: %s;",
-                hostBg, hostBorder, hostShadow));
-
-        pane.setContent(host);
-        pane.getButtonTypes().add(ButtonType.CLOSE);
-
-        dialog.setOnShowing(ev -> {
-            Node defaultButtonBar = pane.lookup(".button-bar");
-            if (defaultButtonBar != null) {
-                defaultButtonBar.setVisible(false);
-                defaultButtonBar.setManaged(false);
-            }
-        });
+        var shell = DocumentInspectionScaffold.createShell(ownerNode,
+                "Purchase Invoice — " + currentPurchase.getInvoiceNo(),
+                "purchase-inspection-dialog");
 
         java.util.concurrent.atomic.AtomicReference<Purchase> resolvedPurchaseRef = new java.util.concurrent.atomic.AtomicReference<>(currentPurchase);
 
         // Instant Shell Mount (0ms): render Header Hero, Metric Cards, Tabs, and Action Dock synchronously
-        renderContent(dialog, host, currentPurchase, resolvedPurchaseRef, purchaseService, support, onUpdated);
+        renderContent(shell.dialog(), shell.host(), currentPurchase, resolvedPurchaseRef, purchaseService, support, onUpdated);
 
-        dialog.showAndWait();
+        shell.dialog().showAndWait();
     }
 
     private static void renderContent(Dialog<?> dialog, StackPane host, Purchase currentPurchase, java.util.concurrent.atomic.AtomicReference<Purchase> resolvedPurchaseRef, PurchaseService purchaseService, SupportApiClient support, Runnable onUpdated) {
@@ -131,112 +101,39 @@ public final class PurchaseDocumentInspectionDialog {
         // Action Dock
         HBox actionDock = buildActionDock(currentPurchase, resolvedPurchaseRef, dialog, purchaseService, support, onUpdated);
 
-        VBox contentBox = new VBox(12, headerHero, metricStrip, tabPane, actionDock);
-        contentBox.setPadding(new Insets(16, 20, 16, 20));
-        contentBox.getStyleClass().addAll("document-inspection-content", "erp-ui-standard");
-        contentBox.setStyle("-fx-background-color: transparent;");
-        VBox.setVgrow(contentBox, Priority.ALWAYS);
-
+        VBox contentBox = DocumentInspectionScaffold.assembleContent(headerHero, metricStrip, tabPane, actionDock);
         host.getChildren().setAll(contentBox);
     }
 
     private static HBox buildHeaderHero(Purchase purchase, Dialog<?> dialog) {
-        Label iconLabel = new Label();
-        iconLabel.setGraphic(IconFactory.icon("purchase", 32));
-        iconLabel.getStyleClass().add("inspection-hero-icon");
-
-        Label docTypeLabel = new Label("PURCHASE INVOICE");
-        docTypeLabel.getStyleClass().add("inspection-kicker");
-
-        Label docNoLabel = new Label(purchase.getInvoiceNo());
-        docNoLabel.getStyleClass().addAll("inspection-hero-title", "sales-detail-invoice");
-
-        Button btnCopy = new Button();
-        btnCopy.setGraphic(IconFactory.compactIcon("copy", 13));
-        btnCopy.setTooltip(new Tooltip("Copy invoice number"));
-        btnCopy.getStyleClass().addAll("icon-button", "copy-ref-button", "approved-button");
-        btnCopy.setOnAction(e -> {
-            Clipboard clipboard = Clipboard.getSystemClipboard();
-            ClipboardContent content = new ClipboardContent();
-            content.putString(purchase.getInvoiceNo());
-            clipboard.setContent(content);
-            ToastManager.info(dialog.getDialogPane(), "Copied", purchase.getInvoiceNo() + " copied to clipboard.");
-        });
-
-        HBox docNoBox = new HBox(8, docNoLabel, btnCopy);
-        docNoBox.setAlignment(Pos.CENTER_LEFT);
-
         String dateStr = purchase.getInvoiceDate() != null ? BusinessClock.formatDate(purchase.getInvoiceDate()) : "—";
         String timeStr = purchase.getCreatedAt() != null && !purchase.getCreatedAt().isBlank()
                 ? BusinessClock.formatTimestamp(purchase.getCreatedAt())
                 : "";
-        Label metaLabel = new Label("Purchase Date: " + dateStr + (timeStr.isBlank() ? "" : "  •  Created: " + timeStr));
-        metaLabel.getStyleClass().add("inspection-meta-label");
-
-        VBox titleBox = new VBox(2, docTypeLabel, docNoBox, metaLabel);
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        // Status Badges Strip
-        HBox statusStrip = new HBox(8);
-        statusStrip.setAlignment(Pos.CENTER_RIGHT);
+        String meta = "Purchase Date: " + dateStr + (timeStr.isBlank() ? "" : "  •  Created: " + timeStr);
 
         String docStatus = safe(purchase.getDocumentStatus()).toUpperCase(Locale.ROOT);
         if (docStatus.isBlank()) docStatus = "PENDING APPROVAL";
-        Label docStatusPill = createPill(docStatus,
+        Label docStatusPill = DocumentInspectionScaffold.createPill(docStatus,
                 docStatus.equals("APPROVED") ? "pill-success" : docStatus.contains("REJECT") || docStatus.contains("CANCEL") ? "pill-danger" : "pill-warning",
                 docStatus.equals("APPROVED") ? "complete" : docStatus.contains("REJECT") ? "error" : "reminder");
 
         String payStatus = safe(purchase.getPaymentStatus()).toUpperCase(Locale.ROOT);
         if (payStatus.isBlank()) payStatus = "PENDING";
-        Label payStatusPill = createPill(payStatus,
+        Label payStatusPill = DocumentInspectionScaffold.createPill(payStatus,
                 payStatus.equals("PAID") ? "pill-success" : payStatus.equals("PARTIAL") ? "pill-warning" : "pill-danger",
                 payStatus.equals("PAID") ? "payment" : payStatus.equals("PARTIAL") ? "balance" : "reminder");
 
-        statusStrip.getChildren().addAll(docStatusPill, payStatusPill);
+        List<Node> pills = new ArrayList<>();
+        pills.add(docStatusPill);
+        pills.add(payStatusPill);
 
         String retStatus = safe(purchase.getReturnStatus()).toUpperCase(Locale.ROOT);
         if (!retStatus.isBlank() && !"N/A".equals(retStatus)) {
-            statusStrip.getChildren().add(createPill(retStatus, "pill-warning", "return"));
+            pills.add(DocumentInspectionScaffold.createPill(retStatus, "pill-warning", "return"));
         }
 
-        Button btnHeroClose = new Button();
-        btnHeroClose.setGraphic(SemanticIconManager.compact("close", 14));
-        btnHeroClose.getStyleClass().addAll("dse-dialog-close", "icon-button");
-        btnHeroClose.setTooltip(new Tooltip("Close"));
-        btnHeroClose.setOnAction(e -> dialog.close());
-        statusStrip.getChildren().add(btnHeroClose);
-
-        HBox hero = new HBox(12, iconLabel, titleBox, spacer, statusStrip);
-        hero.setAlignment(Pos.CENTER_LEFT);
-        hero.getStyleClass().add("inspection-hero-bar");
-
-        final double[] dragDelta = new double[2];
-        hero.setOnMousePressed(mouseEvent -> {
-            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() != null) {
-                Window w = dialog.getDialogPane().getScene().getWindow();
-                dragDelta[0] = w.getX() - mouseEvent.getScreenX();
-                dragDelta[1] = w.getY() - mouseEvent.getScreenY();
-            }
-        });
-        hero.setOnMouseDragged(mouseEvent -> {
-            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() != null) {
-                Window w = dialog.getDialogPane().getScene().getWindow();
-                w.setX(mouseEvent.getScreenX() + dragDelta[0]);
-                w.setY(mouseEvent.getScreenY() + dragDelta[1]);
-            }
-        });
-
-        return hero;
-    }
-
-    private static Label createPill(String text, String pillClass, String iconSemantic) {
-        Label pill = new Label(text);
-        pill.getStyleClass().addAll("status-pill", pillClass);
-        pill.setGraphic(IconFactory.compactIcon(iconSemantic, 13));
-        pill.setGraphicTextGap(5);
-        return pill;
+        return DocumentInspectionScaffold.buildHeaderHero(dialog, "purchase", "PURCHASE INVOICE", purchase.getInvoiceNo(), meta, pills);
     }
 
     private static HBox buildOverviewCards(Purchase purchase) {
@@ -244,79 +141,39 @@ public final class PurchaseDocumentInspectionDialog {
         String supplierName = supp != null ? safe(supp.getName()) : "Unknown Supplier";
         String mobile = supp != null && !safe(supp.getPhone()).isBlank() ? supp.getPhone() : "—";
         String gstin = supp != null && !safe(supp.getGstin()).isBlank() ? supp.getGstin() : (!safe(purchase.getBillingGstin()).isBlank() ? purchase.getBillingGstin() : "Unregistered");
-        VBox card1 = createSummaryCard("Supplier Details", "supplier",
+        VBox card1 = DocumentInspectionScaffold.createSummaryCard("Supplier Details", "supplier",
                 List.of(
-                        new FieldPair("Party Name", supplierName, "supplier", true),
-                        new FieldPair("Contact Mobile", mobile, "phone", false),
-                        new FieldPair("Supplier GSTIN", gstin, "tax", false)
+                        new DocumentInspectionScaffold.FieldPair("Party Name", supplierName, "supplier", true),
+                        new DocumentInspectionScaffold.FieldPair("Contact Mobile", mobile, "phone", false),
+                        new DocumentInspectionScaffold.FieldPair("Supplier GSTIN", gstin, "tax", false)
                 ));
 
-        VBox card2 = createSummaryCard("Purchase Breakdown", "currency",
+        VBox card2 = DocumentInspectionScaffold.createSummaryCard("Purchase Breakdown", "currency",
                 List.of(
-                        new FieldPair("Taxable Subtotal", money(purchase.getSubtotal()), "currency", false),
-                        new FieldPair("GST Amount", money(purchase.getGstAmount()), "tax", false),
-                        new FieldPair("Total Purchase", money(purchase.getTotalAmount()), "currency", true)
+                        new DocumentInspectionScaffold.FieldPair("Taxable Subtotal", money(purchase.getSubtotal()), "currency", false),
+                        new DocumentInspectionScaffold.FieldPair("GST Amount", money(purchase.getGstAmount()), "tax", false),
+                        new DocumentInspectionScaffold.FieldPair("Total Purchase", money(purchase.getTotalAmount()), "currency", true)
                 ));
 
         String dueStr = purchase.getDueDate() != null ? BusinessClock.formatDate(purchase.getDueDate()) : "Not set";
-        VBox card3 = createSummaryCard("Disbursement Status", "payment",
+        VBox card3 = DocumentInspectionScaffold.createSummaryCard("Disbursement Status", "payment",
                 List.of(
-                        new FieldPair("Total Paid", money(purchase.getPaidAmount()), "complete", false),
-                        new FieldPair("Pending Payable", money(purchase.getBalanceAmount()), purchase.getBalanceAmount() > .009 ? "balance" : "complete", true),
-                        new FieldPair("Payment Due", dueStr, "calendar", false)
+                        new DocumentInspectionScaffold.FieldPair("Total Paid", money(purchase.getPaidAmount()), "complete", false),
+                        new DocumentInspectionScaffold.FieldPair("Pending Payable", money(purchase.getBalanceAmount()), purchase.getBalanceAmount() > .009 ? "balance" : "complete", true),
+                        new DocumentInspectionScaffold.FieldPair("Payment Due", dueStr, "calendar", false)
                 ));
 
         String gstType = !safe(purchase.getGstType()).isBlank() ? purchase.getGstType() : "Standard";
         String refNo = !safe(purchase.getReferenceNo()).isBlank() ? purchase.getReferenceNo() : "—";
         String transporter = !safe(purchase.getTransporter()).isBlank() ? purchase.getTransporter() : "Direct";
-        VBox card4 = createSummaryCard("Tax & Logistics", "delivery",
+        VBox card4 = DocumentInspectionScaffold.createSummaryCard("Tax & Logistics", "delivery",
                 List.of(
-                        new FieldPair("Supplier Ref", refNo, "document", false),
-                        new FieldPair("GST Treatment", gstType, "tax", false),
-                        new FieldPair("Transporter", transporter, "delivery", false)
+                        new DocumentInspectionScaffold.FieldPair("Supplier Ref", refNo, "document", false),
+                        new DocumentInspectionScaffold.FieldPair("GST Treatment", gstType, "tax", false),
+                        new DocumentInspectionScaffold.FieldPair("Transporter", transporter, "delivery", false)
                 ));
 
-        HBox strip = new HBox(12, card1, card2, card3, card4);
-        strip.getStyleClass().add("inspection-overview-strip");
-        HBox.setHgrow(card1, Priority.ALWAYS);
-        HBox.setHgrow(card2, Priority.ALWAYS);
-        HBox.setHgrow(card3, Priority.ALWAYS);
-        HBox.setHgrow(card4, Priority.ALWAYS);
-        return strip;
-    }
-
-    private static record FieldPair(String label, String value, String semantic, boolean bold) {}
-
-    private static VBox createSummaryCard(String title, String iconSemantic, List<FieldPair> fields) {
-        Label titleLabel = new Label(title);
-        titleLabel.setGraphic(IconFactory.compactIcon(iconSemantic, 14));
-        titleLabel.setGraphicTextGap(6);
-        titleLabel.getStyleClass().add("inspection-card-title");
-
-        GridPane grid = new GridPane();
-        grid.setHgap(8);
-        grid.setVgap(4);
-
-        int row = 0;
-        for (FieldPair fp : fields) {
-            Label lbl = new Label(fp.label() + ":");
-            lbl.getStyleClass().add("inspection-card-caption");
-
-            Label val = new Label(fp.value());
-            val.getStyleClass().add("inspection-card-value");
-            if (fp.bold()) val.getStyleClass().add("inspection-value-bold");
-            if (fp.semantic().equals("complete")) val.getStyleClass().add("summary-paid");
-            else if (fp.semantic().equals("balance")) val.getStyleClass().add("summary-balance");
-
-            grid.add(lbl, 0, row);
-            grid.add(val, 1, row);
-            row++;
-        }
-
-        VBox card = new VBox(8, titleLabel, grid);
-        card.getStyleClass().addAll("inspection-card", "erp-detail-drawer-card");
-        card.setPadding(new Insets(10, 12, 10, 12));
-        return card;
+        return DocumentInspectionScaffold.createSummaryStrip(card1, card2, card3, card4);
     }
 
     private static Node buildItemsTabContent(Purchase purchase, java.util.concurrent.atomic.AtomicReference<Purchase> resolvedPurchaseRef, PurchaseService purchaseService, Tab itemsTab) {
@@ -984,18 +841,7 @@ public final class PurchaseDocumentInspectionDialog {
     }
 
     private static void addDetailRow(GridPane grid, int row, String caption, String value, String semantic) {
-        Label capLbl = new Label(caption);
-        capLbl.setGraphic(IconFactory.compactIcon(semantic, 14));
-        capLbl.setGraphicTextGap(6);
-        capLbl.getStyleClass().addAll("inspection-card-caption", "erp-drawer-caption");
-        capLbl.setMinWidth(180);
-
-        Label valLbl = new Label(value);
-        valLbl.getStyleClass().addAll("inspection-card-value", "erp-drawer-value");
-        valLbl.setWrapText(true);
-
-        grid.add(capLbl, 0, row);
-        grid.add(valLbl, 1, row);
+        DocumentInspectionScaffold.addDetailRow(grid, row, caption, value, semantic);
     }
 
     private static HBox buildActionDock(Purchase purchase, java.util.concurrent.atomic.AtomicReference<Purchase> resolvedPurchaseRef, Dialog<?> dialog, PurchaseService service, SupportApiClient support, Runnable onUpdated) {
@@ -1353,18 +1199,15 @@ public final class PurchaseDocumentInspectionDialog {
     }
 
     private static String money(double value) {
-        return NumberFormat.getCurrencyInstance(Locale.of("en", "IN")).format(value).replace("₹", "₹ ");
+        return DocumentInspectionScaffold.money(value);
     }
 
     private static String safe(String s) {
-        return s == null ? "" : s.trim();
+        return DocumentInspectionScaffold.safe(s);
     }
 
     private static String formatFileSize(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        int exp = (int) (Math.log(bytes) / Math.log(1024));
-        char pre = "KMGTPE".charAt(exp - 1);
-        return String.format(Locale.ROOT, "%.1f %cB", bytes / Math.pow(1024, exp), pre);
+        return DocumentInspectionScaffold.formatFileSize(bytes);
     }
 
     private static boolean isFinanciallyLocked(Purchase p) {

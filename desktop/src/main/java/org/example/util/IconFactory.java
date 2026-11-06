@@ -1018,13 +1018,13 @@ public final class IconFactory {
         String registered = UiSemanticRegistry.colour(semantic);
         if (registered != null) return registered;
         return switch (semantic) {
-            case "sale", "sales-order", "complete", "add", "import", "whatsapp", "save", "validate", "approve", "publish" -> "green";
+            case "amount", "sale", "sales-order", "complete", "add", "import", "whatsapp", "save", "validate", "approve", "publish" -> "green";
             case "export", "excel" -> "blue";
-            case "purchase", "purchase-order", "goods-receipt", "item", "reminder", "warning", "snooze", "quantity", "tax", "gstin", "discount", "category", "minimum", "source", "reference", "rollback", "package", "set-default", "transporter", "vehicle", "lock" -> "orange";
+            case "balance", "purchase", "purchase-order", "goods-receipt", "item", "reminder", "warning", "snooze", "quantity", "tax", "gstin", "discount", "category", "minimum", "source", "reference", "rollback", "package", "set-default", "transporter", "vehicle", "lock" -> "orange";
             case "quotation", "document", "master", "return", "settings", "more", "actions", "status", "reopen", "role", "reset", "notes", "print", "application", "calendar", "audit", "archive", "duplicate", "barcode", "template" -> "purple";
             case "report", "delete", "error", "cancel", "pdf", "debit", "reject", "exit" -> "pink";
             case "inventory", "supplier", "attachment", "phone", "location", "communication", "unit", "email", "backup", "filter" -> "teal";
-            case "payment", "customer", "user", "dashboard", "view", "hide", "download", "identity", "sent", "currency", "confirmation", "refresh", "restore", "folder", "copy", "database", "first", "previous", "next", "last", "history", "workspace", "select", "balance", "business", "chevron", "wallet", "finance" -> "blue";
+            case "payment", "customer", "user", "dashboard", "view", "hide", "download", "identity", "sent", "currency", "confirmation", "refresh", "restore", "folder", "copy", "database", "first", "previous", "next", "last", "history", "workspace", "select", "business", "chevron", "wallet", "finance" -> "blue";
             case "credit" -> "green";
             case "adjust", "bank", "delivery", "dispatch", "project", "update", "permission", "register", "draft", "restart", "workflow", "reconcile", "version" -> "purple";
             case "compatibility", "database-backup", "snapshot", "recovery" -> "blue";

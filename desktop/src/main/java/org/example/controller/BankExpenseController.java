@@ -26,6 +26,8 @@ import org.example.util.ToastManager;
 import org.example.util.UiTaskExecutor;
 import org.example.util.RegisterDetailDrawer;
 import org.example.util.PopupTableWorkspace;
+import org.example.util.DynamicTableLayoutManager;
+import org.example.util.SemanticTableCells;
 
 import java.io.File;
 import java.time.LocalDate;
@@ -532,8 +534,7 @@ public class BankExpenseController implements ScreenLifecycle {
                 setText(null); setGraphic(null);
                 if (empty || s == null) return;
                 Label lbl = new Label(s);
-                lbl.getStyleClass().add("erp-primary-label");
-                lbl.setStyle("-fx-font-weight: 700;");
+                lbl.getStyleClass().addAll("erp-primary-label", "bold-value-label");
                 lbl.setTooltip(new Tooltip(s));
                 setGraphic(lbl);
             }
@@ -559,17 +560,8 @@ public class BankExpenseController implements ScreenLifecycle {
         });
 
         TableColumn<BankStatementController.LinkedTargetItem, Number> colAmount = new TableColumn<>("Amount");
-        colAmount.setMinWidth(140);
-        colAmount.setPrefWidth(150);
         colAmount.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().amount));
-        colAmount.setCellFactory(c -> new TableCell<>() {
-            @Override protected void updateItem(Number value, boolean empty) {
-                super.updateItem(value, empty);
-                getStyleClass().remove("erp-quantity-positive");
-                setText(empty || value == null ? null : "₹ " + money(value.doubleValue()));
-                if (!empty) getStyleClass().add("erp-quantity-positive");
-            }
-        });
+        colAmount.setCellFactory(c -> SemanticTableCells.amount("amount"));
 
         TableColumn<BankStatementController.LinkedTargetItem, Void> colAction = new TableColumn<>("Action");
         colAction.setMinWidth(185);
@@ -601,6 +593,7 @@ public class BankExpenseController implements ScreenLifecycle {
         IconFactory.applyTableHeaderIcon(colAmount, "currency");
         IconFactory.applyTableHeaderIcon(colAction, "actions");
         linkedTable.getColumns().setAll(colRole, colDoc, colType, colAmount, colAction);
+        DynamicTableLayoutManager.layoutNow(linkedTable);
 
         String entryVoucher = row.voucherNo.isBlank() ? (mode == Mode.EXPENSE ? "Expense #" + row.id : "Bank Entry #" + row.id) : row.voucherNo;
         String reconStatus = row.reconciled ? "RECONCILED" : (row.statementTransactionId != null ? "MATCHED" : "UNMATCHED");

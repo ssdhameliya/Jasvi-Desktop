@@ -1592,3 +1592,15 @@
 .dse-theme-light .skeleton-badge-sky {
     -fx-background-color: rgba(14, 165, 233, 0.16);
 }
+
+
+/* Action menu items in dialogs */
+.menu-item.danger-menu-item .label,
+.danger-menu-item .label,
+.danger-menu-item {
+    -fx-text-fill: #ef4444;
+}
+.field-value {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+}

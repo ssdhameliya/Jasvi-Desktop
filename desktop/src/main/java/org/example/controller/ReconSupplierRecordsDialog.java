@@ -208,44 +208,32 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
         // Taxable Value
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colTaxable = new TableColumn<>("Taxable Value");
         colTaxable.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().taxableValue()));
-        colTaxable.setCellFactory(x -> currencyCell());
-        colTaxable.setMinWidth(125);
-        colTaxable.setPrefWidth(140);
+        colTaxable.setCellFactory(x -> SemanticTableCells.amount("tax"));
 
         // CGST
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colCgst = new TableColumn<>("CGST");
         colCgst.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().cgst()));
-        colCgst.setCellFactory(x -> currencyCell());
-        colCgst.setMinWidth(110);
-        colCgst.setPrefWidth(125);
+        colCgst.setCellFactory(x -> SemanticTableCells.amount("tax"));
 
         // SGST
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colSgst = new TableColumn<>("SGST");
         colSgst.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().sgst()));
-        colSgst.setCellFactory(x -> currencyCell());
-        colSgst.setMinWidth(110);
-        colSgst.setPrefWidth(125);
+        colSgst.setCellFactory(x -> SemanticTableCells.amount("tax"));
 
         // IGST
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colIgst = new TableColumn<>("IGST");
         colIgst.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().igst()));
-        colIgst.setCellFactory(x -> currencyCell());
-        colIgst.setMinWidth(110);
-        colIgst.setPrefWidth(125);
+        colIgst.setCellFactory(x -> SemanticTableCells.amount("tax"));
 
         // Other Adj
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colOther = new TableColumn<>("Other Adj");
         colOther.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().otherAdjustment()));
-        colOther.setCellFactory(x -> currencyCell());
-        colOther.setMinWidth(100);
-        colOther.setPrefWidth(115);
+        colOther.setCellFactory(x -> SemanticTableCells.amount("amount"));
 
         // Total Invoice Value
         TableColumn<PurchaseReconApiClient.ReconDto, Number> colTotal = new TableColumn<>("Total Value");
         colTotal.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().invoiceValue()));
-        colTotal.setCellFactory(x -> currencyCell());
-        colTotal.setMinWidth(130);
-        colTotal.setPrefWidth(145);
+        colTotal.setCellFactory(x -> SemanticTableCells.amount("total"));
 
         // Status
         TableColumn<PurchaseReconApiClient.ReconDto, String> colStatus = new TableColumn<>("Status");
@@ -304,6 +292,7 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
         colNotes.setPrefWidth(130);
 
         table.getColumns().setAll(List.of(colRef, colInvoice, colDate, colTaxable, colCgst, colSgst, colIgst, colOther, colTotal, colStatus, colLinks, colNotes));
+        DynamicTableLayoutManager.install(table);
     }
 
     private HBox buildFooter() {

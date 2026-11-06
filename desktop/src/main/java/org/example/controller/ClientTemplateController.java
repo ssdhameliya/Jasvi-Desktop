@@ -194,19 +194,7 @@ public class ClientTemplateController implements ScreenLifecycle {
 
 
 
-        // Dynamic responsive column widths per Rule 7
-
-        colHdrOrder.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.08));
-
-        colHdrLabel.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.24));
-
-        colHdrCanonical.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.24));
-
-        colHdrSample.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.20));
-
-        colHdrRequired.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.10));
-
-        colHdrActions.prefWidthProperty().bind(tableDocumentHeaders.widthProperty().multiply(0.14));
+        DynamicTableLayoutManager.install(tableDocumentHeaders);
 
 
 
@@ -362,12 +350,7 @@ public class ClientTemplateController implements ScreenLifecycle {
         if (tableColumnsBlueprint == null) return;
 
         // Dynamic responsive column widths per Rule 7
-        colOrder.prefWidthProperty().bind(tableColumnsBlueprint.widthProperty().multiply(0.08));
-        colHeaderLabel.prefWidthProperty().bind(tableColumnsBlueprint.widthProperty().multiply(0.28));
-        colCanonicalField.prefWidthProperty().bind(tableColumnsBlueprint.widthProperty().multiply(0.24));
-        colDataType.prefWidthProperty().bind(tableColumnsBlueprint.widthProperty().multiply(0.14));
-        colRequired.prefWidthProperty().bind(tableColumnsBlueprint.widthProperty().multiply(0.10));
-        colActions.prefWidthProperty().bind(tableColumnsBlueprint.widthProperty().multiply(0.16));
+        DynamicTableLayoutManager.install(tableColumnsBlueprint);
 
         colOrder.setCellValueFactory(cell -> cell.getValue().order);
         colHeaderLabel.setCellValueFactory(cell -> cell.getValue().headerLabel);
@@ -439,7 +422,7 @@ public class ClientTemplateController implements ScreenLifecycle {
     }
 
     private void loadTemplatesForClient(Long clientId) {
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitLatest(
                 "load-client-templates",
                 () -> api.listTemplates(clientId),
                 templates -> {
@@ -705,95 +688,366 @@ public class ClientTemplateController implements ScreenLifecycle {
         this.activeSampleFile = f;
         ToastManager.info(tableColumnsBlueprint, "Analyzing Sample", "Scanning document headers with native OCR...");
 
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitLatest(
                 "analyze-sample-template",
                 () -> extractSampleLines(f),
                 lines -> {
                     if (!lines.isEmpty()) {
-                        detectHeadersFromOcrLines(lines);
-                        ToastManager.success(tableColumnsBlueprint, "Headers Detected", "Extracted table headers from sample file: " + f.getName());
+                        detectHeadersFromOcrLines(lines, f);
                     } else {
-                        ToastManager.info(tableColumnsBlueprint, "Sample Attached", "Attached " + f.getName() + " to template.");
+                        ToastManager.info(tableColumnsBlueprint, "Sample Attached", "Attached " + f.getName() + " to template (no OCR text detected).");
                     }
                 },
                 err -> ToastManager.error(tableColumnsBlueprint, "Analysis Failed", err.getMessage())
         );
     }
 
-    private void detectHeadersFromOcrLines(List<String> lines) {
-        List<ColumnRow> detected = new ArrayList<>();
-        int colOrderIdx = 1;
-        Set<String> matchedColumns = new HashSet<>();
+    private void detectHeadersFromOcrLines(List<String> lines, File sourceFile) {
+        // =========================================================================
+        // 1. DYNAMIC HIGH-LEVEL DOCUMENT HEADERS EXTRACTION
+        // =========================================================================
+        Map<String, DocumentHeaderRow> extractedHeaders = new LinkedHashMap<>();
 
-        // Regex patterns for item table column extraction
-        java.util.regex.Pattern pItem = java.util.regex.Pattern.compile("(?i).*(item\\s*name|item\\s*desc|description|particular|product|goods|article).*");
-        java.util.regex.Pattern pHsn = java.util.regex.Pattern.compile("(?i).*(hsn|sac|tariff|commodity).*");
-        java.util.regex.Pattern pQty = java.util.regex.Pattern.compile("(?i).*(qty|quantity|billing\\s*qty|billed\\s*qty|nos|pcs).*");
-        java.util.regex.Pattern pUom = java.util.regex.Pattern.compile("(?i).*(unit|uom|pkg|measure).*");
-        java.util.regex.Pattern pRate = java.util.regex.Pattern.compile("(?i).*(unit\\s*rate|rate|price|unit\\s*price|mrp).*");
-        java.util.regex.Pattern pTax = java.util.regex.Pattern.compile("(?i).*(gst\\s*%|tax\\s*%|rate\\s*%).*");
-        java.util.regex.Pattern pDisc = java.util.regex.Pattern.compile("(?i).*(disc|discount|trade\\s*disc).*");
-        java.util.regex.Pattern pTotal = java.util.regex.Pattern.compile("(?i).*(taxable\\s*amt|taxable\\s*value|net\\s*amt|amount|total).*");
+        // Canonical header matching regexes with value extractors
+        java.util.regex.Pattern pInvNo = java.util.regex.Pattern.compile("(?i)(?:inv(?:oice)?|bill|tax\\s*invoice)(?:\\s*(?:no|num|number|#))?[:\\s\\-]*([A-Za-z0-9\\/\\-_]{3,30})");
+        java.util.regex.Pattern pInvDate = java.util.regex.Pattern.compile("(?i)(?:inv(?:oice)?\\s*date|dated|bill\\s*date|date)[:\\s\\-]*([0-9]{1,2}[\\/\\-\\.][0-9]{1,2}[\\/\\-\\.][0-9]{2,4}|[0-9]{1,2}\\s+[A-Za-z]{3}\\s+[0-9]{2,4})");
+        java.util.regex.Pattern pDueDate = java.util.regex.Pattern.compile("(?i)(?:due\\s*date|payment\\s*due)[:\\s\\-]*([0-9]{1,2}[\\/\\-\\.][0-9]{1,2}[\\/\\-\\.][0-9]{2,4})");
+        java.util.regex.Pattern pPo = java.util.regex.Pattern.compile("(?i)(?:po|order|buyer\\s*order)(?:\\s*(?:no|num|number|ref))?[:\\s\\-]*([A-Za-z0-9\\/\\-_]{3,30})");
+        java.util.regex.Pattern pEwb = java.util.regex.Pattern.compile("(?i)(?:e-?way\\s*bill|ewb)(?:\\s*(?:no|num|number))?[:\\s\\-]*([0-9]{12})");
+        java.util.regex.Pattern pChallan = java.util.regex.Pattern.compile("(?i)(?:delivery\\s*challan|challan)(?:\\s*(?:no|num|number))?[:\\s\\-]*([A-Za-z0-9\\/\\-_]+)");
+        java.util.regex.Pattern pVehicle = java.util.regex.Pattern.compile("(?i)(?:vehicle|lorry|truck)(?:\\s*(?:no|num|number))?[:\\s\\-]*([A-Za-z]{2}\\s*[0-9]{1,2}\\s*[A-Za-z]{1,3}\\s*[0-9]{4})");
+        java.util.regex.Pattern pGstin = java.util.regex.Pattern.compile("(?i)(?:gstin|gst\\s*no)?[:\\s\\-]*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})");
+        java.util.regex.Pattern pState = java.util.regex.Pattern.compile("(?i)(?:place\\s*of\\s*supply|state)[:\\s\\-]*([A-Za-z\\s]+(?:\\([0-9]{2}\\))?)");
+        java.util.regex.Pattern pReverseCharge = java.util.regex.Pattern.compile("(?i)(?:reverse\\s*charge)[:\\s\\-]*([A-Za-z]+)");
+        java.util.regex.Pattern pTaxableAmt = java.util.regex.Pattern.compile("(?i)(?:taxable\\s*(?:amount|value|amt)?|sub\\s*total)[:\\s₹rs\\.]*([0-9,]+\\.[0-9]{2})");
+        java.util.regex.Pattern pCgstAmt = java.util.regex.Pattern.compile("(?i)(?:cgst\\s*(?:amt|amount)?|central\\s*tax)[:\\s₹rs\\.]*([0-9,]+\\.[0-9]{2})");
+        java.util.regex.Pattern pSgstAmt = java.util.regex.Pattern.compile("(?i)(?:sgst\\s*(?:amt|amount)?|state\\s*tax|utgst)[:\\s₹rs\\.]*([0-9,]+\\.[0-9]{2})");
+        java.util.regex.Pattern pIgstAmt = java.util.regex.Pattern.compile("(?i)(?:igst\\s*(?:amt|amount)?|integrated\\s*tax)[:\\s₹rs\\.]*([0-9,]+\\.[0-9]{2})");
+        java.util.regex.Pattern pRoundOff = java.util.regex.Pattern.compile("(?i)(?:round(?:ing)?\\s*(?:off)?)[:\\s₹rs\\.\\+\\-]*([0-9,]+\\.[0-9]{2})");
+        java.util.regex.Pattern pTotalAmt = java.util.regex.Pattern.compile("(?i)(?:grand\\s*total|invoice\\s*total|net\\s*amount|total\\s*amount)[:\\s₹rs\\.]*([0-9,]+\\.[0-9]{2})");
 
-        // Scan tokens across OCR lines
+        int docOrder = 1;
+
+        // Scan all OCR lines for recognized and generic labeled headers
         for (String l : lines) {
-            String[] tokens = l.split("[|,\t]+|\\s{2,}");
-            for (String tok : tokens) {
-                String trimmed = tok.trim();
-                if (trimmed.length() < 2) continue;
+            String trimmedLine = l.trim();
+            if (trimmedLine.length() < 3) continue;
 
-                if (pItem.matcher(trimmed).matches() && !matchedColumns.contains("Item Description")) {
-                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Item Description", "Text", true));
-                    matchedColumns.add("Item Description");
-                } else if (pHsn.matcher(trimmed).matches() && !matchedColumns.contains("HSN/SAC")) {
-                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "HSN/SAC", "Text", true));
-                    matchedColumns.add("HSN/SAC");
-                } else if (pQty.matcher(trimmed).matches() && !matchedColumns.contains("Quantity")) {
-                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Quantity", "Decimal", true));
-                    matchedColumns.add("Quantity");
-                } else if (pUom.matcher(trimmed).matches() && !matchedColumns.contains("Unit of Measure")) {
-                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Unit of Measure", "Text", true));
-                    matchedColumns.add("Unit of Measure");
-                } else if (pRate.matcher(trimmed).matches() && !matchedColumns.contains("Unit Rate")) {
-                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Unit Rate", "Currency", true));
-                    matchedColumns.add("Unit Rate");
-                } else if (pTax.matcher(trimmed).matches() && !matchedColumns.contains("Tax Percentage")) {
-                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Tax Percentage", "Percentage", true));
-                    matchedColumns.add("Tax Percentage");
-                } else if (pDisc.matcher(trimmed).matches() && !matchedColumns.contains("Line Discount")) {
-                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Line Discount", "Currency", false));
-                    matchedColumns.add("Line Discount");
-                } else if (pTotal.matcher(trimmed).matches() && !matchedColumns.contains("Line Total Amount")) {
-                    detected.add(new ColumnRow(colOrderIdx++, trimmed, "Line Total Amount", "Currency", true));
-                    matchedColumns.add("Line Total Amount");
+            java.util.regex.Matcher m = pInvNo.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Invoice Number")) {
+                extractedHeaders.put("Invoice Number", new DocumentHeaderRow(docOrder++, "Invoice Number", "Invoice Number", m.group(1), true));
+            }
+
+            m = pInvDate.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Invoice Date")) {
+                extractedHeaders.put("Invoice Date", new DocumentHeaderRow(docOrder++, "Invoice Date", "Invoice Date", m.group(1), true));
+            }
+
+            m = pDueDate.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Due Date")) {
+                extractedHeaders.put("Due Date", new DocumentHeaderRow(docOrder++, "Due Date", "Due Date", m.group(1), false));
+            }
+
+            m = pPo.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Customer PO Reference")) {
+                extractedHeaders.put("Customer PO Reference", new DocumentHeaderRow(docOrder++, "Customer PO No", "Customer PO Reference", m.group(1), false));
+            }
+
+            m = pEwb.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("E-Way Bill Number")) {
+                extractedHeaders.put("E-Way Bill Number", new DocumentHeaderRow(docOrder++, "E-Way Bill No", "E-Way Bill Number", m.group(1), false));
+            }
+
+            m = pChallan.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Delivery Challan")) {
+                extractedHeaders.put("Delivery Challan", new DocumentHeaderRow(docOrder++, "Delivery Challan No", "Delivery Challan", m.group(1), false));
+            }
+
+            m = pVehicle.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Vehicle Number")) {
+                extractedHeaders.put("Vehicle Number", new DocumentHeaderRow(docOrder++, "Vehicle No", "Vehicle Number", m.group(1), false));
+            }
+
+            m = pGstin.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Vendor GSTIN")) {
+                extractedHeaders.put("Vendor GSTIN", new DocumentHeaderRow(docOrder++, "Vendor GSTIN", "Vendor GSTIN", m.group(1), true));
+            }
+
+            m = pState.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Place of Supply")) {
+                extractedHeaders.put("Place of Supply", new DocumentHeaderRow(docOrder++, "Place of Supply", "Place of Supply", m.group(1), false));
+            }
+
+            m = pReverseCharge.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Reverse Charge")) {
+                extractedHeaders.put("Reverse Charge", new DocumentHeaderRow(docOrder++, "Reverse Charge", "Reverse Charge", m.group(1), false));
+            }
+
+            m = pTaxableAmt.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Taxable Value")) {
+                extractedHeaders.put("Taxable Value", new DocumentHeaderRow(docOrder++, "Taxable Amount", "Taxable Value", "₹ " + m.group(1), true));
+            }
+
+            m = pCgstAmt.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("CGST")) {
+                extractedHeaders.put("CGST", new DocumentHeaderRow(docOrder++, "CGST Amount", "CGST", "₹ " + m.group(1), false));
+            }
+
+            m = pSgstAmt.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("SGST")) {
+                extractedHeaders.put("SGST", new DocumentHeaderRow(docOrder++, "SGST Amount", "SGST", "₹ " + m.group(1), false));
+            }
+
+            m = pIgstAmt.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("IGST")) {
+                extractedHeaders.put("IGST", new DocumentHeaderRow(docOrder++, "IGST Amount", "IGST", "₹ " + m.group(1), false));
+            }
+
+            m = pRoundOff.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Round Off")) {
+                extractedHeaders.put("Round Off", new DocumentHeaderRow(docOrder++, "Round Off", "Round Off", "₹ " + m.group(1), false));
+            }
+
+            m = pTotalAmt.matcher(trimmedLine);
+            if (m.find() && !extractedHeaders.containsKey("Grand Total Amount")) {
+                extractedHeaders.put("Grand Total Amount", new DocumentHeaderRow(docOrder++, "Grand Total", "Grand Total Amount", "₹ " + m.group(1), true));
+            }
+
+            // Generic key-value pair detection for any other custom document headers
+            if (trimmedLine.contains(":") && !trimmedLine.toLowerCase().contains("http") && !trimmedLine.toLowerCase().contains("address")) {
+                String[] parts = trimmedLine.split(":", 2);
+                if (parts.length == 2) {
+                    String lbl = parts[0].trim().replaceAll("[^A-Za-z0-9\\s/\\-_]", "");
+                    String val = parts[1].trim();
+                    if (lbl.length() >= 3 && lbl.length() <= 25 && val.length() >= 1 && val.length() <= 50 && !extractedHeaders.containsKey(lbl)) {
+                        extractedHeaders.put(lbl, new DocumentHeaderRow(docOrder++, lbl, lbl, val, false));
+                    }
                 }
             }
         }
 
-        if (!detected.isEmpty()) {
-            columnsList.setAll(detected);
+        // Ensure foundational ERP document headers are present even if not scanned in sample
+        if (!extractedHeaders.containsKey("Invoice Number")) {
+            extractedHeaders.put("Invoice Number", new DocumentHeaderRow(docOrder++, "Invoice Number", "Invoice Number", "—", true));
+        }
+        if (!extractedHeaders.containsKey("Invoice Date")) {
+            extractedHeaders.put("Invoice Date", new DocumentHeaderRow(docOrder++, "Invoice Date", "Invoice Date", "—", true));
+        }
+        if (!extractedHeaders.containsKey("Taxable Value")) {
+            extractedHeaders.put("Taxable Value", new DocumentHeaderRow(docOrder++, "Taxable Amount", "Taxable Value", "—", true));
+        }
+        if (!extractedHeaders.containsKey("Grand Total Amount")) {
+            extractedHeaders.put("Grand Total Amount", new DocumentHeaderRow(docOrder++, "Grand Total", "Grand Total Amount", "—", true));
+        }
+
+        documentHeadersList.setAll(extractedHeaders.values());
+        reorderHeaderRows();
+
+        // =========================================================================
+        // 2. DYNAMIC ITEM-LEVEL TABLE COLUMNS EXTRACTION
+        // =========================================================================
+        List<ColumnRow> detectedColumns = new ArrayList<>();
+        int colOrderIdx = 1;
+        Set<String> matchedCanonical = new HashSet<>();
+
+        // Find candidate table header line: line containing multiple table keywords
+        String bestHeaderLine = null;
+        int maxHeaderKeywords = 0;
+        java.util.regex.Pattern pColKeyword = java.util.regex.Pattern.compile("(?i)\\b(item|desc|particular|product|goods|hsn|sac|qty|quantity|unit|rate|price|amount|tax|gst|total|disc|s\\.?no|sr\\.?|nos|pcs)\\b");
+
+        for (String l : lines) {
+            java.util.regex.Matcher km = pColKeyword.matcher(l);
+            int count = 0;
+            while (km.find()) count++;
+            if (count > maxHeaderKeywords && count >= 2) {
+                maxHeaderKeywords = count;
+                bestHeaderLine = l;
+            }
+        }
+
+        if (bestHeaderLine != null) {
+            String[] tokens = bestHeaderLine.split("[|,\t]+|\\s{2,}");
+            for (String tok : tokens) {
+                String trimmed = tok.trim().replaceAll("^[^A-Za-z0-9%#]+|[^A-Za-z0-9%#]+$", "");
+                if (trimmed.length() < 2) continue;
+
+                String lower = trimmed.toLowerCase(Locale.ROOT);
+                String canonical;
+                String dataType;
+                boolean req = true;
+
+                if (lower.matches(".*(item|desc|particular|product|goods|article).*")) {
+                    canonical = "Item Description";
+                    dataType = "Text";
+                } else if (lower.matches(".*(hsn|sac|tariff|commodity).*")) {
+                    canonical = "HSN/SAC";
+                    dataType = "Text";
+                } else if (lower.matches(".*(qty|quantity|billing\\s*qty|billed\\s*qty|nos|pcs).*")) {
+                    canonical = "Quantity";
+                    dataType = "Decimal";
+                } else if (lower.matches(".*(unit|uom|pkg|measure|per).*")) {
+                    canonical = "Unit of Measure";
+                    dataType = "Text";
+                } else if (lower.matches(".*(rate|price|unit\\s*price|mrp).*")) {
+                    canonical = "Unit Rate";
+                    dataType = "Currency";
+                } else if (lower.matches(".*(gst\\s*%|tax\\s*%|rate\\s*%|cgst\\s*%|sgst\\s*%|igst\\s*%).*")) {
+                    canonical = "Tax Percentage";
+                    dataType = "Percentage";
+                } else if (lower.matches(".*(disc|discount|trade\\s*disc).*")) {
+                    canonical = "Line Discount";
+                    dataType = "Currency";
+                    req = false;
+                } else if (lower.matches(".*(taxable\\s*amt|taxable\\s*value|taxable).*")) {
+                    canonical = "Line Taxable Amount";
+                    dataType = "Currency";
+                } else if (lower.matches(".*(cgst\\s*(?:amt|amount)?).*")) {
+                    canonical = "CGST Amount";
+                    dataType = "Currency";
+                    req = false;
+                } else if (lower.matches(".*(sgst\\s*(?:amt|amount)?|utgst).*")) {
+                    canonical = "SGST Amount";
+                    dataType = "Currency";
+                    req = false;
+                } else if (lower.matches(".*(igst\\s*(?:amt|amount)?).*")) {
+                    canonical = "IGST Amount";
+                    dataType = "Currency";
+                    req = false;
+                } else if (lower.matches(".*(net\\s*amt|amount|total).*")) {
+                    canonical = "Line Total Amount";
+                    dataType = "Currency";
+                } else if (lower.matches(".*(s\\.?no|sr\\.?|sl\\.?|line|no).*")) {
+                    canonical = "Line Number";
+                    dataType = "Integer";
+                } else {
+                    canonical = trimmed;
+                    dataType = "Text";
+                    req = false;
+                }
+
+                if (!matchedCanonical.contains(canonical + "_" + trimmed)) {
+                    detectedColumns.add(new ColumnRow(colOrderIdx++, trimmed, canonical, dataType, req));
+                    matchedCanonical.add(canonical + "_" + trimmed);
+                }
+            }
+        }
+
+        // Fallback token extraction across lines if single line wasn't sufficiently tokenized
+        if (detectedColumns.size() < 3) {
+            java.util.regex.Pattern pItem = java.util.regex.Pattern.compile("(?i).*(item\\s*name|item\\s*desc|description|particular|product|goods|article).*");
+            java.util.regex.Pattern pHsn = java.util.regex.Pattern.compile("(?i).*(hsn|sac|tariff|commodity).*");
+            java.util.regex.Pattern pQty = java.util.regex.Pattern.compile("(?i).*(qty|quantity|billing\\s*qty|billed\\s*qty|nos|pcs).*");
+            java.util.regex.Pattern pUom = java.util.regex.Pattern.compile("(?i).*(unit|uom|pkg|measure).*");
+            java.util.regex.Pattern pRate = java.util.regex.Pattern.compile("(?i).*(unit\\s*rate|rate|price|unit\\s*price|mrp).*");
+            java.util.regex.Pattern pTax = java.util.regex.Pattern.compile("(?i).*(gst\\s*%|tax\\s*%|rate\\s*%).*");
+            java.util.regex.Pattern pDisc = java.util.regex.Pattern.compile("(?i).*(disc|discount|trade\\s*disc).*");
+            java.util.regex.Pattern pTotal = java.util.regex.Pattern.compile("(?i).*(taxable\\s*amt|taxable\\s*value|net\\s*amt|amount|total).*");
+
+            for (String l : lines) {
+                String[] tokens = l.split("[|,\t]+|\\s{2,}");
+                for (String tok : tokens) {
+                    String trimmed = tok.trim();
+                    if (trimmed.length() < 2) continue;
+
+                    if (pItem.matcher(trimmed).matches() && !matchedCanonical.contains("Item Description")) {
+                        detectedColumns.add(new ColumnRow(colOrderIdx++, trimmed, "Item Description", "Text", true));
+                        matchedCanonical.add("Item Description");
+                    } else if (pHsn.matcher(trimmed).matches() && !matchedCanonical.contains("HSN/SAC")) {
+                        detectedColumns.add(new ColumnRow(colOrderIdx++, trimmed, "HSN/SAC", "Text", true));
+                        matchedCanonical.add("HSN/SAC");
+                    } else if (pQty.matcher(trimmed).matches() && !matchedCanonical.contains("Quantity")) {
+                        detectedColumns.add(new ColumnRow(colOrderIdx++, trimmed, "Quantity", "Decimal", true));
+                        matchedCanonical.add("Quantity");
+                    } else if (pUom.matcher(trimmed).matches() && !matchedCanonical.contains("Unit of Measure")) {
+                        detectedColumns.add(new ColumnRow(colOrderIdx++, trimmed, "Unit of Measure", "Text", true));
+                        matchedCanonical.add("Unit of Measure");
+                    } else if (pRate.matcher(trimmed).matches() && !matchedCanonical.contains("Unit Rate")) {
+                        detectedColumns.add(new ColumnRow(colOrderIdx++, trimmed, "Unit Rate", "Currency", true));
+                        matchedCanonical.add("Unit Rate");
+                    } else if (pTax.matcher(trimmed).matches() && !matchedCanonical.contains("Tax Percentage")) {
+                        detectedColumns.add(new ColumnRow(colOrderIdx++, trimmed, "Tax Percentage", "Percentage", true));
+                        matchedCanonical.add("Tax Percentage");
+                    } else if (pDisc.matcher(trimmed).matches() && !matchedCanonical.contains("Line Discount")) {
+                        detectedColumns.add(new ColumnRow(colOrderIdx++, trimmed, "Line Discount", "Currency", false));
+                        matchedCanonical.add("Line Discount");
+                    } else if (pTotal.matcher(trimmed).matches() && !matchedCanonical.contains("Line Total Amount")) {
+                        detectedColumns.add(new ColumnRow(colOrderIdx++, trimmed, "Line Total Amount", "Currency", true));
+                        matchedCanonical.add("Line Total Amount");
+                    }
+                }
+            }
+        }
+
+        if (!detectedColumns.isEmpty()) {
+            columnsList.setAll(detectedColumns);
             reorderRows();
         }
 
-        // Extract Document-Level Headers from sample lines
-        java.util.regex.Pattern pInvNo = java.util.regex.Pattern.compile("(?i)(?:inv(?:oice)?|bill)(?:\\s*(?:no|num|number|#))?[:\\s]*([A-Za-z0-9\\/-]+)");
-        java.util.regex.Pattern pInvDate = java.util.regex.Pattern.compile("(?i)(?:inv(?:oice)?\\s*date|dated|date)[:\\s]*([0-9]{1,2}[\\/\\-\\.][0-9]{1,2}[\\/\\-\\.][0-9]{2,4})");
-        java.util.regex.Pattern pPo = java.util.regex.Pattern.compile("(?i)(?:po|order)(?:\\s*(?:no|num|number|ref))?[:\\s]*([A-Za-z0-9\\/-]+)");
-        java.util.regex.Pattern pTotalAmt = java.util.regex.Pattern.compile("(?i)(?:grand\\s*total|invoice\\s*total|total\\s*amount)[:\\s₹rs\\.]*([0-9,]+\\.[0-9]{2})");
+        // =========================================================================
+        // 3. EXPLICIT OCR COMPLETION CONFIRMATION MODAL
+        // =========================================================================
+        showOcrCompletionDialog(sourceFile, documentHeadersList.size(), columnsList.size());
+    }
 
-        for (String l : lines) {
-            java.util.regex.Matcher m = pInvNo.matcher(l);
-            if (m.find()) setHeaderSampleValue("Invoice Number", m.group(1));
+    private void showOcrCompletionDialog(File sourceFile, int docHeaderCount, int columnCount) {
+        Dialog<ButtonType> dialog = new org.example.util.OwnedDialog<>(tableColumnsBlueprint);
+        dialog.setTitle("OCR Blueprint Extraction Completed");
+        dialog.setHeaderText("Dynamic Blueprint Successfully Extracted");
+        dialog.getDialogPane().getStyleClass().addAll("approved-dialog", "erp-document-inspection-dialog");
 
-            m = pInvDate.matcher(l);
-            if (m.find()) setHeaderSampleValue("Invoice Date", m.group(1));
+        VBox content = new VBox(14);
+        content.setPadding(new Insets(16));
 
-            m = pPo.matcher(l);
-            if (m.find()) setHeaderSampleValue("Customer PO Reference", m.group(1));
+        HBox banner = new HBox(12);
+        banner.setAlignment(Pos.CENTER_LEFT);
+        banner.getStyleClass().addAll("approved-card", "erp-page-identity-header");
+        banner.setPadding(new Insets(10, 14, 10, 14));
 
-            m = pTotalAmt.matcher(l);
-            if (m.find()) setHeaderSampleValue("Grand Total Amount", "₹ " + m.group(1));
-        }
+        StackPane iconHolder = new StackPane();
+        iconHolder.getChildren().setAll(IconFactory.icon("validate", 24));
+        VBox titleBox = new VBox(2);
+        Label lblTitle = new Label("OCR Extraction Complete — " + sourceFile.getName());
+        lblTitle.getStyleClass().addAll("title-label", "accent-label-emerald");
+        Label lblSubtitle = new Label("Native Windows OCR analyzed the document and generated dynamic schema blueprints.");
+        lblSubtitle.getStyleClass().add("muted-label");
+        titleBox.getChildren().addAll(lblTitle, lblSubtitle);
+        banner.getChildren().addAll(iconHolder, titleBox);
+
+        GridPane statsGrid = new GridPane();
+        statsGrid.setHgap(16);
+        statsGrid.setVgap(8);
+        statsGrid.setPadding(new Insets(10));
+        statsGrid.getStyleClass().add("approved-card");
+
+        List<String> docHeaderNames = documentHeadersList.stream().map(DocumentHeaderRow::getHeaderLabel).collect(Collectors.toList());
+        List<String> columnNames = columnsList.stream().map(c -> c.headerLabel.get()).collect(Collectors.toList());
+
+        Label lblDocHdrTitle = new Label("High-Level Document Headers:");
+        lblDocHdrTitle.getStyleClass().addAll("field-label", "accent-label-blue");
+        String docPreview = String.join(", ", docHeaderNames.subList(0, Math.min(docHeaderNames.size(), 6))) + (docHeaderNames.size() > 6 ? ", ..." : "");
+        Label lblDocHdrVal = new Label(docHeaderCount + " headers detected (" + docPreview + ")");
+        lblDocHdrVal.getStyleClass().addAll("field-value", "bold-value-label");
+
+        Label lblColTitle = new Label("Item-Level Table Columns:");
+        lblColTitle.getStyleClass().addAll("field-label", "accent-label-amber");
+        String colPreview = String.join(", ", columnNames.subList(0, Math.min(columnNames.size(), 6))) + (columnNames.size() > 6 ? ", ..." : "");
+        Label lblColVal = new Label(columnCount + " table columns detected (" + colPreview + ")");
+        lblColVal.getStyleClass().addAll("field-value", "bold-value-label");
+
+        statsGrid.addRow(0, lblDocHdrTitle, lblDocHdrVal);
+        statsGrid.addRow(1, lblColTitle, lblColVal);
+
+        Label guidance = new Label("Both blueprint tabs have been populated dynamically with detected fields and extracted sample values. You can review, reorder, or add custom fields, then click 'Lock & Save Template Version' to make this version active for Bill to Tally.");
+        guidance.setWrapText(true);
+        guidance.getStyleClass().add("page-subtitle");
+
+        content.getChildren().addAll(banner, statsGrid, guidance);
+        dialog.getDialogPane().setContent(content);
+
+        ButtonType btnReview = new ButtonType("Review Blueprint & Version", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().setAll(btnReview);
+
+        dialog.showAndWait();
     }
 
     private void setHeaderSampleValue(String canonicalField, String val) {
@@ -954,10 +1208,28 @@ public class ClientTemplateController implements ScreenLifecycle {
 
     @FXML
     public void handleViewFullGst() {
-        if (activeClient != null) {
-            GstFullDetailsDialog.show(tableColumnsBlueprint, activeClient);
-        } else {
+        if (activeClient == null) {
             ToastManager.info(tableColumnsBlueprint, "Select Client", "Please select a client from the dropdown first to view full GST details.");
+            return;
+        }
+
+        String gstin = activeClient.gstin();
+        if (gstin != null && !gstin.isBlank()) {
+            ToastManager.info(tableColumnsBlueprint, "Fetching GST Profile", "Querying verified live taxpayer profile for " + gstin + "...");
+            UiTaskExecutor.submitLatest(
+                    "view-full-gst-profile",
+                    () -> api.verifyGstin(gstin),
+                    profile -> {
+                        if (profile != null) {
+                            GstFullDetailsDialog.show(tableColumnsBlueprint, profile);
+                        } else {
+                            GstFullDetailsDialog.show(tableColumnsBlueprint, activeClient);
+                        }
+                    },
+                    err -> GstFullDetailsDialog.show(tableColumnsBlueprint, activeClient)
+            );
+        } else {
+            GstFullDetailsDialog.show(tableColumnsBlueprint, activeClient);
         }
     }
 
@@ -968,7 +1240,7 @@ public class ClientTemplateController implements ScreenLifecycle {
 
     @Override
     public void onScreenShown(boolean reusedFromCache) {
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitLatest(
                 "load-profiles-combo",
                 api::listProfiles,
                 list -> {
