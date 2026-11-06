@@ -2,6 +2,7 @@ package org.example.controller;
 
 import org.example.navigation.ScreenLifecycle;
 import org.example.util.OwnedAlert;
+import org.example.util.AppDialogService;
 
 
 import org.example.util.IconFactory;
@@ -28,6 +29,8 @@ import org.example.util.SemanticTableCells;
 import org.example.util.OperationalUiSupport;
 import org.example.util.UiTaskExecutor;
 import org.example.navigation.NavigationManager;
+import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ProfessionalUiEnhancer;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -79,13 +82,53 @@ public abstract class PartyMasterController implements ScreenLifecycle {
         colAddress.setCellValueFactory(new PropertyValueFactory<>("address"));
         colOpeningBalance.setCellValueFactory(new PropertyValueFactory<>("openingBalance"));
         colActive.setCellValueFactory(new PropertyValueFactory<>("active"));
+
+        colCode.setCellFactory(c -> styledTextCell("erp-table-value-colour-blue"));
+        colName.setCellFactory(c -> styledTextCell("erp-table-value-colour-indigo"));
+        colPhone.setCellFactory(c -> styledTextCell("erp-table-value-colour-teal"));
+        colEmail.setCellFactory(c -> styledTextCell("erp-table-value-colour-blue"));
+        colGstin.setCellFactory(c -> styledTextCell("erp-table-value-colour-purple"));
+        colOpeningBalance.setCellFactory(c -> SemanticTableCells.amount("balance"));
         colActive.setCellFactory(column -> SemanticTableCells.activeBoolean());
+
+        IconFactory.applyTableHeaderIcon(colCode, "reference");
+        IconFactory.applyTableHeaderIcon(colName, partySemantic);
+        IconFactory.applyTableHeaderIcon(colContact, "user");
+        IconFactory.applyTableHeaderIcon(colPhone, "phone");
+        IconFactory.applyTableHeaderIcon(colEmail, "email");
+        IconFactory.applyTableHeaderIcon(colGstin, "tax");
+        IconFactory.applyTableHeaderIcon(colAddress, "location");
+        IconFactory.applyTableHeaderIcon(colOpeningBalance, "balance");
+        IconFactory.applyTableHeaderIcon(colActive, "complete");
+        if (colActions != null) IconFactory.applyTableHeaderIcon(colActions, "actions");
+
+        DynamicTableLayoutManager.install(tableParties);
+        ProfessionalUiEnhancer.refreshTableDecorations(tableParties);
         configureActionColumn();
         configureTableInteractions();
         installDetailDrawer();
         txtSearch.textProperty().addListener((o, oldValue, newValue) -> applyLocalFilter());
         org.example.util.OperationalUiSupport.focusWorkArea(tableParties);
         load();
+    }
+
+    private TableCell<Party, String> styledTextCell(String styleClass) {
+        return new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null || item.isBlank()) {
+                    setText(null);
+                    setGraphic(null);
+                    getStyleClass().remove(styleClass);
+                    return;
+                }
+                setText(item);
+                if (!getStyleClass().contains(styleClass)) {
+                    getStyleClass().add(styleClass);
+                }
+            }
+        };
     }
 
 
@@ -237,11 +280,16 @@ public abstract class PartyMasterController implements ScreenLifecycle {
             warning("Select a " + displayName().toLowerCase() + " to delete.");
             return;
         }
-        Alert confirmation = new OwnedAlert(Alert.AlertType.CONFIRMATION, "Delete '" + party.getName() + "'? This cannot be undone.", ButtonType.YES, ButtonType.NO);
-        confirmation.setHeaderText("Confirm deletion");
-        if (confirmation.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
-            if (tableParties != null) tableParties.setDisable(true);
-            UiTaskExecutor.submitAction(
+        boolean confirmed = AppDialogService.destructive(
+                tableParties,
+                "Delete " + displayName(),
+                "Delete '" + party.getName() + "'?",
+                "This action cannot be undone. All linked transactions and party history will be archived.",
+                "Delete " + displayName()
+        );
+        if (!confirmed) return;
+        if (tableParties != null) tableParties.setDisable(true);
+        UiTaskExecutor.submitAction(
                 "party-delete-" + party.getId(),
                 () -> { service.delete(party); return null; },
                 ignored -> {
@@ -260,8 +308,7 @@ public abstract class PartyMasterController implements ScreenLifecycle {
                     if (tableParties != null) tableParties.setDisable(false);
                     warning(message(failure));
                 }
-            );
-        }
+        );
     }
 
     @FXML

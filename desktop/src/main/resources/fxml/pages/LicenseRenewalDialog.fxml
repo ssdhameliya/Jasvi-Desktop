@@ -89,8 +89,12 @@
                 </GridPane>
 
                 <HBox alignment="CENTER_LEFT" spacing="10">
-                    <Button fx:id="btnSelfActivateNow" text="Activate on This Computer Now" onAction="#handleSelfActivateNow"
+                    <Button fx:id="btnSendWhatsAppLead" text="Send Machine ID via WhatsApp" onAction="#handleSendWhatsAppLead"
                             styleClass="approved-button,approved-primary-button"/>
+                    <Button fx:id="btnRegisterOnlineLead" text="Register Online" onAction="#handleRegisterOnlineLead"
+                            styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnSelfActivateNow" text="Activate Locally" onAction="#handleSelfActivateNow"
+                            styleClass="approved-button,approved-secondary-button"/>
                 </HBox>
 
                 <Separator/>

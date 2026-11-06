@@ -27,14 +27,64 @@ import java.util.Map;
 public class LicensingApiController {
 
     private final LicenseVerifierService verifier;
+    private final ClientRegistryService registryService;
 
-    public LicensingApiController(LicenseVerifierService verifier) {
+    public LicensingApiController(LicenseVerifierService verifier, ClientRegistryService registryService) {
         this.verifier = verifier;
+        this.registryService = registryService;
     }
 
     @GetMapping("/status")
     public LicenseVerifierService.LicenseStatus getStatus() {
         return verifier.checkLicense();
+    }
+
+    @GetMapping("/catalog")
+    public Map<String, Object> getCatalog() {
+        Map<String, Object> settings = registryService.getCommercialSettings();
+        List<Map<String, Object>> plans = registryService.getPlans();
+        return Map.of(
+                "supportPhone", settings.getOrDefault("supportPhone", "9537544008"),
+                "upiVpa", settings.getOrDefault("upiVpa", "jasviindustries@icici"),
+                "payeeName", settings.getOrDefault("payeeName", "Jasvi Industries"),
+                "gstRate", settings.getOrDefault("gstRate", "18.00"),
+                "whatsappTemplateLead", settings.getOrDefault("whatsappTemplateLead", ""),
+                "whatsappTemplateIssued", settings.getOrDefault("whatsappTemplateIssued", ""),
+                "plans", plans
+        );
+    }
+
+    @PostMapping("/self-register")
+    public ResponseEntity<?> selfRegister(@RequestBody Map<String, Object> body) {
+        if (body == null || body.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Empty registration request"));
+        }
+        Map<String, Object> lead = registryService.registerLead(body);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Lead submitted successfully. SuperAdmin will review and issue your license.",
+                "leadId", lead.get("id"),
+                "status", lead.get("status")
+        ));
+    }
+
+    @GetMapping("/check-lead")
+    public ResponseEntity<?> checkLead(@RequestParam String machineId) {
+        Map<String, Object> status = registryService.checkLeadStatus(machineId);
+        return ResponseEntity.ok(status);
+    }
+
+    @PostMapping("/heartbeat")
+    public ResponseEntity<?> heartbeat(@RequestBody(required = false) Map<String, Object> body) {
+        if (body == null || body.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Empty heartbeat request"));
+        }
+        String machineId = String.valueOf(body.getOrDefault("machineId", ""));
+        String clientVersion = body.get("clientVersion") != null ? String.valueOf(body.get("clientVersion")) : null;
+        Integer activeUsers = body.get("activeUsers") instanceof Number n ? n.intValue() : 1;
+        String remoteUrl = body.get("remoteUrl") != null ? String.valueOf(body.get("remoteUrl")) : null;
+        Map<String, Object> result = registryService.recordHeartbeat(machineId, clientVersion, activeUsers, remoteUrl);
+        return ResponseEntity.ok(result);
     }
 
     public record ActivateRequest(

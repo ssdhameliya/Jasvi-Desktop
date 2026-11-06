@@ -68,7 +68,7 @@ public class LoginController implements ScreenLifecycle {
     @FXML private ImageView imgBrandLogo, imgBrandMark, imgLoginLogo;
     @FXML private VBox brandPanel;
     @FXML private StackPane brandLogoBox, brandMarkBox, loginLogoBox;
-    @FXML private Button btnLogin, btnRegister, btnEmailSettings, btnForgotPassword, btnResendOtp;
+    @FXML private Button btnLogin, btnRegister, btnLicenseActivation, btnEmailSettings, btnForgotPassword, btnResendOtp;
     @FXML private Button btnSendResetOtp, btnResetPassword, btnBackToLogin;
     @FXML private VBox loginPanel, resetPanel, otpPanel;
 
@@ -962,6 +962,10 @@ public class LoginController implements ScreenLifecycle {
             return;
         }
         SceneManager.loadEmailSettings();
+    }
+
+    @FXML private void openLicenseActivation() {
+        LicenseRenewalDialogController.show(txtPassword != null && txtPassword.getScene() != null ? txtPassword.getScene().getWindow() : null);
     }
 
     private void installLiveClear(TextInputControl field, Label error) {

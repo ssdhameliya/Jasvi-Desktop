@@ -7,6 +7,7 @@ import org.example.util.BusinessClock;
 
 import org.example.util.OwnedAlert;
 import org.example.util.OwnedTextInputDialog;
+import org.example.util.AppDialogService;
 
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -245,7 +246,7 @@ public class UserAccessController implements ScreenLifecycle {
             warning("You cannot delete your own administrator account.");
             return;
         }
-        if(!confirm("Delete user '"+row.user.get()+"'?"))return;
+        if(!org.example.util.AppDialogService.destructive(table, "Delete User", "Delete user '" + row.user.get() + "'?", "This account will be permanently deactivated and unable to sign in.", "Delete User")) return;
         UiTaskExecutor.submitAction("user-access-delete-user", () -> {
             adminApi.deleteUser(row.id);
             return true;
@@ -341,7 +342,7 @@ public class UserAccessController implements ScreenLifecycle {
     private MenuItem mi(String text,String icon,javafx.event.EventHandler<javafx.event.ActionEvent>handler){MenuItem i=new MenuItem(text,IconFactory.compactIcon(icon,16));i.setOnAction(handler);return i;}
     private void filter(){String q=txtSearch.getText()==null?"":txtSearch.getText().toLowerCase(Locale.ROOT);filtered.setPredicate(r->{boolean text=q.isBlank()||(r.user.get()+" "+r.fullName+" "+r.email.get()+" "+r.phone.get()+" "+r.department.get()+" "+r.branch.get()).toLowerCase(Locale.ROOT).contains(q);boolean role=cmbRole.getValue()==null||cmbRole.getValue().startsWith("All")||r.role.get().equals(cmbRole.getValue());boolean status=cmbStatus.getValue()==null||cmbStatus.getValue().startsWith("All")||r.status.get().equals(cmbStatus.getValue());boolean branch=cmbBranch.getValue()==null||cmbBranch.getValue().startsWith("All")||r.branch.get().equals(cmbBranch.getValue());return text&&role&&status&&branch;});}
     private void audit(int userId,String action,String detail){try{adminApi.audit(userId,action,detail+" | by="+(SessionService.current()==null?"System":SessionService.current().getUsername()));}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }}
-    private boolean confirm(String text){return new OwnedAlert(Alert.AlertType.CONFIRMATION,text,ButtonType.YES,ButtonType.NO).showAndWait().orElse(ButtonType.NO)==ButtonType.YES;}
+    private boolean confirm(String text){return org.example.util.AppDialogService.confirm(table, "User Access", "Confirm Action", text);}
     private void warning(String message){new OwnedAlert(Alert.AlertType.WARNING,message).showAndWait();} private void error(String message,Exception e){e.printStackTrace();new OwnedAlert(Alert.AlertType.ERROR,message+".\n\n"+e.getMessage()).showAndWait();}
 
     private void configureIcons(){

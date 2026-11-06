@@ -251,6 +251,7 @@ public class DashboardController implements ScreenLifecycle {
         // footer from the clock listener caused repeated ConfigManager reads and
         // layout pulses, especially on macOS Retina displays.
         refreshCompanyFooter();
+        sendClientHeartbeatAsync();
 
 
         navigationManager = new NavigationManager(contentPane);
@@ -274,11 +275,6 @@ public class DashboardController implements ScreenLifecycle {
                 superRegistryItem.setOnAction(e -> openClientRegistry());
                 superRegistryItem.setGraphic(IconFactory.compactIcon("users", 15));
                 menuUser.getItems().add(0, superRegistryItem);
-
-                javafx.scene.control.MenuItem superItem = new javafx.scene.control.MenuItem("Master Licensor Studio");
-                superItem.setOnAction(e -> openMasterLicensorStudio());
-                superItem.setGraphic(IconFactory.compactIcon("shield", 15));
-                menuUser.getItems().add(1, superItem);
             }
         }
         configureProfileMenuIcons();
@@ -433,6 +429,24 @@ public class DashboardController implements ScreenLifecycle {
                 }
             } finally { indicatorRefreshRunning.set(false); }
         }));
+    }
+
+    /** Reports machine telemetry and tunnel health quietly in the background (non-blocking). */
+    private void sendClientHeartbeatAsync() {
+        Thread.ofVirtual().name("client-heartbeat-worker").start(() -> {
+            try {
+                String machineId = org.example.shared.licensing.HardwareFingerprintUtil.getDisplayMachineId();
+                String ver = org.example.update.BuildInfo.version();
+                String remoteUrl = null;
+                try {
+                    var tunnelStatus = new org.example.api.licensing.RemoteAccessApiClient().getStatus();
+                    if ("ONLINE".equalsIgnoreCase(String.valueOf(tunnelStatus.get("status")))) {
+                        remoteUrl = String.valueOf(tunnelStatus.get("liveUrl"));
+                    }
+                } catch (Exception ignored) {}
+                new org.example.api.licensing.ClientRegistryApiClient().sendHeartbeat(machineId, ver, 1, remoteUrl);
+            } catch (Exception ignored) {}
+        });
     }
 
     private void applyBadge(Label badge, int count) {
@@ -1765,7 +1779,8 @@ public class DashboardController implements ScreenLifecycle {
         for (javafx.scene.control.MenuItem item : menuUser.getItems()) {
             if (item instanceof javafx.scene.control.SeparatorMenuItem) continue;
             String text = item.getText() == null ? "" : item.getText().toLowerCase(java.util.Locale.ROOT);
-            String semantic = text.contains("profile") ? "user"
+            String semantic = text.contains("registry") || text.contains("client") ? "master"
+                : text.contains("profile") ? "user"
                 : text.contains("setting") ? "settings"
                 : text.contains("licensing") || text.contains("licensor") ? "shield"
                 : text.contains("backup") ? "backup"
@@ -1776,10 +1791,9 @@ public class DashboardController implements ScreenLifecycle {
                 : text.contains("password") ? "lock"
                 : text.contains("logout") ? "exit"
                 : "document";
-            item.setGraphic(IconFactory.compactIcon(semantic, 15));
             item.getProperties().put("erp.icon.semantic", semantic);
-            item.getProperties().put("erp.icon.decorated", true);
         }
+        IconFactory.decorateMenuItemsOnly(menuUser);
     }
 
     @FXML
@@ -1791,10 +1805,6 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private void openDataImport() { openPage(null, "Data Import", "/fxml/pages/Import.fxml"); }
     @FXML private void openLicenseRenewalDialog() {
         LicenseRenewalDialogController.show(contentPane != null && contentPane.getScene() != null ? contentPane.getScene().getWindow() : null);
-    }
-
-    @FXML private void openMasterLicensorStudio() {
-        openClientRegistry();
     }
 
     @FXML private void openClientRegistry() {

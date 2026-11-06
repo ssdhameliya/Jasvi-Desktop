@@ -30,6 +30,7 @@ import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
 import org.example.util.ScreenRefreshPolicy;
 import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ProfessionalUiEnhancer;
 import org.example.util.SemanticTableCells;
 import org.example.util.UiTaskExecutor;
 
@@ -240,6 +241,7 @@ public final class QuotationEditorController implements ScreenLifecycle {
         colGst.setCellFactory(c -> SemanticTableCells.amount("tax"));
         colAmount.setCellFactory(c -> SemanticTableCells.amount("total"));
         DynamicTableLayoutManager.install(tableLines);
+        ProfessionalUiEnhancer.refreshTableDecorations(tableLines);
         tableLines.getSelectionModel().selectedItemProperty().addListener((o,old,row)->editLine(row));
     }
 

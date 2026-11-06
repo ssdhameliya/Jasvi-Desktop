@@ -52,6 +52,8 @@ import org.example.util.InvoicePaymentDetailsDialog;
 import org.example.util.RegisterPageState;
 import org.example.util.RegisterUiSupport;
 import org.example.util.LiveOperationDialog;
+import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ProfessionalUiEnhancer;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -111,7 +113,10 @@ public class SalesListController implements ScreenLifecycle {
         if (customerChart != null) customerChart.setAnimated(false);
         if (salesChart != null) salesChart.setAnimated(false);
         DatePickerFormatter.attachAll(dpFrom, dpTo);
-        configureColumns();configureFilters();configureActions();configurePaging();configureVisualIcons();configureDetailFieldIcons();refreshShortcutLabels();org.example.util.RegisterColumnPreferences.install(tableSales,"SALES_REGISTER");
+        configureColumns();
+        DynamicTableLayoutManager.install(tableSales);
+        ProfessionalUiEnhancer.refreshTableDecorations(tableSales);
+        configureFilters();configureActions();configurePaging();configureVisualIcons();configureDetailFieldIcons();refreshShortcutLabels();org.example.util.RegisterColumnPreferences.install(tableSales,"SALES_REGISTER");
         RegisterUiSupport.configureHeaderSearch(txtSearch,salesHeaderSearchIcon,"Search invoice, customer, mobile or GSTIN...");
         if (detailDrawer != null) {
             RegisterUiSupport.hideDrawer(detailDrawer,mainSplit,tableSales);
@@ -258,6 +263,13 @@ public class SalesListController implements ScreenLifecycle {
         colStatus.setCellValueFactory(v->new javafx.beans.property.SimpleStringProperty(documentStatus(v.getValue())));
         colPaymentStatus.setCellValueFactory(v->new javafx.beans.property.SimpleStringProperty(paymentStatusDisplay(v.getValue())));
         colMail.setCellValueFactory(v->new javafx.beans.property.SimpleStringProperty(v.getValue().isEmailSent()?"Sent":"Not Sent"));
+        
+        colInvoice.setCellFactory(x->styledTextCell("erp-table-value-colour-blue"));
+        colDate.setCellFactory(x->SemanticTableCells.dateString());
+        colCustomer.setCellFactory(x->styledTextCell("erp-table-value-colour-indigo"));
+        colMobile.setCellFactory(x->styledTextCell("erp-table-value-colour-teal"));
+        colGstin.setCellFactory(x->styledTextCell("erp-table-value-colour-purple"));
+
         colTotal.setCellFactory(x->totalMoneyCell());
         colPaid.setCellFactory(x->paidMoneyCell());
         colBalance.setCellFactory(x->balanceMoneyCell());
@@ -266,7 +278,37 @@ public class SalesListController implements ScreenLifecycle {
         if(colReturnStatus!=null){colReturnStatus.setCellValueFactory(v->new SimpleStringProperty(v.getValue()==null?"N/A":v.getValue().getReturnStatus()));colReturnStatus.setCellFactory(x->SemanticTableCells.status("return"));}
         colMail.setCellFactory(x->SemanticTableCells.status("email"));
         colDue.setCellFactory(x->SemanticTableCells.dueDate());
+
+        IconFactory.applyTableHeaderIcon(colInvoice, "reference");
+        IconFactory.applyTableHeaderIcon(colDate, "calendar");
+        IconFactory.applyTableHeaderIcon(colCustomer, "customer");
+        IconFactory.applyTableHeaderIcon(colMobile, "phone");
+        IconFactory.applyTableHeaderIcon(colGstin, "tax");
+        IconFactory.applyTableHeaderIcon(colTotal, "currency");
+        IconFactory.applyTableHeaderIcon(colPaid, "payment");
+        IconFactory.applyTableHeaderIcon(colBalance, "balance");
+        IconFactory.applyTableHeaderIcon(colDue, "calendar");
+        IconFactory.applyTableHeaderIcon(colStatus, "document");
+        IconFactory.applyTableHeaderIcon(colPaymentStatus, "payment");
+        if(colReturnStatus!=null) IconFactory.applyTableHeaderIcon(colReturnStatus, "return");
+        IconFactory.applyTableHeaderIcon(colMail, "email");
+        if(colAction!=null) IconFactory.applyTableHeaderIcon(colAction, "actions");
+
         tableSales.setPlaceholder(new Label("No sales invoices match the selected filters"));
+    }
+    private TableCell<Sales,String> styledTextCell(String styleClass){
+        return new TableCell<>(){
+            @Override protected void updateItem(String item,boolean empty){
+                super.updateItem(item,empty);
+                if(empty||item==null||item.isBlank()){
+                    setText(null);setGraphic(null);
+                    getStyleClass().remove(styleClass);
+                    return;
+                }
+                setText(item);
+                if(!getStyleClass().contains(styleClass)) getStyleClass().add(styleClass);
+            }
+        };
     }
 private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected void updateItem(Double v,boolean e){super.updateItem(v,e);setText(e||v==null?null:money(v));setAlignment(Pos.CENTER_RIGHT);}};}
     private TableCell<Sales,Double> totalMoneyCell(){return coloredMoneyCell("erp-table-value-colour-pink","erp-table-value-colour-pink");}

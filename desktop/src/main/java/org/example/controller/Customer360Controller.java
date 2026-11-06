@@ -17,6 +17,7 @@ import org.example.model.Party;
 import org.example.navigation.NavigationManager;
 import org.example.theme.ThemeManager;
 import org.example.util.*;
+import org.example.util.AppDialogService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -151,7 +152,9 @@ public class Customer360Controller implements ScreenLifecycle {
     private void openInvoice(Customer360ApiClient.InvoiceRow r){if(r==null)return;LinkedRecordContext.open("SALE",r.id(),r.invoiceNo(),"VIEW","CUSTOMER_360");NavigationManager.navigateOrReport("/fxml/pages/SalesList.fxml");}
 
     private static void add(javafx.scene.layout.GridPane g,String label,javafx.scene.Node n,int row){Label l=new Label(label);l.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);String semantic=IconFactory.semanticForLabel(label);if(semantic!=null){l.setGraphic(IconFactory.icon(semantic,14));IconFactory.applySemanticLabelColour(l,semantic);l.getProperties().put("erp-icon-preserve",true);}l.getStyleClass().add("field-label");g.add(l,0,row);g.add(n,1,row);javafx.scene.layout.GridPane.setHgrow(n,javafx.scene.layout.Priority.ALWAYS);if(n instanceof javafx.scene.layout.Region x)x.setMaxWidth(Double.MAX_VALUE);}
-    private boolean confirm(String s){return new OwnedAlert(Alert.AlertType.CONFIRMATION,s,ButtonType.YES,ButtonType.NO).showAndWait().orElse(ButtonType.NO)==ButtonType.YES;}
+    private boolean confirm(String s) {
+        return AppDialogService.confirm(tabs, "Customer 360°", "Confirm Action", s);
+    }
     private void showError(Throwable e){AppDialogService.error(tabs,"Customer 360°","Operation could not be completed",e==null?"Unexpected error":safe(e.getMessage()));}
     private static SimpleStringProperty s(String v){return new SimpleStringProperty(safe(v));}
     private static String safe(String v){return v==null?"":v;}

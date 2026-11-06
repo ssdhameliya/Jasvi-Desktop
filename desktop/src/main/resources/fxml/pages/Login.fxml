@@ -70,6 +70,7 @@
                         <Region HBox.hgrow="ALWAYS" styleClass="auth-divider"/>
                     </HBox>
                     <Button fx:id="btnRegister" text="Create a new User account" onAction="#register" maxWidth="360" styleClass="auth-secondary-button"/>
+                    <Button fx:id="btnLicenseActivation" text="Terminal License &amp; Machine Activation" onAction="#openLicenseActivation" maxWidth="360" styleClass="auth-secondary-button,auth-email-button"/>
                     <Button fx:id="btnEmailSettings" text="Configure Email / OTP Settings" onAction="#openEmailSettings" maxWidth="360" styleClass="auth-secondary-button,auth-email-button"/>
                     <Button fx:id="btnForgotPassword" text="Forgot Password?" onAction="#forgotPassword" maxWidth="360" styleClass="auth-secondary-button"/>
                 </VBox>

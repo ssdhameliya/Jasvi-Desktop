@@ -57,6 +57,23 @@ public class LicenseApiClient {
         return post("/api/license/super/issue", request, new TypeReference<>() {});
     }
 
+    public Map<String, Object> getCatalog() {
+        try {
+            return get("/api/license/catalog", new TypeReference<>() {});
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    public Map<String, Object> selfRegister(Map<String, Object> req) {
+        return post("/api/license/self-register", req, new TypeReference<>() {});
+    }
+
+    public Map<String, Object> checkLead(String machineId) {
+        String enc = java.net.URLEncoder.encode(machineId == null ? "" : machineId, StandardCharsets.UTF_8);
+        return get("/api/license/check-lead?machineId=" + enc, new TypeReference<>() {});
+    }
+
     private <T> T get(String path, Class<T> clazz) {
         return req("GET", path, null, clazz, null);
     }

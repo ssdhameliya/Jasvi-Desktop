@@ -8424,7 +8424,7 @@
 -fx-background-color: transparent;
 }
 .date-picker .arrow-button {
--fx-background-color: #334155;
+-fx-background-color: transparent;
 }
 .date-picker .arrow {
 -fx-background-color: white;
@@ -16222,15 +16222,18 @@
     -fx-border-width: 1px;
     -fx-opacity: 1;
 }
+.erp-ui-standard .erp-control-input.text-area .scroll-pane,
+.erp-ui-standard .erp-control-input.text-area .scroll-pane > .viewport,
 .erp-ui-standard .erp-control-input.text-area .content,
 .erp-ui-standard .erp-control-input.date-picker > .text-field,
 .erp-ui-standard .erp-control-input.combo-box-base > .list-cell,
 .erp-ui-standard .erp-control-input.choice-box > .label,
 .erp-ui-standard .erp-control-input.spinner > .text-field {
-    -fx-background-color: -dse-input-bg;
+    -fx-background-color: transparent;
     -fx-text-fill: #edf4fb;
     -fx-prompt-text-fill: #8293a8;
     -fx-background-insets: 0;
+    -fx-border-color: transparent;
     -fx-opacity: 1;
 }
 .erp-ui-standard .erp-control-input.combo-box-base > .arrow-button,
@@ -16238,8 +16241,9 @@
 .erp-ui-standard .erp-control-input.choice-box > .open-button,
 .erp-ui-standard .erp-control-input.spinner > .increment-arrow-button,
 .erp-ui-standard .erp-control-input.spinner > .decrement-arrow-button {
-    -fx-background-color: #162638;
-    -fx-border-color: transparent transparent transparent #294158;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-insets: 0;
 }
 .erp-ui-standard .erp-control-input:hover { -fx-border-color: #52708c; }
 .erp-ui-standard .erp-control-input:focused,
@@ -16522,13 +16526,54 @@
     -fx-text-fill: #edf4fb;
 }
 
-.context-menu .menu-item.erp-menu-semantic-blue .label { -fx-text-fill: #60a5fa; }
-.context-menu .menu-item.erp-menu-semantic-green .label { -fx-text-fill: #4ade80; }
-.context-menu .menu-item.erp-menu-semantic-orange .label { -fx-text-fill: #fb923c; }
-.context-menu .menu-item.erp-menu-semantic-purple .label { -fx-text-fill: #c084fc; }
-.context-menu .menu-item.erp-menu-semantic-pink .label { -fx-text-fill: #fb7185; }
-.context-menu .menu-item.erp-menu-semantic-teal .label { -fx-text-fill: #2dd4bf; }
-.context-menu .menu-item.erp-menu-semantic-indigo .label { -fx-text-fill: #a5b4fc; }
+.menu-item.erp-menu-semantic-blue,
+.menu-item.erp-menu-semantic-blue > .label,
+.menu-item.erp-menu-semantic-blue .label,
+.context-menu .menu-item.erp-menu-semantic-blue .label,
+.erp-menu-semantic-blue .label,
+.erp-menu-semantic-blue { -fx-text-fill: #60a5fa; }
+
+.menu-item.erp-menu-semantic-green,
+.menu-item.erp-menu-semantic-green > .label,
+.menu-item.erp-menu-semantic-green .label,
+.context-menu .menu-item.erp-menu-semantic-green .label,
+.erp-menu-semantic-green .label,
+.erp-menu-semantic-green { -fx-text-fill: #4ade80; }
+
+.menu-item.erp-menu-semantic-orange,
+.menu-item.erp-menu-semantic-orange > .label,
+.menu-item.erp-menu-semantic-orange .label,
+.context-menu .menu-item.erp-menu-semantic-orange .label,
+.erp-menu-semantic-orange .label,
+.erp-menu-semantic-orange { -fx-text-fill: #fb923c; }
+
+.menu-item.erp-menu-semantic-purple,
+.menu-item.erp-menu-semantic-purple > .label,
+.menu-item.erp-menu-semantic-purple .label,
+.context-menu .menu-item.erp-menu-semantic-purple .label,
+.erp-menu-semantic-purple .label,
+.erp-menu-semantic-purple { -fx-text-fill: #c084fc; }
+
+.menu-item.erp-menu-semantic-pink,
+.menu-item.erp-menu-semantic-pink > .label,
+.menu-item.erp-menu-semantic-pink .label,
+.context-menu .menu-item.erp-menu-semantic-pink .label,
+.erp-menu-semantic-pink .label,
+.erp-menu-semantic-pink { -fx-text-fill: #fb7185; }
+
+.menu-item.erp-menu-semantic-teal,
+.menu-item.erp-menu-semantic-teal > .label,
+.menu-item.erp-menu-semantic-teal .label,
+.context-menu .menu-item.erp-menu-semantic-teal .label,
+.erp-menu-semantic-teal .label,
+.erp-menu-semantic-teal { -fx-text-fill: #2dd4bf; }
+
+.menu-item.erp-menu-semantic-indigo,
+.menu-item.erp-menu-semantic-indigo > .label,
+.menu-item.erp-menu-semantic-indigo .label,
+.context-menu .menu-item.erp-menu-semantic-indigo .label,
+.erp-menu-semantic-indigo .label,
+.erp-menu-semantic-indigo { -fx-text-fill: #a5b4fc; }
 .context-menu .erp-action-glyph-blue { -fx-icon-color: #60a5fa; }
 .context-menu .erp-action-glyph-green { -fx-icon-color: #4ade80; }
 .context-menu .erp-action-glyph-orange { -fx-icon-color: #fb923c; }
@@ -16799,7 +16844,7 @@
 .erp-ui-standard .text-area.approved-input .scroll-pane,
 .erp-ui-standard .text-area.erp-control-input .scroll-pane > .viewport,
 .erp-ui-standard .text-area.approved-input .scroll-pane > .viewport {
-    -fx-background-color: #17283a;
+    -fx-background-color: transparent;
     -fx-background-insets: 0;
     -fx-border-color: transparent;
     -fx-text-fill: #edf4fb;
@@ -16815,7 +16860,7 @@
 .erp-ui-standard .spinner.approved-input > .increment-arrow-button,
 .erp-ui-standard .spinner.erp-control-input > .decrement-arrow-button,
 .erp-ui-standard .spinner.approved-input > .decrement-arrow-button {
-    -fx-background-color: #17283a;
+    -fx-background-color: transparent;
     -fx-background-insets: 0;
     -fx-border-color: transparent;
     -fx-effect: null;

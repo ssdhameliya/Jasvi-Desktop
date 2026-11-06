@@ -533,6 +533,17 @@ public final class IconFactory {
             String semantic = menuItemSemantic(item);
             if (semantic != null) decorateMenuItem(item, semantic, true);
         }
+        if (!Boolean.TRUE.equals(menu.getProperties().get("erp.action-menu.semantic-bound"))) {
+            menu.getProperties().put("erp.action-menu.semantic-bound", true);
+            menu.showingProperty().addListener((obs, oldValue, showing) -> {
+                if (showing) {
+                    for (MenuItem item : menu.getItems()) {
+                        String semantic = menuItemSemantic(item);
+                        if (semantic != null) decorateMenuItem(item, semantic, true);
+                    }
+                }
+            });
+        }
     }
 
     /**
@@ -551,6 +562,22 @@ public final class IconFactory {
         decorateMenuItems(menu, true);
         if (!Boolean.TRUE.equals(menu.getProperties().get("erp.action-menu.semantic-bound"))) {
             menu.getProperties().put("erp.action-menu.semantic-bound", true);
+            menu.showingProperty().addListener((obs, oldValue, showing) -> {
+                if (showing) decorateMenuItems(menu, true);
+            });
+        }
+    }
+
+    /**
+     * Decorates all MenuItems inside a MenuButton with semantic colorful icons and text
+     * without modifying the MenuButton's own text label, graphic, or button style.
+     * Ideal for top-bar profile menus, toolbar dropdowns, and custom action menus.
+     */
+    public static void decorateMenuItemsOnly(MenuButton menu) {
+        if (menu == null) return;
+        decorateMenuItems(menu, true);
+        if (!Boolean.TRUE.equals(menu.getProperties().get("erp.menu-items.semantic-bound"))) {
+            menu.getProperties().put("erp.menu-items.semantic-bound", true);
             menu.showingProperty().addListener((obs, oldValue, showing) -> {
                 if (showing) decorateMenuItems(menu, true);
             });
@@ -586,8 +613,14 @@ public final class IconFactory {
             existingGlyph.getStyleClass().add("erp-action-glyph-" + colourName);
         }
         if (colourActionText) {
+            String colourName = colour(semantic);
             item.getStyleClass().removeIf(style -> style.startsWith("erp-menu-semantic-"));
-            item.getStyleClass().add("erp-menu-semantic-" + colour(semantic));
+            item.getStyleClass().add("erp-menu-semantic-" + colourName);
+            String hex = hexColor(colourName);
+            String existingStyle = item.getStyle();
+            String colorStyle = "-fx-text-fill: " + hex + ";";
+            String cleanedStyle = existingStyle == null ? "" : existingStyle.replaceAll("-fx-text-fill:[^;]+;?", "").trim();
+            item.setStyle(cleanedStyle.isEmpty() ? colorStyle : cleanedStyle + " " + colorStyle);
         }
     }
 
@@ -1216,7 +1249,7 @@ public final class IconFactory {
         if (value.contains("keyboard shortcuts")) return "shortcut";
         if (value.equals("administrator")) return "administrator";
         if (value.equals("communication")) return "communication";
-        if (value.equals("settings")) return "settings";
+        if (value.contains("setting") || value.contains("commercial")) return "settings";
         if (value.equals("search")) return "search";
         if (value.equals("exit")) return "exit";
         if (value.equals("move")) return "move";

@@ -28,6 +28,7 @@ import org.example.util.RegisterDetailDrawer;
 import org.example.util.PopupTableWorkspace;
 import org.example.util.DynamicTableLayoutManager;
 import org.example.util.SemanticTableCells;
+import org.example.util.AppDialogService;
 
 import java.io.File;
 import java.time.LocalDate;
@@ -816,10 +817,15 @@ public class BankExpenseController implements ScreenLifecycle {
             info("Locked Entry","This "+(mode==Mode.EXPENSE?"expense":"bank entry")+" is reconciled with Bank Statement.\n\nTo delete it, please Unmatch / Reverse it in Bank Statement first.");
             return;
         }
-        Alert a=new OwnedAlert(Alert.AlertType.CONFIRMATION,"Delete this entry? This action cannot be undone.");
-        a.setHeaderText("Confirm deletion");
-        a.showAndWait().filter(b->b==ButtonType.OK).ifPresent(b->{
-            UiTaskExecutor.submitAction(
+        boolean confirmed = AppDialogService.destructive(
+                table,
+                "Delete " + (mode == Mode.EXPENSE ? "Expense" : "Bank Entry"),
+                "Delete this entry? This action cannot be undone.",
+                "The associated ledger voucher and journal entry will be removed permanently.",
+                "Delete Entry"
+        );
+        if (!confirmed) return;
+        UiTaskExecutor.submitAction(
                 "finance-delete-" + row.id,
                 () -> { financeService.delete(row.id,row.rowVersion); return null; },
                 ignored -> {
@@ -829,8 +835,7 @@ public class BankExpenseController implements ScreenLifecycle {
                             (mode==Mode.EXPENSE?"Expense":"Bank entry")+" was deleted successfully.");
                 },
                 failure -> error(failure.getMessage())
-            );
-        });
+        );
     }
 
     private boolean hasLinkedErp(EntryRow row){if(row==null||row.linkedTargetId==null||safe(row.linkedTargetType,"").isBlank())return false;String type=safe(row.linkedTargetType,"").toUpperCase(Locale.ROOT);return "SALE".equals(type)||"PURCHASE".equals(type)||"PURCHASE_RECON".equals(type);}

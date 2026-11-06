@@ -532,25 +532,28 @@ public class ClientsDirectoryController implements ScreenLifecycle {
     }
 
     private void handleDeleteClient(TallyAutomationApiClient.ClientDirectoryRowDto row) {
-        Alert confirm = new org.example.util.OwnedAlert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("Confirm Deletion");
-        confirm.setHeaderText("Delete Client " + row.tradeName() + "?");
-        confirm.setContentText("All associated templates and profile settings will be permanently removed.");
-        confirm.showAndWait().filter(b -> b == ButtonType.OK).ifPresent(b -> {
-            UiTaskExecutor.submitAction(
-                    "delete-client",
-                    () -> {
-                        api.deleteProfile(row.id());
-                        return true;
-                    },
-                    ok -> {
-                        masterList.remove(row);
-                        updateKpiMetrics();
-                        ToastManager.info(tableClients, "Deleted", "Client removed.");
-                    },
-                    failure -> ToastManager.error(tableClients, "Delete Failed", failure.getMessage())
-            );
-        });
+        boolean confirmed = org.example.util.AppDialogService.destructive(
+                tableClients,
+                "Confirm Deletion",
+                "Delete Client " + row.tradeName() + "?",
+                "All associated templates and profile settings will be permanently removed.",
+                "Delete Client"
+        );
+        if (!confirmed) return;
+
+        UiTaskExecutor.submitAction(
+                "delete-client-" + row.id(),
+                () -> {
+                    api.deleteProfile(row.id());
+                    return true;
+                },
+                ok -> {
+                    masterList.remove(row);
+                    updateKpiMetrics();
+                    ToastManager.info(tableClients, "Deleted", "Client removed.");
+                },
+                failure -> ToastManager.error(tableClients, "Delete Failed", failure.getMessage())
+        );
     }
 
     @Override

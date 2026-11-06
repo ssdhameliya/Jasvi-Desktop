@@ -30,6 +30,30 @@ public final class AppDialogService {
         return confirm(owner, "delete", title, heading, message, primaryAction, "Cancel");
     }
 
+    /**
+     * Canonical double-confirmation dialog for catastrophic or irreversible operations
+     * (e.g. database restore, system rollback, master license revocation, factory reset).
+     * Requires the user to explicitly type the target keyword to proceed.
+     */
+    public static boolean doubleConfirmation(Node owner, String keyword, String title, String heading, String message) {
+        if (keyword == null || keyword.isBlank()) {
+            return destructive(owner, title, heading, message, "Confirm");
+        }
+        String cleanKeyword = keyword.trim().toUpperCase(Locale.ROOT);
+        javafx.scene.control.TextInputDialog typed = new OwnedTextInputDialog("");
+        typed.setTitle(title != null ? title : "Final Confirmation Required");
+        typed.setHeaderText(heading != null ? heading : "Irreversible Operation Warning");
+        typed.setContentText((message != null ? message + "\n\n" : "") + "Type " + cleanKeyword + " to confirm:");
+        Optional<String> confirmation = typed.showAndWait();
+        if (confirmation.isEmpty()) return false;
+        boolean matches = cleanKeyword.equalsIgnoreCase(confirmation.get().trim());
+        if (!matches) {
+            warning(owner, "Action Cancelled", "Confirmation text did not match",
+                    "The operation was aborted because the confirmation text did not match '" + cleanKeyword + "'. No changes were applied.");
+        }
+        return matches;
+    }
+
     public static boolean warningConfirm(Node owner, String title, String heading, String message, String primaryAction, String safeAction) {
         return confirm(owner, "warning", title, heading, message, primaryAction, safeAction);
     }

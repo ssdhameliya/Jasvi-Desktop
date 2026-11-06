@@ -23,6 +23,8 @@ import org.example.util.AttachmentPreviewSupport;
 import org.example.util.LiveOperationDialog;
 import org.example.util.PurchaseDocumentInspectionDialog;
 import org.example.documentstudio.service.ExcelOutputService;
+import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ProfessionalUiEnhancer;
 import javafx.print.PrinterJob;
 import javafx.scene.Node;
 import javafx.beans.property.*;import javafx.collections.FXCollections;import javafx.fxml.*;import javafx.geometry.Pos;import javafx.scene.Parent;import javafx.scene.control.*;import javafx.scene.layout.*;import javafx.stage.FileChooser;import org.apache.poi.ss.usermodel.Row;import org.apache.poi.ss.usermodel.Sheet;import org.apache.poi.ss.usermodel.Workbook;import org.apache.poi.xssf.usermodel.XSSFWorkbook;import org.example.model.Purchase;import org.example.navigation.NavigationManager;import org.example.service.*;import java.io.*;import java.nio.file.Files;
@@ -106,11 +108,44 @@ public class PurchaseListController implements ScreenLifecycle{
  }
  private void setButtonIcon(ButtonBase button,String semantic){UiActionIcons.apply(button, semantic);}
  private void configureModernTable(){
- colStatus.setText("Doc Status");colStatus.setCellValueFactory(v->new SimpleStringProperty(documentStatus(v.getValue())));
- colStatus.setCellFactory(x->SemanticTableCells.status("document"));colPaymentStatus.setCellFactory(x->SemanticTableCells.status("payment"));if(colReturnStatus!=null)colReturnStatus.setCellFactory(x->SemanticTableCells.status("return"));colMail.setCellFactory(x->SemanticTableCells.status("email"));colDue.setCellFactory(x->SemanticTableCells.dueDate());
+  colInvoice.setCellFactory(x->styledTextCell("erp-table-value-colour-blue"));
+  colDate.setCellFactory(x->SemanticTableCells.dateString());
+  colSupplier.setCellFactory(x->styledTextCell("erp-table-value-colour-indigo"));
+  colMobile.setCellFactory(x->styledTextCell("erp-table-value-colour-teal"));
+  colStatus.setText("Doc Status");colStatus.setCellValueFactory(v->new SimpleStringProperty(documentStatus(v.getValue())));
+  colStatus.setCellFactory(x->SemanticTableCells.status("document"));colPaymentStatus.setCellFactory(x->SemanticTableCells.status("payment"));if(colReturnStatus!=null)colReturnStatus.setCellFactory(x->SemanticTableCells.status("return"));colMail.setCellFactory(x->SemanticTableCells.status("email"));colDue.setCellFactory(x->SemanticTableCells.dueDate());
+
+  IconFactory.applyTableHeaderIcon(colInvoice, "reference");
+  IconFactory.applyTableHeaderIcon(colDate, "calendar");
+  IconFactory.applyTableHeaderIcon(colSupplier, "supplier");
+  IconFactory.applyTableHeaderIcon(colMobile, "phone");
+  IconFactory.applyTableHeaderIcon(colAmount, "currency");
+  IconFactory.applyTableHeaderIcon(colPaid, "payment");
+  IconFactory.applyTableHeaderIcon(colBalance, "balance");
+  IconFactory.applyTableHeaderIcon(colDue, "calendar");
+  IconFactory.applyTableHeaderIcon(colStatus, "document");
+  IconFactory.applyTableHeaderIcon(colPaymentStatus, "payment");
+  if(colReturnStatus!=null) IconFactory.applyTableHeaderIcon(colReturnStatus, "return");
+  IconFactory.applyTableHeaderIcon(colMail, "email");
+  if(colActions!=null) IconFactory.applyTableHeaderIcon(colActions, "actions");
+
   tablePurchase.setRowFactory(tv->{TableRow<Purchase> row=new TableRow<>();row.setOnMouseClicked(e->{if(row.isEmpty()||e.getButton()!=javafx.scene.input.MouseButton.PRIMARY||e.getClickCount()!=1||RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(),row))return;Purchase clicked=row.getItem();tablePurchase.getSelectionModel().select(clicked);PurchaseDocumentInspectionDialog.show(tablePurchase,clicked,support,this::refresh);e.consume();});return row;});
-  // Apply the resize policy after every dynamic column has been installed. This
-  // makes the register consume the complete available width in both themes.
+  DynamicTableLayoutManager.install(tablePurchase);
+  ProfessionalUiEnhancer.refreshTableDecorations(tablePurchase);
+ }
+ private TableCell<Purchase,String> styledTextCell(String styleClass){
+  return new TableCell<>(){
+   @Override protected void updateItem(String item,boolean empty){
+    super.updateItem(item,empty);
+    if(empty||item==null||item.isBlank()){
+     setText(null);setGraphic(null);
+     getStyleClass().remove(styleClass);
+     return;
+    }
+    setText(item);
+    if(!getStyleClass().contains(styleClass)) getStyleClass().add(styleClass);
+   }
+  };
  }
  private void showPaymentDetails(Purchase purchase){try{InvoicePaymentDetailsDialog.show(tablePurchase,support,"PURCHASE",purchase.getId(),purchase.getInvoiceNo(),"Supplier",purchase.getSupplier()==null?"":purchase.getSupplier().getName(),purchase.getTotalAmount(),purchase.getPaidAmount(),purchase.getBalanceAmount());}catch(Exception e){error(e);}}
  private TableCell<Purchase,String>purchaseDueCell(){return new TableCell<>(){@Override protected void updateItem(String value,boolean empty){super.updateItem(value,empty);setText(empty?null:value);setGraphic(null);getStyleClass().removeAll("pill-success","pill-warning","pill-danger");if(!empty&&value!=null){boolean paid=value.startsWith("Paid"),overdue=value.startsWith("Overdue");getStyleClass().add(paid?"pill-success":overdue?"pill-danger":"pill-warning");setGraphic(IconFactory.statusIcon(overdue?"error":paid?"save":"reminder",overdue?"danger":paid?"success":"info"));}}};}

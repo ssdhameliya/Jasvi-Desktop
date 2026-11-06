@@ -215,7 +215,11 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_46__auto_bind_hardware_and_client_registry_cleanup",
                     "db/migration/V11_0_46__auto_bind_hardware_and_client_registry_cleanup.sql"),
             new Migration("V11_0_47__expand_tally_bill_numeric_columns",
-                    "db/migration/V11_0_47__expand_tally_bill_numeric_columns.sql")
+                    "db/migration/V11_0_47__expand_tally_bill_numeric_columns.sql"),
+            new Migration("V11_0_48__licensing_commercial_catalog_and_prelogin_registration",
+                    "db/migration/V11_0_48__licensing_commercial_catalog_and_prelogin_registration.sql"),
+            new Migration("V11_0_49__client_telemetry_heartbeat_and_automated_dispatch",
+                    "db/migration/V11_0_49__client_telemetry_heartbeat_and_automated_dispatch.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

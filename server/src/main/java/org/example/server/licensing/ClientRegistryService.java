@@ -5,6 +5,9 @@ import org.example.shared.licensing.Ed25519CryptoUtil;
 import org.example.shared.licensing.HardwareFingerprintUtil;
 import org.example.shared.licensing.LicensePayload;
 import org.example.server.persistence.JpaNativeRepository;
+import org.example.server.whatsapp.BusinessWhatsappService;
+import org.example.server.whatsapp.WahaDtos;
+import org.example.server.auth.SmtpMailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,9 +27,15 @@ public class ClientRegistryService {
 
     private final JpaNativeRepository jdbc;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final BusinessWhatsappService whatsappService;
+    private final SmtpMailService mailService;
 
-    public ClientRegistryService(JpaNativeRepository jdbc) {
+    public ClientRegistryService(JpaNativeRepository jdbc,
+                                 @org.springframework.beans.factory.annotation.Autowired(required = false) BusinessWhatsappService whatsappService,
+                                 @org.springframework.beans.factory.annotation.Autowired(required = false) SmtpMailService mailService) {
         this.jdbc = jdbc;
+        this.whatsappService = whatsappService;
+        this.mailService = mailService;
         initDefaultClientsIfEmpty();
     }
 
@@ -56,7 +65,8 @@ public class ClientRegistryService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getClients(String query, String status) {
         StringBuilder sql = new StringBuilder("SELECT id, company_name, machine_id, contact_person, phone, email, " +
-                "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version " +
+                "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, " +
+                "remote_url, last_heartbeat_at, client_version, active_users_count " +
                 "FROM licensed_client_registry WHERE 1=1 ");
         List<Object> params = new ArrayList<>();
 
@@ -82,7 +92,8 @@ public class ClientRegistryService {
     public Map<String, Object> getClientById(Long id) {
         List<Map<String, Object>> list = jdbc.queryForList(
                 "SELECT id, company_name, machine_id, contact_person, phone, email, " +
-                        "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version " +
+                        "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, " +
+                        "remote_url, last_heartbeat_at, client_version, active_users_count " +
                         "FROM licensed_client_registry WHERE id = ?", id
         );
         if (list.isEmpty()) {
@@ -103,6 +114,8 @@ public class ClientRegistryService {
         int maxUsers = req.get("maxUsers") instanceof Number n ? n.intValue() : 5;
         BigDecimal annualFee = req.get("annualFee") instanceof Number n ? BigDecimal.valueOf(n.doubleValue()) : new BigDecimal("3500.00");
         String notes = req.get("notes") != null ? String.valueOf(req.get("notes")) : "";
+        String remoteUrl = req.get("remoteUrl") != null ? String.valueOf(req.get("remoteUrl")).trim() : null;
+        if (remoteUrl != null && remoteUrl.isBlank()) remoteUrl = null;
         int days = req.get("days") instanceof Number n ? n.intValue() : 365;
         if (days <= 0) days = 365;
 
@@ -145,8 +158,8 @@ public class ClientRegistryService {
 
         jdbc.update(
                 "INSERT INTO licensed_client_registry (company_name, machine_id, contact_person, phone, email, " +
-                        "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, 'ACTIVE', ?, ?, 1) " +
+                        "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, remote_url) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, 'ACTIVE', ?, ?, 1, ?) " +
                         "ON CONFLICT (machine_id) DO UPDATE SET " +
                         "company_name = EXCLUDED.company_name, " +
                         "contact_person = EXCLUDED.contact_person, " +
@@ -159,6 +172,7 @@ public class ClientRegistryService {
                         "status = 'ACTIVE', " +
                         "license_payload_enc = EXCLUDED.license_payload_enc, " +
                         "notes = EXCLUDED.notes, " +
+                        "remote_url = COALESCE(EXCLUDED.remote_url, licensed_client_registry.remote_url), " +
                         "row_version = licensed_client_registry.row_version + 1",
                 companyName,
                 machineId,
@@ -170,7 +184,8 @@ public class ClientRegistryService {
                 annualFee,
                 java.util.Date.from(validUntil),
                 payloadJson,
-                notes
+                notes,
+                remoteUrl
         );
 
         List<Map<String, Object>> rows = jdbc.queryForList(
@@ -287,10 +302,317 @@ public class ClientRegistryService {
 
     private String signPayload(LicensePayload payload) {
         try {
-            PrivateKey privateKey = Ed25519CryptoUtil.loadPrivateKey(DEFAULT_PRIV_KEY);
+            String envKey = System.getenv("JASVI_LICENSE_PRIVATE_KEY");
+            String keyBase64 = (envKey != null && !envKey.isBlank()) ? envKey.trim() : DEFAULT_PRIV_KEY;
+            PrivateKey privateKey = Ed25519CryptoUtil.loadPrivateKey(keyBase64);
             return Ed25519CryptoUtil.signString(payload.toCanonicalString(), privateKey);
         } catch (Exception e) {
             throw new RuntimeException("Failed to sign license with master private key", e);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getCommercialSettings() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("supportPhone", getSetting("licensing.support_phone", "9537544008"));
+        result.put("upiVpa", getSetting("licensing.upi_vpa", "jasviindustries@icici"));
+        result.put("payeeName", getSetting("licensing.payee_name", "Jasvi Industries"));
+        result.put("gstRate", getSetting("licensing.gst_rate", "18.00"));
+        result.put("whatsappTemplateLead", getSetting("licensing.whatsapp_template_lead",
+                "Hello Jasvi Team, I am {CompanyName} ({ContactPerson}, {Phone}). Terminal ID: {MachineId}. Please activate our Jasvi ERP license."));
+        result.put("whatsappTemplateIssued", getSetting("licensing.whatsapp_template_issued",
+                "Dear {CompanyName}, your Jasvi ERP {Tier} license is approved! Terminal ID: {MachineId}. Valid Until: {ValidUntil}. Thank you for choosing Jasvi ERP."));
+        return result;
+    }
+
+    @Transactional
+    public void saveCommercialSettings(Map<String, Object> settings) {
+        if (settings == null) return;
+        saveSetting("licensing.support_phone", settings.get("supportPhone"));
+        saveSetting("licensing.upi_vpa", settings.get("upiVpa"));
+        saveSetting("licensing.payee_name", settings.get("payeeName"));
+        saveSetting("licensing.gst_rate", settings.get("gstRate"));
+        saveSetting("licensing.whatsapp_template_lead", settings.get("whatsappTemplateLead"));
+        saveSetting("licensing.whatsapp_template_issued", settings.get("whatsappTemplateIssued"));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getPlans() {
+        return jdbc.queryForList(
+                "SELECT id, tier_code, plan_name, max_users, annual_fee, validity_days, features, display_order, is_active " +
+                        "FROM licensing_plan ORDER BY display_order ASC, id ASC"
+        );
+    }
+
+    @Transactional
+    public Map<String, Object> savePlan(Map<String, Object> req) {
+        if (req == null) throw new IllegalArgumentException("Plan details required");
+        String tierCode = String.valueOf(req.getOrDefault("tierCode", "CUSTOM")).trim().toUpperCase(Locale.ROOT);
+        String planName = String.valueOf(req.getOrDefault("planName", tierCode)).trim();
+        int maxUsers = req.get("maxUsers") instanceof Number n ? n.intValue() : 5;
+        BigDecimal fee = req.get("annualFee") instanceof Number n ? BigDecimal.valueOf(n.doubleValue()) : new BigDecimal("3500.00");
+        int days = req.get("validityDays") instanceof Number n ? n.intValue() : 365;
+        String features = req.get("features") != null ? String.valueOf(req.get("features")) : "GST_INVOICE,PRINT_EXPORT";
+        int order = req.get("displayOrder") instanceof Number n ? n.intValue() : 1;
+        int active = Boolean.FALSE.equals(req.get("isActive")) || Integer.valueOf(0).equals(req.get("isActive")) ? 0 : 1;
+
+        jdbc.update("""
+                INSERT INTO licensing_plan (tier_code, plan_name, max_users, annual_fee, validity_days, features, display_order, is_active, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT (tier_code) DO UPDATE SET
+                    plan_name = EXCLUDED.plan_name,
+                    max_users = EXCLUDED.max_users,
+                    annual_fee = EXCLUDED.annual_fee,
+                    validity_days = EXCLUDED.validity_days,
+                    features = EXCLUDED.features,
+                    display_order = EXCLUDED.display_order,
+                    is_active = EXCLUDED.is_active,
+                    updated_at = CURRENT_TIMESTAMP
+                """, tierCode, planName, maxUsers, fee, days, features, order, active);
+
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM licensing_plan WHERE tier_code = ?", tierCode);
+        return rows.isEmpty() ? Map.of() : rows.getFirst();
+    }
+
+    @Transactional
+    public Map<String, Object> registerLead(Map<String, Object> req) {
+        if (req == null) throw new IllegalArgumentException("Registration lead required");
+        String company = String.valueOf(req.getOrDefault("companyName", "New Client")).trim();
+        String rawMachine = String.valueOf(req.getOrDefault("machineId", "")).trim();
+        if (rawMachine.isBlank()) rawMachine = HardwareFingerprintUtil.getDisplayMachineId();
+        String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+        String contact = req.get("contactPerson") != null ? String.valueOf(req.get("contactPerson")).trim() : "";
+        String phone = req.get("phone") != null ? String.valueOf(req.get("phone")).trim() : "";
+        String email = req.get("email") != null ? String.valueOf(req.get("email")).trim() : "";
+        String tier = req.get("requestedTier") != null ? String.valueOf(req.get("requestedTier")).trim().toUpperCase(Locale.ROOT) : "GOLD";
+        String notes = req.get("notes") != null ? String.valueOf(req.get("notes")).trim() : "Pre-login desktop auto-registration";
+        String remoteUrl = req.get("remoteUrl") != null ? String.valueOf(req.get("remoteUrl")).trim() : null;
+        if (remoteUrl != null && remoteUrl.isBlank()) remoteUrl = null;
+
+        jdbc.update("""
+                INSERT INTO licensing_registration_lead (company_name, machine_id, contact_person, phone, email, requested_tier, status, notes, updated_at, remote_url)
+                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, CURRENT_TIMESTAMP, ?)
+                """, company, machineId, contact, phone, email, tier, notes, remoteUrl);
+
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM licensing_registration_lead WHERE machine_id = ? ORDER BY id DESC LIMIT 1", machineId);
+        return rows.isEmpty() ? Map.of() : rows.getFirst();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getLeads() {
+        return jdbc.queryForList("SELECT * FROM licensing_registration_lead ORDER BY id DESC");
+    }
+
+    @Transactional
+    public Map<String, Object> approveLead(Long leadId, String tierOverride, Integer daysOverride) {
+        List<Map<String, Object>> leads = jdbc.queryForList("SELECT * FROM licensing_registration_lead WHERE id = ?", leadId);
+        if (leads.isEmpty()) throw new NoSuchElementException("Lead not found: " + leadId);
+        Map<String, Object> lead = leads.getFirst();
+
+        String tier = (tierOverride != null && !tierOverride.isBlank())
+                ? tierOverride.trim().toUpperCase(Locale.ROOT)
+                : String.valueOf(lead.getOrDefault("requested_tier", "GOLD")).trim().toUpperCase(Locale.ROOT);
+        int days = (daysOverride != null && daysOverride > 0) ? daysOverride : 365;
+
+        // Fetch plan properties if available
+        List<Map<String, Object>> planRows = jdbc.queryForList("SELECT * FROM licensing_plan WHERE tier_code = ?", tier);
+        int maxUsers = 5;
+        BigDecimal fee = new BigDecimal("3500.00");
+        if (!planRows.isEmpty()) {
+            Map<String, Object> p = planRows.getFirst();
+            if (p.get("max_users") instanceof Number nu) maxUsers = nu.intValue();
+            if (p.get("annual_fee") instanceof Number nf) fee = BigDecimal.valueOf(nf.doubleValue());
+            if (daysOverride == null && p.get("validity_days") instanceof Number nd) days = nd.intValue();
+        }
+
+        Map<String, Object> regReq = new LinkedHashMap<>();
+        regReq.put("companyName", lead.get("company_name"));
+        regReq.put("machineId", lead.get("machine_id"));
+        regReq.put("contactPerson", lead.get("contact_person"));
+        regReq.put("phone", lead.get("phone"));
+        regReq.put("email", lead.get("email"));
+        regReq.put("tier", tier);
+        regReq.put("maxUsers", maxUsers);
+        regReq.put("annualFee", fee);
+        regReq.put("days", days);
+        regReq.put("remoteUrl", lead.get("remote_url"));
+        regReq.put("notes", "Approved from Lead #" + leadId);
+
+        Map<String, Object> client = registerClient(regReq);
+        jdbc.update("UPDATE licensing_registration_lead SET status = 'APPROVED', updated_at = CURRENT_TIMESTAMP WHERE id = ?", leadId);
+        return client;
+    }
+
+    @Transactional
+    public Map<String, Object> rejectLead(Long leadId) {
+        if (leadId == null) throw new IllegalArgumentException("Lead ID is required");
+        jdbc.update("UPDATE licensing_registration_lead SET status = 'REJECTED', updated_at = CURRENT_TIMESTAMP WHERE id = ?", leadId);
+        return Map.of("success", true, "leadId", leadId, "status", "REJECTED");
+    }
+
+    @Transactional
+    public Map<String, Object> recordHeartbeat(String rawMachine, String clientVersion, Integer activeUsers, String remoteUrl) {
+        if (rawMachine == null || rawMachine.isBlank()) return Map.of("status", "UNKNOWN_MACHINE");
+        String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+
+        StringBuilder updateSql = new StringBuilder("UPDATE licensed_client_registry SET " +
+                "last_heartbeat_at = CURRENT_TIMESTAMP, " +
+                "client_version = COALESCE(?, client_version), " +
+                "active_users_count = ? ");
+        List<Object> params = new ArrayList<>();
+        params.add(clientVersion != null && !clientVersion.isBlank() ? clientVersion.trim() : null);
+        params.add(activeUsers != null ? activeUsers : 1);
+
+        if (remoteUrl != null && !remoteUrl.isBlank()) {
+            updateSql.append(", remote_url = ? ");
+            params.add(remoteUrl.trim());
+        }
+        updateSql.append("WHERE machine_id = ?");
+        params.add(machineId);
+
+        int updated = jdbc.update(updateSql.toString(), params.toArray());
+        if (updated == 0) {
+            return Map.of("status", "UNREGISTERED", "machineId", machineId);
+        }
+
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id, company_name, tier, status, valid_until, remote_url, last_heartbeat_at, client_version FROM licensed_client_registry WHERE machine_id = ?",
+                machineId
+        );
+        Map<String, Object> client = rows.getFirst();
+        return Map.of(
+                "status", client.get("status"),
+                "companyName", client.get("company_name"),
+                "tier", client.get("tier"),
+                "validUntil", String.valueOf(client.get("valid_until")),
+                "remoteUrl", client.get("remote_url") != null ? client.get("remote_url") : "",
+                "clientVersion", client.get("client_version") != null ? client.get("client_version") : ""
+        );
+    }
+
+    /**
+     * Decoupled from database transactions (Rule 10):
+     * Dispatches the activation key automatically via WhatsApp (WAHA) and Email (SMTP).
+     * If external networks or servers are unavailable, this will not roll back the license.
+     */
+    public Map<String, Object> dispatchLicenseChannels(Map<String, Object> client) {
+        String phone = client.get("phone") != null ? String.valueOf(client.get("phone")).replaceAll("[^0-9]", "") : "";
+        String email = client.get("email") != null ? String.valueOf(client.get("email")).trim() : "";
+        String company = String.valueOf(client.getOrDefault("company_name", client.getOrDefault("companyName", "Valued Client")));
+        String tier = String.valueOf(client.getOrDefault("tier", "ENTERPRISE"));
+        String machineId = String.valueOf(client.getOrDefault("machine_id", client.getOrDefault("machineId", "")));
+        String validUntil = String.valueOf(client.getOrDefault("valid_until", client.getOrDefault("validUntil", "")));
+        String payload = String.valueOf(client.getOrDefault("license_payload_enc", client.getOrDefault("licensePayloadEnc", "")));
+
+        boolean whatsappSent = false;
+        String whatsappError = null;
+        boolean emailSent = false;
+        String emailError = null;
+
+        String messageText = "Dear " + company + ",\n\n" +
+                "🎉 Your Jasvi ERP Production License is ACTIVE!\n\n" +
+                "🏢 Company: " + company + "\n" +
+                "💻 Machine ID: " + machineId + "\n" +
+                "💎 Plan Tier: " + tier + "\n" +
+                "⏳ Valid Until: " + validUntil + "\n\n" +
+                "🔑 Activation Token:\n" + payload + "\n\n" +
+                "How to activate:\n" +
+                "1. Open Jasvi ERP Desktop\n" +
+                "2. Click [Activate License] on startup\n" +
+                "3. Paste this key and click [Activate]\n\n" +
+                "Thank you for choosing Jasvi ERP!";
+
+        // 1. Dispatch via automated WhatsApp (WAHA)
+        if (whatsappService != null && !phone.isBlank()) {
+            try {
+                var resp = whatsappService.sendText(new WahaDtos.TextSendRequest(
+                        phone, messageText, null
+                ));
+                whatsappSent = resp != null && resp.success();
+                if (!whatsappSent && resp != null) whatsappError = resp.message();
+            } catch (Exception ex) {
+                whatsappError = ex.getMessage();
+                log.warn("Automated WhatsApp dispatch failed for client {}: {}", company, ex.getMessage());
+            }
+        } else if (phone.isBlank()) {
+            whatsappError = "No phone number provided";
+        } else {
+            whatsappError = "WhatsApp service not active on server";
+        }
+
+        // 2. Dispatch via automated Email (SMTP)
+        if (mailService != null && !email.isBlank()) {
+            try {
+                String subject = "Official Jasvi ERP License Activation - " + company;
+                mailService.sendBusiness(email, subject, messageText, null, null, null, null);
+                emailSent = true;
+            } catch (Exception ex) {
+                emailError = ex.getMessage();
+                log.warn("Automated Email dispatch failed for client {}: {}", company, ex.getMessage());
+            }
+        } else if (email.isBlank()) {
+            emailError = "No email address provided";
+        } else {
+            emailError = "SMTP Mail service not active on server";
+        }
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("whatsappSent", whatsappSent);
+        res.put("whatsappError", whatsappError != null ? whatsappError : "");
+        res.put("emailSent", emailSent);
+        res.put("emailError", emailError != null ? emailError : "");
+        res.put("licenseKey", payload);
+        return res;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> checkLeadStatus(String rawMachine) {
+        if (rawMachine == null || rawMachine.isBlank()) return Map.of("status", "NONE");
+        String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+        List<Map<String, Object>> clients = jdbc.queryForList(
+                "SELECT id, company_name, machine_id, tier, valid_until, status, license_payload_enc " +
+                        "FROM licensed_client_registry WHERE machine_id = ?", machineId);
+        if (!clients.isEmpty()) {
+            Map<String, Object> c = clients.getFirst();
+            return Map.of(
+                    "status", c.get("status"),
+                    "companyName", c.get("company_name"),
+                    "licensePayload", c.get("license_payload_enc"),
+                    "validUntil", String.valueOf(c.get("valid_until"))
+            );
+        }
+        List<Map<String, Object>> leads = jdbc.queryForList(
+                "SELECT id, company_name, status, requested_tier, created_at " +
+                        "FROM licensing_registration_lead WHERE machine_id = ? ORDER BY id DESC LIMIT 1", machineId);
+        if (!leads.isEmpty()) {
+            Map<String, Object> l = leads.getFirst();
+            return Map.of(
+                    "status", l.get("status"),
+                    "companyName", l.get("company_name"),
+                    "requestedTier", l.get("requested_tier")
+            );
+        }
+        return Map.of("status", "UNREGISTERED");
+    }
+
+    private String getSetting(String key, String fallback) {
+        try {
+            List<String> values = jdbc.query("SELECT setting_value FROM application_setting WHERE setting_key = ?",
+                    (row, idx) -> row.getString(1), key);
+            return values.isEmpty() || values.getFirst() == null || values.getFirst().isBlank()
+                    ? fallback : values.getFirst().trim();
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private void saveSetting(String key, Object value) {
+        if (value == null) return;
+        String str = String.valueOf(value).trim();
+        jdbc.update("""
+                INSERT INTO application_setting (setting_key, setting_value)
+                VALUES (?, ?)
+                ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value
+                """, key, str);
     }
 }

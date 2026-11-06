@@ -80,7 +80,15 @@ public final class NotificationCenterController implements ScreenLifecycle {
         NotificationService.clear(); org.example.util.ToastManager.success(listNotifications,"Notifications cleared","Your notification history was cleared successfully."); refresh();
     }
     @FXML private void toggleRead(){ NotificationItem item=selected(); if(item==null)return; if(item.read())NotificationService.markUnread(item.id());else NotificationService.markRead(item.id()); org.example.util.ToastManager.success(listNotifications,item.read()?"Marked unread":"Marked read","Notification status was updated successfully."); refresh(); }
-    @FXML private void deleteSelected(){ NotificationItem item=selected(); if(item==null)return; NotificationService.delete(item.id()); org.example.util.ToastManager.success(listNotifications,"Notification dismissed","Notification was dismissed from your history."); refresh(); }
+    @FXML private void deleteSelected(){
+        NotificationItem item=selected();
+        if(item==null)return;
+        boolean confirmed = AppDialogService.destructive(listNotifications, "Dismiss Notification", "Dismiss notification '" + item.title() + "'?", "This notification will be permanently removed from your history.", "Dismiss");
+        if (!confirmed) return;
+        NotificationService.delete(item.id());
+        org.example.util.ToastManager.success(listNotifications,"Notification dismissed","Notification was dismissed from your history.");
+        refresh();
+    }
 
     @FXML private void openRecord() {
         NotificationItem item = selected(); if(item==null)return;

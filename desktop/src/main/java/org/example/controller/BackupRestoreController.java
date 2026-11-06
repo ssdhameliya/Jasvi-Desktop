@@ -4,6 +4,7 @@ import org.example.navigation.ScreenLifecycle;
 import org.example.util.BusinessClock;
 
 import org.example.util.OwnedAlert;
+import org.example.util.AppDialogService;
 
 import javafx.beans.property.SimpleStringProperty;
 import javafx.concurrent.Task;
@@ -526,16 +527,14 @@ public class BackupRestoreController implements ScreenLifecycle {
         if (row == null) return;
         backupTable.getSelectionModel().select(row);
 
-        Alert confirmation = new OwnedAlert(
-                Alert.AlertType.CONFIRMATION,
-                "Stage " + row.name() + " for restore?\n\n"
-                        + "The active database will not be replaced now. The restore will be applied safely "
-                        + "before any database connection opens on the next application start.",
-                ButtonType.YES,
-                ButtonType.NO
+        boolean confirmed = AppDialogService.doubleConfirmation(
+                backupTable,
+                "RESTORE",
+                "Stage Database Restore",
+                "Overwrite Active Database with " + row.name() + "?",
+                "The active PostgreSQL database will be replaced with this backup on the next application start. All current transactions since this backup will be overwritten."
         );
-        confirmation.setHeaderText("Stage database restore");
-        if (confirmation.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return;
+        if (!confirmed) return;
 
         runOperation(
                 "Validating and staging restore...",
@@ -641,15 +640,14 @@ public class BackupRestoreController implements ScreenLifecycle {
         org.example.service.PermissionService.require("BACKUP.DELETE", "delete a database backup");
         if (row == null) return;
 
-        Alert confirmation = new OwnedAlert(
-                Alert.AlertType.CONFIRMATION,
-                "Move " + row.name() + " to the backup recycle folder?\n\n"
-                        + "Deleted backups are retained for seven days before permanent cleanup.",
-                ButtonType.YES,
-                ButtonType.NO
+        boolean confirmed = AppDialogService.destructive(
+                backupTable,
+                "Delete Backup",
+                "Move " + row.name() + " to recycle folder?",
+                "Deleted backups are retained for seven days before permanent cleanup.",
+                "Delete Backup"
         );
-        confirmation.setHeaderText("Delete backup safely");
-        if (confirmation.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return;
+        if (!confirmed) return;
 
         runOperation(
                 "Moving backup to recycle storage...",

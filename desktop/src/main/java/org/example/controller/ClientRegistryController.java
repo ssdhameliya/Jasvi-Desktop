@@ -16,77 +16,121 @@ import javafx.stage.FileChooser;
 import org.example.api.licensing.ClientRegistryApiClient;
 import org.example.navigation.ScreenLifecycle;
 import org.example.shared.licensing.HardwareFingerprintUtil;
-import org.example.util.AppDialogService;
-import org.example.util.BusinessClock;
-import org.example.util.DynamicTableLayoutManager;
-import org.example.util.IconFactory;
-import org.example.util.OwnedAlert;
-import org.example.util.OwnedDialog;
-import org.example.util.OwnedTextInputDialog;
-import org.example.util.ToastManager;
-import org.example.util.UiTaskExecutor;
+import org.example.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.DecimalFormat;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public class ClientRegistryController implements ScreenLifecycle {
     private static final Logger log = LoggerFactory.getLogger(ClientRegistryController.class);
-    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final DecimalFormat CURRENCY_FMT = new DecimalFormat("#,##0.00");
 
     @FXML private StackPane pageIcon;
     @FXML private Button btnRegisterClient;
     @FXML private Button btnRefresh;
-    @FXML private Button btnResetFilter;
 
     @FXML private StackPane kpiTotalIcon;
     @FXML private StackPane kpiActiveIcon;
-    @FXML private StackPane kpiExpiringIcon;
+    @FXML private StackPane kpiPendingLeadsIcon;
     @FXML private StackPane kpiArrIcon;
     @FXML private Label lblKpiTotal;
     @FXML private Label lblKpiActive;
-    @FXML private Label lblKpiExpiring;
+    @FXML private Label lblKpiPendingLeads;
+    @FXML private Label lblKpiPendingTrend;
     @FXML private Label lblKpiArr;
 
+    @FXML private TabPane registryTabPane;
+    @FXML private Tab tabClients;
+    @FXML private Tab tabLeads;
+    @FXML private Tab tabPlans;
+
+    // Tab 1: Clients Table
     @FXML private TextField txtSearch;
     @FXML private ComboBox<String> cmbFilterStatus;
-
+    @FXML private Button btnResetFilter;
     @FXML private TableView<Map<String, Object>> tableClients;
     @FXML private TableColumn<Map<String, Object>, String> colStatus;
     @FXML private TableColumn<Map<String, Object>, String> colCompany;
     @FXML private TableColumn<Map<String, Object>, String> colMachineId;
+    @FXML private TableColumn<Map<String, Object>, String> colRemoteUrl;
+    @FXML private TableColumn<Map<String, Object>, String> colLiveStatus;
     @FXML private TableColumn<Map<String, Object>, String> colContact;
     @FXML private TableColumn<Map<String, Object>, String> colTier;
     @FXML private TableColumn<Map<String, Object>, String> colAnnualFee;
     @FXML private TableColumn<Map<String, Object>, String> colValidUntil;
     @FXML private TableColumn<Map<String, Object>, Void> colActions;
 
+    // Tab 2: Leads Table
+    @FXML private TextField txtLeadSearch;
+    @FXML private ComboBox<String> cmbLeadFilterStatus;
+    @FXML private Button btnResetLeadFilter;
+    @FXML private TableView<Map<String, Object>> tableLeads;
+    @FXML private TableColumn<Map<String, Object>, String> colLeadStatus;
+    @FXML private TableColumn<Map<String, Object>, String> colLeadCompany;
+    @FXML private TableColumn<Map<String, Object>, String> colLeadContact;
+    @FXML private TableColumn<Map<String, Object>, String> colLeadPhone;
+    @FXML private TableColumn<Map<String, Object>, String> colLeadMachineId;
+    @FXML private TableColumn<Map<String, Object>, String> colLeadTier;
+    @FXML private TableColumn<Map<String, Object>, String> colLeadDate;
+    @FXML private TableColumn<Map<String, Object>, Void> colLeadActions;
+
+    // Tab 3: Plans Table & Commercial Settings
+    @FXML private Button btnAddPlan;
+    @FXML private TableView<Map<String, Object>> tablePlans;
+    @FXML private TableColumn<Map<String, Object>, String> colPlanCode;
+    @FXML private TableColumn<Map<String, Object>, String> colPlanName;
+    @FXML private TableColumn<Map<String, Object>, String> colPlanFee;
+    @FXML private TableColumn<Map<String, Object>, String> colPlanUsers;
+    @FXML private TableColumn<Map<String, Object>, String> colPlanDays;
+    @FXML private TableColumn<Map<String, Object>, String> colPlanFeatures;
+    @FXML private TableColumn<Map<String, Object>, String> colPlanStatus;
+    @FXML private TableColumn<Map<String, Object>, Void> colPlanActions;
+
+    @FXML private TextField txtCommPhone;
+    @FXML private TextField txtCommVpa;
+    @FXML private TextField txtCommPayee;
+    @FXML private TextField txtCommGst;
+    @FXML private TextArea txtCommLeadTpl;
+    @FXML private TextArea txtCommIssuedTpl;
+    @FXML private Button btnSaveCommercialSettings;
+
     private final ClientRegistryApiClient api = new ClientRegistryApiClient();
+
     private final ObservableList<Map<String, Object>> masterList = FXCollections.observableArrayList();
     private FilteredList<Map<String, Object>> filteredList;
+
+    private final ObservableList<Map<String, Object>> leadsMasterList = FXCollections.observableArrayList();
+    private FilteredList<Map<String, Object>> leadsFilteredList;
+
+    private final ObservableList<Map<String, Object>> plansList = FXCollections.observableArrayList();
 
     @FXML
     public void initialize() {
         if (pageIcon != null) pageIcon.getChildren().setAll(IconFactory.icon("shield", 22));
         if (kpiTotalIcon != null) kpiTotalIcon.getChildren().setAll(IconFactory.icon("customer", 18));
         if (kpiActiveIcon != null) kpiActiveIcon.getChildren().setAll(IconFactory.icon("active", 18));
-        if (kpiExpiringIcon != null) kpiExpiringIcon.getChildren().setAll(IconFactory.icon("clock", 18));
+        if (kpiPendingLeadsIcon != null) kpiPendingLeadsIcon.getChildren().setAll(IconFactory.icon("clock", 18));
         if (kpiArrIcon != null) kpiArrIcon.getChildren().setAll(IconFactory.icon("dollar", 18));
 
         if (btnRegisterClient != null) btnRegisterClient.setGraphic(IconFactory.compactIcon("add", 14));
         if (btnRefresh != null) btnRefresh.setGraphic(IconFactory.compactIcon("refresh", 14));
         if (btnResetFilter != null) btnResetFilter.setGraphic(IconFactory.compactIcon("reset", 14));
+        if (btnResetLeadFilter != null) btnResetLeadFilter.setGraphic(IconFactory.compactIcon("reset", 14));
+        if (btnAddPlan != null) btnAddPlan.setGraphic(IconFactory.compactIcon("add", 14));
+        if (btnSaveCommercialSettings != null) btnSaveCommercialSettings.setGraphic(IconFactory.compactIcon("settings", 14));
 
         if (cmbFilterStatus != null) {
             cmbFilterStatus.setItems(FXCollections.observableArrayList("All Statuses", "ACTIVE", "EXPIRING", "EXPIRED", "REVOKED"));
@@ -94,17 +138,29 @@ public class ClientRegistryController implements ScreenLifecycle {
             cmbFilterStatus.valueProperty().addListener((obs, o, n) -> applyFilters());
         }
 
+        if (cmbLeadFilterStatus != null) {
+            cmbLeadFilterStatus.setItems(FXCollections.observableArrayList("All Statuses", "PENDING", "APPROVED", "REJECTED"));
+            cmbLeadFilterStatus.setValue("All Statuses");
+            cmbLeadFilterStatus.valueProperty().addListener((obs, o, n) -> applyLeadFilters());
+        }
+
         setupTableColumns();
         setupFiltering();
+
+        setupLeadTableColumns();
+        setupLeadFiltering();
+
+        setupPlanTableColumns();
     }
+
+    // ==========================================
+    // TAB 1: REGISTERED CLIENTS SETUP
+    // ==========================================
 
     private void setupTableColumns() {
         if (tableClients == null) return;
-
-        // Dynamic responsive column widths per Rule 7
         DynamicTableLayoutManager.install(tableClients);
 
-        // 1. Status Column with Semantic Badges (Rule 11)
         colStatus.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("status", "ACTIVE"))));
         colStatus.setCellFactory(col -> new TableCell<>() {
             @Override
@@ -131,10 +187,8 @@ public class ClientRegistryController implements ScreenLifecycle {
             }
         });
 
-        // 2. Company Name
         colCompany.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("company_name", "-"))));
 
-        // 3. Machine Hardware ID formatted
         colMachineId.setCellValueFactory(cell -> {
             String m = String.valueOf(cell.getValue().getOrDefault("machine_id", ""));
             if (m.length() == 16) {
@@ -143,7 +197,86 @@ public class ClientRegistryController implements ScreenLifecycle {
             return new SimpleStringProperty(m);
         });
 
-        // 4. Contact & Phone
+        colRemoteUrl.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("remote_url", ""))));
+        colRemoteUrl.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String url, boolean empty) {
+                super.updateItem(url, empty);
+                if (empty || url == null || url.isBlank() || "null".equalsIgnoreCase(url)) {
+                    setGraphic(null);
+                    setText("⚪ No Tunnel");
+                    setContentDisplay(ContentDisplay.TEXT_ONLY);
+                    setAlignment(Pos.CENTER);
+                    return;
+                }
+                Hyperlink link = new Hyperlink(url);
+                link.setGraphic(IconFactory.compactIcon("link", 13));
+                link.getStyleClass().add("table-hyperlink");
+                link.setTooltip(new Tooltip("Click to test or open remote support endpoint:\n" + url));
+                link.setOnAction(e -> {
+                    try {
+                        if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                            java.awt.Desktop.getDesktop().browse(URI.create(url));
+                        }
+                    } catch (Exception ex) {
+                        AppDialogService.error(tableClients, "Browser Error", "Could not open URL", ex.getMessage());
+                    }
+                });
+                setGraphic(link);
+                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                setAlignment(Pos.CENTER_LEFT);
+            }
+        });
+
+        colLiveStatus.setCellValueFactory(cell -> {
+            Object hb = cell.getValue().get("last_heartbeat_at");
+            Object ver = cell.getValue().get("client_version");
+            String v = (ver != null && !ver.toString().isBlank() && !"null".equalsIgnoreCase(ver.toString())) ? ver.toString() : "";
+            return new SimpleStringProperty(hb != null && !"null".equalsIgnoreCase(hb.toString()) ? hb.toString() + (v.isBlank() ? "" : "|" + v) : "");
+        });
+        colLiveStatus.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String raw, boolean empty) {
+                super.updateItem(raw, empty);
+                if (empty || raw == null || raw.isBlank()) {
+                    Label offline = new Label("⚪ Offline");
+                    offline.getStyleClass().addAll("status-badge", "status-neutral");
+                    setGraphic(offline);
+                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                    setAlignment(Pos.CENTER);
+                    return;
+                }
+                String[] parts = raw.split("\\|", 2);
+                String hbStr = parts[0];
+                String ver = parts.length > 1 ? parts[1] : "";
+
+                Instant hbTime = null;
+                try {
+                    hbTime = Instant.parse(hbStr);
+                } catch (Exception ignored) {
+                    try {
+                        hbTime = java.time.LocalDateTime.parse(hbStr.replace(" ", "T")).atZone(java.time.ZoneId.systemDefault()).toInstant();
+                    } catch (Exception ignored2) {}
+                }
+
+                Label badge;
+                if (hbTime != null && Duration.between(hbTime, Instant.now()).toMinutes() <= 15) {
+                    badge = new Label("🟢 Online" + (ver.isBlank() ? "" : " (" + ver + ")"));
+                    badge.getStyleClass().addAll("status-badge", "status-positive", "badge-active");
+                } else if (hbTime != null && Duration.between(hbTime, Instant.now()).toHours() < 24) {
+                    long hours = Duration.between(hbTime, Instant.now()).toHours();
+                    badge = new Label("🟡 Seen " + (hours == 0 ? "recently" : hours + "h ago"));
+                    badge.getStyleClass().addAll("status-badge", "status-warning");
+                } else {
+                    badge = new Label("⚪ Seen " + (hbStr.length() > 10 ? hbStr.substring(0, 10) : hbStr));
+                    badge.getStyleClass().addAll("status-badge", "status-neutral");
+                }
+                setGraphic(badge);
+                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                setAlignment(Pos.CENTER);
+            }
+        });
+
         colContact.setCellValueFactory(cell -> {
             String person = String.valueOf(cell.getValue().getOrDefault("contact_person", ""));
             String phone = String.valueOf(cell.getValue().getOrDefault("phone", ""));
@@ -151,14 +284,12 @@ public class ClientRegistryController implements ScreenLifecycle {
             return new SimpleStringProperty(combined.isBlank() ? "-" : combined);
         });
 
-        // 5. Tier & Users
         colTier.setCellValueFactory(cell -> {
             String tier = String.valueOf(cell.getValue().getOrDefault("tier", "GOLD"));
             Object maxUsers = cell.getValue().get("max_users");
             return new SimpleStringProperty(tier + " (" + (maxUsers != null ? maxUsers : 5) + " Users)");
         });
 
-        // 6. Annual Fee
         colAnnualFee.setCellValueFactory(cell -> {
             Object fee = cell.getValue().get("annual_fee");
             if (fee instanceof Number n) {
@@ -167,7 +298,6 @@ public class ClientRegistryController implements ScreenLifecycle {
             return new SimpleStringProperty("₹3,500.00");
         });
 
-        // 7. Valid Until (Rule 13: settings-driven date formatting)
         colValidUntil.setCellValueFactory(cell -> {
             Object vu = cell.getValue().get("valid_until");
             if (vu != null) {
@@ -181,7 +311,6 @@ public class ClientRegistryController implements ScreenLifecycle {
             return new SimpleStringProperty("-");
         });
 
-        // 8. Colorized Actions (Rule 8 & 9)
         colActions.setCellFactory(col -> new TableCell<>() {
             private final MenuButton actionsBtn = new MenuButton("Actions");
 
@@ -226,6 +355,13 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) sendWhatsApp(item);
                 });
 
+                MenuItem miTestUrl = new MenuItem("Test Remote URL");
+                miTestUrl.setGraphic(IconFactory.compactIcon("link", 13));
+                miTestUrl.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) testRemoteUrl(item);
+                });
+
                 MenuItem miRevoke = new MenuItem("Revoke License");
                 miRevoke.setGraphic(IconFactory.compactIcon("delete", 13));
                 miRevoke.setOnAction(e -> {
@@ -233,7 +369,8 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) handleRevokeClient(item);
                 });
 
-                actionsBtn.getItems().addAll(miRenew, miRenewCustom, miCopyToken, miExport, miWhatsApp, new SeparatorMenuItem(), miRevoke);
+                actionsBtn.getItems().addAll(miRenew, miRenewCustom, miCopyToken, miExport, miWhatsApp, miTestUrl, new SeparatorMenuItem(), miRevoke);
+                IconFactory.decorateActionMenu(actionsBtn);
             }
 
             @Override
@@ -275,6 +412,414 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
     }
 
+    // ==========================================
+    // TAB 2: INBOUND LEADS / APPROVAL REQUESTS
+    // ==========================================
+
+    private void setupLeadTableColumns() {
+        if (tableLeads == null) return;
+        DynamicTableLayoutManager.install(tableLeads);
+
+        colLeadStatus.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("status", "PENDING"))));
+        colLeadStatus.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String status, boolean empty) {
+                super.updateItem(status, empty);
+                if (empty || status == null) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+                Label badge = new Label(status);
+                badge.getStyleClass().add("status-badge");
+                String upper = status.toUpperCase(Locale.ROOT);
+                if ("APPROVED".equals(upper)) {
+                    badge.getStyleClass().addAll("status-positive", "badge-active");
+                } else if ("REJECTED".equals(upper)) {
+                    badge.getStyleClass().addAll("status-negative", "badge-cancelled");
+                } else {
+                    badge.getStyleClass().addAll("status-warning", "badge-warning");
+                }
+                setGraphic(badge);
+                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                setAlignment(Pos.CENTER);
+            }
+        });
+
+        colLeadCompany.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("company_name", "-"))));
+        colLeadContact.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("contact_person", "-"))));
+        colLeadPhone.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("phone", "-"))));
+
+        colLeadMachineId.setCellValueFactory(cell -> {
+            String m = String.valueOf(cell.getValue().getOrDefault("machine_id", ""));
+            if (m.length() == 16) {
+                m = String.format("%s-%s-%s-%s", m.substring(0, 4), m.substring(4, 8), m.substring(8, 12), m.substring(12, 16));
+            }
+            return new SimpleStringProperty(m);
+        });
+
+        colLeadTier.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("requested_tier", "GOLD"))));
+
+        colLeadDate.setCellValueFactory(cell -> {
+            Object dt = cell.getValue().get("created_at");
+            if (dt != null) {
+                try {
+                    return new SimpleStringProperty(BusinessClock.formatDate(dt.toString()));
+                } catch (Exception ignored) {
+                    return new SimpleStringProperty(dt.toString().substring(0, Math.min(10, dt.toString().length())));
+                }
+            }
+            return new SimpleStringProperty("-");
+        });
+
+        colLeadActions.setCellFactory(col -> new TableCell<>() {
+            private final HBox box = new HBox(6);
+            private final Button btnApprove = new Button("Approve");
+            private final Button btnReject = new Button("Reject");
+            private final Button btnWhatsApp = new Button("WhatsApp");
+
+            {
+                btnApprove.getStyleClass().addAll("approved-button", "approved-primary-button", "btn-table-action");
+                btnApprove.setGraphic(IconFactory.compactIcon("check", 12));
+
+                btnReject.getStyleClass().addAll("approved-button", "approved-danger-button", "btn-table-action");
+                btnReject.setGraphic(IconFactory.compactIcon("delete", 12));
+
+                btnWhatsApp.getStyleClass().addAll("approved-button", "approved-secondary-button", "btn-table-action");
+                btnWhatsApp.setGraphic(IconFactory.compactIcon("share", 12));
+
+                box.setAlignment(Pos.CENTER);
+                box.getChildren().addAll(btnApprove, btnReject, btnWhatsApp);
+
+                btnApprove.setOnAction(e -> {
+                    Map<String, Object> lead = getTableView().getItems().get(getIndex());
+                    if (lead != null) handleApproveLead(lead);
+                });
+
+                btnReject.setOnAction(e -> {
+                    Map<String, Object> lead = getTableView().getItems().get(getIndex());
+                    if (lead != null) handleRejectLead(lead);
+                });
+
+                btnWhatsApp.setOnAction(e -> {
+                    Map<String, Object> lead = getTableView().getItems().get(getIndex());
+                    if (lead != null) sendWhatsAppLead(lead);
+                });
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                    return;
+                }
+                Map<String, Object> lead = getTableView().getItems().get(getIndex());
+                String status = String.valueOf(lead.getOrDefault("status", "PENDING"));
+                boolean pending = "PENDING".equalsIgnoreCase(status);
+                btnApprove.setVisible(pending);
+                btnApprove.setManaged(pending);
+                btnReject.setVisible(pending);
+                btnReject.setManaged(pending);
+                setGraphic(box);
+            }
+        });
+    }
+
+    private void setupLeadFiltering() {
+        leadsFilteredList = new FilteredList<>(leadsMasterList, p -> true);
+        tableLeads.setItems(leadsFilteredList);
+
+        if (txtLeadSearch != null) {
+            txtLeadSearch.textProperty().addListener((obs, o, n) -> applyLeadFilters());
+        }
+    }
+
+    private void applyLeadFilters() {
+        String query = txtLeadSearch != null ? txtLeadSearch.getText().trim().toLowerCase(Locale.ROOT) : "";
+        String status = cmbLeadFilterStatus != null ? cmbLeadFilterStatus.getValue() : "All Statuses";
+
+        leadsFilteredList.setPredicate(item -> {
+            if (status != null && !"All Statuses".equalsIgnoreCase(status)) {
+                String itemStatus = String.valueOf(item.getOrDefault("status", "PENDING"));
+                if (!status.equalsIgnoreCase(itemStatus)) return false;
+            }
+
+            if (!query.isBlank()) {
+                String comp = String.valueOf(item.getOrDefault("company_name", "")).toLowerCase(Locale.ROOT);
+                String mach = String.valueOf(item.getOrDefault("machine_id", "")).toLowerCase(Locale.ROOT);
+                String cont = String.valueOf(item.getOrDefault("contact_person", "")).toLowerCase(Locale.ROOT);
+                String ph = String.valueOf(item.getOrDefault("phone", "")).toLowerCase(Locale.ROOT);
+                return comp.contains(query) || mach.contains(query) || cont.contains(query) || ph.contains(query);
+            }
+
+            return true;
+        });
+    }
+
+    private void handleApproveLead(Map<String, Object> lead) {
+        Long id = ((Number) lead.get("id")).longValue();
+        String company = String.valueOf(lead.getOrDefault("company_name", "Client"));
+        String defaultTier = String.valueOf(lead.getOrDefault("requested_tier", "GOLD"));
+
+        Dialog<Map<String, Object>> dialog = new OwnedDialog<>(tableLeads);
+        dialog.setTitle("Approve Lead & Issue License");
+        dialog.setHeaderText("Issue cryptographically signed license for " + company);
+
+        ButtonType btnApprove = new ButtonType("Approve & Issue", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnApprove, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 24, 20, 24));
+
+        ComboBox<String> cmbTier = new ComboBox<>(FXCollections.observableArrayList("SILVER", "GOLD", "PLATINUM"));
+        cmbTier.setValue(defaultTier);
+        TextField txtDays = new TextField("365");
+
+        grid.add(new Label("Company:"), 0, 0);
+        grid.add(new Label(company), 1, 0);
+        grid.add(new Label("Machine ID:"), 0, 1);
+        grid.add(new Label(String.valueOf(lead.get("machine_id"))), 1, 1);
+        grid.add(new Label("License Tier *:"), 0, 2);
+        grid.add(cmbTier, 1, 2);
+        grid.add(new Label("Validity (Days) *:"), 0, 3);
+        grid.add(txtDays, 1, 3);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(b -> {
+            if (b == btnApprove) {
+                int days = 365;
+                try { days = Integer.parseInt(txtDays.getText().trim()); } catch (Exception ignored) {}
+                return Map.of("tier", cmbTier.getValue(), "days", days);
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(req -> {
+            UiTaskExecutor.submitAction(
+                    "approve-lead-" + id,
+                    () -> api.approveLead(id, String.valueOf(req.get("tier")), (Integer) req.get("days")),
+                    res -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> dispatch = (Map<String, Object>) res.get("dispatch");
+                        boolean waSent = dispatch != null && Boolean.TRUE.equals(dispatch.get("whatsappSent"));
+                        boolean emSent = dispatch != null && Boolean.TRUE.equals(dispatch.get("emailSent"));
+
+                        if (waSent) {
+                            ToastManager.success(tableLeads, "Lead Approved & Dispatched",
+                                    "License issued and dispatched automatically via WhatsApp to " + company + "!" +
+                                            (emSent ? " (and official email sent)" : ""));
+                        } else {
+                            ToastManager.success(tableLeads, "Lead Approved", "License issued for " + company + ". Opening WhatsApp Web...");
+                            openManualWhatsApp(res);
+                        }
+                        loadDataAsync();
+                    },
+                    err -> AppDialogService.error(tableLeads, "Approval Error", "Could not approve lead", err.getMessage())
+            );
+        });
+    }
+
+    private void handleRejectLead(Map<String, Object> lead) {
+        Long id = ((Number) lead.get("id")).longValue();
+        String company = String.valueOf(lead.getOrDefault("company_name", "Client"));
+
+        boolean confirmed = AppDialogService.confirm(
+                tableLeads,
+                "Reject Lead",
+                "Reject registration request for " + company + "?",
+                "This inbound lead will be marked as REJECTED."
+        );
+        if (!confirmed) return;
+
+        UiTaskExecutor.submitAction(
+                "reject-lead-" + id,
+                () -> api.rejectLead(id),
+                res -> {
+                    ToastManager.info(tableLeads, "Lead Rejected", "Registration for " + company + " rejected.");
+                    loadDataAsync();
+                },
+                err -> AppDialogService.error(tableLeads, "Reject Error", "Could not reject lead", err.getMessage())
+        );
+    }
+
+    private void sendWhatsAppLead(Map<String, Object> lead) {
+        String phone = String.valueOf(lead.getOrDefault("phone", "")).replaceAll("[^0-9]", "");
+        String company = String.valueOf(lead.getOrDefault("company_name", "Client"));
+        String machine = String.valueOf(lead.getOrDefault("machine_id", ""));
+
+        String text = "Dear " + company + ",\n\nWe have received your Jasvi ERP activation request for Terminal ID: " +
+                machine + ".\nOur team is reviewing your registration.\n\nThank you for choosing Jasvi ERP!";
+
+        try {
+            String url = "https://wa.me/" + (phone.isBlank() ? "" : (phone.startsWith("91") ? phone : "91" + phone)) +
+                    "?text=" + URLEncoder.encode(text, StandardCharsets.UTF_8);
+            if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                java.awt.Desktop.getDesktop().browse(URI.create(url));
+            }
+        } catch (Exception ex) {
+            AppDialogService.error(tableLeads, "WhatsApp Error", "Could not open browser", ex.getMessage());
+        }
+    }
+
+    // ==========================================
+    // TAB 3: SUBSCRIPTION PLANS & COMMERCIAL SETTINGS
+    // ==========================================
+
+    private void setupPlanTableColumns() {
+        if (tablePlans == null) return;
+        DynamicTableLayoutManager.install(tablePlans);
+        tablePlans.setItems(plansList);
+
+        colPlanCode.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("tier_code", "-"))));
+        colPlanName.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("plan_name", "-"))));
+
+        colPlanFee.setCellValueFactory(cell -> {
+            Object fee = cell.getValue().get("annual_fee");
+            if (fee instanceof Number n) {
+                return new SimpleStringProperty("₹" + CURRENCY_FMT.format(n.doubleValue()));
+            }
+            return new SimpleStringProperty("₹0.00");
+        });
+
+        colPlanUsers.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("max_users", "5")) + " Users"));
+        colPlanDays.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("validity_days", "365")) + " Days"));
+        colPlanFeatures.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("features", "-"))));
+
+        colPlanStatus.setCellValueFactory(cell -> new SimpleStringProperty(Boolean.TRUE.equals(cell.getValue().get("is_active")) ? "Active" : "Inactive"));
+        colPlanStatus.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String status, boolean empty) {
+                super.updateItem(status, empty);
+                if (empty || status == null) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+                Label badge = new Label("● " + status);
+                badge.getStyleClass().addAll("status-badge", "Active".equalsIgnoreCase(status) ? "status-positive" : "status-negative");
+                setGraphic(badge);
+                setAlignment(Pos.CENTER);
+            }
+        });
+
+        colPlanActions.setCellFactory(col -> new TableCell<>() {
+            private final Button btnEdit = new Button("Edit Plan");
+            {
+                btnEdit.getStyleClass().addAll("approved-button", "approved-secondary-button", "btn-table-action");
+                btnEdit.setGraphic(IconFactory.compactIcon("edit", 12));
+                btnEdit.setOnAction(e -> {
+                    Map<String, Object> plan = getTableView().getItems().get(getIndex());
+                    if (plan != null) handleEditPlan(plan);
+                });
+            }
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : btnEdit);
+                setAlignment(Pos.CENTER);
+            }
+        });
+    }
+
+    @FXML
+    private void handleAddPlan() {
+        showPlanEditDialog(null);
+    }
+
+    private void handleEditPlan(Map<String, Object> plan) {
+        showPlanEditDialog(plan);
+    }
+
+    private void showPlanEditDialog(Map<String, Object> plan) {
+        boolean isEdit = plan != null;
+        Dialog<Map<String, Object>> dialog = new OwnedDialog<>(tablePlans);
+        dialog.setTitle(isEdit ? "Edit Subscription Plan" : "Add New Subscription Plan");
+        dialog.setHeaderText(isEdit ? "Modify commercial pricing and user quota for " + plan.get("plan_name") : "Create a new commercial subscription tier");
+
+        ButtonType btnSave = new ButtonType("Save Plan", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnSave, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 24, 20, 24));
+
+        TextField txtCode = new TextField(isEdit ? String.valueOf(plan.getOrDefault("tier_code", "")) : "");
+        TextField txtName = new TextField(isEdit ? String.valueOf(plan.getOrDefault("plan_name", "")) : "");
+        TextField txtFee = new TextField(isEdit && plan.get("annual_fee") != null ? String.valueOf(plan.get("annual_fee")) : "15000.00");
+        TextField txtUsers = new TextField(isEdit && plan.get("max_users") != null ? String.valueOf(plan.get("max_users")) : "5");
+        TextField txtDays = new TextField(isEdit && plan.get("validity_days") != null ? String.valueOf(plan.get("validity_days")) : "365");
+        TextField txtFeatures = new TextField(isEdit ? String.valueOf(plan.getOrDefault("features", "")) : "");
+
+        grid.add(new Label("Tier Code *:"), 0, 0);
+        grid.add(txtCode, 1, 0);
+        grid.add(new Label("Plan Name *:"), 0, 1);
+        grid.add(txtName, 1, 1);
+        grid.add(new Label("Annual Price (₹) *:"), 0, 2);
+        grid.add(txtFee, 1, 2);
+        grid.add(new Label("Max Concurrent Users *:"), 0, 3);
+        grid.add(txtUsers, 1, 3);
+        grid.add(new Label("Validity (Days) *:"), 0, 4);
+        grid.add(txtDays, 1, 4);
+        grid.add(new Label("Features Description:"), 0, 5);
+        grid.add(txtFeatures, 1, 5);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(b -> {
+            if (b == btnSave) {
+                java.util.Map<String, Object> req = new java.util.HashMap<>();
+                if (isEdit && plan.get("id") != null) req.put("id", plan.get("id"));
+                req.put("tierCode", txtCode.getText().trim().toUpperCase(Locale.ROOT));
+                req.put("planName", txtName.getText().trim());
+                try { req.put("annualFee", new BigDecimal(txtFee.getText().trim())); } catch (Exception e) { req.put("annualFee", BigDecimal.ZERO); }
+                try { req.put("maxUsers", Integer.parseInt(txtUsers.getText().trim())); } catch (Exception e) { req.put("maxUsers", 5); }
+                try { req.put("validityDays", Integer.parseInt(txtDays.getText().trim())); } catch (Exception e) { req.put("validityDays", 365); }
+                req.put("features", txtFeatures.getText().trim());
+                req.put("isActive", true);
+                return req;
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(req -> {
+            UiTaskExecutor.submitAction(
+                    "save-plan",
+                    () -> api.savePlan(req),
+                    res -> {
+                        ToastManager.success(tablePlans, "Plan Saved", "Commercial subscription plan saved!");
+                        loadDataAsync();
+                    },
+                    err -> AppDialogService.error(tablePlans, "Save Error", "Could not save plan", err.getMessage())
+            );
+        });
+    }
+
+    @FXML
+    private void handleSaveCommercialSettings() {
+        Map<String, Object> req = Map.of(
+                "supportPhone", txtCommPhone.getText() != null ? txtCommPhone.getText().trim() : "",
+                "upiVpa", txtCommVpa.getText() != null ? txtCommVpa.getText().trim() : "",
+                "payeeName", txtCommPayee.getText() != null ? txtCommPayee.getText().trim() : "",
+                "gstRate", txtCommGst.getText() != null ? txtCommGst.getText().trim() : "18.00",
+                "whatsappTemplateLead", txtCommLeadTpl.getText() != null ? txtCommLeadTpl.getText().trim() : "",
+                "whatsappTemplateIssued", txtCommIssuedTpl.getText() != null ? txtCommIssuedTpl.getText().trim() : ""
+        );
+
+        UiTaskExecutor.submitAction(
+                "save-comm-settings",
+                () -> api.saveCommercialSettings(req),
+                res -> ToastManager.success(registryTabPane, "Settings Saved", "Commercial settings updated and synced with cloud catalog!"),
+                err -> AppDialogService.error(registryTabPane, "Save Error", "Could not save settings", err.getMessage())
+        );
+    }
+
+    // ==========================================
+    // DATA LOADING & KPIS
+    // ==========================================
+
     private void loadDataAsync() {
         if (UiTaskExecutor.actionInProgress("load-client-registry")) {
             return;
@@ -284,34 +829,69 @@ public class ClientRegistryController implements ScreenLifecycle {
                 () -> {
                     var list = api.getClients(null, null);
                     var stats = api.getStats();
-                    return Map.of("list", list, "stats", stats);
+                    var leads = api.getLeads();
+                    var plans = api.getPlans();
+                    var comm = api.getCommercialSettings();
+                    return Map.of("list", list, "stats", stats, "leads", leads, "plans", plans, "comm", comm);
                 },
                 res -> {
                     @SuppressWarnings("unchecked")
-                    var list = (java.util.List<Map<String, Object>>) res.get("list");
+                    var list = (List<Map<String, Object>>) res.get("list");
                     @SuppressWarnings("unchecked")
                     var stats = (Map<String, Object>) res.get("stats");
+                    @SuppressWarnings("unchecked")
+                    var leads = (List<Map<String, Object>>) res.get("leads");
+                    @SuppressWarnings("unchecked")
+                    var plans = (List<Map<String, Object>>) res.get("plans");
+                    @SuppressWarnings("unchecked")
+                    var comm = (Map<String, Object>) res.get("comm");
 
-                    masterList.setAll(list);
-                    updateKpis(stats);
+                    if (list != null) masterList.setAll(list);
+                    if (leads != null) leadsMasterList.setAll(leads);
+                    if (plans != null) plansList.setAll(plans);
+
+                    updateKpis(stats, leads);
+                    populateCommercialSettings(comm);
                 },
-                err -> AppDialogService.error(tableClients, "Registry Load Error", "Could not load client registry", err.getMessage())
+                err -> AppDialogService.error(tableClients != null ? tableClients : registryTabPane, "Registry Load Error", "Could not load client registry", err.getMessage())
         );
     }
 
-    private void updateKpis(Map<String, Object> stats) {
+    private void updateKpis(Map<String, Object> stats, List<Map<String, Object>> leads) {
         if (lblKpiTotal != null) lblKpiTotal.setText(String.valueOf(stats.getOrDefault("totalClients", masterList.size())));
         if (lblKpiActive != null) lblKpiActive.setText(String.valueOf(stats.getOrDefault("activeClients", 0)));
-        if (lblKpiExpiring != null) lblKpiExpiring.setText(String.valueOf(stats.getOrDefault("expiringClients", 0)));
+
+        long pendingLeads = leads != null ? leads.stream().filter(l -> "PENDING".equalsIgnoreCase(String.valueOf(l.get("status")))).count() : 0;
+        if (lblKpiPendingLeads != null) lblKpiPendingLeads.setText(String.valueOf(pendingLeads));
+        if (lblKpiPendingTrend != null) lblKpiPendingTrend.setText(pendingLeads > 0 ? pendingLeads + " Pending" : "Up to date");
+
+        if (tabLeads != null) {
+            tabLeads.setText(pendingLeads > 0 ? "Approval Requests (" + pendingLeads + ")" : "Approval Requests");
+        }
+
         if (lblKpiArr != null) {
-            Object arrObj = stats.get("arr");
-            if (arrObj instanceof Number n) {
+            Object arr = stats.get("arr");
+            if (arr instanceof Number n) {
                 lblKpiArr.setText("₹" + CURRENCY_FMT.format(n.doubleValue()));
             } else {
                 lblKpiArr.setText("₹0.00");
             }
         }
     }
+
+    private void populateCommercialSettings(Map<String, Object> comm) {
+        if (comm == null) return;
+        if (txtCommPhone != null) txtCommPhone.setText(String.valueOf(comm.getOrDefault("supportPhone", "9537544008")));
+        if (txtCommVpa != null) txtCommVpa.setText(String.valueOf(comm.getOrDefault("upiVpa", "jasviindustries@icici")));
+        if (txtCommPayee != null) txtCommPayee.setText(String.valueOf(comm.getOrDefault("payeeName", "Jasvi Industries")));
+        if (txtCommGst != null) txtCommGst.setText(String.valueOf(comm.getOrDefault("gstRate", "18.00")));
+        if (txtCommLeadTpl != null) txtCommLeadTpl.setText(String.valueOf(comm.getOrDefault("whatsappTemplateLead", "")));
+        if (txtCommIssuedTpl != null) txtCommIssuedTpl.setText(String.valueOf(comm.getOrDefault("whatsappTemplateIssued", "")));
+    }
+
+    // ==========================================
+    // ACTION HANDLERS
+    // ==========================================
 
     @FXML
     private void handleRefresh() {
@@ -322,6 +902,12 @@ public class ClientRegistryController implements ScreenLifecycle {
     private void handleResetFilter() {
         if (txtSearch != null) txtSearch.clear();
         if (cmbFilterStatus != null) cmbFilterStatus.setValue("All Statuses");
+    }
+
+    @FXML
+    private void handleResetLeadFilter() {
+        if (txtLeadSearch != null) txtLeadSearch.clear();
+        if (cmbLeadFilterStatus != null) cmbLeadFilterStatus.setValue("All Statuses");
     }
 
     @FXML
@@ -341,81 +927,99 @@ public class ClientRegistryController implements ScreenLifecycle {
         TextField txtComp = new TextField();
         txtComp.setPromptText("e.g. Surat Silk Mills Pvt Ltd");
 
-        TextField txtMach = new TextField();
-        txtMach.setPromptText("e.g. F12D-C2C0-AADE-15EB");
+        TextField txtMachine = new TextField();
+        txtMachine.setPromptText("e.g. 16-hex Machine ID or click Use Current");
 
-        Button btnMyId = new Button("Use This PC");
-        btnMyId.setOnAction(e -> txtMach.setText(HardwareFingerprintUtil.getDisplayMachineId()));
-        HBox machBox = new HBox(6, txtMach, btnMyId);
-        HBox.setHgrow(txtMach, Priority.ALWAYS);
+        Button btnUseCurrentMachine = new Button("Use Current Machine ID");
+        btnUseCurrentMachine.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnUseCurrentMachine.setOnAction(e -> txtMachine.setText(HardwareFingerprintUtil.getDisplayMachineId()));
+
+        HBox machineRow = new HBox(8, txtMachine, btnUseCurrentMachine);
+        HBox.setHgrow(txtMachine, Priority.ALWAYS);
 
         TextField txtContact = new TextField();
+        txtContact.setPromptText("e.g. Ramesh Patel");
+
         TextField txtPhone = new TextField();
+        txtPhone.setPromptText("e.g. 9825012345");
+
         TextField txtEmail = new TextField();
-        ComboBox<String> cmbTier = new ComboBox<>(FXCollections.observableArrayList("GOLD", "SILVER", "PLATINUM"));
+        txtEmail.setPromptText("e.g. accounts@suratsilk.com");
+
+        ComboBox<String> cmbTier = new ComboBox<>(FXCollections.observableArrayList("SILVER", "GOLD", "PLATINUM"));
         cmbTier.setValue("GOLD");
 
         TextField txtUsers = new TextField("5");
-        TextField txtFee = new TextField("3500.00");
-        ComboBox<String> cmbDays = new ComboBox<>(FXCollections.observableArrayList("365 Days (1 Year)", "730 Days (2 Years)", "30 Days (Trial)"));
-        cmbDays.setValue("365 Days (1 Year)");
+        TextField txtFee = new TextField("25000.00");
+        TextField txtDays = new TextField("365");
+
+        TextField txtRemoteUrl = new TextField();
+        txtRemoteUrl.setPromptText("e.g. https://client-a.jasviindustries.in or https://...trycloudflare.com");
 
         grid.add(new Label("Company Name *:"), 0, 0);
         grid.add(txtComp, 1, 0);
+
         grid.add(new Label("Machine Hardware ID *:"), 0, 1);
-        grid.add(machBox, 1, 1);
+        grid.add(machineRow, 1, 1);
+
         grid.add(new Label("Contact Person:"), 0, 2);
         grid.add(txtContact, 1, 2);
-        grid.add(new Label("Phone (WhatsApp):"), 0, 3);
+
+        grid.add(new Label("Phone / WhatsApp:"), 0, 3);
         grid.add(txtPhone, 1, 3);
+
         grid.add(new Label("Email:"), 0, 4);
         grid.add(txtEmail, 1, 4);
-        grid.add(new Label("Plan Tier:"), 0, 5);
+
+        grid.add(new Label("License Tier *:"), 0, 5);
         grid.add(cmbTier, 1, 5);
-        grid.add(new Label("Max Concurrent Users:"), 0, 6);
+
+        grid.add(new Label("Max Users *:"), 0, 6);
         grid.add(txtUsers, 1, 6);
-        grid.add(new Label("Annual Fee (₹):"), 0, 7);
+
+        grid.add(new Label("Annual Fee (₹) *:"), 0, 7);
         grid.add(txtFee, 1, 7);
-        grid.add(new Label("Validity Duration:"), 0, 8);
-        grid.add(cmbDays, 1, 8);
+
+        grid.add(new Label("Validity (Days) *:"), 0, 8);
+        grid.add(txtDays, 1, 8);
+
+        grid.add(new Label("Remote Support URL:"), 0, 9);
+        grid.add(txtRemoteUrl, 1, 9);
 
         dialog.getDialogPane().setContent(grid);
         dialog.setResultConverter(btn -> {
             if (btn == btnSave) {
-                int days = cmbDays.getValue().contains("730") ? 730 : (cmbDays.getValue().contains("30") ? 30 : 365);
-                int u = 5;
-                try { u = Integer.parseInt(txtUsers.getText().trim()); } catch (Exception ignored) {}
-                double f = 3500.00;
-                try { f = Double.parseDouble(txtFee.getText().trim()); } catch (Exception ignored) {}
-
-                return Map.of(
-                        "companyName", txtComp.getText().trim(),
-                        "machineId", txtMach.getText().trim(),
-                        "contactPerson", txtContact.getText().trim(),
-                        "phone", txtPhone.getText().trim(),
-                        "email", txtEmail.getText().trim(),
-                        "tier", cmbTier.getValue(),
-                        "maxUsers", u,
-                        "annualFee", f,
-                        "days", days
-                );
+                java.util.Map<String, Object> reqMap = new java.util.HashMap<>();
+                reqMap.put("companyName", txtComp.getText().trim());
+                reqMap.put("machineId", txtMachine.getText().trim().replace("-", ""));
+                reqMap.put("contactPerson", txtContact.getText().trim());
+                reqMap.put("phone", txtPhone.getText().trim());
+                reqMap.put("email", txtEmail.getText().trim());
+                reqMap.put("tier", cmbTier.getValue());
+                reqMap.put("maxUsers", Integer.parseInt(txtUsers.getText().trim()));
+                reqMap.put("annualFee", new BigDecimal(txtFee.getText().trim()));
+                reqMap.put("days", Integer.parseInt(txtDays.getText().trim()));
+                reqMap.put("remoteUrl", txtRemoteUrl.getText().trim());
+                reqMap.put("notes", "Direct SuperAdmin issuance");
+                return reqMap;
             }
             return null;
         });
 
         dialog.showAndWait().ifPresent(req -> {
-            if (String.valueOf(req.get("companyName")).isBlank()) {
-                ToastManager.warning(tableClients, "Validation", "Company Name is required.");
+            if (String.valueOf(req.get("companyName")).isBlank() || String.valueOf(req.get("machineId")).isBlank()) {
+                ToastManager.warning(tableClients, "Validation", "Company Name and Machine ID are required.");
                 return;
             }
+
             UiTaskExecutor.submitAction(
                     "register-client",
                     () -> api.registerClient(req),
-                    saved -> {
-                        ToastManager.success(tableClients, "Client Registered", "License issued successfully for " + req.get("companyName"));
+                    client -> {
+                        ToastManager.success(tableClients, "License Issued", "Registered " + req.get("companyName") + "!");
                         loadDataAsync();
                     },
-                    err -> AppDialogService.error(tableClients, "Registration Failed", "Could not register client", err.getMessage())
+                    err -> AppDialogService.error(tableClients, "Issuance Failed", "Could not register client", err.getMessage())
             );
         });
     }
@@ -425,39 +1029,44 @@ public class ClientRegistryController implements ScreenLifecycle {
         String company = String.valueOf(item.get("company_name"));
 
         UiTaskExecutor.submitAction(
-                "renew-client",
+                "renew-client-" + id,
                 () -> api.renewClient(id, days),
                 res -> {
-                    ToastManager.success(tableClients, "Renewal Successful", "License renewed +" + days + " days for " + company);
+                    ToastManager.success(tableClients, "License Renewed", "Added " + days + " days to " + company + ".");
                     loadDataAsync();
                 },
-                err -> AppDialogService.error(tableClients, "Renewal Failed", "Could not renew license", err.getMessage())
+                err -> AppDialogService.error(tableClients, "Renewal Error", "Could not renew license", err.getMessage())
         );
     }
 
     private void promptCustomRenewal(Map<String, Object> item) {
-        TextInputDialog dialog = new OwnedTextInputDialog("365");
-        dialog.setTitle("Custom Renewal Duration");
-        dialog.setHeaderText("Enter number of days to extend validity for " + item.get("company_name"));
-        dialog.setContentText("Additional Days:");
+        Long id = ((Number) item.get("id")).longValue();
+        String company = String.valueOf(item.get("company_name"));
 
-        dialog.showAndWait().ifPresent(str -> {
+        TextInputDialog d = new OwnedTextInputDialog("365");
+        d.setTitle("Custom Renewal Period");
+        d.setHeaderText("Extend License for " + company);
+        d.setContentText("Enter number of extension days (e.g. 30, 90, 180, 730):");
+        d.showAndWait().ifPresent(val -> {
             try {
-                int days = Integer.parseInt(str.trim());
+                int days = Integer.parseInt(val.trim());
+                if (days <= 0) throw new IllegalArgumentException("Days must be > 0");
                 handleRenewClient(item, days);
             } catch (Exception ex) {
-                ToastManager.warning(tableClients, "Invalid Input", "Please enter a valid positive integer.");
+                AppDialogService.error(tableClients, "Invalid Input", "Invalid number of days", ex.getMessage());
             }
         });
     }
 
     private void copyLicenseToken(Map<String, Object> item) {
-        String enc = String.valueOf(item.get("license_payload_enc"));
-        if (enc != null && !enc.isBlank()) {
-            ClipboardContent cb = new ClipboardContent();
-            cb.putString(enc);
-            Clipboard.getSystemClipboard().setContent(cb);
-            ToastManager.info(tableClients, "Token Copied", "License JSON token copied to clipboard!");
+        String payload = String.valueOf(item.getOrDefault("license_payload_enc", ""));
+        if (!payload.isBlank()) {
+            ClipboardContent content = new ClipboardContent();
+            content.putString(payload);
+            Clipboard.getSystemClipboard().setContent(content);
+            ToastManager.info(tableClients, "Copied", "Cryptographic license token copied to clipboard!");
+        } else {
+            ToastManager.warning(tableClients, "Unavailable", "No license token generated for this client.");
         }
     }
 
@@ -465,13 +1074,16 @@ public class ClientRegistryController implements ScreenLifecycle {
         Long id = ((Number) item.get("id")).longValue();
         String company = String.valueOf(item.getOrDefault("company_name", "client")).replaceAll("[^a-zA-Z0-9_-]", "_");
 
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save Jasvi License File");
-        chooser.setInitialFileName(company + "-license.jlic");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Jasvi Signed License (*.jlic)", "*.jlic"));
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All Files (*.*)", "*.*"));
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Save Jasvi License File");
+        fc.setInitialFileName(company + ".jlic");
+        fc.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Jasvi License (*.jlic)", "*.jlic"),
+                new FileChooser.ExtensionFilter("Standard License (*.lic)", "*.lic"),
+                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+        );
 
-        File target = chooser.showSaveDialog(tableClients.getScene().getWindow());
+        File target = fc.showSaveDialog(tableClients.getScene().getWindow());
         if (target != null) {
             UiTaskExecutor.submitAction(
                     "download-license",
@@ -490,12 +1102,42 @@ public class ClientRegistryController implements ScreenLifecycle {
     }
 
     private void sendWhatsApp(Map<String, Object> item) {
+        Long id = item.get("id") instanceof Number n ? n.longValue() : null;
+        if (id == null) {
+            openManualWhatsApp(item);
+            return;
+        }
+
+        UiTaskExecutor.submitAction(
+                "dispatch-license-" + id,
+                () -> api.dispatchChannels(id),
+                res -> {
+                    boolean waSent = Boolean.TRUE.equals(res.get("whatsappSent"));
+                    boolean emSent = Boolean.TRUE.equals(res.get("emailSent"));
+                    String waErr = String.valueOf(res.getOrDefault("whatsappError", ""));
+
+                    if (waSent) {
+                        ToastManager.success(tableClients, "WhatsApp Dispatched",
+                                "License key dispatched automatically to " + item.getOrDefault("company_name", "client") +
+                                        (emSent ? " (and official email sent)" : ""));
+                    } else {
+                        ToastManager.warning(tableClients, "WhatsApp Channel Notice",
+                                (waErr.isBlank() ? "WAHA channel unavailable" : waErr) + ". Opening WhatsApp Web in browser...");
+                        openManualWhatsApp(item);
+                    }
+                },
+                err -> openManualWhatsApp(item)
+        );
+    }
+
+    private void openManualWhatsApp(Map<String, Object> item) {
         String phone = String.valueOf(item.getOrDefault("phone", "")).replaceAll("[^0-9]", "");
         String company = String.valueOf(item.getOrDefault("company_name", "Valued Client"));
-        String payload = String.valueOf(item.getOrDefault("license_payload_enc", ""));
+        String payload = String.valueOf(item.getOrDefault("license_payload_enc", item.getOrDefault("licensePayload", "")));
 
         String text = "Dear " + company + ",\n\nYour Jasvi ERP License is active.\nMachine ID: " +
-                item.get("machine_id") + "\nValid Until: " + item.get("valid_until") +
+                item.getOrDefault("machine_id", item.getOrDefault("machineHash", "")) +
+                "\nValid Until: " + item.getOrDefault("valid_until", item.getOrDefault("validUntil", "")) +
                 "\n\nLicense Payload:\n" + payload + "\n\nThank you for choosing Jasvi ERP!";
 
         try {
@@ -509,25 +1151,45 @@ public class ClientRegistryController implements ScreenLifecycle {
         }
     }
 
+    private void testRemoteUrl(Map<String, Object> item) {
+        String url = String.valueOf(item.getOrDefault("remote_url", ""));
+        if (url == null || url.isBlank() || "null".equalsIgnoreCase(url)) {
+            AppDialogService.warning(tableClients, "No Remote URL",
+                    "This client has not registered or connected via Cloudflare Tunnel yet.",
+                    "Remote URL will appear automatically when the client starts Remote Access.");
+            return;
+        }
+        try {
+            if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                java.awt.Desktop.getDesktop().browse(URI.create(url));
+            }
+        } catch (Exception ex) {
+            AppDialogService.error(tableClients, "Browser Error", "Could not open URL", ex.getMessage());
+        }
+    }
+
     private void handleRevokeClient(Map<String, Object> item) {
         Long id = ((Number) item.get("id")).longValue();
         String company = String.valueOf(item.get("company_name"));
 
-        Alert confirm = new OwnedAlert(Alert.AlertType.CONFIRMATION, "Are you sure you want to REVOKE the license for " + company + "?", ButtonType.YES, ButtonType.NO);
-        confirm.setHeaderText("Confirm Revocation");
-        confirm.showAndWait().ifPresent(btn -> {
-            if (btn == ButtonType.YES) {
-                UiTaskExecutor.submitAction(
-                        "revoke-client",
-                        () -> api.revokeClient(id),
-                        res -> {
-                            ToastManager.info(tableClients, "Revoked", "Client " + company + " revoked.");
-                            loadDataAsync();
-                        },
-                        err -> AppDialogService.error(tableClients, "Revoke Error", "Could not revoke client", err.getMessage())
-                );
-            }
-        });
+        boolean confirmed = AppDialogService.doubleConfirmation(
+                tableClients,
+                "REVOKE",
+                "Revoke Client License",
+                "Revoke enterprise license for " + company + "?",
+                "All workstations registered under " + company + " will be immediately deactivated and denied system access."
+        );
+        if (!confirmed) return;
+
+        UiTaskExecutor.submitAction(
+                "revoke-client-" + id,
+                () -> api.revokeClient(id),
+                res -> {
+                    ToastManager.info(tableClients, "Revoked", "Client " + company + " revoked.");
+                    loadDataAsync();
+                },
+                err -> AppDialogService.error(tableClients, "Revoke Error", "Could not revoke client", err.getMessage())
+        );
     }
 
     @Override

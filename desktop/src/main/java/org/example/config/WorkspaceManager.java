@@ -27,6 +27,20 @@ public final class WorkspaceManager {
 
     public static synchronized void initialize() {
         try {
+            // Check for explicit workspace override (e.g. from local development runner or IDE)
+            String explicit = System.getProperty("dse.erp.workspace.path");
+            if (explicit == null || explicit.isBlank()) {
+                explicit = System.getenv("DSE_ERP_WORKSPACE_PATH");
+            }
+            if (explicit != null && !explicit.isBlank()) {
+                Path candidate = Path.of(explicit.trim()).toAbsolutePath().normalize();
+                if (Files.isDirectory(candidate)) {
+                    workspaceRoot = candidate;
+                    ensureStructure(workspaceRoot);
+                    return;
+                }
+            }
+
             Files.createDirectories(POINTER_FOLDER);
             applyPendingMoveIfPresent();
 
@@ -394,6 +408,15 @@ public final class WorkspaceManager {
     }
 
     private static void writePointer(Path root) throws IOException {
+        String explicit = System.getProperty("dse.erp.workspace.path");
+        if (explicit == null || explicit.isBlank()) {
+            explicit = System.getenv("DSE_ERP_WORKSPACE_PATH");
+        }
+        if (explicit != null && !explicit.isBlank()) {
+            // When running in explicit workspace override mode (e.g. Run DSE ERP.bat or IntelliJ),
+            // never overwrite the global Windows pointer file so local dev does not stomp on UAT.
+            return;
+        }
         Files.createDirectories(POINTER_FOLDER);
         Properties properties = new Properties();
         properties.setProperty(WORKSPACE_KEY, root.toString());
@@ -515,6 +538,13 @@ public final class WorkspaceManager {
     }
 
     private static Path resolvePointerFolder() {
+        String explicitFolder = System.getProperty("dse.erp.pointer.folder");
+        if (explicitFolder == null || explicitFolder.isBlank()) {
+            explicitFolder = System.getenv("DSE_ERP_POINTER_FOLDER");
+        }
+        if (explicitFolder != null && !explicitFolder.isBlank()) {
+            return Path.of(explicitFolder.trim()).toAbsolutePath().normalize();
+        }
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         if (os.contains("win")) {
             String appData = System.getenv("APPDATA");

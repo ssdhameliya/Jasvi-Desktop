@@ -91,4 +91,63 @@ public class ClientRegistryController {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(bytes);
     }
+
+    @GetMapping("/commercial-settings")
+    public Map<String, Object> getCommercialSettings() {
+        requireSuperAdmin();
+        return registryService.getCommercialSettings();
+    }
+
+    @PostMapping("/commercial-settings")
+    public ResponseEntity<?> saveCommercialSettings(@RequestBody Map<String, Object> settings) {
+        requireSuperAdmin();
+        registryService.saveCommercialSettings(settings);
+        return ResponseEntity.ok(Map.of("success", true, "message", "Commercial settings saved successfully"));
+    }
+
+    @GetMapping("/plans")
+    public List<Map<String, Object>> getPlans() {
+        requireSuperAdmin();
+        return registryService.getPlans();
+    }
+
+    @PostMapping("/plans")
+    public Map<String, Object> savePlan(@RequestBody Map<String, Object> plan) {
+        requireSuperAdmin();
+        return registryService.savePlan(plan);
+    }
+
+    @GetMapping("/leads")
+    public List<Map<String, Object>> getLeads() {
+        requireSuperAdmin();
+        return registryService.getLeads();
+    }
+
+    @PostMapping("/leads/{id}/approve")
+    public Map<String, Object> approveLead(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body
+    ) {
+        requireSuperAdmin();
+        String tier = body != null && body.get("tier") != null ? String.valueOf(body.get("tier")) : null;
+        Integer days = body != null && body.get("days") instanceof Number n ? n.intValue() : null;
+        Map<String, Object> client = registryService.approveLead(id, tier, days);
+        Map<String, Object> dispatch = registryService.dispatchLicenseChannels(client);
+        Map<String, Object> result = new java.util.LinkedHashMap<>(client);
+        result.put("dispatch", dispatch);
+        return result;
+    }
+
+    @PostMapping("/clients/{id}/dispatch")
+    public Map<String, Object> dispatchChannels(@PathVariable Long id) {
+        requireSuperAdmin();
+        Map<String, Object> client = registryService.getClientById(id);
+        return registryService.dispatchLicenseChannels(client);
+    }
+
+    @PostMapping("/leads/{id}/reject")
+    public Map<String, Object> rejectLead(@PathVariable Long id) {
+        requireSuperAdmin();
+        return registryService.rejectLead(id);
+    }
 }

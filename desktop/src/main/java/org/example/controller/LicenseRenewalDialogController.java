@@ -19,6 +19,7 @@ import org.example.api.licensing.LicenseApiClient;
 import org.example.shared.licensing.HardwareFingerprintUtil;
 import org.example.util.AppDialogService;
 import org.example.util.IconFactory;
+import org.example.util.OwnedDialog;
 import org.example.util.ToastManager;
 import org.example.util.UiTaskExecutor;
 
@@ -52,6 +53,8 @@ public class LicenseRenewalDialogController {
     @FXML private Label lblDaysRemaining;
 
     @FXML private Button btnSelfActivateNow;
+    @FXML private Button btnSendWhatsAppLead;
+    @FXML private Button btnRegisterOnlineLead;
     @FXML private Button btnBrowseLicenseFile;
     @FXML private Label lblSelectedFile;
     @FXML private TextArea txtRawLicensePayload;
@@ -61,6 +64,11 @@ public class LicenseRenewalDialogController {
     private final LicenseApiClient api = new LicenseApiClient();
     private final ObjectMapper json = ApiRuntime.JSON;
     private String currentUpiUri = "";
+    private String supportPhone = "9537544008";
+    private String upiVpa = "jasviindustries@icici";
+    private String payeeName = "Jasvi Industries";
+    private String gstRate = "18.00";
+    private String leadTemplate = "Hello Jasvi Team, I am {CompanyName} ({ContactPerson}, {Phone}). Terminal ID: {MachineId}. Please activate our Jasvi ERP license.";
 
     @FXML
     private void initialize() {
@@ -70,14 +78,44 @@ public class LicenseRenewalDialogController {
         if (txtMachineId != null) {
             txtMachineId.setText(HardwareFingerprintUtil.getDisplayMachineId());
         }
-        renderUpiQrCode("3500.00");
+        loadCatalogAsync();
         refreshStatus();
     }
 
+    private void loadCatalogAsync() {
+        UiTaskExecutor.submitAction(
+                "load-licensing-catalog",
+                api::getCatalog,
+                cat -> {
+                    if (cat != null && !cat.isEmpty()) {
+                        if (cat.get("supportPhone") != null) supportPhone = String.valueOf(cat.get("supportPhone")).trim();
+                        if (cat.get("upiVpa") != null) upiVpa = String.valueOf(cat.get("upiVpa")).trim();
+                        if (cat.get("payeeName") != null) payeeName = String.valueOf(cat.get("payeeName")).trim();
+                        if (cat.get("gstRate") != null) gstRate = String.valueOf(cat.get("gstRate")).trim();
+                        if (cat.get("whatsappTemplateLead") != null && !String.valueOf(cat.get("whatsappTemplateLead")).isBlank()) {
+                            leadTemplate = String.valueOf(cat.get("whatsappTemplateLead")).trim();
+                        }
+                    }
+                    renderUpiQrCode("3500.00");
+                },
+                err -> renderUpiQrCode("3500.00")
+        );
+    }
+
     private void renderUpiQrCode(String amount) {
+        double basePrice = 3500.00;
+        try { basePrice = Double.parseDouble(amount); } catch (Exception ignored) {}
+        double gstPercent = 18.00;
+        try { gstPercent = Double.parseDouble(gstRate); } catch (Exception ignored) {}
+        double totalWithGst = basePrice * (1.0 + (gstPercent / 100.0));
+
         String machineId = HardwareFingerprintUtil.getDisplayMachineId();
-        currentUpiUri = String.format("upi://pay?pa=jasviindustries@icici&pn=Jasvi+Industries&am=%s&cu=INR&tn=Renewal+%s",
-                amount, machineId);
+        String encPayee = payeeName.replace(" ", "+");
+        currentUpiUri = String.format(java.util.Locale.ROOT, "upi://pay?pa=%s&pn=%s&am=%.2f&cu=INR&tn=Renewal+%s",
+                upiVpa, encPayee, totalWithGst, machineId);
+
+        final double finalBase = basePrice;
+        final double finalTotal = totalWithGst;
 
         UiTaskExecutor.submitAction(
                 "render-upi-qr",
@@ -101,10 +139,10 @@ public class LicenseRenewalDialogController {
                         imgUpiQr.setImage(new Image(new ByteArrayInputStream(pngBytes)));
                     }
                     if (lblAmountDisplay != null) {
-                        lblAmountDisplay.setText("₹" + amount + " + GST = ₹4,130 / Year");
+                        lblAmountDisplay.setText(String.format(java.util.Locale.ROOT, "₹%.0f + %s%% GST = ₹%.0f / Year", finalBase, gstRate, finalTotal));
                     }
                     if (lblVpaDisplay != null) {
-                        lblVpaDisplay.setText("VPA: jasviindustries@icici");
+                        lblVpaDisplay.setText("VPA: " + upiVpa);
                     }
                 },
                 err -> AppDialogService.error(btnClose, "QR Render Error", "Failed to render UPI QR", err.getMessage())
@@ -177,6 +215,94 @@ public class LicenseRenewalDialogController {
             Clipboard.getSystemClipboard().setContent(content);
             ToastManager.info(btnClose, "Copied", "Machine ID copied: " + txtMachineId.getText());
         }
+    }
+
+    @FXML
+    private void handleSendWhatsAppLead() {
+        String company = (lblCompany != null && !lblCompany.getText().isBlank() && !"-".equals(lblCompany.getText()))
+                ? lblCompany.getText().trim() : "Our Company";
+        String machineId = HardwareFingerprintUtil.getDisplayMachineId();
+
+        String msg = leadTemplate
+                .replace("{CompanyName}", company)
+                .replace("{ContactPerson}", "Representative")
+                .replace("{Phone}", "")
+                .replace("{MachineId}", machineId);
+
+        String cleanPhone = supportPhone.replaceAll("[^0-9]", "");
+        if (!cleanPhone.startsWith("91") && cleanPhone.length() == 10) cleanPhone = "91" + cleanPhone;
+
+        try {
+            String url = "https://wa.me/" + cleanPhone + "?text=" + java.net.URLEncoder.encode(msg, StandardCharsets.UTF_8);
+            if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
+            }
+        } catch (Exception ex) {
+            AppDialogService.error(btnClose, "WhatsApp Error", "Could not open browser", ex.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleRegisterOnlineLead() {
+        OwnedDialog<Map<String, Object>> dialog = new OwnedDialog<>(btnClose);
+        dialog.setTitle("Register Online with Jasvi Cloud");
+        dialog.setHeaderText("Submit your company details directly to Jasvi Support");
+
+        ButtonType btnSubmit = new ButtonType("Submit Lead", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnSubmit, ButtonType.CANCEL);
+
+        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+        grid.setHgap(12);
+        grid.setVgap(10);
+        grid.setPadding(new javafx.geometry.Insets(20, 24, 20, 24));
+
+        TextField txtComp = new TextField(lblCompany != null && !"-".equals(lblCompany.getText()) ? lblCompany.getText() : "");
+        txtComp.setPromptText("e.g. Surat Silk Mills Pvt Ltd");
+
+        TextField txtContact = new TextField();
+        txtContact.setPromptText("e.g. Ramesh Patel");
+
+        TextField txtPhone = new TextField();
+        txtPhone.setPromptText("e.g. 9825012345");
+
+        TextField txtEmail = new TextField();
+        txtEmail.setPromptText("e.g. contact@suratsilk.com");
+
+        grid.add(new Label("Company Name *:"), 0, 0);
+        grid.add(txtComp, 1, 0);
+        grid.add(new Label("Contact Person:"), 0, 1);
+        grid.add(txtContact, 1, 1);
+        grid.add(new Label("Phone (WhatsApp) *:"), 0, 2);
+        grid.add(txtPhone, 1, 2);
+        grid.add(new Label("Email:"), 0, 3);
+        grid.add(txtEmail, 1, 3);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(btn -> {
+            if (btn == btnSubmit) {
+                return Map.of(
+                        "companyName", txtComp.getText().trim(),
+                        "contactPerson", txtContact.getText().trim(),
+                        "phone", txtPhone.getText().trim(),
+                        "email", txtEmail.getText().trim(),
+                        "machineId", HardwareFingerprintUtil.getDisplayMachineId()
+                );
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(req -> {
+            if (String.valueOf(req.get("companyName")).isBlank() || String.valueOf(req.get("phone")).isBlank()) {
+                ToastManager.warning(btnClose, "Validation", "Company Name and Phone are required.");
+                return;
+            }
+            UiTaskExecutor.submitAction(
+                    "submit-lead",
+                    () -> api.selfRegister(req),
+                    res -> ToastManager.success(btnClose, "Submitted", "Registration sent to Jasvi Support! We will review and activate your license shortly."),
+                    err -> AppDialogService.error(btnClose, "Submission Failed", "Could not submit lead", err.getMessage())
+            );
+        });
     }
 
     @FXML

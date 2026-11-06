@@ -154,15 +154,15 @@ public final class PopupTableWorkspace {
         Rectangle2D bounds = screen.getVisualBounds();
         double maxAvailableW = Math.max(800, bounds.getWidth() - 32);
         double maxAvailableH = Math.max(560, bounds.getHeight() - 48);
-        double targetW = Math.min(maxAvailableW, Math.max(980, Math.min(1760, bounds.getWidth() * 0.88)));
-        double targetH = Math.min(maxAvailableH, Math.max(580, Math.min(980, bounds.getHeight() * 0.88)));
+        double targetW = Math.min(maxAvailableW, Math.max(1180, Math.min(1760, bounds.getWidth() * 0.88)));
+        double targetH = Math.min(maxAvailableH, Math.max(720, Math.min(980, bounds.getHeight() * 0.88)));
 
         DialogPane pane = dialog.getDialogPane();
         pane.setPrefSize(targetW, targetH);
         pane.setMaxWidth(maxAvailableW);
         pane.setMaxHeight(maxAvailableH);
-        pane.setMinWidth(Math.min(920, targetW));
-        pane.setMinHeight(Math.min(540, targetH));
+        pane.setMinWidth(Math.min(1080, targetW));
+        pane.setMinHeight(Math.min(680, targetH));
         if (!pane.getStyleClass().contains("erp-table-workspace-dialog")) {
             pane.getStyleClass().add("erp-table-workspace-dialog");
         }
@@ -170,24 +170,6 @@ public final class PopupTableWorkspace {
             pane.getStyleClass().add("erp-ui-standard");
         }
         dialog.setResizable(true);
-        if (!Boolean.TRUE.equals(pane.getProperties().get("erp-popup-responsive-width"))) {
-            pane.getProperties().put("erp-popup-responsive-width", true);
-            dialog.addEventHandler(DialogEvent.DIALOG_SHOWING, event -> {
-                Window owner = dialog.getOwner();
-                Screen currentScreen = owner == null
-                        ? Screen.getPrimary()
-                        : Screen.getScreensForRectangle(owner.getX(), owner.getY(), Math.max(1, owner.getWidth()), Math.max(1, owner.getHeight()))
-                                .stream().findFirst().orElse(Screen.getPrimary());
-                Rectangle2D currentBounds = currentScreen.getVisualBounds();
-                double w = Math.max(1180, Math.min(1760, currentBounds.getWidth() * 0.88));
-                double h = Math.max(720, Math.min(980, currentBounds.getHeight() * 0.88));
-                pane.setPrefSize(w, h);
-                pane.setMaxWidth(currentBounds.getWidth() - 32);
-                pane.setMaxHeight(currentBounds.getHeight() - 32);
-                pane.setMinWidth(Math.min(1080, w));
-                pane.setMinHeight(Math.min(680, h));
-            });
-        }
     }
 
     public static void prepareTable(TableView<?> table, String profileClass) {

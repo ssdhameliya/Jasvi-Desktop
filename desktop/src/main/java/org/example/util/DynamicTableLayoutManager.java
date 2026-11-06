@@ -180,9 +180,23 @@ public final class DynamicTableLayoutManager {
         if (root == null) return;
         Runnable pass = () -> {
             try {
-                if (root instanceof TableView<?> table) { layoutNow(table); requestLayout(table); }
+                if (root instanceof TableView<?> table) {
+                    if (!Boolean.TRUE.equals(table.getProperties().get(INSTALLED))) {
+                        install(table);
+                    } else {
+                        layoutNow(table);
+                        requestLayout(table);
+                    }
+                }
                 for (Node node : root.lookupAll(".table-view")) {
-                    if (node instanceof TableView<?> table) { layoutNow(table); requestLayout(table); }
+                    if (node instanceof TableView<?> table) {
+                        if (!Boolean.TRUE.equals(table.getProperties().get(INSTALLED))) {
+                            install(table);
+                        } else {
+                            layoutNow(table);
+                            requestLayout(table);
+                        }
+                    }
                 }
             } catch (RuntimeException ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
         };
