@@ -1,3 +1,18 @@
+# What's New in DSE ERP v11.0.48
+
+### Universal Dynamic Table Layout Restoration, Master Button Safety Architecture & Typed Double-Confirmation Engine
+- **Universal Dynamic Table Viewport Restoration (Rule 7 & Rule 12)**: Restored the canonical 2-pulse settle loop (`SETTLE_PASSES = 1`) in `DynamicTableLayoutManager` and re-enabled `UiViewportLayoutCoordinator.request` in `ProfessionalUiEnhancer` on cached and navigated pages. Completely eliminated the 700px empty dark margin and text truncation dots across all 103 `TableView` controls application-wide (including 14-column `Sales Register`, 13-column `Purchase Register`, `BillToTally`, and `BankStatement`), dynamically distributing 100% of available viewport width across visible columns.
+- **Dynamic Tab Switching Layout Synchronization (Rule 7)**: Wired `WorkspaceTabManager.activateTab` to automatically dispatch `DynamicTableLayoutManager.requestLayoutIn` upon tab activation, ensuring previously loaded screens instantly adapt their table geometry when returning from background tabs.
+- **Canonical Typed Double-Confirmation Engine (Rule 15 & Rule 19)**: Implemented `AppDialogService.doubleConfirmation(owner, keyword, title, heading, message)` using `OwnedTextInputDialog`. High-impact, irreversible operations now mandate explicit user entry of designated keywords (`"RESTORE"`, `"ROLLBACK"`, `"REVOKE"`, `"DELETE"`) before execution.
+- **Catastrophic Action Safeguards**:
+  - `BackupRestoreController`: Database restoration now mandates typing `"RESTORE"`, permanently preventing accidental overwrites of the live company database.
+  - `SafeRollbackController`: Workstation binary rollback mandates typing `"ROLLBACK"`.
+  - `ClientRegistryController`: Enterprise workstation license revocation mandates typing `"REVOKE"`.
+  - `ItemMasterController`: Bulk deletion of verified inventory items mandates typing `"DELETE"`.
+  - `CreditDebitNoteInspectionDialog`: Irreversible statutory tax credit reversals mandate typing `"REVERSE"`.
+- **Elimination of Silent Deletions (Rule 15)**: Guarded instant row and blueprint deletions in `ClientTemplateController` (`removeRow`), `SalesController` (`removeLine`, `removeAttachment`), `PurchaseController` (`removeLine`, `removeAttachment`), and `NotificationCenterController` (`deleteSelected`) with upfront `AppDialogService.destructive` confirmation dialogs.
+- **Centralized Semantic Dialog Consolidation (Rule 5 & Rule 8)**: Unified hand-rolled raw `OwnedAlert` instances across `PartyMasterController` (Customer/Suppliers), `ItemMasterController`, `BankExpenseController`, `ClientsDirectoryController`, `UserAccessController`, `Customer360Controller`, and `Supplier360Controller` into canonical `AppDialogService.destructive` and `AppDialogService.confirm`, delivering 100% visual parity across Light and Dark themes.
+
 # What's New in DSE ERP v11.0.47
 
 ### Dynamic OCR Blueprint Engine, Explicit Completion Confirmation, Zero-Mock GST & Bill to Tally Versioning

@@ -21,6 +21,11 @@ if errorlevel 1 (
 
 set "DSE_POSTGRES_MODE=managed"
 
+if not defined DSE_ERP_WORKSPACE_PATH (
+  if exist "D:\DSE Production\Config\config.properties" set "DSE_ERP_WORKSPACE_PATH=D:\DSE Production"
+)
+if defined DSE_ERP_WORKSPACE_PATH echo Local workspace: %DSE_ERP_WORKSPACE_PATH%
+
 if not defined DSE_POSTGRES_HOME if not defined DSE_POSTGRES_RUNTIME_DIR (
   if exist "%CD%\runtime\postgresql\bin\initdb.exe" set "DSE_POSTGRES_RUNTIME_DIR=%CD%\runtime\postgresql"
 )

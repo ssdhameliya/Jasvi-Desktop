@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import org.example.util.ProfessionalUiEnhancer;
 
 /**
  * Dynamic Multi-Document Workspace Tab Manager for DSE ERP.
@@ -161,6 +162,12 @@ public final class WorkspaceTabManager {
         // Attach content to contentPane
         if (contentPane != null) {
             contentPane.getChildren().setAll(tab.getContent());
+            Platform.runLater(() -> {
+                if (tab.getContent() != null) {
+                    ProfessionalUiEnhancer.refreshInteractivePresentation(tab.getContent());
+                    org.example.util.DynamicTableLayoutManager.requestLayoutIn(tab.getContent());
+                }
+            });
         }
 
         // Notify shown

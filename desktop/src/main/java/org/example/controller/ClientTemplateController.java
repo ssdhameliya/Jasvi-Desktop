@@ -399,6 +399,16 @@ public class ClientTemplateController implements ScreenLifecycle {
 
     private void removeRow(int idx) {
         if (idx >= 0 && idx < columnsList.size()) {
+            ColumnRow row = columnsList.get(idx);
+            String name = (row != null && row.headerLabel != null) ? row.headerLabel.get() : "column";
+            boolean confirm = AppDialogService.destructive(
+                    tableColumnsBlueprint,
+                    "Remove Column",
+                    "Remove blueprint column '" + name + "'?",
+                    "This column mapping will be removed from the template blueprint.",
+                    "Remove Column"
+            );
+            if (!confirm) return;
             columnsList.remove(idx);
             reorderRows();
         }
@@ -1068,15 +1078,17 @@ public class ClientTemplateController implements ScreenLifecycle {
         }
 
         String vCode = activeTemplate.versionCode() != null ? activeTemplate.versionCode() : "this";
-        Alert alert = new OwnedAlert(Alert.AlertType.CONFIRMATION,
-                "Are you sure you want to permanently delete template version " + vCode + "?",
-                ButtonType.YES, ButtonType.NO);
-        alert.setTitle("Confirm Delete Version");
-        alert.setHeaderText("Delete Template Version " + vCode);
-        alert.showAndWait().ifPresent(btn -> {
-            if (btn == ButtonType.YES) {
-                Long templateId = activeTemplate.id();
-                UiTaskExecutor.submitAction(
+        boolean confirmed = AppDialogService.destructive(
+                tableColumnsBlueprint,
+                "Confirm Delete Version",
+                "Delete Template Version " + vCode + "?",
+                "Are you sure you want to permanently delete template version " + vCode + "? This blueprint will no longer be available for extraction.",
+                "Delete Version"
+        );
+        if (!confirmed) return;
+
+        Long templateId = activeTemplate.id();
+        UiTaskExecutor.submitAction(
                         "delete-template-version",
                         () -> {
                             api.deleteTemplate(templateId);
@@ -1094,8 +1106,6 @@ public class ClientTemplateController implements ScreenLifecycle {
                         },
                         err -> AppDialogService.error(tableColumnsBlueprint, "Delete Error", "Could not delete template version", err.getMessage())
                 );
-            }
-        });
     }
 
     @FXML

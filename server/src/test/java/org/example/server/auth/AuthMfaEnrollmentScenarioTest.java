@@ -260,6 +260,8 @@ class AuthMfaEnrollmentScenarioTest {
             if (sql.contains("auth_totp_enrollment_pending")) return type.cast(Long.valueOf(pending ? 1 : 0));
             if (sql.contains("login_throttle")) return type.cast(Long.valueOf(0));
             if (sql.contains("registration_request")) return type.cast(Long.valueOf(0));
+            if (sql.contains("app_license")) return null;
+            if (sql.contains("auth_session")) return type.cast(Long.valueOf(0));
             throw new AssertionError("Unexpected query: " + sql);
         }
     }

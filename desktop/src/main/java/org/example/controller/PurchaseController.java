@@ -10,6 +10,7 @@ import org.example.shared.DocumentCalculationEngine;
 import org.example.util.OwnedChoiceDialog;
 
 import org.example.util.OwnedAlert;
+import org.example.util.AppDialogService;
 import org.example.util.OwnedDialog;
 import org.example.util.AttachmentPreviewSupport;
 import org.example.util.WorkflowFocusManager;
@@ -1307,15 +1308,7 @@ public class PurchaseController implements ScreenLifecycle {
 
 
     private boolean confirmAction(String title, String message) {
-        OwnedAlert alert = new OwnedAlert(
-            Alert.AlertType.CONFIRMATION,
-            message,
-            ButtonType.CANCEL,
-            ButtonType.OK
-        );
-        alert.setTitle(title);
-        alert.setHeaderText(title);
-        return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
+        return AppDialogService.confirm(tableLines, title, title, message);
     }
 
     private void warn(String msg){

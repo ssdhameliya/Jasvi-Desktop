@@ -566,9 +566,9 @@ public final class CreditDebitNoteInspectionDialog {
                     parentDialog.close();
                 }, err -> ToastManager.error(parentDialog.getDialogPane(), "Save Failed", err.getMessage()));
             } else if (result.get() == btnReissue) {
-                if (AppDialogService.confirm(parentDialog.getDialogPane(), "Confirm Statutory Reversal",
+                if (AppDialogService.doubleConfirmation(parentDialog.getDialogPane(), "REVERSE", "Confirm Statutory Reversal",
                         "Cancel Note " + details.noteNo() + " and Reissue?",
-                        "This will post a reversal journal in the General Ledger and reverse stock movements. Proceed?")) {
+                        "This will post an irreversible reversal journal in the General Ledger and reverse stock movements.")) {
                     String cancelEndpoint = (isCreditNote ? "/api/credit-notes/" : "/api/debit-notes/") + details.id() + "/cancel";
                     UiTaskExecutor.submitAction("note-cancel-reissue-" + details.id(), () -> {
                         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(apiUrl(cancelEndpoint)))

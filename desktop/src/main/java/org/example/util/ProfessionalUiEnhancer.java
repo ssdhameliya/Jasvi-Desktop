@@ -55,7 +55,7 @@ public final class ProfessionalUiEnhancer {
         if (Boolean.TRUE.equals(root.getProperties().get("erp-ui-enhanced"))) {
             // Cached pages may have had button text/graphics changed by their controller
             // after the original walk. Reconcile only interactive action controls here;
-            // do not re-run the expensive table/KPI discovery pass.
+            // coordinate viewport layout so that table and KPI widths adapt to the active viewport geometry.
             refreshInteractivePresentation(root);
             UiViewportLayoutCoordinator.request(root);
             return;
@@ -73,7 +73,7 @@ public final class ProfessionalUiEnhancer {
     }
 
     /** Reconciles button/icon presentation on a cached page without touching tables/KPIs. */
-    private static void refreshInteractivePresentation(Node node) {
+    public static void refreshInteractivePresentation(Node node) {
         refreshInteractivePresentation(node, new IdentityHashMap<>());
     }
 
@@ -82,6 +82,9 @@ public final class ProfessionalUiEnhancer {
         if (node instanceof ButtonBase button) {
             UiDesignSystem.decorate(button);
             IconFactory.decorate(button);
+        }
+        if (node instanceof TableView<?> table) {
+            refreshTableDecorations(table);
         }
         if (node instanceof ScrollPane scroll) {
             refreshInteractivePresentation(scroll.getContent(), visited);

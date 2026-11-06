@@ -58,6 +58,11 @@ public class SetupWizardController implements ScreenLifecycle {
         rbLocal.setToggleGroup(deployment); rbShared.setToggleGroup(deployment);
         rbLocal.setSelected(true);
         rbShared.selectedProperty().addListener((o,a,shared)->updateDeploymentControls());
+        String defaultServerUrl = ConfigManager.getConfiguredServerUrl();
+        if (defaultServerUrl == null || defaultServerUrl.isBlank()) {
+            defaultServerUrl = "https://api-uat.jasviindustries.in";
+        }
+        txtServerUrl.setText(defaultServerUrl);
         txtServerUrl.textProperty().addListener((o,a,b)->validatedServerUrl=null);
         btnBrowse.setGraphic(IconFactory.icon("folder"));
         if (btnUseExisting != null) btnUseExisting.setGraphic(IconFactory.icon("restore"));

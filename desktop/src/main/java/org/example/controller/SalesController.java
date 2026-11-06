@@ -12,6 +12,7 @@ import org.example.util.OwnedAlert;
 import org.example.util.OwnedDialog;
 import org.example.util.OwnedTextInputDialog;
 import org.example.util.AttachmentPreviewSupport;
+import org.example.util.AppDialogService;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -1786,14 +1787,7 @@ public class SalesController implements ScreenLifecycle {
     }
 
     private boolean confirmAction(String title, String message) {
-        OwnedAlert alert = new OwnedAlert(
-                Alert.AlertType.CONFIRMATION,
-                message,
-                ButtonType.CANCEL,
-                ButtonType.OK);
-        alert.setTitle(title);
-        alert.setHeaderText(title);
-        return alert.showAndWait().filter(ButtonType.OK::equals).isPresent();
+        return AppDialogService.confirm(tableLines, title, title, message);
     }
 
     // --------------------------------------------------

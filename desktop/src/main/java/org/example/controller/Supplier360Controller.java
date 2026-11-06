@@ -16,6 +16,7 @@ import org.example.model.Party;
 import org.example.navigation.NavigationManager;
 import org.example.theme.ThemeManager;
 import org.example.util.*;
+import org.example.util.AppDialogService;
 
 import java.awt.Desktop;
 import java.math.BigDecimal;
@@ -121,7 +122,9 @@ public final class Supplier360Controller implements ScreenLifecycle {
 
     private static void add(javafx.scene.layout.GridPane g,String label,javafx.scene.Node n,int row){Label l=new Label(label);l.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);String semantic=IconFactory.semanticForLabel(label);if(semantic!=null){l.setGraphic(IconFactory.icon(semantic,14));IconFactory.applySemanticLabelColour(l,semantic);l.getProperties().put("erp-icon-preserve",true);}l.getStyleClass().add("field-label");g.add(l,0,row);g.add(n,1,row);javafx.scene.layout.GridPane.setHgrow(n,javafx.scene.layout.Priority.ALWAYS);if(n instanceof javafx.scene.layout.Region x)x.setMaxWidth(Double.MAX_VALUE);}
     private static void styleDialogButtons(Dialog<?> dlg){Button ok=(Button)dlg.getDialogPane().lookupButton(ButtonType.OK),cancel=(Button)dlg.getDialogPane().lookupButton(ButtonType.CANCEL);if(ok!=null){ok.getStyleClass().addAll("approved-button","approved-primary-button");UiActionIcons.apply(ok,"save","Save");}if(cancel!=null){cancel.getStyleClass().addAll("approved-button","approved-secondary-button");UiActionIcons.apply(cancel,"return","Cancel");}}
-    private boolean confirm(String text){return new OwnedAlert(Alert.AlertType.CONFIRMATION,text,ButtonType.YES,ButtonType.NO).showAndWait().orElse(ButtonType.NO)==ButtonType.YES;}
+    private boolean confirm(String text) {
+        return AppDialogService.confirm(tabs, "Supplier 360°", "Confirm Action", text);
+    }
     private void showError(Throwable e){AppDialogService.error(tabs,"Supplier 360°","Operation could not be completed",e==null?"Unexpected error":safe(e.getMessage()));}
     private static SimpleStringProperty s(String v){return new SimpleStringProperty(safe(v));}private static String safe(String v){return v==null?"":v;}private static String money(BigDecimal v){return "₹ "+(v==null?BigDecimal.ZERO:v).setScale(2,RoundingMode.HALF_UP).toPlainString();}private static String paymentStatus(Supplier360ApiClient.PurchaseRow r){String p=safe(r.paymentStatus());return p.isBlank()?safe(r.documentStatus()):p;}private static <T>List<T> nz(List<T> v){return v==null?List.of():v;}
     private static Party party(Supplier360ApiClient.Supplier c){Party p=new Party();p.setId(c.id());p.setRowVersion(c.rowVersion());p.setPartyType("SUPPLIER");p.setPartyCode(c.code());p.setName(c.name());p.setContactPerson(c.contactPerson());p.setPhone(c.phone());p.setEmail(c.email());p.setGstin(c.gstin());p.setAddress(c.address());p.setOpeningBalance(c.openingBalance()==null?0:c.openingBalance().doubleValue());p.setActive(c.active());return p;}

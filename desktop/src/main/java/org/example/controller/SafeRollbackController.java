@@ -19,6 +19,7 @@ import org.example.update.BuildInfo;
 import org.example.util.IconFactory;
 import org.example.util.BusinessClock;
 import org.example.util.OwnedAlert;
+import org.example.util.AppDialogService;
 import org.example.util.UiTaskExecutor;
 
 import java.awt.Desktop;
@@ -249,20 +250,14 @@ public class SafeRollbackController implements ScreenLifecycle {
             error("Rollback blocked", candidate.compatibility().message());
             return;
         }
-        Alert confirm = new OwnedAlert(Alert.AlertType.CONFIRMATION);
-        if (owner() != null) confirm.initOwner(owner());
-        confirm.setTitle("Safe Application Rollback");
-        confirm.setHeaderText("Roll back " + org.example.service.BrandingService.applicationName() + " " + BuildInfo.version() + " → " + candidate.version() + "?");
-        confirm.setContentText("Your CURRENT business data will be preserved.\n\n"
-                + "✓ PostgreSQL transactions stay current\n"
-                + "✓ Sales, purchases, payments and inventory stay current\n"
-                + "✓ Attachments, documents and templates stay in the workspace\n"
-                + "✓ A verified database safety backup is created first\n"
-                + "✓ Config and templates are copied into a recovery point\n\n"
-                + "This action changes the application version only. It does NOT restore an older database.");
-        ButtonType rollback = new ButtonType("Create Safety Backup & Roll Back", ButtonBar.ButtonData.OK_DONE);
-        confirm.getButtonTypes().setAll(ButtonType.CANCEL, rollback);
-        if (confirm.showAndWait().orElse(ButtonType.CANCEL) != rollback) return;
+        boolean confirmed = AppDialogService.doubleConfirmation(
+                candidateTable != null ? candidateTable : (owner() != null && owner().getScene() != null ? owner().getScene().getRoot() : null),
+                "ROLLBACK",
+                "Safe Application Rollback",
+                "Roll back to version " + candidate.version() + "?",
+                "Your CURRENT business data will be preserved (PostgreSQL transactions stay current). The desktop workstation will close and switch application binaries to " + candidate.version() + "."
+        );
+        if (!confirmed) return;
 
         runTask("Creating safety backup and recovery point...",
                 () -> service.prepareRollback(candidate),

@@ -10,6 +10,7 @@ import javafx.stage.Window;
 import javafx.application.Platform;
 import org.example.util.ProfessionalUiEnhancer;
 import org.example.util.AppDialogService;
+import org.example.util.DynamicTableLayoutManager;
 import org.example.util.PerformanceMonitor;
 import org.example.util.ScreenRefreshPolicy;
 import org.example.util.PerformanceBudgets;
@@ -219,6 +220,8 @@ public class NavigationManager {
                 cached = new CachedPage(page, loader.getController());
                 ScreenRefreshPolicy.markRefreshed(fxml);
                 if (cacheable) cache(fxml, cached);
+            } else if (!Boolean.TRUE.equals(cached.node().getProperties().get("erp-ui-enhanced"))) {
+                ProfessionalUiEnhancer.enhance(cached.node());
             }
 
             if (currentCachedPage != null && currentCachedPage != cached) {
@@ -238,8 +241,9 @@ public class NavigationManager {
             // scene attachment can clear or replace a button graphic. This is intentionally
             // app-wide so cached and newly loaded screens follow the same icon contract.
             Platform.runLater(() -> {
-                ProfessionalUiEnhancer.enhance(auditedPage);
+                ProfessionalUiEnhancer.refreshInteractivePresentation(auditedPage);
                 UiDiagnostics.audit(auditedPage, fxml);
+                DynamicTableLayoutManager.requestLayoutIn(auditedPage);
             });
             // New pages are enhanced once before attachment. Cached pages are reused
             // without another expensive table/KPI traversal; the post-attach call above
@@ -399,6 +403,7 @@ public class NavigationManager {
                 long loadStarted = System.nanoTime();
                 FXMLLoader loader = new FXMLLoader(url);
                 Node page = loader.load();
+                ProfessionalUiEnhancer.enhance(page);
                 CachedPage cached = new CachedPage(page, loader.getController());
                 pageCache.put(fxml, cached);
                 ScreenRefreshPolicy.markRefreshed(fxml);

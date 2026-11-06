@@ -1,6 +1,7 @@
 package org.example.controller;
 
 import org.example.util.OwnedAlert;
+import org.example.util.AppDialogService;
 
 import javafx.beans.property.ReadOnlyBooleanWrapper;
 import javafx.collections.FXCollections;
@@ -349,28 +350,30 @@ public class ItemMasterController implements ScreenLifecycle {
 
     private void deleteItem(Item selected) {
         if (selected == null) { showWarning("Select an item to delete."); return; }
-        Alert confirmation = new OwnedAlert(Alert.AlertType.CONFIRMATION,
-            "Delete item '" + selected.getDescription() + "'? This cannot be undone.",
-            ButtonType.YES, ButtonType.NO);
-        confirmation.setHeaderText("Confirm deletion");
-        if (confirmation.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
-            String code = selected.getItemCode();
-            String description = selected.getDescription();
-            if (tableItems != null) tableItems.setDisable(true);
-            UiTaskExecutor.submitAction(
-                    "item-master-delete-" + code,
-                    () -> { service.delete(selected); NotificationService.add("Item '" + description + "' was deleted."); return null; },
-                    ignored -> {
-                        if (tableItems != null) tableItems.setDisable(false);
-                        org.example.util.ToastManager.success(tableItems, "Item Deleted", "Item deleted successfully.");
-                        loadItems();
-                    },
-                    failure -> {
-                        if (tableItems != null) tableItems.setDisable(false);
-                        showError("Could not delete item: " + message(failure));
-                    }
-            );
-        }
+        boolean confirmed = AppDialogService.destructive(
+                tableItems,
+                "Delete Item",
+                "Delete item '" + selected.getDescription() + "'?",
+                "This action cannot be undone. Inventory stock history for this item will be archived.",
+                "Delete Item"
+        );
+        if (!confirmed) return;
+        String code = selected.getItemCode();
+        String description = selected.getDescription();
+        if (tableItems != null) tableItems.setDisable(true);
+        UiTaskExecutor.submitAction(
+                "item-master-delete-" + code,
+                () -> { service.delete(selected); NotificationService.add("Item '" + description + "' was deleted."); return null; },
+                ignored -> {
+                    if (tableItems != null) tableItems.setDisable(false);
+                    org.example.util.ToastManager.success(tableItems, "Item Deleted", "Item deleted successfully.");
+                    loadItems();
+                },
+                failure -> {
+                    if (tableItems != null) tableItems.setDisable(false);
+                    showError("Could not delete item: " + message(failure));
+                }
+        );
     }
 
     @FXML
@@ -531,24 +534,28 @@ public class ItemMasterController implements ScreenLifecycle {
         List<String> codes = new ArrayList<>(selectedItemCodes);
         if (codes.isEmpty()) { showWarning("Select one or more visible items to delete."); return; }
 
-        Alert first = new OwnedAlert(Alert.AlertType.CONFIRMATION,
-            "Delete " + codes.size() + " selected Item Master record" + (codes.size() == 1 ? "" : "s") + "?\n\n" +
-            "The server will first verify that none of the selected items are used by Sales, Purchases, Returns, Quotations or stock history.",
-            ButtonType.YES, ButtonType.NO);
-        first.setHeaderText("Confirm bulk deletion");
-        if (first.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return;
+        boolean first = AppDialogService.destructive(
+                tableItems,
+                "Confirm Bulk Deletion",
+                "Delete " + codes.size() + " selected Item Master record" + (codes.size() == 1 ? "" : "s") + "?",
+                "The server will first verify that none of the selected items are used by Sales, Purchases, Returns, Quotations or stock history.",
+                "Verify & Delete"
+        );
+        if (!first) return;
 
         UiTaskExecutor.submitLatest(
                 "item-master-bulk-validation",
                 () -> service.validateBulkDelete(codes),
                 validation -> {
                     if (validation == null || !validation.valid()) { showBulkDeleteBlocked(validation); return; }
-                    Alert finalConfirmation = new OwnedAlert(Alert.AlertType.CONFIRMATION,
-                            "Dependency validation passed for all " + codes.size() + " selected item" + (codes.size() == 1 ? "" : "s") + ".\n\n" +
-                                    "Final confirmation: permanently delete these records? This action cannot be undone.",
-                            ButtonType.YES, ButtonType.NO);
-                    finalConfirmation.setHeaderText("Final confirmation required");
-                    if (finalConfirmation.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return;
+                    boolean finalConfirmation = AppDialogService.doubleConfirmation(
+                            tableItems,
+                            "DELETE",
+                            "Final Confirmation Required",
+                            "Permanently delete " + codes.size() + " validated items?",
+                            "Dependency validation passed. This action cannot be undone."
+                    );
+                    if (!finalConfirmation) return;
                     UiTaskExecutor.submitAction(
                             "item-master-bulk-delete",
                             () -> service.bulkDelete(codes),

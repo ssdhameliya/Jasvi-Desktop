@@ -12,8 +12,8 @@
     <HBox alignment="CENTER_LEFT" spacing="12" styleClass="approved-page-header,erp-page-identity-header">
         <StackPane fx:id="pageIcon" prefWidth="42" prefHeight="42" styleClass="approved-page-icon,clients-page-icon"/>
         <VBox spacing="2">
-            <Label text="Master Client Companies Registry" styleClass="approved-page-title"/>
-            <Label text="Centralized license issuance, annual renewal management, machine fingerprinting, and ARR revenue tracking"
+            <Label text="Master Client Companies Registry &amp; Licensor Studio" styleClass="approved-page-title"/>
+            <Label text="Centralized license issuance, inbound lead approvals, plan catalog pricing, and ARR revenue tracking"
                    styleClass="approved-page-subtitle"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
@@ -55,18 +55,18 @@
             </VBox>
         </HBox>
 
-        <!-- KPI 3: Expiring in 30 Days -->
+        <!-- KPI 3: Pending Lead Approvals -->
         <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="Infinity" HBox.hgrow="ALWAYS"
               styleClass="standard-kpi-card,sales-metric-card,sales-metric-today,kpi-purchase,kpi-orange" GridPane.columnIndex="2">
-            <StackPane fx:id="kpiExpiringIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
+            <StackPane fx:id="kpiPendingLeadsIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
             <VBox spacing="3" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                    <Label text="Expiring in 30 Days" styleClass="approved-kpi-caption,metric-label"/>
+                    <Label text="Pending Approvals" styleClass="approved-kpi-caption,metric-label"/>
                     <Region HBox.hgrow="ALWAYS"/>
-                    <Label text="Attention" styleClass="metric-trend-pill,trend-warning"/>
+                    <Label fx:id="lblKpiPendingTrend" text="Leads" styleClass="metric-trend-pill,trend-warning"/>
                 </HBox>
-                <Label fx:id="lblKpiExpiring" text="0" styleClass="approved-kpi-value,metric-value"/>
-                <Label text="Follow-up &amp; Renewal Reminders" styleClass="approved-kpi-note,metric-note"/>
+                <Label fx:id="lblKpiPendingLeads" text="0" styleClass="approved-kpi-value,metric-value"/>
+                <Label text="Inbound Self-Registration Requests" styleClass="approved-kpi-note,metric-note"/>
             </VBox>
         </HBox>
 
@@ -86,31 +86,150 @@
         </HBox>
     </GridPane>
 
-    <!-- 3. Toolbar & Search -->
-    <HBox alignment="CENTER_LEFT" spacing="10" styleClass="approved-card,clients-search-strip">
-        <TextField fx:id="txtSearch" promptText="Search by Company, Machine ID, Contact Person, or Phone..."
-                   HBox.hgrow="ALWAYS" styleClass="approved-input,search-field"/>
-        <ComboBox fx:id="cmbFilterStatus" promptText="Filter Status" prefWidth="160" styleClass="approved-combo"/>
-        <Button fx:id="btnResetFilter" text="Reset" onAction="#handleResetFilter"
-                styleClass="approved-button,approved-secondary-button"/>
-    </HBox>
+    <!-- 3. Multi-Tab SuperAdmin Hub -->
+    <TabPane fx:id="registryTabPane" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS"
+             styleClass="approved-tab-pane,erp-tabs">
+        <tabs>
+            <!-- TAB 1: Registered Clients -->
+            <Tab fx:id="tabClients" text="Registered Clients">
+                <VBox spacing="10" VBox.vgrow="ALWAYS">
+                    <padding><Insets top="10" right="2" bottom="4" left="2"/></padding>
+                    <!-- Search & Filter Strip -->
+                    <HBox alignment="CENTER_LEFT" spacing="10" styleClass="approved-card,clients-search-strip">
+                        <TextField fx:id="txtSearch" promptText="Search by Company, Machine ID, Contact Person, or Phone..."
+                                   HBox.hgrow="ALWAYS" styleClass="approved-input,search-field"/>
+                        <ComboBox fx:id="cmbFilterStatus" promptText="Filter Status" prefWidth="160" styleClass="approved-combo"/>
+                        <Button fx:id="btnResetFilter" text="Reset" onAction="#handleResetFilter"
+                                styleClass="approved-button,approved-secondary-button"/>
+                    </HBox>
 
-    <!-- 4. Client Registry Table (Rule 7 compliant: dynamic responsive widths, Rule 12 zero truncation) -->
-    <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,table-container-card">
-        <TableView fx:id="tableClients" VBox.vgrow="ALWAYS" styleClass="approved-table,clients-directory-table">
-            <placeholder>
-                <Label text="No registered clients found. Click '+ Register New Client' to issue a license." styleClass="muted-label"/>
-            </placeholder>
-            <columns>
-                <TableColumn fx:id="colStatus" text="Status"/>
-                <TableColumn fx:id="colCompany" text="Client Company"/>
-                <TableColumn fx:id="colMachineId" text="Machine Hardware ID"/>
-                <TableColumn fx:id="colContact" text="Contact &amp; Phone"/>
-                <TableColumn fx:id="colTier" text="Tier &amp; Users"/>
-                <TableColumn fx:id="colAnnualFee" text="Annual Fee (₹)"/>
-                <TableColumn fx:id="colValidUntil" text="Valid Until"/>
-                <TableColumn fx:id="colActions" text="Actions"/>
-            </columns>
-        </TableView>
-    </VBox>
+                    <!-- Table (Rule 7: Dynamic percentage columns, Rule 12 zero truncation) -->
+                    <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,table-container-card">
+                        <TableView fx:id="tableClients" VBox.vgrow="ALWAYS" styleClass="approved-table,clients-directory-table">
+                            <placeholder>
+                                <Label text="No registered clients found. Click '+ Register New Client' to issue a license." styleClass="muted-label"/>
+                            </placeholder>
+                            <columns>
+                                <TableColumn fx:id="colStatus" text="Status"/>
+                                <TableColumn fx:id="colCompany" text="Client Company"/>
+                                <TableColumn fx:id="colMachineId" text="Machine Hardware ID"/>
+                                <TableColumn fx:id="colRemoteUrl" text="Remote Support URL"/>
+                                <TableColumn fx:id="colLiveStatus" text="Live Telemetry"/>
+                                <TableColumn fx:id="colContact" text="Contact &amp; Phone"/>
+                                <TableColumn fx:id="colTier" text="Tier &amp; Users"/>
+                                <TableColumn fx:id="colAnnualFee" text="Annual Fee (₹)"/>
+                                <TableColumn fx:id="colValidUntil" text="Valid Until"/>
+                                <TableColumn fx:id="colActions" text="Actions"/>
+                            </columns>
+                        </TableView>
+                    </VBox>
+                </VBox>
+            </Tab>
+
+            <!-- TAB 2: Inbound Approval Requests -->
+            <Tab fx:id="tabLeads" text="Approval Requests">
+                <VBox spacing="10" VBox.vgrow="ALWAYS">
+                    <padding><Insets top="10" right="2" bottom="4" left="2"/></padding>
+                    <!-- Search & Filter Strip -->
+                    <HBox alignment="CENTER_LEFT" spacing="10" styleClass="approved-card,clients-search-strip">
+                        <TextField fx:id="txtLeadSearch" promptText="Search leads by Company, Machine ID, Contact, or Phone..."
+                                   HBox.hgrow="ALWAYS" styleClass="approved-input,search-field"/>
+                        <ComboBox fx:id="cmbLeadFilterStatus" promptText="Filter Status" prefWidth="160" styleClass="approved-combo"/>
+                        <Button fx:id="btnResetLeadFilter" text="Reset" onAction="#handleResetLeadFilter"
+                                styleClass="approved-button,approved-secondary-button"/>
+                    </HBox>
+
+                    <!-- Leads Table -->
+                    <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,table-container-card">
+                        <TableView fx:id="tableLeads" VBox.vgrow="ALWAYS" styleClass="approved-table,clients-directory-table">
+                            <placeholder>
+                                <Label text="No inbound registration leads found. Leads submitted from company login will appear here." styleClass="muted-label"/>
+                            </placeholder>
+                            <columns>
+                                <TableColumn fx:id="colLeadStatus" text="Status"/>
+                                <TableColumn fx:id="colLeadCompany" text="Company Name"/>
+                                <TableColumn fx:id="colLeadContact" text="Contact Person"/>
+                                <TableColumn fx:id="colLeadPhone" text="Phone / WhatsApp"/>
+                                <TableColumn fx:id="colLeadMachineId" text="Machine Hardware ID"/>
+                                <TableColumn fx:id="colLeadTier" text="Requested Tier"/>
+                                <TableColumn fx:id="colLeadDate" text="Requested At"/>
+                                <TableColumn fx:id="colLeadActions" text="Actions"/>
+                            </columns>
+                        </TableView>
+                    </VBox>
+                </VBox>
+            </Tab>
+
+            <!-- TAB 3: Subscription Plans & Commercial Settings -->
+            <Tab fx:id="tabPlans" text="Subscription Plans &amp; Commercial Settings">
+                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="approved-page-scroll">
+                    <VBox spacing="14">
+                        <padding><Insets top="10" right="4" bottom="16" left="4"/></padding>
+
+                        <!-- Section A: Commercial Plans Catalog -->
+                        <VBox spacing="8" styleClass="approved-card">
+                            <HBox alignment="CENTER_LEFT" spacing="10">
+                                <Label text="Commercial Subscription Plans Catalog" styleClass="section-title"/>
+                                <Region HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="btnAddPlan" text="+ Add New Plan" onAction="#handleAddPlan"
+                                        styleClass="approved-button,approved-primary-button"/>
+                            </HBox>
+                            <TableView fx:id="tablePlans" minHeight="180" prefHeight="220" styleClass="approved-table">
+                                <placeholder>
+                                    <Label text="No commercial plans found in catalog." styleClass="muted-label"/>
+                                </placeholder>
+                                <columns>
+                                    <TableColumn fx:id="colPlanCode" text="Tier Code"/>
+                                    <TableColumn fx:id="colPlanName" text="Plan Name"/>
+                                    <TableColumn fx:id="colPlanFee" text="Annual Price (₹)"/>
+                                    <TableColumn fx:id="colPlanUsers" text="Max Users"/>
+                                    <TableColumn fx:id="colPlanDays" text="Validity (Days)"/>
+                                    <TableColumn fx:id="colPlanFeatures" text="Features"/>
+                                    <TableColumn fx:id="colPlanStatus" text="Status"/>
+                                    <TableColumn fx:id="colPlanActions" text="Actions"/>
+                                </columns>
+                            </TableView>
+                        </VBox>
+
+                        <!-- Section B: Payment, Billing & Communication Settings -->
+                        <VBox spacing="10" styleClass="approved-card">
+                            <Label text="Cloud Commercial &amp; UPI Billing Configuration" styleClass="section-title"/>
+                            <Label text="Configure payment VPA ID, support WhatsApp hotline, and automated message templates sent to clients"
+                                   styleClass="muted-label"/>
+
+                            <GridPane hgap="16" vgap="12">
+                                <columnConstraints>
+                                    <ColumnConstraints percentWidth="30"/>
+                                    <ColumnConstraints percentWidth="70"/>
+                                </columnConstraints>
+
+                                <Label text="Primary Support WhatsApp *:" styleClass="field-label" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                                <TextField fx:id="txtCommPhone" promptText="e.g. 9537544008" styleClass="approved-input" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+                                <Label text="Merchant UPI VPA (ID) *:" styleClass="field-label" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                                <TextField fx:id="txtCommVpa" promptText="e.g. jasviindustries@icici" styleClass="approved-input" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+                                <Label text="Payee Business Name:" styleClass="field-label" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                                <TextField fx:id="txtCommPayee" promptText="e.g. Jasvi Industries" styleClass="approved-input" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+                                <Label text="GST Taxation Rate (%):" styleClass="field-label" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                                <TextField fx:id="txtCommGst" promptText="e.g. 18.00" styleClass="approved-input" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+                                <Label text="WhatsApp Lead Response Template:" styleClass="field-label" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+                                <TextArea fx:id="txtCommLeadTpl" prefRowCount="2" wrapText="true" styleClass="approved-input" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+
+                                <Label text="WhatsApp License Issued Template:" styleClass="field-label" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+                                <TextArea fx:id="txtCommIssuedTpl" prefRowCount="2" wrapText="true" styleClass="approved-input" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+                            </GridPane>
+
+                            <HBox alignment="CENTER_RIGHT" spacing="10">
+                                <Button fx:id="btnSaveCommercialSettings" text="Save Commercial Settings" onAction="#handleSaveCommercialSettings"
+                                        styleClass="approved-button,approved-primary-button"/>
+                            </HBox>
+                        </VBox>
+                    </VBox>
+                </ScrollPane>
+            </Tab>
+        </tabs>
+    </TabPane>
 </VBox>

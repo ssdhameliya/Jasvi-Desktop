@@ -13,6 +13,8 @@ import org.example.util.SemanticTableCells;
 import org.example.navigation.ScreenLifecycle;
 import org.example.util.FxDebouncer;
 import org.example.util.UiTaskExecutor;
+import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ProfessionalUiEnhancer;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -27,7 +29,23 @@ public class InventoryController implements ScreenLifecycle {
  @FXML private TextField txtSearch;@FXML private Button btnRefresh;@FXML private ComboBox<String>cmbCategory,cmbStatus;@FXML private TableView<Item>tableItems;@FXML private TableColumn<Item,String>colCode,colDescription,colCategory,colHsn,colUnit,colStatus;@FXML private TableColumn<Item,Double>colGst;@FXML private TableColumn<Item,Double>colStock,colAvailable,colMinimum,colValue;@FXML private TableColumn<Item,Void>colActions;@FXML private Label lblTotalItems,lblInStock,lblLowStock,lblOutStock,lblStockValue,lblSelectedItem,lblSelectedDetail,lblRecordCount;@FXML private PieChart categoryChart;@FXML private StackPane inventoryPageIcon,inventoryTotalIcon,inventoryStockIcon,inventoryLowIcon,inventoryOutIcon,inventoryValueIcon;
  private final ItemService service=new ItemService();private final OperationsApiClient operationsApi=new OperationsApiClient();private final FxDebouncer searchDebouncer=new FxDebouncer(java.time.Duration.ofMillis(220));private final NumberFormat money=NumberFormat.getCurrencyInstance(Locale.of("en", "IN"));private List<Item>all=List.of();private Item selected;private Item detailItem;private RegisterDetailDrawer detailDrawer;private String pendingSelectItemCode;
  @FXML public void initialize(){
-        installKpiIcons();colCode.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getItemCode()));colDescription.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getDescription()));colCategory.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getCategory())));colHsn.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getHsn())));colUnit.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getUnit())));colGst.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getGst()).asObject());colGst.setCellFactory(x->numberCell());colStock.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getOpeningStock()).asObject());colAvailable.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getAvailableStock()).asObject());colMinimum.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getMinimumStock()).asObject());colValue.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getOpeningStock()*v.getValue().getPurchasePrice()).asObject());colStatus.setCellValueFactory(v->new SimpleStringProperty(status(v.getValue())));for(TableColumn<Item,Double>c:List.of(colStock,colAvailable,colMinimum))c.setCellFactory(x->numberCell());colValue.setCellFactory(x->moneyCell());colStatus.setCellFactory(x->statusCell());setupActions();configureTableInteractions();cmbStatus.getItems().setAll("All Status","In Stock","Low Stock","Out of Stock");cmbStatus.setValue("All Status");txtSearch.textProperty().addListener((o,a,b)->searchDebouncer.submit(this::filter));cmbCategory.valueProperty().addListener((o,a,b)->filter());cmbStatus.valueProperty().addListener((o,a,b)->filter());tableItems.getSelectionModel().selectedItemProperty().addListener((o,a,b)->selected=b);installDetailDrawer();refresh();}
+        installKpiIcons();colCode.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getItemCode()));colDescription.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getDescription()));colCategory.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getCategory())));colHsn.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getHsn())));colUnit.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getUnit())));colGst.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getGst()).asObject());colGst.setCellFactory(x->numberCell());colStock.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getOpeningStock()).asObject());colAvailable.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getAvailableStock()).asObject());colMinimum.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getMinimumStock()).asObject());colValue.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getOpeningStock()*v.getValue().getPurchasePrice()).asObject());colStatus.setCellValueFactory(v->new SimpleStringProperty(status(v.getValue())));for(TableColumn<Item,Double>c:List.of(colStock,colAvailable,colMinimum))c.setCellFactory(x->numberCell());colValue.setCellFactory(x->moneyCell());colStatus.setCellFactory(x->statusCell());setupActions();configureTableInteractions();cmbStatus.getItems().setAll("All Status","In Stock","Low Stock","Out of Stock");cmbStatus.setValue("All Status");txtSearch.textProperty().addListener((o,a,b)->searchDebouncer.submit(this::filter));cmbCategory.valueProperty().addListener((o,a,b)->filter());cmbStatus.valueProperty().addListener((o,a,b)->filter());tableItems.getSelectionModel().selectedItemProperty().addListener((o,a,b)->selected=b);installDetailDrawer();
+        IconFactory.applyTableHeaderIcon(colCode, "reference");
+        IconFactory.applyTableHeaderIcon(colDescription, "item");
+        IconFactory.applyTableHeaderIcon(colCategory, "category");
+        IconFactory.applyTableHeaderIcon(colHsn, "tax");
+        IconFactory.applyTableHeaderIcon(colUnit, "quantity");
+        IconFactory.applyTableHeaderIcon(colGst, "tax");
+        IconFactory.applyTableHeaderIcon(colStock, "quantity");
+        IconFactory.applyTableHeaderIcon(colAvailable, "quantity");
+        IconFactory.applyTableHeaderIcon(colMinimum, "quantity");
+        IconFactory.applyTableHeaderIcon(colValue, "currency");
+        IconFactory.applyTableHeaderIcon(colStatus, "status");
+        if(colActions!=null) IconFactory.applyTableHeaderIcon(colActions, "actions");
+        DynamicTableLayoutManager.install(tableItems);
+        ProfessionalUiEnhancer.refreshTableDecorations(tableItems);
+        refresh();
+    }
 
  private void installKpiIcons(){if(inventoryPageIcon!=null)inventoryPageIcon.getChildren().setAll(IconFactory.icon("inventory",24));setKpiIcon(inventoryTotalIcon,"item");setKpiIcon(inventoryStockIcon,"complete");setKpiIcon(inventoryLowIcon,"reminder");setKpiIcon(inventoryOutIcon,"error");setKpiIcon(inventoryValueIcon,"currency");}
  private void setKpiIcon(StackPane pane,String semantic){if(pane!=null)pane.getChildren().setAll(IconFactory.compactIcon(semantic,22));}

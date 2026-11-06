@@ -72,6 +72,50 @@ public class ClientRegistryApiClient {
         }
     }
 
+    public Map<String, Object> getCommercialSettings() {
+        return get("/api/license/registry/commercial-settings", new TypeReference<>() {});
+    }
+
+    public Map<String, Object> saveCommercialSettings(Map<String, Object> settings) {
+        return post("/api/license/registry/commercial-settings", settings, new TypeReference<>() {});
+    }
+
+    public List<Map<String, Object>> getPlans() {
+        return get("/api/license/registry/plans", new TypeReference<>() {});
+    }
+
+    public Map<String, Object> savePlan(Map<String, Object> plan) {
+        return post("/api/license/registry/plans", plan, new TypeReference<>() {});
+    }
+
+    public List<Map<String, Object>> getLeads() {
+        return get("/api/license/registry/leads", new TypeReference<>() {});
+    }
+
+    public Map<String, Object> approveLead(Long leadId, String tier, Integer days) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        if (tier != null) body.put("tier", tier);
+        if (days != null) body.put("days", days);
+        return post("/api/license/registry/leads/" + leadId + "/approve", body, new TypeReference<>() {});
+    }
+
+    public Map<String, Object> rejectLead(Long leadId) {
+        return post("/api/license/registry/leads/" + leadId + "/reject", Map.of(), new TypeReference<>() {});
+    }
+
+    public Map<String, Object> dispatchChannels(Long clientId) {
+        return post("/api/license/registry/clients/" + clientId + "/dispatch", Map.of(), new TypeReference<>() {});
+    }
+
+    public Map<String, Object> sendHeartbeat(String machineId, String clientVersion, Integer activeUsers, String remoteUrl) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        if (machineId != null) body.put("machineId", machineId);
+        if (clientVersion != null) body.put("clientVersion", clientVersion);
+        if (activeUsers != null) body.put("activeUsers", activeUsers);
+        if (remoteUrl != null) body.put("remoteUrl", remoteUrl);
+        return post("/api/license/heartbeat", body, new TypeReference<>() {});
+    }
+
     private <T> T get(String path, TypeReference<T> typeRef) {
         return req("GET", path, null, typeRef);
     }

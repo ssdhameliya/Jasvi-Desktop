@@ -88,6 +88,21 @@ public class AuthService {
         if (role.isBlank() || !roleMaster.isActive(role))
             return failedLogin("This account role is not active in Role Master.");
 
+        if (!"SUPER_ADMIN".equalsIgnoreCase(role)) {
+            try {
+                Integer maxUsers = db.queryForObject(
+                        "SELECT max_users FROM app_license WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1", Integer.class);
+                if (maxUsers != null && maxUsers > 0) {
+                    Long activeCount = db.queryForObject(
+                            "SELECT COUNT(DISTINCT user_id) FROM auth_session WHERE expires_at > CURRENT_TIMESTAMP AND user_id <> ?",
+                            Long.class, user.getId());
+                    if (activeCount != null && activeCount >= maxUsers) {
+                        return failedLogin("Concurrent user limit reached (" + maxUsers + " active users allowed on your license). Please upgrade your tier or log out from another workstation.");
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
         boolean mfaRequired = requiresMfa(user, role);
         user.resetPasswordFailures();
 

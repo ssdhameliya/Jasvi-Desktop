@@ -15,6 +15,9 @@ import org.example.util.RegisterPageState;
 import org.example.util.RegisterUiSupport;
 import org.example.util.AttachmentPreviewSupport;
 import org.example.util.LiveOperationDialog;
+import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ProfessionalUiEnhancer;
+import org.example.util.SemanticTableCells;
 import com.itextpdf.kernel.pdf.PdfDocument;import com.itextpdf.kernel.pdf.PdfWriter;import com.itextpdf.layout.Document;import com.itextpdf.layout.element.Paragraph;import com.itextpdf.layout.element.Table;
 import javafx.beans.property.*;import javafx.fxml.FXML;import javafx.geometry.Pos;import javafx.scene.chart.*;import javafx.scene.control.*;import javafx.scene.layout.*;import javafx.stage.FileChooser;
 import org.apache.poi.ss.usermodel.*;import org.apache.poi.xssf.usermodel.XSSFWorkbook;import org.example.config.ConfigManager;import org.example.config.WorkspaceManager;import org.example.api.quotation.QuotationApiClient;import org.example.api.support.SupportApiClient;import org.example.api.insights.InsightsApiClient;import org.example.service.*;
@@ -37,7 +40,40 @@ public class QuotationController implements org.example.navigation.ScreenLifecyc
      org.example.util.RegisterColumnPreferences.install(table,"QUOTATION_REGISTER");
         applyButtonIcon(btnReset,"reset");
         applyButtonIcon(btnRefresh,"refresh");RegisterUiSupport.configureHeaderSearch(txtSearch,quotationHeaderSearchIcon,"Search quotation, customer or source...");
-        configureUiIcons();refreshShortcutLabel();configureEmptyState();colNo.setCellValueFactory(v->v.getValue().no);colDate.setCellValueFactory(v->v.getValue().date);colCustomer.setCellValueFactory(v->v.getValue().customer);colValid.setCellValueFactory(v->v.getValue().valid);colStatus.setCellValueFactory(v->v.getValue().status);colFollowUp.setCellValueFactory(v->v.getValue().followUp);colConverted.setCellValueFactory(v->v.getValue().converted);colSalesperson.setCellValueFactory(v->v.getValue().salesperson);colCreatedBy.setCellValueFactory(v->v.getValue().createdBy);colAmount.setCellValueFactory(v->v.getValue().amount);colAmount.setCellFactory(c->new TableCell<>(){protected void updateItem(Number v,boolean e){super.updateItem(v,e);setText(e||v==null?null:fmt(v.doubleValue()));setAlignment(Pos.CENTER_RIGHT);}});colStatus.setCellFactory(c->new TableCell<>(){protected void updateItem(String v,boolean e){super.updateItem(v,e);setText(e?null:v);getStyleClass().removeAll("pill-success","pill-warning","pill-danger","pill-neutral");if(!e)getStyleClass().add("ACCEPTED".equals(v)?"pill-success":"EXPIRED".equals(v)||"REJECTED".equals(v)?"pill-danger":"SENT".equals(v)?"pill-success":"pill-warning");}});setupActions();setupFilters();dpFrom.setValue(BusinessClock.today().minusMonths(6));dpTo.setValue(BusinessClock.today());dpValid.setValue(null);if(org.example.util.PlatformUiSupport.isMac()){if(trendChart!=null){trendChart.setManaged(false);trendChart.setVisible(false);}if(statusChart!=null){statusChart.setManaged(false);statusChart.setVisible(false);}}if(detailDrawer!=null){detailDrawer.setMinWidth(390);detailDrawer.setPrefWidth(410);detailDrawer.setMaxWidth(440);decorateQuotationDrawer();RegisterUiSupport.hideDrawer(detailDrawer,mainSplit,table);}org.example.util.OperationalUiSupport.installEscapeClose(mainSplit,()->detailDrawer!=null&&detailDrawer.isVisible(),this::closeDetails);table.setRowFactory(tv->{TableRow<QuoteRow> row=new TableRow<>();row.setOnMouseClicked(event->{if(event.getButton()!=javafx.scene.input.MouseButton.PRIMARY||event.getClickCount()!=1||row.isEmpty()||RegisterUiSupport.isInteractiveTableTarget(event.getPickResult().getIntersectedNode(),row))return;QuoteRow clicked=row.getItem();table.getSelectionModel().select(clicked);showDetails(clicked);event.consume();});return row;});txtSearch.textProperty().addListener((o,a,b)->searchDebouncer.submit(this::applyFilters));refresh();}
+        configureUiIcons();refreshShortcutLabel();configureEmptyState();colNo.setCellValueFactory(v->v.getValue().no);colDate.setCellValueFactory(v->v.getValue().date);colCustomer.setCellValueFactory(v->v.getValue().customer);colValid.setCellValueFactory(v->v.getValue().valid);colStatus.setCellValueFactory(v->v.getValue().status);colFollowUp.setCellValueFactory(v->v.getValue().followUp);colConverted.setCellValueFactory(v->v.getValue().converted);colSalesperson.setCellValueFactory(v->v.getValue().salesperson);colCreatedBy.setCellValueFactory(v->v.getValue().createdBy);colAmount.setCellValueFactory(v->v.getValue().amount);colAmount.setCellFactory(c->new TableCell<>(){protected void updateItem(Number v,boolean e){super.updateItem(v,e);setText(e||v==null?null:fmt(v.doubleValue()));setAlignment(Pos.CENTER_RIGHT);}});colStatus.setCellFactory(c->new TableCell<>(){protected void updateItem(String v,boolean e){super.updateItem(v,e);setText(e?null:v);getStyleClass().removeAll("pill-success","pill-warning","pill-danger","pill-neutral");if(!e)getStyleClass().add("ACCEPTED".equals(v)?"pill-success":"EXPIRED".equals(v)||"REJECTED".equals(v)?"pill-danger":"SENT".equals(v)?"pill-success":"pill-warning");}});setupActions();setupFilters();dpFrom.setValue(BusinessClock.today().minusMonths(6));dpTo.setValue(BusinessClock.today());dpValid.setValue(null);if(org.example.util.PlatformUiSupport.isMac()){if(trendChart!=null){trendChart.setManaged(false);trendChart.setVisible(false);}if(statusChart!=null){statusChart.setManaged(false);statusChart.setVisible(false);}}if(detailDrawer!=null){detailDrawer.setMinWidth(390);detailDrawer.setPrefWidth(410);detailDrawer.setMaxWidth(440);decorateQuotationDrawer();RegisterUiSupport.hideDrawer(detailDrawer,mainSplit,table);}org.example.util.OperationalUiSupport.installEscapeClose(mainSplit,()->detailDrawer!=null&&detailDrawer.isVisible(),this::closeDetails);table.setRowFactory(tv->{TableRow<QuoteRow> row=new TableRow<>();row.setOnMouseClicked(event->{if(event.getButton()!=javafx.scene.input.MouseButton.PRIMARY||event.getClickCount()!=1||row.isEmpty()||RegisterUiSupport.isInteractiveTableTarget(event.getPickResult().getIntersectedNode(),row))return;QuoteRow clicked=row.getItem();table.getSelectionModel().select(clicked);showDetails(clicked);event.consume();});return row;});txtSearch.textProperty().addListener((o,a,b)->searchDebouncer.submit(this::applyFilters));
+        colNo.setCellFactory(c->styledTextCell("erp-table-value-colour-blue"));
+        colDate.setCellFactory(c->SemanticTableCells.dateString());
+        colCustomer.setCellFactory(c->styledTextCell("erp-table-value-colour-indigo"));
+        colValid.setCellFactory(c->SemanticTableCells.dateString());
+        IconFactory.applyTableHeaderIcon(colNo, "reference");
+        IconFactory.applyTableHeaderIcon(colDate, "calendar");
+        IconFactory.applyTableHeaderIcon(colCustomer, "customer");
+        IconFactory.applyTableHeaderIcon(colValid, "calendar");
+        IconFactory.applyTableHeaderIcon(colStatus, "document");
+        IconFactory.applyTableHeaderIcon(colFollowUp, "reminder");
+        IconFactory.applyTableHeaderIcon(colConverted, "sale");
+        IconFactory.applyTableHeaderIcon(colSalesperson, "user");
+        IconFactory.applyTableHeaderIcon(colCreatedBy, "user");
+        IconFactory.applyTableHeaderIcon(colAmount, "currency");
+        if(colActions!=null) IconFactory.applyTableHeaderIcon(colActions, "actions");
+        DynamicTableLayoutManager.install(table);
+        ProfessionalUiEnhancer.refreshTableDecorations(table);
+        refresh();
+    }
+    private TableCell<QuoteRow,String> styledTextCell(String styleClass){
+        return new TableCell<>(){
+            @Override protected void updateItem(String item,boolean empty){
+                super.updateItem(item,empty);
+                if(empty||item==null||item.isBlank()){
+                    setText(null);setGraphic(null);
+                    getStyleClass().remove(styleClass);
+                    return;
+                }
+                setText(item);
+                if(!getStyleClass().contains(styleClass)) getStyleClass().add(styleClass);
+            }
+        };
+    }
 
  @FXML private void showAllDates(){dpFrom.setValue(null);dpTo.setValue(null);applyFilters();}
  @FXML private void showToday(){applyDateRange(BusinessClock.today(),BusinessClock.today());}

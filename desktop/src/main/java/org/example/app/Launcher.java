@@ -78,6 +78,14 @@ public class Launcher {
         } else {
             command.add("--enable-native-access=ALL-UNNAMED");
         }
+        String explicitWorkspace = System.getProperty("dse.erp.workspace.path");
+        if (explicitWorkspace != null && !explicitWorkspace.isBlank()) {
+            command.add("-Ddse.erp.workspace.path=" + explicitWorkspace);
+        }
+        String explicitPointerFolder = System.getProperty("dse.erp.pointer.folder");
+        if (explicitPointerFolder != null && !explicitPointerFolder.isBlank()) {
+            command.add("-Ddse.erp.pointer.folder=" + explicitPointerFolder);
+        }
         command.add("-D" + NATIVE_ACCESS_RELAUNCH + "=true");
         command.add("-cp");
         command.add(String.join(File.pathSeparator, applicationClasspath));

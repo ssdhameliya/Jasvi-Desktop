@@ -148,27 +148,19 @@ public final class PlatformUiSupport {
 
     public static void animateEntrance(Node node) {
         if (node == null) return;
-        double fromOpacity = node.getOpacity() < 0.1 ? 0.0 : 0.85;
-        double fromScale = node.getScaleX() < 0.9 ? 0.95 : node.getScaleX();
-        node.setScaleX(fromScale);
-        node.setScaleY(fromScale);
-        node.setOpacity(fromOpacity);
-
-        ScaleTransition scale = new ScaleTransition(Duration.millis(200), node);
-        scale.setToX(1.0);
-        scale.setToY(1.0);
-        scale.setInterpolator(Interpolator.SPLINE(0.16, 1.0, 0.3, 1.0));
-
-        FadeTransition fade = new FadeTransition(Duration.millis(180), node);
+        if (node.getOpacity() >= 0.99 && node.getScaleX() >= 0.99) {
+            return;
+        }
+        FadeTransition fade = new FadeTransition(Duration.millis(140), node);
+        fade.setFromValue(Math.min(node.getOpacity(), 0.9));
         fade.setToValue(1.0);
-
-        ParallelTransition parallel = new ParallelTransition(scale, fade);
-        parallel.setOnFinished(e -> {
+        fade.setInterpolator(Interpolator.EASE_OUT);
+        fade.setOnFinished(e -> {
             node.setScaleX(1.0);
             node.setScaleY(1.0);
             node.setOpacity(1.0);
         });
-        parallel.play();
+        fade.play();
     }
 
     public static void decorateEntityDialogRoot(Stage stage, Parent root, String title) {
