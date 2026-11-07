@@ -110,7 +110,7 @@
 
                 <VBox spacing="4">
                     <Label text="Or paste raw license activation token:" styleClass="settings-form-label"/>
-                    <TextArea fx:id="txtRawLicensePayload" prefRowCount="2" promptText="Paste Base64 or JSON license payload here..."
+                    <TextArea fx:id="txtRawLicensePayload" prefRowCount="2" minHeight="74" prefHeight="84" promptText="Paste Base64 or JSON license payload here..."
                               styleClass="approved-input" wrapText="true"/>
                 </VBox>
 

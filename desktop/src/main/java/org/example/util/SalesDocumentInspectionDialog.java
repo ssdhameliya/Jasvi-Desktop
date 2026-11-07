@@ -883,7 +883,7 @@ public final class SalesDocumentInspectionDialog {
         // 2. Duplicate Sale
         Button btnDuplicate = new Button("Duplicate Sale");
         btnDuplicate.setGraphic(IconFactory.compactIcon("copy", 14));
-        btnDuplicate.getStyleClass().addAll("approved-button", "approved-indigo-button");
+        btnDuplicate.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnDuplicate.setDisable(inactive);
         btnDuplicate.setOnAction(e -> {
             dialog.close();
@@ -904,7 +904,7 @@ public final class SalesDocumentInspectionDialog {
         // 3. Tax Invoice PDF
         Button btnPrint = new Button("Tax Invoice PDF");
         btnPrint.setGraphic(IconFactory.compactIcon("print", 14));
-        btnPrint.getStyleClass().addAll("approved-button", "approved-purple-button");
+        btnPrint.getStyleClass().addAll("approved-button", "approved-primary-button");
         btnPrint.setOnAction(e -> {
             btnPrint.setDisable(true);
             UiTaskExecutor.submitAction("sales-pdf-" + sale.getId(), () -> {
@@ -1031,7 +1031,7 @@ public final class SalesDocumentInspectionDialog {
         boolean canPay = !isPaid && !inactive && !approvalLocked;
         Button btnRecordPayment = new Button("Record Payment");
         btnRecordPayment.setGraphic(IconFactory.compactIcon("payment", 14));
-        btnRecordPayment.getStyleClass().addAll("approved-button", canPay ? "approved-violet-button" : "approved-slate-button");
+        btnRecordPayment.getStyleClass().addAll("approved-button", canPay ? "approved-emerald-button" : "approved-slate-button");
         btnRecordPayment.setDisable(!canPay);
         if (isPaid) {
             btnRecordPayment.setTooltip(new Tooltip("Invoice is already fully paid (No pending balance)."));

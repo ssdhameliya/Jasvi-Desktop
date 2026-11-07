@@ -216,10 +216,10 @@
                                 <TextField fx:id="txtCommGst" promptText="e.g. 18.00" styleClass="approved-input" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
 
                                 <Label text="WhatsApp Lead Response Template:" styleClass="field-label" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
-                                <TextArea fx:id="txtCommLeadTpl" prefRowCount="2" wrapText="true" styleClass="approved-input" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+                                <TextArea fx:id="txtCommLeadTpl" prefRowCount="2" minHeight="74" prefHeight="84" wrapText="true" styleClass="approved-input" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
 
                                 <Label text="WhatsApp License Issued Template:" styleClass="field-label" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
-                                <TextArea fx:id="txtCommIssuedTpl" prefRowCount="2" wrapText="true" styleClass="approved-input" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+                                <TextArea fx:id="txtCommIssuedTpl" prefRowCount="2" minHeight="74" prefHeight="84" wrapText="true" styleClass="approved-input" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
                             </GridPane>
 
                             <HBox alignment="CENTER_RIGHT" spacing="10">

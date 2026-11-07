@@ -5,6 +5,7 @@ import javafx.stage.Window;
 import javafx.stage.Stage;
 import javafx.scene.control.DialogPane;
 import org.example.util.PlatformUiSupport;
+import org.example.util.WorkflowFocusManager;
 import javafx.collections.ListChangeListener;
 import org.example.config.ConfigManager;
 
@@ -67,6 +68,25 @@ public final class ThemeManager {
             scene.getRoot().getStyleClass().add(themeUrl.contains("dark-theme.css") ? "dse-theme-dark" : "dse-theme-light");
             PlatformUiSupport.installResponsiveClasses(scene);
         }
+        installUniversalFocusListener(scene);
+    }
+
+    private static void installUniversalFocusListener(Scene scene) {
+        if (scene == null || Boolean.TRUE.equals(scene.getProperties().get("erp.universal.focus.installed"))) return;
+        scene.getProperties().put("erp.universal.focus.installed", true);
+        scene.focusOwnerProperty().addListener((obs, oldNode, newNode) -> {
+            if (oldNode != null) {
+                WorkflowFocusManager.updateFocusStyleClass(oldNode, false);
+                WorkflowFocusManager.notifyShellParent(oldNode, false);
+            }
+            if (newNode != null) {
+                WorkflowFocusManager.attachInputFocusHighlightAndSelection(newNode);
+                if (!WorkflowFocusManager.isInternalChildEditor(newNode)) {
+                    WorkflowFocusManager.updateFocusStyleClass(newNode, true);
+                }
+                WorkflowFocusManager.notifyShellParent(newNode, true);
+            }
+        });
     }
 
     private static synchronized void installWindowHook() {

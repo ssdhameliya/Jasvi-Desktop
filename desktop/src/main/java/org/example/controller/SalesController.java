@@ -72,6 +72,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 public class SalesController implements ScreenLifecycle {
@@ -1037,21 +1038,15 @@ public class SalesController implements ScreenLifecycle {
     @FXML
     private void addCustomer() {
         try {
-            FXMLLoader loader = new FXMLLoader(
-                    org.example.util.ResourceLocator.require("/fxml/pages/PartyDialog.fxml"));
-            Parent root = loader.load();
-            org.example.util.ProfessionalUiEnhancer.enhance(root);
-            loader.<PartyDialogController>getController().configure("CUSTOMER", null);
-            Stage dialog = new Stage();
-            PlatformUiSupport.configureDialogStage(dialog, cmbCustomer, "Add Customer", true);
-            Scene scene = new Scene(root);
-            ThemeManager.applyTheme(scene);
-            dialog.setScene(scene);
-            dialog.showAndWait();
-            Party selected = cmbCustomer.getValue();
+            Optional<Party> saved = PartyDialog.show(cmbCustomer, "CUSTOMER", null);
+            Party selected = saved.orElse(cmbCustomer.getValue());
             cmbCustomer.getItems().setAll(partyService.search("CUSTOMER", "", 40));
-            if (selected != null)
-                cmbCustomer.getSelectionModel().select(selected);
+            if (selected != null) {
+                Party match = cmbCustomer.getItems().stream()
+                        .filter(p -> p.getId() == selected.getId() || (selected.getPartyCode() != null && selected.getPartyCode().equalsIgnoreCase(p.getPartyCode())))
+                        .findFirst().orElse(selected);
+                cmbCustomer.getSelectionModel().select(match);
+            }
         } catch (Exception ex) {
             new OwnedAlert(Alert.AlertType.ERROR,
                     "Unable to open customer form: " + ex.getMessage(), ButtonType.OK).showAndWait();

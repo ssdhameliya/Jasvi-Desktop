@@ -156,14 +156,14 @@
                                 <ColumnConstraints percentWidth="25" hgrow="ALWAYS"/>
                                 <ColumnConstraints percentWidth="25" hgrow="ALWAYS"/>
                             </columnConstraints>
-                            <Button fx:id="quickSale" text="New Sale" onAction="#newSale" maxWidth="Infinity" GridPane.columnIndex="0" GridPane.rowIndex="0" styleClass="approved-quick-action,approved-button,approved-primary-button"/>
-                            <Button fx:id="quickPurchase" text="Create Purchase" onAction="#newPurchase" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="0" styleClass="approved-quick-action,approved-button,approved-primary-button"/>
-                            <Button fx:id="quickCustomer" text="Add Customer" onAction="#addCustomer" maxWidth="Infinity" GridPane.columnIndex="2" GridPane.rowIndex="0" styleClass="approved-quick-action,approved-button,approved-primary-button"/>
-                            <Button fx:id="quickQuotation" text="Create Quotation" onAction="#newQuotation" maxWidth="Infinity" GridPane.columnIndex="3" GridPane.rowIndex="0" styleClass="approved-quick-action,approved-button,approved-primary-button"/>
-                            <Button fx:id="quickPayment" text="Add Item Master" onAction="#addPayment" maxWidth="Infinity" GridPane.columnIndex="0" GridPane.rowIndex="1" styleClass="approved-quick-action,approved-button,approved-primary-button"/>
-                            <Button fx:id="quickSupplier" text="Add Supplier" onAction="#addSupplier" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="1" styleClass="approved-quick-action,approved-button,approved-primary-button"/>
-                            <Button fx:id="quickBank" text="Bank Entry" onAction="#bankEntry" maxWidth="Infinity" GridPane.columnIndex="2" GridPane.rowIndex="1" styleClass="approved-quick-action,approved-button,approved-primary-button"/>
-                            <Button fx:id="quickExpense" text="Expense Entry" onAction="#expenseEntry" maxWidth="Infinity" GridPane.columnIndex="3" GridPane.rowIndex="1" styleClass="approved-quick-action,approved-button,approved-primary-button"/>
+                            <Button fx:id="quickSale" text="New Sale" onAction="#newSale" maxWidth="Infinity" GridPane.columnIndex="0" GridPane.rowIndex="0" styleClass="approved-quick-action,approved-button,approved-emerald-button,erp-button-emerald"/>
+                            <Button fx:id="quickPurchase" text="Create Purchase" onAction="#newPurchase" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="0" styleClass="approved-quick-action,approved-button,approved-primary-button,erp-button-primary"/>
+                            <Button fx:id="quickCustomer" text="Add Customer" onAction="#addCustomer" maxWidth="Infinity" GridPane.columnIndex="2" GridPane.rowIndex="0" styleClass="approved-quick-action,approved-button,approved-sky-button,erp-button-sky"/>
+                            <Button fx:id="quickQuotation" text="Create Quotation" onAction="#newQuotation" maxWidth="Infinity" GridPane.columnIndex="3" GridPane.rowIndex="0" styleClass="approved-quick-action,approved-button,approved-amber-button,erp-button-amber"/>
+                            <Button fx:id="quickPayment" text="Add Item Master" onAction="#addPayment" maxWidth="Infinity" GridPane.columnIndex="0" GridPane.rowIndex="1" styleClass="approved-quick-action,approved-button,approved-coral-button,erp-button-coral"/>
+                            <Button fx:id="quickSupplier" text="Add Supplier" onAction="#addSupplier" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="1" styleClass="approved-quick-action,approved-button,approved-teal-button,erp-button-teal"/>
+                            <Button fx:id="quickBank" text="Bank Entry" onAction="#bankEntry" maxWidth="Infinity" GridPane.columnIndex="2" GridPane.rowIndex="1" styleClass="approved-quick-action,approved-button,approved-cyan-button,erp-button-cyan"/>
+                            <Button fx:id="quickExpense" text="Expense Entry" onAction="#expenseEntry" maxWidth="Infinity" GridPane.columnIndex="3" GridPane.rowIndex="1" styleClass="approved-quick-action,approved-button,approved-orange-button,erp-button-orange"/>
                         </GridPane>
                     </VBox>
                     <VBox spacing="10" prefWidth="350" styleClass="approved-card,reminder-dashboard-card">
@@ -171,7 +171,7 @@
                         <Label fx:id="lblReminderCount" text="0" styleClass="approved-kpi-value,metric-value"/>
                         <Label fx:id="lblReminderSummary" text="No overdue reminders" wrapText="true" styleClass="approved-body-text"/>
                         <Label text="Open Reminder Center to review, complete or snooze business follow-ups." wrapText="true" styleClass="approved-page-subtitle"/>
-                        <Button text="Open Reminder Center" onAction="#viewReminders" styleClass="approved-button,approved-primary-button"/>
+                        <Button text="Open Reminder Center" onAction="#viewReminders" styleClass="approved-button,approved-amber-button,erp-button-amber"/>
                         <Label fx:id="lblTrendSales" visible="false" managed="false"/><Label fx:id="lblTrendPeriod" visible="false" managed="false"/><Label fx:id="lblComparisonPeriod" visible="false" managed="false"/><Label fx:id="lblProductsNote" visible="false" managed="false"/>
                     </VBox>
                 </HBox>

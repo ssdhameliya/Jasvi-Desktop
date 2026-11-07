@@ -3,10 +3,12 @@ package org.example.controller;
 import org.example.navigation.ScreenLifecycle;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.example.model.Lookup;
 import org.example.service.LookupService;
+import org.example.util.DocumentInspectionScaffold;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
 import org.example.util.UiTaskExecutor;
@@ -18,9 +20,10 @@ public class LookupDialogController implements ScreenLifecycle {
     @FXML private TextArea txtDescription;
     @FXML private Spinner<Integer> spnOrder;
     @FXML private CheckBox chkActive;
-    @FXML private Label lblTitle, lblSubtitle, lblCodeLabel, lblValueLabel, lblCodeHint, errCode, errValue;
+    @FXML private Label lblTitle, lblSubtitle, lblCodeLabel, lblValueLabel, lblCodeHint, lblStatusBadge, lblShortcuts, errCode, errValue;
     @FXML private Button btnSave, btnCancel;
     @FXML private StackPane headerIconHolder;
+    @FXML private HBox heroHeader;
 
     private final LookupService service = new LookupService();
     private String lookupType;
@@ -28,18 +31,70 @@ public class LookupDialogController implements ScreenLifecycle {
     private boolean saved;
     private boolean roleMode;
     private Lookup savedResult;
+    private Dialog<Lookup> hostDialog;
+    private boolean viewOnly = false;
+
+    public void setViewMode(boolean viewOnly) {
+        this.viewOnly = viewOnly;
+        if (viewOnly) {
+            applyViewMode();
+        }
+    }
+
+    private void applyViewMode() {
+        if (lblTitle != null) {
+            lblTitle.setText("View " + (roleMode ? "Role" : (lookupType != null ? lookupType : "Master")) + " Details");
+        }
+        if (lblSubtitle != null) {
+            lblSubtitle.setText("Master lookup value specification and display order configuration");
+        }
+        if (lblStatusBadge != null && editingLookup != null) {
+            lblStatusBadge.setText("VIEW " + (lookupType != null ? lookupType.toUpperCase() : "MASTER") + " (" + (editingLookup.getLookupCode() != null ? editingLookup.getLookupCode() : "") + ")");
+            lblStatusBadge.getStyleClass().removeAll("status-success", "status-info");
+            lblStatusBadge.getStyleClass().add("status-info");
+        }
+        txtCode.setEditable(false);
+        txtValue.setEditable(false);
+        txtDescription.setEditable(false);
+        spnOrder.setDisable(true);
+        chkActive.setDisable(true);
+        if (btnSave != null) {
+            btnSave.setVisible(false);
+            btnSave.setManaged(false);
+        }
+        if (btnCancel != null) {
+            btnCancel.setText("Close");
+        }
+        if (lblShortcuts != null) {
+            lblShortcuts.setText("Shortcuts: [Esc] Close");
+        }
+    }
+
+    public void setHostDialog(Dialog<Lookup> dialog) {
+        this.hostDialog = dialog;
+        if (heroHeader != null && dialog != null) {
+            DocumentInspectionScaffold.installDragPhysics(heroHeader, dialog);
+        }
+    }
 
     @FXML
     public void initialize() {
         spnOrder.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 999, 1));
-        btnSave.setGraphic(IconFactory.icon("save"));
-        btnCancel.setGraphic(IconFactory.icon("cancel"));
-        headerIconHolder.getChildren().setAll(IconFactory.icon("master", 24));
+        btnSave.setGraphic(IconFactory.icon("save", 16));
+        btnCancel.setGraphic(IconFactory.icon("cancel", 16));
+        if (headerIconHolder != null) {
+            headerIconHolder.getChildren().setAll(IconFactory.icon("master", 24));
+        }
         txtValue.textProperty().addListener((o, a, b) -> {
             clearError(txtValue, errValue);
             if (roleMode && editingLookup == null) {
                 txtCode.setText(roleDisplayCode(b));
                 clearError(txtCode, errCode);
+            }
+        });
+        javafx.application.Platform.runLater(() -> {
+            if (heroHeader != null && hostDialog != null) {
+                DocumentInspectionScaffold.installDragPhysics(heroHeader, hostDialog);
             }
         });
     }
@@ -56,11 +111,16 @@ public class LookupDialogController implements ScreenLifecycle {
                     failure -> showOperationError("Unable to generate master code", failure)
             );
         }
-        lblTitle.setText("Add Master");
+        lblTitle.setText("Add " + (roleMode ? "Role" : type) + " Value");
         lblSubtitle.setText(roleMode ? "Add an application role. Role Name is the security identity used by Login, User Access and Permissions." : "Add a reusable value to " + type);
-        if (lblCodeLabel != null) lblCodeLabel.setText(roleMode ? "Role Code" : "Code *");
-        if (lblValueLabel != null) lblValueLabel.setText(roleMode ? "Role Name *" : "Value *");
+        if (lblCodeLabel != null) lblCodeLabel.setText(roleMode ? "Role Code" : "Master Code *");
+        if (lblValueLabel != null) lblValueLabel.setText(roleMode ? "Role Name *" : "Display Value *");
         if (lblCodeHint != null) lblCodeHint.setText(roleMode ? "Derived from Role Name; the internal master ID is hidden." : "System-generated master identifier");
+        if (lblStatusBadge != null) {
+            lblStatusBadge.setText("NEW " + (type != null ? type.toUpperCase() : "MASTER") + " DRAFT");
+            lblStatusBadge.getStyleClass().removeAll("status-success", "status-info");
+            lblStatusBadge.getStyleClass().add("status-info");
+        }
         txtCode.setEditable(!roleMode);
         txtCode.setFocusTraversable(!roleMode);
         txtValue.setPromptText(roleMode ? "Example: Purchase" : "Enter a meaningful value");
@@ -76,14 +136,22 @@ public class LookupDialogController implements ScreenLifecycle {
         txtDescription.setText(lookup.getDescription());
         spnOrder.getValueFactory().setValue(lookup.getDisplayOrder());
         chkActive.setSelected(lookup.isActive());
-        lblTitle.setText("Edit Master");
+        lblTitle.setText("Edit " + (roleMode ? "Role" : lookupType) + " Value");
         lblSubtitle.setText(roleMode ? "Update the Role Name. Assigned users and permissions are migrated atomically when a role is renamed." : "Update the selected " + lookupType + " value");
-        if (lblCodeLabel != null) lblCodeLabel.setText(roleMode ? "Role Code" : "Code *");
-        if (lblValueLabel != null) lblValueLabel.setText(roleMode ? "Role Name *" : "Value *");
+        if (lblCodeLabel != null) lblCodeLabel.setText(roleMode ? "Role Code" : "Master Code *");
+        if (lblValueLabel != null) lblValueLabel.setText(roleMode ? "Role Name *" : "Display Value *");
         if (lblCodeHint != null) lblCodeHint.setText(roleMode ? "Derived from Role Name; the internal master ID is hidden." : "System-generated master identifier");
+        if (lblStatusBadge != null) {
+            lblStatusBadge.setText("EDIT " + (lookupType != null ? lookupType.toUpperCase() : "MASTER") + " (" + (lookup.getLookupCode() != null ? lookup.getLookupCode() : "") + ")");
+            lblStatusBadge.getStyleClass().removeAll("status-info", "status-success");
+            lblStatusBadge.getStyleClass().add("status-success");
+        }
         txtCode.setEditable(!roleMode);
         txtCode.setFocusTraversable(!roleMode);
         btnSave.setText("Update Master");
+        if (viewOnly) {
+            applyViewMode();
+        }
     }
 
     @FXML
@@ -154,7 +222,6 @@ public class LookupDialogController implements ScreenLifecycle {
         label.setManaged(false);
     }
 
-
     private static boolean isRoleType(String type) {
         return "ROLE".equalsIgnoreCase(type == null ? "" : type.trim());
     }
@@ -167,10 +234,17 @@ public class LookupDialogController implements ScreenLifecycle {
     public Lookup getSavedResult() { return savedResult; }
 
     @FXML private void cancel() { close(); }
-    private void close() { ((Stage) txtCode.getScene().getWindow()).close(); }
+
+    private void close() {
+        if (hostDialog != null) {
+            hostDialog.setResult(savedResult);
+            hostDialog.close();
+        } else if (txtCode != null && txtCode.getScene() != null && txtCode.getScene().getWindow() != null) {
+            ((Stage) txtCode.getScene().getWindow()).close();
+        }
+    }
 
     @Override
     public void onScreenHidden() {
-        
     }
 }

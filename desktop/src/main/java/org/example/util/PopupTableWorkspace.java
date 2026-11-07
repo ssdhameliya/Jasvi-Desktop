@@ -172,6 +172,42 @@ public final class PopupTableWorkspace {
         dialog.setResizable(true);
     }
 
+    /**
+     * Content-adaptive sizing for inspection dialogs with variable row counts (Audit Trail, Diagnostics).
+     * Eliminates empty dark voids when only a few rows exist while allowing expansion up to 84% screen height.
+     */
+    public static void applyAdaptiveInspectionSizing(Dialog<?> dialog, Node ownerNode, int expectedRows) {
+        if (dialog == null) return;
+        Screen screen = Screen.getPrimary();
+        if (ownerNode != null && ownerNode.getScene() != null && ownerNode.getScene().getWindow() != null) {
+            Window w = ownerNode.getScene().getWindow();
+            var screens = Screen.getScreensForRectangle(w.getX(), w.getY(), Math.max(1, w.getWidth()), Math.max(1, w.getHeight()));
+            if (!screens.isEmpty()) screen = screens.get(0);
+        }
+        Rectangle2D bounds = screen.getVisualBounds();
+        double maxAvailableW = Math.max(800, bounds.getWidth() - 32);
+        double maxAvailableH = Math.max(560, bounds.getHeight() - 48);
+        double targetW = Math.min(maxAvailableW, Math.max(1100, Math.min(1600, bounds.getWidth() * 0.84)));
+
+        // Base chrome: accent (5px) + header (64px) + hero (70px) + toolbar (48px) + footer (50px) + margins ~ 250px
+        double contentH = 260.0 + Math.max(1, expectedRows) * 38.0;
+        double targetH = Math.min(maxAvailableH, Math.max(380.0, Math.min(840.0, contentH)));
+
+        DialogPane pane = dialog.getDialogPane();
+        pane.setPrefSize(targetW, targetH);
+        pane.setMaxWidth(maxAvailableW);
+        pane.setMaxHeight(maxAvailableH);
+        pane.setMinWidth(Math.min(960, targetW));
+        pane.setMinHeight(Math.min(360, targetH));
+        if (!pane.getStyleClass().contains("erp-table-workspace-dialog")) {
+            pane.getStyleClass().add("erp-table-workspace-dialog");
+        }
+        if (!pane.getStyleClass().contains("erp-ui-standard")) {
+            pane.getStyleClass().add("erp-ui-standard");
+        }
+        dialog.setResizable(true);
+    }
+
     public static void prepareTable(TableView<?> table, String profileClass) {
         if (table == null) return;
         if (!table.getStyleClass().contains("approved-table")) table.getStyleClass().add("approved-table");

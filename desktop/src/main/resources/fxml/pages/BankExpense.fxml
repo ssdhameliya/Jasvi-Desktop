@@ -44,9 +44,12 @@
           <Label text="Reference No." styleClass="finance-field-label"/><TextField fx:id="referenceNo" promptText="Enter reference / cheque no."/>
           <Label text="Description *" styleClass="finance-field-label"/><TextArea fx:id="description" promptText="Enter description" prefRowCount="4" wrapText="true" VBox.vgrow="ALWAYS"/>
           <Label text="Amount *" styleClass="finance-field-label"/><TextField fx:id="amount" promptText="₹   Enter amount"/>
-          <VBox fx:id="billBox" spacing="5" visible="false" managed="false">
+          <VBox fx:id="billBox" spacing="6" visible="false" managed="false" styleClass="finance-file-box">
             <Label text="Upload Bill (Optional)" styleClass="finance-field-label"/>
-            <HBox spacing="8"><Button text="Choose Bill" onAction="#chooseBill" styleClass="approved-button,approved-secondary-button"/><Label fx:id="billName" text="No file selected" styleClass="finance-file-name" HBox.hgrow="ALWAYS"/></HBox>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+              <Button text="Choose Bill" onAction="#chooseBill" styleClass="approved-button,approved-secondary-button,mini-btn,mini-btn-blue"/>
+              <Label fx:id="billName" text="No file selected" styleClass="finance-file-name,attachment-badge" HBox.hgrow="ALWAYS"/>
+            </HBox>
           </VBox>
           <Region VBox.vgrow="ALWAYS"/>
         </VBox>

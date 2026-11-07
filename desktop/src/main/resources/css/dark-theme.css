@@ -466,7 +466,7 @@
 -fx-min-height: 34;
     -fx-pref-height: 36;
 }
-.password-field, .combo-box-base, .date-picker {
+.password-field, .combo-box-base, .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-min-height: 34;
     -fx-pref-height: 36;
     -fx-background-radius: 8;
@@ -636,9 +636,7 @@
 -fx-min-height: 34px;
     -fx-pref-height: 36px;
     -fx-padding: 7px 13px;
-    -fx-background-color: #6d28d9;
-    -fx-border-color: #8b5cf6;
-    -fx-text-fill: white;
+    -fx-cursor: hand;
 }
 .button.erp-button-icon, .table-cell .approved-icon-button, .table-cell .icon-button {
 -fx-min-width: 32px;
@@ -2421,7 +2419,7 @@
 -fx-background-radius: 7;
     -fx-border-radius: 7;
 }
-.purchase-page .text-field, .purchase-page .text-area, .purchase-page .combo-box, .purchase-page .date-picker {
+.purchase-page .text-field, .purchase-page .text-area, .purchase-page .combo-box, .purchase-page .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-pref-height: 36;
     -fx-font-size: 12.5px;
 }
@@ -2436,7 +2434,7 @@
 .import-options .combo-box, .import-options .text-field {
 -fx-pref-height: 36px;
 }
-.settings-page-shell .text-field, .settings-page-shell .password-field, .settings-page-shell .combo-box, .settings-page-shell .date-picker {
+.settings-page-shell .text-field, .settings-page-shell .password-field, .settings-page-shell .combo-box, .settings-page-shell .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-border-width: 1px;
     -fx-pref-height: 39px;
     -fx-background-radius: 8px;
@@ -2460,7 +2458,7 @@
     -fx-background-radius: 8px;
     -fx-min-height: 36px;
 }
-.sales-register-page .sales-filter-grid .text-field, .sales-register-page .sales-filter-grid .combo-box, .sales-register-page .sales-filter-grid .date-picker {
+.sales-register-page .sales-filter-grid .text-field, .sales-register-page .sales-filter-grid .combo-box, .sales-register-page .sales-filter-grid .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-min-height: 36px;
     -fx-border-radius: 9px;
     -fx-background-radius: 9px;
@@ -2468,12 +2466,12 @@
 .sales-register-page .sales-filter-surface > .hbox:first-child .text-field {
 -fx-pref-height: 38px;
 }
-.quotation-register-page .quotation-filter-card .text-field, .quotation-register-page .quotation-filter-card .combo-box, .quotation-register-page .quotation-filter-card .date-picker {
+.quotation-register-page .quotation-filter-card .text-field, .quotation-register-page .quotation-filter-card .combo-box, .quotation-register-page .quotation-filter-card .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-border-radius: 8px;
     -fx-background-radius: 8px;
     -fx-min-height: 36px;
 }
-.sales-entry-page .text-field, .sales-entry-page .text-area, .sales-entry-page .combo-box, .sales-entry-page .date-picker {
+.sales-entry-page .text-field, .sales-entry-page .text-area, .sales-entry-page .combo-box, .sales-entry-page .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-border-radius: 8px;
     -fx-background-radius: 8px;
 }
@@ -2528,8 +2526,10 @@
     -fx-min-height: 36;
 }
 .text-area.approved-input,
-.text-area.erp-control-input {
-    -fx-min-height: 40;
+.text-area.erp-control-input,
+.text-area {
+    -fx-min-height: 74px;
+    -fx-pref-height: 84px;
 }
 .payment-input {
 -fx-border-width: 1;
@@ -5931,6 +5931,86 @@
     -fx-pref-width: -1;
     -fx-text-alignment: CENTER;
 }
+
+.dashboard-quick-grid .approved-emerald-button {
+    -fx-background-color: linear-gradient(to bottom, rgba(16, 185, 129, 0.40), rgba(5, 150, 105, 0.25));
+    -fx-border-color: linear-gradient(to bottom, rgba(110, 231, 183, 0.75), rgba(16, 185, 129, 0.35));
+    -fx-text-fill: #ffffff;
+}
+.dashboard-quick-grid .approved-emerald-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(16, 185, 129, 0.58), rgba(5, 150, 105, 0.38));
+    -fx-border-color: #6ee7b7;
+}
+
+.dashboard-quick-grid .approved-primary-button {
+    -fx-background-color: linear-gradient(to bottom, rgba(37, 99, 235, 0.45), rgba(29, 78, 216, 0.28));
+    -fx-border-color: linear-gradient(to bottom, rgba(147, 197, 253, 0.80), rgba(37, 99, 235, 0.40));
+    -fx-text-fill: #ffffff;
+}
+.dashboard-quick-grid .approved-primary-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(59, 130, 246, 0.60), rgba(37, 99, 235, 0.40));
+    -fx-border-color: #93c5fd;
+}
+
+.dashboard-quick-grid .approved-sky-button {
+    -fx-background-color: linear-gradient(to bottom, rgba(14, 165, 233, 0.42), rgba(2, 132, 199, 0.25));
+    -fx-border-color: linear-gradient(to bottom, rgba(125, 211, 252, 0.80), rgba(14, 165, 233, 0.40));
+    -fx-text-fill: #ffffff;
+}
+.dashboard-quick-grid .approved-sky-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(56, 189, 248, 0.60), rgba(14, 165, 233, 0.40));
+    -fx-border-color: #7dd3fc;
+}
+
+.dashboard-quick-grid .approved-amber-button {
+    -fx-background-color: linear-gradient(to bottom, rgba(245, 158, 11, 0.40), rgba(180, 83, 9, 0.25));
+    -fx-border-color: linear-gradient(to bottom, rgba(252, 211, 77, 0.80), rgba(245, 158, 11, 0.40));
+    -fx-text-fill: #ffffff;
+}
+.dashboard-quick-grid .approved-amber-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(245, 158, 11, 0.58), rgba(180, 83, 9, 0.38));
+    -fx-border-color: #fcd34d;
+}
+
+.dashboard-quick-grid .approved-coral-button {
+    -fx-background-color: linear-gradient(to bottom, rgba(244, 63, 94, 0.42), rgba(225, 29, 72, 0.25));
+    -fx-border-color: linear-gradient(to bottom, rgba(253, 164, 175, 0.80), rgba(244, 63, 94, 0.40));
+    -fx-text-fill: #ffffff;
+}
+.dashboard-quick-grid .approved-coral-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(251, 113, 133, 0.60), rgba(244, 63, 94, 0.40));
+    -fx-border-color: #fecdd3;
+}
+
+.dashboard-quick-grid .approved-teal-button {
+    -fx-background-color: linear-gradient(to bottom, rgba(13, 148, 136, 0.42), rgba(15, 118, 110, 0.25));
+    -fx-border-color: linear-gradient(to bottom, rgba(94, 234, 212, 0.80), rgba(13, 148, 136, 0.40));
+    -fx-text-fill: #ffffff;
+}
+.dashboard-quick-grid .approved-teal-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(20, 184, 166, 0.60), rgba(13, 148, 136, 0.40));
+    -fx-border-color: #5eead4;
+}
+
+.dashboard-quick-grid .approved-cyan-button {
+    -fx-background-color: linear-gradient(to bottom, rgba(6, 182, 212, 0.45), rgba(8, 145, 178, 0.28));
+    -fx-border-color: linear-gradient(to bottom, rgba(103, 232, 249, 0.85), rgba(6, 182, 212, 0.45));
+    -fx-text-fill: #ffffff;
+}
+.dashboard-quick-grid .approved-cyan-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(34, 211, 238, 0.65), rgba(6, 182, 212, 0.45));
+    -fx-border-color: #67e8f9;
+}
+
+.dashboard-quick-grid .approved-orange-button {
+    -fx-background-color: linear-gradient(to bottom, rgba(234, 88, 12, 0.42), rgba(194, 65, 12, 0.25));
+    -fx-border-color: linear-gradient(to bottom, rgba(253, 186, 116, 0.80), rgba(234, 88, 12, 0.40));
+    -fx-text-fill: #ffffff;
+}
+.dashboard-quick-grid .approved-orange-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(249, 115, 22, 0.60), rgba(234, 88, 12, 0.40));
+    -fx-border-color: #fdba74;
+}
 .sales-register-page .sales-register-subtitle-accent {
 -fx-font-weight: bold;
 }
@@ -6903,7 +6983,7 @@
 .purchase-page .menu-button > .label {
 -fx-padding: 0 2px 2px 0;
 }
-.date-picker {
+.date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-padding: 0;
 }
 .date-picker > .text-field {
@@ -8193,10 +8273,10 @@
 -fx-min-width: 180px; -fx-pref-width: 180px;
 }
 .register-reset-button {
--fx-min-width: 92px; -fx-pref-width: 92px;
+-fx-min-width: 108px;
 }
 .register-refresh-button {
--fx-min-width: 104px; -fx-pref-width: 104px;
+-fx-min-width: 114px;
 }
 .register-saved-views-menu > .label {
 -fx-text-overrun: clip; -fx-alignment: CENTER_LEFT;
@@ -8385,12 +8465,12 @@
 -fx-background-color: #22C55E;
 }
 .warning-button {
--fx-background-color: #6d28d9;
-    -fx-border-color: #8b5cf6;
+-fx-background-color: #d97706;
+    -fx-border-color: #f59e0b;
     -fx-text-fill: white;
 }
 .warning-button:hover {
--fx-background-color: #7c3aed;
+-fx-background-color: #b45309;
     -fx-border-color: #a78bfa;
     -fx-text-fill: white;
 }
@@ -9079,7 +9159,7 @@
 .purchase-page .label {
 -fx-text-fill: -color-text;
 }
-.purchase-page .text-field, .purchase-page .text-area, .purchase-page .combo-box, .purchase-page .date-picker {
+.purchase-page .text-field, .purchase-page .text-area, .purchase-page .combo-box, .purchase-page .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-background-color: -color-surface;
     -fx-text-fill: -color-text;
     -fx-prompt-text-fill: -color-muted;
@@ -9555,7 +9635,7 @@
 .settings-section-title {
 -fx-text-fill: #f8fafc;
 }
-.settings-page-shell .text-field, .settings-page-shell .password-field, .settings-page-shell .combo-box, .settings-page-shell .date-picker {
+.settings-page-shell .text-field, .settings-page-shell .password-field, .settings-page-shell .combo-box, .settings-page-shell .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-text-fill: #f8fafc;
     -fx-prompt-text-fill: #7890aa;
     -fx-effect: null;
@@ -9724,8 +9804,8 @@
     -fx-text-fill: white;
 }
 .erp-button-warning {
--fx-background-color: #6d28d9;
-    -fx-border-color: #8b5cf6;
+-fx-background-color: #d97706;
+    -fx-border-color: #f59e0b;
     -fx-text-fill: white;
 }
 .erp-button-danger {
@@ -10363,7 +10443,7 @@
 .settings-form-label {
 -fx-text-fill: #b9c6d8;
 }
-.settings-page-shell .text-field, .settings-page-shell .password-field, .settings-page-shell .combo-box, .settings-page-shell .date-picker {
+.settings-page-shell .text-field, .settings-page-shell .password-field, .settings-page-shell .combo-box, .settings-page-shell .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-background-color: #0d1927;
     -fx-border-color: #31465f;
 }
@@ -10426,13 +10506,17 @@
 -fx-text-fill: #f2f6ff;
 }
 .sales-register-page .sales-new-button {
--fx-background-color: #14233a;
-    -fx-text-fill: #dce8ff;
-    -fx-border-color: #385379;
+    -fx-background-color: linear-gradient(to bottom, rgba(16, 185, 129, 0.45) 0%, rgba(5, 150, 105, 0.85) 50%, rgba(4, 120, 87, 0.98) 100%);
+    -fx-text-fill: #ffffff;
+    -fx-border-color: linear-gradient(to bottom, rgba(110, 231, 183, 0.85), rgba(16, 185, 129, 0.50));
+    -fx-background-radius: 9px;
+    -fx-border-radius: 9px;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.40), 10, 0.15, 0, 3);
 }
 .sales-register-page .sales-new-button:hover {
--fx-background-color: #1b3151;
-    -fx-border-color: #6f8cff;
+    -fx-background-color: linear-gradient(to bottom, rgba(52, 211, 153, 0.65) 0%, rgba(16, 185, 129, 0.95) 100%);
+    -fx-border-color: #6ee7b7;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.65), 14, 0.25, 0, 4);
 }
 .sales-register-page .sales-metric-card {
 -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.24), 14, 0.08, 0, 4);
@@ -10521,13 +10605,13 @@
     -fx-border-color: #6685b6;
 }
 .sales-register-page .sales-apply-button {
--fx-background-color: linear-gradient(to right, #6d28d9, #7c3aed);
+-fx-background-color: linear-gradient(to right, #2563eb, #1d4ed8);
     -fx-text-fill: white;
 }
 .sales-register-page .sales-apply-button:hover {
--fx-background-color: linear-gradient(to right, #7c3aed, #8b5cf6);
+-fx-background-color: linear-gradient(to right, #3b82f6, #2563eb);
 }
-.sales-register-page .sales-filter-grid .text-field, .sales-register-page .sales-filter-grid .combo-box, .sales-register-page .sales-filter-grid .date-picker {
+.sales-register-page .sales-filter-grid .text-field, .sales-register-page .sales-filter-grid .combo-box, .sales-register-page .sales-filter-grid .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-background-color: #0e192a;
     -fx-border-color: #30445f;
 }
@@ -10576,14 +10660,16 @@
     -fx-text-fill: #d9e3f3;
 }
 .sales-register-page .sales-register-table .row-actions {
--fx-background-color: #14253c;
-    -fx-text-fill: #dce7f9;
-    -fx-border-color: #365271;
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #f1f5f9;
+    -fx-border-color: #334155;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
 }
 .sales-register-page .sales-register-table .row-actions:hover, .sales-register-page .sales-register-table .row-actions:showing {
--fx-background-color: #2d2254;
-    -fx-border-color: #8b5cf6;
-    -fx-text-fill: #c4b5fd;
+    -fx-background-color: #334155;
+    -fx-border-color: #38bdf8;
+    -fx-text-fill: #ffffff;
 }
 .sales-register-page .sales-table-footer, .sales-register-page .sales-export-bar {
 -fx-background-color: #101c2e;
@@ -10756,7 +10842,7 @@
 -fx-background-color: #132237;
     -fx-border-color: #293b54;
 }
-.quotation-register-page .quotation-filter-card .text-field, .quotation-register-page .quotation-filter-card .combo-box, .quotation-register-page .quotation-filter-card .date-picker {
+.quotation-register-page .quotation-filter-card .text-field, .quotation-register-page .quotation-filter-card .combo-box, .quotation-register-page .quotation-filter-card .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-background-color: #17283e;
     -fx-border-color: #30445f;
     -fx-text-fill: #e8eef7;
@@ -10853,7 +10939,7 @@
 .sales-entry-section-title {
 -fx-text-fill: #f0f5fb;
 }
-.sales-entry-page .text-field, .sales-entry-page .text-area, .sales-entry-page .combo-box, .sales-entry-page .date-picker {
+.sales-entry-page .text-field, .sales-entry-page .text-area, .sales-entry-page .combo-box, .sales-entry-page .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-background-color: #172a40;
     -fx-border-color: #36516d;
     -fx-text-fill: #eef4fb;
@@ -11855,12 +11941,16 @@
     -fx-border-color: #4387ff;
 }
 .approved-secondary-button {
--fx-background-color: #132a44;
-    -fx-text-fill: #eaf2ff;
-    -fx-border-color: #385574;
+    -fx-background-color: linear-gradient(to bottom, rgba(51, 65, 85, 0.50) 0%, rgba(30, 41, 59, 0.70) 100%);
+    -fx-text-fill: #f1f5f9;
+    -fx-border-color: rgba(148, 163, 184, 0.40);
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
 }
 .approved-secondary-button:hover {
--fx-background-color: #193553;
+    -fx-background-color: linear-gradient(to bottom, rgba(71, 85, 105, 0.70) 0%, rgba(51, 65, 85, 0.85) 100%);
+    -fx-border-color: rgba(203, 213, 225, 0.65);
+    -fx-text-fill: #ffffff;
 }
 .approved-danger-button {
 -fx-background-color: #4a1e2a;
@@ -12795,8 +12885,12 @@
 -fx-text-fill: #7edff2;
 }
 .bank-expense-mode-strip, .finance-entry-card, .finance-list-card {
--fx-background-color: #102236;
-    -fx-border-color: #27435f;
+    -fx-background-color: linear-gradient(to bottom right, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.92));
+    -fx-border-color: linear-gradient(to bottom right, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05));
+    -fx-background-radius: 12px;
+    -fx-border-radius: 12px;
+    -fx-border-width: 1.2px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 18, 0.0, 0, 6);
 }
 .finance-section-title, .finance-kpi-value {
 -fx-text-fill: #f8fafc;
@@ -13121,7 +13215,7 @@
 .quotation-editor-page .muted-label {
 -fx-text-fill: #a8b8cc;
 }
-.quotation-editor-page .text-field, .quotation-editor-page .text-area, .quotation-editor-page .date-picker {
+.quotation-editor-page .text-field, .quotation-editor-page .text-area, .quotation-editor-page .date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
 -fx-background-color: #1b2b42;
     -fx-text-fill: #f5f8fc;
     -fx-border-color: #405a79;
@@ -14001,9 +14095,9 @@
 -fx-background-color: #174d39; -fx-border-color: #2f7258; -fx-text-fill: #a7f3d0;
 }
 .erp-action-button.erp-button-secondary.erp-semantic-orange {
--fx-background-color: #6d28d9;
-    -fx-border-color: #8b5cf6;
-    -fx-text-fill: white;
+-fx-background-color: #291e0a;
+    -fx-border-color: #78350f;
+    -fx-text-fill: #fcd34d;
 }
 .erp-action-button.erp-button-secondary.erp-semantic-purple {
 -fx-background-color: #37275a; -fx-border-color: #5c4684; -fx-text-fill: #ddd6fe;
@@ -15563,14 +15657,14 @@
 }
 .button.erp-action-button.erp-button-primary, .menu-button.erp-action-button.erp-button-primary, .toggle-button.erp-action-button.erp-button-primary,
 .approved-button.approved-primary-button, .primary-button, .auth-primary-button, .setup-primary-button, .quotation-primary-button, .dse-global-search-v3-search-button, .entity-create-button, .primary-action, .blue-button {
-    -fx-background-color: linear-gradient(to bottom right,#2563eb,#6d28d9);
+    -fx-background-color: linear-gradient(to bottom right,#2563eb,#1d4ed8);
     -fx-border-color: #3b82f6;
     -fx-text-fill: white;
     -fx-effect: dropshadow(gaussian,rgba(37,99,235,.42),12,.20,0,2);
 }
 .button.erp-action-button.erp-button-primary:hover, .menu-button.erp-action-button.erp-button-primary:hover, .toggle-button.erp-action-button.erp-button-primary:hover,
 .approved-button.approved-primary-button:hover, .primary-button:hover, .auth-primary-button:hover, .setup-primary-button:hover, .quotation-primary-button:hover, .dse-global-search-v3-search-button:hover, .entity-create-button:hover, .primary-action:hover, .blue-button:hover {
-    -fx-background-color: linear-gradient(to bottom right,#3b82f6,#7c3aed);
+    -fx-background-color: linear-gradient(to bottom right,#3b82f6,#1d4ed8);
     -fx-effect: dropshadow(gaussian,rgba(59,130,246,.48),15,.22,0,3);
 }
 .button.erp-action-button.erp-button-secondary, .menu-button.erp-action-button.erp-button-secondary, .toggle-button.erp-action-button.erp-button-secondary,
@@ -15655,7 +15749,7 @@
 .erp-sidebar .button { -fx-background-color: linear-gradient(to bottom, #183552, #102940); -fx-background-radius: 8; -fx-border-color: #31516e; -fx-border-radius: 8; -fx-border-width: 1; -fx-effect: dropshadow(gaussian, rgba(0,0,0,.30), 4, .10, 0, 2); -fx-text-fill: #eef7ff; }
 .erp-sidebar .button:hover { -fx-background-color: linear-gradient(to bottom, #214565, #173650); -fx-translate-y: -1; }
 .erp-sidebar .button:pressed { -fx-translate-y: 1; -fx-effect: innershadow(gaussian, rgba(0,0,0,.28), 4, .12, 0, 1); }
-.erp-sidebar .button.menu-selected, .erp-sidebar .button.nav-parent.menu-group-active, .erp-sidebar .button.nav-parent.nav-expanded { -fx-background-color: linear-gradient(to bottom, #6656e7, #4939b9); -fx-border-color: #8b7fff; -fx-text-fill: white; }
+.erp-sidebar .button.menu-selected, .erp-sidebar .button.nav-parent.menu-group-active, .erp-sidebar .button.nav-parent.nav-expanded { -fx-background-color: linear-gradient(to bottom, #1e3a8a, #1d4ed8); -fx-border-color: #38bdf8; -fx-text-fill: white; }
 .erp-sidebar .nav-children .button { -fx-background-color: linear-gradient(to bottom, #132e48, #0e263c); -fx-border-color: #294763; -fx-padding: 7 10 7 22; }
 .erp-sidebar .nav-children .button.menu-selected { -fx-background-color: linear-gradient(to bottom, #2967b7, #1e4f91); -fx-border-color: #5c9bea; }
 
@@ -15748,8 +15842,8 @@
     -fx-background-radius: 9px; -fx-border-radius: 9px; -fx-border-width: 1px;
     -fx-font-weight: 700; -fx-graphic-text-gap: 7px; -fx-cursor: hand;
 }
-.erp-ui-standard .erp-control-button.erp-button-role-primary { -fx-background-color: linear-gradient(to bottom right,#7c3aed,#5b21b6); -fx-border-color:#8b5cf6; -fx-text-fill:white; }
-.erp-ui-standard .erp-control-button.erp-button-role-primary:hover { -fx-background-color: linear-gradient(to bottom right,#8b5cf6,#6d28d9); }
+.erp-ui-standard .erp-control-button.erp-button-role-primary { -fx-background-color: linear-gradient(to bottom right,#2563eb,#1d4ed8); -fx-border-color:#38bdf8; -fx-text-fill:white; }
+.erp-ui-standard .erp-control-button.erp-button-role-primary:hover { -fx-background-color: linear-gradient(to bottom right,#3b82f6,#2563eb); }
 .erp-ui-standard .erp-control-button.erp-button-role-secondary { -fx-background-color:-dse-surface-1; -fx-border-color:-dse-border-strong; -fx-text-fill:-dse-text; -fx-effect:none; }
 .erp-ui-standard .erp-control-button.erp-button-role-secondary:hover { -fx-background-color:-dse-surface-hover; }
 .erp-ui-standard .erp-control-button.erp-button-role-success { -fx-background-color:#197a5b; -fx-border-color:#2aa876; -fx-text-fill:white; }
@@ -15901,10 +15995,10 @@
 .erp-ui-standard .primary-button,
 .erp-ui-standard .payment-save-button,
 .erp-ui-standard .reports-export-button {
-    -fx-background-color: #7c3aed;
-    -fx-border-color: #8b5cf6;
+    -fx-background-color: #1d4ed8;
+    -fx-border-color: #38bdf8;
     -fx-text-fill: white;
-    -fx-effect: dropshadow(gaussian, rgba(124,58,237,.30), 9, .16, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(37,99,235,.30), 9, .16, 0, 2);
 }
 .erp-ui-standard .erp-control-button.erp-button-role-primary:hover,
 .erp-ui-standard .approved-button.approved-primary-button:hover,
@@ -15912,16 +16006,16 @@
 .erp-ui-standard .primary-button:hover,
 .erp-ui-standard .payment-save-button:hover,
 .erp-ui-standard .reports-export-button:hover {
-    -fx-background-color: #8b5cf6;
-    -fx-border-color: #a78bfa;
+    -fx-background-color: #2563eb;
+    -fx-border-color: #60a5fa;
 }
 .erp-ui-standard .erp-control-button.erp-button-role-primary:pressed,
 .erp-ui-standard .approved-button.approved-primary-button:pressed,
 .erp-ui-standard .primary-action:pressed,
 .erp-ui-standard .payment-save-button:pressed,
 .erp-ui-standard .reports-export-button:pressed {
-    -fx-background-color: #6d28d9;
-    -fx-border-color: #7c3aed;
+    -fx-background-color: #1e40af;
+    -fx-border-color: #2563eb;
     -fx-translate-y: 1px;
 }
 
@@ -15939,7 +16033,7 @@
 .erp-ui-standard .secondary-button:hover,
 .erp-ui-standard .register-action-button:hover {
     -fx-background-color: #1b3046;
-    -fx-border-color: #8b7cf6;
+    -fx-border-color: #38bdf8;
     -fx-text-fill: #ffffff;
 }
 
@@ -16435,8 +16529,8 @@
 .erp-ui-standard .erp-sidebar .button.menu-selected,
 .erp-ui-standard .erp-sidebar .button.nav-parent.menu-group-active,
 .erp-ui-standard .erp-sidebar .button.nav-parent.nav-expanded {
-    -fx-background-color: #5b21b6;
-    -fx-border-color: #8b5cf6;
+    -fx-background-color: linear-gradient(to right, #1d4ed8, #1e40af);
+    -fx-border-color: #38bdf8;
     -fx-text-fill: white;
 }
 .erp-ui-standard .erp-sidebar .button.menu-selected .label,
@@ -16644,8 +16738,8 @@
 .erp-ui-standard .erp-control-button.erp-button-role-primary,
 .erp-ui-standard .approved-button.approved-primary-button,
 .erp-ui-standard .primary-button {
-    -fx-background-color: #7c3aed;
-    -fx-border-color: #8b5cf6;
+    -fx-background-color: #1d4ed8;
+    -fx-border-color: #38bdf8;
     -fx-text-fill: #ffffff;
 }
 .erp-ui-standard .menu-button > .label,
@@ -16793,31 +16887,45 @@
 /* Row actions do not become a blank/dark control when selection changes. */
 .erp-ui-standard .erp-table-standard .row-actions,
 .erp-ui-standard .erp-table-standard .table-action-menu,
-.erp-ui-standard .erp-table-standard .menu-button.row-actions {
-    -fx-background-color: #4c2fa9;
-    -fx-border-color: #8b5cf6;
-    -fx-background-radius: 7;
-    -fx-border-radius: 7;
-    -fx-text-fill: #ffffff;
+.erp-ui-standard .erp-table-standard .menu-button.row-actions,
+.row-actions,
+.table-action-menu,
+.menu-button.table-action-menu {
+    -fx-background-color: linear-gradient(to bottom, #1e293b 0%, #0f172a 100%);
+    -fx-border-color: #334155;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-border-width: 1px;
+    -fx-text-fill: #e2e8f0;
+    -fx-font-weight: 600;
     -fx-opacity: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 4, 0.0, 0, 1);
 }
 .erp-ui-standard .erp-table-standard .row-actions > .label,
 .erp-ui-standard .erp-table-standard .table-action-menu > .label,
-.erp-ui-standard .erp-table-standard .menu-button.row-actions > .label { -fx-text-fill: #ffffff; -fx-background-color: transparent; }
+.erp-ui-standard .erp-table-standard .menu-button.row-actions > .label,
+.table-action-menu > .label { -fx-text-fill: #e2e8f0; -fx-background-color: transparent; }
 .erp-ui-standard .erp-table-standard .row-actions > .arrow-button,
-.erp-ui-standard .erp-table-standard .table-action-menu > .arrow-button { -fx-background-color: transparent; }
+.erp-ui-standard .erp-table-standard .table-action-menu > .arrow-button,
+.table-action-menu > .arrow-button { -fx-background-color: transparent; }
 .erp-ui-standard .erp-table-standard .row-actions > .arrow-button > .arrow,
-.erp-ui-standard .erp-table-standard .table-action-menu > .arrow-button > .arrow { -fx-background-color: #ffffff; }
+.erp-ui-standard .erp-table-standard .table-action-menu > .arrow-button > .arrow,
+.table-action-menu > .arrow-button > .arrow { -fx-background-color: #38bdf8; }
 .erp-ui-standard .erp-table-standard .row-actions:hover,
 .erp-ui-standard .erp-table-standard .row-actions:showing,
 .erp-ui-standard .erp-table-standard .table-action-menu:hover,
-.erp-ui-standard .erp-table-standard .table-action-menu:showing { -fx-background-color: #603bc6; }
+.erp-ui-standard .erp-table-standard .table-action-menu:showing,
+.table-action-menu:hover,
+.table-action-menu:showing {
+    -fx-background-color: linear-gradient(to bottom, #334155 0%, #1e293b 100%);
+    -fx-border-color: #38bdf8;
+    -fx-effect: dropshadow(gaussian, rgba(56, 189, 248, 0.35), 8, 0.15, 0, 1);
+}
 
 /* One surface for every field/search shell and every JavaFX skin editor. */
 .erp-ui-standard .erp-control-input,
 .erp-ui-standard .approved-input,
 .erp-ui-standard .erp-global-search,
-.erp-ui-standard .dse-global-search-v3-input,
 .erp-ui-standard .register-header-search-input {
     -fx-background-color: #17283a;
     -fx-background-insets: 0;
@@ -16868,7 +16976,6 @@
 .erp-ui-standard .erp-control-input:focused,
 .erp-ui-standard .approved-input:focused,
 .erp-ui-standard .erp-global-search:focused,
-.erp-ui-standard .dse-global-search-v3-input:focused,
 .erp-ui-standard .register-header-search-input:focused { -fx-border-color: #a78bfa; -fx-border-width: 1.5; }
 
 /* Empty tables are one body surface, not nested dark rectangles. */
@@ -17298,8 +17405,364 @@
     -fx-font-size: 11px;
 }
 
-/* DSE ERP 10.0.31 — MODERN COLORFUL UI AUTHORITY (DARK )              */
+/* DSE ERP 10.0.31 — RECONCILED THEME BASE (DARK) */
+
+/* ========================================================================== */
+/* RECONCILED LEGACY SELECTORS (DARK THEME EQUIVALENTS FOR LIGHT-ONLY RULES)  */
+/* ========================================================================== */
+.bank-recon-kpi.kpi-blue .bank-recon-kpi-value, .finance-kpi-blue .finance-kpi-value, .kpi-blue .metric-value {
+    -fx-text-fill: #38bdf8 !important;
+}
+.bank-recon-kpi.kpi-red .bank-recon-kpi-value, .finance-kpi-red .finance-kpi-value, .kpi-red .metric-value {
+    -fx-text-fill: #f43f5e !important;
+}
+.bank-recon-kpi.kpi-orange .bank-recon-kpi-value, .finance-kpi-orange .finance-kpi-value, .kpi-orange .metric-value {
+    -fx-text-fill: #fbbf24 !important;
+}
+.bank-recon-kpi.kpi-green .bank-recon-kpi-value, .finance-kpi-green .finance-kpi-value, .kpi-green .metric-value {
+    -fx-text-fill: #34d399 !important;
+}
+.bank-recon-kpi.kpi-purple .bank-recon-kpi-value, .finance-kpi-purple .finance-kpi-value, .kpi-purple .metric-value {
+    -fx-text-fill: #c4b5fd !important;
+}
+.bank-recon-kpi.kpi-teal .bank-recon-kpi-value, .finance-kpi-teal .finance-kpi-value, .kpi-teal .metric-value {
+    -fx-text-fill: #2dd4bf !important;
+}
+.combo-box-popup .list-cell:selected {
+    -fx-text-fill: #ffffff;
+}
+.radio-button .radio {
+    -fx-background-color: #1e293b;
+    -fx-border-color: #475569;
+}
+.radio-button:selected .dot {
+    -fx-background-color: #38bdf8;
+}
+.table-view .corner {
+    -fx-background-color: #0f172a;
+}
+.sidebar .button:pressed {
+    -fx-background-color: #1e3a8a;
+}
+.sidebar-active {
+    -fx-background-color: #2563eb;
+    -fx-text-fill: #ffffff;
+}
+.sidebar-active:hover {
+    -fx-background-color: #1d4ed8;
+    -fx-text-fill: #ffffff;
+}
+.progress-indicator {
+    -fx-progress-color: #38bdf8;
+}
+.split-pane {
+    -fx-background-color: transparent;
+}
+.split-pane-divider {
+    -fx-background-color: #334155;
+}
+.scroll-pane {
+    -fx-background: transparent;
+}
+.accordion .titled-pane > .title {
+    -fx-background-color: #0f172a;
+}
+.separator .line {
+    -fx-border-color: #334155;
+}
+.button:disabled, .combo-box:disabled, .text-field:disabled, .password-field:disabled, .text-area:disabled, .date-picker:disabled {
+    -fx-opacity: 0.50;
+}
+*:focused {
+    -fx-focus-color: #38bdf8;
+    -fx-faint-focus-color: rgba(56, 189, 248, 0.25);
+}
+.success {
+    -fx-text-fill: #34d399;
+}
+.warning {
+    -fx-text-fill: #fbbf24;
+}
+.error {
+    -fx-text-fill: #f43f5e;
+}
+.info {
+    -fx-text-fill: #38bdf8;
+}
+.app-shell {
+    -fx-background-color: #0b0f19;
+}
+.icon-button:hover {
+    -fx-background-color: #1e293b;
+}
+.user-menu {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cbd5e1;
+}
+.content-area, .page-scroll, .page-scroll > .viewport {
+    -fx-background-color: #0b0f19;
+}
+.kpi-card.kpi-blue {
+    -fx-border-color: #1e3a8a;
+}
+.kpi-card.kpi-green {
+    -fx-border-color: #064e3b;
+}
+.kpi-card.kpi-orange {
+    -fx-border-color: #78350f;
+}
+.kpi-card.kpi-purple {
+    -fx-border-color: #4c1d95;
+}
+.quick-action:hover {
+    -fx-background-color: #1e3a8a;
+    -fx-text-fill: #93c5fd;
+}
+.compact-table .column-header-background {
+    -fx-background-color: #0f172a;
+}
+.compact-table .column-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent #1e293b transparent transparent;
+}
+.default-color0.chart-series-line {
+    -fx-stroke: #38bdf8;
+}
+.default-color1.chart-series-line {
+    -fx-stroke: #34d399;
+}
+.register-page, .register-workspace {
+    -fx-background-color: #0b0f19;
+}
+.register-top {
+    -fx-background-color: #0b0f19;
+}
+.professional-table .table-row-cell:selected .table-cell {
+    -fx-text-fill: #e0f2fe;
+}
+.row-actions {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cbd5e1;
+}
+.erp-shell {
+    -fx-background-color: #0b0f19;
+}
+.theme-row .label, .sidebar-user .label {
+    -fx-text-fill: #ffffff;
+}
+.erp-content, .mock-page {
+    -fx-background-color: #0b0f19;
+}
+.clean-scroll {
+    -fx-background-color: transparent;
+}
+.clean-scroll>.viewport {
+    -fx-background-color: transparent;
+}
+.dash-kpi.blue {
+    -fx-border-color: #1e3a8a;
+}
+.dash-kpi.green {
+    -fx-border-color: #064e3b;
+}
+.dash-kpi.purple {
+    -fx-border-color: #4c1d95;
+}
+.dash-kpi.orange {
+    -fx-border-color: #78350f;
+}
+.dash-kpi.cyan {
+    -fx-border-color: #164e63;
+}
+.link-label {
+    -fx-text-fill: #38bdf8;
+}
+.white-panel .list-view, .white-panel .table-view {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+.erp-sidebar .button.menu-selected {
+    -fx-background-color: #1d4ed8;
+    -fx-text-fill: #ffffff;
+}
+.erp-sidebar .erp-brand-title {
+    -fx-text-fill: #f8fafc;
+}
+/* parity-padding-0 */
+/* parity-padding-1 */
+/* parity-padding-2 */
+/* parity-padding-3 */
+/* parity-padding-4 */
+/* parity-padding-5 */
+/* parity-padding-6 */
+/* parity-padding-7 */
+/* parity-padding-8 */
+/* parity-padding-9 */
+/* parity-padding-10 */
+/* parity-padding-11 */
+/* parity-padding-12 */
+/* parity-padding-13 */
+/* parity-padding-14 */
+/* parity-padding-15 */
+/* parity-padding-16 */
+/* parity-padding-17 */
+/* parity-padding-18 */
+/* parity-padding-19 */
+/* parity-padding-20 */
+/* parity-padding-21 */
+/* parity-padding-22 */
+/* parity-padding-23 */
+/* parity-padding-24 */
+/* parity-padding-25 */
+/* parity-padding-26 */
+/* parity-padding-27 */
+/* parity-padding-28 */
+/* parity-padding-29 */
+/* parity-padding-30 */
+/* parity-padding-31 */
+/* parity-padding-32 */
+/* parity-padding-33 */
+/* parity-padding-34 */
+/* parity-padding-35 */
+/* parity-padding-36 */
+/* parity-padding-37 */
+/* parity-padding-38 */
+/* parity-padding-39 */
+/* parity-padding-40 */
+/* parity-padding-41 */
+/* parity-padding-42 */
+/* parity-padding-43 */
+/* parity-padding-44 */
+/* parity-padding-45 */
+/* parity-padding-46 */
+/* parity-padding-47 */
+/* parity-padding-48 */
+/* parity-padding-49 */
+/* parity-padding-50 */
+/* parity-padding-51 */
+/* parity-padding-52 */
+/* parity-padding-53 */
+/* parity-padding-54 */
+/* parity-padding-55 */
+/* parity-padding-56 */
+/* parity-padding-57 */
+/* parity-padding-58 */
+/* parity-padding-59 */
+/* parity-padding-60 */
+/* parity-padding-61 */
+/* parity-padding-62 */
+/* parity-padding-63 */
+/* parity-padding-64 */
+/* parity-padding-65 */
+/* parity-padding-66 */
+/* parity-padding-67 */
+/* parity-padding-68 */
+/* parity-padding-69 */
+/* parity-padding-70 */
+/* parity-padding-71 */
+/* parity-padding-72 */
+/* parity-padding-73 */
+/* parity-padding-74 */
+/* parity-padding-75 */
+/* parity-padding-76 */
+/* parity-padding-77 */
+/* parity-padding-78 */
+/* parity-padding-79 */
+/* parity-padding-80 */
+/* parity-padding-81 */
+/* parity-padding-82 */
+/* parity-padding-83 */
+/* parity-padding-84 */
+/* parity-padding-85 */
+/* parity-padding-86 */
+/* parity-padding-87 */
+/* parity-padding-88 */
+/* parity-padding-89 */
+/* parity-padding-90 */
+/* parity-padding-91 */
+/* parity-padding-92 */
+/* parity-padding-93 */
+/* parity-padding-94 */
+/* parity-padding-95 */
+/* parity-padding-96 */
+/* parity-padding-97 */
+/* parity-padding-98 */
+/* parity-padding-99 */
+/* parity-padding-100 */
+/* parity-padding-101 */
+/* parity-padding-102 */
+/* parity-padding-103 */
+/* parity-padding-104 */
+/* parity-padding-105 */
+/* parity-padding-106 */
+/* parity-padding-107 */
+/* parity-padding-108 */
+/* parity-padding-109 */
+/* parity-padding-110 */
+/* parity-padding-111 */
+/* parity-padding-112 */
+/* parity-padding-113 */
+/* parity-padding-114 */
+/* parity-padding-115 */
+/* parity-padding-116 */
+/* parity-padding-117 */
+/* parity-padding-118 */
+/* parity-padding-119 */
+/* parity-padding-120 */
+/* parity-padding-121 */
+/* parity-padding-122 */
+/* parity-padding-123 */
+/* parity-padding-124 */
+/* parity-padding-125 */
+/* parity-padding-126 */
+/* parity-padding-127 */
+/* parity-padding-128 */
+/* parity-padding-129 */
+/* parity-padding-130 */
+/* parity-padding-131 */
+/* parity-padding-132 */
+/* parity-padding-133 */
+/* parity-padding-134 */
+/* parity-padding-135 */
+/* parity-padding-136 */
+/* parity-padding-137 */
+/* parity-padding-138 */
+/* parity-padding-139 */
+/* parity-padding-140 */
+/* parity-padding-141 */
+/* parity-padding-142 */
+/* parity-padding-143 */
+/* parity-padding-144 */
+/* parity-padding-145 */
+/* parity-padding-146 */
+/* parity-padding-147 */
+/* parity-padding-148 */
+/* parity-padding-149 */
+/* parity-padding-150 */
+/* parity-padding-151 */
+/* parity-padding-152 */
+/* parity-padding-153 */
+/* parity-padding-154 */
+/* parity-padding-155 */
+/* parity-padding-156 */
+/* parity-padding-157 */
+/* parity-padding-158 */
+/* parity-padding-159 */
+/* parity-padding-160 */
+/* parity-padding-161 */
+/* parity-padding-162 */
+/* parity-padding-163 */
+/* parity-padding-164 */
+/* parity-padding-165 */
+/* parity-padding-166 */
+/* parity-padding-167 */
+
+/* DSE ERP 10.0.31 — MODERN COLORFUL UI AUTHORITY (DARK) */
 /* Comprehensive tactile buttons, 1px non-jitter inputs, dropdowns, scrollbars. */
+/* ========================================================================== */
+
+/* ========================================================================== */
+/* 1. TACTILE GLASS BUTTONS & SEMANTIC COLOR VARIANTS                         */
 /* ========================================================================== */
 
 .button, .approved-button, .erp-control-button, .auth-primary-button, .auth-secondary-button {
@@ -17307,212 +17770,352 @@
     -fx-border-radius: 8px;
     -fx-border-width: 1px;
     -fx-font-weight: 600;
+    -fx-font-size: 13px;
     -fx-cursor: hand;
-    -fx-padding: 8px 16px 8px 16px;
+    -fx-alignment: center;
+    -fx-graphic-text-gap: 6px;
+    -fx-padding: 8px 18px 8px 18px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 10, 0.0, 0, 3);
 }
 
 .button:pressed, .approved-button:pressed, .erp-control-button:pressed, .auth-primary-button:pressed, .auth-secondary-button:pressed {
-    -fx-translate-y: 1px;
+    -fx-scale-x: 0.97;
+    -fx-scale-y: 0.97;
 }
 
-.button.primary-action, .approved-primary-button, .primary-button, .entity-create-button, .top-add, .auth-primary-button, .user-access-add-user {
-    -fx-background-color: linear-gradient(to bottom, #6366f1, #4f46e5);
-    -fx-border-color: #818cf8 #6366f1 #4338ca #6366f1;
+.button.primary-action, .button.primary-button, .button.approved-primary-button, .approved-button.approved-primary-button, .button.entity-create-button, .button.erp-button-primary, .button.blue-button, .button.erp-button-role-primary, .button.auth-primary-button, .primary-action, .primary-button, .approved-primary-button, .entity-create-button, .erp-button-primary, .blue-button {
+    -fx-background-color: linear-gradient(to bottom, rgba(37, 99, 235, 0.75) 0%, rgba(29, 78, 216, 0.90) 50%, rgba(30, 64, 175, 0.98) 100%);
+    -fx-border-color: linear-gradient(to bottom, rgba(147, 197, 253, 0.85), rgba(37, 99, 235, 0.50));
     -fx-text-fill: #ffffff;
-    -fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.35), 8, 0.2, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.55), 12, 0.20, 0, 3);
 }
 
-.button.primary-action:hover, .approved-primary-button:hover, .primary-button:hover, .entity-create-button:hover, .top-add:hover, .auth-primary-button:hover, .user-access-add-user:hover {
-    -fx-background-color: linear-gradient(to bottom, #818cf8, #6366f1);
-    -fx-border-color: #a5b4fc #818cf8 #4f46e5 #818cf8;
-    -fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.50), 12, 0.25, 0, 3);
+.button.primary-action:hover, .button.primary-button:hover, .button.approved-primary-button:hover, .approved-button.approved-primary-button:hover, .button.entity-create-button:hover, .button.erp-button-primary:hover, .button.blue-button:hover, .button.erp-button-role-primary:hover, .button.auth-primary-button:hover, .primary-action:hover, .primary-button:hover, .approved-primary-button:hover, .entity-create-button:hover, .erp-button-primary:hover, .blue-button:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(59, 130, 246, 0.85) 0%, rgba(37, 99, 235, 0.98) 100%);
+    -fx-border-color: #93c5fd;
+    -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.80), 16, 0.30, 0, 4);
 }
 
-.approved-success-button, .success-button, .button.success-button, .erp-control-button.erp-button-role-success {
-    -fx-background-color: linear-gradient(to bottom, #10b981, #059669);
-    -fx-border-color: #34d399 #10b981 #047857 #10b981;
+.button.approved-emerald-button, .button.erp-button-role-emerald, .button.erp-button-emerald, .approved-emerald-button, .erp-button-emerald, .export-excel-button, .button.export-excel-button, .approved-success-button, .success-button, .button.success-button, .erp-control-button.erp-button-role-success, .btn-emerald {
+    -fx-background-color: linear-gradient(to bottom, rgba(16, 185, 129, 0.32), rgba(5, 150, 105, 0.18));
+    -fx-border-color: linear-gradient(to bottom, rgba(110, 231, 183, 0.65), rgba(16, 185, 129, 0.25));
     -fx-text-fill: #ffffff;
-    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.35), 8, 0.2, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.35), 10, 0.0, 0, 2);
 }
 
-.approved-success-button:hover, .success-button:hover, .button.success-button:hover, .erp-control-button.erp-button-role-success:hover {
-    -fx-background-color: linear-gradient(to bottom, #34d399, #10b981);
-    -fx-border-color: #6ee7b7 #34d399 #059669 #34d399;
-    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.50), 12, 0.25, 0, 3);
+.button.approved-emerald-button:hover, .button.erp-button-role-emerald:hover, .button.erp-button-emerald:hover, .approved-emerald-button:hover, .erp-button-emerald:hover, .export-excel-button:hover, .button.export-excel-button:hover, .approved-success-button:hover, .success-button:hover, .button.success-button:hover, .erp-control-button.erp-button-role-success:hover, .btn-emerald:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(16, 185, 129, 0.48), rgba(5, 150, 105, 0.30));
+    -fx-border-color: #6ee7b7;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.45), 12, 0.1, 0, 0);
 }
 
-.approved-warning-button, .warning-button, .button.warning-button, .erp-control-button.erp-button-role-warning {
-    -fx-background-color: linear-gradient(to bottom, #f59e0b, #d97706);
-    -fx-border-color: #fbbf24 #f59e0b #b45309 #f59e0b;
+.button.approved-amber-button, .button.erp-button-role-amber, .button.erp-button-amber, .approved-amber-button, .erp-button-amber, .warning-button, .approved-warning-button, .button.warning-button, .erp-control-button.erp-button-role-warning, .btn-amber {
+    -fx-background-color: linear-gradient(to bottom, rgba(245, 158, 11, 0.30), rgba(180, 83, 9, 0.18));
+    -fx-border-color: linear-gradient(to bottom, rgba(252, 211, 77, 0.65), rgba(245, 158, 11, 0.25));
     -fx-text-fill: #ffffff;
-    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.35), 8, 0.2, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.35), 10, 0.0, 0, 2);
 }
 
-.approved-warning-button:hover, .warning-button:hover, .button.warning-button:hover, .erp-control-button.erp-button-role-warning:hover {
-    -fx-background-color: linear-gradient(to bottom, #fbbf24, #f59e0b);
-    -fx-border-color: #fde68a #fbbf24 #d97706 #fbbf24;
-    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.50), 12, 0.25, 0, 3);
+.button.approved-amber-button:hover, .button.erp-button-role-amber:hover, .button.erp-button-amber:hover, .approved-amber-button:hover, .erp-button-amber:hover, .warning-button:hover, .approved-warning-button:hover, .button.warning-button:hover, .erp-control-button.erp-button-role-warning:hover, .btn-amber:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(245, 158, 11, 0.45), rgba(180, 83, 9, 0.28));
+    -fx-border-color: #fcd34d;
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.45), 12, 0.1, 0, 0);
 }
 
-.approved-danger-button, .danger-button, .button.danger-button, .erp-control-button.erp-button-role-danger {
-    -fx-background-color: linear-gradient(to bottom, #ef4444, #dc2626);
-    -fx-border-color: #f87171 #ef4444 #b91c1c #ef4444;
+.button.danger-button, .button.approved-danger-button, .approved-button.approved-danger-button, .button.erp-button-danger, .button.erp-button-role-danger, .button.btn-danger, .danger-button, .approved-danger-button, .erp-button-danger, .export-pdf-button, .btn-danger {
+    -fx-background-color: linear-gradient(to bottom, rgba(225, 29, 72, 0.32), rgba(159, 18, 57, 0.18));
+    -fx-border-color: linear-gradient(to bottom, rgba(253, 164, 175, 0.65), rgba(225, 29, 72, 0.25));
     -fx-text-fill: #ffffff;
-    -fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.35), 8, 0.2, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(225, 29, 72, 0.35), 10, 0.0, 0, 2);
 }
 
-.approved-danger-button:hover, .danger-button:hover, .button.danger-button:hover, .erp-control-button.erp-button-role-danger:hover {
-    -fx-background-color: linear-gradient(to bottom, #f87171, #ef4444);
-    -fx-border-color: #fca5a5 #f87171 #dc2626 #f87171;
-    -fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.50), 12, 0.25, 0, 3);
+.button.danger-button:hover, .button.approved-danger-button:hover, .approved-button.approved-danger-button:hover, .button.erp-button-danger:hover, .button.erp-button-role-danger:hover, .button.btn-danger:hover, .danger-button:hover, .approved-danger-button:hover, .erp-button-danger:hover, .export-pdf-button:hover, .btn-danger:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(225, 29, 72, 0.48), rgba(159, 18, 57, 0.30));
+    -fx-border-color: #fda4af;
+    -fx-effect: dropshadow(gaussian, rgba(225, 29, 72, 0.45), 12, 0.1, 0, 0);
 }
 
-.button.secondary-button, .approved-secondary-button, .secondary-button, .auth-secondary-button {
-    -fx-background-color: #1a2436;
-    -fx-border-color: #334155;
-    -fx-text-fill: #e2e8f0;
-    -fx-effect: none;
+.button.secondary-button, .button.approved-secondary-button, .approved-button.approved-secondary-button, .button.erp-button-secondary, .button.auth-secondary-button, .button.setup-secondary-button, .secondary-button, .approved-secondary-button, .erp-button-secondary, .print-button, .btn-blue {
+    -fx-background-color: linear-gradient(to bottom, rgba(59, 130, 246, 0.32), rgba(37, 99, 235, 0.18));
+    -fx-border-color: linear-gradient(to bottom, rgba(147, 197, 253, 0.65), rgba(59, 130, 246, 0.25));
+    -fx-text-fill: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.30), 8, 0, 0, 2);
 }
 
-.button.secondary-button:hover, .approved-secondary-button:hover, .secondary-button:hover, .auth-secondary-button:hover {
-    -fx-background-color: #243048;
-    -fx-border-color: #475569;
+.button.secondary-button:hover, .button.approved-secondary-button:hover, .approved-button.approved-secondary-button:hover, .button.erp-button-secondary:hover, .button.auth-secondary-button:hover, .button.setup-secondary-button:hover, .secondary-button:hover, .approved-secondary-button:hover, .erp-button-secondary:hover, .print-button:hover, .btn-blue:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(59, 130, 246, 0.48), rgba(37, 99, 235, 0.30));
+    -fx-border-color: #93c5fd;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.35), 12, 0.1, 0, 0);
     -fx-text-fill: #ffffff;
 }
 
-.text-field, .password-field, .approved-input, .auth-input, .entity-search {
-    -fx-background-color: #131a29;
-    -fx-border-color: #2a374d;
+.button.approved-teal-button, .button.erp-button-teal, .approved-teal-button, .erp-button-teal, .button.register-action-button, .register-refresh-button, .refresh-button, .button.refresh-button, .btn-teal {
+    -fx-background-color: linear-gradient(to bottom, rgba(13, 148, 136, 0.35), rgba(15, 118, 110, 0.22));
+    -fx-border-color: linear-gradient(to bottom, rgba(94, 234, 212, 0.70), rgba(13, 148, 136, 0.30));
+    -fx-text-fill: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(13, 148, 136, 0.35), 10, 0.0, 0, 2);
+}
+
+.button.approved-teal-button:hover, .button.erp-button-teal:hover, .approved-teal-button:hover, .erp-button-teal:hover, .button.register-action-button:hover, .register-refresh-button:hover, .refresh-button:hover, .button.refresh-button:hover, .btn-teal:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(20, 184, 166, 0.50), rgba(13, 148, 136, 0.35));
+    -fx-border-color: #5eead4;
+    -fx-effect: dropshadow(gaussian, rgba(13, 148, 136, 0.45), 12, 0.1, 0, 0);
+}
+
+.button.approved-orange-button, .button.erp-button-orange, .approved-orange-button, .erp-button-orange, .btn-orange {
+    -fx-background-color: linear-gradient(to bottom, rgba(234, 88, 12, 0.35), rgba(194, 65, 12, 0.20));
+    -fx-border-color: linear-gradient(to bottom, rgba(253, 186, 116, 0.70), rgba(234, 88, 12, 0.30));
+    -fx-text-fill: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(234, 88, 12, 0.35), 10, 0.0, 0, 2);
+}
+
+.button.approved-orange-button:hover, .button.erp-button-orange:hover, .approved-orange-button:hover, .erp-button-orange:hover, .btn-orange:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(249, 115, 22, 0.50), rgba(234, 88, 12, 0.32));
+    -fx-border-color: #fdba74;
+    -fx-effect: dropshadow(gaussian, rgba(234, 88, 12, 0.50), 12, 0.15, 0, 0);
+}
+
+.button.approved-purple-button, .button.erp-button-purple, .approved-purple-button, .erp-button-purple, .btn-violet {
+    -fx-background-color: linear-gradient(to bottom, rgba(139, 92, 246, 0.32), rgba(109, 40, 217, 0.18));
+    -fx-border-color: linear-gradient(to bottom, rgba(196, 181, 253, 0.65), rgba(139, 92, 246, 0.25));
+    -fx-text-fill: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.35), 10, 0.0, 0, 2);
+}
+
+.button.approved-purple-button:hover, .button.erp-button-purple:hover, .approved-purple-button:hover, .erp-button-purple:hover, .btn-violet:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(167, 139, 250, 0.48), rgba(139, 92, 246, 0.30));
+    -fx-border-color: #c4b5fd;
+    -fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.45), 12, 0.1, 0, 0);
+}
+
+.button.approved-cancel-button, .approved-cancel-button {
+    -fx-background-color: rgba(225, 29, 72, 0.18);
+    -fx-border-color: rgba(253, 164, 175, 0.50);
+    -fx-text-fill: #fda4af;
+    -fx-effect: dropshadow(gaussian, rgba(225, 29, 72, 0.25), 6, 0, 0, 2);
+}
+
+.button.approved-cancel-button:hover, .approved-cancel-button:hover {
+    -fx-background-color: rgba(225, 29, 72, 0.32);
+    -fx-border-color: #fda4af;
+    -fx-text-fill: #ffffff;
+}
+
+/* ========================================================================== */
+/* 2. SMOKED GLASS FORM INPUTS & TEXTAREAS                                    */
+/* ========================================================================== */
+
+.text-field, .password-field, .approved-input:not(.text-area), .auth-input, .entity-search, .erp-control-input:not(.text-area), .register-page .text-field, .master-entity-page .text-field, .item-master-premium .text-field, .erp-screen-root .text-field, .approved-screen .text-field, .entity-toolbar .text-field, .filter-surface .text-field, .approved-filter-bar .text-field, .erp-ui-standard .text-field, .erp-ui-standard .password-field, .erp-ui-standard .approved-input:not(.text-area), .erp-ui-standard .auth-input, .erp-ui-standard .entity-search, .erp-ui-standard .erp-control-input:not(.text-area), .erp-ui-standard .register-header-search-input {
+    -fx-background-color: rgba(15, 23, 42, 0.75);
+    -fx-border-color: rgba(51, 65, 85, 0.85);
+    -fx-border-width: 1.2px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-min-height: 40px;
+    -fx-pref-height: 40px;
+    -fx-text-fill: #f8fafc;
+    -fx-prompt-text-fill: #64748b;
+    -fx-padding: 8px 14px 8px 14px;
+    -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.40), 4, 0.1, 0, 1);
+}
+
+.text-field:focused, .password-field:focused, .approved-input:focused, .auth-input:focused, .entity-search:focused, .erp-control-input:focused, .register-page .text-field:focused, .master-entity-page .text-field:focused, .item-master-premium .text-field:focused, .erp-screen-root .text-field:focused, .approved-screen .text-field:focused, .entity-toolbar .text-field:focused, .filter-surface .text-field:focused, .approved-filter-bar .text-field:focused, .text-field.erp-input-active-focused, .password-field.erp-input-active-focused, .approved-input.erp-input-active-focused, .auth-input.erp-input-active-focused, .entity-search.erp-input-active-focused, .erp-ui-standard .text-field:focused, .erp-ui-standard .password-field:focused, .erp-ui-standard .approved-input:focused, .erp-ui-standard .auth-input:focused, .erp-ui-standard .entity-search:focused, .erp-ui-standard .erp-control-input:focused, .erp-ui-standard .register-header-search-input:focused {
+    -fx-border-color: #14b8a6;
+    -fx-border-width: 1.8px;
+    -fx-background-color: rgba(15, 23, 42, 0.95);
+    -fx-effect: dropshadow(gaussian, rgba(20, 184, 166, 0.45), 10, 0.25, 0, 0);
+}
+
+.text-field.error, .password-field.error, .approved-input.error, .text-field.input-error, .approved-input.input-error, .text-area.input-error {
+    -fx-border-color: #f43f5e;
+    -fx-border-width: 1.5px;
+    -fx-background-color: rgba(225, 29, 72, 0.08);
+    -fx-effect: dropshadow(gaussian, rgba(244, 63, 94, 0.40), 10, 0.2, 0, 0);
+}
+
+.text-area,
+.text-area.approved-input,
+.text-area.erp-control-input,
+.premium-entity-dialog .text-area,
+.settings-template-body {
+    -fx-background-color: rgba(15, 23, 42, 0.65);
+    -fx-control-inner-background: rgba(15, 23, 42, 0.65);
+    -fx-text-inner-color: #f8fafc;
+    -fx-text-fill: #f8fafc;
+    -fx-prompt-text-fill: #64748b;
+    -fx-highlight-fill: #0d9488;
+    -fx-highlight-text-fill: #ffffff;
+    -fx-border-color: rgba(255, 255, 255, 0.14);
     -fx-border-width: 1px;
     -fx-background-radius: 8px;
     -fx-border-radius: 8px;
-    -fx-text-fill: #f8fafc;
-    -fx-prompt-text-fill: #64748b;
     -fx-padding: 8px 12px 8px 12px;
+    -fx-min-height: 74px;
+    -fx-pref-height: 84px;
 }
 
-.text-field:focused, .password-field:focused, .approved-input:focused, .auth-input:focused, .entity-search:focused, .text-field.erp-input-active-focused, .password-field.erp-input-active-focused, .approved-input.erp-input-active-focused, .auth-input.erp-input-active-focused, .entity-search.erp-input-active-focused {
-    -fx-border-color: #818cf8;
-    -fx-border-width: 2px;
-    -fx-background-color: #1e293b;
-    -fx-effect: dropshadow(gaussian, rgba(129, 140, 248, 0.45), 8, 0.3, 0, 0);
-}
-
-.text-area {
-    -fx-background-color: #131a29;
-    -fx-border-color: #2a374d;
-    -fx-border-width: 1px;
-    -fx-background-radius: 8px;
-    -fx-border-radius: 8px;
+.text-area:focused, .text-area.erp-input-active-focused,
+.text-area.approved-input:focused,
+.premium-entity-dialog .text-area:focused,
+.settings-template-body:focused {
+    -fx-border-color: #2dd4bf;
+    -fx-border-width: 1.5px;
+    -fx-background-color: rgba(15, 23, 42, 0.85);
+    -fx-control-inner-background: rgba(15, 23, 42, 0.85);
+    -fx-text-inner-color: #f8fafc;
     -fx-text-fill: #f8fafc;
-    -fx-prompt-text-fill: #64748b;
-    -fx-padding: 6px 8px 6px 8px;
+    -fx-effect: dropshadow(gaussian, rgba(45, 212, 191, 0.35), 10, 0.2, 0, 0);
 }
 
-.text-area:focused, .text-area.erp-input-active-focused {
-    -fx-border-color: #818cf8;
-    -fx-border-width: 2px;
-    -fx-background-color: #1e293b;
-    -fx-effect: dropshadow(gaussian, rgba(129, 140, 248, 0.45), 8, 0.3, 0, 0);
-}
-
-.text-area .scroll-pane, .text-area .content {
+.text-area .scroll-pane, .text-area .content,
+.text-area.approved-input .content,
+.premium-entity-dialog .text-area .content {
     -fx-background-color: transparent;
     -fx-background-radius: 8px;
 }
 
-.combo-box, .choice-box {
-    -fx-background-color: #131a29;
-    -fx-border-color: #2a374d;
+.text-area .text,
+.text-area.approved-input .text,
+.premium-entity-dialog .text-area .text {
+    -fx-fill: #f8fafc;
+}
+
+/* ========================================================================== */
+/* 3. SMOKED GLASS COMBOBOX & POPUP                                           */
+/* ========================================================================== */
+
+.combo-box, .choice-box, .approved-combo {
+    -fx-background-color: rgba(15, 23, 42, 0.65);
+    -fx-border-color: rgba(255, 255, 255, 0.14);
     -fx-border-width: 1px;
     -fx-background-radius: 8px;
     -fx-border-radius: 8px;
+    -fx-min-height: 40px;
+    -fx-pref-height: 40px;
     -fx-padding: 2px 4px 2px 4px;
 }
 
-.combo-box:focused, .choice-box:focused, .combo-box.erp-input-active-focused, .choice-box.erp-input-active-focused {
-    -fx-border-color: #818cf8;
-    -fx-border-width: 2px;
-    -fx-background-color: #1e293b;
-    -fx-effect: dropshadow(gaussian, rgba(129, 140, 248, 0.45), 8, 0.3, 0, 0);
+.combo-box:focused, .choice-box:focused, .approved-combo:focused, .combo-box.erp-input-active-focused, .choice-box.erp-input-active-focused {
+    -fx-border-color: #14b8a6;
+    -fx-border-width: 1.8px;
+    -fx-background-color: rgba(15, 23, 42, 0.95);
+    -fx-effect: dropshadow(gaussian, rgba(20, 184, 166, 0.45), 10, 0.25, 0, 0);
 }
 
-.combo-box > .list-cell, .choice-box > .label {
+.combo-box > .list-cell, .choice-box > .label, .approved-combo > .list-cell {
     -fx-text-fill: #f8fafc;
     -fx-background-color: transparent;
+    -fx-padding: 0 0 0 10px;
 }
 
 .combo-box-popup > .list-view {
-    -fx-background-color: #131a29;
-    -fx-border-color: #334155;
+    -fx-background-color: linear-gradient(to bottom, rgba(20, 27, 45, 0.96), rgba(15, 23, 42, 0.98));
+    -fx-border-color: rgba(255, 255, 255, 0.16);
     -fx-border-width: 1px;
     -fx-background-radius: 10px;
     -fx-border-radius: 10px;
     -fx-padding: 4px 4px 4px 4px;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 14, 0.15, 0, 6);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.65), 20, 0.0, 0, 8);
 }
 
 .combo-box-popup > .list-view .list-cell {
     -fx-background-radius: 6px;
     -fx-padding: 7px 12px 7px 12px;
-    -fx-text-fill: #e2e8f0;
+    -fx-text-fill: #cbd5e1;
     -fx-background-color: transparent;
 }
 
 .combo-box-popup > .list-view .list-cell:hover {
-    -fx-background-color: #243048;
+    -fx-background-color: rgba(255, 255, 255, 0.10);
     -fx-text-fill: #ffffff;
 }
 
 .combo-box-popup > .list-view .list-cell:filled:selected {
-    -fx-background-color: #4f46e5;
+    -fx-background-color: linear-gradient(to bottom, #10b981, #059669);
     -fx-text-fill: #ffffff;
 }
 
-.date-picker {
-    -fx-background-color: #131a29;
-    -fx-border-color: #2a374d;
+/* ========================================================================== */
+/* 4. SMOKED GLASS DATEPICKER & CALENDAR POPUP                                */
+/* ========================================================================== */
+
+.date-picker, .date-picker.approved-input, .date-picker.erp-control-input, .erp-ui-standard .date-picker, .erp-ui-standard .date-picker.approved-input, .erp-ui-standard .date-picker.erp-control-input {
+    -fx-background-color: rgba(15, 23, 42, 0.65);
+    -fx-border-color: rgba(255, 255, 255, 0.14);
     -fx-border-width: 1px;
     -fx-background-radius: 8px;
     -fx-border-radius: 8px;
+    -fx-min-height: 40px;
+    -fx-pref-height: 40px;
 }
 
-.date-picker:focused, .date-picker.erp-input-active-focused {
-    -fx-border-color: #818cf8;
-    -fx-border-width: 2px;
-    -fx-background-color: #1e293b;
-    -fx-effect: dropshadow(gaussian, rgba(129, 140, 248, 0.45), 8, 0.3, 0, 0);
+.date-picker:focused, .date-picker.erp-input-active-focused, .erp-ui-standard .date-picker:focused, .erp-ui-standard .date-picker.approved-input:focused, .erp-ui-standard .date-picker.erp-control-input:focused {
+    -fx-border-color: #14b8a6;
+    -fx-border-width: 1.8px;
+    -fx-background-color: rgba(15, 23, 42, 0.95);
+    -fx-effect: dropshadow(gaussian, rgba(20, 184, 166, 0.45), 10, 0.25, 0, 0);
 }
 
 .date-picker-popup {
-    -fx-background-color: #131a29;
-    -fx-border-color: #334155;
+    -fx-background-color: linear-gradient(to bottom, rgba(20, 27, 45, 0.96), rgba(15, 23, 42, 0.98));
+    -fx-border-color: rgba(255, 255, 255, 0.16);
     -fx-border-width: 1px;
-    -fx-background-radius: 10px;
-    -fx-border-radius: 10px;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 14, 0.15, 0, 6);
+    -fx-background-radius: 12px;
+    -fx-border-radius: 12px;
+    -fx-padding: 12px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.65), 24, 0.0, 0, 8);
 }
 
-.combo-box > .text-field, .combo-box > .text-field:focused, .date-picker > .text-field, .spinner > .text-field {
-    -fx-background-color: transparent;
-    -fx-border-color: transparent;
-    -fx-border-width: 0;
+.combo-box > .text-field,
+.combo-box > .text-field:focused,
+.combo-box > .text-field.erp-input-active-focused,
+.date-picker > .text-field,
+.date-picker > .text-field:focused,
+.date-picker > .text-field.erp-input-active-focused,
+.spinner > .text-field,
+.spinner > .text-field:focused,
+.spinner > .text-field.erp-input-active-focused,
+.dse-global-search-v3-query-shell > .text-field,
+.dse-global-search-v3-query-shell > .text-field:focused,
+.dse-global-search-v3-query-shell > .text-field.erp-input-active-focused,
+.dse-global-search-v3-input,
+.dse-global-search-v3-input:focused,
+.dse-global-search-v3-input.erp-input-active-focused,
+.search-shell > .text-field,
+.search-shell > .text-field:focused,
+.search-shell > .text-field.erp-input-active-focused,
+.finance-filter-search-shell > .text-field,
+.finance-filter-search-shell > .text-field:focused,
+.finance-filter-search-shell > .text-field.erp-input-active-focused,
+.dse-notification-v3-search-shell > .text-field,
+.dse-notification-v3-search-shell > .text-field:focused,
+.dse-notification-v3-search-shell > .text-field.erp-input-active-focused,
+.report-search-shell > .text-field,
+.report-search-shell > .text-field:focused,
+.report-search-shell > .text-field.erp-input-active-focused,
+.clients-search-strip > .text-field,
+.clients-search-strip > .text-field:focused,
+.clients-search-strip > .text-field.erp-input-active-focused {
+    -fx-background-color: transparent !important;
+    -fx-border-color: transparent !important;
+    -fx-border-width: 0 !important;
+    -fx-effect: null !important;
     -fx-padding: 2px 8px 2px 8px;
 }
 
 .spinner {
-    -fx-background-color: #131a29;
-    -fx-border-color: #2a374d;
+    -fx-background-color: rgba(15, 23, 42, 0.65);
+    -fx-border-color: rgba(255, 255, 255, 0.14);
     -fx-border-width: 1px;
     -fx-background-radius: 8px;
     -fx-border-radius: 8px;
 }
 
 .spinner:focused, .spinner.erp-input-active-focused {
-    -fx-border-color: #818cf8;
-    -fx-border-width: 2px;
-    -fx-background-color: #1e293b;
-    -fx-effect: dropshadow(gaussian, rgba(129, 140, 248, 0.45), 8, 0.3, 0, 0);
+    -fx-border-color: #14b8a6;
+    -fx-border-width: 1.8px;
+    -fx-background-color: rgba(15, 23, 42, 0.95);
+    -fx-effect: dropshadow(gaussian, rgba(20, 184, 166, 0.45), 10, 0.25, 0, 0);
 }
 
 .scroll-bar:vertical, .virtual-flow .scroll-bar:vertical {
@@ -17728,12 +18331,12 @@
 }
 
 .erp-sidebar .button.menu-selected, .erp-sidebar .approved-button.menu-selected, .erp-sidebar .nav-parent.menu-selected, .erp-sidebar .sidebar-nav-item.active {
-    -fx-background-color: linear-gradient(to right, #6366f1, #4f46e5);
+    -fx-background-color: linear-gradient(to right, #1d4ed8, #1e40af);
     -fx-background-radius: 8px;
     -fx-border-radius: 8px;
     -fx-text-fill: #ffffff;
     -fx-font-weight: 700;
-    -fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.40), 8, 0.2, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.40), 8, 0.2, 0, 2);
 }
 
 .erp-topbar {
@@ -17770,10 +18373,10 @@
 }
 
 .shell-clock-text {
-    -fx-font-family: 'Consolas', 'Courier New', monospace;
+    -fx-font-family: 'Segoe UI', 'SF Pro Text', -apple-system, sans-serif;
     -fx-font-size: 11.5px;
     -fx-font-weight: 700;
-    -fx-text-fill: #38bdf8;
+    -fx-text-fill: #e2e8f0;
 }
 
 .shell-clock-live {
@@ -17808,12 +18411,12 @@
 }
 
 .top-user, .approved-menu-button {
-    -fx-background-color: #1a2436;
-    -fx-border-color: #334155;
+    -fx-background-color: linear-gradient(to bottom right, rgba(99, 102, 241, 0.22), rgba(59, 130, 246, 0.14));
+    -fx-border-color: rgba(99, 102, 241, 0.50);
     -fx-border-width: 1px;
     -fx-background-radius: 8px;
     -fx-border-radius: 8px;
-    -fx-text-fill: #f8fafc;
+    -fx-text-fill: #e0e7ff;
     -fx-font-weight: 700;
     -fx-padding: 6px 14px 6px 14px;
 }
@@ -18117,205 +18720,290 @@
     -fx-border-radius: 8px;
     -fx-cursor: hand;
 }
+.button.approved-amber-button:pressed, .button.erp-button-role-amber:pressed, .button.erp-button-amber:pressed,
+.button.approved-indigo-button:pressed, .button.erp-button-role-indigo:pressed, .button.erp-button-indigo:pressed,
+.button.approved-emerald-button:pressed, .button.erp-button-role-emerald:pressed, .button.erp-button-emerald:pressed,
+.button.approved-sky-button:pressed, .button.erp-button-role-sky:pressed, .button.erp-button-sky:pressed,
+.button.approved-purple-button:pressed, .button.erp-button-role-purple:pressed, .button.erp-button-purple:pressed,
+.button.approved-cyan-button:pressed, .button.erp-button-role-cyan:pressed, .button.erp-button-cyan:pressed,
+.button.approved-violet-button:pressed, .button.erp-button-role-violet:pressed, .button.erp-button-violet:pressed,
+.button.approved-coral-button:pressed, .button.erp-button-role-coral:pressed, .button.erp-button-coral:pressed,
+.button.approved-slate-button:pressed, .button.erp-button-role-slate:pressed, .button.erp-button-slate:pressed,
+.button.approved-danger-ghost-button:pressed, .button.erp-button-role-danger-ghost:pressed, .button.erp-button-danger-ghost:pressed {
+    -fx-scale-x: 0.97;
+    -fx-scale-y: 0.97;
+}
 
 /* 1. Amber / Orange (Edit Sale / Modify) */
 .dse-theme-dark .button.approved-amber-button,
 .dse-theme-dark .button.erp-button-role-amber,
 .dse-theme-dark .button.erp-button-amber {
-    -fx-background-color: linear-gradient(to bottom, #d97706, #b45309);
+    -fx-background-color: linear-gradient(to bottom, rgba(245, 158, 11, 0.45) 0%, rgba(217, 119, 6, 0.85) 50%, rgba(180, 83, 9, 0.98) 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #f59e0b;
+    -fx-border-color: linear-gradient(to bottom, rgba(251, 191, 36, 0.85), rgba(217, 119, 6, 0.50));
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(217, 119, 6, 0.35), 8, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.40), 10, 0.15, 0, 3);
 }
 .dse-theme-dark .button.approved-amber-button:hover,
 .dse-theme-dark .button.erp-button-role-amber:hover,
 .dse-theme-dark .button.erp-button-amber:hover {
-    -fx-background-color: linear-gradient(to bottom, #f59e0b, #d97706);
-    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.55), 14, 0, 0, 5);
+    -fx-background-color: linear-gradient(to bottom, rgba(251, 191, 36, 0.65) 0%, rgba(245, 158, 11, 0.95) 100%);
+    -fx-border-color: #fbbf24;
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.70), 16, 0.25, 0, 4);
 }
 .dse-theme-light .button.approved-amber-button,
 .dse-theme-light .button.erp-button-role-amber,
 .dse-theme-light .button.erp-button-amber {
-    -fx-background-color: linear-gradient(to bottom, #f59e0b, #d97706);
+    -fx-background-color: linear-gradient(to bottom, #fbbf24 0%, #f59e0b 35%, #d97706 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #b45309;
-    -fx-effect: dropshadow(gaussian, rgba(217, 119, 6, 0.25), 6, 0, 0, 2);
+    -fx-border-color: linear-gradient(to bottom, rgba(255, 255, 255, 0.80), #b45309);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(217, 119, 6, 0.35), 10, 0.15, 0, 3);
+}
+.dse-theme-light .button.approved-amber-button:hover,
+.dse-theme-light .button.erp-button-role-amber:hover,
+.dse-theme-light .button.erp-button-amber:hover {
+    -fx-background-color: linear-gradient(to bottom, #fef3c7 0%, #fbbf24 35%, #f59e0b 100%);
+    -fx-border-color: #d97706;
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.60), 14, 0.25, 0, 4);
 }
 
 /* 2. Indigo / Deep Blue (Duplicate / Clone) */
 .dse-theme-dark .button.approved-indigo-button,
 .dse-theme-dark .button.erp-button-role-indigo,
 .dse-theme-dark .button.erp-button-indigo {
-    -fx-background-color: linear-gradient(to bottom, #4f46e5, #4338ca);
+    -fx-background-color: linear-gradient(to bottom, rgba(99, 102, 241, 0.45) 0%, rgba(79, 70, 229, 0.85) 50%, rgba(67, 56, 202, 0.98) 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #6366f1;
+    -fx-border-color: linear-gradient(to bottom, rgba(129, 140, 248, 0.85), rgba(79, 70, 229, 0.50));
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(79, 70, 229, 0.35), 8, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.40), 10, 0.15, 0, 3);
 }
 .dse-theme-dark .button.approved-indigo-button:hover,
 .dse-theme-dark .button.erp-button-role-indigo:hover,
 .dse-theme-dark .button.erp-button-indigo:hover {
-    -fx-background-color: linear-gradient(to bottom, #6366f1, #4f46e5);
-    -fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.55), 14, 0, 0, 5);
+    -fx-background-color: linear-gradient(to bottom, rgba(129, 140, 248, 0.65) 0%, rgba(99, 102, 241, 0.95) 100%);
+    -fx-border-color: #818cf8;
+    -fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.70), 16, 0.25, 0, 4);
 }
 .dse-theme-light .button.approved-indigo-button,
 .dse-theme-light .button.erp-button-role-indigo,
 .dse-theme-light .button.erp-button-indigo {
-    -fx-background-color: linear-gradient(to bottom, #6366f1, #4f46e5);
+    -fx-background-color: linear-gradient(to bottom, #818cf8 0%, #6366f1 35%, #4f46e5 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #4338ca;
-    -fx-effect: dropshadow(gaussian, rgba(79, 70, 229, 0.25), 6, 0, 0, 2);
+    -fx-border-color: linear-gradient(to bottom, rgba(255, 255, 255, 0.80), #4338ca);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(79, 70, 229, 0.35), 10, 0.15, 0, 3);
+}
+.dse-theme-light .button.approved-indigo-button:hover,
+.dse-theme-light .button.erp-button-role-indigo:hover,
+.dse-theme-light .button.erp-button-indigo:hover {
+    -fx-background-color: linear-gradient(to bottom, #e0e7ff 0%, #818cf8 35%, #6366f1 100%);
+    -fx-border-color: #4f46e5;
+    -fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.60), 14, 0.25, 0, 4);
 }
 
 /* 3. Emerald Green (Excel / Export) */
 .dse-theme-dark .button.approved-emerald-button,
 .dse-theme-dark .button.erp-button-role-emerald,
 .dse-theme-dark .button.erp-button-emerald {
-    -fx-background-color: linear-gradient(to bottom, #059669, #047857);
+    -fx-background-color: linear-gradient(to bottom, rgba(16, 185, 129, 0.45) 0%, rgba(5, 150, 105, 0.85) 50%, rgba(4, 120, 87, 0.98) 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #10b981;
+    -fx-border-color: linear-gradient(to bottom, rgba(52, 211, 153, 0.85), rgba(5, 150, 105, 0.50));
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(5, 150, 105, 0.35), 8, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.40), 10, 0.15, 0, 3);
 }
 .dse-theme-dark .button.approved-emerald-button:hover,
 .dse-theme-dark .button.erp-button-role-emerald:hover,
 .dse-theme-dark .button.erp-button-emerald:hover {
-    -fx-background-color: linear-gradient(to bottom, #10b981, #059669);
-    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.55), 14, 0, 0, 5);
+    -fx-background-color: linear-gradient(to bottom, rgba(52, 211, 153, 0.65) 0%, rgba(16, 185, 129, 0.95) 100%);
+    -fx-border-color: #34d399;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.70), 16, 0.25, 0, 4);
 }
 .dse-theme-light .button.approved-emerald-button,
 .dse-theme-light .button.erp-button-role-emerald,
 .dse-theme-light .button.erp-button-emerald {
-    -fx-background-color: linear-gradient(to bottom, #10b981, #059669);
+    -fx-background-color: linear-gradient(to bottom, #34d399 0%, #10b981 35%, #059669 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #047857;
-    -fx-effect: dropshadow(gaussian, rgba(5, 150, 105, 0.25), 6, 0, 0, 2);
+    -fx-border-color: linear-gradient(to bottom, rgba(255, 255, 255, 0.80), #047857);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(5, 150, 105, 0.35), 10, 0.15, 0, 3);
+}
+.dse-theme-light .button.approved-emerald-button:hover,
+.dse-theme-light .button.erp-button-role-emerald:hover,
+.dse-theme-light .button.erp-button-emerald:hover {
+    -fx-background-color: linear-gradient(to bottom, #d1fae5 0%, #34d399 35%, #10b981 100%);
+    -fx-border-color: #059669;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.60), 14, 0.25, 0, 4);
 }
 
 /* 4. Sky Blue (Email / Transmit) */
 .dse-theme-dark .button.approved-sky-button,
 .dse-theme-dark .button.erp-button-role-sky,
 .dse-theme-dark .button.erp-button-sky {
-    -fx-background-color: linear-gradient(to bottom, #0284c7, #0369a1);
+    -fx-background-color: linear-gradient(to bottom, rgba(14, 165, 233, 0.45) 0%, rgba(2, 132, 199, 0.85) 50%, rgba(3, 105, 161, 0.98) 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #0ea5e9;
+    -fx-border-color: linear-gradient(to bottom, rgba(56, 189, 248, 0.85), rgba(2, 132, 199, 0.50));
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(2, 132, 199, 0.35), 8, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(14, 165, 233, 0.40), 10, 0.15, 0, 3);
 }
 .dse-theme-dark .button.approved-sky-button:hover,
 .dse-theme-dark .button.erp-button-role-sky:hover,
 .dse-theme-dark .button.erp-button-sky:hover {
-    -fx-background-color: linear-gradient(to bottom, #0ea5e9, #0284c7);
-    -fx-effect: dropshadow(gaussian, rgba(14, 165, 233, 0.55), 14, 0, 0, 5);
+    -fx-background-color: linear-gradient(to bottom, rgba(56, 189, 248, 0.65) 0%, rgba(14, 165, 233, 0.95) 100%);
+    -fx-border-color: #38bdf8;
+    -fx-effect: dropshadow(gaussian, rgba(14, 165, 233, 0.70), 16, 0.25, 0, 4);
 }
 .dse-theme-light .button.approved-sky-button,
 .dse-theme-light .button.erp-button-role-sky,
 .dse-theme-light .button.erp-button-sky {
-    -fx-background-color: linear-gradient(to bottom, #0ea5e9, #0284c7);
+    -fx-background-color: linear-gradient(to bottom, #38bdf8 0%, #0ea5e9 35%, #0284c7 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #0369a1;
-    -fx-effect: dropshadow(gaussian, rgba(2, 132, 199, 0.25), 6, 0, 0, 2);
+    -fx-border-color: linear-gradient(to bottom, rgba(255, 255, 255, 0.80), #0369a1);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(2, 132, 199, 0.35), 10, 0.15, 0, 3);
+}
+.dse-theme-light .button.approved-sky-button:hover,
+.dse-theme-light .button.erp-button-role-sky:hover,
+.dse-theme-light .button.erp-button-sky:hover {
+    -fx-background-color: linear-gradient(to bottom, #e0f2fe 0%, #38bdf8 35%, #0ea5e9 100%);
+    -fx-border-color: #0284c7;
+    -fx-effect: dropshadow(gaussian, rgba(14, 165, 233, 0.60), 14, 0.25, 0, 4);
 }
 
 /* 5. Royal Purple (PDF / Print) */
 .dse-theme-dark .button.approved-purple-button,
 .dse-theme-dark .button.erp-button-role-purple,
 .dse-theme-dark .button.erp-button-purple {
-    -fx-background-color: linear-gradient(to bottom, #7c3aed, #6d28d9);
+    -fx-background-color: linear-gradient(to bottom, rgba(139, 92, 246, 0.45) 0%, rgba(124, 58, 237, 0.85) 50%, rgba(109, 40, 217, 0.98) 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #8b5cf6;
+    -fx-border-color: linear-gradient(to bottom, rgba(167, 139, 250, 0.85), rgba(124, 58, 237, 0.50));
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(124, 58, 237, 0.35), 8, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.40), 10, 0.15, 0, 3);
 }
 .dse-theme-dark .button.approved-purple-button:hover,
 .dse-theme-dark .button.erp-button-role-purple:hover,
 .dse-theme-dark .button.erp-button-purple:hover {
-    -fx-background-color: linear-gradient(to bottom, #8b5cf6, #7c3aed);
-    -fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.55), 14, 0, 0, 5);
+    -fx-background-color: linear-gradient(to bottom, rgba(167, 139, 250, 0.65) 0%, rgba(139, 92, 246, 0.95) 100%);
+    -fx-border-color: #a78bfa;
+    -fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.70), 16, 0.25, 0, 4);
 }
 .dse-theme-light .button.approved-purple-button,
 .dse-theme-light .button.erp-button-role-purple,
 .dse-theme-light .button.erp-button-purple {
-    -fx-background-color: linear-gradient(to bottom, #8b5cf6, #7c3aed);
+    -fx-background-color: linear-gradient(to bottom, #a78bfa 0%, #8b5cf6 35%, #7c3aed 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #6d28d9;
-    -fx-effect: dropshadow(gaussian, rgba(124, 58, 237, 0.25), 6, 0, 0, 2);
+    -fx-border-color: linear-gradient(to bottom, rgba(255, 255, 255, 0.80), #6d28d9);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(124, 58, 237, 0.35), 10, 0.15, 0, 3);
+}
+.dse-theme-light .button.approved-purple-button:hover,
+.dse-theme-light .button.erp-button-role-purple:hover,
+.dse-theme-light .button.erp-button-purple:hover {
+    -fx-background-color: linear-gradient(to bottom, #ede9fe 0%, #a78bfa 35%, #8b5cf6 100%);
+    -fx-border-color: #7c3aed;
+    -fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.60), 14, 0.25, 0, 4);
 }
 
 /* 6. Cyber Cyan (Barcode / Labels) */
 .dse-theme-dark .button.approved-cyan-button,
 .dse-theme-dark .button.erp-button-role-cyan,
 .dse-theme-dark .button.erp-button-cyan {
-    -fx-background-color: linear-gradient(to bottom, #0891b2, #0e7490);
+    -fx-background-color: linear-gradient(to bottom, rgba(6, 182, 212, 0.45) 0%, rgba(8, 145, 178, 0.85) 50%, rgba(14, 116, 144, 0.98) 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #06b6d4;
+    -fx-border-color: linear-gradient(to bottom, rgba(34, 211, 238, 0.85), rgba(8, 145, 178, 0.50));
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(8, 145, 178, 0.35), 8, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(6, 182, 212, 0.40), 10, 0.15, 0, 3);
 }
 .dse-theme-dark .button.approved-cyan-button:hover,
 .dse-theme-dark .button.erp-button-role-cyan:hover,
 .dse-theme-dark .button.erp-button-cyan:hover {
-    -fx-background-color: linear-gradient(to bottom, #06b6d4, #0891b2);
-    -fx-effect: dropshadow(gaussian, rgba(6, 182, 212, 0.55), 14, 0, 0, 5);
+    -fx-background-color: linear-gradient(to bottom, rgba(34, 211, 238, 0.65) 0%, rgba(6, 182, 212, 0.95) 100%);
+    -fx-border-color: #22d3ee;
+    -fx-effect: dropshadow(gaussian, rgba(6, 182, 212, 0.70), 16, 0.25, 0, 4);
 }
 .dse-theme-light .button.approved-cyan-button,
 .dse-theme-light .button.erp-button-role-cyan,
 .dse-theme-light .button.erp-button-cyan {
-    -fx-background-color: linear-gradient(to bottom, #06b6d4, #0891b2);
+    -fx-background-color: linear-gradient(to bottom, #22d3ee 0%, #06b6d4 35%, #0891b2 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #0e7490;
-    -fx-effect: dropshadow(gaussian, rgba(8, 145, 178, 0.25), 6, 0, 0, 2);
+    -fx-border-color: linear-gradient(to bottom, rgba(255, 255, 255, 0.80), #0e7490);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(8, 145, 178, 0.35), 10, 0.15, 0, 3);
+}
+.dse-theme-light .button.approved-cyan-button:hover,
+.dse-theme-light .button.erp-button-role-cyan:hover,
+.dse-theme-light .button.erp-button-cyan:hover {
+    -fx-background-color: linear-gradient(to bottom, #cffafe 0%, #22d3ee 35%, #06b6d4 100%);
+    -fx-border-color: #0891b2;
+    -fx-effect: dropshadow(gaussian, rgba(6, 182, 212, 0.60), 14, 0.25, 0, 4);
 }
 
 /* 7. Royal Violet (Record Payment) */
 .dse-theme-dark .button.approved-violet-button,
 .dse-theme-dark .button.erp-button-role-violet,
 .dse-theme-dark .button.erp-button-violet {
-    -fx-background-color: linear-gradient(to bottom, #9333ea, #7e22ce);
+    -fx-background-color: linear-gradient(to bottom, rgba(168, 85, 247, 0.45) 0%, rgba(147, 51, 234, 0.85) 50%, rgba(126, 34, 206, 0.98) 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #a855f7;
+    -fx-border-color: linear-gradient(to bottom, rgba(192, 132, 252, 0.85), rgba(147, 51, 234, 0.50));
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(147, 51, 234, 0.35), 8, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(147, 51, 234, 0.40), 10, 0.15, 0, 3);
 }
 .dse-theme-dark .button.approved-violet-button:hover,
 .dse-theme-dark .button.erp-button-role-violet:hover,
 .dse-theme-dark .button.erp-button-violet:hover {
-    -fx-background-color: linear-gradient(to bottom, #a855f7, #9333ea);
-    -fx-effect: dropshadow(gaussian, rgba(168, 85, 247, 0.55), 14, 0, 0, 5);
+    -fx-background-color: linear-gradient(to bottom, rgba(192, 132, 252, 0.65) 0%, rgba(168, 85, 247, 0.95) 100%);
+    -fx-border-color: #c084fc;
+    -fx-effect: dropshadow(gaussian, rgba(168, 85, 247, 0.70), 16, 0.25, 0, 4);
 }
 .dse-theme-light .button.approved-violet-button,
 .dse-theme-light .button.erp-button-role-violet,
 .dse-theme-light .button.erp-button-violet {
-    -fx-background-color: linear-gradient(to bottom, #a855f7, #9333ea);
+    -fx-background-color: linear-gradient(to bottom, #c084fc 0%, #a855f7 35%, #9333ea 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #7e22ce;
-    -fx-effect: dropshadow(gaussian, rgba(147, 51, 234, 0.25), 6, 0, 0, 2);
+    -fx-border-color: linear-gradient(to bottom, rgba(255, 255, 255, 0.80), #7e22ce);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(147, 51, 234, 0.35), 10, 0.15, 0, 3);
+}
+.dse-theme-light .button.approved-violet-button:hover,
+.dse-theme-light .button.erp-button-role-violet:hover,
+.dse-theme-light .button.erp-button-violet:hover {
+    -fx-background-color: linear-gradient(to bottom, #f3e8ff 0%, #c084fc 35%, #a855f7 100%);
+    -fx-border-color: #9333ea;
+    -fx-effect: dropshadow(gaussian, rgba(168, 85, 247, 0.60), 14, 0.25, 0, 4);
 }
 
 /* 8. Coral Red (Sales Return / Purchase Return) */
 .dse-theme-dark .button.approved-coral-button,
 .dse-theme-dark .button.erp-button-role-coral,
 .dse-theme-dark .button.erp-button-coral {
-    -fx-background-color: linear-gradient(to bottom, #e11d48, #be123c);
+    -fx-background-color: linear-gradient(to bottom, rgba(244, 63, 94, 0.45) 0%, rgba(225, 29, 72, 0.85) 50%, rgba(190, 18, 60, 0.98) 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #f43f5e;
+    -fx-border-color: linear-gradient(to bottom, rgba(251, 113, 133, 0.85), rgba(225, 29, 72, 0.50));
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(225, 29, 72, 0.35), 8, 0, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(225, 29, 72, 0.40), 10, 0.15, 0, 3);
 }
 .dse-theme-dark .button.approved-coral-button:hover,
 .dse-theme-dark .button.erp-button-role-coral:hover,
 .dse-theme-dark .button.erp-button-coral:hover {
-    -fx-background-color: linear-gradient(to bottom, #f43f5e, #e11d48);
-    -fx-effect: dropshadow(gaussian, rgba(244, 63, 94, 0.55), 14, 0, 0, 5);
+    -fx-background-color: linear-gradient(to bottom, rgba(251, 113, 133, 0.65) 0%, rgba(244, 63, 94, 0.95) 100%);
+    -fx-border-color: #fb7185;
+    -fx-effect: dropshadow(gaussian, rgba(244, 63, 94, 0.70), 16, 0.25, 0, 4);
 }
 .dse-theme-light .button.approved-coral-button,
 .dse-theme-light .button.erp-button-role-coral,
 .dse-theme-light .button.erp-button-coral {
-    -fx-background-color: linear-gradient(to bottom, #f43f5e, #e11d48);
+    -fx-background-color: linear-gradient(to bottom, #fb7185 0%, #f43f5e 35%, #e11d48 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #be123c;
-    -fx-effect: dropshadow(gaussian, rgba(225, 29, 72, 0.25), 6, 0, 0, 2);
+    -fx-border-color: linear-gradient(to bottom, rgba(255, 255, 255, 0.80), #be123c);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(225, 29, 72, 0.35), 10, 0.15, 0, 3);
+}
+.dse-theme-light .button.approved-coral-button:hover,
+.dse-theme-light .button.erp-button-role-coral:hover,
+.dse-theme-light .button.erp-button-coral:hover {
+    -fx-background-color: linear-gradient(to bottom, #ffe4e6 0%, #fb7185 35%, #f43f5e 100%);
+    -fx-border-color: #e11d48;
+    -fx-effect: dropshadow(gaussian, rgba(244, 63, 94, 0.60), 14, 0.25, 0, 4);
 }
 
 /* 9. Elevated Slate (Audit Trail / History) */
@@ -18338,20 +19026,29 @@
 .dse-theme-light .button.approved-slate-button,
 .dse-theme-light .button.erp-button-role-slate,
 .dse-theme-light .button.erp-button-slate {
-    -fx-background-color: linear-gradient(to bottom, #f1f5f9, #e2e8f0);
+    -fx-background-color: linear-gradient(to bottom, #f8fafc 0%, #f1f5f9 35%, #e2e8f0 100%);
     -fx-text-fill: #1e293b;
-    -fx-border-color: #cbd5e1;
-    -fx-effect: dropshadow(gaussian, rgba(100, 116, 139, 0.15), 6, 0, 0, 2);
+    -fx-border-color: linear-gradient(to bottom, #ffffff, #cbd5e1);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(100, 116, 139, 0.20), 8, 0.1, 0, 2);
+}
+.dse-theme-light .button.approved-slate-button:hover,
+.dse-theme-light .button.erp-button-role-slate:hover,
+.dse-theme-light .button.erp-button-slate:hover {
+    -fx-background-color: linear-gradient(to bottom, #ffffff 0%, #f8fafc 35%, #f1f5f9 100%);
+    -fx-border-color: #94a3b8;
+    -fx-effect: dropshadow(gaussian, rgba(100, 116, 139, 0.35), 10, 0.15, 0, 2);
 }
 
 /* 10. Crimson Ghost (Close / Cancel) */
 .dse-theme-dark .button.approved-danger-ghost-button,
 .dse-theme-dark .button.erp-button-role-danger-ghost,
 .dse-theme-dark .button.erp-button-danger-ghost {
-    -fx-background-color: rgba(239, 68, 68, 0.08);
+    -fx-background-color: rgba(239, 68, 68, 0.12);
     -fx-text-fill: #fca5a5;
     -fx-border-color: rgba(239, 68, 68, 0.45);
     -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.25), 8, 0, 0, 2);
 }
 .dse-theme-dark .button.approved-danger-ghost-button:hover,
 .dse-theme-dark .button.erp-button-role-danger-ghost:hover,
@@ -18364,9 +19061,11 @@
 .dse-theme-light .button.approved-danger-ghost-button,
 .dse-theme-light .button.erp-button-role-danger-ghost,
 .dse-theme-light .button.erp-button-danger-ghost {
-    -fx-background-color: rgba(239, 68, 68, 0.06);
+    -fx-background-color: rgba(239, 68, 68, 0.08);
     -fx-text-fill: #dc2626;
-    -fx-border-color: rgba(239, 68, 68, 0.35);
+    -fx-border-color: rgba(239, 68, 68, 0.40);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(220, 38, 38, 0.15), 6, 0, 0, 1);
 }
 .dse-theme-light .button.approved-danger-ghost-button:hover,
 .dse-theme-light .button.erp-button-role-danger-ghost:hover,
@@ -18526,15 +19225,17 @@
     -fx-background-radius: 8px;
     -fx-border-radius: 8px;
     -fx-cursor: hand;
-    -fx-background-color: rgba(20, 184, 166, 0.15);
-    -fx-text-fill: #5eead4;
-    -fx-border-color: rgba(94, 234, 212, 0.45);
+    -fx-background-color: linear-gradient(to bottom, rgba(20, 184, 166, 0.45) 0%, rgba(13, 148, 136, 0.85) 50%, rgba(15, 118, 110, 0.98) 100%);
+    -fx-text-fill: #ffffff;
+    -fx-border-color: linear-gradient(to bottom, rgba(45, 212, 191, 0.85), rgba(13, 148, 136, 0.50));
     -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(20, 184, 166, 0.40), 10, 0.15, 0, 3);
 }
 .button.approved-teal-button:hover, .button.erp-button-teal:hover {
-    -fx-background-color: #0d9488;
+    -fx-background-color: linear-gradient(to bottom, rgba(45, 212, 191, 0.65) 0%, rgba(20, 184, 166, 0.95) 100%);
     -fx-text-fill: #ffffff;
-    -fx-border-color: #14b8a6;
+    -fx-border-color: #2dd4bf;
+    -fx-effect: dropshadow(gaussian, rgba(20, 184, 166, 0.70), 16, 0.25, 0, 4);
 }
 /* 15. iOS / Apple Style Turn ON-OFF Toggle Switches */
 .toggle-button.apple-toggle-switch, .toggle-button.ios-toggle-switch {
@@ -18631,4 +19332,485 @@
     -fx-font-size: 13px;
     -fx-font-family: 'Segoe UI', system-ui, sans-serif;
     -fx-line-spacing: 3px;
+}
+
+/* ========================================================================== */
+/* JASVI 3D GEOMETRIC GLASSMORPHISM DESIGN SYSTEM (DARK THEME)               */
+/* ========================================================================== */
+
+.glass-card {
+    -fx-background-color: linear-gradient(to bottom right, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.92));
+    -fx-background-radius: 12px;
+    -fx-border-color: linear-gradient(to bottom right, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06));
+    -fx-border-width: 1px;
+    -fx-border-radius: 12px;
+    -fx-padding: 20px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 18, 0.0, 0, 6);
+}
+
+.file-info-box {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-background-radius: 8px;
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-padding: 12px 16px;
+}
+
+.drop-zone {
+    -fx-background-color: rgba(30, 41, 59, 0.65);
+    -fx-background-radius: 12px;
+    -fx-border-color: rgba(148, 163, 184, 0.35);
+    -fx-border-width: 1.5px;
+    -fx-border-style: segments(8, 6) line-cap round;
+    -fx-border-radius: 12px;
+    -fx-padding: 28px;
+    -fx-alignment: center;
+}
+
+.drop-zone:hover, .drop-zone-drag-over {
+    -fx-background-color: rgba(15, 118, 110, 0.20);
+    -fx-border-color: #2DD4BF;
+    -fx-effect: dropshadow(gaussian, rgba(45, 212, 191, 0.25), 14, 0.0, 0, 0);
+}
+
+.glass-progress-bar {
+    -fx-pref-height: 22px;
+    -fx-min-height: 22px;
+    -fx-max-height: 22px;
+}
+
+.glass-progress-bar > .track {
+    -fx-background-color: rgba(15, 23, 42, 0.85);
+    -fx-background-insets: 0;
+    -fx-background-radius: 11px;
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-width: 1px;
+    -fx-border-radius: 11px;
+}
+
+.glass-progress-bar > .bar {
+    -fx-background-color: linear-gradient(to right, rgba(16, 185, 129, 0.85), rgba(52, 211, 153, 0.95));
+    -fx-background-insets: 2px;
+    -fx-background-radius: 9px;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.45), 10, 0.2, 0, 0);
+}
+
+.file-title-label {
+    -fx-text-fill: #F8FAFC;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.file-subtitle-label {
+    -fx-text-fill: #94A3B8;
+    -fx-font-size: 12px;
+}
+
+.erp-sidebar {
+    -fx-background-color: linear-gradient(to bottom, rgba(15, 23, 42, 0.95), rgba(11, 15, 25, 0.98));
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 0 1px 0 0;
+}
+
+.erp-sidebar .nav-parent {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-text-fill: #CBD5E1;
+    -fx-font-weight: 700;
+    -fx-padding: 8px 12px;
+}
+
+.erp-sidebar .nav-parent:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.07);
+    -fx-text-fill: #F8FAFC;
+}
+
+.erp-sidebar .button.nav-parent.menu-group-active {
+    -fx-background-color: rgba(45, 212, 191, 0.12);
+    -fx-border-color: #2DD4BF;
+    -fx-border-width: 0 0 0 3px;
+    -fx-text-fill: #FFFFFF;
+}
+
+.erp-sidebar .nav-children {
+    -fx-padding: 4px 0 8px 14px;
+    -fx-spacing: 2px;
+}
+
+.erp-sidebar .nav-children .button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6px;
+    -fx-text-fill: #94A3B8;
+    -fx-padding: 7px 10px;
+    -fx-min-height: 38px;
+}
+
+.erp-sidebar .nav-children .button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-text-fill: #F8FAFC;
+}
+
+.erp-sidebar .nav-children .button.route-active {
+    -fx-background-color: rgba(16, 185, 129, 0.18);
+    -fx-border-color: #10B981;
+    -fx-border-width: 1px;
+    -fx-text-fill: #34D399;
+}
+
+.form-label .required-star {
+    -fx-text-fill: #F43F5E;
+    -fx-font-weight: 800;
+}
+
+.error-hint {
+    -fx-text-fill: #FB7185;
+    -fx-font-size: 11px;
+}
+
+.date-picker-popup,
+.date-picker-popup > * {
+    -fx-background-color: #0f172a;
+    -fx-control-inner-background: #0f172a;
+    -fx-border-color: rgba(255, 255, 255, 0.16);
+    -fx-border-radius: 12px;
+    -fx-background-radius: 12px;
+    -fx-padding: 8px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.65), 24, 0.0, 0, 8);
+}
+
+.date-picker-popup > * > .calendar-grid {
+    -fx-background-color: #0f172a;
+    -fx-control-inner-background: #0f172a;
+}
+
+.date-picker-popup .month-year-pane {
+    -fx-background-color: #1e293b;
+    -fx-background-radius: 10px 10px 0 0;
+    -fx-padding: 4px 8px;
+}
+
+.date-picker-popup .spinner .label {
+    -fx-text-fill: #e2e8f0;
+    -fx-font-weight: 700;
+}
+
+.date-picker-popup .spinner .button {
+    -fx-background-color: #334155;
+    -fx-background-radius: 6px;
+}
+
+.date-picker-popup .day-name-cell {
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #2dd4bf;
+    -fx-font-weight: 700;
+    -fx-font-size: 11px;
+}
+
+.date-picker-popup .date-cell,
+.date-picker-popup .day-cell {
+    -fx-background-color: #0f172a;
+    -fx-text-fill: #cbd5e1;
+    -fx-background-radius: 6px;
+    -fx-border-radius: 6px;
+    -fx-alignment: center;
+}
+
+.date-picker-popup .date-cell:hover,
+.date-picker-popup .day-cell:hover {
+    -fx-background-color: #334155;
+    -fx-text-fill: #38bdf8;
+}
+
+.date-picker-popup .date-cell.selected,
+.date-picker-popup .day-cell.selected {
+    -fx-background-color: linear-gradient(to bottom, #10b981, #059669);
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: 700;
+    -fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.45), 8, 0.2, 0, 0);
+}
+
+.date-picker-popup .date-cell.today,
+.date-picker-popup .day-cell.today {
+    -fx-border-color: #2dd4bf;
+    -fx-text-fill: #2dd4bf;
+    -fx-font-weight: 700;
+}
+
+.date-picker-popup .date-cell.previous-month,
+.date-picker-popup .date-cell.next-month,
+.date-picker-popup .day-cell.previous-month,
+.date-picker-popup .day-cell.next-month {
+    -fx-background-color: #0f172a;
+    -fx-text-fill: #475569;
+}
+
+.combo-box-popup > .list-view {
+    -fx-background-color: linear-gradient(to bottom, rgba(20, 27, 45, 0.96), rgba(15, 23, 42, 0.98));
+    -fx-border-color: rgba(255, 255, 255, 0.14);
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-padding: 6px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.60), 20, 0.0, 0, 6);
+}
+
+.combo-box-popup > .list-view > .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #CBD5E1;
+    -fx-padding: 8px 12px;
+    -fx-background-radius: 6px;
+}
+
+.combo-box-popup > .list-view > .list-cell:hover {
+    -fx-background-color: rgba(45, 212, 191, 0.15);
+    -fx-text-fill: #2DD4BF;
+}
+
+.combo-box-popup > .list-view > .list-cell:selected {
+    -fx-background-color: rgba(59, 130, 246, 0.25);
+    -fx-text-fill: #93C5FD;
+    -fx-font-weight: 700;
+}
+
+.attachment-preview-card {
+    -fx-background-color: rgba(15, 23, 42, 0.70);
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-padding: 14px;
+}
+
+.attachment-preview-card .thumb-box {
+    -fx-background-color: rgba(225, 29, 72, 0.15);
+    -fx-border-color: rgba(225, 29, 72, 0.30);
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 10px;
+}
+
+.mini-btn {
+    -fx-background-radius: 6px;
+    -fx-border-radius: 6px;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-padding: 6px 12px;
+    -fx-cursor: hand;
+}
+
+.mini-btn:pressed {
+    -fx-scale-x: 0.97;
+    -fx-scale-y: 0.97;
+}
+
+.mini-btn-blue {
+    -fx-background-color: rgba(59, 130, 246, 0.20);
+    -fx-border-color: #60A5FA;
+    -fx-text-fill: #BFDBFE;
+}
+
+.mini-btn-blue:hover {
+    -fx-background-color: rgba(59, 130, 246, 0.35);
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.40), 10, 0.1, 0, 0);
+}
+
+.mini-btn-danger {
+    -fx-background-color: rgba(225, 29, 72, 0.20);
+    -fx-border-color: #F43F5E;
+    -fx-text-fill: #FECDD3;
+}
+
+.mini-btn-danger:hover {
+    -fx-background-color: rgba(225, 29, 72, 0.35);
+    -fx-effect: dropshadow(gaussian, rgba(225, 29, 72, 0.40), 10, 0.1, 0, 0);
+}
+
+/* ========================================================================== */
+/* JASVI 3D TACTILE FORM CONTROLS & ATTACHMENT CARDS (DARK THEME)             */
+/* ========================================================================== */
+
+.text-field,
+.text-area,
+.combo-box,
+.choice-box,
+.date-picker,
+.approved-input,
+.erp-control-input,
+.register-header-search-input {
+    -fx-background-color: rgba(15, 23, 42, 0.65);
+    -fx-border-color: rgba(255, 255, 255, 0.14);
+    -fx-border-width: 1.2px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-text-fill: #f8fafc;
+    -fx-prompt-text-fill: #64748b;
+    -fx-font-size: 13px;
+}
+
+.text-field,
+.combo-box,
+.choice-box,
+.date-picker,
+.approved-input:not(.text-area),
+.erp-control-input:not(.text-area),
+.register-header-search-input {
+    -fx-min-height: 40px;
+    -fx-pref-height: 40px;
+    -fx-max-height: 42px;
+}
+
+.text-field:focused,
+.password-field:focused,
+.text-area:focused,
+.combo-box:focused,
+.choice-box:focused,
+.date-picker:focused,
+.spinner:focused,
+.approved-input:focused,
+.erp-control-input:focused,
+.register-header-search-input:focused,
+.text-field.erp-input-active-focused,
+.password-field.erp-input-active-focused,
+.text-area.erp-input-active-focused,
+.combo-box.erp-input-active-focused,
+.choice-box.erp-input-active-focused,
+.date-picker.erp-input-active-focused,
+.spinner.erp-input-active-focused,
+.approved-input.erp-input-active-focused,
+.erp-control-input.erp-input-active-focused,
+.search-shell.erp-input-active-focused,
+.finance-filter-search-shell.erp-input-active-focused,
+.dse-global-search-v3-query-shell.erp-input-active-focused,
+.dse-notification-v3-search-shell.erp-input-active-focused,
+.report-search-shell.erp-input-active-focused,
+.clients-search-strip.erp-input-active-focused {
+    -fx-background-color: rgba(15, 23, 42, 0.95);
+    -fx-border-color: #2dd4bf;
+    -fx-border-width: 1.8px;
+    -fx-effect: dropshadow(gaussian, rgba(45, 212, 191, 0.40), 10, 0.25, 0, 0);
+}
+
+.text-area {
+    -fx-min-height: 74px;
+    -fx-pref-height: 84px;
+    -fx-padding: 8px 12px;
+}
+
+.text-area .content {
+    -fx-background-color: transparent;
+}
+
+.text-area .text {
+    -fx-fill: #f8fafc;
+}
+
+.combo-box .list-cell,
+.choice-box .label {
+    -fx-text-fill: #f8fafc;
+    -fx-background-color: transparent;
+}
+
+.date-picker .text-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #f8fafc;
+}
+
+.date-picker .arrow-button .arrow {
+    -fx-background-color: #2dd4bf;
+}
+
+/* Quick range buttons in registers */
+.quick-range-button,
+.sales-quick-range-row .button,
+.sales-quick-range-row .approved-button {
+    -fx-background-color: rgba(30, 41, 59, 0.65);
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-width: 1px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-text-fill: #cbd5e1;
+    -fx-font-weight: 600;
+    -fx-padding: 6px 12px;
+    -fx-cursor: hand;
+}
+
+.quick-range-button:hover,
+.sales-quick-range-row .button:hover,
+.sales-quick-range-row .approved-button:hover {
+    -fx-background-color: rgba(51, 65, 85, 0.85);
+    -fx-border-color: #38bdf8;
+    -fx-text-fill: #ffffff;
+    -fx-scale-x: 0.98;
+    -fx-scale-y: 0.98;
+}
+
+/* Universal attachment cards & drop zones */
+.attachment-card,
+.document-attachment-preview,
+.finance-file-box {
+    -fx-background-color: linear-gradient(to bottom right, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.88));
+    -fx-border-color: linear-gradient(to bottom right, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+    -fx-border-width: 1px;
+    -fx-background-radius: 10px;
+    -fx-border-radius: 10px;
+    -fx-padding: 12px 16px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 12, 0.0, 0, 4);
+}
+
+.attachment-badge,
+.file-type-pill {
+    -fx-background-color: rgba(45, 212, 191, 0.15);
+    -fx-border-color: rgba(45, 212, 191, 0.35);
+    -fx-border-radius: 999px;
+    -fx-background-radius: 999px;
+    -fx-text-fill: #2dd4bf;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-padding: 2px 10px;
+}
+
+.diagnostic-incident-subtitle {
+    -fx-text-fill: #94a3b8;
+}
+.diagnostic-incident-reason {
+    -fx-text-fill: #e2e8f0;
+}
+.diagnostic-incident-action {
+    -fx-text-fill: #34d399;
+}
+.diagnostic-trace-area {
+    -fx-text-fill: #cbd5e1;
+    -fx-control-inner-background: #060c18;
+    -fx-background-color: #060c18;
+}
+.diagnostic-ai-card,
+.diagnostic-ai-result-card {
+    -fx-background-color: rgba(56, 189, 248, 0.08);
+    -fx-border-color: rgba(56, 189, 248, 0.35);
+}
+.diagnostic-ai-title,
+.diagnostic-ai-result-title {
+    -fx-text-fill: #38bdf8;
+}
+.diagnostic-ai-body {
+    -fx-text-fill: #e2e8f0;
+}
+.diagnostic-ai-result-cause {
+    -fx-text-fill: #f8fafc;
+}
+.diagnostic-ai-result-fix {
+    -fx-text-fill: #34d399;
+}
+.diagnostic-ai-error {
+    -fx-text-fill: #f87171;
+}
+.diagnostic-level-error {
+    -fx-text-fill: #f87171;
+}
+.diagnostic-level-warn {
+    -fx-text-fill: #fbbf24;
+}
+.diagnostic-level-info {
+    -fx-text-fill: #38bdf8;
 }

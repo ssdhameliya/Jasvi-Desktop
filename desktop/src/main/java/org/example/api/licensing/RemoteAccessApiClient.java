@@ -31,12 +31,34 @@ public class RemoteAccessApiClient {
         return get("/api/remote-access/status", new TypeReference<>() {});
     }
 
+    public Map<String, Object> startTunnel() {
+        int port = extractPort(this.base, 58080);
+        return startTunnel(port);
+    }
+
+    private int extractPort(String url, int defaultPort) {
+        if (url == null || url.isBlank()) {
+            return defaultPort;
+        }
+        try {
+            URI u = URI.create(url);
+            int p = u.getPort();
+            return p > 0 ? p : defaultPort;
+        } catch (Exception e) {
+            return defaultPort;
+        }
+    }
+
     public Map<String, Object> startTunnel(int port) {
         return post("/api/remote-access/start?port=" + port, null, new TypeReference<>() {});
     }
 
     public Map<String, Object> stopTunnel() {
         return post("/api/remote-access/stop", null, new TypeReference<>() {});
+    }
+
+    public byte[] getQrCodePng() {
+        return getQrImageBytes();
     }
 
     public byte[] getQrImageBytes() {

@@ -39,7 +39,11 @@ public final class DocumentInspectionScaffold {
     /**
      * Complete initialized inspection dialog shell bundle.
      */
-    public record InspectionShell(OwnedDialog<ButtonType> dialog, DialogPane pane, StackPane host) {}
+    public record InspectionShell(OwnedDialog<ButtonType> dialog, DialogPane pane, StackPane host) {
+        public OwnedDialog<ButtonType> getDialog() { return dialog; }
+        public DialogPane getDialogPane() { return pane; }
+        public StackPane getHost() { return host; }
+    }
 
     /**
      * Creates and initializes a standardized full inspection window dialog shell.
@@ -56,13 +60,132 @@ public final class DocumentInspectionScaffold {
         dialog.setResizable(true);
 
         DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("erp-document-inspection-dialog", specificDialogClass, "approved-ui");
+        pane.getStyleClass().addAll("dse-dialog-pane", "erp-document-inspection-dialog", "dse-dialog-workspace", "dse-dialog-semantic-inspect", specificDialogClass, "approved-ui");
         pane.getProperties().put("dse.dialog.presented", true);
         PopupTableWorkspace.applyInspectionSizing(dialog, ownerNode);
 
+        // 1. Top 5px Gradient Accent Bar
+        Region accent = new Region();
+        accent.getStyleClass().add("dse-dialog-accent");
+        accent.setMinHeight(5);
+        accent.setPrefHeight(5);
+        accent.setMaxHeight(5);
+
+        // 2. Circular Semantic Icon Box
+        String iconSemantic = resolveIcon(title, specificDialogClass);
+        StackPane iconBox = new StackPane(SemanticIconManager.compact(iconSemantic, 22));
+        iconBox.getStyleClass().add("dse-dialog-icon-box");
+
+        // 3. Title copy: Kicker + Document Title
+        Label kicker = new Label(resolveKicker(title, specificDialogClass));
+        kicker.getStyleClass().add("dse-dialog-kicker");
+
+        Label headingLabel = new Label(title != null ? title : "Document Inspection");
+        headingLabel.getStyleClass().add("dse-dialog-title");
+        headingLabel.setWrapText(true);
+
+        VBox titleCopy = new VBox(3, kicker, headingLabel);
+        HBox.setHgrow(titleCopy, Priority.ALWAYS);
+
+        // 4. Window Close Button
+        Button close = new Button();
+        close.setGraphic(SemanticIconManager.compact("close", 14));
+        close.getStyleClass().addAll("dse-dialog-close", "icon-button");
+        close.getProperties().put("erp-icon-preserve", true);
+        close.setAccessibleText("Close dialog");
+        close.setTooltip(new Tooltip("Close"));
+        close.setCancelButton(true);
+        close.setFocusTraversable(false);
+        close.setOnAction(event -> dialog.close());
+
+        // 5. Draggable Window Header Bar
+        HBox header = new HBox(14, iconBox, titleCopy, close);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("dse-dialog-header");
+        installDragPhysics(header, dialog);
+
+        // 6. Host container for inspection tabs & content
         StackPane host = new StackPane();
         host.getStyleClass().addAll("document-inspection-host", "erp-ui-standard");
-        pane.setContent(host);
+        VBox.setVgrow(host, Priority.ALWAYS);
+
+        // 7. Outer Canonical Dialog Shell wrapping Accent, Header, and Host
+        VBox shell = new VBox(accent, header, host);
+        shell.getStyleClass().addAll("dse-dialog-shell", "dse-dialog-shell-workspace", "erp-ui-standard");
+        VBox.setVgrow(shell, Priority.ALWAYS);
+
+        pane.setContent(shell);
+        pane.getButtonTypes().add(ButtonType.CLOSE);
+
+        dialog.setOnShowing(ev -> {
+            Node defaultButtonBar = pane.lookup(".button-bar");
+            if (defaultButtonBar != null) {
+                defaultButtonBar.setVisible(false);
+                defaultButtonBar.setManaged(false);
+            }
+        });
+
+        return new InspectionShell(dialog, pane, host);
+    }
+
+    /**
+     * Content-adaptive inspection shell for variable-length documents (Audit Trail, Event Inspector).
+     */
+    public static InspectionShell createAdaptiveShell(Node ownerNode, String title, String specificDialogClass, int expectedRows) {
+        OwnedDialog<ButtonType> dialog = new OwnedDialog<>(ownerNode);
+        dialog.setTitle(title != null ? title : "Document Inspection");
+        dialog.setHeaderText(null);
+        dialog.setResizable(true);
+
+        DialogPane pane = dialog.getDialogPane();
+        pane.getStyleClass().addAll("dse-dialog-pane", "erp-document-inspection-dialog", "dse-dialog-workspace", "dse-dialog-semantic-inspect", specificDialogClass, "approved-ui");
+        pane.getProperties().put("dse.dialog.presented", true);
+        PopupTableWorkspace.applyAdaptiveInspectionSizing(dialog, ownerNode, expectedRows);
+
+        Region accent = new Region();
+        accent.getStyleClass().add("dse-dialog-accent");
+        accent.setMinHeight(5);
+        accent.setPrefHeight(5);
+        accent.setMaxHeight(5);
+
+        String iconSemantic = resolveIcon(title, specificDialogClass);
+        StackPane iconBox = new StackPane(SemanticIconManager.compact(iconSemantic, 22));
+        iconBox.getStyleClass().add("dse-dialog-icon-box");
+
+        Label kicker = new Label(resolveKicker(title, specificDialogClass));
+        kicker.getStyleClass().add("dse-dialog-kicker");
+
+        Label headingLabel = new Label(title != null ? title : "Document Inspection");
+        headingLabel.getStyleClass().add("dse-dialog-title");
+        headingLabel.setWrapText(true);
+
+        VBox titleCopy = new VBox(3, kicker, headingLabel);
+        HBox.setHgrow(titleCopy, Priority.ALWAYS);
+
+        Button close = new Button();
+        close.setGraphic(SemanticIconManager.compact("close", 14));
+        close.getStyleClass().addAll("dse-dialog-close", "icon-button");
+        close.getProperties().put("erp-icon-preserve", true);
+        close.setAccessibleText("Close dialog");
+        close.setTooltip(new Tooltip("Close"));
+        close.setCancelButton(true);
+        close.setFocusTraversable(false);
+        close.setOnAction(event -> dialog.close());
+
+        HBox header = new HBox(14, iconBox, titleCopy, close);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("dse-dialog-header");
+        installDragPhysics(header, dialog);
+
+        StackPane host = new StackPane();
+        host.getStyleClass().addAll("document-inspection-host", "erp-ui-standard");
+        VBox.setVgrow(host, Priority.ALWAYS);
+
+        VBox shell = new VBox(accent, header, host);
+        shell.getStyleClass().addAll("dse-dialog-shell", "dse-dialog-shell-workspace", "erp-ui-standard");
+        VBox.setVgrow(shell, Priority.ALWAYS);
+
+        pane.setContent(shell);
         pane.getButtonTypes().add(ButtonType.CLOSE);
 
         dialog.setOnShowing(ev -> {
@@ -140,19 +263,43 @@ public final class DocumentInspectionScaffold {
             }
         }
 
-        Button btnHeroClose = new Button();
-        btnHeroClose.setGraphic(SemanticIconManager.compact("close", 14));
-        btnHeroClose.getStyleClass().addAll("dse-dialog-close", "icon-button");
-        btnHeroClose.setTooltip(new Tooltip("Close"));
-        btnHeroClose.setOnAction(e -> dialog.close());
-        statusStrip.getChildren().add(btnHeroClose);
-
         HBox hero = new HBox(12, iconLabel, titleBox, spacer, statusStrip);
         hero.setAlignment(Pos.CENTER_LEFT);
         hero.getStyleClass().add("inspection-hero-bar");
 
         installDragPhysics(hero, dialog);
         return hero;
+    }
+
+    private static String resolveKicker(String title, String specificDialogClass) {
+        String lowerClass = specificDialogClass != null ? specificDialogClass.toLowerCase(Locale.ROOT) : "";
+        String lowerTitle = title != null ? title.toLowerCase(Locale.ROOT) : "";
+        if (lowerClass.contains("sales") || lowerTitle.contains("sale") || lowerTitle.contains("invoice")) return "Tax Invoice • Commercial Record";
+        if (lowerClass.contains("purchase") || lowerTitle.contains("purchase") || lowerTitle.contains("bill")) return "Purchase Bill • Commercial Record";
+        if (lowerClass.contains("quotation") || lowerTitle.contains("quotation") || lowerTitle.contains("quote")) return "Quotation Specification • Commercial Record";
+        if (lowerClass.contains("return") || lowerTitle.contains("return")) return "Return Voucher • Commercial Record";
+        if (lowerClass.contains("credit") || lowerClass.contains("debit") || lowerTitle.contains("note")) return "Credit / Debit Note • Commercial Record";
+        if (lowerClass.contains("statement") || lowerTitle.contains("statement") || lowerTitle.contains("bank")) return "Bank Statement • Financial Reconciliation";
+        if (lowerClass.contains("gst") || lowerTitle.contains("gst")) return "GST Compliance • Statutory Record";
+        if (lowerClass.contains("diagnostics") || lowerTitle.contains("diagnostic")) return "Enterprise Log Ledger • Diagnostics";
+        if (lowerClass.contains("user") || lowerTitle.contains("user")) return "Identity & Access • Security Privilege";
+        if (lowerClass.contains("timeline") || lowerTitle.contains("timeline") || lowerTitle.contains("audit")) return "Enterprise Audit Trail • Immutable Record";
+        return "Document Inspection • Commercial Record";
+    }
+
+    private static String resolveIcon(String title, String specificDialogClass) {
+        String lowerClass = specificDialogClass != null ? specificDialogClass.toLowerCase(Locale.ROOT) : "";
+        String lowerTitle = title != null ? title.toLowerCase(Locale.ROOT) : "";
+        if (lowerClass.contains("sales") || lowerTitle.contains("sale")) return "sale";
+        if (lowerClass.contains("purchase") || lowerTitle.contains("purchase")) return "purchase";
+        if (lowerClass.contains("quotation") || lowerTitle.contains("quote")) return "quotation";
+        if (lowerClass.contains("return") || lowerTitle.contains("return")) return "return";
+        if (lowerClass.contains("credit") || lowerClass.contains("debit")) return "wallet";
+        if (lowerClass.contains("bank") || lowerTitle.contains("bank")) return "bank";
+        if (lowerClass.contains("diagnostics") || lowerTitle.contains("diagnostic")) return "diagnostics";
+        if (lowerClass.contains("user") || lowerTitle.contains("user")) return "users";
+        if (lowerClass.contains("timeline") || lowerTitle.contains("audit")) return "audit";
+        return "document";
     }
 
     /**

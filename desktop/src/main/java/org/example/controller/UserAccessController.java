@@ -189,10 +189,14 @@ public class UserAccessController implements ScreenLifecycle {
     @FXML private void addUser(){openUserDialog(null);} @FXML private void editSelected(){edit(table.getSelectionModel().getSelectedItem());}
     private void edit(UserRow row){if(row!=null)openUserDialog(row.id);}
     private void openUserDialog(Integer userId){
-        try{FXMLLoader loader=new FXMLLoader(org.example.util.ResourceLocator.require("/fxml/pages/UserDialog.fxml"));Parent root=loader.load();org.example.util.ProfessionalUiEnhancer.enhance(root);UserDialogController controller=loader.getController();if(userId!=null)controller.editUser(userId);
-            Stage stage=new Stage();PlatformUiSupport.configureDialogStage(stage, table, userId==null?"Add New User":"Edit User", true);Scene scene=new Scene(root);ThemeManager.applyTheme(scene);stage.setScene(scene);stage.setMinWidth(860);stage.setMinHeight(620);stage.showAndWait();
+        try{
+            UserDialog dialog = new UserDialog(table, userId);
+            var result = dialog.showAndWait();
+            UserDialogController controller = dialog.getController();
             if(controller.isReauthenticationRequired()){new OwnedAlert(Alert.AlertType.INFORMATION,"Your authenticator requirement changed. Sign in again to complete secure Authenticator enrollment.",ButtonType.OK).showAndWait();SessionService.clear();org.example.util.SceneManager.showLogin();return;}
-            var saved=controller.getSavedResult();refresh();if(saved!=null)selectSavedUser(saved.id());}
+            refresh();
+            result.ifPresent(saved -> selectSavedUser(saved.id()));
+        }
         catch(Exception e){error("User form could not be opened",e);}
     }
     private void selectSavedUser(int id){UserRow row=users.stream().filter(x->x.id==id).findFirst().orElse(null);if(row!=null){table.getSelectionModel().select(row);table.scrollTo(row);}}
@@ -298,38 +302,8 @@ public class UserAccessController implements ScreenLifecycle {
         OperationalUiSupport.installEscapeClose(table, detailDrawer::isOpen, this::closeDetails);
     }
     private void showDetails(UserRow row){
-        if(row==null||detailDrawer==null)return;
-        detailUser=row;
-        String status=row.locked?"Locked":row.active?"Active":"Inactive";
-        String statusSemantic=row.locked?"locked":row.active?"active":"inactive";
-        detailDrawer.showRecord(
-            row.fullName,
-            row.user.get(),
-            List.of(
-                RegisterDetailDrawer.field("Full Name",row.fullName,"user"),
-                RegisterDetailDrawer.field("Username",row.user.get(),"user"),
-                RegisterDetailDrawer.field("Email",row.email.get(),"email"),
-                RegisterDetailDrawer.field("Phone",row.phone.get(),"phone"),
-                RegisterDetailDrawer.field("Role",row.role.get(),"role"),
-                RegisterDetailDrawer.field("Department",row.department.get(),"category"),
-                RegisterDetailDrawer.field("Access Level",row.access.get(),"security"),
-                RegisterDetailDrawer.field("Branch",row.branch.get(),"location"),
-                RegisterDetailDrawer.field("Account Status",status,statusSemantic),
-                RegisterDetailDrawer.field("Locked",row.locked?"Yes":"No",row.locked?"lock":"complete"),
-                RegisterDetailDrawer.field("MFA",row.mfa.get(),row.mfa.get().equalsIgnoreCase("Enabled")?"security":"status"),
-                RegisterDetailDrawer.field("Last Login",row.lastLogin.get(),"calendar")
-            )
-        );
-        Button editButton=new Button("Edit User",IconFactory.compactIcon("edit",15));
-        editButton.getStyleClass().addAll("approved-button","approved-secondary-button");
-        editButton.setOnAction(e->edit(row));
-        Button resetButton=new Button("Reset Password",IconFactory.compactIcon("lock",15));
-        resetButton.getStyleClass().addAll("approved-button","approved-secondary-button");
-        resetButton.setOnAction(e->resetPassword(row));
-        Button resetMfaButton=new Button("Reset Authenticator",IconFactory.compactIcon("security",15));
-        resetMfaButton.getStyleClass().addAll("approved-button","approved-secondary-button");
-        resetMfaButton.setOnAction(e->resetAuthenticator(row));
-        detailDrawer.setActions(editButton,resetButton,resetMfaButton);
+        if(row==null)return;
+        UserDialog.showView(table, row.id);
     }
     private void closeDetails(){
         detailUser=null;

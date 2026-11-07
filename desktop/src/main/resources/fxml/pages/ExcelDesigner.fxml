@@ -19,8 +19,8 @@
 
       <FlowPane hgap="6" vgap="6" alignment="CENTER_LEFT" styleClass="approved-toolbar,excel-command-strip,excel-unified-command-strip">
         <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group">
-          <Button fx:id="btnUndo" text="Undo" onAction="#undo" styleClass="approved-button,excel-tool-purple"/>
-          <Button fx:id="btnRedo" text="Redo" onAction="#redo" styleClass="approved-button,excel-tool-purple"/>
+          <Button fx:id="btnUndo" text="Undo" onAction="#undo" styleClass="approved-button,excel-tool-blue"/>
+          <Button fx:id="btnRedo" text="Redo" onAction="#redo" styleClass="approved-button,excel-tool-blue"/>
         </HBox>
         <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group">
           <Label text="Worksheet" styleClass="field-label"/><ComboBox fx:id="cmbSheet" prefWidth="145"/>
@@ -28,12 +28,12 @@
         </HBox>
         <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group">
           <Label text="Range" styleClass="field-label"/><TextField fx:id="txtRange" text="A1" prefWidth="104" promptText="A1:D4" onAction="#rangeEntered"/>
-          <SplitMenuButton fx:id="btnMerge" text="Merge &amp; Center" minWidth="155" onAction="#mergeAndCenter" styleClass="approved-button,excel-tool-indigo"><items><MenuItem text="Merge Cells" onAction="#mergeCells"/><MenuItem text="Unmerge Cells" onAction="#unmergeCells"/></items></SplitMenuButton>
+          <SplitMenuButton fx:id="btnMerge" text="Merge &amp; Center" minWidth="155" onAction="#mergeAndCenter" styleClass="approved-button,excel-tool-blue"><items><MenuItem text="Merge Cells" onAction="#mergeCells"/><MenuItem text="Unmerge Cells" onAction="#unmergeCells"/></items></SplitMenuButton>
           <Label fx:id="lblMergeState" text="Not merged" minWidth="105" prefWidth="145" maxWidth="190" wrapText="true" styleClass="excel-format-state"/>
         </HBox>
         <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group"><Button text="Copy" onAction="#copyCell" styleClass="approved-button,excel-tool-blue"/><Button text="Paste" onAction="#pasteCell" styleClass="approved-button,excel-tool-blue"/></HBox>
-        <HBox fx:id="boxRecordPreview" spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group"><Label fx:id="lblPreviewRecord" text="Preview Record" styleClass="field-label"/><ComboBox fx:id="cmbPreviewRecord" promptText="Select ERP record" prefWidth="205"/><Button text="Reload" onAction="#reloadPreviewRecords" styleClass="approved-button,excel-tool-purple"/></HBox>
-        <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group"><Button text="Preview Data" onAction="#preview" styleClass="approved-button,excel-tool-green"/><Button text="Download Template" onAction="#download" styleClass="approved-button,excel-tool-teal"/><Button text="Excel Mapping Guide PDF" onAction="#downloadMappingGuide" styleClass="approved-button,excel-tool-indigo"/></HBox>
+        <HBox fx:id="boxRecordPreview" spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group"><Label fx:id="lblPreviewRecord" text="Preview Record" styleClass="field-label"/><ComboBox fx:id="cmbPreviewRecord" promptText="Select ERP record" prefWidth="205"/><Button text="Reload" onAction="#reloadPreviewRecords" styleClass="approved-button,excel-tool-blue"/></HBox>
+        <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group"><Button text="Preview Data" onAction="#preview" styleClass="approved-button,excel-tool-green"/><Button text="Download Template" onAction="#download" styleClass="approved-button,excel-tool-teal"/><Button text="Excel Mapping Guide PDF" onAction="#downloadMappingGuide" styleClass="approved-button,excel-tool-blue"/></HBox>
 
         <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group">
           <ComboBox fx:id="cmbFont" promptText="Font" prefWidth="112" onAction="#fontChanged"/><ComboBox fx:id="cmbFontSize" promptText="Size" prefWidth="78" onAction="#fontSizeChanged"/>
@@ -46,11 +46,11 @@
           <Label text="Fill" styleClass="field-label"/><ColorPicker fx:id="pickerFillColor" prefWidth="56" onAction="#fillColorChanged"/><Button fx:id="btnNoFill" text="No Fill" onAction="#clearFill" styleClass="approved-button,excel-tool-teal"/><Label fx:id="lblFillColorState" text="" styleClass="excel-format-state"/>
           <MenuButton fx:id="btnBorders" text="Borders" styleClass="approved-button,excel-tool-teal"><items><MenuItem text="All Borders" onAction="#borderAll"/><MenuItem text="Outside Borders" onAction="#borderOutside"/><MenuItem text="Inside Borders" onAction="#borderInside"/><SeparatorMenuItem/><MenuItem text="Top Border" onAction="#borderTop"/><MenuItem text="Bottom Border" onAction="#borderBottom"/><MenuItem text="Left Border" onAction="#borderLeft"/><MenuItem text="Right Border" onAction="#borderRight"/><MenuItem text="Inside Horizontal" onAction="#borderInsideHorizontal"/><MenuItem text="Inside Vertical" onAction="#borderInsideVertical"/><SeparatorMenuItem/><MenuItem text="No Border" onAction="#clearBorders"/></items></MenuButton><Label fx:id="lblBorderState" text="None" minWidth="105" prefWidth="145" maxWidth="210" wrapText="true" styleClass="excel-format-state"/>
         </HBox>
-        <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group"><Button fx:id="btnCopyFormat" text="Copy Format" onAction="#copyFormat" styleClass="approved-button,excel-tool-purple"/><Button fx:id="btnPasteFormat" text="Paste Format" onAction="#pasteFormat" styleClass="approved-button,excel-tool-purple"/></HBox>
+        <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group"><Button fx:id="btnCopyFormat" text="Copy Format" onAction="#copyFormat" styleClass="approved-button,excel-tool-blue"/><Button fx:id="btnPasteFormat" text="Paste Format" onAction="#pasteFormat" styleClass="approved-button,excel-tool-blue"/></HBox>
         <HBox spacing="5" alignment="CENTER_LEFT" styleClass="excel-tool-group">
           <Label text="Structure" styleClass="field-label"/><Button text="Insert Row" onAction="#insertRow" styleClass="approved-button,excel-tool-green"/><Button text="Insert Column" onAction="#insertColumn" styleClass="approved-button,excel-tool-green"/>
-          <MenuButton text="Rows" styleClass="approved-button,excel-tool-purple"><items><MenuItem text="Delete Row" onAction="#deleteRow"/><MenuItem text="Row Height…" onAction="#setRowHeight"/><MenuItem text="Decrease Row Height" onAction="#decreaseRowHeight"/><MenuItem text="Increase Row Height" onAction="#increaseRowHeight"/><MenuItem text="AutoFit Row" onAction="#autoFitRows"/></items></MenuButton>
-          <MenuButton text="Columns" styleClass="approved-button,excel-tool-purple"><items><MenuItem text="Delete Column" onAction="#deleteColumn"/><MenuItem text="Column Width…" onAction="#setColumnWidth"/><MenuItem text="Decrease Column Width" onAction="#decreaseColumnWidth"/><MenuItem text="Increase Column Width" onAction="#increaseColumnWidth"/><MenuItem text="AutoFit Column" onAction="#autoFitColumns"/></items></MenuButton>
+          <MenuButton text="Rows" styleClass="approved-button,excel-tool-blue"><items><MenuItem text="Delete Row" onAction="#deleteRow"/><MenuItem text="Row Height…" onAction="#setRowHeight"/><MenuItem text="Decrease Row Height" onAction="#decreaseRowHeight"/><MenuItem text="Increase Row Height" onAction="#increaseRowHeight"/><MenuItem text="AutoFit Row" onAction="#autoFitRows"/></items></MenuButton>
+          <MenuButton text="Columns" styleClass="approved-button,excel-tool-blue"><items><MenuItem text="Delete Column" onAction="#deleteColumn"/><MenuItem text="Column Width…" onAction="#setColumnWidth"/><MenuItem text="Decrease Column Width" onAction="#decreaseColumnWidth"/><MenuItem text="Increase Column Width" onAction="#increaseColumnWidth"/><MenuItem text="AutoFit Column" onAction="#autoFitColumns"/></items></MenuButton>
           <MenuButton text="Freeze" styleClass="approved-button,excel-tool-teal"><items><MenuItem text="Freeze Here" onAction="#freezePane"/><MenuItem text="Unfreeze" onAction="#unfreezePane"/></items></MenuButton>
         </HBox>
       </FlowPane>

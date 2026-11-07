@@ -155,4 +155,18 @@ class IconFactorySemanticTest {
         assertEquals("dashboard", IconFactory.semanticForPageTitle("Dashboard"));
         assertEquals("settings",  IconFactory.semanticForPageTitle("Settings"));
     }
+
+    @Test
+    void cleanPreservesTemplateTokensAndEnclosures() {
+        assertEquals("{CustomerName}",   IconFactory.clean("{CustomerName}"),   "Template token {CustomerName} must retain both braces");
+        assertEquals("{DocumentNo}",     IconFactory.clean("{DocumentNo}"),     "Template token {DocumentNo} must retain both braces");
+        assertEquals("{DocumentDate}",   IconFactory.clean("{DocumentDate}"),   "Template token {DocumentDate} must retain both braces");
+        assertEquals("{TotalAmount}",    IconFactory.clean("{TotalAmount}"),    "Template token {TotalAmount} must retain both braces");
+        assertEquals("{BalanceAmount}",  IconFactory.clean("{BalanceAmount}"),  "Template token {BalanceAmount} must retain both braces");
+        assertEquals("{Signature}",      IconFactory.clean("{Signature}"),      "Template token {Signature} must retain both braces");
+        assertEquals("[All]",            IconFactory.clean("[All]"),            "Bracketed tag [All] must retain brackets");
+        assertEquals("(Optional)",       IconFactory.clean("(Optional)"),       "Parenthesized tag (Optional) must retain parentheses");
+        assertEquals("Add Item",         IconFactory.clean("➕ Add Item"),       "Leading emojis must be stripped");
+        assertEquals("Save",             IconFactory.clean("Save:"),            "Trailing colons must be stripped");
+    }
 }

@@ -145,6 +145,20 @@ public class ClientRegistryController {
         return registryService.dispatchLicenseChannels(client);
     }
 
+    @PostMapping("/clients/{id}/dispatch-email")
+    public Map<String, Object> dispatchEmail(@PathVariable Long id) {
+        requireSuperAdmin();
+        Map<String, Object> client = registryService.getClientById(id);
+        return registryService.dispatchEmailChannel(client);
+    }
+
+    @PostMapping("/clients/{id}/dispatch-whatsapp")
+    public Map<String, Object> dispatchWhatsApp(@PathVariable Long id) {
+        requireSuperAdmin();
+        Map<String, Object> client = registryService.getClientById(id);
+        return registryService.dispatchWhatsAppChannel(client);
+    }
+
     @PostMapping("/leads/{id}/reject")
     public Map<String, Object> rejectLead(@PathVariable Long id) {
         requireSuperAdmin();

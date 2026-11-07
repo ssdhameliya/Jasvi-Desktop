@@ -105,6 +105,30 @@ public final class WorkflowFocusManager {
     }
 
     private static void collectInteractiveControls(Parent parent, List<Node> result) {
+        if (parent == null) return;
+        if (parent instanceof ScrollPane scroll && scroll.getContent() instanceof Parent scrollParent) {
+            collectInteractiveControls(scrollParent, result);
+        } else if (parent instanceof TabPane tabs) {
+            for (Tab tab : tabs.getTabs()) {
+                if (tab.getContent() instanceof Parent tabParent) {
+                    collectInteractiveControls(tabParent, result);
+                }
+            }
+        } else if (parent instanceof TitledPane titled && titled.getContent() instanceof Parent titledParent) {
+            collectInteractiveControls(titledParent, result);
+        } else if (parent instanceof Accordion accordion) {
+            for (TitledPane pane : accordion.getPanes()) {
+                if (pane.getContent() instanceof Parent paneParent) {
+                    collectInteractiveControls(paneParent, result);
+                }
+            }
+        } else if (parent instanceof SplitPane split) {
+            for (Node item : split.getItems()) {
+                if (item instanceof Parent splitParent) {
+                    collectInteractiveControls(splitParent, result);
+                }
+            }
+        }
         for (Node child : parent.getChildrenUnmodifiable()) {
             if (!child.isVisible() || !child.isManaged() || child.isDisabled()) continue;
             if (isFocusableInputField(child)) {
@@ -118,18 +142,52 @@ public final class WorkflowFocusManager {
     private static boolean isFocusableInputField(Node node) {
         if (!node.isFocusTraversable()) return false;
         return node instanceof TextField
+                || node instanceof TextArea
+                || node instanceof PasswordField
                 || node instanceof ComboBox<?>
+                || node instanceof ChoiceBox<?>
                 || node instanceof DatePicker
                 || node instanceof Spinner<?>
                 || node instanceof CheckBox;
     }
 
-    private static void attachInputFocusHighlightAndSelection(Node node) {
+    public static boolean isInternalChildEditor(Node node) {
+        if (node == null) return false;
+        if (node.getStyleClass().contains("dse-global-search-v3-input")) {
+            return true;
+        }
+        Parent p = node.getParent();
+        int depth = 0;
+        while (p != null && depth < 4) {
+            if (p instanceof ComboBox<?> || p instanceof DatePicker || p instanceof Spinner<?>) {
+                return true;
+            }
+            for (String sc : p.getStyleClass()) {
+                if (sc.contains("search-shell") || sc.contains("search-strip") || sc.contains("query-shell")
+                        || sc.contains("finance-filter-search") || sc.contains("report-search-shell")
+                        || sc.contains("clients-search-strip")) {
+                    return true;
+                }
+            }
+            p = p.getParent();
+            depth++;
+        }
+        return false;
+    }
+
+    public static void attachInputFocusHighlightAndSelection(Node node) {
+        if (node == null) return;
+        if (Boolean.TRUE.equals(node.getProperties().get("erp.focus.highlight.attached"))) return;
+        node.getProperties().put("erp.focus.highlight.attached", true);
+
         if (node instanceof TextField tf) {
             selectAllOnFocus(tf);
         }
         node.focusedProperty().addListener((obs, was, isFocused) -> {
-            updateFocusStyleClass(node, isFocused);
+            if (!isInternalChildEditor(node)) {
+                updateFocusStyleClass(node, isFocused);
+            }
+            notifyShellParent(node, isFocused);
         });
         if (node instanceof ComboBox<?> cb) {
             wireEditorFocus(cb, cb.getEditor());
@@ -145,16 +203,37 @@ public final class WorkflowFocusManager {
         }
     }
 
+    public static void notifyShellParent(Node node, boolean isFocused) {
+        if (node == null) return;
+        Parent p = node.getParent();
+        int depth = 0;
+        while (p != null && depth < 4) {
+            if (p instanceof DatePicker || p instanceof ComboBox<?> || p instanceof Spinner<?>) {
+                updateFocusStyleClass(p, isFocused);
+            }
+            for (String sc : p.getStyleClass()) {
+                if (sc.contains("search-shell") || sc.contains("search-strip") || sc.contains("query-shell")
+                        || sc.contains("finance-filter-search") || sc.contains("report-search-shell")
+                        || sc.contains("clients-search-strip")) {
+                    updateFocusStyleClass(p, isFocused);
+                    break;
+                }
+            }
+            p = p.getParent();
+            depth++;
+        }
+    }
+
     private static void wireEditorFocus(Control parentControl, TextField editor) {
         if (editor == null) return;
         selectAllOnFocus(editor);
         editor.focusedProperty().addListener((obs, was, isFocused) -> {
             updateFocusStyleClass(parentControl, isFocused);
-            updateFocusStyleClass(editor, isFocused);
+            notifyShellParent(parentControl, isFocused);
         });
     }
 
-    private static void updateFocusStyleClass(Node node, boolean isFocused) {
+    public static void updateFocusStyleClass(Node node, boolean isFocused) {
         if (node == null) return;
         if (Boolean.TRUE.equals(isFocused)) {
             if (!node.getStyleClass().contains(ACTIVE_FOCUS_CLASS)) {

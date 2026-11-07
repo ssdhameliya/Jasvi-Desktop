@@ -3,11 +3,13 @@ package org.example.controller;
 import org.example.navigation.ScreenLifecycle;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.example.model.Party;
 import org.example.service.NotificationService;
 import org.example.service.PartyService;
+import org.example.util.DocumentInspectionScaffold;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
 import org.example.util.UiTaskExecutor;
@@ -19,27 +21,38 @@ public class PartyDialogController implements ScreenLifecycle {
     private static final Pattern PHONE = Pattern.compile("^[0-9+()\\-\\s]{7,18}$");
     private static final Pattern GSTIN = Pattern.compile("^[0-9A-Za-z]{15}$");
 
-    @FXML private Label lblTitle, lblSubtitle, lblEmailCaption;
+    @FXML private Label lblTitle, lblSubtitle, lblEmailCaption, lblStatusBadge, lblGstValidationChip, lblShortcuts;
     @FXML private Label errName, errPhone, errEmail, errGstin, errAddress, errOpeningBalance;
     @FXML private TextField txtCode, txtName, txtContact, txtPhone, txtEmail, txtGstin, txtOpeningBalance;
     @FXML private TextArea txtAddress;
     @FXML private CheckBox chkActive;
     @FXML private Button btnSave, btnCancel;
+    @FXML private Button btnAuditTrail;
     @FXML private StackPane headerIconHolder;
+    @FXML private HBox heroHeader;
 
     private final PartyService service = new PartyService();
     private String type;
     private Party editing;
     private Party savedResult;
     private Boolean savedCreated;
+    private Dialog<Party> hostDialog;
+    private boolean viewOnly = false;
 
     public Party getSavedResult() { return savedResult; }
     public boolean wasSavedAsCreate() { return Boolean.TRUE.equals(savedCreated); }
 
+    public void setHostDialog(Dialog<Party> dialog) {
+        this.hostDialog = dialog;
+        if (heroHeader != null && dialog != null) {
+            DocumentInspectionScaffold.installDragPhysics(heroHeader, dialog);
+        }
+    }
+
     @FXML
     private void initialize() {
-        btnSave.setGraphic(IconFactory.icon("save"));
-        btnCancel.setGraphic(IconFactory.icon("cancel"));
+        btnSave.setGraphic(IconFactory.icon("save", 16));
+        btnCancel.setGraphic(IconFactory.icon("cancel", 16));
         installLiveValidation();
         org.example.util.WorkflowFocusManager.install(java.util.List.of(
             txtName, txtContact, txtPhone, txtEmail, txtGstin, txtOpeningBalance, btnSave));
@@ -54,25 +67,100 @@ public class PartyDialogController implements ScreenLifecycle {
                     }
                 });
             }
+            if (heroHeader != null && hostDialog != null) {
+                DocumentInspectionScaffold.installDragPhysics(heroHeader, hostDialog);
+            }
         });
     }
 
     public void configure(String type, Party party) {
+        configure(type, party, false);
+    }
+
+    public void configure(String type, Party party, boolean viewOnly) {
         this.type = type;
         this.editing = party;
+        this.viewOnly = viewOnly;
         boolean customer = "CUSTOMER".equals(type);
         String entity = customer ? "Customer" : "Supplier";
         boolean editingMode = party != null;
 
-        lblTitle.setText((editingMode ? "Edit " : "Add ") + entity);
-        lblSubtitle.setText(editingMode
-                ? "Update " + entity.toLowerCase() + " information"
-                : "Add a new " + entity.toLowerCase() + " to your records");
-        btnSave.setText(editingMode ? "Update " + entity : "Save " + entity);
-        if (lblEmailCaption != null) lblEmailCaption.setText(customer ? "Email" : "Email *");
+        if (lblEmailCaption != null) lblEmailCaption.setText(customer ? "Official Email Address" : "Official Email Address *");
         headerIconHolder.getChildren().setAll(IconFactory.icon(customer ? "customer" : "supplier", 24));
         headerIconHolder.getStyleClass().removeAll("customer-title-icon", "supplier-title-icon");
         headerIconHolder.getStyleClass().add(customer ? "customer-title-icon" : "supplier-title-icon");
+
+        if (viewOnly && party != null) {
+            lblTitle.setText(entity + " Specification & Master Details");
+            lblSubtitle.setText("Comprehensive " + entity.toLowerCase() + " commercial records, statutory tax and ledger balance (read-only)");
+            if (lblStatusBadge != null) {
+                lblStatusBadge.setText("VIEW " + entity.toUpperCase() + " (" + safe(party.getPartyCode()) + ")");
+                lblStatusBadge.getStyleClass().removeAll("status-info", "status-success", "status-warning", "status-danger");
+                lblStatusBadge.getStyleClass().add("status-info");
+            }
+            if (btnAuditTrail != null) {
+                btnAuditTrail.setVisible(true);
+                btnAuditTrail.setManaged(true);
+                btnAuditTrail.setGraphic(IconFactory.compactIcon("history", 16));
+            }
+            btnCancel.setText("Close");
+            btnCancel.setGraphic(IconFactory.icon("cancel", 16));
+
+            btnSave.setText("Edit " + entity);
+            btnSave.setGraphic(IconFactory.icon("edit", 16));
+            btnSave.getStyleClass().removeAll("primary-button", "approved-primary-button");
+            btnSave.getStyleClass().addAll("approved-button", "approved-amber-button");
+            btnSave.setOnAction(e -> unlockEditMode());
+
+            txtCode.setEditable(false);
+            txtName.setEditable(false);
+            txtContact.setEditable(false);
+            txtPhone.setEditable(false);
+            txtEmail.setEditable(false);
+            txtGstin.setEditable(false);
+            txtAddress.setEditable(false);
+            txtOpeningBalance.setEditable(false);
+            chkActive.setDisable(true);
+        } else {
+            lblTitle.setText((editingMode ? "Edit " : "Add ") + entity + " Specification");
+            lblSubtitle.setText(editingMode
+                    ? "Update " + entity.toLowerCase() + " commercial master, statutory tax and ledger balance information"
+                    : "Add a new " + entity.toLowerCase() + " to your commercial master records");
+            btnSave.setText(editingMode ? "Update " + entity : "Save " + entity);
+            btnSave.setGraphic(IconFactory.icon("save", 16));
+            btnSave.getStyleClass().removeAll("approved-amber-button");
+            btnSave.getStyleClass().addAll("primary-button", "approved-primary-button");
+            btnSave.setOnAction(e -> save());
+
+            if (btnAuditTrail != null) {
+                btnAuditTrail.setVisible(false);
+                btnAuditTrail.setManaged(false);
+            }
+            btnCancel.setText("Cancel");
+            btnCancel.setGraphic(IconFactory.icon("cancel", 16));
+
+            if (lblStatusBadge != null) {
+                if (editingMode) {
+                    lblStatusBadge.setText("EDIT " + entity.toUpperCase() + " (" + safe(party.getPartyCode()) + ")");
+                    lblStatusBadge.getStyleClass().removeAll("status-info", "status-success");
+                    lblStatusBadge.getStyleClass().add("status-success");
+                } else {
+                    lblStatusBadge.setText("NEW " + entity.toUpperCase() + " DRAFT");
+                    lblStatusBadge.getStyleClass().removeAll("status-info", "status-success");
+                    lblStatusBadge.getStyleClass().add("status-info");
+                }
+            }
+
+            txtCode.setEditable(false);
+            txtName.setEditable(true);
+            txtContact.setEditable(true);
+            txtPhone.setEditable(true);
+            txtEmail.setEditable(true);
+            txtGstin.setEditable(true);
+            txtAddress.setEditable(true);
+            txtOpeningBalance.setEditable(!editingMode);
+            chkActive.setDisable(false);
+        }
 
         if (!editingMode) {
             txtCode.clear();
@@ -96,6 +184,40 @@ public class PartyDialogController implements ScreenLifecycle {
         txtAddress.setText(safe(party.getAddress()));
         txtOpeningBalance.setText(String.valueOf(party.getOpeningBalance()));
         chkActive.setSelected(party.isActive());
+        updateGstinChip();
+    }
+
+    private void unlockEditMode() {
+        this.viewOnly = false;
+        if (editing != null) {
+            configure(this.type, editing, false);
+            txtName.requestFocus();
+        }
+    }
+
+    @FXML
+    private void showAuditTrail() {
+        if (editing != null && editing.getId() > 0) {
+            org.example.util.ActivityTimelineDialog.show(btnAuditTrail != null ? btnAuditTrail : btnCancel, type, editing.getId(), editing.getPartyCode());
+        }
+    }
+
+    private void updateGstinChip() {
+        if (lblGstValidationChip == null) return;
+        String val = txtGstin.getText() == null ? "" : txtGstin.getText().trim();
+        if (val.isBlank()) {
+            lblGstValidationChip.setText("GSTIN: Optional");
+            lblGstValidationChip.getStyleClass().removeAll("status-success", "status-warning", "status-danger");
+            lblGstValidationChip.getStyleClass().add("status-neutral");
+        } else if (GSTIN.matcher(val).matches()) {
+            lblGstValidationChip.setText("GSTIN: Valid Format (15)");
+            lblGstValidationChip.getStyleClass().removeAll("status-neutral", "status-warning", "status-danger");
+            lblGstValidationChip.getStyleClass().add("status-success");
+        } else {
+            lblGstValidationChip.setText("GSTIN: Incomplete (" + val.length() + "/15)");
+            lblGstValidationChip.getStyleClass().removeAll("status-neutral", "status-success", "status-danger");
+            lblGstValidationChip.getStyleClass().add("status-warning");
+        }
     }
 
     @FXML
@@ -203,7 +325,10 @@ public class PartyDialogController implements ScreenLifecycle {
         txtName.textProperty().addListener((o, a, b) -> clearError(txtName, errName));
         txtPhone.textProperty().addListener((o, a, b) -> clearError(txtPhone, errPhone));
         txtEmail.textProperty().addListener((o, a, b) -> clearError(txtEmail, errEmail));
-        txtGstin.textProperty().addListener((o, a, b) -> clearError(txtGstin, errGstin));
+        txtGstin.textProperty().addListener((o, a, b) -> {
+            clearError(txtGstin, errGstin);
+            updateGstinChip();
+        });
         txtAddress.textProperty().addListener((o, a, b) -> clearError(txtAddress, errAddress));
         txtOpeningBalance.textProperty().addListener((o, a, b) -> clearError(txtOpeningBalance, errOpeningBalance));
     }
@@ -233,11 +358,19 @@ public class PartyDialogController implements ScreenLifecycle {
     }
 
     @FXML private void cancel() { close(); }
-    private void close() { ((Stage) txtCode.getScene().getWindow()).close(); }
+
+    private void close() {
+        if (hostDialog != null) {
+            hostDialog.setResult(savedResult);
+            hostDialog.close();
+        } else if (txtCode != null && txtCode.getScene() != null && txtCode.getScene().getWindow() != null) {
+            ((Stage) txtCode.getScene().getWindow()).close();
+        }
+    }
+
     private String safe(String value) { return value == null ? "" : value; }
 
     @Override
     public void onScreenHidden() {
-        
     }
 }

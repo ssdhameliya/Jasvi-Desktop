@@ -236,6 +236,8 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML
     private MenuButton menuUser;
+    @FXML
+    private MenuItem menuRemoteAccess;
 
     public void initialize() {
         DashboardController previous = CURRENT;
@@ -281,7 +283,22 @@ public class DashboardController implements ScreenLifecycle {
         markNavigationControls();
         applyNavigationSemanticIcons();
         bindShortcutLabels();
-        org.example.util.RealtimeSearchSupport.installRemote(txtSearch, this::search);
+        if (txtSearch != null) {
+            txtSearch.textProperty().addListener((obs, oldVal, newVal) -> {
+                // Realtime global shell search tracker
+            });
+            txtSearch.setOnAction(evt -> search());
+            txtSearch.setOnKeyPressed(evt -> {
+                if (evt.getCode() == KeyCode.ENTER) {
+                    search();
+                    evt.consume();
+                } else if (evt.getCode() == KeyCode.ESCAPE) {
+                    txtSearch.clear();
+                    if (contentPane != null) contentPane.requestFocus();
+                    evt.consume();
+                }
+            });
+        }
         Platform.runLater(() -> {
             bindShellControls();
             if (contentPane != null && contentPane.getScene() != null) {
@@ -542,6 +559,7 @@ public class DashboardController implements ScreenLifecycle {
         protect(btnGstCompliance, "GST_COMPLIANCE.VIEW");
         protect(btnEWayBill, "EWAY_BILL.VIEW");
         protect(btnAutomationCenter, "AUTOMATION.VIEW");
+        if (menuRemoteAccess != null) menuRemoteAccess.setVisible(SessionService.isAdmin());
 
         // Sales accordion
         boolean salesAllowed = PermissionService.allowed("SALES.VIEW");
@@ -1730,6 +1748,9 @@ public class DashboardController implements ScreenLifecycle {
     @FXML
     private void search() {
         String query = txtSearch.getText() == null ? "" : txtSearch.getText().trim();
+        if (query.isBlank()) {
+            return;
+        }
         txtSearch.clear();
         GlobalSearchContext.open(query);
         openPage(null, "Global Search", "/fxml/pages/GlobalSearch.fxml");

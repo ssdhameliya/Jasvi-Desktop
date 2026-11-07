@@ -24,7 +24,13 @@ public final class DialogOwnerResolver {
                 .findFirst().orElse(null);
     }
 
-    public static Window resolve() { return resolve(null); }
+    public static Window resolve() { return resolve((Node) null); }
+
+    public static Window resolve(Object target) {
+        if (target instanceof Window window) return window;
+        if (target instanceof Node node) return resolve(node);
+        return resolve((Node) null);
+    }
 
     private static boolean isPrimaryCandidate(Window window) {
         if (!(window instanceof Stage stage)) return false;

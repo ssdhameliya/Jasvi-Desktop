@@ -149,7 +149,7 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private StackPane panelHost;
     @FXML private ScrollPane panelScroll;
 
-    @FXML private Button btnCheckUpdates,btnTestEmail,btnSaveSettings,btnRemoteAccess;
+    @FXML private Button btnCheckUpdates,btnTestEmail,btnSaveSettings;
     @FXML private VBox panelSecurity;
     @FXML private TextField txtSessionTimeoutMinutes, txtSessionWarningMinutes;
     @FXML private ComboBox<String> cmbMfaPolicy;
@@ -552,7 +552,6 @@ public class SettingsController implements ScreenLifecycle {
         if (fragmentLoading || rootInitialized) return;
         rootInitialized = true;
         if(btnTestEmail!=null) org.example.util.UiActionIcons.apply(btnTestEmail,"email","Test Email");
-        if(btnRemoteAccess!=null) org.example.util.UiActionIcons.apply(btnRemoteAccess,"server","Remote Access");
         if(btnSaveSettings!=null) org.example.util.UiActionIcons.apply(btnSaveSettings,"save","Save Company");
         showRequestedSection();
     }

@@ -422,8 +422,14 @@ public final class AppDialogRenderer {
     }
 
     private static String cleanLabel(String value) {
-        return safe(value).replaceFirst("^[^\\p{L}\\p{N}#]+\\s*", "")
-                .replaceFirst("\\s*[^\\p{L}\\p{N})%]+$", "").trim();
+        String trimmed = safe(value).trim();
+        if ((trimmed.startsWith("{") && trimmed.endsWith("}"))
+                || (trimmed.startsWith("[") && trimmed.endsWith("]"))
+                || (trimmed.startsWith("(") && trimmed.endsWith(")"))) {
+            return trimmed;
+        }
+        return trimmed.replaceFirst("^[^\\p{L}\\p{N}#{\\[(]+\\s*", "")
+                .replaceFirst("\\s*[^\\p{L}\\p{N})%}\\]]+$", "").trim();
     }
 
     private static void applyTheme(Dialog<?> dialog, Scene scene) {

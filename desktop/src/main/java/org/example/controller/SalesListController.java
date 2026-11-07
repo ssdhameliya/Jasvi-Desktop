@@ -95,6 +95,7 @@ public class SalesListController implements ScreenLifecycle {
     private final SalesService service=new SalesService();
     private final LookupService lookupService=new LookupService();
     private boolean explicitRefreshPending;
+    private Runnable salesRefreshFinish;
     private final SupportApiClient support=new SupportApiClient();
     private final NumberFormat currency=NumberFormat.getCurrencyInstance(Locale.of("en", "IN"));
     private List<Sales> allSales=new ArrayList<>(),filteredSales=new ArrayList<>();
@@ -520,14 +521,14 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
     @FXML public void refresh(){reloadPage(true);}
     @FXML private void refreshWithFeedback(){
         explicitRefreshPending=true;
-        if(btnRefreshSales!=null){btnRefreshSales.setDisable(true);btnRefreshSales.setText("Refreshing...");}
+        salesRefreshFinish = org.example.util.OperationalUiSupport.beginRefresh(btnRefreshSales);
         reloadPage(true);
     }
     private void finishExplicitRefresh(boolean success){
         if(!explicitRefreshPending)return;
         explicitRefreshPending=false;
-        if(btnRefreshSales!=null){btnRefreshSales.setDisable(false);btnRefreshSales.setText("Refresh");}
-        if(success)org.example.util.ToastManager.info(tableSales,"Refreshed","Sales Register is up to date.");
+        if(salesRefreshFinish!=null){salesRefreshFinish.run();salesRefreshFinish=null;}
+        else if(btnRefreshSales!=null){btnRefreshSales.setDisable(false);btnRefreshSales.setText("Refresh");}
     }
     private void reloadPage(boolean includeSummary){
         int requestedPage=pageState.currentPage(),size=cmbPageSize.getValue()==null?25:cmbPageSize.getValue();
@@ -675,7 +676,13 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
     private void applyDateRange(LocalDate from,LocalDate to){batchFilterUpdate(()->{dpFrom.setValue(from);dpTo.setValue(to);});applyFilters();}
 
     @FXML private void toggleAdvanced(){advancedFilters.setManaged(btnAdvanced.isSelected());advancedFilters.setVisible(btnAdvanced.isSelected());}
-    @FXML private void resetFilters(){batchFilterUpdate(()->{txtSearch.clear();txtInvoice.clear();txtAmountFrom.clear();txtAmountTo.clear();dpFrom.setValue(BusinessClock.today().minusMonths(6));dpTo.setValue(BusinessClock.today());cmbCustomer.setValue("All customers");cmbPaymentStatus.setValue("All");cmbMailStatus.setValue("All");cmbWhatsappStatus.setValue("All");cmbInvoiceType.setValue("All");cmbDocumentStatus.setValue("All");cmbReturnStatus.setValue("All");});filterDebouncer.cancel();applyFilters();}
+    @FXML private void resetFilters(){
+        org.example.util.OperationalUiSupport.animateReset(btnResetFilters, advancedFilters != null ? advancedFilters : activeFilterChips, () -> {
+            batchFilterUpdate(()->{txtSearch.clear();txtInvoice.clear();txtAmountFrom.clear();txtAmountTo.clear();dpFrom.setValue(BusinessClock.today().minusMonths(6));dpTo.setValue(BusinessClock.today());cmbCustomer.setValue("All customers");cmbPaymentStatus.setValue("All");cmbMailStatus.setValue("All");cmbWhatsappStatus.setValue("All");cmbInvoiceType.setValue("All");cmbDocumentStatus.setValue("All");cmbReturnStatus.setValue("All");});
+            filterDebouncer.cancel();
+            applyFilters();
+        });
+    }
     private void renderChips(){activeFilterChips.getChildren().clear();addChip("From",dpFrom.getValue());addChip("To",dpTo.getValue());addChip("Payment",nonAll(cmbPaymentStatus));addChip("Return",nonAll(cmbReturnStatus));addChip("Email",nonAll(cmbMailStatus));addChip("WhatsApp",nonAll(cmbWhatsappStatus));addChip("Document",nonAll(cmbDocumentStatus));}
     private Object nonAll(ComboBox<String>b){return b.getValue()==null||b.getValue().equals("All")?null:b.getValue();}private void addChip(String name,Object value){if(value==null)return;Label chip=new Label(name+": "+value);chip.getStyleClass().add("filter-chip");activeFilterChips.getChildren().add(chip);}
 

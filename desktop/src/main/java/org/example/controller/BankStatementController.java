@@ -84,6 +84,7 @@ public class BankStatementController implements ScreenLifecycle {
     private boolean suppressFilterReload;
     private Long pendingLinkedTransactionId;
     private boolean explicitRefreshPending;
+    private Runnable bankStmtRefreshFinish;
     private int historyPage,historyTotalPages;
     private long historyTotalRows;
     private final Map<String,String> historyAccountTokens=new LinkedHashMap<>();
@@ -926,14 +927,24 @@ public class BankStatementController implements ScreenLifecycle {
 
     @FXML private void applyFilters(){resetPageAndLoad();}
     @FXML private void resetFilters(){
-        suppressFilterReload=true;
-        try{pendingLinkedTransactionId=null;applyBatchPeriod();cmbStatus.setValue("All Status");if(cmbDirection!=null)cmbDirection.setValue("All");txtSearch.clear();currentPage=0;}
-        finally{suppressFilterReload=false;}
+        org.example.util.OperationalUiSupport.animateReset(btnReset, txtSearch != null ? txtSearch.getParent() : null, () -> {
+            suppressFilterReload=true;
+            try{pendingLinkedTransactionId=null;applyBatchPeriod();cmbStatus.setValue("All Status");if(cmbDirection!=null)cmbDirection.setValue("All");txtSearch.clear();currentPage=0;}
+            finally{suppressFilterReload=false;}
+            reloadCurrentPage();
+        });
+    }
+    @FXML private void refreshWithFeedback(){
+        explicitRefreshPending=true;
+        bankStmtRefreshFinish=org.example.util.OperationalUiSupport.beginRefresh(btnRefresh);
         reloadCurrentPage();
     }
-    @FXML private void refreshWithFeedback(){explicitRefreshPending=true;if(btnRefresh!=null){btnRefresh.setDisable(true);btnRefresh.setText("Refreshing...");}reloadCurrentPage();}
     private void refresh(){reloadCurrentPage();}
-    private void finishExplicitRefresh(boolean success){if(!explicitRefreshPending)return;explicitRefreshPending=false;if(btnRefresh!=null){btnRefresh.setDisable(false);btnRefresh.setText("Refresh");}if(success)org.example.util.ToastManager.info(table,"Refreshed","Bank Statement is up to date.");}
+    private void finishExplicitRefresh(boolean success){
+        if(!explicitRefreshPending)return;explicitRefreshPending=false;
+        if(bankStmtRefreshFinish!=null){bankStmtRefreshFinish.run();bankStmtRefreshFinish=null;}
+        else if(btnRefresh!=null){btnRefresh.setDisable(false);btnRefresh.setText("Refresh");}
+    }
     @FXML private void previousPage(){if(currentPage>0){currentPage--;reloadCurrentPage();}}
     @FXML private void nextPage(){if(currentPage+1<totalPages){currentPage++;reloadCurrentPage();}}
     private void resetPageAndLoad(){currentPage=0;reloadCurrentPage();}

@@ -1,52 +1,101 @@
-<?xml version='1.0' encoding='UTF-8'?>
-<?import javafx.geometry.Insets?><?import javafx.scene.control.*?><?import javafx.scene.layout.*?><BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml" fx:controller="org.example.controller.LookupDialogController" prefWidth="720" prefHeight="540" styleClass="entity-dialog,premium-entity-dialog,lookup-dialog,approved-ui,approved-screen,approved-screen-lookup-dialog,erp-screen-root">
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.controller.LookupDialogController"
+            prefWidth="1080" prefHeight="700" maxWidth="Infinity" maxHeight="Infinity"
+            styleClass="entity-dialog,premium-entity-dialog,lookup-dialog,approved-ui,approved-screen,approved-screen-lookup-dialog,erp-screen-root,document-inspection-host">
     <top>
-        <HBox alignment="CENTER_LEFT" spacing="14" styleClass="entity-dialog-header,premium-dialog-header,approved-section-header">
-            <StackPane fx:id="headerIconHolder" minWidth="44" minHeight="44" prefWidth="44" prefHeight="44" styleClass="dialog-title-icon,lookup-title-icon"/>
-            <VBox spacing="3">
-                <Label fx:id="lblTitle" text="Add Master" styleClass="entity-dialog-title"/>
-                <Label fx:id="lblSubtitle" text="Maintain a reusable dropdown value" styleClass="entity-dialog-subtitle"/>
+        <HBox fx:id="heroHeader" alignment="CENTER_LEFT" spacing="14"
+              styleClass="erp-page-identity-header,approved-card,entity-dialog-header">
+            <StackPane fx:id="headerIconHolder" minWidth="44" minHeight="44" prefWidth="44" prefHeight="44"
+                       styleClass="erp-page-header-icon,dialog-title-icon,lookup-title-icon"/>
+            <VBox spacing="2">
+                <Label fx:id="lblTitle" text="Add Master Value"
+                       styleClass="section-title,erp-page-title,approved-strong-label,entity-dialog-title"/>
+                <Label fx:id="lblSubtitle" text="Maintain a standardized reusable dropdown value"
+                       styleClass="muted-label,erp-page-subtitle,entity-dialog-subtitle"/>
             </VBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="lblStatusBadge" text="MASTER VALUE DRAFT" styleClass="status-badge,status-info"/>
         </HBox>
     </top>
     <center>
-        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" styleClass="dialog-scroll-pane">
-            <VBox spacing="12" styleClass="premium-dialog-content">
-                <Label text="Master Information" styleClass="dialog-section-title"/>
-            <GridPane hgap="18" vgap="8" styleClass="premium-form-grid">
-                <columnConstraints>
-                    <ColumnConstraints minWidth="145" prefWidth="145"/>
-                    <ColumnConstraints minWidth="420" hgrow="ALWAYS"/>
-                </columnConstraints>
-                <Label fx:id="lblCodeLabel" text="Code *" styleClass="field-label" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
-                <VBox spacing="5" GridPane.rowIndex="0" GridPane.columnIndex="1">
-                    <TextField fx:id="txtCode" editable="false" promptText="Auto generated" styleClass="readonly-field"/>
-                    <Label fx:id="lblCodeHint" text="System-generated master identifier" styleClass="entity-dialog-subtitle"/>
-                    <Label fx:id="errCode" managed="false" visible="false" styleClass="validation-message"/>
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" styleClass="dialog-scroll-pane,erp-dialog-scroll">
+            <VBox spacing="14" styleClass="premium-dialog-content">
+                <!-- Card 1: Master Value & System Identifier -->
+                <VBox spacing="10" styleClass="approved-card,form-section-card">
+                    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="section-header-row">
+                        <Label text="1. MASTER VALUE &amp; SYSTEM IDENTIFIER"
+                               styleClass="dialog-section-title,approved-strong-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Master Definition" styleClass="muted-label,field-hint-chip"/>
+                    </HBox>
+                    <GridPane hgap="16" vgap="10" styleClass="premium-form-grid">
+                        <columnConstraints>
+                            <ColumnConstraints percentWidth="30" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="70" hgrow="ALWAYS"/>
+                        </columnConstraints>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
+                            <Label fx:id="lblCodeLabel" text="Master Code *" styleClass="field-label"/>
+                            <TextField fx:id="txtCode" editable="false" promptText="Auto generated"
+                                       styleClass="readonly-field,approved-input"/>
+                            <Label fx:id="lblCodeHint" text="System-generated identifier" styleClass="field-help,muted-label"/>
+                            <Label fx:id="errCode" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="1">
+                            <Label fx:id="lblValueLabel" text="Display Value *" styleClass="field-label"/>
+                            <TextField fx:id="txtValue" promptText="Enter a meaningful value" styleClass="approved-input"/>
+                            <Label fx:id="errValue" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="0" GridPane.columnSpan="2">
+                            <Label text="Functional Description" styleClass="field-label"/>
+                            <TextArea fx:id="txtDescription" promptText="Describe where this dropdown value is utilized (optional)"
+                                      prefRowCount="3" minHeight="74" prefHeight="84" wrapText="true" styleClass="approved-input"/>
+                        </VBox>
+                    </GridPane>
                 </VBox>
 
-                <Label fx:id="lblValueLabel" text="Value *" styleClass="field-label" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-                <VBox spacing="5" GridPane.rowIndex="1" GridPane.columnIndex="1">
-                    <TextField fx:id="txtValue" promptText="Enter a meaningful value" styleClass="approved-input"/>
-                    <Label fx:id="errValue" managed="false" visible="false" styleClass="validation-message"/>
+                <!-- Card 2: Display Hierarchy & Availability Rules -->
+                <VBox spacing="10" styleClass="approved-card,form-section-card">
+                    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="section-header-row">
+                        <Label text="2. DISPLAY HIERARCHY &amp; AVAILABILITY RULES"
+                               styleClass="dialog-section-title,approved-strong-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Ordering &amp; Scope" styleClass="status-badge,status-neutral"/>
+                    </HBox>
+                    <GridPane hgap="16" vgap="10" styleClass="premium-form-grid">
+                        <columnConstraints>
+                            <ColumnConstraints percentWidth="35" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="65" hgrow="ALWAYS"/>
+                        </columnConstraints>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
+                            <Label text="Display Order Position" styleClass="field-label"/>
+                            <Spinner fx:id="spnOrder" editable="true" maxWidth="Infinity" styleClass="approved-input"/>
+                            <Label text="Controls sort sequence inside application dropdowns" styleClass="field-help,muted-label"/>
+                        </VBox>
+                        <VBox spacing="8" GridPane.rowIndex="0" GridPane.columnIndex="1">
+                            <Label text="Active Availability" styleClass="field-label"/>
+                            <CheckBox fx:id="chkActive" text="Active in application dropdowns" selected="true" styleClass="approved-checkbox"/>
+                            <Label text="Inactive values remain preserved in historical records but cannot be chosen for new entries."
+                                   wrapText="true" styleClass="field-help,muted-label"/>
+                        </VBox>
+                    </GridPane>
                 </VBox>
-
-                <Label text="Description" styleClass="field-label" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
-                <TextArea fx:id="txtDescription" promptText="Describe where this value is used (optional)" prefRowCount="3" wrapText="true" GridPane.rowIndex="2" GridPane.columnIndex="1" styleClass="approved-input"/>
-
-                <Label text="Display Order" styleClass="field-label" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
-                <Spinner fx:id="spnOrder" editable="true" GridPane.rowIndex="3" GridPane.columnIndex="1" styleClass="approved-input"/>
-
-                <Label text="Availability" styleClass="field-label" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
-                <CheckBox fx:id="chkActive" text="Active in application dropdowns" selected="true" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
-            </GridPane>
-        </VBox>
+            </VBox>
         </ScrollPane>
     </center>
     <bottom>
-        <HBox spacing="12" alignment="CENTER_RIGHT" styleClass="entity-dialog-actions,premium-dialog-actions">
-            <Button fx:id="btnCancel" text="Cancel" onAction="#cancel" styleClass="secondary-button" cancelButton="true"/>
-            <Button fx:id="btnSave" text="Save Master" onAction="#save" styleClass="primary-button" defaultButton="true"/>
+        <HBox alignment="CENTER_RIGHT" spacing="12"
+              styleClass="entity-dialog-actions,premium-dialog-actions,erp-action-dock,approved-card">
+            <Label fx:id="lblShortcuts" text="Shortcuts: [Ctrl+S] / [F10] Save  •  [Esc] Cancel"
+                   styleClass="muted-label,shortcut-hint-label"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnCancel" text="Cancel" onAction="#cancel"
+                    styleClass="secondary-button,approved-secondary-button,approved-cancel-button" cancelButton="true"/>
+            <Button fx:id="btnSave" text="Save Master" onAction="#save"
+                    styleClass="primary-button,approved-primary-button" defaultButton="true"/>
         </HBox>
     </bottom>
 </BorderPane>

@@ -333,6 +333,22 @@ public class BusinessWhatsappService {
         return response;
     }
 
+    public WahaDtos.SendResponse sendRawFile(String recipientPhone, String filename, String mimetype, byte[] fileBytes, String caption) {
+        if (recipientPhone == null || recipientPhone.isBlank()) {
+            return new WahaDtos.SendResponse(false, "Recipient phone is required", "", "", "");
+        }
+        WahaDtos.WahaSettingsDto settings = getSettings();
+        if (!settings.enabled()) {
+            return new WahaDtos.SendResponse(false, "WhatsApp integration is currently disabled in Settings.", "", "", "");
+        }
+        WhatsappSenderChannelEntity channel = resolveChannel(null);
+        String chatId = formatChatId(recipientPhone);
+        WahaDtos.SendResponse response = wahaClient.sendFile(settings.endpoint(), settings.apiKey(),
+                channel.getSessionName(), chatId, filename, mimetype, fileBytes, caption);
+        recordDocumentCommunicationAudit("LICENSE", 0, recipientPhone, filename, response.success(), response.success() ? null : response.message());
+        return response;
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordDocumentCommunicationAudit(String entityType, Integer entityId, String recipientPhone,
                                                  String docNumber, boolean success, String errorMessage) {

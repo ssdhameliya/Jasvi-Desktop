@@ -75,18 +75,8 @@ public class InventoryController implements ScreenLifecycle {
 
  private void openItemDialog(Item item){
   try{
-   FXMLLoader loader=new FXMLLoader(org.example.util.ResourceLocator.require("/fxml/pages/Itemdialog.fxml"));
-   Parent root=loader.load();org.example.util.ProfessionalUiEnhancer.enhance(root);
-   ItemDialogController controller=loader.getController();
-   if(item!=null)controller.setItem(item);
-   Stage stage=new Stage();
-   PlatformUiSupport.configureDialogStage(stage, tableItems, item==null?"Add Item":"Edit Item", false);
-   Scene scene=new Scene(root);
-   ThemeManager.applyTheme(scene);
-   stage.setScene(scene);
-   stage.showAndWait();
-   Item saved=controller.getSavedResult();
-   if(saved!=null)pendingSelectItemCode=saved.getItemCode();
+   Optional<Item> result=ItemDialog.show(tableItems, item);
+   if(result.isPresent())pendingSelectItemCode=result.get().getItemCode();
    refresh();
   }catch(Exception e){error(e);}
  }
@@ -144,7 +134,7 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
  private void updateRecordCount(){if(lblRecordCount!=null){int n=tableItems==null?0:tableItems.getItems().size();lblRecordCount.setText("Showing "+n+" Record"+(n==1?"":"s"));}}
  private String status(Item i){return i.getOpeningStock()<=0?"Out of Stock":i.getOpeningStock()<=i.getMinimumStock()?"Low Stock":"In Stock";}
  private void installDetailDrawer(){detailDrawer=new RegisterDetailDrawer();detailDrawer.setCloseAction(this::closeDetails);detailDrawer.attachBesideTable(tableItems);OperationalUiSupport.installEscapeClose(tableItems,detailDrawer::isOpen,this::closeDetails);}
- private void showDetails(Item i){if(i==null||detailDrawer==null)return;selected=i;detailItem=i;String stockStatus=status(i);detailDrawer.showRecord("Stock Details",i.getItemCode()+" • "+i.getDescription(),List.of(RegisterDetailDrawer.field("Item Code",i.getItemCode(),"identity"),RegisterDetailDrawer.field("Item Name",i.getDescription(),"item"),RegisterDetailDrawer.field("Category",i.getCategory(),"category"),RegisterDetailDrawer.field("HSN / SAC",i.getHsn(),"tax"),RegisterDetailDrawer.field("Unit",i.getUnit(),"unit"),RegisterDetailDrawer.field("GST %",String.format(Locale.ENGLISH,"%.2f",i.getGst()),"tax"),RegisterDetailDrawer.field("In Stock",String.format(Locale.ENGLISH,"%,.2f",i.getOpeningStock()),"quantity"),RegisterDetailDrawer.field("Available",String.format(Locale.ENGLISH,"%,.2f",i.getAvailableStock()),"complete"),RegisterDetailDrawer.field("Minimum Stock",String.format(Locale.ENGLISH,"%,.2f",i.getMinimumStock()),"minimum"),RegisterDetailDrawer.field("Stock Value",money.format(i.getOpeningStock()*i.getPurchasePrice()),"currency"),RegisterDetailDrawer.field("Location",i.getLocation(),"location"),RegisterDetailDrawer.field("Stock Status",stockStatus,RegisterDetailDrawer.statusSemantic(stockStatus))));Button edit=new Button("Edit Item");edit.getStyleClass().addAll("approved-button","approved-primary-button");edit.setGraphic(IconFactory.compactIcon("edit",14));edit.setOnAction(e->openItemDialog(i));Button adjustButton=new Button("Stock Adjustment");adjustButton.getStyleClass().addAll("approved-button","approved-secondary-button");adjustButton.setGraphic(IconFactory.compactIcon("adjust",14));adjustButton.setOnAction(e->adjust(i));Button historyButton=new Button("Stock History");historyButton.getStyleClass().addAll("approved-button","approved-secondary-button");historyButton.setGraphic(IconFactory.compactIcon("history",14));historyButton.setOnAction(e->history(i));detailDrawer.setActions(edit,adjustButton,historyButton);if(lblSelectedItem!=null)lblSelectedItem.setText(i.getItemCode()+" • "+i.getDescription());if(lblSelectedDetail!=null)lblSelectedDetail.setText("In stock: "+i.getOpeningStock()+" • Available: "+i.getAvailableStock());}
+  private void showDetails(Item i){if(i==null)return;try{Optional<Item> result=ItemDialog.showView(tableItems, i);if(result.isPresent()){pendingSelectItemCode=result.get().getItemCode();refresh();}}catch(Exception e){org.example.util.ToastManager.error(tableItems,"Could not open item details",e.getMessage());}}
  private void closeDetails(){detailItem=null;if(detailDrawer!=null)detailDrawer.hideDrawer();if(tableItems!=null)tableItems.getSelectionModel().clearSelection();}
 
  @FXML private void adjustStock(){
