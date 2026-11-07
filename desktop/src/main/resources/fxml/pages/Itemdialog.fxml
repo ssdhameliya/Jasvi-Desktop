@@ -2,27 +2,171 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml" fx:controller="org.example.controller.ItemDialogController" prefWidth="980" prefHeight="700" styleClass="entity-dialog,premium-entity-dialog,item-dialog,approved-ui,approved-screen,approved-screen-itemdialog,erp-screen-root">
- <top><HBox alignment="CENTER_LEFT" spacing="14" styleClass="entity-dialog-header,premium-dialog-header,approved-section-header"><StackPane fx:id="headerIconHolder" minWidth="44" minHeight="44" prefWidth="44" prefHeight="44" styleClass="dialog-title-icon,item-title-icon"/><VBox spacing="3"><Label fx:id="lblTitle" text="Add Item" styleClass="entity-dialog-title"/><Label fx:id="lblSubtitle" text="Add a new item to your inventory" styleClass="entity-dialog-subtitle"/></VBox></HBox></top>
- <center><ScrollPane fitToWidth="true" hbarPolicy="NEVER" styleClass="dialog-scroll-pane"><VBox spacing="18" styleClass="premium-dialog-content">
-  <VBox spacing="10" styleClass="form-section-card"><Label text="Item Information" styleClass="dialog-section-title,item-section-title"/><GridPane hgap="18" vgap="8" styleClass="premium-form-grid">
-   <columnConstraints><ColumnConstraints percentWidth="50" hgrow="ALWAYS"/><ColumnConstraints percentWidth="50" hgrow="ALWAYS"/></columnConstraints>
-   <VBox spacing="5" GridPane.rowIndex="0" GridPane.columnIndex="0"><Label text="Item Code *" styleClass="field-label"/><TextField fx:id="txtItemCode" editable="false" styleClass="readonly-field"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="0" GridPane.columnIndex="1"><Label text="Description *" styleClass="field-label"/><TextField fx:id="txtDescription" promptText="Enter item description" styleClass="approved-input"/><Label fx:id="errDescription" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="1" GridPane.columnIndex="0"><Label text="Category *" styleClass="field-label"/><ComboBox fx:id="cmbCategory" promptText="Select category" maxWidth="Infinity" styleClass="approved-input"/><Label fx:id="errCategory" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="1" GridPane.columnIndex="1"><Label text="Unit *" styleClass="field-label"/><ComboBox fx:id="cmbUnit" promptText="Select unit" maxWidth="Infinity" styleClass="approved-input"/><Label fx:id="errUnit" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="2" GridPane.columnIndex="0"><Label text="HSN Code *" styleClass="field-label"/><TextField fx:id="txtHSN" promptText="Enter mandatory HSN code" styleClass="approved-input"/><Label fx:id="errHSN" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="2" GridPane.columnIndex="1"><Label text="GST % *" styleClass="field-label"/><ComboBox fx:id="cmbGST" promptText="Select GST %" maxWidth="Infinity" styleClass="approved-input"/><Label fx:id="errGst" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="3" GridPane.columnIndex="0"><Label text="Default Discount % *" styleClass="field-label"/><ComboBox fx:id="cmbDiscount" promptText="Select discount %" maxWidth="Infinity" styleClass="approved-input"/><Label fx:id="errDiscount" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="3" GridPane.columnIndex="1"><Label text="Purchase Price" styleClass="field-label"/><TextField fx:id="txtPurchasePrice" promptText="0.00" styleClass="numeric-field"/><Label fx:id="errPurchasePrice" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="4" GridPane.columnIndex="0"><Label text="Selling Price" styleClass="field-label"/><TextField fx:id="txtSellingPrice" promptText="0.00" styleClass="numeric-field"/><Label fx:id="errSellingPrice" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="4" GridPane.columnIndex="1"><Label text="Remarks *" styleClass="field-label"/><TextArea fx:id="txtRemarks" promptText="Enter mandatory item remarks" prefRowCount="2" wrapText="true" styleClass="approved-input"/><Label fx:id="errRemarks" managed="false" visible="false" styleClass="validation-message"/></VBox>
-  </GridPane></VBox>
-  <VBox spacing="10" styleClass="form-section-card"><Label text="Stock Information" styleClass="dialog-section-title,item-section-title"/><GridPane hgap="18" vgap="8" styleClass="premium-form-grid"><columnConstraints><ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/><ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/><ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/></columnConstraints>
-   <VBox spacing="5" GridPane.rowIndex="0" GridPane.columnIndex="0"><Label text="Opening Stock *" styleClass="field-label"/><TextField fx:id="txtOpeningStock" promptText="0.00" styleClass="numeric-field"/><Label fx:id="errOpeningStock" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="0" GridPane.columnIndex="1"><Label text="Minimum Stock" styleClass="field-label"/><TextField fx:id="txtMinimumStock" promptText="0.00" styleClass="numeric-field"/><Label fx:id="errMinimumStock" managed="false" visible="false" styleClass="validation-message"/></VBox>
-   <VBox spacing="5" GridPane.rowIndex="0" GridPane.columnIndex="2"><Label text="Rack Location" styleClass="field-label"/><TextField fx:id="txtLocation" promptText="Enter rack location (optional)" styleClass="approved-input"/></VBox>
-  </GridPane></VBox>
- </VBox></ScrollPane></center>
- <bottom><HBox alignment="CENTER_RIGHT" spacing="12" styleClass="entity-dialog-actions,premium-dialog-actions"><Button fx:id="btnCancel" text="Cancel" onAction="#closeDialog" styleClass="secondary-button" cancelButton="true"/><Button fx:id="btnSave" text="Save Item" onAction="#saveItem" styleClass="primary-button" defaultButton="true"/></HBox></bottom>
+<BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.controller.ItemDialogController"
+            prefWidth="1140" prefHeight="800" maxWidth="Infinity" maxHeight="Infinity"
+            styleClass="entity-dialog,premium-entity-dialog,item-dialog,approved-ui,approved-screen,approved-screen-itemdialog,erp-screen-root,document-inspection-host">
+    <top>
+        <HBox fx:id="heroHeader" alignment="CENTER_LEFT" spacing="14"
+              styleClass="erp-page-identity-header,approved-card,entity-dialog-header">
+            <StackPane fx:id="headerIconHolder" minWidth="44" minHeight="44" prefWidth="44" prefHeight="44"
+                       styleClass="erp-page-header-icon,item-title-icon"/>
+            <VBox spacing="2">
+                <Label fx:id="lblTitle" text="Item Specification &amp; Catalog Wizard"
+                       styleClass="section-title,erp-page-title,approved-strong-label,entity-dialog-title"/>
+                <Label fx:id="lblSubtitle"
+                       text="Standardized catalog item registry • Real-time margin intelligence • Multi-tier pricing &amp; statutory compliance"
+                       styleClass="muted-label,erp-page-subtitle,entity-dialog-subtitle"/>
+            </VBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="lblStatusBadge" text="NEW ITEM DRAFT" styleClass="status-badge,status-info"/>
+        </HBox>
+    </top>
+    <center>
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" styleClass="dialog-scroll-pane,erp-dialog-scroll">
+            <VBox spacing="14" styleClass="premium-dialog-content">
+                <!-- Card 1: Basic Information & Catalog Identity -->
+                <VBox spacing="10" styleClass="approved-card,form-section-card">
+                    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="section-header-row">
+                        <Label text="1. BASIC INFORMATION &amp; CATALOG IDENTITY"
+                               styleClass="dialog-section-title,item-section-title,approved-strong-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Primary Master Identity" styleClass="muted-label,field-hint-chip"/>
+                    </HBox>
+                    <GridPane hgap="16" vgap="10" styleClass="premium-form-grid">
+                        <columnConstraints>
+                            <ColumnConstraints percentWidth="25" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="25" hgrow="ALWAYS"/>
+                        </columnConstraints>
+                        <!-- Row 0: Item Code, Description, Category -->
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
+                            <Label text="Item Code" styleClass="field-label"/>
+                            <TextField fx:id="txtItemCode" editable="false" promptText="Auto-generated"
+                                       styleClass="readonly-field,approved-input"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="1">
+                            <Label text="Description *" styleClass="field-label"/>
+                            <TextField fx:id="txtDescription" promptText="Enter item description or commercial specification"
+                                       styleClass="approved-input"/>
+                            <Label fx:id="errDescription" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="2">
+                            <Label text="Category *" styleClass="field-label"/>
+                            <ComboBox fx:id="cmbCategory" promptText="Select category" maxWidth="Infinity"
+                                      styleClass="approved-input"/>
+                            <Label fx:id="errCategory" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <!-- Row 1: Unit of Measurement, Remarks & Specifications (Colspan 2) -->
+                        <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="0">
+                            <Label text="Unit of Measure *" styleClass="field-label"/>
+                            <ComboBox fx:id="cmbUnit" promptText="Select unit" maxWidth="Infinity"
+                                      styleClass="approved-input"/>
+                            <Label fx:id="errUnit" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="1" GridPane.columnSpan="2">
+                            <Label text="Remarks &amp; Specifications *" styleClass="field-label"/>
+                            <TextArea fx:id="txtRemarks"
+                                      promptText="Enter mandatory item remarks, technical specifications, or quality notes"
+                                      prefRowCount="2" minHeight="74" prefHeight="84" wrapText="true" styleClass="approved-input"/>
+                            <Label fx:id="errRemarks" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                    </GridPane>
+                </VBox>
+
+                <!-- Card 2: Statutory Taxation & Pricing Tiers -->
+                <VBox spacing="10" styleClass="approved-card,form-section-card">
+                    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="section-header-row">
+                        <Label text="2. STATUTORY TAXATION &amp; PRICING TIERS"
+                               styleClass="dialog-section-title,item-section-title,approved-strong-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="lblMarginChip" text="Margin: 0.0%" styleClass="status-badge,status-info"/>
+                    </HBox>
+                    <GridPane hgap="16" vgap="10" styleClass="premium-form-grid">
+                        <columnConstraints>
+                            <ColumnConstraints percentWidth="20" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="20" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="20" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="20" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="20" hgrow="ALWAYS"/>
+                        </columnConstraints>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
+                            <Label text="HSN/SAC Code *" styleClass="field-label"/>
+                            <TextField fx:id="txtHSN" promptText="e.g. 84799090" styleClass="approved-input"/>
+                            <Label fx:id="errHSN" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="1">
+                            <Label text="GST % *" styleClass="field-label"/>
+                            <ComboBox fx:id="cmbGST" promptText="Select GST %" maxWidth="Infinity"
+                                      styleClass="approved-input"/>
+                            <Label fx:id="errGst" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="2">
+                            <Label text="Default Discount % *" styleClass="field-label"/>
+                            <ComboBox fx:id="cmbDiscount" promptText="Select discount %" maxWidth="Infinity"
+                                      styleClass="approved-input"/>
+                            <Label fx:id="errDiscount" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="3">
+                            <Label text="Purchase Price (₹)" styleClass="field-label"/>
+                            <TextField fx:id="txtPurchasePrice" promptText="0.00" styleClass="numeric-field,approved-input"/>
+                            <Label fx:id="errPurchasePrice" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="4">
+                            <Label text="Selling Price (₹)" styleClass="field-label"/>
+                            <TextField fx:id="txtSellingPrice" promptText="0.00" styleClass="numeric-field,approved-input"/>
+                            <Label fx:id="errSellingPrice" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                    </GridPane>
+                </VBox>
+
+                <!-- Card 3: Warehouse Inventory & Reorder Rules -->
+                <VBox spacing="10" styleClass="approved-card,form-section-card">
+                    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="section-header-row">
+                        <Label text="3. WAREHOUSE INVENTORY &amp; REORDER RULES"
+                               styleClass="dialog-section-title,item-section-title,approved-strong-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="lblStockChip" text="Stock Control Active" styleClass="status-badge,status-neutral"/>
+                    </HBox>
+                    <GridPane hgap="16" vgap="10" styleClass="premium-form-grid">
+                        <columnConstraints>
+                            <ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="33.34" hgrow="ALWAYS"/>
+                        </columnConstraints>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
+                            <Label text="Opening Stock *" styleClass="field-label"/>
+                            <TextField fx:id="txtOpeningStock" promptText="0.00" styleClass="numeric-field,approved-input"/>
+                            <Label fx:id="errOpeningStock" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="1">
+                            <Label text="Minimum Stock (Reorder)" styleClass="field-label"/>
+                            <TextField fx:id="txtMinimumStock" promptText="0.00" styleClass="numeric-field,approved-input"/>
+                            <Label fx:id="errMinimumStock" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="2">
+                            <Label text="Rack / Bin Location" styleClass="field-label"/>
+                            <TextField fx:id="txtLocation" promptText="Enter storage rack or bin location"
+                                       styleClass="approved-input"/>
+                        </VBox>
+                    </GridPane>
+                </VBox>
+            </VBox>
+        </ScrollPane>
+    </center>
+    <bottom>
+        <HBox fx:id="actionDock" alignment="CENTER_RIGHT" spacing="12"
+              styleClass="entity-dialog-actions,premium-dialog-actions,erp-action-dock,approved-card">
+            <Label fx:id="lblShortcuts" text="Shortcuts: [Ctrl+S] / [F10] Save  •  [Esc] Cancel"
+                   styleClass="muted-label,shortcut-hint-label"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnAuditTrail" text="Audit Trail" onAction="#showAuditTrail"
+                    visible="false" managed="false"
+                    styleClass="approved-button,approved-slate-button,erp-button-slate"/>
+            <Button fx:id="btnCancel" text="Cancel" onAction="#closeDialog"
+                    styleClass="secondary-button,approved-secondary-button,approved-cancel-button" cancelButton="true"/>
+            <Button fx:id="btnSave" text="Save Item" onAction="#saveItem"
+                    styleClass="primary-button,approved-primary-button" defaultButton="true"/>
+        </HBox>
+    </bottom>
 </BorderPane>

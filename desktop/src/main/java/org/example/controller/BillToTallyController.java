@@ -788,6 +788,7 @@ public class BillToTallyController implements ScreenLifecycle {
         tblBills.getItems().clear();
         lineItemsList.clear();
         tblBills.setPlaceholder(createLoadingPlaceholder("Extracting " + files.size() + " voucher(s) with native OCR..."));
+        Runnable finishUpload = org.example.util.OperationalUiSupport.beginRefresh(btnUploadBills);
 
         UiTaskExecutor.submitAction(
                 "parse-and-ingest-bills",
@@ -822,6 +823,7 @@ public class BillToTallyController implements ScreenLifecycle {
                     return ingested;
                 },
                 ingested -> {
+                    finishUpload.run();
                     if (!ingested.isEmpty()) {
                         activeBatchId = ingested.getFirst().batchId();
                     }
@@ -844,9 +846,9 @@ public class BillToTallyController implements ScreenLifecycle {
                     DynamicTableLayoutManager.forceLayout(tblLineItems);
                     tblBills.refresh();
                     tblLineItems.refresh();
-                    ToastManager.success(tblBills, "Ingestion Complete", "Loaded " + ingested.size() + " vouchers successfully.");
                 },
                 failure -> {
+                    finishUpload.run();
                     Label emptyLbl = new Label("Ingestion failed: " + failure.getMessage());
                     emptyLbl.getStyleClass().add("muted-label");
                     tblBills.setPlaceholder(emptyLbl);

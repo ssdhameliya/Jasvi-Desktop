@@ -3,6 +3,7 @@ package org.example.controller;
 import org.example.navigation.ScreenLifecycle;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import javafx.util.StringConverter;
 import org.example.api.admin.AdminApiClient;
@@ -22,13 +23,17 @@ import java.util.regex.Pattern;
 public class UserDialogController implements ScreenLifecycle {
     private static final Pattern EMAIL = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
-    @FXML private Label lblTitle, lblSubtitle, lblMessage, lblMfaPolicy, lblMfaStatus;
+    @FXML private Label lblTitle, lblSubtitle, lblMessage, lblMfaPolicy, lblMfaStatus, lblStatusBadge, lblShortcuts;
     @FXML private TextField txtFullName, txtUsername, txtEmail, txtDepartment, txtBranch, txtPhone;
     @FXML private PasswordField txtPassword, txtConfirm;
     @FXML private TextField txtPasswordVisible, txtConfirmVisible;
     @FXML private ComboBox<String> cmbRole, cmbAccess;
     @FXML private CheckBox chkActive, chkLocked, chkMfa;
     @FXML private Button btnSave, btnCancel, btnPasswordEye, btnConfirmEye, btnResetMfa;
+    @FXML private StackPane headerIconHolder;
+    @FXML private javafx.scene.layout.HBox heroHeader;
+    @FXML private javafx.scene.layout.GridPane gridPassword;
+    @FXML private Separator sepPassword;
 
     private Integer editingUserId;
     private String originalUsername;
@@ -37,9 +42,18 @@ public class UserDialogController implements ScreenLifecycle {
     private boolean originalMfaEnabled;
     private boolean reauthenticationRequired;
     private AdminApiClient.MfaState currentMfaState;
+    private Dialog<AdminApiClient.UserDto> hostDialog;
+    private boolean viewOnly = false;
 
     public AdminApiClient.UserDto getSavedResult() { return savedResult; }
     public boolean isReauthenticationRequired() { return reauthenticationRequired; }
+
+    public void setHostDialog(Dialog<AdminApiClient.UserDto> dialog) {
+        this.hostDialog = dialog;
+        if (heroHeader != null && dialog != null) {
+            org.example.util.DocumentInspectionScaffold.installDragPhysics(heroHeader, dialog);
+        }
+    }
     private String mfaPolicy = "REQUIRED";
     private final AdminApiClient api = new AdminApiClient();
     private final Map<String,String> roleDisplay = new LinkedHashMap<>();
@@ -66,6 +80,14 @@ public class UserDialogController implements ScreenLifecycle {
         btnConfirmEye.setTooltip(new Tooltip("Show confirmation password"));
         btnSave.setGraphic(IconFactory.icon("save", 16));
         btnCancel.setGraphic(IconFactory.icon("cancel", 16));
+        if (headerIconHolder != null) {
+            headerIconHolder.getChildren().setAll(IconFactory.icon("user", 24));
+        }
+        javafx.application.Platform.runLater(() -> {
+            if (heroHeader != null && hostDialog != null) {
+                org.example.util.DocumentInspectionScaffold.installDragPhysics(heroHeader, hostDialog);
+            }
+        });
 
         cmbRole.valueProperty().addListener((o, a, b) -> {
             clearInvalid(cmbRole);
@@ -77,16 +99,71 @@ public class UserDialogController implements ScreenLifecycle {
         loadFormAsync(null);
     }
 
+    public void setViewMode(boolean viewOnly) {
+        this.viewOnly = viewOnly;
+        if (viewOnly) {
+            applyViewMode();
+        }
+    }
+
+    private void applyViewMode() {
+        if (lblTitle != null) lblTitle.setText("User Account & Security Privilege Details");
+        if (lblSubtitle != null) lblSubtitle.setText("Identity profile, role permissions, and security status");
+        if (lblStatusBadge != null && editingUserId != null) {
+            lblStatusBadge.setText("VIEW USER (#" + editingUserId + ")");
+            lblStatusBadge.getStyleClass().removeAll("status-info", "status-success", "status-neutral");
+            lblStatusBadge.getStyleClass().add("status-info");
+        }
+        if (gridPassword != null) {
+            gridPassword.setVisible(false);
+            gridPassword.setManaged(false);
+        }
+        if (sepPassword != null) {
+            sepPassword.setVisible(false);
+            sepPassword.setManaged(false);
+        }
+        txtFullName.setEditable(false);
+        txtUsername.setEditable(false);
+        txtEmail.setEditable(false);
+        txtPhone.setEditable(false);
+        txtDepartment.setEditable(false);
+        txtBranch.setEditable(false);
+        cmbRole.setDisable(true);
+        cmbAccess.setDisable(true);
+        chkActive.setDisable(true);
+        chkLocked.setDisable(true);
+        chkMfa.setDisable(true);
+
+        if (btnSave != null) {
+            btnSave.setVisible(false);
+            btnSave.setManaged(false);
+        }
+        if (btnCancel != null) {
+            btnCancel.setText("Close");
+        }
+        if (lblShortcuts != null) {
+            lblShortcuts.setText("Shortcuts: [Esc] Close");
+        }
+    }
+
     public void editUser(int userId) {
         editingUserId = userId;
         lblTitle.setText("Edit User Account");
         lblSubtitle.setText("Update identity, role, access and account security");
+        if (lblStatusBadge != null) {
+            lblStatusBadge.setText("EDIT USER ACCOUNT (#" + userId + ")");
+            lblStatusBadge.getStyleClass().removeAll("status-info", "status-success");
+            lblStatusBadge.getStyleClass().add("status-success");
+        }
         btnSave.setText("Update User");
         txtPassword.setPromptText("Leave blank to keep current password");
         txtPasswordVisible.setPromptText("Leave blank to keep current password");
         txtConfirm.setPromptText("Confirm new password");
         txtConfirmVisible.setPromptText("Confirm new password");
         loadFormAsync(userId);
+        if (viewOnly) {
+            applyViewMode();
+        }
     }
 
     private void loadFormAsync(Integer userId) {
@@ -110,6 +187,7 @@ public class UserDialogController implements ScreenLifecycle {
                     applyRoleSecurityPolicy();
                     updateMfaStatus();
                     applySelfProtectionPolicy();
+                    if (viewOnly) applyViewMode();
                 },
                 failure -> {
                     setFormLoading(false);
@@ -337,7 +415,14 @@ public class UserDialogController implements ScreenLifecycle {
     }
     private void clearInvalid(Control c) { if (c != null) c.getStyleClass().remove("validation-error"); }
     @FXML private void cancel() { close(); }
-    private void close() { ((Stage) txtUsername.getScene().getWindow()).close(); }
+    private void close() {
+        if (hostDialog != null) {
+            hostDialog.setResult(savedResult);
+            hostDialog.close();
+        } else if (txtUsername != null && txtUsername.getScene() != null && txtUsername.getScene().getWindow() != null) {
+            ((Stage) txtUsername.getScene().getWindow()).close();
+        }
+    }
     private void message(String text, boolean error) {
         String value = text == null ? "" : text.trim();
         lblMessage.setText(value);

@@ -91,6 +91,7 @@ public class BankExpenseController implements ScreenLifecycle {
     private RegisterDetailDrawer detailDrawer;
     private EntryRow detailRow;
     private boolean explicitRefreshPending;
+    private Runnable bankRefreshFinish;
     private Integer pendingSelectEntryId;
     private Integer activeDeepLinkEntryId;
 
@@ -699,12 +700,14 @@ public class BankExpenseController implements ScreenLifecycle {
 
     @FXML private void applyFilters(){ currentPage=0; reloadRows(); }
     @FXML private void resetFilters(){
-        activeDeepLinkEntryId=null;
-        if(searchField!=null)searchField.clear();
-        if(typeFilter!=null&&!typeFilter.getItems().isEmpty())typeFilter.getSelectionModel().selectFirst();
-        LocalDate today=BusinessClock.today();
-        org.example.util.RegisterUiSupport.setCurrentYearRange(filterFrom,filterTo,today);
-        currentPage=0;reloadRows();
+        org.example.util.OperationalUiSupport.animateReset(btnResetFilters, searchField != null ? searchField.getParent() : null, () -> {
+            activeDeepLinkEntryId=null;
+            if(searchField!=null)searchField.clear();
+            if(typeFilter!=null&&!typeFilter.getItems().isEmpty())typeFilter.getSelectionModel().selectFirst();
+            LocalDate today=BusinessClock.today();
+            org.example.util.RegisterUiSupport.setCurrentYearRange(filterFrom,filterTo,today);
+            currentPage=0;reloadRows();
+        });
     }
     @FXML private void exportExcel(){
         if(table.getItems().isEmpty()){
@@ -741,13 +744,13 @@ public class BankExpenseController implements ScreenLifecycle {
     @FXML private void refreshWithFeedback(){
         activeDeepLinkEntryId=null;
         explicitRefreshPending=true;
-        if(btnRefreshEntries!=null){btnRefreshEntries.setDisable(true);btnRefreshEntries.setText("Refreshing...");}
+        bankRefreshFinish=org.example.util.OperationalUiSupport.beginRefresh(btnRefreshEntries);
         reloadRows();loadMetrics();
     }
     private void finishExplicitRefresh(boolean success){
         if(!explicitRefreshPending)return;explicitRefreshPending=false;
-        if(btnRefreshEntries!=null){btnRefreshEntries.setDisable(false);btnRefreshEntries.setText("Refresh");}
-        if(success)org.example.util.ToastManager.info(table,"Refreshed",mode==Mode.EXPENSE?"Expense Entry is up to date.":"Bank Entry is up to date.");
+        if(bankRefreshFinish!=null){bankRefreshFinish.run();bankRefreshFinish=null;}
+        else if(btnRefreshEntries!=null){btnRefreshEntries.setDisable(false);btnRefreshEntries.setText("Refresh");}
     }
     private void reloadRows(){
         if(activeDeepLinkEntryId!=null)return;

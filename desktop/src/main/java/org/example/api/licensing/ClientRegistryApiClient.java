@@ -107,6 +107,14 @@ public class ClientRegistryApiClient {
         return post("/api/license/registry/clients/" + clientId + "/dispatch", Map.of(), new TypeReference<>() {});
     }
 
+    public Map<String, Object> dispatchEmail(Long clientId) {
+        return post("/api/license/registry/clients/" + clientId + "/dispatch-email", Map.of(), new TypeReference<>() {});
+    }
+
+    public Map<String, Object> dispatchWhatsApp(Long clientId) {
+        return post("/api/license/registry/clients/" + clientId + "/dispatch-whatsapp", Map.of(), new TypeReference<>() {});
+    }
+
     public Map<String, Object> sendHeartbeat(String machineId, String clientVersion, Integer activeUsers, String remoteUrl) {
         java.util.Map<String, Object> body = new java.util.HashMap<>();
         if (machineId != null) body.put("machineId", machineId);

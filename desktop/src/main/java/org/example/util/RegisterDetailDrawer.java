@@ -41,7 +41,7 @@ public final class RegisterDetailDrawer extends VBox {
     private final Label subtitle = new Label("Review the selected record.");
     private final GridPane fieldsGrid = new GridPane();
     private final VBox extra = new VBox(10);
-    private final FlowPane actions = new FlowPane();
+    private final HBox actions = new HBox(10);
 
     private Node ownerNode;
     private OwnedDialog<ButtonType> activeDialog;
@@ -55,8 +55,7 @@ public final class RegisterDetailDrawer extends VBox {
         setPrefSize(0, 0);
         setMaxSize(0, 0);
 
-        actions.setHgap(8);
-        actions.setVgap(6);
+        actions.setSpacing(10);
         actions.setAlignment(Pos.CENTER_RIGHT);
 
         fieldsGrid.setHgap(14);
@@ -179,6 +178,7 @@ public final class RegisterDetailDrawer extends VBox {
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.setStyle("-fx-background: " + bodyBg + "; -fx-background-color: " + bodyBg + "; -fx-border-color: transparent;");
         VBox.setVgrow(scroll, Priority.ALWAYS);
@@ -188,19 +188,21 @@ public final class RegisterDetailDrawer extends VBox {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         Button btnClose = new Button("Close");
-        btnClose.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnClose.getStyleClass().addAll("approved-button", "approved-secondary-button", "approved-cancel-button");
         btnClose.setGraphic(IconFactory.compactIcon("cancel", 14));
         btnClose.setMinWidth(Region.USE_PREF_SIZE);
         btnClose.setOnAction(e -> hideDrawer());
 
         actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setMinWidth(Region.USE_PREF_SIZE);
 
         String footerBg = isDark ? "rgba(15, 23, 42, 0.95)" : "linear-gradient(to bottom, #f8fafc, #f1f5f9)";
         String footerBorder = isDark ? "rgba(255, 255, 255, 0.08)" : "#e2e8f0";
 
-        HBox footer = new HBox(10, spacer, actions, btnClose);
+        HBox footer = new HBox(12, spacer, actions, btnClose);
         footer.setAlignment(Pos.CENTER_RIGHT);
-        footer.setPadding(new Insets(12, 20, 14, 20));
+        footer.setFillHeight(false);
+        footer.setPadding(new Insets(14, 20, 14, 20));
         footer.setStyle("-fx-background-color: " + footerBg + "; -fx-border-color: " + footerBorder + "; -fx-border-width: 1 0 0 0;");
 
         String dialogBg = isDark ? "#0b1325" : "linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%)";
@@ -211,8 +213,16 @@ public final class RegisterDetailDrawer extends VBox {
 
         VBox dialogRoot = new VBox(header, scroll, footer);
         dialogRoot.setStyle("-fx-background-color: " + dialogBg + "; -fx-background-radius: 14; -fx-border-color: " + dialogBorder + "; -fx-border-radius: 14; -fx-border-width: 1; " + dialogShadow);
-        dialogRoot.setPrefSize(840, 580);
-        dialogRoot.setMinSize(720, 440);
+        dialogRoot.setPrefSize(980, 640);
+        dialogRoot.setMinSize(860, 540);
+
+        dialog.setOnShowing(ev -> {
+            Node bar = pane.lookup(".button-bar");
+            if (bar != null) {
+                bar.setVisible(false);
+                bar.setManaged(false);
+            }
+        });
 
         pane.getProperties().put("dse.dialog.presented", true);
         pane.getProperties().put("dse.dialog.workspace", true);

@@ -143,11 +143,11 @@
               <Button fx:id="btnThisQuarterRange" text="This Quarter" onAction="#showThisQuarter" styleClass="sales-range-button,quick-range-button,approved-button,approved-secondary-button"/>
               <Button fx:id="btnCustomRange" text="Custom Range" onAction="#focusCustomRange" visible="false" managed="false" styleClass="sales-range-button,sales-custom-range-button,approved-button,approved-secondary-button"/>
               <Region HBox.hgrow="ALWAYS"/>
-              <Button fx:id="btnExportExcel" text="Export Excel" onAction="#exportSale" styleClass="secondary-button,sales-export-button,approved-button,approved-secondary-button"/>
-              <Button fx:id="btnExportPdf" text="Export PDF" onAction="#exportRegisterPdf" styleClass="secondary-button,sales-export-button,approved-button,approved-secondary-button"/>
-              <Button fx:id="btnPrintRegister" text="Print" onAction="#printRegister" styleClass="secondary-button,sales-export-button,approved-button,approved-secondary-button"/>
-              <Button fx:id="btnResetFilters" text="Reset" onAction="#resetFilters" styleClass="register-action-button,register-reset-button,approved-button,approved-secondary-button"/>
-              <Button fx:id="btnRefreshSales" text="Refresh" onAction="#refreshWithFeedback" styleClass="register-action-button,register-refresh-button,approved-button,approved-secondary-button"/>
+              <Button fx:id="btnExportExcel" text="Export Excel" onAction="#exportSale" styleClass="sales-export-button,approved-button,approved-emerald-button,erp-button-emerald"/>
+              <Button fx:id="btnExportPdf" text="Export PDF" onAction="#exportRegisterPdf" styleClass="sales-export-button,approved-button,approved-danger-button,erp-button-danger,export-pdf-button"/>
+              <Button fx:id="btnPrintRegister" text="Print" onAction="#printRegister" styleClass="sales-export-button,approved-button,approved-primary-button,erp-button-primary,print-button"/>
+              <Button fx:id="btnResetFilters" text="Reset" onAction="#resetFilters" styleClass="register-action-button,register-reset-button,approved-button,approved-amber-button,erp-button-amber"/>
+              <Button fx:id="btnRefreshSales" text="Refresh" onAction="#refreshWithFeedback" styleClass="register-action-button,register-refresh-button,approved-button,approved-teal-button,erp-button-teal"/>
             </HBox>
 
             <FlowPane fx:id="activeFilterChips" hgap="7" vgap="6" visible="false" managed="false" styleClass="sales-filter-chips,approved-filter-bar"/>

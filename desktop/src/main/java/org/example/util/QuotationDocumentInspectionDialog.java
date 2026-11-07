@@ -443,7 +443,7 @@ public final class QuotationDocumentInspectionDialog {
         // 2. Duplicate Quotation
         Button btnDuplicate = new Button("Duplicate");
         btnDuplicate.setGraphic(IconFactory.compactIcon("copy", 14));
-        btnDuplicate.getStyleClass().addAll("approved-button", "approved-indigo-button");
+        btnDuplicate.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnDuplicate.setOnAction(e -> {
             String actor = SessionService.current() == null ? "Admin" : SessionService.current().getFullName();
             UiTaskExecutor.submitAction("quotation-duplicate-" + quote.id(), () -> {

@@ -5,12 +5,14 @@ import org.example.util.OwnedAlert;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.example.model.Item;
 import org.example.service.ItemService;
 import org.example.service.LookupService;
 import org.example.service.NotificationService;
+import org.example.util.DocumentInspectionScaffold;
 import org.example.util.IconFactory;
 import org.example.util.UiTaskExecutor;
 
@@ -21,20 +23,31 @@ public class ItemDialogController implements ScreenLifecycle {
             txtSellingPrice, txtOpeningStock, txtMinimumStock, txtLocation;
     @FXML private TextArea txtRemarks;
     @FXML private ComboBox<String> cmbCategory, cmbUnit, cmbGST, cmbDiscount;
-    @FXML private Button btnSave, btnCancel;
-    @FXML private Label lblTitle, lblSubtitle;
+    @FXML private Button btnSave, btnCancel, btnAuditTrail;
+    @FXML private Label lblTitle, lblSubtitle, lblStatusBadge, lblMarginChip, lblStockChip, lblShortcuts;
     @FXML private Label errDescription, errCategory, errUnit, errGst, errDiscount, errHSN, errSellingPrice,
             errPurchasePrice, errOpeningStock, errMinimumStock, errRemarks;
     @FXML private StackPane headerIconHolder;
+    @FXML private HBox heroHeader;
 
     private final LookupService lookupService = new LookupService();
     private final ItemService service = new ItemService();
     private Item editingItem;
     private Item savedResult;
     private Boolean savedCreated;
+    private Dialog<Item> hostDialog;
+    private boolean viewOnly = false;
 
-    public Item getSavedResult(){ return savedResult; }
-    public boolean wasSavedAsCreate(){ return Boolean.TRUE.equals(savedCreated); }
+    public Item getSavedResult() { return savedResult; }
+    public boolean wasSavedAsCreate() { return Boolean.TRUE.equals(savedCreated); }
+    public void setViewMode(boolean viewOnly) { this.viewOnly = viewOnly; }
+
+    public void setHostDialog(Dialog<Item> dialog) {
+        this.hostDialog = dialog;
+        if (heroHeader != null && dialog != null) {
+            DocumentInspectionScaffold.installDragPhysics(heroHeader, dialog);
+        }
+    }
 
     @FXML
     public void initialize() {
@@ -43,13 +56,18 @@ public class ItemDialogController implements ScreenLifecycle {
         txtOpeningStock.setText("0.00");
         txtMinimumStock.setText("0.00");
 
-        btnSave.setGraphic(IconFactory.icon("save"));
-        btnCancel.setGraphic(IconFactory.icon("cancel"));
+        btnSave.setGraphic(IconFactory.icon("save", 16));
+        btnCancel.setGraphic(IconFactory.icon("cancel", 16));
         headerIconHolder.getChildren().setAll(IconFactory.icon("item", 24));
         installLiveValidation();
         loadBootstrapAsync();
+
+        txtPurchasePrice.textProperty().addListener((o, a, b) -> updateMarginCalculation());
+        txtSellingPrice.textProperty().addListener((o, a, b) -> updateMarginCalculation());
+        updateMarginCalculation();
+
         org.example.util.WorkflowFocusManager.install(java.util.List.of(
-            txtItemCode, txtDescription, cmbCategory, txtHSN, cmbUnit,
+            txtItemCode, txtDescription, cmbCategory, cmbUnit, txtRemarks, txtHSN,
             txtPurchasePrice, txtSellingPrice, cmbGST, cmbDiscount,
             txtOpeningStock, txtMinimumStock, txtLocation, btnSave));
         org.example.util.WorkflowFocusManager.initial(txtItemCode);
@@ -63,7 +81,36 @@ public class ItemDialogController implements ScreenLifecycle {
                     }
                 });
             }
+            if (hostDialog != null && heroHeader != null) {
+                DocumentInspectionScaffold.installDragPhysics(heroHeader, hostDialog);
+            }
         });
+    }
+
+    private void updateMarginCalculation() {
+        if (lblMarginChip == null) return;
+        double purchase = parseFieldDouble(txtPurchasePrice);
+        double selling = parseFieldDouble(txtSellingPrice);
+        if (selling > 0) {
+            double profit = selling - purchase;
+            double margin = (profit / selling) * 100.0;
+            String sign = margin >= 0 ? "+" : "";
+            lblMarginChip.setText(String.format("Margin: %s%.1f%% (₹%.2f)", sign, margin, profit));
+            lblMarginChip.getStyleClass().removeAll("status-success", "status-warning", "status-danger", "status-info");
+            if (margin >= 20.0) {
+                lblMarginChip.getStyleClass().add("status-success");
+            } else if (margin >= 5.0) {
+                lblMarginChip.getStyleClass().add("status-info");
+            } else if (margin >= 0) {
+                lblMarginChip.getStyleClass().add("status-warning");
+            } else {
+                lblMarginChip.getStyleClass().add("status-danger");
+            }
+        } else {
+            lblMarginChip.setText("Margin: 0.0%");
+            lblMarginChip.getStyleClass().removeAll("status-success", "status-warning", "status-danger", "status-info");
+            lblMarginChip.getStyleClass().add("status-info");
+        }
     }
 
     private record ItemBootstrap(List<String> categories, List<String> units, List<String> gst,
@@ -116,9 +163,74 @@ public class ItemDialogController implements ScreenLifecycle {
 
     public void setItem(Item item) {
         this.editingItem = item;
-        lblTitle.setText("Edit Item");
-        lblSubtitle.setText("Update item information • Opening Stock is create-only; use Stock Adjustment for quantity changes");
-        btnSave.setText("Update Item");
+        if (viewOnly) {
+            lblTitle.setText("Item Specification & Catalog Details");
+            lblSubtitle.setText("Catalog item specification details and real-time margin intelligence");
+            if (lblStatusBadge != null) {
+                lblStatusBadge.setText("VIEW ITEM (" + safe(item.getItemCode()) + ")");
+                lblStatusBadge.getStyleClass().removeAll("status-info", "status-success", "status-warning", "status-danger");
+                lblStatusBadge.getStyleClass().add("status-info");
+            }
+            if (btnAuditTrail != null) {
+                btnAuditTrail.setVisible(true);
+                btnAuditTrail.setManaged(true);
+                btnAuditTrail.setGraphic(IconFactory.compactIcon("history", 16));
+            }
+            btnCancel.setText("Close");
+            btnCancel.setGraphic(IconFactory.icon("cancel", 16));
+
+            btnSave.setText("Edit Item");
+            btnSave.setGraphic(IconFactory.icon("edit", 16));
+            btnSave.getStyleClass().removeAll("primary-button", "approved-primary-button");
+            btnSave.getStyleClass().addAll("approved-button", "approved-amber-button");
+            btnSave.setOnAction(e -> unlockEditMode());
+
+            txtItemCode.setEditable(false);
+            txtDescription.setEditable(false);
+            cmbCategory.setDisable(true);
+            cmbUnit.setDisable(true);
+            txtHSN.setEditable(false);
+            cmbGST.setDisable(true);
+            cmbDiscount.setDisable(true);
+            txtPurchasePrice.setEditable(false);
+            txtSellingPrice.setEditable(false);
+            txtOpeningStock.setEditable(false);
+            txtMinimumStock.setEditable(false);
+            txtLocation.setEditable(false);
+            txtRemarks.setEditable(false);
+        } else {
+            lblTitle.setText("Edit Item Specification");
+            lblSubtitle.setText("Update catalog item specification • Opening Stock is create-only; use Stock Adjustment for quantity changes");
+            if (lblStatusBadge != null) {
+                lblStatusBadge.setText("EDIT ITEM (" + safe(item.getItemCode()) + ")");
+                lblStatusBadge.getStyleClass().removeAll("status-info", "status-warning", "status-danger");
+                lblStatusBadge.getStyleClass().add("status-success");
+            }
+            btnSave.setText("Update Item");
+            btnSave.setGraphic(IconFactory.icon("save", 16));
+            btnSave.getStyleClass().removeAll("approved-amber-button");
+            btnSave.getStyleClass().addAll("primary-button", "approved-primary-button");
+            btnSave.setOnAction(e -> saveItem());
+
+            if (btnAuditTrail != null) {
+                btnAuditTrail.setVisible(false);
+                btnAuditTrail.setManaged(false);
+            }
+            btnCancel.setText("Cancel");
+            btnCancel.setGraphic(IconFactory.icon("cancel", 16));
+
+            txtDescription.setEditable(true);
+            cmbCategory.setDisable(false);
+            cmbUnit.setDisable(false);
+            txtHSN.setEditable(true);
+            cmbGST.setDisable(false);
+            cmbDiscount.setDisable(false);
+            txtPurchasePrice.setEditable(true);
+            txtSellingPrice.setEditable(true);
+            txtMinimumStock.setEditable(true);
+            txtLocation.setEditable(true);
+            txtRemarks.setEditable(true);
+        }
 
         txtItemCode.setText(safe(item.getItemCode()));
         txtDescription.setText(safe(item.getDescription()));
@@ -135,6 +247,22 @@ public class ItemDialogController implements ScreenLifecycle {
         txtMinimumStock.setText(String.valueOf(item.getMinimumStock()));
         txtLocation.setText(safe(item.getLocation()));
         txtRemarks.setText(safe(item.getRemarks()));
+        updateMarginCalculation();
+    }
+
+    private void unlockEditMode() {
+        this.viewOnly = false;
+        if (editingItem != null) {
+            setItem(editingItem);
+            txtDescription.requestFocus();
+        }
+    }
+
+    @FXML
+    private void showAuditTrail() {
+        if (editingItem != null && editingItem.getId() > 0) {
+            org.example.util.ActivityTimelineDialog.show(btnAuditTrail != null ? btnAuditTrail : btnCancel, "ITEM", editingItem.getId(), editingItem.getItemCode());
+        }
     }
 
     @FXML
@@ -275,7 +403,7 @@ public class ItemDialogController implements ScreenLifecycle {
         txtDescription.textProperty().addListener((o, a, b) -> clearError(txtDescription, errDescription));
         cmbCategory.valueProperty().addListener((o, a, b) -> clearError(cmbCategory, errCategory));
         cmbUnit.valueProperty().addListener((o, a, b) -> clearError(cmbUnit, errUnit));
-        txtHSN.textProperty().addListener((o,a,b)->clearError(txtHSN,errHSN));
+        txtHSN.textProperty().addListener((o, a, b) -> clearError(txtHSN, errHSN));
         cmbGST.valueProperty().addListener((o, a, b) -> clearError(cmbGST, errGst));
         cmbDiscount.valueProperty().addListener((o, a, b) -> clearError(cmbDiscount, errDiscount));
         txtSellingPrice.textProperty().addListener((o, a, b) -> clearError(txtSellingPrice, errSellingPrice));
@@ -331,12 +459,18 @@ public class ItemDialogController implements ScreenLifecycle {
     }
 
     @FXML
-    private void closeDialog() { ((Stage) txtItemCode.getScene().getWindow()).close(); }
+    private void closeDialog() {
+        if (hostDialog != null) {
+            hostDialog.setResult(savedResult);
+            hostDialog.close();
+        } else if (txtItemCode != null && txtItemCode.getScene() != null && txtItemCode.getScene().getWindow() != null) {
+            ((Stage) txtItemCode.getScene().getWindow()).close();
+        }
+    }
 
     private String safe(String value) { return value == null ? "" : value; }
 
     @Override
     public void onScreenHidden() {
-        
     }
 }

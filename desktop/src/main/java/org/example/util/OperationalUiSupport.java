@@ -94,6 +94,69 @@ public final class OperationalUiSupport {
         });
     }
 
+    /**
+     * Provides instant tactile feedback when a Refresh button is clicked.
+     * Continuously spins the button's graphic icon and disables the button to prevent duplicate triggers.
+     * Returns a Runnable to execute when the refresh operation finishes (restoring rotation, text, and enabled state).
+     */
+    public static Runnable beginRefresh(javafx.scene.control.Button button) {
+        if (button == null) return () -> {};
+
+        String originalText = button.getText();
+        Node graphic = button.getGraphic();
+
+        button.setDisable(true);
+        if (originalText != null && !originalText.isBlank()) {
+            button.setText("Refreshing…");
+        }
+
+        javafx.animation.RotateTransition rt = null;
+        if (graphic != null) {
+            rt = new javafx.animation.RotateTransition(javafx.util.Duration.millis(750), graphic);
+            rt.setByAngle(360);
+            rt.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            rt.setInterpolator(javafx.animation.Interpolator.LINEAR);
+            rt.play();
+        }
+
+        final javafx.animation.RotateTransition finalRt = rt;
+        return () -> Platform.runLater(() -> {
+            if (finalRt != null) {
+                finalRt.stop();
+            }
+            if (graphic != null) {
+                graphic.setRotate(0);
+            }
+            button.setText(originalText);
+            button.setDisable(false);
+        });
+    }
+
+    /**
+     * Provides instant tactile feedback when a Reset button is clicked.
+     * Executes the reset action, applies a brief opacity pulse to the filter container,
+     * and pulses the reset button — strictly without any modal toast popups.
+     */
+    public static void animateReset(javafx.scene.control.Button button, Node filterContainer, Runnable resetAction) {
+        if (resetAction != null) {
+            resetAction.run();
+        }
+        if (filterContainer != null) {
+            javafx.animation.FadeTransition ft = new javafx.animation.FadeTransition(javafx.util.Duration.millis(200), filterContainer);
+            ft.setFromValue(0.65);
+            ft.setToValue(1.0);
+            ft.play();
+        }
+        if (button != null && button.getGraphic() != null) {
+            javafx.animation.RotateTransition rt = new javafx.animation.RotateTransition(javafx.util.Duration.millis(350), button.getGraphic());
+            rt.setByAngle(-360);
+            rt.setCycleCount(1);
+            rt.setInterpolator(javafx.animation.Interpolator.EASE_OUT);
+            rt.setOnFinished(e -> button.getGraphic().setRotate(0));
+            rt.play();
+        }
+    }
+
     private static VBox stateBox(Node indicator, Label title, Label detail) {
         VBox box = new VBox(8);
         box.setAlignment(Pos.CENTER);

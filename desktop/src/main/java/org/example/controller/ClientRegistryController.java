@@ -202,7 +202,12 @@ public class ClientRegistryController implements ScreenLifecycle {
             @Override
             protected void updateItem(String url, boolean empty) {
                 super.updateItem(url, empty);
-                if (empty || url == null || url.isBlank() || "null".equalsIgnoreCase(url)) {
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+                if (url == null || url.isBlank() || "null".equalsIgnoreCase(url)) {
                     setGraphic(null);
                     setText("⚪ No Tunnel");
                     setContentDisplay(ContentDisplay.TEXT_ONLY);
@@ -231,14 +236,34 @@ public class ClientRegistryController implements ScreenLifecycle {
         colLiveStatus.setCellValueFactory(cell -> {
             Object hb = cell.getValue().get("last_heartbeat_at");
             Object ver = cell.getValue().get("client_version");
+            Object activeUsers = cell.getValue().get("active_users_count");
+            Object maxUsers = cell.getValue().get("max_users");
+            String hbStr = (hb != null && !"null".equalsIgnoreCase(hb.toString())) ? hb.toString() : "";
             String v = (ver != null && !ver.toString().isBlank() && !"null".equalsIgnoreCase(ver.toString())) ? ver.toString() : "";
-            return new SimpleStringProperty(hb != null && !"null".equalsIgnoreCase(hb.toString()) ? hb.toString() + (v.isBlank() ? "" : "|" + v) : "");
+            int act = 0;
+            if (activeUsers instanceof Number n) {
+                act = n.intValue();
+            } else if (activeUsers != null) {
+                try { act = Integer.parseInt(activeUsers.toString().trim()); } catch (Exception ignored) {}
+            }
+            int max = 1;
+            if (maxUsers instanceof Number n) {
+                max = n.intValue();
+            } else if (maxUsers != null) {
+                try { max = Integer.parseInt(maxUsers.toString().trim()); } catch (Exception ignored) {}
+            }
+            return new SimpleStringProperty(hbStr + "|" + v + "|" + act + "|" + max);
         });
         colLiveStatus.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String raw, boolean empty) {
                 super.updateItem(raw, empty);
-                if (empty || raw == null || raw.isBlank()) {
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+                if (raw == null || raw.isBlank()) {
                     Label offline = new Label("⚪ Offline");
                     offline.getStyleClass().addAll("status-badge", "status-neutral");
                     setGraphic(offline);
@@ -246,9 +271,15 @@ public class ClientRegistryController implements ScreenLifecycle {
                     setAlignment(Pos.CENTER);
                     return;
                 }
-                String[] parts = raw.split("\\|", 2);
+                String[] parts = raw.split("\\|", 4);
                 String hbStr = parts[0];
                 String ver = parts.length > 1 ? parts[1] : "";
+                int activeCount = 1;
+                int maxUsers = 1;
+                try {
+                    if (parts.length > 2 && !parts[2].isBlank()) activeCount = Integer.parseInt(parts[2]);
+                    if (parts.length > 3 && !parts[3].isBlank()) maxUsers = Integer.parseInt(parts[3]);
+                } catch (Exception ignored) {}
 
                 Instant hbTime = null;
                 try {
@@ -260,17 +291,30 @@ public class ClientRegistryController implements ScreenLifecycle {
                 }
 
                 Label badge;
+                String userCapacityLabel = activeCount + "/" + maxUsers + " Users";
                 if (hbTime != null && Duration.between(hbTime, Instant.now()).toMinutes() <= 15) {
-                    badge = new Label("🟢 Online" + (ver.isBlank() ? "" : " (" + ver + ")"));
-                    badge.getStyleClass().addAll("status-badge", "status-positive", "badge-active");
+                    if (maxUsers > 0 && activeCount >= maxUsers) {
+                        badge = new Label("🟡 At Limit • " + userCapacityLabel);
+                        badge.getStyleClass().addAll("status-badge", "status-warning");
+                    } else {
+                        badge = new Label("🟢 Online • " + userCapacityLabel);
+                        badge.getStyleClass().addAll("status-badge", "status-positive", "badge-active");
+                    }
                 } else if (hbTime != null && Duration.between(hbTime, Instant.now()).toHours() < 24) {
                     long hours = Duration.between(hbTime, Instant.now()).toHours();
-                    badge = new Label("🟡 Seen " + (hours == 0 ? "recently" : hours + "h ago"));
+                    badge = new Label("🟡 Seen " + (hours == 0 ? "recently" : hours + "h ago") + " • " + userCapacityLabel);
                     badge.getStyleClass().addAll("status-badge", "status-warning");
                 } else {
-                    badge = new Label("⚪ Seen " + (hbStr.length() > 10 ? hbStr.substring(0, 10) : hbStr));
+                    badge = new Label("⚪ Offline • " + (hbStr.length() > 10 ? hbStr.substring(0, 10) : hbStr));
                     badge.getStyleClass().addAll("status-badge", "status-neutral");
                 }
+
+                String tooltipText = "Active Connected Users: " + activeCount + " of " + maxUsers +
+                        (ver.isBlank() ? "" : "\nERP Client Version: " + ver) +
+                        (hbStr.isBlank() ? "" : "\nLast Live Heartbeat: " + hbStr);
+                Tooltip tooltip = new Tooltip(tooltipText);
+                Tooltip.install(badge, tooltip);
+
                 setGraphic(badge);
                 setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
                 setAlignment(Pos.CENTER);
@@ -348,11 +392,25 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) exportLicenseFile(item);
                 });
 
+                MenuItem miEmail = new MenuItem("Send via Email");
+                miEmail.setGraphic(IconFactory.compactIcon("email", 13));
+                miEmail.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) sendEmail(item);
+                });
+
                 MenuItem miWhatsApp = new MenuItem("Send via WhatsApp");
                 miWhatsApp.setGraphic(IconFactory.compactIcon("share", 13));
                 miWhatsApp.setOnAction(e -> {
                     Map<String, Object> item = getTableView().getItems().get(getIndex());
                     if (item != null) sendWhatsApp(item);
+                });
+
+                MenuItem miDispatchAll = new MenuItem("Multi-Channel Dispatch");
+                miDispatchAll.setGraphic(IconFactory.compactIcon("dispatch", 13));
+                miDispatchAll.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) dispatchAll(item);
                 });
 
                 MenuItem miTestUrl = new MenuItem("Test Remote URL");
@@ -369,7 +427,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) handleRevokeClient(item);
                 });
 
-                actionsBtn.getItems().addAll(miRenew, miRenewCustom, miCopyToken, miExport, miWhatsApp, miTestUrl, new SeparatorMenuItem(), miRevoke);
+                actionsBtn.getItems().addAll(miRenew, miRenewCustom, miCopyToken, miExport, miEmail, miWhatsApp, miDispatchAll, miTestUrl, new SeparatorMenuItem(), miRevoke);
                 IconFactory.decorateActionMenu(actionsBtn);
             }
 
@@ -1101,6 +1159,38 @@ public class ClientRegistryController implements ScreenLifecycle {
         }
     }
 
+    private void sendEmail(Map<String, Object> item) {
+        Long id = item.get("id") instanceof Number n ? n.longValue() : null;
+        String email = String.valueOf(item.getOrDefault("email", "")).trim();
+        String company = String.valueOf(item.getOrDefault("company_name", "Client"));
+        if (id == null) {
+            AppDialogService.warning(tableClients, "Missing Client ID", "Cannot dispatch email without valid client ID.", "");
+            return;
+        }
+        if (email.isBlank() || "null".equalsIgnoreCase(email)) {
+            AppDialogService.warning(tableClients, "No Email Address", "No registered email found for " + company, "Please edit the client profile or provide an email address.");
+            return;
+        }
+
+        UiTaskExecutor.submitAction(
+                "dispatch-email-" + id,
+                () -> api.dispatchEmail(id),
+                res -> {
+                    boolean emSent = Boolean.TRUE.equals(res.get("emailSent"));
+                    String emErr = String.valueOf(res.getOrDefault("emailError", ""));
+                    if (emSent) {
+                        ToastManager.success(tableClients, "License Email Dispatched",
+                                "Official license file (.jlic) dispatched to " + email);
+                    } else {
+                        AppDialogService.error(tableClients, "Email Delivery Notice",
+                                "Failed to send license email to " + email,
+                                (emErr.isBlank() ? "SMTP server unavailable" : emErr));
+                    }
+                },
+                err -> AppDialogService.error(tableClients, "Email Error", "Could not dispatch email", err.getMessage())
+        );
+    }
+
     private void sendWhatsApp(Map<String, Object> item) {
         Long id = item.get("id") instanceof Number n ? n.longValue() : null;
         if (id == null) {
@@ -1109,17 +1199,15 @@ public class ClientRegistryController implements ScreenLifecycle {
         }
 
         UiTaskExecutor.submitAction(
-                "dispatch-license-" + id,
-                () -> api.dispatchChannels(id),
+                "dispatch-whatsapp-" + id,
+                () -> api.dispatchWhatsApp(id),
                 res -> {
                     boolean waSent = Boolean.TRUE.equals(res.get("whatsappSent"));
-                    boolean emSent = Boolean.TRUE.equals(res.get("emailSent"));
                     String waErr = String.valueOf(res.getOrDefault("whatsappError", ""));
 
                     if (waSent) {
                         ToastManager.success(tableClients, "WhatsApp Dispatched",
-                                "License key dispatched automatically to " + item.getOrDefault("company_name", "client") +
-                                        (emSent ? " (and official email sent)" : ""));
+                                "Official license file and message dispatched automatically via WhatsApp to " + item.getOrDefault("company_name", "client"));
                     } else {
                         ToastManager.warning(tableClients, "WhatsApp Channel Notice",
                                 (waErr.isBlank() ? "WAHA channel unavailable" : waErr) + ". Opening WhatsApp Web in browser...");
@@ -1127,6 +1215,27 @@ public class ClientRegistryController implements ScreenLifecycle {
                     }
                 },
                 err -> openManualWhatsApp(item)
+        );
+    }
+
+    private void dispatchAll(Map<String, Object> item) {
+        Long id = item.get("id") instanceof Number n ? n.longValue() : null;
+        if (id == null) return;
+        UiTaskExecutor.submitAction(
+                "dispatch-all-" + id,
+                () -> api.dispatchChannels(id),
+                res -> {
+                    boolean waSent = Boolean.TRUE.equals(res.get("whatsappSent"));
+                    boolean emSent = Boolean.TRUE.equals(res.get("emailSent"));
+                    String summary = (waSent ? "✓ WhatsApp Sent" : "✗ WhatsApp Failed") + " | " +
+                            (emSent ? "✓ Email Sent (.jlic attached)" : "✗ Email Failed");
+                    if (waSent || emSent) {
+                        ToastManager.success(tableClients, "Multi-Channel Dispatch", summary);
+                    } else {
+                        AppDialogService.warning(tableClients, "Dispatch Notice", summary, "Neither channel could complete delivery. Please check WAHA and SMTP configurations.");
+                    }
+                },
+                err -> AppDialogService.error(tableClients, "Dispatch Error", "Could not complete multi-channel dispatch", err.getMessage())
         );
     }
 

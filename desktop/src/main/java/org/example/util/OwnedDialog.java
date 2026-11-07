@@ -9,10 +9,18 @@ import javafx.stage.Window;
 
 /** Dialog owned by the ERP window before it is shown. */
 public class OwnedDialog<R> extends Dialog<R> {
-    public OwnedDialog() { this(null); }
+    public OwnedDialog() { this((Node) null); }
 
     public OwnedDialog(Node ownerNode) {
-        Window owner = DialogOwnerResolver.resolve(ownerNode);
+        this((Object) ownerNode);
+    }
+
+    public OwnedDialog(Window ownerWindow) {
+        this((Object) ownerWindow);
+    }
+
+    public OwnedDialog(Object ownerTarget) {
+        Window owner = DialogOwnerResolver.resolve(ownerTarget);
         initStyle(PlatformUiSupport.isMac() ? StageStyle.UTILITY : StageStyle.TRANSPARENT);
         if (owner != null) {
             initOwner(owner);

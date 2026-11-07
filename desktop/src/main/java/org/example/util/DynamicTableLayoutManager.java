@@ -471,14 +471,16 @@ public final class DynamicTableLayoutManager {
         if (key.contains("actions")) semanticFloor = ACTION_CONTROL_MIN_WIDTH;
         else if (key.contains("select")) semanticFloor = 48.0;
         else if (isLongTextSemantic(semantic, heading)) semanticFloor = 86.0;
+        else if (key.contains("gst") || key.contains("tax")) semanticFloor = 140.0;
         else if (key.contains("invoice") || key.contains("reference") || key.contains("document")
-                || key.contains("account") || key.contains("email") || key.contains("gst")) semanticFloor = 74.0;
-        else if (key.contains("payment") || key.contains("return") || key.contains("status")) semanticFloor = 78.0;
+                || key.contains("account") || key.contains("email")) semanticFloor = 145.0;
+        else if (key.contains("payment") || key.contains("return") || key.contains("status")) semanticFloor = 85.0;
         else if (key.contains("amount") || key.contains("balance") || key.contains("paid")
-                || key.contains("pending") || key.contains("total") || key.contains("rate")) semanticFloor = 72.0;
+                || key.contains("pending") || key.contains("total") || key.contains("rate")) semanticFloor = 76.0;
         else if (key.contains("quantity") || key.contains("qty")
                 || key.contains("discount") || key.contains("disc")) semanticFloor = 82.0;
-        else if (key.contains("date") || key.contains("due") || key.contains("mobile")) semanticFloor = 64.0;
+        else if (key.contains("date") || key.contains("due")) semanticFloor = 105.0;
+        else if (key.contains("mobile") || key.contains("phone")) semanticFloor = 105.0;
         else semanticFloor = 68.0;
         return Math.max(MIN_READABLE_COLUMN, semanticFloor);
     }
@@ -487,9 +489,12 @@ public final class DynamicTableLayoutManager {
         String key = (semantic + " " + heading).toLowerCase(Locale.ROOT);
         if (key.contains("quantity") || key.contains("qty") || key.contains("discount") || key.contains("disc")) return 76.0;
         if (isLongTextSemantic(semantic, heading)) return 66.0;
-        if (key.contains("status") || key.contains("payment") || key.contains("return")) return 58.0;
-        if (key.contains("invoice") || key.contains("document") || key.contains("reference")) return 56.0;
-        if (key.contains("amount") || key.contains("total") || key.contains("balance") || key.contains("paid")) return 52.0;
+        if (key.contains("gst") || key.contains("tax")) return 90.0;
+        if (key.contains("invoice") || key.contains("document") || key.contains("reference")) return 88.0;
+        if (key.contains("date") || key.contains("due")) return 75.0;
+        if (key.contains("mobile") || key.contains("phone")) return 80.0;
+        if (key.contains("status") || key.contains("payment") || key.contains("return")) return 65.0;
+        if (key.contains("amount") || key.contains("total") || key.contains("balance") || key.contains("paid")) return 58.0;
         return DENSE_MIN_READABLE_COLUMN;
     }
 

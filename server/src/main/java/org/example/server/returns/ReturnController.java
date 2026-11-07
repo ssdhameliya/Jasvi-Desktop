@@ -15,18 +15,26 @@ public class ReturnController {
     @GetMapping("/returnable-lines") public List<ReturnDtos.ReturnableLine> returnableLines(@RequestParam String type,@RequestParam String invoice){service.requireTypeAccess(type);return service.returnableLines(type,invoice);}
     @PostMapping public ReturnDtos.Created create(@RequestBody ReturnDtos.CreateRequest request){service.requireTypeAccess(request==null?null:request.type());return service.create(request);}
     @GetMapping("/settlements") public List<ReturnDtos.Settlement> settlements(@RequestParam String type,@RequestParam(defaultValue="") String invoices){service.requireTypeAccess(type);List<String> filter=invoices==null||invoices.isBlank()?List.of():Arrays.stream(invoices.split(",")).map(String::trim).filter(v->!v.isBlank()).toList();return service.settlements(type,filter);}
+    @GetMapping("/details") public ReturnDtos.Details detailsByQuery(@RequestParam String no){service.requireAccess(no);return service.details(no);}
     @GetMapping("/{no}") public ReturnDtos.Details details(@PathVariable String no){service.requireAccess(no);return service.details(no);}
+    @PutMapping("/update-by-no") public ReturnDtos.Ok updateByQuery(@RequestParam String no,@RequestBody ReturnDtos.UpdateRequest request){service.requireAccess(no);service.update(no,request.field(),request.value(),request.expectedRowVersion());return ok("Updated");}
     @PutMapping("/{no}") public ReturnDtos.Ok update(@PathVariable String no,@RequestBody ReturnDtos.UpdateRequest request){service.requireAccess(no);service.update(no,request.field(),request.value(),request.expectedRowVersion());return ok("Updated");}
 
     /** Legacy amount-only endpoint retained for compatibility; new UI uses the auditable refund ledger endpoint below. */
     @PostMapping("/{no}/refund") public ReturnDtos.Ok refund(@PathVariable String no,@RequestBody ReturnDtos.RefundRequest request){service.requireAccess(no);service.refund(no,request.amount());return ok("Recorded");}
+    @GetMapping("/refund-rows") public List<ReturnDtos.RefundRow> refundsByQuery(@RequestParam String no){service.requireAccess(no);return service.refunds(no);}
     @GetMapping("/{no}/refunds") public List<ReturnDtos.RefundRow> refunds(@PathVariable String no){service.requireAccess(no);return service.refunds(no);}
+    @PostMapping("/record-refund") public ReturnDtos.RefundCreated recordRefundByQuery(@RequestParam String no,@RequestBody ReturnDtos.RefundCreateRequest request){service.requireAccess(no);return new ReturnDtos.RefundCreated(service.recordRefund(no,request));}
     @PostMapping("/{no}/refunds") public ReturnDtos.RefundCreated recordRefund(@PathVariable String no,@RequestBody ReturnDtos.RefundCreateRequest request){service.requireAccess(no);return new ReturnDtos.RefundCreated(service.recordRefund(no,request));}
     @PostMapping("/{no}/quick-apply") public ReturnDtos.Ok quickApply(@PathVariable String no){service.requireAccess(no);int count=service.applyCreditNoteToOutstandingInvoices(no);return ok("Credit note applied to "+count+" invoice(s)");}
 
+    @PostMapping("/approve-by-no") public ReturnDtos.Ok approveByQuery(@RequestParam String no){service.approve(no);return ok("Return approved");}
     @PostMapping("/{no}/approve") public ReturnDtos.Ok approve(@PathVariable String no){service.approve(no);return ok("Return approved");}
+    @PostMapping("/reject-by-no") public ReturnDtos.Ok rejectByQuery(@RequestParam String no,@RequestParam(required=false) String reason){service.reject(no,reason);return ok("Return rejected");}
     @PostMapping("/{no}/reject") public ReturnDtos.Ok reject(@PathVariable String no,@RequestParam(required=false) String reason){service.reject(no,reason);return ok("Return rejected");}
+    @PostMapping("/cancel-by-no") public ReturnDtos.Ok cancelByQuery(@RequestParam String no,@RequestParam boolean sales){service.cancel(no,sales);return ok("Cancelled");}
     @PostMapping("/{no}/cancel") public ReturnDtos.Ok cancel(@PathVariable String no,@RequestParam boolean sales){service.cancel(no,sales);return ok("Cancelled");}
+    @DeleteMapping("/delete-by-no") public ReturnDtos.Ok deleteByQuery(@RequestParam String no,@RequestParam boolean sales){service.delete(no,sales);return ok("Deleted");}
     @DeleteMapping("/{no}") public ReturnDtos.Ok delete(@PathVariable String no,@RequestParam boolean sales){service.delete(no,sales);return ok("Deleted");}
     private ReturnDtos.Ok ok(String message){return new ReturnDtos.Ok(true,message);}
 }

@@ -34,7 +34,7 @@ public class CloudflareTunnelService {
     private final AtomicReference<String> liveUrl = new AtomicReference<>(null);
     private final AtomicReference<Instant> startedAt = new AtomicReference<>(null);
     private final AtomicReference<String> lastError = new AtomicReference<>(null);
-    private int currentPort = 8080;
+    private int currentPort = 58080;
 
     public synchronized Map<String, Object> startTunnel(int port) {
         if ("ONLINE".equals(status.get()) && currentProcess.get() != null && currentProcess.get().isAlive()) {
@@ -42,7 +42,7 @@ public class CloudflareTunnelService {
         }
 
         stopTunnel();
-        this.currentPort = port > 0 ? port : 8080;
+        this.currentPort = port > 0 ? port : 58080;
         status.set("STARTING");
         lastError.set(null);
         liveUrl.set(null);
@@ -60,7 +60,7 @@ public class CloudflareTunnelService {
                 ProcessBuilder pb = new ProcessBuilder(
                         binaryPath.toAbsolutePath().toString(),
                         "tunnel",
-                        "--url", "http://localhost:" + currentPort,
+                        "--url", "http://127.0.0.1:" + currentPort,
                         "--no-autoupdate"
                 );
                 pb.redirectErrorStream(true);
@@ -98,12 +98,12 @@ public class CloudflareTunnelService {
             }
         });
 
-        // Wait up to 3 seconds for initial detection
+        // Wait up to 8 seconds for initial detection
         long startWait = System.currentTimeMillis();
-        while (System.currentTimeMillis() - startWait < 3000) {
+        while (System.currentTimeMillis() - startWait < 8000) {
             if ("ONLINE".equals(status.get())) break;
             try {
-                Thread.sleep(200);
+                Thread.sleep(250);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
                 break;
@@ -137,14 +137,18 @@ public class CloudflareTunnelService {
                 ? Duration.between(start, Instant.now()).getSeconds()
                 : 0L;
 
-        return Map.of(
-                "status", currentStatus,
-                "liveUrl", url != null ? url : "",
-                "uptimeSeconds", uptime,
-                "port", currentPort,
-                "startedAt", start != null ? start.toString() : "",
-                "error", lastError.get() != null ? lastError.get() : ""
-        );
+        boolean isActive = "ONLINE".equals(currentStatus);
+        String resolvedUrl = url != null ? url : "";
+        Map<String, Object> map = new java.util.LinkedHashMap<>();
+        map.put("status", currentStatus);
+        map.put("active", isActive);
+        map.put("url", resolvedUrl);
+        map.put("liveUrl", resolvedUrl);
+        map.put("uptimeSeconds", uptime);
+        map.put("port", currentPort);
+        map.put("startedAt", start != null ? start.toString() : "");
+        map.put("error", lastError.get() != null ? lastError.get() : "");
+        return map;
     }
 
     private Path resolveOrDownloadBinary() {

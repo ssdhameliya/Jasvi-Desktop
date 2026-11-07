@@ -64,6 +64,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Optional;
 import javafx.geometry.Pos;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -1143,16 +1144,8 @@ public class PurchaseController implements ScreenLifecycle {
     @FXML
     private void addSupplier() {
         try {
-            FXMLLoader loader = new FXMLLoader(org.example.util.ResourceLocator.require("/fxml/pages/PartyDialog.fxml"));
-            Parent root = loader.load(); org.example.util.ProfessionalUiEnhancer.enhance(root);
-            loader.<PartyDialogController>getController().configure("SUPPLIER", null);
-            Stage dialog = new Stage();
-            PlatformUiSupport.configureDialogStage(dialog, cmbSupplier, "Add Supplier", true);
-            Scene scene = new Scene(root);
-            ThemeManager.applyTheme(scene);
-            dialog.setScene(scene);
-            dialog.showAndWait();
-            Party selected = cmbSupplier.getValue();
+            Optional<Party> saved = PartyDialog.show(cmbSupplier, "SUPPLIER", null);
+            Party selected = saved.orElse(cmbSupplier.getValue());
             UiTaskExecutor.submitLatest(
                 "create-purchase-suppliers",
                 () -> partyService.search("SUPPLIER", "", 40),

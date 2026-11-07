@@ -44,6 +44,11 @@ public final class ReturnDocumentInspectionDialog {
                 (isSalesReturn ? "Sales Return Inspection — " : "Purchase Return Inspection — ") + returnNo,
                 "return-inspection-dialog");
 
+        loadDetails(shell, returnNo, isSalesReturn, api, support, onUpdated);
+        shell.dialog().showAndWait();
+    }
+
+    private static void loadDetails(DocumentInspectionScaffold.InspectionShell shell, String returnNo, boolean isSalesReturn, ReturnApiClient api, SupportApiClient support, Runnable onUpdated) {
         Classy3DLoadingView loadingSkeleton = Classy3DLoadingView.createTableSkeleton(
                 (isSalesReturn ? "Loading Sales Return Details — " : "Loading Purchase Return Details — ") + returnNo,
                 "Synchronizing return lines, inventory restoration status, and refund settlements…");
@@ -56,12 +61,50 @@ public final class ReturnDocumentInspectionDialog {
                         shell.dialog().setTitle((isSalesReturn ? "Sales Return Inspection — " : "Purchase Return Inspection — ") + details.no());
                         renderContent(shell.dialog(), shell.host(), details, isSalesReturn, api, support, onUpdated);
                     } else {
-                        ToastManager.error(shell.pane(), "Not Found", "Return record could not be loaded for " + returnNo);
+                        renderErrorState(shell, returnNo, isSalesReturn, "Return record could not be loaded for " + returnNo, api, support, onUpdated);
                     }
                 },
-                ex -> ToastManager.error(shell.pane(), "Failed to load", ex.getMessage()));
+                ex -> {
+                    String msg = ex.getMessage() != null ? ex.getMessage() : "Unknown error occurred";
+                    renderErrorState(shell, returnNo, isSalesReturn, msg, api, support, onUpdated);
+                });
+    }
 
-        shell.dialog().showAndWait();
+    private static void renderErrorState(DocumentInspectionScaffold.InspectionShell shell, String returnNo, boolean isSalesReturn, String errorMessage, ReturnApiClient api, SupportApiClient support, Runnable onUpdated) {
+        VBox errorBox = new VBox(14);
+        errorBox.setAlignment(Pos.CENTER);
+        errorBox.setPadding(new Insets(40));
+        errorBox.getStyleClass().addAll("inspection-error-card", "approved-card");
+
+        Node icon = IconFactory.statusIcon("error", "danger");
+        Label lblTitle = new Label("Could Not Load Return Details");
+        lblTitle.getStyleClass().addAll("dialog-title", "status-danger", "section-title");
+
+        Label lblDoc = new Label(returnNo);
+        lblDoc.getStyleClass().addAll("metric-value", "entity-code");
+
+        Label lblMsg = new Label(errorMessage);
+        lblMsg.setWrapText(true);
+        lblMsg.setMaxWidth(500);
+        lblMsg.getStyleClass().addAll("status-message", "muted-label");
+
+        HBox actions = new HBox(12);
+        actions.setAlignment(Pos.CENTER);
+
+        Button btnRetry = new Button("Retry");
+        btnRetry.getStyleClass().addAll("approved-button", "approved-primary-button");
+        UiActionIcons.apply(btnRetry, "refresh");
+        btnRetry.setOnAction(e -> loadDetails(shell, returnNo, isSalesReturn, api, support, onUpdated));
+
+        Button btnClose = new Button("Close");
+        btnClose.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        UiActionIcons.apply(btnClose, "close");
+        btnClose.setOnAction(e -> shell.dialog().setResult(ButtonType.CLOSE));
+
+        actions.getChildren().addAll(btnRetry, btnClose);
+        errorBox.getChildren().addAll(icon, lblTitle, lblDoc, lblMsg, actions);
+
+        shell.host().getChildren().setAll(errorBox);
     }
 
     private static void renderContent(Dialog<?> dialog, StackPane host, ReturnApiClient.Details currentDetails, boolean isSalesReturn, ReturnApiClient api, SupportApiClient support, Runnable onUpdated) {

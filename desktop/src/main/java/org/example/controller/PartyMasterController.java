@@ -36,6 +36,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.List;
+import java.util.Optional;
 
 public abstract class PartyMasterController implements ScreenLifecycle {
     @FXML
@@ -221,29 +222,12 @@ public abstract class PartyMasterController implements ScreenLifecycle {
     }
 
     private void showDetails(Party party) {
-        if (party == null || detailDrawer == null) return;
-        detailParty = party;
-        String semantic = "CUSTOMER".equals(partyType()) ? "customer" : "supplier";
-        detailDrawer.showRecord(displayName() + " Details", party.getPartyCode() + " • " + party.getName(), List.of(
-            RegisterDetailDrawer.field(displayName() + " Code", party.getPartyCode(), "reference"),
-            RegisterDetailDrawer.field(displayName() + " Name", party.getName(), semantic),
-            RegisterDetailDrawer.field("Contact Person", party.getContactPerson(), "user"),
-            RegisterDetailDrawer.field("Mobile", party.getPhone(), "phone"),
-            RegisterDetailDrawer.field("Email", party.getEmail(), "email"),
-            RegisterDetailDrawer.field("GSTIN", party.getGstin(), "tax"),
-            RegisterDetailDrawer.field("Address", party.getAddress(), "location"),
-            RegisterDetailDrawer.field("Opening Balance", String.format(Locale.ENGLISH, "₹ %,.2f", party.getOpeningBalance()), "balance"),
-            RegisterDetailDrawer.field("Status", party.isActive() ? "Active" : "Inactive", party.isActive() ? "complete" : "error")
-        ));
-        Button edit = new Button("Edit " + displayName());
-        edit.getStyleClass().addAll("approved-button", "approved-primary-button");
-        edit.setGraphic(IconFactory.compactIcon("edit", 14));
-        edit.setOnAction(event -> { tableParties.getSelectionModel().select(party); editParty(); });
-        Button audit = new Button("Audit Trail");
-        audit.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        audit.setGraphic(IconFactory.compactIcon("history", 14));
-        audit.setOnAction(event -> org.example.util.ActivityTimelineDialog.show(tableParties,partyType(),party.getId(),party.getPartyCode()));
-        detailDrawer.setActions(audit, edit);
+        if (party == null) return;
+        tableParties.getSelectionModel().select(party);
+        Optional<Party> result = PartyDialog.showView(tableParties, partyType(), party);
+        if (result.isPresent()) {
+            load(result.get().getPartyCode());
+        }
     }
 
     private void closeDetails() {
@@ -325,21 +309,11 @@ public abstract class PartyMasterController implements ScreenLifecycle {
 
     private void open(Party party) {
         try {
-            FXMLLoader loader = new FXMLLoader(org.example.util.ResourceLocator.require("/fxml/pages/PartyDialog.fxml"));
-            Parent root = loader.load(); org.example.util.ProfessionalUiEnhancer.enhance(root);
-            PartyDialogController controller = loader.getController();
-            controller.configure(partyType(), party);
-            Stage stage = new Stage();
-            PlatformUiSupport.configureDialogStage(stage, tableParties, (party == null ? "Add " : "Edit ") + displayName(), false);
-            Scene scene = new Scene(root);
-            ThemeManager.applyTheme(scene);
-            stage.setScene(scene);
-            stage.showAndWait();
-            Party saved = controller.getSavedResult();
-            if (saved == null) {
+            Optional<Party> result = PartyDialog.show(tableParties, partyType(), party);
+            if (result.isEmpty()) {
                 load();
             } else {
-                load(saved.getPartyCode());
+                load(result.get().getPartyCode());
             }
         } catch (Exception exception) {
             error("Could not open the dialog: " + exception.getMessage());

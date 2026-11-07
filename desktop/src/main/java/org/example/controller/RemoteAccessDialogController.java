@@ -5,77 +5,84 @@ import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.util.Duration;
 import org.example.api.licensing.RemoteAccessApiClient;
-import org.example.theme.ThemeManager;
+import org.example.config.ConfigManager;
 import org.example.util.AppDialogService;
+import org.example.util.DocumentInspectionScaffold;
 import org.example.util.IconFactory;
-import org.example.util.PlatformUiSupport;
 import org.example.util.ToastManager;
 import org.example.util.UiTaskExecutor;
 
-import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.util.Map;
 
 public class RemoteAccessDialogController {
 
     @FXML private StackPane headerIconHolder;
+    @FXML private HBox heroHeader;
     @FXML private Label lblTunnelStatusBadge;
+    @FXML private TextField txtCustomDomain;
+    @FXML private TextField txtTunnelToken;
+    @FXML private Button btnSaveCustomDomain;
     @FXML private Button btnToggleTunnel;
     @FXML private TextField txtLiveUrl;
     @FXML private Button btnCopyUrl;
     @FXML private Button btnOpenBrowser;
     @FXML private Label lblTunnelUptime;
-    @FXML private StackPane qrHolder;
-    @FXML private ImageView imgQrCode;
-    @FXML private Label lblQrPlaceholder;
     @FXML private Button btnClose;
 
     private final RemoteAccessApiClient api = new RemoteAccessApiClient();
     private Timeline pollingTimeline;
     private long currentUptimeSeconds = 0;
+    private Dialog<?> hostDialog;
+
+    public void setHostDialog(Dialog<?> dialog) {
+        this.hostDialog = dialog;
+        if (heroHeader != null && dialog != null) {
+            DocumentInspectionScaffold.installDragPhysics(heroHeader, dialog);
+        }
+    }
 
     public static void show(Window owner) {
-        try {
-            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(RemoteAccessDialogController.class.getResource("/fxml/pages/RemoteAccessDialog.fxml"));
-            javafx.scene.Parent root = loader.load();
-            Stage stage = new Stage();
-            PlatformUiSupport.configureDialogStage(stage, null, "Remote & Multi-Branch Access", false);
-            if (owner != null) {
-                stage.initOwner(owner);
-            }
-            javafx.scene.Scene scene = new javafx.scene.Scene(root);
-            ThemeManager.applyTheme(scene);
-            stage.setScene(scene);
-            stage.show();
-        } catch (Exception e) {
-            AppDialogService.error(null, "Remote Access", "Could not open Remote Access dialog", e.getMessage());
-        }
+        RemoteAccessDialog.show(owner);
     }
 
     @FXML
     private void initialize() {
         if (headerIconHolder != null) {
-            headerIconHolder.getChildren().setAll(IconFactory.compactIcon("server", 18));
+            headerIconHolder.getChildren().setAll(IconFactory.compactIcon("server", 22));
         }
         if (btnCopyUrl != null) btnCopyUrl.setGraphic(IconFactory.compactIcon("copy", 14));
         if (btnOpenBrowser != null) btnOpenBrowser.setGraphic(IconFactory.compactIcon("external", 14));
+        if (btnSaveCustomDomain != null) btnSaveCustomDomain.setGraphic(IconFactory.compactIcon("save", 14));
+
+        // Load saved company custom domain and tunnel token
+        String savedDomain = ConfigManager.get("gateway.custom.url", "");
+        String savedToken = ConfigManager.get("gateway.cloudflare.token", "");
+        if (txtCustomDomain != null) txtCustomDomain.setText(savedDomain);
+        if (txtTunnelToken != null) txtTunnelToken.setText(savedToken);
 
         refreshStatus();
 
         pollingTimeline = new Timeline(new KeyFrame(Duration.seconds(3), e -> refreshStatus()));
         pollingTimeline.setCycleCount(Timeline.INDEFINITE);
         pollingTimeline.play();
+
+        javafx.application.Platform.runLater(() -> {
+            if (heroHeader != null && hostDialog != null) {
+                DocumentInspectionScaffold.installDragPhysics(heroHeader, hostDialog);
+            }
+        });
     }
 
     private void refreshStatus() {
@@ -84,113 +91,129 @@ public class RemoteAccessDialogController {
                 api::getStatus,
                 this::applyStatus,
                 err -> {
-                    if (lblTunnelStatusBadge != null) {
-                        lblTunnelStatusBadge.setText("OFFLINE");
-                        lblTunnelStatusBadge.getStyleClass().setAll("status-badge", "badge-inactive");
-                    }
+                    // Fail silently during background polling to avoid user disruption
                 }
         );
     }
 
     private void applyStatus(Map<String, Object> status) {
-        String st = String.valueOf(status.getOrDefault("status", "OFFLINE"));
-        String url = String.valueOf(status.getOrDefault("liveUrl", ""));
-        Object upObj = status.get("uptimeSeconds");
-        currentUptimeSeconds = (upObj instanceof Number n) ? n.longValue() : 0L;
+        if (status == null) return;
 
-        boolean isOnline = "ONLINE".equalsIgnoreCase(st);
-        boolean isStarting = "STARTING".equalsIgnoreCase(st);
-
-        if (lblTunnelStatusBadge != null) {
-            lblTunnelStatusBadge.getStyleClass().setAll("status-badge");
-            if (isOnline) {
-                lblTunnelStatusBadge.setText("• ONLINE — SECURE TUNNEL ACTIVE");
-                lblTunnelStatusBadge.getStyleClass().add("badge-active");
-            } else if (isStarting) {
-                lblTunnelStatusBadge.setText("CONNECTING TUNNEL...");
-                lblTunnelStatusBadge.getStyleClass().addAll("status-warning", "badge-warning");
-            } else {
-                lblTunnelStatusBadge.setText("• OFFLINE");
-                lblTunnelStatusBadge.getStyleClass().addAll("status-neutral", "badge-inactive");
-            }
+        Object statusObj = status.get("status");
+        boolean active = "ONLINE".equalsIgnoreCase(String.valueOf(statusObj))
+                || Boolean.TRUE.equals(status.get("active"));
+        String url = status.get("liveUrl") != null
+                ? String.valueOf(status.get("liveUrl"))
+                : (status.get("url") != null ? String.valueOf(status.get("url")) : null);
+        Number uptime = (Number) status.get("uptimeSeconds");
+        if (uptime != null) {
+            currentUptimeSeconds = uptime.longValue();
         }
 
-        if (btnToggleTunnel != null) {
-            btnToggleTunnel.getStyleClass().removeAll("btn-primary", "btn-danger", "btn-warning");
-            if (isOnline) {
-                btnToggleTunnel.setText("Stop Remote Sharing");
-                btnToggleTunnel.getStyleClass().add("btn-danger");
-            } else if (isStarting) {
-                btnToggleTunnel.setText("Connecting...");
-                btnToggleTunnel.getStyleClass().add("btn-warning");
+        Platform.runLater(() -> {
+            if (active) {
+                lblTunnelStatusBadge.setText("ONLINE");
+                lblTunnelStatusBadge.getStyleClass().removeAll("badge-inactive", "status-warning");
+                if (!lblTunnelStatusBadge.getStyleClass().contains("badge-active")) {
+                    lblTunnelStatusBadge.getStyleClass().add("badge-active");
+                }
+
+                btnToggleTunnel.setText("Stop Sharing");
+                btnToggleTunnel.getStyleClass().removeAll("btn-primary", "primary-button", "approved-primary-button");
+                if (!btnToggleTunnel.getStyleClass().contains("btn-danger")) {
+                    btnToggleTunnel.getStyleClass().add("btn-danger");
+                }
+
+                txtLiveUrl.setText(url != null && !url.isBlank() ? url : "Connecting...");
+                btnCopyUrl.setDisable(url == null || url.isBlank());
+                btnOpenBrowser.setDisable(url == null || url.isBlank());
+
+                formatUptime(currentUptimeSeconds);
             } else {
+                lblTunnelStatusBadge.setText("OFFLINE");
+                lblTunnelStatusBadge.getStyleClass().removeAll("badge-active", "status-warning");
+                if (!lblTunnelStatusBadge.getStyleClass().contains("badge-inactive")) {
+                    lblTunnelStatusBadge.getStyleClass().add("badge-inactive");
+                }
+
                 btnToggleTunnel.setText("Start Remote Sharing");
-                btnToggleTunnel.getStyleClass().add("btn-primary");
+                btnToggleTunnel.getStyleClass().removeAll("btn-danger");
+                if (!btnToggleTunnel.getStyleClass().contains("btn-primary")) {
+                    btnToggleTunnel.getStyleClass().add("btn-primary");
+                }
+
+                txtLiveUrl.setText("");
+                btnCopyUrl.setDisable(true);
+                btnOpenBrowser.setDisable(true);
+                lblTunnelUptime.setText("Uptime: 00:00:00");
             }
-        }
-
-        if (txtLiveUrl != null) {
-            txtLiveUrl.setText(isOnline ? url : "");
-        }
-
-        if (lblTunnelUptime != null) {
-            long hours = currentUptimeSeconds / 3600;
-            long minutes = (currentUptimeSeconds % 3600) / 60;
-            long seconds = currentUptimeSeconds % 60;
-            lblTunnelUptime.setText(String.format("Uptime: %02d:%02d:%02d", hours, minutes, seconds));
-        }
-
-        if (isOnline && !url.isBlank()) {
-            loadQrImage();
-        } else {
-            if (imgQrCode != null) imgQrCode.setImage(null);
-            if (lblQrPlaceholder != null) lblQrPlaceholder.setVisible(true);
-        }
+        });
     }
 
-    private void loadQrImage() {
-        UiTaskExecutor.submitAction(
-                "load-tunnel-qr",
-                api::getQrImageBytes,
-                bytes -> {
-                    if (bytes != null && bytes.length > 0) {
-                        imgQrCode.setImage(new Image(new ByteArrayInputStream(bytes)));
-                        if (lblQrPlaceholder != null) lblQrPlaceholder.setVisible(false);
-                    }
-                },
-                err -> {}
-        );
+    private void formatUptime(long seconds) {
+        long hrs = seconds / 3600;
+        long mins = (seconds % 3600) / 60;
+        long secs = seconds % 60;
+        String formatted = String.format("Uptime: %02d:%02d:%02d", hrs, mins, secs);
+        Platform.runLater(() -> {
+            if (lblTunnelUptime != null) {
+                lblTunnelUptime.setText(formatted);
+            }
+        });
+    }
+
+    @FXML
+    private void handleSaveCustomConfig() {
+        String domain = txtCustomDomain != null ? txtCustomDomain.getText().trim() : "";
+        String token = txtTunnelToken != null ? txtTunnelToken.getText().trim() : "";
+        ConfigManager.set("gateway.custom.url", domain);
+        ConfigManager.set("gateway.cloudflare.token", token);
+        ToastManager.success(btnClose, "Configuration Saved", "Custom gateway domain and tunnel settings saved.");
+
+        if (!domain.isBlank()) {
+            syncRemoteTelemetryAsync(domain);
+        }
     }
 
     @FXML
     private void handleToggleTunnel() {
-        String current = lblTunnelStatusBadge != null ? lblTunnelStatusBadge.getText() : "";
-        boolean isOnline = current.contains("ONLINE");
+        boolean isCurrentlyOnline = "ONLINE".equalsIgnoreCase(lblTunnelStatusBadge.getText());
 
-        if (btnToggleTunnel != null) btnToggleTunnel.setDisable(true);
+        btnToggleTunnel.setDisable(true);
 
-        if (isOnline) {
+        if (isCurrentlyOnline) {
             UiTaskExecutor.submitAction(
                     "stop-tunnel",
                     api::stopTunnel,
                     status -> {
-                        if (btnToggleTunnel != null) btnToggleTunnel.setDisable(false);
+                        btnToggleTunnel.setDisable(false);
                         applyStatus(status);
-                        ToastManager.info(btnClose, "Remote Access Stopped", "Cloudflare secure tunnel closed.");
+                        ToastManager.info(btnClose, "Remote Access Closed", "Secure HTTPS tunnel has stopped.");
                     },
                     err -> {
-                        if (btnToggleTunnel != null) btnToggleTunnel.setDisable(false);
+                        btnToggleTunnel.setDisable(false);
                         AppDialogService.error(btnClose, "Error", "Could not stop tunnel", err.getMessage());
                     }
             );
         } else {
+            lblTunnelStatusBadge.setText("CONNECTING...");
+            lblTunnelStatusBadge.getStyleClass().removeAll("badge-inactive", "badge-active");
+            lblTunnelStatusBadge.getStyleClass().add("status-warning");
+
             UiTaskExecutor.submitAction(
                     "start-tunnel",
-                    () -> api.startTunnel(8080),
+                    api::startTunnel,
                     status -> {
                         if (btnToggleTunnel != null) btnToggleTunnel.setDisable(false);
                         applyStatus(status);
-                        ToastManager.success(btnClose, "Remote Access Live", "Secure HTTPS tunnel established!");
+                        String liveUrl = status != null ? String.valueOf(status.getOrDefault("liveUrl", status.getOrDefault("url", ""))) : "";
+                        if (!liveUrl.isBlank()) {
+                            ToastManager.success(btnClose, "Remote Access Live", "Secure HTTPS tunnel established!\n" + liveUrl);
+                            // Dispatch telemetry to Super Admin Master Licensor
+                            syncRemoteTelemetryAsync(liveUrl);
+                        } else {
+                            ToastManager.info(btnClose, "Connecting Tunnel", "Cloudflare tunnel is initializing in background...");
+                        }
                     },
                     err -> {
                         if (btnToggleTunnel != null) btnToggleTunnel.setDisable(false);
@@ -212,10 +235,14 @@ public class RemoteAccessDialogController {
 
     @FXML
     private void handleOpenBrowser() {
-        if (txtLiveUrl != null && !txtLiveUrl.getText().isBlank()) {
+        String targetUrl = txtLiveUrl != null && !txtLiveUrl.getText().isBlank() ? txtLiveUrl.getText() : null;
+        if (targetUrl == null && txtCustomDomain != null && !txtCustomDomain.getText().isBlank()) {
+            targetUrl = txtCustomDomain.getText().trim();
+        }
+        if (targetUrl != null && !targetUrl.isBlank()) {
             try {
                 if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
-                    java.awt.Desktop.getDesktop().browse(URI.create(txtLiveUrl.getText()));
+                    java.awt.Desktop.getDesktop().browse(URI.create(targetUrl));
                 }
             } catch (Exception ex) {
                 AppDialogService.error(btnClose, "Browser Error", "Could not open browser", ex.getMessage());
@@ -228,9 +255,23 @@ public class RemoteAccessDialogController {
         if (pollingTimeline != null) {
             pollingTimeline.stop();
         }
-        Stage stage = (Stage) btnClose.getScene().getWindow();
-        if (stage != null) {
-            stage.close();
+        if (hostDialog != null) {
+            hostDialog.close();
+        } else if (btnClose != null && btnClose.getScene() != null && btnClose.getScene().getWindow() != null) {
+            ((Stage) btnClose.getScene().getWindow()).close();
         }
+    }
+
+    /** Dispatches active Remote URL to Super Admin Master Licensor for troubleshooting. */
+    public static void syncRemoteTelemetryAsync(String remoteUrl) {
+        if (remoteUrl == null || remoteUrl.isBlank()) return;
+        Thread.ofVirtual().name("remote-telemetry-sync").start(() -> {
+            try {
+                String machineId = org.example.shared.licensing.HardwareFingerprintUtil.getDisplayMachineId();
+                String ver = org.example.update.BuildInfo.version();
+                new org.example.api.licensing.ClientRegistryApiClient().sendHeartbeat(machineId, ver, 1, remoteUrl);
+            } catch (Exception ignored) {
+            }
+        });
     }
 }

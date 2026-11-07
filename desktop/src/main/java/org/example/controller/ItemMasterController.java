@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 public class ItemMasterController implements ScreenLifecycle {
@@ -45,7 +46,7 @@ public class ItemMasterController implements ScreenLifecycle {
     @FXML private TextField txtSearch;
     @FXML private TableView<Item> tableItems;
     @FXML private Label lblRecordCount,lblKpiTotal,lblKpiCategories,lblKpiLowStock,lblKpiValue,lblSelectedCount;
-    @FXML private Button btnReset,btnDeleteSelected,btnImportExcel,btnExportExcel;
+    @FXML private Button btnReset,btnRefresh,btnDeleteSelected,btnImportExcel,btnExportExcel;
     @FXML private StackPane itemPageIcon,itemTotalIcon,itemCategoryIcon,itemLowIcon,itemValueIcon;
 
 
@@ -82,6 +83,11 @@ public class ItemMasterController implements ScreenLifecycle {
             btnReset.setGraphic(IconFactory.compactIcon("reset", 15));
             btnReset.setGraphicTextGap(7);
             btnReset.getProperties().put("erp-icon-preserve", true);
+        }
+        if (btnRefresh != null) {
+            btnRefresh.setGraphic(IconFactory.compactIcon("refresh", 15));
+            btnRefresh.setGraphicTextGap(7);
+            btnRefresh.getProperties().put("erp-icon-preserve", true);
         }
         if (btnImportExcel != null) {
             btnImportExcel.setGraphic(IconFactory.compactIcon("import", 15));
@@ -269,34 +275,20 @@ public class ItemMasterController implements ScreenLifecycle {
     }
 
     private void showDetails(Item item) {
-        if (item == null || detailDrawer == null) return;
-        detailItem = item;
-        String stockStatus = item.getOpeningStock() <= 0 ? "Out of Stock" : item.getOpeningStock() <= item.getMinimumStock() ? "Low Stock" : "In Stock";
-        detailDrawer.showRecord("Item Details", item.getItemCode() + " • " + item.getDescription(), List.of(
-            RegisterDetailDrawer.field("Item Code", item.getItemCode(), "identity"),
-            RegisterDetailDrawer.field("Description", item.getDescription(), "item"),
-            RegisterDetailDrawer.field("Category", item.getCategory(), "category"),
-            RegisterDetailDrawer.field("Unit", item.getUnit(), "unit"),
-            RegisterDetailDrawer.field("HSN / SAC", item.getHsn(), "tax"),
-            RegisterDetailDrawer.field("GST %", String.format(Locale.ENGLISH, "%.2f%%", item.getGst()), "tax"),
-            RegisterDetailDrawer.field("Default Discount", String.format(Locale.ENGLISH, "%.2f%%", item.getDiscountPercent()), "discount"),
-            RegisterDetailDrawer.field("Purchase Price", String.format(Locale.ENGLISH, "₹ %,.2f", item.getPurchasePrice()), "currency"),
-            RegisterDetailDrawer.field("Selling Price", String.format(Locale.ENGLISH, "₹ %,.2f", item.getSellingPrice()), "currency"),
-            RegisterDetailDrawer.field("Opening Stock", String.format(Locale.ENGLISH, "%,.3f", item.getOpeningStock()), "quantity"),
-            RegisterDetailDrawer.field("Minimum Stock", String.format(Locale.ENGLISH, "%,.3f", item.getMinimumStock()), "minimum"),
-            RegisterDetailDrawer.field("Rack Location", item.getLocation(), "location"),
-            RegisterDetailDrawer.field("Stock Status", stockStatus, RegisterDetailDrawer.statusSemantic(stockStatus)),
-            RegisterDetailDrawer.field("Remarks", item.getRemarks(), "notes")
-        ));
-        Button edit = new Button("Edit Item");
-        edit.getStyleClass().addAll("approved-button", "approved-primary-button");
-        edit.setGraphic(IconFactory.compactIcon("edit", 14));
-        edit.setOnAction(event -> openItemDialog(item));
-        Button audit = new Button("Audit Trail");
-        audit.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        audit.setGraphic(IconFactory.compactIcon("history", 14));
-        audit.setOnAction(event -> org.example.util.ActivityTimelineDialog.show(tableItems,"ITEM",item.getId(),item.getItemCode()));
-        detailDrawer.setActions(audit, edit);
+        if (item == null) return;
+        try {
+            Optional<Item> result = ItemDialog.showView(tableItems, item);
+            loadItems();
+            if (result.isPresent()) {
+                Item saved = result.get();
+                org.example.util.ToastManager.success(tableItems,
+                        "Item Updated",
+                        saved.getItemCode() + " • " + saved.getDescription() + " was updated successfully.");
+                javafx.application.Platform.runLater(() -> selectSavedItem(saved.getItemCode()));
+            }
+        } catch (Exception e) {
+            showError("Could not open the item dialog: " + e.getMessage());
+        }
     }
 
     private void closeDetails() {
@@ -307,25 +299,14 @@ public class ItemMasterController implements ScreenLifecycle {
 
     private void openItemDialog(Item item) {
         try {
-            URL url = org.example.util.ResourceLocator.require("/fxml/pages/Itemdialog.fxml");
-            if (url == null) throw new RuntimeException("Itemdialog.fxml not found");
-            FXMLLoader loader = new FXMLLoader(url);
-            Parent root = loader.load(); org.example.util.ProfessionalUiEnhancer.enhance(root);
-            ItemDialogController controller = loader.getController();
-            if (item != null) controller.setItem(item);
-            Stage stage = new Stage();
-            PlatformUiSupport.configureDialogStage(stage, tableItems, item == null ? "Add New Item" : "Edit Item", false);
-            Scene scene = new Scene(root);
-            ThemeManager.applyTheme(scene);
-            stage.setScene(scene);
-            stage.showAndWait();
-            Item saved=controller.getSavedResult();
+            Optional<Item> result = ItemDialog.show(tableItems, item);
             loadItems();
-            if(saved!=null){
+            if (result.isPresent()) {
+                Item saved = result.get();
                 org.example.util.ToastManager.success(tableItems,
-                        controller.wasSavedAsCreate()?"Item Created":"Item Updated",
-                        saved.getItemCode()+" • "+saved.getDescription()+(controller.wasSavedAsCreate()?" was added successfully.":" was updated successfully."));
-                javafx.application.Platform.runLater(()->selectSavedItem(saved.getItemCode()));
+                        item == null ? "Item Created" : "Item Updated",
+                        saved.getItemCode() + " • " + saved.getDescription() + (item == null ? " was added successfully." : " was updated successfully."));
+                javafx.application.Platform.runLater(() -> selectSavedItem(saved.getItemCode()));
             }
         } catch (Exception e) {
             showError("Could not open the item dialog: " + e.getMessage());
@@ -384,9 +365,11 @@ public class ItemMasterController implements ScreenLifecycle {
 
     @FXML
     private void resetFilters() {
-        if (txtSearch != null) txtSearch.clear();
-        tableItems.getSelectionModel().clearSelection();
-        loadItems();
+        org.example.util.OperationalUiSupport.animateReset(btnReset, txtSearch, () -> {
+            if (txtSearch != null) txtSearch.clear();
+            tableItems.getSelectionModel().clearSelection();
+            loadItems();
+        });
     }
 
     @FXML
@@ -420,17 +403,23 @@ public class ItemMasterController implements ScreenLifecycle {
     }
 
     private void loadItems() {
+        Runnable finishRefresh = org.example.util.OperationalUiSupport.beginRefresh(btnRefresh);
         org.example.util.OperationalUiSupport.showLoading(tableItems,"Loading item master…");
         UiTaskExecutor.submitLatest(
                 "item-master-load",
                 service::getAll,
                 list -> {
+                    finishRefresh.run();
                     allItems.setAll(list == null ? List.of() : list);
                     clearBulkSelection();
                     applyLocalFilter();
                     updateKpis(allItems);
                 },
-                failure -> { org.example.util.OperationalUiSupport.showError(tableItems,"Item Master could not load",failure); showError("Could not load items: " + message(failure)); }
+                failure -> {
+                    finishRefresh.run();
+                    org.example.util.OperationalUiSupport.showError(tableItems,"Item Master could not load",failure);
+                    showError("Could not load items: " + message(failure));
+                }
         );
     }
 

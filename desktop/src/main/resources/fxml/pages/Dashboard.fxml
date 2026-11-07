@@ -158,7 +158,7 @@
                 <Circle radius="4" styleClass="shell-clock-live"/>
             </HBox>
             <TextField fx:id="txtSearch" id="shellSearch" promptText="Search invoices, parties, items, payments... (Ctrl + K)" prefWidth="390" minWidth="190" maxWidth="390" HBox.hgrow="SOMETIMES" onAction="#search" styleClass="erp-global-search"/>
-            <Button fx:id="shellNewSale" text="New Sale" onAction="#createSale" styleClass="top-add,approved-button,approved-primary-button"/>
+            <Button fx:id="shellNewSale" text="New Sale" onAction="#createSale" styleClass="top-add,approved-button,approved-emerald-button,erp-button-emerald"/>
             <!-- iPhone-style switch located next to notifications and email. -->
             <ToggleButton fx:id="btnTheme" id="shellTheme" text="Light" onAction="#toggleTheme" styleClass="theme-switch"/>
             <StackPane styleClass="notification-button-wrap">
@@ -189,6 +189,7 @@
                 <MenuItem text="My Profile" onAction="#showProfile"/>
                 <MenuItem text="Settings" onAction="#openSettings"/>
                 <MenuItem text="Backup &amp; Restore" onAction="#openBackupRestore"/>
+                <MenuItem fx:id="menuRemoteAccess" text="Remote Branch Gateway..." onAction="#openRemoteAccessDialog"/>
                 <MenuItem text="Reminder Center" onAction="#openReminderCenter"/>
                 <MenuItem text="User Access" onAction="#openUserAccess"/>
                 <MenuItem text="Data Import" onAction="#openDataImport"/>

@@ -1,6 +1,7 @@
 package org.example.util;
 
 import javafx.animation.PauseTransition;
+import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
@@ -14,6 +15,7 @@ import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.util.Duration;
 import org.example.api.audit.AuditApiClient;
@@ -88,21 +90,14 @@ public final class ActivityTimelineDialog {
     public static void show(Node owner, String entityType, int entityId, String reference) {
         if (owner == null) return;
 
-        Dialog<ButtonType> dialog = new OwnedDialog<>(owner);
-        dialog.setTitle("Audit Trail — " + pretty(entityType) + " • " + safe(reference));
-        dialog.setHeaderText(null);
-        dialog.setResizable(true);
-
-        DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("erp-document-inspection-dialog", "audit-dialog", "approved-ui");
-        pane.getProperties().put("dse.dialog.presented", true);
-        PopupTableWorkspace.applyInspectionSizing(dialog, owner);
-
-        StackPane host = new StackPane();
-        host.getStyleClass().addAll("document-inspection-host", "erp-ui-standard");
-
         final String safeRef = safe(reference);
         final String entityLabel = pretty(entityType);
+        String windowTitle = "Audit Trail — " + entityLabel + " • " + safeRef;
+
+        DocumentInspectionScaffold.InspectionShell shell =
+                DocumentInspectionScaffold.createAdaptiveShell(owner, windowTitle, "audit-dialog", 6);
+        Dialog<ButtonType> dialog = shell.dialog();
+        StackPane host = shell.host();
 
         // ================= HEADER HERO =================
         HBox headerHero = buildHeaderHero(dialog, entityLabel, safeRef);
@@ -132,12 +127,12 @@ public final class ActivityTimelineDialog {
 
         Button btnExportCsv = new Button("Export CSV");
         btnExportCsv.setGraphic(IconFactory.compactIcon("export", 13));
-        btnExportCsv.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnExportCsv.getStyleClass().addAll("approved-button", "approved-emerald-button", "erp-button-emerald");
         btnExportCsv.setTooltip(new Tooltip("Export visible audit trail entries to CSV file"));
 
         Button btnRefresh = new Button("Refresh");
         btnRefresh.setGraphic(IconFactory.compactIcon("refresh", 13));
-        btnRefresh.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnRefresh.getStyleClass().addAll("approved-button", "approved-teal-button", "erp-button-teal");
         btnRefresh.setTooltip(new Tooltip("Reload latest audit events from authoritative server ledger"));
 
         HBox toolbar = new HBox(10, txtSearch, cmbCategory, lblEntriesCount, btnExportCsv, btnRefresh);
@@ -520,6 +515,12 @@ public final class ActivityTimelineDialog {
                         if (masterList.isEmpty()) {
                             table.setPlaceholder(new Label("No audit trail events recorded for this record."));
                         }
+                        Platform.runLater(() -> {
+                            PopupTableWorkspace.applyAdaptiveInspectionSizing(dialog, owner, masterList.size());
+                            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
+                                stage.sizeToScene();
+                            }
+                        });
                     },
                     err -> {
                         table.setPlaceholder(new Label("Failed to load audit trail: " + rootMessage(err)));
@@ -549,16 +550,6 @@ public final class ActivityTimelineDialog {
         VBox.setVgrow(root, Priority.ALWAYS);
 
         host.getChildren().setAll(root);
-        pane.setContent(host);
-        pane.getButtonTypes().add(ButtonType.CLOSE);
-
-        dialog.setOnShowing(ev -> {
-            Node defaultButtonBar = pane.lookup(".button-bar");
-            if (defaultButtonBar != null) {
-                defaultButtonBar.setVisible(false);
-                defaultButtonBar.setManaged(false);
-            }
-        });
 
         // Fire asynchronous loading immediately while the window opens in <15ms
         loadData.run();
@@ -604,13 +595,7 @@ public final class ActivityTimelineDialog {
         Label statusPill = new Label("LIVE SERVER LEDGER");
         statusPill.getStyleClass().addAll("status-pill", "pill-success");
 
-        Button btnCloseTop = new Button();
-        btnCloseTop.setGraphic(SemanticIconManager.compact("close", 14));
-        btnCloseTop.getStyleClass().addAll("dse-dialog-close", "icon-button");
-        btnCloseTop.setTooltip(new Tooltip("Close"));
-        btnCloseTop.setOnAction(e -> dialog.close());
-
-        HBox badges = new HBox(8, statusPill, btnCloseTop);
+        HBox badges = new HBox(8, statusPill);
         badges.setAlignment(Pos.CENTER_RIGHT);
 
         HBox hero = new HBox(14, iconLabel, titleBox, spacer, badges);

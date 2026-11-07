@@ -544,25 +544,33 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
             statement.rows()
         );
 
-        try {
-            var result = api.importStatement(request);
-            if (result.alreadyImported()) {
-                AppDialogService.info(table, "Already Imported", "Duplicate Statement", "This exact bank statement was imported previously. Statement batch reference: " + (result.batch() != null ? result.batch().statementReference() : ""));
-            } else {
-                ToastManager.success(table, "Data Shipping Complete", "Imported " + result.importedRows() + " transactions. Statement Ref: " + (result.batch() != null ? result.batch().statementReference() : ""));
-                org.example.service.NotificationService.createNotification(
-                        org.example.service.NotificationService.Category.BANKING,
-                        "Bank Statement Imported",
-                        "Imported " + result.importedRows() + " transactions (Ref: " + (result.batch() != null ? result.batch().statementReference() : "") + ")",
-                        "INFO",
-                        "/fxml/pages/BankStatement.fxml",
-                        result.batch() != null ? result.batch().statementReference() : null
-                );
+        btnStartShipping.setDisable(true);
+        btnStartShipping.setText("Shipping Data to Server…");
+
+        org.example.util.UiTaskExecutor.submitAction(
+            "bank-statement-data-shipping",
+            () -> api.importStatement(request),
+            result -> {
+                if (result.alreadyImported()) {
+                    AppDialogService.info(table, "Already Imported", "Duplicate Statement", "This exact bank statement was imported previously. Statement batch reference: " + (result.batch() != null ? result.batch().statementReference() : ""));
+                } else {
+                    org.example.service.NotificationService.createNotification(
+                            org.example.service.NotificationService.Category.BANKING,
+                            "Bank Statement Imported",
+                            "Imported " + result.importedRows() + " transactions (Ref: " + (result.batch() != null ? result.batch().statementReference() : "") + ")",
+                            "INFO",
+                            "/fxml/pages/BankStatement.fxml",
+                            result.batch() != null ? result.batch().statementReference() : null
+                    );
+                }
+                if (onSuccessCallback != null) onSuccessCallback.run();
+                close();
+            },
+            ex -> {
+                btnStartShipping.setDisable(false);
+                btnStartShipping.setText("Start Data Shipping");
+                AppDialogService.error(table, "Data Shipping Failed", "Server Import Rejected", "Server import rejected: " + ex.getMessage());
             }
-            if (onSuccessCallback != null) onSuccessCallback.run();
-            close();
-        } catch (Exception ex) {
-            AppDialogService.error(table, "Data Shipping Failed", "Server Import Rejected", "Server import rejected: " + ex.getMessage());
-        }
+        );
     }
 }

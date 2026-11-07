@@ -774,7 +774,7 @@ public final class IconFactory {
             if (!button.getStyleClass().contains("erp-nav-button")) button.getStyleClass().add("erp-nav-button");
             return;
         }
-        if (button.getStyleClass().contains("square-action")) return;
+        if (button.getStyleClass().contains("square-action") || button.getStyleClass().contains("approved-quick-action")) return;
 
         button.getStyleClass().removeAll(BUTTON_VARIANTS);
         button.getStyleClass().removeIf(style -> style.startsWith("erp-semantic-"));
@@ -794,23 +794,46 @@ public final class IconFactory {
             variant = "erp-button-amber";
             if (!button.getStyleClass().contains("approved-amber-button")) button.getStyleClass().add("approved-amber-button");
         } else if ("duplicate".equals(semantic)) {
-            variant = "erp-button-indigo";
-            if (!button.getStyleClass().contains("approved-indigo-button")) button.getStyleClass().add("approved-indigo-button");
+            variant = "erp-button-secondary";
+            if (!button.getStyleClass().contains("approved-secondary-button")) button.getStyleClass().add("approved-secondary-button");
         } else if ("excel".equals(semantic) || "export".equals(semantic)) {
             variant = "erp-button-emerald";
             if (!button.getStyleClass().contains("approved-emerald-button")) button.getStyleClass().add("approved-emerald-button");
         } else if ("email".equals(semantic) || "sent".equals(semantic)) {
             variant = "erp-button-sky";
             if (!button.getStyleClass().contains("approved-sky-button")) button.getStyleClass().add("approved-sky-button");
-        } else if ("pdf".equals(semantic) || "print".equals(semantic)) {
-            variant = "erp-button-purple";
-            if (!button.getStyleClass().contains("approved-purple-button")) button.getStyleClass().add("approved-purple-button");
+        } else if ("pdf".equals(semantic)) {
+            variant = "erp-button-danger";
+            if (!button.getStyleClass().contains("approved-danger-button")) button.getStyleClass().add("approved-danger-button");
+            if (!button.getStyleClass().contains("export-pdf-button")) button.getStyleClass().add("export-pdf-button");
+        } else if ("print".equals(semantic)) {
+            variant = "erp-button-primary";
+            if (!button.getStyleClass().contains("approved-primary-button")) button.getStyleClass().add("approved-primary-button");
+            if (!button.getStyleClass().contains("print-button")) button.getStyleClass().add("print-button");
+        } else if ("purchase".equals(semantic)) {
+            variant = "erp-button-primary";
+            if (!button.getStyleClass().contains("approved-primary-button")) button.getStyleClass().add("approved-primary-button");
+        } else if ("bank".equals(semantic)) {
+            variant = "erp-button-cyan";
+            if (!button.getStyleClass().contains("approved-cyan-button")) button.getStyleClass().add("approved-cyan-button");
+        } else if ("expense".equals(semantic)) {
+            variant = "erp-button-orange";
+            if (!button.getStyleClass().contains("approved-orange-button")) button.getStyleClass().add("approved-orange-button");
+        } else if ("supplier".equals(semantic)) {
+            variant = "erp-button-teal";
+            if (!button.getStyleClass().contains("approved-teal-button")) button.getStyleClass().add("approved-teal-button");
+        } else if ("reminder".equals(semantic)) {
+            variant = "erp-button-amber";
+            if (!button.getStyleClass().contains("approved-amber-button")) button.getStyleClass().add("approved-amber-button");
+        } else if ("sale".equals(semantic) || "cart".equals(semantic)) {
+            variant = "erp-button-emerald";
+            if (!button.getStyleClass().contains("approved-emerald-button")) button.getStyleClass().add("approved-emerald-button");
         } else if ("barcode".equals(semantic)) {
             variant = "erp-button-cyan";
             if (!button.getStyleClass().contains("approved-cyan-button")) button.getStyleClass().add("approved-cyan-button");
         } else if ("payment".equals(semantic)) {
-            variant = "erp-button-violet";
-            if (!button.getStyleClass().contains("approved-violet-button")) button.getStyleClass().add("approved-violet-button");
+            variant = "erp-button-emerald";
+            if (!button.getStyleClass().contains("approved-emerald-button")) button.getStyleClass().add("approved-emerald-button");
         } else if ("return".equals(semantic)) {
             variant = "erp-button-coral";
             if (!button.getStyleClass().contains("approved-coral-button")) button.getStyleClass().add("approved-coral-button");
@@ -868,9 +891,17 @@ public final class IconFactory {
         return false;
     }
 
-    private static String clean(String text) {
+    static String clean(String text) {
         if (text == null) return "";
-        String s = text.replaceFirst("^[^\\p{L}\\p{N}#]+\\s*", "");
+        String trimmed = text.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            return trimmed;
+        }
+        if ((trimmed.startsWith("[") && trimmed.endsWith("]"))
+                || (trimmed.startsWith("(") && trimmed.endsWith(")"))) {
+            return trimmed;
+        }
+        String s = trimmed.replaceFirst("^[^\\p{L}\\p{N}#{\\[(]+\\s*", "");
         return s.replaceAll("[:*\\s]+$", "").trim();
     }
 
@@ -1009,6 +1040,7 @@ public final class IconFactory {
             case "adjust" -> "fas-sliders-h";
             case "workspace" -> "fas-folder-open";
             case "bank" -> "fas-university";
+            case "expense" -> "fas-receipt";
             case "account-holder" -> "fas-wallet";
             case "delivery" -> "fas-truck";
             case "update" -> "fas-cloud-download-alt";
@@ -1059,6 +1091,7 @@ public final class IconFactory {
             case "inventory", "supplier", "attachment", "phone", "location", "communication", "unit", "email", "backup", "filter" -> "teal";
             case "payment", "customer", "user", "dashboard", "view", "hide", "download", "identity", "sent", "currency", "confirmation", "refresh", "restore", "folder", "copy", "database", "first", "previous", "next", "last", "history", "workspace", "select", "business", "chevron", "wallet", "finance" -> "blue";
             case "credit" -> "green";
+            case "expense" -> "orange";
             case "adjust", "bank", "delivery", "dispatch", "project", "update", "permission", "register", "draft", "restart", "workflow", "reconcile", "version" -> "purple";
             case "compatibility", "database-backup", "snapshot", "recovery" -> "blue";
             case "preserve" -> "green";

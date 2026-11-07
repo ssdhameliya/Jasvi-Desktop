@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -455,13 +456,28 @@ public class ClientRegistryService {
         if (rawMachine == null || rawMachine.isBlank()) return Map.of("status", "UNKNOWN_MACHINE");
         String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
 
+        int resolvedActiveUsers = 1;
+        if (activeUsers != null && activeUsers > 1) {
+            resolvedActiveUsers = activeUsers;
+        } else {
+            try {
+                Long liveCount = jdbc.queryForObject(
+                        "SELECT COUNT(DISTINCT user_id) FROM auth_session WHERE expires_at > CURRENT_TIMESTAMP",
+                        Long.class
+                );
+                resolvedActiveUsers = (liveCount != null && liveCount > 0) ? liveCount.intValue() : 1;
+            } catch (Exception ignored) {
+                resolvedActiveUsers = activeUsers != null && activeUsers > 0 ? activeUsers : 1;
+            }
+        }
+
         StringBuilder updateSql = new StringBuilder("UPDATE licensed_client_registry SET " +
                 "last_heartbeat_at = CURRENT_TIMESTAMP, " +
                 "client_version = COALESCE(?, client_version), " +
                 "active_users_count = ? ");
         List<Object> params = new ArrayList<>();
         params.add(clientVersion != null && !clientVersion.isBlank() ? clientVersion.trim() : null);
-        params.add(activeUsers != null ? activeUsers : 1);
+        params.add(resolvedActiveUsers);
 
         if (remoteUrl != null && !remoteUrl.isBlank()) {
             updateSql.append(", remote_url = ? ");
@@ -471,6 +487,32 @@ public class ClientRegistryService {
         params.add(machineId);
 
         int updated = jdbc.update(updateSql.toString(), params.toArray());
+        if (updated == 0) {
+            // Check if there is an un-bound host license ('AUTO_BIND_HOST') authorized for dynamic binding
+            List<Map<String, Object>> autoBindRows = jdbc.queryForList(
+                    "SELECT id, company_name FROM licensed_client_registry WHERE machine_id = 'AUTO_BIND_HOST' LIMIT 1"
+            );
+            if (!autoBindRows.isEmpty()) {
+                Long autoBindId = ((Number) autoBindRows.getFirst().get("id")).longValue();
+                StringBuilder autoBindSql = new StringBuilder("UPDATE licensed_client_registry SET " +
+                        "machine_id = ?, " +
+                        "last_heartbeat_at = CURRENT_TIMESTAMP, " +
+                        "client_version = COALESCE(?, client_version), " +
+                        "active_users_count = ? ");
+                List<Object> autoParams = new ArrayList<>();
+                autoParams.add(machineId);
+                autoParams.add(clientVersion != null && !clientVersion.isBlank() ? clientVersion.trim() : null);
+                autoParams.add(resolvedActiveUsers);
+                if (remoteUrl != null && !remoteUrl.isBlank()) {
+                    autoBindSql.append(", remote_url = ? ");
+                    autoParams.add(remoteUrl.trim());
+                }
+                autoBindSql.append("WHERE id = ?");
+                autoParams.add(autoBindId);
+                updated = jdbc.update(autoBindSql.toString(), autoParams.toArray());
+            }
+        }
+
         if (updated == 0) {
             return Map.of("status", "UNREGISTERED", "machineId", machineId);
         }
@@ -496,6 +538,89 @@ public class ClientRegistryService {
      * If external networks or servers are unavailable, this will not roll back the license.
      */
     public Map<String, Object> dispatchLicenseChannels(Map<String, Object> client) {
+        Map<String, Object> em = dispatchEmailChannel(client);
+        Map<String, Object> wa = dispatchWhatsAppChannel(client);
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("whatsappSent", wa.get("whatsappSent"));
+        res.put("whatsappError", wa.get("whatsappError"));
+        res.put("emailSent", em.get("emailSent"));
+        res.put("emailError", em.get("emailError"));
+        res.put("licenseKey", client.getOrDefault("license_payload_enc", client.getOrDefault("licensePayloadEnc", "")));
+        return res;
+    }
+
+    public Map<String, Object> dispatchEmailChannel(Map<String, Object> client) {
+        String email = client.get("email") != null ? String.valueOf(client.get("email")).trim() : "";
+        String company = String.valueOf(client.getOrDefault("company_name", client.getOrDefault("companyName", "Valued Client")));
+        String tier = String.valueOf(client.getOrDefault("tier", "ENTERPRISE"));
+        String machineId = String.valueOf(client.getOrDefault("machine_id", client.getOrDefault("machineId", "")));
+        String validUntil = String.valueOf(client.getOrDefault("valid_until", client.getOrDefault("validUntil", "")));
+        String payload = String.valueOf(client.getOrDefault("license_payload_enc", client.getOrDefault("licensePayloadEnc", "")));
+
+        boolean emailSent = false;
+        String emailError = null;
+
+        if (mailService != null && !email.isBlank()) {
+            try {
+                String subject = "Official Jasvi ERP Enterprise License Activation - " + company;
+                String filename = company.replaceAll("[^a-zA-Z0-9_-]", "_") + "-license.jlic";
+                byte[] jlicBytes = payload.getBytes(StandardCharsets.UTF_8);
+
+                String emailHtml = """
+                        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; color: #1e293b;">
+                            <div style="border-bottom: 2px solid #0284c7; padding-bottom: 16px; margin-bottom: 20px;">
+                                <h2 style="margin: 0; color: #0f172a; font-size: 22px;">Jasvi ERP Enterprise License Activation</h2>
+                                <p style="margin: 4px 0 0; color: #64748b; font-size: 14px;">Official Digital License Delivery</p>
+                            </div>
+                            <p style="font-size: 15px; line-height: 1.5;">Dear <strong>{{company}}</strong>,</p>
+                            <p style="font-size: 14px; line-height: 1.5; color: #334155;">
+                                Your Jasvi ERP production license has been issued and approved. Your official digital license file (<strong>{{filename}}</strong>) is attached to this email.
+                            </p>
+                            <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px; margin: 20px 0;">
+                                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                                    <tr><td style="padding: 6px 0; color: #64748b; width: 40%;"><strong>Registered Client:</strong></td><td style="padding: 6px 0; color: #0f172a;"><strong>{{company}}</strong></td></tr>
+                                    <tr><td style="padding: 6px 0; color: #64748b;"><strong>Subscription Tier:</strong></td><td style="padding: 6px 0; color: #0369a1; font-weight: 600;">{{tier}}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #64748b;"><strong>Hardware Terminal ID:</strong></td><td style="padding: 6px 0; font-family: monospace; color: #0f172a;">{{machineId}}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #64748b;"><strong>Validity Period:</strong></td><td style="padding: 6px 0; color: #15803d; font-weight: 600;">Until {{validUntil}}</td></tr>
+                                </table>
+                            </div>
+                            <h3 style="font-size: 16px; color: #0f172a; margin-top: 24px; margin-bottom: 12px;">How to Activate:</h3>
+                            <ol style="font-size: 14px; line-height: 1.6; padding-left: 20px; color: #334155;">
+                                <li>Download and save the attached <strong>{{filename}}</strong> file on your computer.</li>
+                                <li>Open <strong>Jasvi ERP Desktop</strong>.</li>
+                                <li>On the startup prompt or in <em>Settings &gt; License</em>, click <strong>[Import .jlic File]</strong>.</li>
+                                <li>Select the downloaded file. Your system will immediately activate with full enterprise capabilities.</li>
+                            </ol>
+                            <div style="margin-top: 28px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
+                                Jasvi Industries &bull; Enterprise ERP Systems &bull; Support: support@jasviindustries.in
+                            </div>
+                        </div>
+                        """
+                        .replace("{{company}}", company)
+                        .replace("{{filename}}", filename)
+                        .replace("{{tier}}", tier)
+                        .replace("{{machineId}}", machineId)
+                        .replace("{{validUntil}}", validUntil);
+
+                mailService.sendBusiness(email, subject, emailHtml, filename, jlicBytes);
+                emailSent = true;
+            } catch (Exception ex) {
+                emailError = ex.getMessage();
+                log.warn("Automated Email dispatch failed for client {}: {}", company, ex.getMessage());
+            }
+        } else if (email.isBlank()) {
+            emailError = "No email address registered for client";
+        } else {
+            emailError = "SMTP Mail service not active on server";
+        }
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("emailSent", emailSent);
+        res.put("emailError", emailError != null ? emailError : "");
+        return res;
+    }
+
+    public Map<String, Object> dispatchWhatsAppChannel(Map<String, Object> client) {
         String phone = client.get("phone") != null ? String.valueOf(client.get("phone")).replaceAll("[^0-9]", "") : "";
         String email = client.get("email") != null ? String.valueOf(client.get("email")).trim() : "";
         String company = String.valueOf(client.getOrDefault("company_name", client.getOrDefault("companyName", "Valued Client")));
@@ -506,30 +631,32 @@ public class ClientRegistryService {
 
         boolean whatsappSent = false;
         String whatsappError = null;
-        boolean emailSent = false;
-        String emailError = null;
 
-        String messageText = "Dear " + company + ",\n\n" +
+        String filename = company.replaceAll("[^a-zA-Z0-9_-]", "_") + "-license.jlic";
+        byte[] jlicBytes = payload.getBytes(StandardCharsets.UTF_8);
+
+        String caption = "Dear " + company + ",\n\n" +
                 "🎉 Your Jasvi ERP Production License is ACTIVE!\n\n" +
                 "🏢 Company: " + company + "\n" +
                 "💻 Machine ID: " + machineId + "\n" +
                 "💎 Plan Tier: " + tier + "\n" +
                 "⏳ Valid Until: " + validUntil + "\n\n" +
-                "🔑 Activation Token:\n" + payload + "\n\n" +
-                "How to activate:\n" +
-                "1. Open Jasvi ERP Desktop\n" +
-                "2. Click [Activate License] on startup\n" +
-                "3. Paste this key and click [Activate]\n\n" +
+                "📄 Please find your official license file (" + filename + ") attached.\n" +
+                "To activate: Open Jasvi ERP Desktop > Import License File > Select this file.\n\n" +
                 "Thank you for choosing Jasvi ERP!";
 
-        // 1. Dispatch via automated WhatsApp (WAHA)
         if (whatsappService != null && !phone.isBlank()) {
             try {
-                var resp = whatsappService.sendText(new WahaDtos.TextSendRequest(
-                        phone, messageText, null
-                ));
+                // Attempt to send .jlic document via WhatsApp
+                var resp = whatsappService.sendRawFile(phone, filename, "application/octet-stream", jlicBytes, caption);
                 whatsappSent = resp != null && resp.success();
-                if (!whatsappSent && resp != null) whatsappError = resp.message();
+                if (!whatsappSent) {
+                    // Fall back to clean text message if file sending fails
+                    String fallbackText = caption + (!email.isBlank() ? "\n\n(Official license file has also been emailed to " + email + ")" : "");
+                    var textResp = whatsappService.sendText(new WahaDtos.TextSendRequest(phone, fallbackText, null));
+                    whatsappSent = textResp != null && textResp.success();
+                    if (!whatsappSent && textResp != null) whatsappError = textResp.message();
+                }
             } catch (Exception ex) {
                 whatsappError = ex.getMessage();
                 log.warn("Automated WhatsApp dispatch failed for client {}: {}", company, ex.getMessage());
@@ -540,28 +667,9 @@ public class ClientRegistryService {
             whatsappError = "WhatsApp service not active on server";
         }
 
-        // 2. Dispatch via automated Email (SMTP)
-        if (mailService != null && !email.isBlank()) {
-            try {
-                String subject = "Official Jasvi ERP License Activation - " + company;
-                mailService.sendBusiness(email, subject, messageText, null, null, null, null);
-                emailSent = true;
-            } catch (Exception ex) {
-                emailError = ex.getMessage();
-                log.warn("Automated Email dispatch failed for client {}: {}", company, ex.getMessage());
-            }
-        } else if (email.isBlank()) {
-            emailError = "No email address provided";
-        } else {
-            emailError = "SMTP Mail service not active on server";
-        }
-
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("whatsappSent", whatsappSent);
         res.put("whatsappError", whatsappError != null ? whatsappError : "");
-        res.put("emailSent", emailSent);
-        res.put("emailError", emailError != null ? emailError : "");
-        res.put("licenseKey", payload);
         return res;
     }
 

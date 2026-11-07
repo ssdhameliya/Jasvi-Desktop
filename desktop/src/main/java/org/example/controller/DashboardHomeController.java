@@ -129,8 +129,8 @@ public class DashboardHomeController implements ScreenLifecycle {
         setButtonIcon(quickPayment, "item");
         setButtonIcon(quickCustomer, "customer");
         setButtonIcon(quickSupplier, "supplier");
-        setButtonIcon(quickBank, "payment");
-        setButtonIcon(quickExpense, "document");
+        setButtonIcon(quickBank, "bank");
+        setButtonIcon(quickExpense, "expense");
     }
 
     private void setButtonIcon(Button button, String icon) {
@@ -208,6 +208,7 @@ public class DashboardHomeController implements ScreenLifecycle {
 
     private void reload() {
         if (!dashboardLoadRunning.compareAndSet(false, true)) return;
+        Runnable finishRefresh = org.example.util.OperationalUiSupport.beginRefresh(refreshDashboardButton);
         showLoading("Loading dashboard data…");
         String period = selectedPeriod();
         Task<DashboardData> task = new Task<>() {
@@ -215,10 +216,10 @@ public class DashboardHomeController implements ScreenLifecycle {
         };
         task.setOnSucceeded(event -> {
             try { applyDashboard(task.getValue()); ScreenRefreshPolicy.markRefreshed("dashboard-home"); }
-            finally { dashboardLoadRunning.set(false); hideLoading(); }
+            finally { dashboardLoadRunning.set(false); hideLoading(); finishRefresh.run(); }
         });
         task.setOnFailed(event -> {
-            dashboardLoadRunning.set(false); hideLoading();
+            dashboardLoadRunning.set(false); hideLoading(); finishRefresh.run();
             if (!Boolean.getBoolean("dse.headless.snapshot")) {
                 org.example.util.AppDialogService.error(dashboardRoot, "Dashboard could not refresh",
                     "The ERP remains available", task.getException() == null ? "Unknown dashboard error" : task.getException().getMessage());
@@ -371,19 +372,14 @@ public class DashboardHomeController implements ScreenLifecycle {
     private Node actionOwner(ActionEvent event){return event!=null&&event.getSource() instanceof Node node?node:dashboardRoot;}
     private void openPartyCreateDialog(ActionEvent event,String type,String title){
         try{
-            FXMLLoader loader=new FXMLLoader(org.example.util.ResourceLocator.require("/fxml/pages/PartyDialog.fxml"));
-            Parent root=loader.load();org.example.util.ProfessionalUiEnhancer.enhance(root);
-            PartyDialogController controller=loader.getController();controller.configure(type,null);
-            Stage stage=new Stage();PlatformUiSupport.configureDialogStage(stage,actionOwner(event),title,false);
-            Scene scene=new Scene(root);ThemeManager.applyTheme(scene);stage.setScene(scene);stage.showAndWait();reload();
+            PartyDialog.show(actionOwner(event), type, null);
+            reload();
         }catch(Exception e){org.example.util.AppDialogService.error(actionOwner(event),title+" could not open","Dashboard remains available",e.getMessage()==null?e.toString():e.getMessage());}
     }
     private void openItemCreateDialog(ActionEvent event){
         try{
-            FXMLLoader loader=new FXMLLoader(org.example.util.ResourceLocator.require("/fxml/pages/Itemdialog.fxml"));
-            Parent root=loader.load();org.example.util.ProfessionalUiEnhancer.enhance(root);
-            Stage stage=new Stage();PlatformUiSupport.configureDialogStage(stage,actionOwner(event),"Add Item Master",false);
-            Scene scene=new Scene(root);ThemeManager.applyTheme(scene);stage.setScene(scene);stage.showAndWait();reload();
+            ItemDialog.show(actionOwner(event), null);
+            reload();
         }catch(Exception e){org.example.util.AppDialogService.error(actionOwner(event),"Item Master could not open","Dashboard remains available",e.getMessage()==null?e.toString():e.getMessage());}
     }
 

@@ -52,6 +52,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 public class MasterDataController implements ScreenLifecycle {
     private static volatile String requestedCategory;
@@ -447,25 +448,8 @@ public class MasterDataController implements ScreenLifecycle {
     }
 
     private void showLookupDetails(Lookup lookup) {
-        if (lookup == null || detailDrawer == null) return;
-        detailLookup = lookup;
-        String category = lookup.getLookupType() == null || lookup.getLookupType().isBlank()
-            ? String.valueOf(lstTypes.getSelectionModel().getSelectedItem()) : lookup.getLookupType();
-        String status = lookup.isActive() ? "Active" : "Inactive";
-        boolean role = isRoleCategory(category);
-        String displayCode = displayLookupCode(lookup);
-        List<RegisterDetailDrawer.Field> fields = new ArrayList<>();
-        fields.add(RegisterDetailDrawer.field("Master Category", category, categorySemantic(category)));
-        fields.add(RegisterDetailDrawer.field(role ? "Role Code" : "Code", displayCode, "reference"));
-        fields.add(RegisterDetailDrawer.field(role ? "Role Name" : "Value", lookup.getLookupValue(), "details"));
-        fields.add(RegisterDetailDrawer.field("Description", lookup.getDescription(), "notes"));
-        fields.add(RegisterDetailDrawer.field("Display Order", String.valueOf(lookup.getDisplayOrder()), "sort"));
-        fields.add(RegisterDetailDrawer.field("Status", status, lookup.isActive() ? "active" : "inactive"));
-        detailDrawer.showRecord(lookup.getLookupValue(), displayCode, fields);
-        Button editButton = new Button("Edit Master", IconFactory.compactIcon("edit", 15));
-        editButton.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        editButton.setOnAction(event -> { tblLookup.getSelectionModel().select(lookup); editLookup(); });
-        detailDrawer.setActions(editButton);
+        if (lookup == null) return;
+        LookupDialog.showView(tblLookup, lookup);
     }
 
     private void closeLookupDetails() {
@@ -880,35 +864,8 @@ public class MasterDataController implements ScreenLifecycle {
         }
 
         try {
-
-            URL resource = org.example.util.ResourceLocator.require(
-                "/fxml/pages/lookupDialog.fxml"
-            );
-
-            if (resource == null) {
-                throw new IOException(
-                    "lookupDialog.fxml was not found."
-                );
-            }
-
-            FXMLLoader loader =
-                new FXMLLoader(resource);
-
-            Parent root = loader.load();
-
-            LookupDialogController controller =
-                loader.getController();
-
-            controller.setLookupType(selectedType);
-
-            Stage stage = createDialogStage(
-                root,
-                "Add Master"
-            );
-
-            stage.showAndWait();
-
-            Lookup savedLookup = controller.getSavedResult();
+            Optional<Lookup> result = LookupDialog.show(tblLookup, selectedType, null);
+            Lookup savedLookup = result.orElse(null);
             if (savedLookup != null) {
                 String query = txtSearch.getText() == null ? "" : txtSearch.getText().trim().toLowerCase(Locale.ROOT);
                 if (!matchesSearch(savedLookup, query)) txtSearch.clear();
@@ -922,14 +879,14 @@ public class MasterDataController implements ScreenLifecycle {
 
             loadTable();
 
-            if (controller.wasSaved()) {
+            if (savedLookup != null) {
                 setStatus("Master record added successfully.");
                 showSuccess("Master Record Added", "The new " + selectedType + " record was saved successfully.");
             } else {
                 setStatus("Add Master cancelled.");
             }
 
-        } catch (IOException exception) {
+        } catch (Exception exception) {
 
             exception.printStackTrace();
 
@@ -969,35 +926,8 @@ public class MasterDataController implements ScreenLifecycle {
             lstTypes.getSelectionModel().getSelectedItem();
 
         try {
-
-            URL resource = org.example.util.ResourceLocator.require(
-                "/fxml/pages/lookupDialog.fxml"
-            );
-
-            if (resource == null) {
-                throw new IOException(
-                    "lookupDialog.fxml was not found."
-                );
-            }
-
-            FXMLLoader loader =
-                new FXMLLoader(resource);
-
-            Parent root = loader.load();
-
-            LookupDialogController controller =
-                loader.getController();
-
-            controller.setLookup(lookup);
-
-            Stage stage = createDialogStage(
-                root,
-                "Edit Master"
-            );
-
-            stage.showAndWait();
-
-            Lookup savedLookup = controller.getSavedResult();
+            Optional<Lookup> result = LookupDialog.show(tblLookup, null, lookup);
+            Lookup savedLookup = result.orElse(null);
             if (savedLookup != null) {
                 String query = txtSearch.getText() == null ? "" : txtSearch.getText().trim().toLowerCase(Locale.ROOT);
                 if (!matchesSearch(savedLookup, query)) txtSearch.clear();
@@ -1013,14 +943,14 @@ public class MasterDataController implements ScreenLifecycle {
 
             loadTable();
 
-            if (controller.wasSaved()) {
+            if (savedLookup != null) {
                 setStatus("Master record updated successfully.");
                 showSuccess("Master Record Updated", "The selected master record was updated successfully.");
             } else {
                 setStatus("Edit Master cancelled.");
             }
 
-        } catch (IOException exception) {
+        } catch (Exception exception) {
 
             showError(
                 "Could not open the Edit Master dialog:\n"
@@ -1031,26 +961,6 @@ public class MasterDataController implements ScreenLifecycle {
                 "Could not open the Edit Master dialog."
             );
         }
-    }
-
-    private Stage createDialogStage(
-        Parent root,
-        String title
-    ) {
-
-        org.example.util.ProfessionalUiEnhancer.enhance(root);
-        Stage stage = new Stage();
-
-        PlatformUiSupport.configureDialogStage(stage, tblLookup, title, false);
-
-        Scene scene = new Scene(root);
-        ThemeManager.applyTheme(scene);
-
-        stage.setScene(scene);
-        stage.sizeToScene();
-
-
-        return stage;
     }
 
     @FXML

@@ -25,40 +25,74 @@ public final class ToastManager {
 
     private ToastManager() {}
 
-    public static void success(Node owner, String title, String message) { show(owner, Type.SUCCESS, title, message); }
-    public static void info(Node owner, String title, String message) { show(owner, Type.INFO, title, message); }
-    public static void warning(Node owner, String title, String message) { show(owner, Type.WARNING, title, message); }
-    public static void error(Node owner, String title, String message) { show(owner, Type.ERROR, title, message); }
+    public static void success(Node owner, String title, String message) {
+        // Muted per user requirement (zero intrusive modal toasts/popups for standard actions)
+        java.lang.System.getLogger("org.example.toast").log(java.lang.System.Logger.Level.DEBUG, () -> "Toast SUCCESS: " + title + " - " + message);
+    }
 
-    public static void success(Window owner, String title, String message) { show(owner, Type.SUCCESS, title, message); }
-    public static void info(Window owner, String title, String message) { show(owner, Type.INFO, title, message); }
-    public static void warning(Window owner, String title, String message) { show(owner, Type.WARNING, title, message); }
-    public static void error(Window owner, String title, String message) { show(owner, Type.ERROR, title, message); }
+    public static void info(Node owner, String title, String message) {
+        // Muted per user requirement (zero intrusive modal toasts/popups for standard actions)
+        java.lang.System.getLogger("org.example.toast").log(java.lang.System.Logger.Level.DEBUG, () -> "Toast INFO: " + title + " - " + message);
+    }
+
+    public static void warning(Node owner, String title, String message) {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> warning(owner, title, message));
+            return;
+        }
+        AppDialogService.warning(owner, title, "Attention Required", message);
+    }
+
+    public static void error(Node owner, String title, String message) {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> error(owner, title, message));
+            return;
+        }
+        AppDialogService.error(owner, title, "Operation Failed", message);
+    }
+
+    public static void success(Window owner, String title, String message) {
+        // Muted per user requirement (zero intrusive modal toasts/popups for standard actions)
+        java.lang.System.getLogger("org.example.toast").log(java.lang.System.Logger.Level.DEBUG, () -> "Toast SUCCESS: " + title + " - " + message);
+    }
+
+    public static void info(Window owner, String title, String message) {
+        // Muted per user requirement (zero intrusive modal toasts/popups for standard actions)
+        java.lang.System.getLogger("org.example.toast").log(java.lang.System.Logger.Level.DEBUG, () -> "Toast INFO: " + title + " - " + message);
+    }
+
+    public static void warning(Window owner, String title, String message) {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> warning(owner, title, message));
+            return;
+        }
+        AppDialogService.warning(owner, title, "Attention Required", message);
+    }
+
+    public static void error(Window owner, String title, String message) {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> error(owner, title, message));
+            return;
+        }
+        AppDialogService.error(owner, title, "Operation Failed", message);
+    }
 
     public static void show(Node owner, Type type, String title, String message) {
-        if (!Platform.isFxApplicationThread()) {
-            Platform.runLater(() -> show(owner, type, title, message));
-            return;
+        switch (type) {
+            case ERROR -> error(owner, title, message);
+            case WARNING -> warning(owner, title, message);
+            case SUCCESS -> success(owner, title, message);
+            case INFO -> info(owner, title, message);
         }
-        Window window = DialogOwnerResolver.resolve(owner);
-        if (window == null) {
-            Platform.runLater(() -> {
-                Window retryWindow = DialogOwnerResolver.resolve();
-                if (retryWindow != null) showForWindow(retryWindow, type, title, message);
-            });
-            return;
-        }
-        showForWindow(window, type, title, message);
     }
 
     public static void show(Window owner, Type type, String title, String message) {
-        if (!Platform.isFxApplicationThread()) {
-            Platform.runLater(() -> show(owner, type, title, message));
-            return;
+        switch (type) {
+            case ERROR -> error(owner, title, message);
+            case WARNING -> warning(owner, title, message);
+            case SUCCESS -> success(owner, title, message);
+            case INFO -> info(owner, title, message);
         }
-        Window window = owner != null ? owner : DialogOwnerResolver.resolve();
-        if (window == null) return;
-        showForWindow(window, type, title, message);
     }
 
     private static void showForWindow(Window window, Type type, String title, String message) {

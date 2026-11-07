@@ -65,15 +65,15 @@ public final class AppDialogService {
                 "Discard & Leave", "Stay & Continue Editing", summary);
     }
 
-    public static void info(Node owner, String title, String heading, String message) {
+    public static void info(Object owner, String title, String heading, String message) {
         show(owner, "notification", title, heading, message, null, new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE));
     }
 
-    public static void warning(Node owner, String title, String heading, String message) {
+    public static void warning(Object owner, String title, String heading, String message) {
         show(owner, "warning", title, heading, message, null, new ButtonType("Review", ButtonBar.ButtonData.CANCEL_CLOSE));
     }
 
-    public static void error(Node owner, String title, String heading, String message) {
+    public static void error(Object owner, String title, String heading, String message) {
         String visible = UserFacingErrorMapper.message(message);
         String detail = UserFacingErrorMapper.reference(message);
         if (message != null && !message.isBlank() && !visible.contains(message.trim())
@@ -84,12 +84,23 @@ public final class AppDialogService {
         ButtonType btnClose = new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
         Optional<ButtonType> res = show(owner, "error", title, heading, visible, detail, btnDiagnose, btnClose);
         if (res.isPresent() && res.get() == btnDiagnose) {
-            SystemDiagnosticsDialog.show(owner);
+            Node nodeOwner = owner instanceof Node n ? n : null;
+            if (nodeOwner != null) {
+                SystemDiagnosticsDialog.show(nodeOwner);
+            }
         }
     }
 
+    public static void success(Object owner, String title, String heading, String message) {
+        show(owner, "complete", title, heading, message, null, new ButtonType("Done", ButtonBar.ButtonData.CANCEL_CLOSE));
+    }
+
+    public static void success(Object owner, String title, String message) {
+        success(owner, title, "Completed", message);
+    }
+
     public static void success(Node owner, String title, String message) {
-        ToastManager.success(owner, title, message);
+        success((Object) owner, title, "Completed", message);
     }
 
     public static void configureWorkspace(OwnedDialog<?> dialog, String semantic) {
@@ -134,7 +145,7 @@ public final class AppDialogService {
                 .isPresent();
     }
 
-    private static Optional<ButtonType> show(Node owner, String semantic, String title, String heading, String message,
+    private static Optional<ButtonType> show(Object owner, String semantic, String title, String heading, String message,
                                              String detail, ButtonType... buttons) {
         OwnedDialog<ButtonType> dialog = new OwnedDialog<>(owner);
         AppDialogRenderer.configureMessage(dialog, semantic, title, heading, message, detail);
