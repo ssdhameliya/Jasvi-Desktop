@@ -1584,6 +1584,16 @@ public class DashboardController implements ScreenLifecycle {
         if (c == null) { NavigationManager.navigateOrReport("/fxml/pages/Purchase.fxml"); return; }
         javafx.application.Platform.runLater(() -> c.openPage(c.btnCreatePurchase, "Create Purchase", "/fxml/pages/Purchase.fxml"));
     }
+
+    public static void createQuotationFromWorkflow() {
+        DashboardController c = currentVisibleShell();
+        if (c == null) {
+            QuotationEditorContext.open(null);
+            NavigationManager.navigateOrReport("/fxml/pages/QuotationEditor.fxml");
+            return;
+        }
+        javafx.application.Platform.runLater(c::createQuotationFromShortcut);
+    }
     @FXML private void createPurchase() { openPage(btnCreatePurchase, "Create Purchase", "/fxml/pages/Purchase.fxml"); }
     @FXML private void openReturns() { openPage(btnSalesReturn, "Sales Return Register", "/fxml/pages/SalesReturns.fxml"); }
     @FXML private void openPurchaseReturns() { openPage(btnPurchaseReturn, "Purchase Return", "/fxml/pages/PurchaseReturns.fxml"); }

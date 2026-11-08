@@ -42,7 +42,7 @@ import java.util.*;
 
 /** Premium database-backed user, role and permission administration. */
 public class UserAccessController implements ScreenLifecycle {
-    @FXML private Label iconTotalUsers, iconActiveUsers, iconRoles, iconLocked, iconLogins;
+    @FXML private StackPane iconTotalUsers, iconActiveUsers, iconRoles, iconLocked, iconLogins;
     @FXML private Label lblTotal,lblActive,lblRoles,lblLocked,lblLogins,lblRoleHint;
     @FXML private TextField txtSearch;
     @FXML private StackPane userAccessPageIcon;
@@ -330,7 +330,7 @@ public class UserAccessController implements ScreenLifecycle {
     private void installKpiIcons(){
         setKpiIcon(iconTotalUsers,"users");setKpiIcon(iconActiveUsers,"complete");setKpiIcon(iconRoles,"role");setKpiIcon(iconLocked,"lock");setKpiIcon(iconLogins,"login");
     }
-    private void setKpiIcon(Label label,String semantic){if(label!=null){label.setText("");label.setGraphic(IconFactory.compactIcon(semantic,24));label.getProperties().put("erp-icon-preserve",true);}}
+    private void setKpiIcon(StackPane pane,String semantic){if(pane!=null){pane.getChildren().setAll(IconFactory.icon(semantic,20));pane.getProperties().put("erp-icon-preserve",true);}}
     private record UserAccessSnapshot(List<AdminApiClient.RoleDto> roles,List<AdminApiClient.UserDto> users){}
 
 }

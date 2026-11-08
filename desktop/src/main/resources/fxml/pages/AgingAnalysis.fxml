@@ -28,48 +28,48 @@
           <StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Total Outstanding" styleClass="metric-label"/>
+              <Label text="Total Outstanding" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Total" styleClass="metric-trend-pill,trend-neutral"/>
             </HBox>
             <Label fx:id="kpiTotalOutstanding" text="₹ 0.00" styleClass="metric-value"/>
-            <Label fx:id="lblPartyCount" text="0 Active Accounts" styleClass="metric-note"/>
+            <Label fx:id="lblPartyCount" text="0 Active Accounts" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-green" GridPane.columnIndex="1">
           <StackPane fx:id="kpiCurrentIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Current (0–30 Days)" styleClass="metric-label"/>
+              <Label text="Current (0–30 Days)" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Healthy" styleClass="metric-trend-pill,trend-positive"/>
             </HBox>
             <Label fx:id="kpiCurrentBucket" text="₹ 0.00" styleClass="metric-value"/>
-            <Label text="Within credit term" styleClass="metric-note"/>
+            <Label text="Within credit term" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-orange" GridPane.columnIndex="2">
           <StackPane fx:id="kpiDueIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Overdue (31–60 Days)" styleClass="metric-label"/>
+              <Label text="Overdue (31–60 Days)" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Due" styleClass="metric-trend-pill,trend-warning"/>
             </HBox>
             <Label fx:id="kpiDueBucket" text="₹ 0.00" styleClass="metric-value"/>
-            <Label text="Follow-up required" styleClass="metric-note"/>
+            <Label text="Follow-up required" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-red" GridPane.columnIndex="3">
           <StackPane fx:id="kpiCriticalIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Critical (&gt;60 Days)" styleClass="metric-label"/>
+              <Label text="Critical (&gt;60 Days)" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Alert" styleClass="metric-trend-pill,trend-negative"/>
             </HBox>
             <Label fx:id="kpiCriticalBucket" text="₹ 0.00" styleClass="metric-value"/>
-            <Label text="High default risk" styleClass="metric-note"/>
+            <Label text="High default risk" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
       </GridPane>

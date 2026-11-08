@@ -23,21 +23,21 @@
                     </HBox>
 
                     <GridPane hgap="14" vgap="14" maxWidth="Infinity" styleClass="safe-rollback-metrics-grid,erp-kpi-section">
-                        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="safe-rollback-metric" GridPane.columnIndex="0">
+                        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="standard-kpi-card,kpi-blue,safe-rollback-metric" minWidth="0" GridPane.columnIndex="0">
                             <StackPane fx:id="versionIconHolder" styleClass="safe-rollback-metric-icon,safe-rollback-icon-blue"/>
-                            <VBox spacing="3"><Label text="CURRENT VERSION" styleClass="safe-rollback-metric-label"/><Label fx:id="lblCurrentVersion" text="—" styleClass="safe-rollback-metric-value"/><Label text="Running application" styleClass="safe-rollback-caption"/></VBox>
+                            <VBox spacing="3"><Label text="CURRENT VERSION" wrapText="true" styleClass="safe-rollback-metric-label,metric-label"/><Label fx:id="lblCurrentVersion" text="—" styleClass="safe-rollback-metric-value"/><Label text="Running application" styleClass="safe-rollback-caption"/></VBox>
                         </HBox>
-                        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="safe-rollback-metric" GridPane.columnIndex="1">
+                        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="standard-kpi-card,kpi-purple,safe-rollback-metric" minWidth="0" GridPane.columnIndex="1">
                             <StackPane fx:id="schemaIconHolder" styleClass="safe-rollback-metric-icon,safe-rollback-icon-purple"/>
-                            <VBox spacing="3"><Label text="DATABASE" styleClass="safe-rollback-metric-label"/><Label fx:id="lblDatabaseSchema" text="Schema 1" styleClass="safe-rollback-metric-value"/><Label text="Compatibility gate" styleClass="safe-rollback-caption"/></VBox>
+                            <VBox spacing="3"><Label text="DATABASE" wrapText="true" styleClass="safe-rollback-metric-label,metric-label"/><Label fx:id="lblDatabaseSchema" text="Schema 1" styleClass="safe-rollback-metric-value"/><Label text="Compatibility gate" styleClass="safe-rollback-caption"/></VBox>
                         </HBox>
-                        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="safe-rollback-metric" GridPane.columnIndex="2">
+                        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="standard-kpi-card,kpi-green,safe-rollback-metric" minWidth="0" GridPane.columnIndex="2">
                             <StackPane fx:id="safetyIconHolder" styleClass="safe-rollback-metric-icon,safe-rollback-icon-green"/>
-                            <VBox spacing="3"><Label text="DATA POLICY" styleClass="safe-rollback-metric-label"/><Label fx:id="lblSafetyStatus" text="Current data preserved" styleClass="safe-rollback-metric-value,safe-rollback-metric-small"/><Label text="No automatic DB downgrade" styleClass="safe-rollback-caption"/></VBox>
+                            <VBox spacing="3"><Label text="DATA POLICY" wrapText="true" styleClass="safe-rollback-metric-label,metric-label"/><Label fx:id="lblSafetyStatus" text="Current data preserved" styleClass="safe-rollback-metric-value,safe-rollback-metric-small"/><Label text="No automatic DB downgrade" styleClass="safe-rollback-caption"/></VBox>
                         </HBox>
-                        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="safe-rollback-metric" GridPane.columnIndex="3">
+                        <HBox alignment="CENTER_LEFT" spacing="12" styleClass="standard-kpi-card,kpi-orange,safe-rollback-metric" minWidth="0" GridPane.columnIndex="3">
                             <StackPane fx:id="packageIconHolder" styleClass="safe-rollback-metric-icon,safe-rollback-icon-orange"/>
-                            <VBox spacing="3"><Label text="ROLLBACK PACKAGES" styleClass="safe-rollback-metric-label"/><Label fx:id="lblPackageCount" text="0" styleClass="safe-rollback-metric-value"/><Label text="Compatible previous installers" styleClass="safe-rollback-caption"/></VBox>
+                            <VBox spacing="3"><Label text="ROLLBACK PACKAGES" wrapText="true" styleClass="safe-rollback-metric-label,metric-label"/><Label fx:id="lblPackageCount" text="0" styleClass="safe-rollback-metric-value"/><Label text="Compatible previous installers" styleClass="safe-rollback-caption"/></VBox>
                         </HBox>
                     </GridPane>
 

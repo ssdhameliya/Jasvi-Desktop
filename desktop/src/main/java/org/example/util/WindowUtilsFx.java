@@ -56,35 +56,47 @@ public final class WindowUtilsFx {
         if (stage == null) return;
         Rectangle2D screen = visualBoundsFor(owner);
         double margin = screen.getWidth() < 1100 || screen.getHeight() < 700 ? 16 : 36;
-        double baseCap = 620;
+        double usableScreenWidth = Math.max(360, screen.getWidth() - margin * 2);
+        double usableScreenHeight = Math.max(220, screen.getHeight() - margin * 2);
 
-        // Check if DialogPane or custom content requested larger dimensions
-        if (stage.getScene() != null && stage.getScene().getRoot() instanceof javafx.scene.control.DialogPane dialogPane) {
-            double reqW = dialogPane.getPrefWidth();
-            javafx.scene.Node content = dialogPane.getContent();
-            if (content instanceof javafx.scene.layout.Region reg && reg.getPrefWidth() > reqW) {
-                reqW = reg.getPrefWidth();
-            }
-            if (reqW > baseCap) {
-                baseCap = Math.min(reqW + 48, 1100);
-            }
-        }
-        double maxW = Math.max(360, Math.min(baseCap, screen.getWidth() - margin * 2));
-        double maxH = Math.max(220, Math.min(780, screen.getHeight() - margin * 2));
-
-        // Let the DialogPane/CSS compute the natural message size first; then
-        // cap it to the owner's usable monitor without imposing workspace mins.
         stage.setMinWidth(0);
         stage.setMinHeight(0);
         if (stage.getScene() != null && stage.getScene().getRoot() != null) {
-            stage.getScene().getRoot().applyCss();
-            stage.getScene().getRoot().layout();
+            javafx.scene.Parent root = stage.getScene().getRoot();
+            root.applyCss();
+            root.layout();
+
+            // Compute true natural content & buttonbar width
+            double naturalW = root.prefWidth(-1);
+            if (root instanceof javafx.scene.control.DialogPane dialogPane) {
+                javafx.scene.Node content = dialogPane.getContent();
+                if (content instanceof javafx.scene.layout.Region reg) {
+                    naturalW = Math.max(naturalW, reg.prefWidth(-1));
+                }
+                javafx.scene.Node buttonBar = dialogPane.lookup(".button-bar");
+                if (buttonBar instanceof javafx.scene.layout.Region reg) {
+                    naturalW = Math.max(naturalW, reg.prefWidth(-1));
+                }
+            }
+
+            double requiredW = Math.max(540, naturalW + 24);
+            double maxW = Math.min(requiredW, usableScreenWidth);
+            double maxH = Math.min(780, usableScreenHeight);
+
+            stage.setMaxWidth(usableScreenWidth);
+            stage.setMaxHeight(maxH);
             stage.sizeToScene();
+
+            if (stage.getWidth() < requiredW && requiredW <= usableScreenWidth) {
+                stage.setWidth(requiredW);
+            }
+            if (stage.getWidth() > usableScreenWidth) {
+                stage.setWidth(usableScreenWidth);
+            }
+            if (stage.getHeight() > maxH) {
+                stage.setHeight(maxH);
+            }
         }
-        stage.setMaxWidth(maxW);
-        stage.setMaxHeight(maxH);
-        if (stage.getWidth() > maxW) stage.setWidth(maxW);
-        if (stage.getHeight() > maxH) stage.setHeight(maxH);
         centreInside(stage, owner, screen);
     }
 

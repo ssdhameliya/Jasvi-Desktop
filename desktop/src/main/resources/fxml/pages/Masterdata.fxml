@@ -68,52 +68,52 @@
 
             <VBox spacing="16" HBox.hgrow="ALWAYS">
                 <HBox spacing="14" styleClass="standard-kpi-row,master-kpi-row,erp-kpi-section">
-                    <VBox spacing="5" HBox.hgrow="ALWAYS"
+                    <VBox spacing="5" HBox.hgrow="ALWAYS" minWidth="0"
                           styleClass="standard-kpi-card,kpi-blue,kpi-card,master-kpi-card,master-kpi-blue">
                         <HBox alignment="CENTER_LEFT" spacing="10">
                             <StackPane fx:id="kpiCategoriesIcon" styleClass="standard-kpi-icon,master-kpi-icon"/>
-                            <Label text="Categories" styleClass="kpi-title,metric-label"/>
+                            <Label text="Categories" wrapText="true" styleClass="kpi-title,metric-label"/>
                             <Region HBox.hgrow="ALWAYS"/>
                             <Label text="Groups" styleClass="metric-trend-pill,trend-info"/>
                         </HBox>
                         <Label fx:id="lblDashboardCategoryCount" text="0" styleClass="kpi-value,metric-value"/>
-                        <Label text="Total Categories" styleClass="master-kpi-caption,metric-note"/>
+                        <Label text="Total Categories" wrapText="true" styleClass="master-kpi-caption,metric-note"/>
                     </VBox>
 
-                    <VBox spacing="5" HBox.hgrow="ALWAYS"
+                    <VBox spacing="5" HBox.hgrow="ALWAYS" minWidth="0"
                           styleClass="standard-kpi-card,kpi-green,kpi-card,master-kpi-card,master-kpi-green">
                         <HBox alignment="CENTER_LEFT" spacing="10">
                             <StackPane fx:id="kpiValuesIcon" styleClass="standard-kpi-icon,master-kpi-icon"/>
-                            <Label text="Lookup Values" styleClass="kpi-title,metric-label"/>
+                            <Label text="Lookup Values" wrapText="true" styleClass="kpi-title,metric-label"/>
                             <Region HBox.hgrow="ALWAYS"/>
                             <Label text="Active" styleClass="metric-trend-pill,trend-positive"/>
                         </HBox>
                         <Label fx:id="lblDashboardValueCount" text="0" styleClass="kpi-value,metric-value"/>
-                        <Label text="Total Values" styleClass="master-kpi-caption,metric-note"/>
+                        <Label text="Total Values" wrapText="true" styleClass="master-kpi-caption,metric-note"/>
                     </VBox>
 
-                    <VBox spacing="5" HBox.hgrow="ALWAYS"
+                    <VBox spacing="5" HBox.hgrow="ALWAYS" minWidth="0"
                           styleClass="standard-kpi-card,kpi-purple,kpi-card,master-kpi-card,master-kpi-purple">
                         <HBox alignment="CENTER_LEFT" spacing="10">
                             <StackPane fx:id="kpiSelectedIcon" styleClass="standard-kpi-icon,master-kpi-icon"/>
-                            <Label text="Selected" styleClass="kpi-title,metric-label"/>
+                            <Label text="Selected" wrapText="true" styleClass="kpi-title,metric-label"/>
                             <Region HBox.hgrow="ALWAYS"/>
                             <Label text="Current" styleClass="metric-trend-pill,trend-neutral"/>
                         </HBox>
                         <Label fx:id="lblSelectedCategory" text="-" styleClass="kpi-value-small,metric-value"/>
-                        <Label text="Category Status" styleClass="master-kpi-caption,metric-note"/>
+                        <Label text="Category Status" wrapText="true" styleClass="master-kpi-caption,metric-note"/>
                     </VBox>
 
-                    <VBox spacing="5" HBox.hgrow="ALWAYS"
+                    <VBox spacing="5" HBox.hgrow="ALWAYS" minWidth="0"
                           styleClass="standard-kpi-card,kpi-orange,kpi-card,master-kpi-card,master-kpi-amber">
                         <HBox alignment="CENTER_LEFT" spacing="10">
                             <StackPane fx:id="kpiStatusIcon" styleClass="standard-kpi-icon,master-kpi-icon"/>
-                            <Label text="System Status" styleClass="kpi-title,metric-label"/>
+                            <Label text="System Status" wrapText="true" styleClass="kpi-title,metric-label"/>
                             <Region HBox.hgrow="ALWAYS"/>
                             <Label text="Online" styleClass="metric-trend-pill,trend-positive"/>
                         </HBox>
                         <Label text="READY" styleClass="status-active,approved-status,metric-value"/>
-                        <Label text="Database Connected" styleClass="master-kpi-caption,metric-note"/>
+                        <Label text="Database Connected" wrapText="true" styleClass="master-kpi-caption,metric-note"/>
                     </VBox>
                 </HBox>
 

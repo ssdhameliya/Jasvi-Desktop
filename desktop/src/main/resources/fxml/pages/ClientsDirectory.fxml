@@ -25,33 +25,33 @@
 
     <!-- 2. KPI Summary Strip (Rule 6 compliant) -->
     <GridPane hgap="12" vgap="0" styleClass="erp-kpi-section,erp-kpi-single-row">
-        <VBox fx:id="cardKpiTotal" spacing="4" styleClass="erp-kpi-card,kpi-blue" GridPane.columnIndex="0">
+        <VBox fx:id="cardKpiTotal" spacing="4" minWidth="0" styleClass="standard-kpi-card,erp-kpi-card,kpi-blue" GridPane.columnIndex="0">
             <HBox alignment="CENTER_LEFT" spacing="8">
-                <StackPane fx:id="kpiTotalIcon" styleClass="erp-kpi-icon"/>
-                <Label text="Total Clients" styleClass="erp-kpi-caption"/>
+                <StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon,approved-kpi-icon,erp-kpi-icon"/>
+                <Label text="Total Clients" wrapText="true" styleClass="erp-kpi-caption,metric-label"/>
             </HBox>
-            <Label fx:id="lblKpiTotal" text="0" styleClass="erp-kpi-value"/>
+            <Label fx:id="lblKpiTotal" text="0" styleClass="erp-kpi-value,metric-value"/>
         </VBox>
-        <VBox fx:id="cardKpiActive" spacing="4" styleClass="erp-kpi-card,kpi-green" GridPane.columnIndex="1">
+        <VBox fx:id="cardKpiActive" spacing="4" minWidth="0" styleClass="standard-kpi-card,erp-kpi-card,kpi-green" GridPane.columnIndex="1">
             <HBox alignment="CENTER_LEFT" spacing="8">
-                <StackPane fx:id="kpiActiveIcon" styleClass="erp-kpi-icon"/>
-                <Label text="Active GSTINs" styleClass="erp-kpi-caption"/>
+                <StackPane fx:id="kpiActiveIcon" styleClass="standard-kpi-icon,approved-kpi-icon,erp-kpi-icon"/>
+                <Label text="Active GSTINs" wrapText="true" styleClass="erp-kpi-caption,metric-label"/>
             </HBox>
-            <Label fx:id="lblKpiActive" text="0" styleClass="erp-kpi-value"/>
+            <Label fx:id="lblKpiActive" text="0" styleClass="erp-kpi-value,metric-value"/>
         </VBox>
-        <VBox fx:id="cardKpiInactive" spacing="4" styleClass="erp-kpi-card,kpi-amber" GridPane.columnIndex="2">
+        <VBox fx:id="cardKpiInactive" spacing="4" minWidth="0" styleClass="standard-kpi-card,erp-kpi-card,kpi-orange" GridPane.columnIndex="2">
             <HBox alignment="CENTER_LEFT" spacing="8">
-                <StackPane fx:id="kpiInactiveIcon" styleClass="erp-kpi-icon"/>
-                <Label text="Inactive / Cancelled" styleClass="erp-kpi-caption"/>
+                <StackPane fx:id="kpiInactiveIcon" styleClass="standard-kpi-icon,approved-kpi-icon,erp-kpi-icon"/>
+                <Label text="Inactive / Cancelled" wrapText="true" styleClass="erp-kpi-caption,metric-label"/>
             </HBox>
-            <Label fx:id="lblKpiInactive" text="0" styleClass="erp-kpi-value"/>
+            <Label fx:id="lblKpiInactive" text="0" styleClass="erp-kpi-value,metric-value"/>
         </VBox>
-        <VBox fx:id="cardKpiTemplates" spacing="4" styleClass="erp-kpi-card,kpi-purple" GridPane.columnIndex="3">
+        <VBox fx:id="cardKpiTemplates" spacing="4" minWidth="0" styleClass="standard-kpi-card,erp-kpi-card,kpi-purple" GridPane.columnIndex="3">
             <HBox alignment="CENTER_LEFT" spacing="8">
-                <StackPane fx:id="kpiTemplatesIcon" styleClass="erp-kpi-icon"/>
-                <Label text="Active Templates" styleClass="erp-kpi-caption"/>
+                <StackPane fx:id="kpiTemplatesIcon" styleClass="standard-kpi-icon,approved-kpi-icon,erp-kpi-icon"/>
+                <Label text="Active Templates" wrapText="true" styleClass="erp-kpi-caption,metric-label"/>
             </HBox>
-            <Label fx:id="lblKpiTemplates" text="0" styleClass="erp-kpi-value"/>
+            <Label fx:id="lblKpiTemplates" text="0" styleClass="erp-kpi-value,metric-value"/>
         </VBox>
     </GridPane>
 

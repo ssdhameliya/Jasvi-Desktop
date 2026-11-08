@@ -7,7 +7,9 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.StackPane;
 import org.example.api.audit.AuditApiClient;
+import org.example.util.IconFactory;
 import org.example.util.ActivityTimelineDialog;
 import org.example.util.Classy3DLoadingView;
 import org.example.util.BusinessClock;
@@ -25,10 +27,16 @@ public final class GlobalAuditController implements ScreenLifecycle {
     @FXML private ComboBox<String> cmbModule,cmbAction,cmbUser;
     @FXML private TextField txtReference,txtSearch;
     @FXML private Label lblTotal,lblChanges,lblFinancial,lblDocuments,lblCommunications,lblPage;
+    @FXML private StackPane auditTotalIcon, auditChangesIcon, auditFinancialIcon, auditDocumentsIcon, auditCommunicationsIcon;
     @FXML private GridPane auditKpiGrid;
     private final AuditApiClient api=new AuditApiClient(); private int page=0,totalPages=0;
 
     @FXML private void initialize(){
+        if (auditTotalIcon != null) auditTotalIcon.getChildren().setAll(IconFactory.icon("report", 20));
+        if (auditChangesIcon != null) auditChangesIcon.getChildren().setAll(IconFactory.icon("edit", 20));
+        if (auditFinancialIcon != null) auditFinancialIcon.getChildren().setAll(IconFactory.icon("payment", 20));
+        if (auditDocumentsIcon != null) auditDocumentsIcon.getChildren().setAll(IconFactory.icon("document", 20));
+        if (auditCommunicationsIcon != null) auditCommunicationsIcon.getChildren().setAll(IconFactory.icon("email", 20));
         bind(colDate,Row::date);bind(colModule,Row::module);bind(colRecordType,Row::recordType);bind(colReference,Row::reference);bind(colAction,Row::action);bind(colCategory,Row::category);bind(colField,Row::field);bind(colOld,Row::oldValue);bind(colNew,Row::newValue);bind(colUser,Row::user);bind(colSource,Row::source);
         cmbModule.getItems().setAll("All","SALE","PURCHASE","QUOTATION","SALES_RETURN","PURCHASE_RETURN","PARTY","ITEM","FINANCE","PURCHASE_RECON","MASTER_LOOKUP","MASTER_CATEGORY");cmbModule.getSelectionModel().selectFirst();
         cmbAction.getItems().setAll("All","CREATED","UPDATED","APPROVED","REJECTED","DELETED","CANCELLED","PAYMENT_RECORDED","PAYMENT_EDITED","REFUND_RECORDED","EMAIL_SENT","EMAIL_FAILED","PDF_VIEWED","EXCEL_VIEWED","ATTACHMENT_ADDED","CONVERTED");cmbAction.getSelectionModel().selectFirst();

@@ -689,9 +689,36 @@ public final class IconFactory {
         column.getProperties().put("erp-header-explicit", true);
         column.getProperties().remove("erp-header-preserve");
         column.setText("");
-        column.setGraphic(tableHeader(heading, normalized));
+        Label title = new Label(heading);
+        String colour = semanticColour(normalized);
+        title.getStyleClass().addAll("erp-table-header-label", "erp-table-header-colour-" + colour);
+        boolean multiWord = heading.contains(" ");
+        title.getStyleClass().add(multiWord ? "erp-table-header-multi-word" : "erp-table-header-single-word");
+        title.getProperties().put("erp.header.semantic", normalized);
+        title.setWrapText(multiWord);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        HBox header = new HBox(6, compactIcon(normalized, 14), title);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setMinWidth(0);
+        header.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, Priority.ALWAYS);
+        header.setMouseTransparent(true);
+        header.getStyleClass().add("erp-table-header-content");
+        column.setGraphic(header);
         if (!column.getStyleClass().contains("erp-icon-table-column")) {
             column.getStyleClass().add("erp-icon-table-column");
+        }
+
+        if (!Boolean.TRUE.equals(column.getProperties().get("erp.header.text-listener-installed"))) {
+            column.getProperties().put("erp.header.text-listener-installed", true);
+            column.textProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null && !newVal.isEmpty()) {
+                    title.setText(newVal.trim());
+                    column.getProperties().put("erp-header-label", newVal.trim());
+                    javafx.application.Platform.runLater(() -> column.setText(""));
+                }
+            });
         }
     }
 
@@ -706,8 +733,6 @@ public final class IconFactory {
         title.setWrapText(multiWord);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
-        String hex = hexColor(colour);
-        title.setStyle("-fx-text-fill: " + hex + ";");
         HBox header = new HBox(6, compactIcon(semantic, 14), title);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setMinWidth(0);
@@ -783,7 +808,9 @@ public final class IconFactory {
             if (!button.getStyleClass().contains("erp-nav-button")) button.getStyleClass().add("erp-nav-button");
             return;
         }
-        if (button.getStyleClass().contains("square-action") || button.getStyleClass().contains("approved-quick-action")) return;
+        if (button.getStyleClass().contains("square-action")
+                || button.getStyleClass().contains("approved-quick-action")
+                || button.getStyleClass().contains("shortcut-group-button")) return;
 
         button.getStyleClass().removeAll(BUTTON_VARIANTS);
         button.getStyleClass().removeIf(style -> style.startsWith("erp-semantic-"));

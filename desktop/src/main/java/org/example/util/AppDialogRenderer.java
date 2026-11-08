@@ -289,6 +289,7 @@ public final class AppDialogRenderer {
         }
 
         VBox shell = new VBox(accent, header, bodyNode);
+        shell.setMaxWidth(Double.MAX_VALUE);
         shell.getStyleClass().addAll("dse-dialog-shell", "erp-ui-standard");
         if (workspace) {
             shell.getStyleClass().add("dse-dialog-shell-workspace");
@@ -341,6 +342,7 @@ public final class AppDialogRenderer {
             if (label.isBlank()) label = affirmative ? "Continue" : "Close";
             button.setText(label);
             button.setMinWidth(112);
+            ButtonBar.setButtonUniformSize(button, false);
             button.getStyleClass().removeIf(style -> style.startsWith("dse-dialog-action-")
                     || style.equals("approved-button") || style.startsWith("approved-primary-button")
                     || style.startsWith("approved-secondary-button") || style.startsWith("approved-danger-button")

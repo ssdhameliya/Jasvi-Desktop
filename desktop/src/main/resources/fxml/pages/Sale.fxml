@@ -276,14 +276,14 @@
                           prefRowCount="3" prefHeight="78" minHeight="68" maxHeight="96" maxWidth="Infinity"
                           styleClass="approved-input,sales-entry-note-area"/>
                 <Label text="Attached Document" styleClass="sales-entry-attachment-caption"/>
-                <HBox alignment="CENTER_LEFT" spacing="6">
-                    <Label fx:id="lblAttachmentName" text="No attachment selected" maxWidth="Infinity" HBox.hgrow="ALWAYS"
-                           textOverrun="ELLIPSIS" styleClass="sales-entry-attachment-name"/>
-                    <Button fx:id="btnAttachmentAdd" text="Add" onAction="#attachFile" prefHeight="28"
+                <Label fx:id="lblAttachmentName" text="No attachment selected" wrapText="true" maxWidth="Infinity"
+                       styleClass="sales-entry-attachment-name"/>
+                <HBox alignment="CENTER_LEFT" spacing="8">
+                    <Button fx:id="btnAttachmentAdd" text="Add" onAction="#attachFile" prefHeight="28" minWidth="68"
                             styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnAttachmentPreview" text="Preview" onAction="#previewAttachment" prefHeight="28" disable="true"
+                    <Button fx:id="btnAttachmentPreview" text="Preview" onAction="#previewAttachment" prefHeight="28" minWidth="78" disable="true"
                             styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnAttachmentRemove" text="Remove" onAction="#removeAttachment" prefHeight="28" disable="true"
+                    <Button fx:id="btnAttachmentRemove" text="Remove" onAction="#removeAttachment" prefHeight="28" minWidth="78" disable="true"
                             styleClass="approved-button,approved-secondary-button"/>
                 </HBox>
             </VBox>

@@ -84,10 +84,10 @@ public final class UniversalBlockWorkspace extends BorderPane {
 
     private VBox buildBanner() {
         Label title = new Label("BLOCK-WISE TEMPLATE MAPPING");
-        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #0f172a;");
+        title.getStyleClass().add("dse-workspace-nav-title");
 
         Label subtitle = new Label("Configure mappings block by block. Each block only displays its relevant fields, eliminating confusion.");
-        subtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: #475569;");
+        subtitle.getStyleClass().add("dse-workspace-nav-desc");
 
         VBox bannerBox = new VBox(6, title, subtitle);
         bannerBox.setPadding(new Insets(16));
@@ -112,7 +112,7 @@ public final class UniversalBlockWorkspace extends BorderPane {
 
         Node iconNode = SemanticIconManager.compact(block.icon(), 20);
         Label title = new Label(block.displayName());
-        title.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #1e293b;");
+        title.getStyleClass().add("dse-dialog-field-title");
         title.setWrapText(true);
 
         HBox titleRow = new HBox(8, iconNode, title);
@@ -121,7 +121,7 @@ public final class UniversalBlockWorkspace extends BorderPane {
         Label desc = new Label(block.description());
         desc.setWrapText(true);
         desc.setMaxHeight(45);
-        desc.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748b;");
+        desc.getStyleClass().add("dse-dialog-field-desc");
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
@@ -133,7 +133,7 @@ public final class UniversalBlockWorkspace extends BorderPane {
                 : "-fx-font-size: 11px; -fx-text-fill: #94a3b8;");
 
         Button btnOpen = new Button("Map Block →");
-        btnOpen.setStyle("-fx-background-color: #2563eb; -fx-text-fill: #ffffff; -fx-font-weight: bold; -fx-font-size: 11px; -fx-background-radius: 4; -fx-cursor: hand;");
+        btnOpen.getStyleClass().addAll("approved-button", "approved-primary-button");
         btnOpen.setOnAction(e -> openBlockView(block));
 
         HBox footer = new HBox(8, status, spacer, btnOpen);

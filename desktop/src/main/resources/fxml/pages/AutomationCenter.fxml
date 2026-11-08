@@ -21,41 +21,41 @@
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-blue" GridPane.columnIndex="0">
           <StackPane fx:id="kpiActiveRulesIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
-            <HBox alignment="CENTER_LEFT"><Label text="Active Rules" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Live" styleClass="metric-trend-pill,trend-positive"/></HBox>
+            <HBox alignment="CENTER_LEFT"><Label text="Active Rules" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Live" styleClass="metric-trend-pill,trend-positive"/></HBox>
             <Label fx:id="kpiActiveRules" text="0" styleClass="metric-value"/>
-            <Label text="Automations Enabled" styleClass="metric-note"/>
+            <Label text="Automations Enabled" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-green" GridPane.columnIndex="1">
           <StackPane fx:id="kpiMatchRateIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
-            <HBox alignment="CENTER_LEFT"><Label text="3-Way Match Rate" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Match" styleClass="metric-trend-pill,trend-positive"/></HBox>
+            <HBox alignment="CENTER_LEFT"><Label text="3-Way Match Rate" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Match" styleClass="metric-trend-pill,trend-positive"/></HBox>
             <Label fx:id="kpiMatchRate" text="100%" styleClass="metric-value"/>
-            <Label text="PO vs GRN vs Bill" styleClass="metric-note"/>
+            <Label text="PO vs GRN vs Bill" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-red" GridPane.columnIndex="2">
           <StackPane fx:id="kpiDiscrepantBillsIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
-            <HBox alignment="CENTER_LEFT"><Label text="Discrepant Bills" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Action" styleClass="metric-trend-pill,trend-negative"/></HBox>
+            <HBox alignment="CENTER_LEFT"><Label text="Discrepant Bills" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Action" styleClass="metric-trend-pill,trend-negative"/></HBox>
             <Label fx:id="kpiDiscrepantBills" text="0" styleClass="metric-value"/>
-            <Label text="Pending Approval" styleClass="metric-note"/>
+            <Label text="Pending Approval" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-orange" GridPane.columnIndex="3">
           <StackPane fx:id="kpiReorderCountIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
-            <HBox alignment="CENTER_LEFT"><Label text="Reorder Alerts" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Alert" styleClass="metric-trend-pill,trend-warning"/></HBox>
+            <HBox alignment="CENTER_LEFT"><Label text="Reorder Alerts" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Alert" styleClass="metric-trend-pill,trend-warning"/></HBox>
             <Label fx:id="kpiReorderCount" text="0" styleClass="metric-value"/>
-            <Label text="Below Minimum Stock" styleClass="metric-note"/>
+            <Label text="Below Minimum Stock" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-teal" GridPane.columnIndex="4">
           <StackPane fx:id="kpiReplenishmentValueIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
-            <HBox alignment="CENTER_LEFT"><Label text="Replenishment" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Reorder" styleClass="metric-trend-pill,trend-info"/></HBox>
+            <HBox alignment="CENTER_LEFT"><Label text="Replenishment" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Reorder" styleClass="metric-trend-pill,trend-info"/></HBox>
             <Label fx:id="kpiReplenishmentValue" text="₹ 0.00" styleClass="metric-value"/>
-            <Label text="Suggested Reorder Value" styleClass="metric-note"/>
+            <Label text="Suggested Reorder Value" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
       </GridPane>

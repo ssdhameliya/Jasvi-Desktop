@@ -1,3 +1,17 @@
+# What's New in DSE ERP v11.0.52
+
+### Universal Table Header Presentation, Dynamic Table Geometry & Content-Adaptive Dialog Modernization
+- **Universal Table Header Presentation & Duplicate Text Elimination (`SalesController`, `PurchaseController`, `ProfessionalUiEnhancer`) (Rule 4, Rule 5, Rule 7 & Rule 11)**:
+  - **Dynamic Tax Column Header Decoupling**: Resolved JavaFX header rendering collision where dynamic tax changes (`GST %` / `IGST %` and `GST Amount (₹)` / `IGST Amount (₹)`) invoked `column.setText(...)` on pre-decorated columns, causing JavaFX `TableColumnHeader` to paint both the graphic and text side-by-side (`% GST % GST %` and trailing `GST Amount (₹) G`). Replaced raw text assignments with clean `erp-header-label` property updates and canonical `IconFactory.tableHeader(label, "tax")` graphics while keeping `column.setText("")`.
+  - **Universal Global Header Interceptor (`ProfessionalUiEnhancer.decorateColumns`)**: Installed a permanent, non-reentrant listener on `column.textProperty()` across all enhanced table columns application-wide. Automatically catches programmatic `column.setText(...)` calls, clears the native text, and updates the composite header graphic, providing an ecosystem-wide guarantee against duplicated or overflowing header text.
+- **Dynamic Table Column Residual Distribution (`DynamicTableLayoutManager`) (Rule 7)**:
+  - Upgraded `DynamicTableLayoutManager.closeResidual` to distribute negative width deficits proportionally across all scalable columns instead of dumping the entire remainder onto the rightmost amount column (`colTotal`), guaranteeing at least 82px minimum width and permanently eliminating column amount clipping across all screen resolutions.
+- **Content-Adaptive Dialog Bounds & Button Anti-Clipping (`WindowUtilsFx`, `AppDialogRenderer`, `app-dialog.css`) (Rule 5 & Rule 12)**:
+  - Overhauled `WindowUtilsFx.fitCompactDialogToOwnerScreen` to compute dynamic layout width from `DialogPane.prefWidth(-1)` (including all ButtonBar actions) clamped to usable screen bounds, removing arbitrary 620px cutoff caps.
+  - Set `-fx-pref-width: -1; -fx-max-width: Infinity;` on `.app-dialog-shell` and disabled `ButtonBar.setButtonUniformSize(button, false)`, ensuring failure modals, action dialogs, and alert boxes render with zero button truncation across multi-monitor and high-DPI displays.
+- **CSS Variable Lookup Resolution (`light-theme.css`, `dark-theme.css`) (Rule 5)**:
+  - Corrected `*.sales-entry-actions-card *.button` to `-fx-min-width: use-pref-size;` in both Light and Dark stylesheets, resolving JavaFX CSS lookup warnings during startup.
+
 # What's New in DSE ERP v11.0.51
 
 ### Universal Keyboard Workflow Navigation, High-Speed Login Flow & Searchable Dropdown Modernization

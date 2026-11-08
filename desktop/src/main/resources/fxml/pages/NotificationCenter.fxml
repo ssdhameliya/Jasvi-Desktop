@@ -24,15 +24,15 @@
         <Label fx:id="lblNotificationCount" styleClass="dse-notification-v3-count-strip"/>
       </HBox>
       <HBox spacing="10" styleClass="dse-notification-v3-summary-row,erp-kpi-section">
-        <HBox spacing="12" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" styleClass="dse-notification-v3-summary-card,dse-notification-v3-summary-all">
+        <HBox spacing="12" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" minWidth="0" styleClass="dse-notification-v3-summary-card,dse-notification-v3-summary-all">
           <StackPane fx:id="allSummaryIcon" minWidth="44" prefWidth="44" maxWidth="44" minHeight="44" prefHeight="44" maxHeight="44" styleClass="dse-notification-v3-summary-icon"/>
           <VBox spacing="0"><Label text="All" styleClass="dse-notification-v3-summary-label"/><Label fx:id="lblAllCount" text="0" styleClass="dse-notification-v3-summary-value"/></VBox>
         </HBox>
-        <HBox spacing="12" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" styleClass="dse-notification-v3-summary-card,dse-notification-v3-summary-unread">
+        <HBox spacing="12" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" minWidth="0" styleClass="dse-notification-v3-summary-card,dse-notification-v3-summary-unread">
           <StackPane fx:id="unreadSummaryIcon" minWidth="44" prefWidth="44" maxWidth="44" minHeight="44" prefHeight="44" maxHeight="44" styleClass="dse-notification-v3-summary-icon"/>
           <VBox spacing="0"><Label text="Unread" styleClass="dse-notification-v3-summary-label"/><Label fx:id="lblUnreadCount" text="0" styleClass="dse-notification-v3-summary-value"/></VBox>
         </HBox>
-        <HBox spacing="12" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" styleClass="dse-notification-v3-summary-card,dse-notification-v3-summary-action">
+        <HBox spacing="12" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" minWidth="0" styleClass="dse-notification-v3-summary-card,dse-notification-v3-summary-action">
           <StackPane fx:id="actionSummaryIcon" minWidth="44" prefWidth="44" maxWidth="44" minHeight="44" prefHeight="44" maxHeight="44" styleClass="dse-notification-v3-summary-icon"/>
           <VBox spacing="0"><Label text="Action Needed" styleClass="dse-notification-v3-summary-label"/><Label fx:id="lblActionCount" text="0" styleClass="dse-notification-v3-summary-value"/></VBox>
         </HBox>
