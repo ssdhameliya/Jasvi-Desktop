@@ -298,7 +298,7 @@ public final class DynamicTableLayoutManager {
         double[] widths = floorTotal <= available
                 ? allocateFromFloors(profiles, available, floorTotal, weightTotal)
                 : allocateDense(columns, profiles, available);
-        closeResidual(widths, available);
+        closeResidual(widths, available, profiles);
 
         for (int i = 0; i < columns.size(); i++) {
             double width = Math.max(ABSOLUTE_MIN_COLUMN, widths[i]);
@@ -365,13 +365,14 @@ public final class DynamicTableLayoutManager {
         // Extremely small windows: proportionally compress while keeping Actions
         // and selection slightly more protected. This still avoids a second axis
         // scrollbar and never performs content measurement.
-        double scale = Math.max(0.45, available / total);
+        double scale = Math.max(0.65, available / total);
         double scaledTotal = 0;
         for (int i = 0; i < dense.length; i++) {
             String semantic = headerSemantic(columns.get(i), headerLabel(columns.get(i)));
+            String heading = headerLabel(columns.get(i));
             double colMin = columns.get(i).getMinWidth();
             double actionsHardFloor = (colMin >= 160.0 && Double.isFinite(colMin)) ? colMin : 78.0;
-            double hardFloor = "actions".equals(semantic) ? actionsHardFloor : isSelectionColumn(columns.get(i), semantic, headerLabel(columns.get(i))) ? 30.0 : ABSOLUTE_MIN_COLUMN;
+            double hardFloor = "actions".equals(semantic) ? actionsHardFloor : isSelectionColumn(columns.get(i), semantic, heading) ? 30.0 : denseFloor(semantic, heading);
             dense[i] = Math.max(hardFloor, dense[i] * scale);
             scaledTotal += dense[i];
         }
@@ -454,8 +455,18 @@ public final class DynamicTableLayoutManager {
             Font headerFont = Font.font(Font.getDefault().getFamily(), FontWeight.EXTRA_BOLD, 11.5);
             double longestToken = longestHeaderTokenWidth(heading, headerFont);
             double fullWidth = textWidth(heading, headerFont);
-            double textTarget = heading.contains(" ") ? Math.max(longestToken + 42.0, Math.min(fullWidth + 36.0, 140.0)) : (longestToken + 42.0);
+            double textTarget = heading.contains(" ") ? Math.max(longestToken + 42.0, Math.min(fullWidth + 36.0, 140.0)) : (longestToken + 54.0);
             minimum = Math.max(readableMinimum(semantic, heading), textTarget);
+            if (isLongTextSemantic(semantic, heading)) {
+                minimum = Math.max(minimum, 135.0);
+            }
+            String lower = heading.toLowerCase(Locale.ROOT);
+            if (lower.contains("amount") || lower.contains("pending") || lower.contains("paid") || lower.contains("balance")) {
+                minimum = Math.max(minimum, 108.0);
+            }
+            if (lower.contains("category") || lower.contains("hsn") || lower.contains("sac") || lower.contains("description")) {
+                minimum = Math.max(minimum, 120.0);
+            }
         }
         double colMin = column.getMinWidth();
         if (colMin > ABSOLUTE_MIN_COLUMN && Double.isFinite(colMin)) {
@@ -474,35 +485,56 @@ public final class DynamicTableLayoutManager {
         else if (key.contains("gst") || key.contains("tax")) semanticFloor = 140.0;
         else if (key.contains("invoice") || key.contains("reference") || key.contains("document")
                 || key.contains("account") || key.contains("email")) semanticFloor = 145.0;
-        else if (key.contains("payment") || key.contains("return") || key.contains("status")) semanticFloor = 85.0;
+        else if (key.contains("return")) semanticFloor = 118.0;
+        else if (key.contains("payment") || key.contains("status")) semanticFloor = 110.0;
         else if (key.contains("amount") || key.contains("balance") || key.contains("paid")
-                || key.contains("pending") || key.contains("total") || key.contains("rate")) semanticFloor = 76.0;
+                || key.contains("pending") || key.contains("total") || key.contains("rate")) semanticFloor = 108.0;
         else if (key.contains("quantity") || key.contains("qty")
-                || key.contains("discount") || key.contains("disc")) semanticFloor = 82.0;
-        else if (key.contains("date") || key.contains("due")) semanticFloor = 105.0;
-        else if (key.contains("mobile") || key.contains("phone")) semanticFloor = 105.0;
-        else semanticFloor = 68.0;
+                || key.contains("discount") || key.contains("disc")) semanticFloor = 88.0;
+        else if (key.contains("date") || key.contains("due")) semanticFloor = 110.0;
+        else if (key.contains("mobile") || key.contains("phone")) semanticFloor = 108.0;
+        else semanticFloor = 80.0;
         return Math.max(MIN_READABLE_COLUMN, semanticFloor);
     }
 
     private static double denseFloor(String semantic, String heading) {
         String key = (semantic + " " + heading).toLowerCase(Locale.ROOT);
-        if (key.contains("quantity") || key.contains("qty") || key.contains("discount") || key.contains("disc")) return 76.0;
-        if (isLongTextSemantic(semantic, heading)) return 66.0;
-        if (key.contains("gst") || key.contains("tax")) return 90.0;
-        if (key.contains("invoice") || key.contains("document") || key.contains("reference")) return 88.0;
-        if (key.contains("date") || key.contains("due")) return 75.0;
-        if (key.contains("mobile") || key.contains("phone")) return 80.0;
-        if (key.contains("status") || key.contains("payment") || key.contains("return")) return 65.0;
-        if (key.contains("amount") || key.contains("total") || key.contains("balance") || key.contains("paid")) return 58.0;
-        return DENSE_MIN_READABLE_COLUMN;
+        if (key.contains("quantity") || key.contains("qty") || key.contains("discount") || key.contains("disc")) return 82.0;
+        if (isLongTextSemantic(semantic, heading)) return 115.0;
+        if (key.contains("gst") || key.contains("tax")) return 110.0;
+        if (key.contains("invoice") || key.contains("document") || key.contains("reference")) return 110.0;
+        if (key.contains("date") || key.contains("due")) return 95.0;
+        if (key.contains("mobile") || key.contains("phone")) return 95.0;
+        if (key.contains("return")) return 105.0;
+        if (key.contains("status") || key.contains("payment")) return 95.0;
+        if (key.contains("amount") || key.contains("total") || key.contains("balance") || key.contains("paid") || key.contains("pending")) return 95.0;
+        return 65.0;
     }
 
-    private static void closeResidual(double[] widths, double available) {
+    private static void closeResidual(double[] widths, double available, List<ColumnProfile> profiles) {
         if (widths.length == 0) return;
         double used = 0;
         for (double width : widths) used += width;
-        widths[widths.length - 1] += available - used;
+        double diff = available - used;
+        if (diff >= 0) {
+            widths[widths.length - 1] += diff;
+        } else {
+            double reducible = 0;
+            for (int i = 0; i < widths.length; i++) {
+                double minSafe = (i == widths.length - 1) ? 82.0 : ABSOLUTE_MIN_COLUMN;
+                double floor = profiles != null && i < profiles.size() ? Math.max(minSafe, profiles.get(i).floor() * 0.60) : minSafe;
+                reducible += Math.max(0, widths[i] - floor);
+            }
+            double needed = -diff;
+            for (int i = 0; i < widths.length && needed > 0.1; i++) {
+                double minSafe = (i == widths.length - 1) ? 82.0 : ABSOLUTE_MIN_COLUMN;
+                double floor = profiles != null && i < profiles.size() ? Math.max(minSafe, profiles.get(i).floor() * 0.60) : minSafe;
+                double own = Math.max(0, widths[i] - floor);
+                double cut = reducible <= 0 ? 0 : Math.min(own, needed * own / reducible);
+                widths[i] -= cut;
+                needed -= cut;
+            }
+        }
     }
 
     private static double longestHeaderTokenWidth(String heading, Font headerFont) {

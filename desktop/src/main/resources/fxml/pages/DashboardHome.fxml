@@ -21,126 +21,126 @@
                         <StackPane fx:id="salesKpiIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Active Sales" styleClass="approved-kpi-caption,metric-label"/>
+                                <Label text="Active Sales" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="+8.4%" styleClass="metric-trend-pill,trend-positive"/>
                             </HBox>
                             <Label fx:id="lblSalesValue" styleClass="approved-kpi-value,metric-value"/>
-                            <Label fx:id="lblSalesNote" styleClass="approved-kpi-note,metric-note"/>
+                            <Label fx:id="lblSalesNote" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
                         </VBox>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,sales-metric-card,sales-metric-today,kpi-purchase,kpi-orange" GridPane.columnIndex="1" onMouseClicked="#openPurchaseFromDashboard">
                         <StackPane fx:id="purchaseKpiIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Active Purchases" styleClass="approved-kpi-caption,metric-label"/>
+                                <Label text="Active Purchases" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="Active" styleClass="metric-trend-pill,trend-neutral"/>
                             </HBox>
                             <Label fx:id="lblPurchaseValue" styleClass="approved-kpi-value,metric-value"/>
-                            <Label fx:id="lblPurchaseNote" styleClass="approved-kpi-note,metric-note"/>
+                            <Label fx:id="lblPurchaseNote" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
                         </VBox>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,sales-metric-card,sales-metric-pending,kpi-receivable,kpi-purple" GridPane.columnIndex="2" onMouseClicked="#openReceivablesFromDashboard">
                         <StackPane fx:id="receivableKpiIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Receivables" styleClass="approved-kpi-caption,metric-label"/>
+                                <Label text="Receivables" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="Pending" styleClass="metric-trend-pill,trend-warning"/>
                             </HBox>
                             <Label fx:id="lblStockValue" styleClass="approved-kpi-value,metric-value"/>
-                            <Label fx:id="lblReceivableNote" styleClass="approved-kpi-note,metric-note"/>
+                            <Label fx:id="lblReceivableNote" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
                         </VBox>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,sales-metric-card,sales-metric-overdue,kpi-payable,kpi-red" GridPane.columnIndex="3" onMouseClicked="#openPayablesFromDashboard">
                         <StackPane fx:id="payableKpiIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Payables" styleClass="approved-kpi-caption,metric-label"/>
+                                <Label text="Payables" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="Payable" styleClass="metric-trend-pill,trend-negative"/>
                             </HBox>
                             <Label fx:id="lblLowStock" styleClass="approved-kpi-value,metric-value"/>
-                            <Label fx:id="lblStockNote" styleClass="approved-kpi-note,metric-note"/>
+                            <Label fx:id="lblStockNote" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
                         </VBox>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,sales-metric-card,sales-metric-due,kpi-cash,kpi-green" GridPane.columnIndex="4" onMouseClicked="#openCashFromDashboard">
                         <StackPane fx:id="cashKpiIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Cash Position" styleClass="approved-kpi-caption,metric-label"/>
+                                <Label text="Cash Position" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="Net Cash" styleClass="metric-trend-pill,trend-positive"/>
                             </HBox>
                             <Label fx:id="lblCash" styleClass="approved-kpi-value,metric-value"/>
-                            <Label text="Received less paid and expenses" styleClass="approved-kpi-note,metric-note"/>
+                            <Label text="Received less paid and expenses" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
                         </VBox>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,sales-metric-card,sales-metric-email,kpi-stock,kpi-teal" GridPane.columnIndex="5" onMouseClicked="#openInventoryFromDashboard">
                         <StackPane fx:id="lowStockKpiIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Low Stock" styleClass="approved-kpi-caption,metric-label"/>
+                                <Label text="Low Stock" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="Alert" styleClass="metric-trend-pill,trend-warning"/>
                             </HBox>
                             <Label fx:id="lblLowStockValue" styleClass="approved-kpi-value,metric-value"/>
-                            <Label fx:id="lblLowStockNote" styleClass="approved-kpi-note,metric-note"/>
+                            <Label fx:id="lblLowStockNote" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
                         </VBox>
                     </HBox>
                 </GridPane>
 
                 <HBox spacing="12" styleClass="dashboard-mini-kpi-row,erp-kpi-section">
-                    <HBox alignment="CENTER_LEFT" spacing="10" HBox.hgrow="ALWAYS" styleClass="dashboard-mini-kpi,dashboard-mini-customer,standard-kpi-card,kpi-blue" onMouseClicked="#viewCustomers">
+                    <HBox alignment="CENTER_LEFT" spacing="10" HBox.hgrow="ALWAYS" minWidth="0" styleClass="dashboard-mini-kpi,dashboard-mini-customer,standard-kpi-card,kpi-blue" onMouseClicked="#viewCustomers">
                         <StackPane fx:id="customersMiniIcon" styleClass="dashboard-mini-kpi-icon,standard-kpi-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Customers" styleClass="metric-label"/>
+                                <Label text="Customers" wrapText="true" styleClass="metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="Directory" styleClass="metric-trend-pill,trend-neutral"/>
                             </HBox>
                             <Label fx:id="lblCustomers" styleClass="metric-value"/>
-                            <Label text="Customer directory" styleClass="metric-note"/>
+                            <Label text="Customer directory" wrapText="true" styleClass="metric-note"/>
                         </VBox>
                         <Label text="View All →" styleClass="approved-link"/>
                     </HBox>
-                    <HBox alignment="CENTER_LEFT" spacing="10" HBox.hgrow="ALWAYS" styleClass="dashboard-mini-kpi,dashboard-mini-items,standard-kpi-card,kpi-green" onMouseClicked="#viewItems">
+                    <HBox alignment="CENTER_LEFT" spacing="10" HBox.hgrow="ALWAYS" minWidth="0" styleClass="dashboard-mini-kpi,dashboard-mini-items,standard-kpi-card,kpi-green" onMouseClicked="#viewItems">
                         <StackPane fx:id="itemsMiniIcon" styleClass="dashboard-mini-kpi-icon,standard-kpi-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Catalog Items" styleClass="metric-label"/>
+                                <Label text="Catalog Items" wrapText="true" styleClass="metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="Active" styleClass="metric-trend-pill,trend-info"/>
                             </HBox>
                             <Label fx:id="lblProducts" styleClass="metric-value"/>
-                            <Label text="Inventory catalog" styleClass="metric-note"/>
+                            <Label text="Inventory catalog" wrapText="true" styleClass="metric-note"/>
                         </VBox>
                         <Label text="View All →" styleClass="approved-link"/>
                     </HBox>
-                    <HBox alignment="CENTER_LEFT" spacing="10" HBox.hgrow="ALWAYS" styleClass="dashboard-mini-kpi,dashboard-mini-sales,standard-kpi-card,kpi-purple" onMouseClicked="#viewSalesInvoices">
+                    <HBox alignment="CENTER_LEFT" spacing="10" HBox.hgrow="ALWAYS" minWidth="0" styleClass="dashboard-mini-kpi,dashboard-mini-sales,standard-kpi-card,kpi-purple" onMouseClicked="#viewSalesInvoices">
                         <StackPane fx:id="salesMiniIcon" styleClass="dashboard-mini-kpi-icon,standard-kpi-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Sales Invoices" styleClass="metric-label"/>
+                                <Label text="Sales Invoices" wrapText="true" styleClass="metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="Invoices" styleClass="metric-trend-pill,trend-positive"/>
                             </HBox>
                             <Label fx:id="lblOrders" styleClass="metric-value"/>
-                            <Label text="Sales register" styleClass="metric-note"/>
+                            <Label text="Sales register" wrapText="true" styleClass="metric-note"/>
                         </VBox>
                         <Label text="View All →" styleClass="approved-link"/>
                     </HBox>
-                    <HBox alignment="CENTER_LEFT" spacing="10" HBox.hgrow="ALWAYS" styleClass="dashboard-mini-kpi,dashboard-mini-purchases,standard-kpi-card,kpi-orange" onMouseClicked="#viewPurchaseInvoices">
+                    <HBox alignment="CENTER_LEFT" spacing="10" HBox.hgrow="ALWAYS" minWidth="0" styleClass="dashboard-mini-kpi,dashboard-mini-purchases,standard-kpi-card,kpi-orange" onMouseClicked="#viewPurchaseInvoices">
                         <StackPane fx:id="purchasesMiniIcon" styleClass="dashboard-mini-kpi-icon,standard-kpi-icon"/>
                         <VBox spacing="3" HBox.hgrow="ALWAYS">
                             <HBox alignment="CENTER_LEFT">
-                                <Label text="Purchase Invoices" styleClass="metric-label"/>
+                                <Label text="Purchase Invoices" wrapText="true" styleClass="metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
                                 <Label text="Bills" styleClass="metric-trend-pill,trend-warning"/>
                             </HBox>
                             <Label fx:id="lblPurchases" styleClass="metric-value"/>
-                            <Label text="Purchase register" styleClass="metric-note"/>
+                            <Label text="Purchase register" wrapText="true" styleClass="metric-note"/>
                         </VBox>
                         <Label text="View All →" styleClass="approved-link"/>
                     </HBox>

@@ -1070,10 +1070,16 @@ public class SalesController implements ScreenLifecycle {
         boolean igst = type != null && type.trim().equalsIgnoreCase("IGST");
         String percentLabel = igst ? "IGST %" : "GST %";
         String amountLabel = igst ? "IGST Amount (₹)" : "GST Amount (₹)";
-        if (colGst != null)
-            colGst.setText(percentLabel);
-        if (colGstAmount != null)
-            colGstAmount.setText(amountLabel);
+        if (colGst != null) {
+            colGst.getProperties().put("erp-header-label", percentLabel);
+            colGst.setText("");
+            colGst.setGraphic(IconFactory.tableHeader(percentLabel, "tax"));
+        }
+        if (colGstAmount != null) {
+            colGstAmount.getProperties().put("erp-header-label", amountLabel);
+            colGstAmount.setText("");
+            colGstAmount.setGraphic(IconFactory.tableHeader(amountLabel, "tax"));
+        }
         if (txtGST != null)
             txtGST.setPromptText(percentLabel);
     }

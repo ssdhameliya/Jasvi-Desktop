@@ -1321,9 +1321,19 @@ public class PurchaseController implements ScreenLifecycle {
         // JavaFX presentation state before a master value is available.
         String type=cmbGstType==null?"GST":safeValue(cmbGstType.getValue(),"GST");
         boolean igst=DocumentCalculationEngine.taxMode(type)==DocumentCalculationEngine.TaxMode.IGST;
-        if(colGst!=null)colGst.setText(igst?"IGST %":"GST %");
-        if(colGstAmount!=null)colGstAmount.setText(igst?"IGST Amount (₹)":"GST Amount (₹)");
-        if(txtGST!=null)txtGST.setPromptText(igst?"IGST %":"GST %");
+        String percentLabel = igst ? "IGST %" : "GST %";
+        String amountLabel = igst ? "IGST Amount (₹)" : "GST Amount (₹)";
+        if(colGst!=null) {
+            colGst.getProperties().put("erp-header-label", percentLabel);
+            colGst.setText("");
+            colGst.setGraphic(IconFactory.tableHeader(percentLabel, "tax"));
+        }
+        if(colGstAmount!=null) {
+            colGstAmount.getProperties().put("erp-header-label", amountLabel);
+            colGstAmount.setText("");
+            colGstAmount.setGraphic(IconFactory.tableHeader(amountLabel, "tax"));
+        }
+        if(txtGST!=null)txtGST.setPromptText(percentLabel);
         if(lblTaxCaption!=null)lblTaxCaption.setText(igst?"Total IGST":"Total GST");
         if(lblBottomTaxCaption!=null)lblBottomTaxCaption.setText(igst?"IGST":"GST");
         setTaxRowVisible(rowCgst,!igst);

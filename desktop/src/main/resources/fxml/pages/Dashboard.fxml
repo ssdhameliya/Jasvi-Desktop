@@ -144,7 +144,7 @@
     </left>
     <top>
         <!-- The header is intentionally identical for every ERP page. -->
-        <HBox fx:id="topBar" alignment="CENTER_LEFT" styleClass="erp-topbar">
+        <HBox fx:id="topBar" alignment="CENTER_LEFT" spacing="10" styleClass="erp-topbar">
             <Button fx:id="btnSidebarToggle" contentDisplay="GRAPHIC_ONLY" onAction="#toggleSidebar" styleClass="top-icon,approved-button,approved-secondary-button,approved-icon-button,sidebar-toggle-button">
                 <tooltip><Tooltip text="Hide navigation (Ctrl/Cmd + B)"/></tooltip>
             </Button>

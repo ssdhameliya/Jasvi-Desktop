@@ -270,13 +270,14 @@
                           styleClass="approved-input,sales-entry-note-area"/>
                 <HBox alignment="CENTER_LEFT" spacing="8">
                     <Label text="Files" styleClass="sales-entry-attachment-caption"/>
-                    <Label fx:id="lblAttachment" text="No attachments" styleClass="sales-entry-attachment-name"/>
-                    <Region HBox.hgrow="ALWAYS"/>
-                    <Button fx:id="btnAttachmentAdd" text="Add Files" onAction="#chooseAttachment" prefHeight="28"
+                    <Label fx:id="lblAttachment" text="No attachments" wrapText="true" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="sales-entry-attachment-name"/>
+                </HBox>
+                <HBox alignment="CENTER_LEFT" spacing="8">
+                    <Button fx:id="btnAttachmentAdd" text="Add Files" onAction="#chooseAttachment" prefHeight="28" minWidth="80"
                             styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnAttachmentPreview" text="Preview" onAction="#viewAttachment" prefHeight="28" disable="true"
+                    <Button fx:id="btnAttachmentPreview" text="Preview" onAction="#viewAttachment" prefHeight="28" minWidth="80" disable="true"
                             styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnAttachmentRemove" text="Remove" onAction="#removeAttachment" prefHeight="28" disable="true"
+                    <Button fx:id="btnAttachmentRemove" text="Remove" onAction="#removeAttachment" prefHeight="28" minWidth="80" disable="true"
                             styleClass="approved-button,approved-secondary-button"/>
                 </HBox>
                 <ListView fx:id="listAttachments" prefHeight="68" minHeight="52" maxHeight="78"

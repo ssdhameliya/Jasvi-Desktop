@@ -31,48 +31,48 @@
           <StackPane fx:id="kpiRevenueIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Total Revenue" styleClass="metric-label"/>
+              <Label text="Total Revenue" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Revenue" styleClass="metric-trend-pill,trend-positive"/>
             </HBox>
             <Label fx:id="kpiRevenue" text="₹ 0.00" styleClass="metric-value"/>
-            <Label text="Operating sales &amp; income" styleClass="metric-note"/>
+            <Label text="Operating sales &amp; income" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-orange" GridPane.columnIndex="1">
           <StackPane fx:id="kpiCogsIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Cost of Sales / COGS" styleClass="metric-label"/>
+              <Label text="Cost of Sales / COGS" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="COGS" styleClass="metric-trend-pill,trend-warning"/>
             </HBox>
             <Label fx:id="kpiCogs" text="₹ 0.00" styleClass="metric-value"/>
-            <Label text="Direct inventory costs" styleClass="metric-note"/>
+            <Label text="Direct inventory costs" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-blue" GridPane.columnIndex="2">
           <StackPane fx:id="kpiGrossProfitIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Gross Profit" styleClass="metric-label"/>
+              <Label text="Gross Profit" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Gross" styleClass="metric-trend-pill,trend-info"/>
             </HBox>
             <Label fx:id="kpiGrossProfit" text="₹ 0.00" styleClass="metric-value"/>
-            <Label fx:id="lblGrossMargin" text="Margin: 0.0%" styleClass="metric-note"/>
+            <Label fx:id="lblGrossMargin" text="Margin: 0.0%" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-purple" GridPane.columnIndex="3">
           <StackPane fx:id="kpiNetProfitIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Net Profit / (Loss)" styleClass="metric-label"/>
+              <Label text="Net Profit / (Loss)" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Net" styleClass="metric-trend-pill,trend-neutral"/>
             </HBox>
             <Label fx:id="kpiNetProfit" text="₹ 0.00" styleClass="metric-value"/>
-            <Label fx:id="lblNetMargin" text="Net Margin: 0.0%" styleClass="metric-note"/>
+            <Label fx:id="lblNetMargin" text="Net Margin: 0.0%" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
       </GridPane>

@@ -205,7 +205,13 @@ public final class ShortcutRegistry {
         return Scope.fromStored(ConfigManager.get(optionKey(action,"scope"),action.scope().name()),action.scope());
     }
     public static boolean allowInTextInput(Action action){
-        return boolOption(action,"allowText",action==Action.TOGGLE_SIDEBAR || action==Action.GLOBAL_SEARCH);
+        if (action == null) return false;
+        if (action == Action.TOGGLE_SIDEBAR || action == Action.GLOBAL_SEARCH) return true;
+        if (action == Action.NEW_CURRENT || action == Action.SAVE_CURRENT || action == Action.REFRESH_CURRENT
+                || action == Action.PRINT_CURRENT || action == Action.EXPORT_CURRENT || action == Action.EDIT_CURRENT) {
+            return boolOption(action, "allowText", true);
+        }
+        return boolOption(action,"allowText",false);
     }
     public static boolean requireSelection(Action action){
         boolean fallback=action==Action.EDIT_CURRENT||action==Action.OPEN_SELECTED||action==Action.DELETE_SELECTED;
@@ -235,7 +241,17 @@ public final class ShortcutRegistry {
         String configured=configuredBinding(action); if(configured.isBlank())return null;
         try{return KeyCombination.valueOf(configured);}catch(Exception ignored){try{return KeyCombination.valueOf(action.defaultBinding());}catch(Exception impossible){return null;}}
     }
-    public static boolean matches(KeyEvent event,Action action){KeyCombination c=combination(action);return event!=null&&c!=null&&c.match(event);}
+    public static boolean matches(KeyEvent event, Action action) {
+        KeyCombination c = combination(action);
+        if (event != null && c != null && c.match(event)) return true;
+        // Central dual-key fallback for REFRESH_CURRENT: support Ctrl+F5 and Ctrl+R in addition to F5
+        if (action == Action.REFRESH_CURRENT && event != null) {
+            KeyCode code = event.getCode();
+            if (code == KeyCode.F5 && (event.isControlDown() || event.isMetaDown())) return true;
+            if (code == KeyCode.R && (event.isControlDown() || event.isMetaDown()) && !event.isAltDown()) return true;
+        }
+        return false;
+    }
     public static boolean permitted(Action action){return action!=null&&(action.permission()==null||action.permission().isBlank()||PermissionService.allowed(action.permission()));}
     public static String display(Action action){String raw=configuredBinding(action);return raw.isBlank()?"Disabled":displayRaw(raw);}
 

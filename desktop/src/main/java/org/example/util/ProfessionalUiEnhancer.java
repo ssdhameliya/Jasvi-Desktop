@@ -934,6 +934,30 @@ public final class ProfessionalUiEnhancer {
                 }
             }
 
+            if (!Boolean.TRUE.equals(column.getProperties().get("erp.header.text-listener-installed"))) {
+                column.getProperties().put("erp.header.text-listener-installed", true);
+                column.textProperty().addListener((obs, oldVal, newVal) -> {
+                    if (newVal != null && !newVal.isEmpty()) {
+                        String newText = newVal.trim();
+                        column.getProperties().put("erp-header-label", newText);
+                        javafx.application.Platform.runLater(() -> {
+                            if (!column.getText().isEmpty()) {
+                                column.setText("");
+                            }
+                            String sem = UiSemanticRegistry.headerSemantic(newText);
+                            if (sem == null) sem = headerSemantic(newText, column.getId());
+                            if (sem == null && !newText.isBlank()) sem = fallbackHeaderSemantic(newText, column.getId());
+                            if (sem != null) {
+                                String sig = newText + "|" + sem;
+                                column.getProperties().put("erp-header-signature", sig);
+                                column.getProperties().put("erp-header-semantic", sem);
+                                column.setGraphic(IconFactory.tableHeader(newText, sem));
+                            }
+                        });
+                    }
+                });
+            }
+
             // Do not replace factories installed by business controllers.
             // Default status cells get icon + state colour; other ordinary
             // default cells inherit the semantic colour of their column.

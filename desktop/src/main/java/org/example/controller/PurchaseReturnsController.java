@@ -52,7 +52,7 @@ public class PurchaseReturnsController implements ScreenLifecycle {
                       double total, double refund, String reason, String status, String refundStatus) {}
 
     @FXML private Label total, count, monthCount, refund, average, pageInfo, lblDetailNo, lblDetailDate, lblDetailInvoice, lblDetailSupplier, lblDetailAmount, lblDetailRefund, lblDetailReason, lblDetailStatus, lblDetailRefundStatus;
-    @FXML private StackPane iconTotal,iconMonth,iconCount,iconRefund,iconAverage;
+    @FXML private StackPane kpiTotalIcon, kpiMonthIcon, kpiCountIcon, kpiRefundIcon, kpiAverageIcon;
     @FXML private TextField search;
     @FXML private ComboBox<String> supplier, status;
     @FXML private DatePicker dpFrom, dpTo;
@@ -324,7 +324,7 @@ public class PurchaseReturnsController implements ScreenLifecycle {
     private boolean confirm(String text) { return org.example.util.AppDialogService.confirm(table, "Confirmation", "Are you sure?", text); }
     private void info(String value) { org.example.util.AppDialogService.success(table, "Completed", value); }
     private void error(Exception e) { org.example.util.AppDialogService.error(table, "Operation failed", "Something went wrong", e.getMessage() == null ? "Operation failed" : e.getMessage()); }
-    private void installKpiIcons(){setKpi(iconTotal,"return");setKpi(iconMonth,"calendar");setKpi(iconCount,"document");setKpi(iconRefund,"payment");setKpi(iconAverage,"currency");}
+    private void installKpiIcons(){setKpi(kpiTotalIcon,"return");setKpi(kpiMonthIcon,"calendar");setKpi(kpiCountIcon,"document");setKpi(kpiRefundIcon,"payment");setKpi(kpiAverageIcon,"currency");}
     private void setKpi(StackPane pane,String semantic){if(pane!=null)pane.getChildren().setAll(IconFactory.compactIcon(semantic,22));}
 
     private Exception asException(Throwable failure){return failure instanceof Exception e?e:new RuntimeException(failure);}

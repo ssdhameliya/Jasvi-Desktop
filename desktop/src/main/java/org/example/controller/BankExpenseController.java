@@ -59,7 +59,8 @@ public class BankExpenseController implements ScreenLifecycle {
 
     @FXML private Label lblTitle, lblSubtitle, formTitle, listTitle;
     @FXML private Button btnBankMode, btnExpenseMode, btnBankRecon, saveButton, addButton, btnResetFilters, btnRefreshEntries, btnExportExcel;
-    @FXML private Label kpi1Icon,kpi1Label,kpi1Value,kpi1Note,kpi2Icon,kpi2Label,kpi2Value,kpi2Note,kpi3Icon,kpi3Label,kpi3Value,kpi3Note,kpi4Icon,kpi4Label,kpi4Value,kpi4Note;
+    @FXML private StackPane kpi1Icon, kpi2Icon, kpi3Icon, kpi4Icon;
+    @FXML private Label kpi1Label,kpi1Value,kpi1Note,kpi2Label,kpi2Value,kpi2Note,kpi3Label,kpi3Value,kpi3Note,kpi4Label,kpi4Value,kpi4Note;
     @FXML private DatePicker entryDate, filterFrom, filterTo;
     @FXML private VBox bankOnlyFields, expenseOnlyFields, billBox, entryFormPanel;
     @FXML private HBox workspaceRow;
@@ -144,7 +145,7 @@ public class BankExpenseController implements ScreenLifecycle {
     }
 
     private void installKpiIcons(){setKpiIcon(kpi1Icon,"bank");setKpiIcon(kpi2Icon,"credit");setKpiIcon(kpi3Icon,"balance");setKpiIcon(kpi4Icon,"payment");}
-    private void setKpiIcon(Label label,String semantic){if(label!=null){label.setText("");label.setGraphic(IconFactory.icon(semantic,20));label.getProperties().put("erp-icon-preserve",true);}}
+    private void setKpiIcon(StackPane pane,String semantic){if(pane!=null){pane.getChildren().setAll(IconFactory.icon(semantic,20));pane.getProperties().put("erp-icon-preserve",true);}}
 
     private void applyRequestedExpensePrefill(){
         ExpensePrefill p=requestedExpensePrefill; if(p==null)return;

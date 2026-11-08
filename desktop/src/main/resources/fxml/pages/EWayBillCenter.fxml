@@ -21,48 +21,48 @@
           <StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Total E-Way Bills" styleClass="metric-label"/>
+              <Label text="Total E-Way Bills" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="All Permits" styleClass="metric-trend-pill,trend-neutral"/>
             </HBox>
             <Label fx:id="kpiTotalBills" text="0" styleClass="metric-value"/>
-            <Label text="Issued transit permits" styleClass="metric-note"/>
+            <Label text="Issued transit permits" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-green" GridPane.columnIndex="1">
           <StackPane fx:id="kpiActiveIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Active In-Transit" styleClass="metric-label"/>
+              <Label text="Active In-Transit" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Live" styleClass="metric-trend-pill,trend-positive"/>
             </HBox>
             <Label fx:id="kpiActiveBills" text="0" styleClass="metric-value"/>
-            <Label text="Consignments in transit" styleClass="metric-note"/>
+            <Label text="Consignments in transit" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-orange" GridPane.columnIndex="2">
           <StackPane fx:id="kpiEligibleIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Pending Generation" styleClass="metric-label"/>
+              <Label text="Pending Generation" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Action Req." styleClass="metric-trend-pill,trend-warning"/>
             </HBox>
             <Label fx:id="kpiPendingInvoices" text="0" styleClass="metric-value"/>
-            <Label text="Sales &gt; ₹50,000 threshold" styleClass="metric-note"/>
+            <Label text="Sales &gt; ₹50,000 threshold" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-purple" GridPane.columnIndex="3">
           <StackPane fx:id="kpiValueIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Consignment Value" styleClass="metric-label"/>
+              <Label text="Consignment Value" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Transit" styleClass="metric-trend-pill,trend-info"/>
             </HBox>
             <Label fx:id="kpiTotalValue" text="₹ 0.00" styleClass="metric-value"/>
-            <Label text="Goods under dispatch" styleClass="metric-note"/>
+            <Label text="Goods under dispatch" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
       </GridPane>

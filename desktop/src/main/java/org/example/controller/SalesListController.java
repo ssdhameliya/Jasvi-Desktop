@@ -316,8 +316,8 @@ public class SalesListController implements ScreenLifecycle {
         };
     }
 private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected void updateItem(Double v,boolean e){super.updateItem(v,e);setText(e||v==null?null:money(v));setAlignment(Pos.CENTER_RIGHT);}};}
-    private TableCell<Sales,Double> totalMoneyCell(){return coloredMoneyCell("erp-table-value-colour-pink","erp-table-value-colour-pink");}
-    private TableCell<Sales,Double> balanceMoneyCell(){return coloredMoneyCell("erp-table-value-colour-blue","erp-table-value-colour-green");}
+    private TableCell<Sales,Double> totalMoneyCell(){return coloredMoneyCell("erp-table-value-colour-blue","erp-table-value-colour-blue");}
+    private TableCell<Sales,Double> balanceMoneyCell(){return coloredMoneyCell("erp-table-value-colour-orange","erp-table-value-colour-green");}
     private TableCell<Sales,Double> coloredMoneyCell(String positiveClass,String zeroClass){
         return new TableCell<>(){
             private String currentClass;

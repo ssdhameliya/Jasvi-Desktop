@@ -22,48 +22,48 @@
           <StackPane fx:id="kpiCountIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Total Notes" styleClass="metric-label"/>
+              <Label text="Total Notes" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Total" styleClass="metric-trend-pill,trend-neutral"/>
             </HBox>
             <Label fx:id="kpiTotalCount" text="0" styleClass="metric-value"/>
-            <Label text="Current fiscal period" styleClass="metric-note"/>
+            <Label text="Current fiscal period" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-purple" GridPane.columnIndex="1">
           <StackPane fx:id="kpiAmountIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Debit Note Value" styleClass="metric-label"/>
+              <Label text="Debit Note Value" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Claims" styleClass="metric-trend-pill,trend-info"/>
             </HBox>
             <Label fx:id="kpiTotalAmount" text="₹ 0.00" styleClass="metric-value"/>
-            <Label text="Total supplier claims" styleClass="metric-note"/>
+            <Label text="Total supplier claims" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-orange" GridPane.columnIndex="2">
           <StackPane fx:id="kpiTaxIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="ITC Reversed" styleClass="metric-label"/>
+              <Label text="ITC Reversed" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Reversed" styleClass="metric-trend-pill,trend-warning"/>
             </HBox>
             <Label fx:id="kpiTaxReversed" text="₹ 0.00" styleClass="metric-value"/>
-            <Label text="Input credit reversed" styleClass="metric-note"/>
+            <Label text="Input credit reversed" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-green" GridPane.columnIndex="3">
           <StackPane fx:id="kpiStockIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Returned Items" styleClass="metric-label"/>
+              <Label text="Returned Items" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Dispatched" styleClass="metric-trend-pill,trend-positive"/>
             </HBox>
             <Label fx:id="kpiReturnedCount" text="0" styleClass="metric-value"/>
-            <Label text="Goods returned to supplier" styleClass="metric-note"/>
+            <Label text="Goods returned to supplier" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
       </GridPane>

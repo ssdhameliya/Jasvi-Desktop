@@ -31,12 +31,12 @@
             <StackPane fx:id="kpiTotalIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
             <VBox spacing="3" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                    <Label text="Total Registered Clients" styleClass="approved-kpi-caption,metric-label"/>
+                    <Label text="Total Registered Clients" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                     <Region HBox.hgrow="ALWAYS"/>
                     <Label text="Clients" styleClass="metric-trend-pill,trend-neutral"/>
                 </HBox>
                 <Label fx:id="lblKpiTotal" text="0" styleClass="approved-kpi-value,metric-value"/>
-                <Label text="Licensed Enterprise Accounts" styleClass="approved-kpi-note,metric-note"/>
+                <Label text="Licensed Enterprise Accounts" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
             </VBox>
         </HBox>
 
@@ -46,12 +46,12 @@
             <StackPane fx:id="kpiActiveIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
             <VBox spacing="3" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                    <Label text="Active Subscriptions" styleClass="approved-kpi-caption,metric-label"/>
+                    <Label text="Active Subscriptions" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                     <Region HBox.hgrow="ALWAYS"/>
                     <Label text="Active" styleClass="metric-trend-pill,trend-positive"/>
                 </HBox>
                 <Label fx:id="lblKpiActive" text="0" styleClass="approved-kpi-value,metric-value"/>
-                <Label text="Valid Computer Bound Licenses" styleClass="approved-kpi-note,metric-note"/>
+                <Label text="Valid Computer Bound Licenses" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
             </VBox>
         </HBox>
 
@@ -61,12 +61,12 @@
             <StackPane fx:id="kpiPendingLeadsIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
             <VBox spacing="3" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                    <Label text="Pending Approvals" styleClass="approved-kpi-caption,metric-label"/>
+                    <Label text="Pending Approvals" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                     <Region HBox.hgrow="ALWAYS"/>
                     <Label fx:id="lblKpiPendingTrend" text="Leads" styleClass="metric-trend-pill,trend-warning"/>
                 </HBox>
                 <Label fx:id="lblKpiPendingLeads" text="0" styleClass="approved-kpi-value,metric-value"/>
-                <Label text="Inbound Self-Registration Requests" styleClass="approved-kpi-note,metric-note"/>
+                <Label text="Inbound Self-Registration Requests" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
             </VBox>
         </HBox>
 
@@ -76,12 +76,12 @@
             <StackPane fx:id="kpiArrIcon" styleClass="approved-kpi-icon,approved-kpi,sales-metric-icon"/>
             <VBox spacing="3" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                    <Label text="Annual Recurring Revenue" styleClass="approved-kpi-caption,metric-label"/>
+                    <Label text="Annual Recurring Revenue" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                     <Region HBox.hgrow="ALWAYS"/>
                     <Label text="ARR" styleClass="metric-trend-pill,trend-positive"/>
                 </HBox>
                 <Label fx:id="lblKpiArr" text="₹0.00" styleClass="approved-kpi-value,metric-value"/>
-                <Label text="Projected License Run-Rate" styleClass="approved-kpi-note,metric-note"/>
+                <Label text="Projected License Run-Rate" wrapText="true" styleClass="approved-kpi-note,metric-note"/>
             </VBox>
         </HBox>
     </GridPane>

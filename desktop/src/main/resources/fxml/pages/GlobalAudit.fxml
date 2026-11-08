@@ -12,11 +12,66 @@
         <Button text="Refresh" onAction="#refresh" styleClass="secondary-button"/>
     </HBox>
     <GridPane fx:id="auditKpiGrid" hgap="10" vgap="10" styleClass="erp-kpi-section,audit-kpi-section">
-        <VBox GridPane.columnIndex="0" styleClass="audit-kpi-card,audit-summary-purple"><Label text="Business Events" styleClass="audit-kpi-title"/><Label fx:id="lblTotal" text="0" styleClass="audit-kpi-value,audit-color-purple"/><Label text="All normalized events" styleClass="audit-kpi-subtitle"/></VBox>
-        <VBox GridPane.columnIndex="1" styleClass="audit-kpi-card,audit-summary-green"><Label text="Record Changes" styleClass="audit-kpi-title"/><Label fx:id="lblChanges" text="0" styleClass="audit-kpi-value,audit-color-green"/><Label text="Create / update / lifecycle" styleClass="audit-kpi-subtitle"/></VBox>
-        <VBox GridPane.columnIndex="2" styleClass="audit-kpi-card,audit-summary-orange"><Label text="Financial Events" styleClass="audit-kpi-title"/><Label fx:id="lblFinancial" text="0" styleClass="audit-kpi-value,audit-color-orange"/><Label text="Payments / refunds / recon" styleClass="audit-kpi-subtitle"/></VBox>
-        <VBox GridPane.columnIndex="3" styleClass="audit-kpi-card,audit-summary-blue"><Label text="Document Events" styleClass="audit-kpi-title"/><Label fx:id="lblDocuments" text="0" styleClass="audit-kpi-value,audit-color-blue"/><Label text="PDF / Excel / attachments" styleClass="audit-kpi-subtitle"/></VBox>
-        <VBox GridPane.columnIndex="4" styleClass="audit-kpi-card,audit-summary-teal"><Label text="Communications" styleClass="audit-kpi-title"/><Label fx:id="lblCommunications" text="0" styleClass="audit-kpi-value,audit-color-teal"/><Label text="Email / WhatsApp" styleClass="audit-kpi-subtitle"/></VBox>
+        <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" GridPane.columnIndex="0" styleClass="standard-kpi-card,kpi-purple,audit-kpi-card,audit-summary-purple">
+            <StackPane fx:id="auditTotalIcon" styleClass="standard-kpi-icon,approved-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Business Events" wrapText="true" styleClass="metric-title,metric-label,approved-kpi-caption,audit-kpi-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="All" styleClass="metric-trend-pill,trend-neutral"/>
+                </HBox>
+                <Label fx:id="lblTotal" text="0" styleClass="metric-value,approved-kpi-value,audit-kpi-value,audit-color-purple"/>
+                <Label text="All normalized events" wrapText="true" styleClass="metric-note,approved-kpi-note,audit-kpi-subtitle"/>
+            </VBox>
+        </HBox>
+        <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" GridPane.columnIndex="1" styleClass="standard-kpi-card,kpi-green,audit-kpi-card,audit-summary-green">
+            <StackPane fx:id="auditChangesIcon" styleClass="standard-kpi-icon,approved-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Record Changes" wrapText="true" styleClass="metric-title,metric-label,approved-kpi-caption,audit-kpi-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Lifecycle" styleClass="metric-trend-pill,trend-positive"/>
+                </HBox>
+                <Label fx:id="lblChanges" text="0" styleClass="metric-value,approved-kpi-value,audit-kpi-value,audit-color-green"/>
+                <Label text="Create / update / lifecycle" wrapText="true" styleClass="metric-note,approved-kpi-note,audit-kpi-subtitle"/>
+            </VBox>
+        </HBox>
+        <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" GridPane.columnIndex="2" styleClass="standard-kpi-card,kpi-orange,audit-kpi-card,audit-summary-orange">
+            <StackPane fx:id="auditFinancialIcon" styleClass="standard-kpi-icon,approved-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Financial Events" wrapText="true" styleClass="metric-title,metric-label,approved-kpi-caption,audit-kpi-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Finance" styleClass="metric-trend-pill,trend-warning"/>
+                </HBox>
+                <Label fx:id="lblFinancial" text="0" styleClass="metric-value,approved-kpi-value,audit-kpi-value,audit-color-orange"/>
+                <Label text="Payments / refunds / recon" wrapText="true" styleClass="metric-note,approved-kpi-note,audit-kpi-subtitle"/>
+            </VBox>
+        </HBox>
+        <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" GridPane.columnIndex="3" styleClass="standard-kpi-card,kpi-blue,audit-kpi-card,audit-summary-blue">
+            <StackPane fx:id="auditDocumentsIcon" styleClass="standard-kpi-icon,approved-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Document Events" wrapText="true" styleClass="metric-title,metric-label,approved-kpi-caption,audit-kpi-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Documents" styleClass="metric-trend-pill,trend-info"/>
+                </HBox>
+                <Label fx:id="lblDocuments" text="0" styleClass="metric-value,approved-kpi-value,audit-kpi-value,audit-color-blue"/>
+                <Label text="PDF / Excel / attachments" wrapText="true" styleClass="metric-note,approved-kpi-note,audit-kpi-subtitle"/>
+            </VBox>
+        </HBox>
+        <HBox alignment="CENTER_LEFT" spacing="10" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" GridPane.columnIndex="4" styleClass="standard-kpi-card,kpi-teal,audit-kpi-card,audit-summary-teal">
+            <StackPane fx:id="auditCommunicationsIcon" styleClass="standard-kpi-icon,approved-kpi-icon"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT">
+                    <Label text="Communications" wrapText="true" styleClass="metric-title,metric-label,approved-kpi-caption,audit-kpi-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Activity" styleClass="metric-trend-pill,trend-neutral"/>
+                </HBox>
+                <Label fx:id="lblCommunications" text="0" styleClass="metric-value,approved-kpi-value,audit-kpi-value,audit-color-teal"/>
+                <Label text="Email / WhatsApp" wrapText="true" styleClass="metric-note,approved-kpi-note,audit-kpi-subtitle"/>
+            </VBox>
+        </HBox>
     </GridPane>
     <HBox spacing="8" alignment="CENTER_LEFT" styleClass="audit-filter-bar">
         <ComboBox fx:id="cmbModule" promptText="All Modules"/>

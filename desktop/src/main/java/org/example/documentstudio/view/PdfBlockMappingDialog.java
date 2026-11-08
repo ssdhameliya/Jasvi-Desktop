@@ -124,7 +124,7 @@ public final class PdfBlockMappingDialog extends BorderPane {
 
         if (onBack != null) {
             Button btnBack = new Button("← Back to All Blocks");
-            btnBack.setStyle("-fx-background-color: #f1f5f9; -fx-text-fill: #334155; -fx-font-weight: bold; -fx-font-size: 11px; -fx-background-radius: 6; -fx-padding: 6 12; -fx-cursor: hand;");
+            btnBack.getStyleClass().addAll("approved-button", "approved-secondary-button");
             btnBack.setOnAction(e -> onBack.run());
             topRow.getChildren().add(btnBack);
         }
@@ -133,7 +133,7 @@ public final class PdfBlockMappingDialog extends BorderPane {
 
         if (onBack != null) {
             Button btnSave = new Button("Save Block ✓");
-            btnSave.setStyle("-fx-background-color: #166534; -fx-text-fill: #ffffff; -fx-font-weight: bold; -fx-font-size: 11px; -fx-background-radius: 6; -fx-padding: 6 14; -fx-cursor: hand;");
+            btnSave.getStyleClass().addAll("approved-button", "approved-primary-button", "approved-emerald-button");
             btnSave.setOnAction(e -> {
                 commitChanges();
                 onBack.run();
@@ -168,7 +168,7 @@ public final class PdfBlockMappingDialog extends BorderPane {
         }
 
         Label notice = new Label("Physical columns detected from imported PDF. Match each column to its ERP line-item field:");
-        notice.setStyle("-fx-font-weight: bold; -fx-text-fill: #334155;");
+        notice.getStyleClass().add("dse-workspace-nav-desc");
         contentList.getChildren().add(notice);
 
         int colIdx = 1;
@@ -181,16 +181,16 @@ public final class PdfBlockMappingDialog extends BorderPane {
     private HBox buildColumnRow(int idx, TemplateColumnBinding col, TemplateElement tableEl) {
         Label num = new Label("#" + idx);
         num.setMinWidth(35);
-        num.setStyle("-fx-font-weight: bold; -fx-text-fill: #64748b;");
+        num.getStyleClass().add("dse-dialog-field-desc");
 
         Label label = new Label(col.getSourceLabel().isBlank() ? "(Column " + idx + ")" : col.getSourceLabel());
         label.setMinWidth(140);
         label.setPrefWidth(160);
-        label.setStyle("-fx-font-weight: bold; -fx-text-fill: #1e293b;");
+        label.getStyleClass().add("dse-dialog-field-title");
 
         Label geom = new Label(String.format(Locale.ROOT, "Width: %.0f pt | Align: %s", col.getWidth(), col.getAlignment()));
         geom.setMinWidth(160);
-        geom.setStyle("-fx-text-fill: #64748b; -fx-font-size: 11px;");
+        geom.getStyleClass().add("dse-dialog-field-desc");
 
         ComboBox<String> fieldPicker = new ComboBox<>();
         List<String> options = new ArrayList<>(blockDef.candidateFieldKeys());
@@ -211,7 +211,7 @@ public final class PdfBlockMappingDialog extends BorderPane {
         HBox row = new HBox(12, num, label, geom, fieldPicker);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(8, 12, 8, 12));
-        row.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 6; -fx-background-radius: 6;");
+        row.getStyleClass().add("dse-workspace-mapping-row");
         return row;
     }
 
@@ -245,7 +245,7 @@ public final class PdfBlockMappingDialog extends BorderPane {
         source.setWrapText(true);
         source.setMinWidth(160);
         source.setPrefWidth(180);
-        source.setStyle("-fx-font-weight: bold; -fx-text-fill: #1e293b;");
+        source.getStyleClass().add("dse-dialog-field-title");
 
         ComboBox<String> fieldPicker = new ComboBox<>();
         List<String> options = new ArrayList<>(blockDef.candidateFieldKeys());
@@ -259,17 +259,14 @@ public final class PdfBlockMappingDialog extends BorderPane {
         Label statusChip = new Label(el.getFieldKey().isBlank() ? "Unmapped" : "Mapped ✓");
         statusChip.setMinWidth(85);
         statusChip.setAlignment(Pos.CENTER);
-        statusChip.setStyle(el.getFieldKey().isBlank()
-                ? "-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-padding: 3 8; -fx-background-radius: 12;"
-                : "-fx-background-color: #dcfce7; -fx-text-fill: #166534; -fx-padding: 3 8; -fx-background-radius: 12;");
+        statusChip.getStyleClass().add(el.getFieldKey().isBlank() ? "status-chip-unmapped" : "status-chip-mapped");
 
         fieldPicker.valueProperty().addListener((obs, oldVal, newVal) -> {
             String chosen = newVal == null ? "" : newVal.trim();
             el.setFieldKey(chosen);
             statusChip.setText(chosen.isBlank() ? "Unmapped" : "Mapped ✓");
-            statusChip.setStyle(chosen.isBlank()
-                    ? "-fx-background-color: #f1f5f9; -fx-text-fill: #64748b; -fx-padding: 3 8; -fx-background-radius: 12;"
-                    : "-fx-background-color: #dcfce7; -fx-text-fill: #166534; -fx-padding: 3 8; -fx-background-radius: 12;");
+            statusChip.getStyleClass().removeAll("status-chip-unmapped", "status-chip-mapped", "status-chip-static");
+            statusChip.getStyleClass().add(chosen.isBlank() ? "status-chip-unmapped" : "status-chip-mapped");
             if (!chosen.isBlank()) {
                 var def = TemplateFieldCatalog.findPdf(template.getDocumentType(), chosen);
                 if (def == null) def = TemplateFieldCatalog.find(chosen);
@@ -291,19 +288,20 @@ public final class PdfBlockMappingDialog extends BorderPane {
         });
 
         Button btnStatic = new Button("Keep Static");
-        btnStatic.setStyle("-fx-font-size: 11px;");
+        btnStatic.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnStatic.setOnAction(e -> {
             fieldPicker.setValue("");
             el.setFieldKey("");
             el.setMappingState("STATIC");
             statusChip.setText("Static");
-            statusChip.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #475569; -fx-padding: 3 8; -fx-background-radius: 12;");
+            statusChip.getStyleClass().removeAll("status-chip-unmapped", "status-chip-mapped", "status-chip-static");
+            statusChip.getStyleClass().add("status-chip-static");
         });
 
         HBox row = new HBox(12, source, fieldPicker, statusChip, btnStatic);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(8, 12, 8, 12));
-        row.setStyle("-fx-background-color: #ffffff; -fx-border-color: #e2e8f0; -fx-border-radius: 6; -fx-background-radius: 6;");
+        row.getStyleClass().add("dse-workspace-mapping-row");
         return row;
     }
 

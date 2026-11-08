@@ -30,10 +30,10 @@
             <!-- KPI cards -->
             <GridPane hgap="12" vgap="12" styleClass="backup-metrics-grid,erp-kpi-section">
 
-                <VBox spacing="8" styleClass="backup-metric-card" GridPane.columnIndex="0">
+                <VBox spacing="8" styleClass="standard-kpi-card,kpi-blue,backup-metric-card" minWidth="0" GridPane.columnIndex="0">
                     <HBox alignment="CENTER_LEFT">
                         <VBox spacing="3">
-                            <Label text="DATABASE SIZE" styleClass="backup-metric-label"/>
+                            <Label text="DATABASE SIZE" wrapText="true" styleClass="backup-metric-label,metric-label"/>
                             <Label fx:id="lblDatabaseSize" text="—" styleClass="backup-metric-value"/>
                         </VBox>
                         <Region HBox.hgrow="ALWAYS"/>
@@ -42,10 +42,10 @@
                     <Label fx:id="lblDatabaseHealth" text="Checking database…" styleClass="backup-metric-caption"/>
                 </VBox>
 
-                <VBox spacing="8" styleClass="backup-metric-card" GridPane.columnIndex="1">
+                <VBox spacing="8" styleClass="standard-kpi-card,kpi-purple,backup-metric-card" minWidth="0" GridPane.columnIndex="1">
                     <HBox alignment="CENTER_LEFT">
                         <VBox spacing="3">
-                            <Label text="AVAILABLE BACKUPS" styleClass="backup-metric-label"/>
+                            <Label text="AVAILABLE BACKUPS" wrapText="true" styleClass="backup-metric-label,metric-label"/>
                             <Label fx:id="lblBackupCount" text="0" styleClass="backup-metric-value"/>
                         </VBox>
                         <Region HBox.hgrow="ALWAYS"/>
@@ -54,10 +54,10 @@
                     <Label fx:id="lblBackupCountCaption" text="No backups available" styleClass="backup-metric-caption"/>
                 </VBox>
 
-                <VBox spacing="8" styleClass="backup-metric-card" GridPane.columnIndex="2">
+                <VBox spacing="8" styleClass="standard-kpi-card,kpi-green,backup-metric-card" minWidth="0" GridPane.columnIndex="2">
                     <HBox alignment="CENTER_LEFT">
                         <VBox spacing="3">
-                            <Label text="LATEST BACKUP" styleClass="backup-metric-label"/>
+                            <Label text="LATEST BACKUP" wrapText="true" styleClass="backup-metric-label,metric-label"/>
                             <Label fx:id="lblLastBackup" text="Never" wrapText="true" styleClass="backup-metric-value,backup-last-value"/>
                         </VBox>
                         <Region HBox.hgrow="ALWAYS"/>
@@ -66,10 +66,10 @@
                     <Label fx:id="lblLastBackupCaption" text="Create your first backup" styleClass="backup-metric-caption"/>
                 </VBox>
 
-                <VBox spacing="8" styleClass="backup-metric-card" GridPane.columnIndex="3">
+                <VBox spacing="8" styleClass="standard-kpi-card,kpi-orange,backup-metric-card" minWidth="0" GridPane.columnIndex="3">
                     <HBox alignment="CENTER_LEFT">
                         <VBox spacing="3">
-                            <Label text="RETENTION" styleClass="backup-metric-label"/>
+                            <Label text="RETENTION" wrapText="true" styleClass="backup-metric-label,metric-label"/>
                             <Label fx:id="lblRetentionSummary" text="2 backups" styleClass="backup-metric-value"/>
                         </VBox>
                         <Region HBox.hgrow="ALWAYS"/>

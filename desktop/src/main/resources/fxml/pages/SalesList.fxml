@@ -36,72 +36,72 @@
               <StackPane fx:id="totalSalesIcon" styleClass="standard-kpi-icon,sales-metric-icon,total-sales-icon"/>
               <VBox spacing="4" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                  <Label text="Active Sales" styleClass="metric-label"/>
+                  <Label text="Active Sales" wrapText="true" styleClass="metric-label"/>
                   <Region HBox.hgrow="ALWAYS"/>
                   <Label text="+8.4%" styleClass="metric-trend-pill,trend-positive"/>
                 </HBox>
                 <Label fx:id="lblTotalSales" styleClass="metric-value"/>
-                <Label fx:id="lblInvoiceCount" styleClass="metric-note"/>
+                <Label fx:id="lblInvoiceCount" wrapText="true" styleClass="metric-note"/>
               </VBox>
             </HBox>
             <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" styleClass="standard-kpi-card,sales-metric-card,sales-metric-today,kpi-green" HBox.hgrow="ALWAYS">
               <StackPane fx:id="todaySalesIcon" styleClass="standard-kpi-icon,sales-metric-icon,today-sales-icon"/>
               <VBox spacing="4" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                  <Label text="Today's Sales" styleClass="metric-label"/>
+                  <Label text="Today's Sales" wrapText="true" styleClass="metric-label"/>
                   <Region HBox.hgrow="ALWAYS"/>
                   <Label text="Today" styleClass="metric-trend-pill,trend-neutral"/>
                 </HBox>
                 <Label fx:id="lblTodaySales" styleClass="metric-value"/>
-                <Label fx:id="lblTodayCount" styleClass="metric-note"/>
+                <Label fx:id="lblTodayCount" wrapText="true" styleClass="metric-note"/>
               </VBox>
             </HBox>
             <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" styleClass="standard-kpi-card,sales-metric-card,sales-metric-pending,kpi-orange" HBox.hgrow="ALWAYS">
               <StackPane fx:id="pendingSalesIcon" styleClass="standard-kpi-icon,sales-metric-icon,pending-sales-icon"/>
               <VBox spacing="4" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                  <Label text="Pending Receivables" styleClass="metric-label"/>
+                  <Label text="Pending Receivables" wrapText="true" styleClass="metric-label"/>
                   <Region HBox.hgrow="ALWAYS"/>
                   <Label text="Pending" styleClass="metric-trend-pill,trend-warning"/>
                 </HBox>
                 <Label fx:id="lblPending" styleClass="metric-value"/>
-                <Label fx:id="lblPendingCount" styleClass="metric-note"/>
+                <Label fx:id="lblPendingCount" wrapText="true" styleClass="metric-note"/>
               </VBox>
             </HBox>
             <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" styleClass="standard-kpi-card,sales-metric-card,sales-metric-overdue,kpi-red" HBox.hgrow="ALWAYS">
               <StackPane fx:id="overdueSalesIcon" styleClass="standard-kpi-icon,sales-metric-icon,overdue-sales-icon"/>
               <VBox spacing="4" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                  <Label text="Overdue Receivables" styleClass="metric-label"/>
+                  <Label text="Overdue Receivables" wrapText="true" styleClass="metric-label"/>
                   <Region HBox.hgrow="ALWAYS"/>
                   <Label text="Alert" styleClass="metric-trend-pill,trend-negative"/>
                 </HBox>
                 <Label fx:id="lblOverdue" styleClass="metric-value"/>
-                <Label fx:id="lblOverdueCount" styleClass="metric-note"/>
+                <Label fx:id="lblOverdueCount" wrapText="true" styleClass="metric-note"/>
               </VBox>
             </HBox>
             <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" styleClass="standard-kpi-card,sales-metric-card,sales-metric-due,kpi-purple" HBox.hgrow="ALWAYS">
               <StackPane fx:id="dueSoonIcon" styleClass="standard-kpi-icon,sales-metric-icon,due-sales-icon"/>
               <VBox spacing="4" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                  <Label text="Due in 7 Days" styleClass="metric-label"/>
+                  <Label text="Due in 7 Days" wrapText="true" styleClass="metric-label"/>
                   <Region HBox.hgrow="ALWAYS"/>
                   <Label text="Upcoming" styleClass="metric-trend-pill,trend-info"/>
                 </HBox>
                 <Label fx:id="lblDueSoon" styleClass="metric-value"/>
-                <Label fx:id="lblDueSoonCount" styleClass="metric-note"/>
+                <Label fx:id="lblDueSoonCount" wrapText="true" styleClass="metric-note"/>
               </VBox>
             </HBox>
             <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" styleClass="standard-kpi-card,sales-metric-card,sales-metric-email,kpi-teal" HBox.hgrow="ALWAYS">
               <StackPane fx:id="emailRateIcon" styleClass="standard-kpi-icon,sales-metric-icon,email-sales-icon"/>
               <VBox spacing="4" HBox.hgrow="ALWAYS">
                 <HBox alignment="CENTER_LEFT">
-                  <Label text="Email Sent %" styleClass="metric-label"/>
+                  <Label text="Email Sent %" wrapText="true" styleClass="metric-label"/>
                   <Region HBox.hgrow="ALWAYS"/>
                   <Label text="Live" styleClass="metric-trend-pill,trend-positive"/>
                 </HBox>
                 <Label fx:id="lblEmailRate" styleClass="metric-value"/>
-                <Label text="All invoices" styleClass="metric-note"/>
+                <Label text="All invoices" wrapText="true" styleClass="metric-note"/>
               </VBox>
             </HBox>
           </HBox>

@@ -15,6 +15,7 @@ import javafx.scene.control.*;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.StackPane;
 import javafx.stage.FileChooser;
 import org.example.api.returns.ReturnApiClient;
 import org.example.api.support.SupportApiClient;
@@ -53,6 +54,7 @@ public class SalesReturnsController implements ScreenLifecycle {
                       double amount, double refund, String reason, String status,
                       String refundStatus) {}
 
+    @FXML private StackPane kpiTotalIcon, kpiMonthIcon, kpiPendingIcon, kpiApprovedIcon, kpiRefundIcon;
     @FXML private Label total, month, pending, approved, refund, pageInfo, lblDetailNo, lblDetailDate, lblDetailInvoice, lblDetailCustomer, lblDetailAmount, lblDetailRefund, lblDetailReason, lblDetailStatus, lblDetailRefundStatus;
     @FXML private TextField search;
     @FXML private ComboBox<String> customerFilter, statusFilter;
@@ -80,6 +82,11 @@ public class SalesReturnsController implements ScreenLifecycle {
         reason.setCellValueFactory(x -> new SimpleStringProperty(x.getValue().reason()));
         status.setCellValueFactory(x -> new SimpleStringProperty(x.getValue().status()));
         refundStatus.setCellValueFactory(x -> new SimpleStringProperty(x.getValue().refundStatus()));
+        if (kpiTotalIcon != null) kpiTotalIcon.getChildren().setAll(IconFactory.icon("sales", 20));
+        if (kpiMonthIcon != null) kpiMonthIcon.getChildren().setAll(IconFactory.icon("calendar", 20));
+        if (kpiPendingIcon != null) kpiPendingIcon.getChildren().setAll(IconFactory.icon("pending", 20));
+        if (kpiApprovedIcon != null) kpiApprovedIcon.getChildren().setAll(IconFactory.icon("complete", 20));
+        if (kpiRefundIcon != null) kpiRefundIcon.getChildren().setAll(IconFactory.icon("payment", 20));
         amount.setCellFactory(column -> new TableCell<>() {
             @Override protected void updateItem(Number value, boolean empty) {
                 super.updateItem(value, empty); setText(empty ? null : money(value.doubleValue())); setAlignment(Pos.CENTER_RIGHT);

@@ -25,11 +25,11 @@
 
     <!-- Summary cards -->
     <HBox spacing="10" styleClass="reminder-metrics-row,erp-kpi-section">
-        <VBox spacing="8" styleClass="standard-kpi-card,kpi-blue,reminder-metric-card" HBox.hgrow="ALWAYS">
+        <VBox spacing="8" minWidth="0" styleClass="standard-kpi-card,kpi-blue,reminder-metric-card" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
                 <VBox spacing="3" HBox.hgrow="ALWAYS">
                     <HBox alignment="CENTER_LEFT">
-                        <Label text="OPEN REMINDERS" styleClass="metric-title,reminder-metric-title"/>
+                        <Label text="OPEN REMINDERS" wrapText="true" styleClass="metric-title,reminder-metric-title"/>
                         <Region HBox.hgrow="ALWAYS"/>
                         <Label text="Active" styleClass="metric-trend-pill,trend-neutral"/>
                     </HBox>
@@ -37,14 +37,14 @@
                 </VBox>
                 <StackPane fx:id="openMetricIcon" styleClass="standard-kpi-icon,reminder-metric-icon"/>
             </HBox>
-            <Label text="Active items requiring attention" styleClass="reminder-metric-note"/>
+            <Label text="Active items requiring attention" wrapText="true" styleClass="reminder-metric-note"/>
         </VBox>
 
-        <VBox spacing="8" styleClass="standard-kpi-card,kpi-red,reminder-metric-card" HBox.hgrow="ALWAYS">
+        <VBox spacing="8" minWidth="0" styleClass="standard-kpi-card,kpi-red,reminder-metric-card" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
                 <VBox spacing="3" HBox.hgrow="ALWAYS">
                     <HBox alignment="CENTER_LEFT">
-                        <Label text="OVERDUE" styleClass="metric-title,reminder-metric-title"/>
+                        <Label text="OVERDUE" wrapText="true" styleClass="metric-title,reminder-metric-title"/>
                         <Region HBox.hgrow="ALWAYS"/>
                         <Label text="Alert" styleClass="metric-trend-pill,trend-negative"/>
                     </HBox>
@@ -52,14 +52,14 @@
                 </VBox>
                 <StackPane fx:id="overdueMetricIcon" styleClass="standard-kpi-icon,reminder-metric-icon"/>
             </HBox>
-            <Label text="Past due and still incomplete" styleClass="reminder-metric-note"/>
+            <Label text="Past due and still incomplete" wrapText="true" styleClass="reminder-metric-note"/>
         </VBox>
 
-        <VBox spacing="8" styleClass="standard-kpi-card,kpi-green,reminder-metric-card" HBox.hgrow="ALWAYS">
+        <VBox spacing="8" minWidth="0" styleClass="standard-kpi-card,kpi-green,reminder-metric-card" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
                 <VBox spacing="3" HBox.hgrow="ALWAYS">
                     <HBox alignment="CENTER_LEFT">
-                        <Label text="DUE TODAY" styleClass="metric-title,reminder-metric-title"/>
+                        <Label text="DUE TODAY" wrapText="true" styleClass="metric-title,reminder-metric-title"/>
                         <Region HBox.hgrow="ALWAYS"/>
                         <Label text="Today" styleClass="metric-trend-pill,trend-positive"/>
                     </HBox>
@@ -67,14 +67,14 @@
                 </VBox>
                 <StackPane fx:id="todayMetricIcon" styleClass="standard-kpi-icon,reminder-metric-icon"/>
             </HBox>
-            <Label text="Scheduled for the current day" styleClass="reminder-metric-note"/>
+            <Label text="Scheduled for the current day" wrapText="true" styleClass="reminder-metric-note"/>
         </VBox>
 
-        <VBox spacing="8" styleClass="standard-kpi-card,kpi-orange,reminder-metric-card" HBox.hgrow="ALWAYS">
+        <VBox spacing="8" minWidth="0" styleClass="standard-kpi-card,kpi-orange,reminder-metric-card" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
                 <VBox spacing="3" HBox.hgrow="ALWAYS">
                     <HBox alignment="CENTER_LEFT">
-                        <Label text="NEXT 7 DAYS" styleClass="metric-title,reminder-metric-title"/>
+                        <Label text="NEXT 7 DAYS" wrapText="true" styleClass="metric-title,reminder-metric-title"/>
                         <Region HBox.hgrow="ALWAYS"/>
                         <Label text="7 Days" styleClass="metric-trend-pill,trend-warning"/>
                     </HBox>
@@ -82,7 +82,7 @@
                 </VBox>
                 <StackPane fx:id="upcomingMetricIcon" styleClass="standard-kpi-icon,reminder-metric-icon"/>
             </HBox>
-            <Label text="Upcoming workload at a glance" styleClass="reminder-metric-note"/>
+            <Label text="Upcoming workload at a glance" wrapText="true" styleClass="reminder-metric-note"/>
         </VBox>
     </HBox>
 
@@ -165,21 +165,21 @@
                                 <ColumnConstraints hgrow="ALWAYS"/>
                             </columnConstraints>
 
-                            <Label text="Reference" styleClass="metric-title,reminder-detail-label"/>
+                            <Label text="Reference" wrapText="true" styleClass="metric-title,reminder-detail-label"/>
                             <Label fx:id="lblDetailReference" GridPane.columnIndex="1" wrapText="true" styleClass="reminder-detail-value"/>
 
-                            <Label text="Due Date" GridPane.rowIndex="1" styleClass="metric-title,reminder-detail-label"/>
+                            <Label text="Due Date" GridPane.rowIndex="1" wrapText="true" styleClass="metric-title,reminder-detail-label"/>
                             <Label fx:id="lblDetailDue" GridPane.rowIndex="1" GridPane.columnIndex="1" wrapText="true" maxWidth="Infinity" styleClass="reminder-detail-value"/>
 
-                            <Label text="Priority" GridPane.rowIndex="2" styleClass="metric-title,reminder-detail-label"/>
+                            <Label text="Priority" GridPane.rowIndex="2" wrapText="true" styleClass="metric-title,reminder-detail-label"/>
                             <Label fx:id="lblDetailPriority" GridPane.rowIndex="2" GridPane.columnIndex="1" wrapText="true" maxWidth="Infinity" styleClass="reminder-detail-badge"/>
 
-                            <Label text="Status" GridPane.rowIndex="3" styleClass="metric-title,reminder-detail-label"/>
+                            <Label text="Status" GridPane.rowIndex="3" wrapText="true" styleClass="metric-title,reminder-detail-label"/>
                             <Label fx:id="lblDetailStatus" GridPane.rowIndex="3" GridPane.columnIndex="1" wrapText="true" maxWidth="Infinity" styleClass="reminder-detail-badge"/>
                         </GridPane>
 
                         <VBox spacing="7">
-                            <Label text="Notes" styleClass="metric-title,reminder-detail-label"/>
+                            <Label text="Notes" wrapText="true" styleClass="metric-title,reminder-detail-label"/>
                             <Label fx:id="lblDetailNotes" wrapText="true" minHeight="88" styleClass="reminder-notes-box"/>
                         </VBox>
                     </VBox>

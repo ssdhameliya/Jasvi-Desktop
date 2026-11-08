@@ -26,48 +26,48 @@
           <StackPane fx:id="kpiItemIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Catalog Items" styleClass="metric-label"/>
+              <Label text="Catalog Items" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Catalog" styleClass="metric-trend-pill,trend-neutral"/>
             </HBox>
             <Label fx:id="kpiTotalItems" text="0" styleClass="metric-value"/>
-            <Label text="Item master catalog" styleClass="metric-note"/>
+            <Label text="Item master catalog" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-green" GridPane.columnIndex="1">
           <StackPane fx:id="kpiMappedIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Barcode Enabled" styleClass="metric-label"/>
+              <Label text="Barcode Enabled" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Active" styleClass="metric-trend-pill,trend-positive"/>
             </HBox>
             <Label fx:id="kpiMappedItems" text="0" styleClass="metric-value"/>
-            <Label text="Ready for scan billing" styleClass="metric-note"/>
+            <Label text="Ready for scan billing" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-orange" GridPane.columnIndex="2">
           <StackPane fx:id="kpiTemplateIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Label Format" styleClass="metric-label"/>
+              <Label text="Label Format" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Format" styleClass="metric-trend-pill,trend-warning"/>
             </HBox>
             <Label fx:id="kpiLabelFormat" text="50 × 25 mm" styleClass="metric-value"/>
-            <Label text="Standard 2-inch thermal" styleClass="metric-note"/>
+            <Label text="Standard 2-inch thermal" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
         <HBox spacing="10" alignment="CENTER_LEFT" minWidth="0" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" styleClass="standard-kpi-card,kpi-purple" GridPane.columnIndex="3">
           <StackPane fx:id="kpiPrintIcon" styleClass="standard-kpi-icon"/>
           <VBox spacing="3" HBox.hgrow="ALWAYS">
             <HBox alignment="CENTER_LEFT">
-              <Label text="Selected Copies" styleClass="metric-label"/>
+              <Label text="Selected Copies" wrapText="true" styleClass="metric-label"/>
               <Region HBox.hgrow="ALWAYS"/>
               <Label text="Queue" styleClass="metric-trend-pill,trend-info"/>
             </HBox>
             <Label fx:id="kpiSelectedCopies" text="1" styleClass="metric-value"/>
-            <Label text="Labels in print queue" styleClass="metric-note"/>
+            <Label text="Labels in print queue" wrapText="true" styleClass="metric-note"/>
           </VBox>
         </HBox>
       </GridPane>

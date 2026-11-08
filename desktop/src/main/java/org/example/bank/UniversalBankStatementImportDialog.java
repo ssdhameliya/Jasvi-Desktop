@@ -229,12 +229,10 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         VBox dropZone = new VBox(6);
         dropZone.setAlignment(Pos.CENTER);
         dropZone.setPadding(new Insets(12));
-        String dropBg = lightMode ? "rgba(241, 245, 249, 0.92)" : "rgba(15, 23, 42, 0.45)";
-        String dropBorder = lightMode ? "rgba(2, 132, 199, 0.45)" : "rgba(56, 189, 248, 0.35)";
-        dropZone.setStyle("-fx-border-color: " + dropBorder + "; -fx-border-style: dashed; -fx-border-width: 2px; -fx-border-radius: 8px; -fx-background-radius: 8px; -fx-background-color: " + dropBg + ";");
+        dropZone.getStyleClass().add("universal-dropzone");
 
         Label dropText = new Label("Drag & Drop ANY Bank Statement file here (.xlsx, .xls, .csv)");
-        dropText.setStyle("-fx-text-fill: " + (lightMode ? "#334155" : "#94a3b8") + "; -fx-font-weight: 600; -fx-font-size: 12px;");
+        dropText.getStyleClass().add("universal-dropzone-text");
         dropZone.getChildren().addAll(IconFactory.icon("import", 22), dropText);
 
         dropZone.setOnDragOver(event -> {

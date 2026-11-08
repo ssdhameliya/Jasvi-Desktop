@@ -4,6 +4,7 @@ import javafx.beans.property.*;
 import javafx.collections.*;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.layout.StackPane;
 import org.example.api.admin.AdminApiClient;
 import org.example.navigation.ScreenLifecycle;
 import org.example.util.IconFactory;
@@ -19,6 +20,7 @@ public class RoleManagementController implements ScreenLifecycle {
     @FXML private TableView<RoleRow> roleTable;
     @FXML private TableColumn<RoleRow,String> colName,colDescription,colStatus;
     @FXML private TableColumn<RoleRow,Number> colUsers;
+    @FXML private StackPane kpiRolesIcon, kpiAssignedIcon, kpiCustomIcon;
     @FXML private Label lblRoles,lblAssigned,lblCustom,lblRegistrationRoleStatus;
     @FXML private ComboBox<String> cmbRegistrationRole;
     @FXML private Button btnSaveRegistrationRole;

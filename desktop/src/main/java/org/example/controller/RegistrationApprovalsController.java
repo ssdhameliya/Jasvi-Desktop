@@ -15,6 +15,7 @@ import java.util.List;
 
 public class RegistrationApprovalsController implements ScreenLifecycle {
     @FXML private StackPane pageIcon;
+    @FXML private StackPane kpiPendingIcon, kpiVerifiedIcon;
     @FXML private Label lblPending,lblVerified,lblMessage;
     @FXML private TableView<Row> table;
     @FXML private TableColumn<Row,String> colUser,colEmail,colRole,colEmailVerified,colMfa,colRequested,colStatus;
@@ -26,6 +27,8 @@ public class RegistrationApprovalsController implements ScreenLifecycle {
 
     @FXML public void initialize(){
         if(pageIcon!=null)pageIcon.getChildren().setAll(IconFactory.icon("security",24));
+        if(kpiPendingIcon!=null)kpiPendingIcon.getChildren().setAll(IconFactory.icon("pending",20));
+        if(kpiVerifiedIcon!=null)kpiVerifiedIcon.getChildren().setAll(IconFactory.icon("complete",20));
         colUser.setCellValueFactory(v->v.getValue().user);
         colEmail.setCellValueFactory(v->v.getValue().email);
         colRole.setCellValueFactory(v->v.getValue().role);
