@@ -18,6 +18,11 @@ class SearchableComboBoxHelperTest {
 
     @BeforeAll
     static void initJavaFx() {
+        String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+        if (os.contains("linux") && (System.getenv("DISPLAY") == null || System.getenv("DISPLAY").isBlank())) {
+            javaFxAvailable = false;
+            return;
+        }
         try {
             CountDownLatch latch = new CountDownLatch(1);
             Platform.startup(latch::countDown);
