@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import javafx.application.Platform;
 import javafx.beans.property.SimpleLongProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -242,11 +244,11 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                     isRefreshing.set(false);
                     masterList.setAll(list);
                     applyFilters();
-                    ToastManager.success(tableClients, "Clients Loaded", list.size() + " verified client profiles synced.");
+                    AppDialogService.success(tableClients, "Clients Loaded", list.size() + " verified client profiles synced.");
                 },
                 failure -> {
                     isRefreshing.set(false);
-                    ToastManager.error(tableClients, "Load Failed", failure.getMessage());
+                    AppDialogService.error(tableClients, "Load Failed", failure.getMessage());
                 }
         );
     }
@@ -266,10 +268,23 @@ public class ClientsDirectoryController implements ScreenLifecycle {
 
         DialogPane pane = dialog.getDialogPane();
         pane.getStyleClass().addAll("approved-dialog", "erp-client-dialog");
-        pane.setMinWidth(880);
-        pane.setPrefWidth(900);
-        pane.setMinHeight(640);
-        pane.setPrefHeight(680);
+
+        javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(tableClients);
+        double maxW = Math.max(760, screen.getWidth() - 48);
+        double maxH = Math.max(500, screen.getHeight() - 48);
+        double targetW = Math.min(maxW, Math.max(760, Math.min(900, screen.getWidth() * 0.78)));
+        double targetH = Math.min(maxH, Math.max(500, Math.min(680, screen.getHeight() * 0.82)));
+        pane.setPrefSize(targetW, targetH);
+        pane.setMaxWidth(maxW);
+        pane.setMaxHeight(maxH);
+        pane.setMinWidth(Math.min(720, targetW));
+        pane.setMinHeight(Math.min(460, targetH));
+
+        dialog.setOnShown(ev -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, tableClients);
+            }
+        });
 
         VBox content = new VBox(12);
         content.setPadding(new Insets(16));
@@ -381,7 +396,7 @@ public class ClientsDirectoryController implements ScreenLifecycle {
         btnVerify.setOnAction(ev -> {
             String gstin = txtGstin.getText().trim().toUpperCase(Locale.ROOT);
             if (gstin.length() != 15) {
-                ToastManager.warning(pane, "Invalid GSTIN", "GSTIN must be exactly 15 alphanumeric characters.");
+                AppDialogService.warning(pane, "Invalid GSTIN", "GSTIN must be exactly 15 alphanumeric characters.");
                 return;
             }
             UiTaskExecutor.submitAction(
@@ -402,13 +417,13 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                         lblStatusBadge.setText(resp.status());
                         if (resp.isValid() && resp.legalName() != null && !resp.legalName().isBlank()) {
                             lblStatusBadge.getStyleClass().setAll("status-badge", "status-active");
-                            ToastManager.success(pane, "Verified", "Authoritative profile fetched for " + resp.legalName());
+                            AppDialogService.success(pane, "Verified", "Authoritative profile fetched for " + resp.legalName());
                         } else {
                             lblStatusBadge.getStyleClass().setAll("status-badge", "status-inactive");
-                            ToastManager.info(pane, "GSTIN Validated", "Format verified. Please enter client legal name and address to save.");
+                            AppDialogService.info(pane, "GSTIN Validated", "Format verified. Please enter client legal name and address to save.");
                         }
                     },
-                    err -> ToastManager.error(pane, "Verification Error", err.getMessage())
+                    err -> AppDialogService.error(pane, "Verification Error", err.getMessage())
             );
         });
 
@@ -441,10 +456,10 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                                 }
                                 org.example.tally.GstFullDetailsDialog.show(tableClients, p);
                             },
-                            err -> ToastManager.error(pane, "Verification Error", err.getMessage())
+                            err -> AppDialogService.error(pane, "Verification Error", err.getMessage())
                     );
                 } else {
-                    ToastManager.warning(pane, "Invalid GSTIN", "Please enter a valid 15-character GSTIN first.");
+                    AppDialogService.warning(pane, "Invalid GSTIN", "Please enter a valid 15-character GSTIN first.");
                 }
             }
         });
@@ -455,14 +470,14 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                 javafx.scene.input.ClipboardContent clip = new javafx.scene.input.ClipboardContent();
                 clip.putString(gstin);
                 javafx.scene.input.Clipboard.getSystemClipboard().setContent(clip);
-                ToastManager.info(pane, "Copied", "GSTIN copied to clipboard. Opening GST Portal...");
+                AppDialogService.info(pane, "Copied", "GSTIN copied to clipboard. Opening GST Portal...");
             }
             try {
                 if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
                     java.awt.Desktop.getDesktop().browse(new java.net.URI("https://services.gst.gov.in/services/searchtp"));
                 }
             } catch (Exception ex) {
-                ToastManager.error(pane, "Portal Error", "Unable to open browser: " + ex.getMessage());
+                AppDialogService.error(pane, "Portal Error", "Unable to open browser: " + ex.getMessage());
             }
         });
 
@@ -480,7 +495,7 @@ public class ClientsDirectoryController implements ScreenLifecycle {
             String trade = txtTrade.getText().trim();
             String legal = txtLegal.getText().trim();
             if (gstin.isBlank() || trade.isBlank()) {
-                ToastManager.warning(tableClients, "Missing Data", "GSTIN and Trade Name are required.");
+                AppDialogService.warning(tableClients, "Missing Data", "GSTIN and Trade Name are required.");
                 return;
             }
 
@@ -524,9 +539,9 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                     () -> api.saveProfile(dto),
                     saved -> {
                         handleRefresh();
-                        ToastManager.success(tableClients, "Client Created", "Client " + saved.clientName() + " onboarded successfully.");
+                        AppDialogService.success(tableClients, "Client Created", "Client " + saved.clientName() + " onboarded successfully.");
                     },
-                    failure -> ToastManager.error(tableClients, "Save Failed", failure.getMessage())
+                    failure -> AppDialogService.error(tableClients, "Save Failed", failure.getMessage())
             );
         });
     }
@@ -550,9 +565,9 @@ public class ClientsDirectoryController implements ScreenLifecycle {
                 ok -> {
                     masterList.remove(row);
                     updateKpiMetrics();
-                    ToastManager.info(tableClients, "Deleted", "Client removed.");
+                    AppDialogService.info(tableClients, "Deleted", "Client removed.");
                 },
-                failure -> ToastManager.error(tableClients, "Delete Failed", failure.getMessage())
+                failure -> AppDialogService.error(tableClients, "Delete Failed", failure.getMessage())
         );
     }
 

@@ -1707,7 +1707,9 @@
 .dse-theme-light .spinner.erp-input-active-focused,
 .dse-theme-light .approved-input.erp-input-active-focused,
 .dse-theme-light .erp-control-input.erp-input-active-focused,
-.dse-theme-light .search-shell.erp-input-active-focused {
+.dse-theme-light .search-shell.erp-input-active-focused,
+.dse-theme-light .sales-entry-item-search-shell.erp-input-active-focused,
+.dse-theme-light .erp-item-search-shell.erp-input-active-focused {
     -fx-background-color: #ffffff;
     -fx-border-color: #0d9488;
     -fx-border-width: 1.8px;
@@ -1730,7 +1732,9 @@
 .dse-theme-dark .spinner.erp-input-active-focused,
 .dse-theme-dark .approved-input.erp-input-active-focused,
 .dse-theme-dark .erp-control-input.erp-input-active-focused,
-.dse-theme-dark .search-shell.erp-input-active-focused {
+.dse-theme-dark .search-shell.erp-input-active-focused,
+.dse-theme-dark .sales-entry-item-search-shell.erp-input-active-focused,
+.dse-theme-dark .erp-item-search-shell.erp-input-active-focused {
     -fx-background-color: rgba(15, 23, 42, 0.95);
     -fx-border-color: #2dd4bf;
     -fx-border-width: 1.8px;
@@ -1755,6 +1759,12 @@
 .search-shell > .text-field,
 .search-shell > .text-field:focused,
 .search-shell > .text-field.erp-input-active-focused,
+.sales-entry-item-search-shell > .text-field,
+.sales-entry-item-search-shell > .text-field:focused,
+.sales-entry-item-search-shell > .text-field.erp-input-active-focused,
+.erp-item-search-shell > .text-field,
+.erp-item-search-shell > .text-field:focused,
+.erp-item-search-shell > .text-field.erp-input-active-focused,
 .finance-filter-search-shell > .text-field,
 .finance-filter-search-shell > .text-field:focused,
 .finance-filter-search-shell > .text-field.erp-input-active-focused,
@@ -1864,4 +1874,123 @@
 }
 .diagnostic-level-info {
     -fx-font-weight: 600;
+}
+
+/* ==========================================================================
+   UNIVERSAL 3D CLASSY GLASSMORPHISM LOADING OVERLAY (Rule 5 & Rule 12 Compliant)
+   ========================================================================== */
+.erp-loading-overlay {
+    -fx-alignment: center;
+    -fx-background-color: rgba(6, 11, 24, 0.70);
+}
+
+.dse-theme-light .erp-loading-overlay {
+    -fx-background-color: rgba(241, 245, 249, 0.55);
+}
+
+.erp-loading-card {
+    -fx-alignment: center;
+    -fx-spacing: 14;
+    -fx-background-color: linear-gradient(to bottom right, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
+    -fx-background-radius: 18;
+    -fx-border-color: rgba(56, 189, 248, 0.40);
+    -fx-border-radius: 18;
+    -fx-border-width: 1.2;
+    -fx-padding: 26 36;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.65), 32, 0, 0, 10);
+}
+
+.dse-theme-light .erp-loading-card {
+    -fx-background-color: linear-gradient(to bottom right, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.90));
+    -fx-border-color: rgba(2, 132, 199, 0.35);
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.16), 28, 0, 0, 8);
+}
+
+.erp-loading-halo {
+    -fx-fill: rgba(56, 189, 248, 0.14);
+    -fx-effect: dropshadow(gaussian, rgba(56, 189, 248, 0.45), 18, 0, 0, 0);
+}
+
+.dse-theme-light .erp-loading-halo {
+    -fx-fill: rgba(2, 132, 199, 0.12);
+    -fx-effect: dropshadow(gaussian, rgba(14, 165, 233, 0.35), 16, 0, 0, 0);
+}
+
+.erp-loading-spinner {
+    -fx-pref-width: 56px;
+    -fx-pref-height: 56px;
+    -fx-progress-color: #38bdf8;
+}
+
+.dse-theme-light .erp-loading-spinner {
+    -fx-progress-color: #0284c7;
+}
+
+.erp-loading-text {
+    -fx-text-fill: #38bdf8;
+    -fx-font-size: 14px;
+    -fx-font-weight: 800;
+    -fx-letter-spacing: 0.3px;
+}
+
+.dse-theme-light .erp-loading-text {
+    -fx-text-fill: #0284c7;
+}
+
+.erp-loading-subtext {
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+
+.dse-theme-light .erp-loading-subtext {
+    -fx-text-fill: #64748b;
+}
+
+/* =========================================================
+   UNIVERSAL SCREEN GUIDANCE & OPERATIONAL DIALOG
+   ========================================================= */
+.erp-guidance-dialog {
+    -fx-pref-width: 800px;
+    -fx-max-width: 860px;
+}
+.erp-guidance-dialog-content {
+    -fx-background-color: transparent;
+}
+.erp-guidance-header-box {
+    -fx-padding: 10px 14px;
+    -fx-spacing: 14px;
+}
+.erp-guidance-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: 800;
+}
+.erp-guidance-subtitle {
+    -fx-font-size: 12.5px;
+    -fx-font-weight: 500;
+}
+.erp-guidance-card {
+    -fx-spacing: 8px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+}
+.erp-guidance-card-title {
+    -fx-font-size: 13.5px;
+    -fx-font-weight: 700;
+}
+.erp-guidance-item-text {
+    -fx-font-size: 12px;
+    -fx-line-spacing: 2px;
+}
+.erp-guidance-bold-green {
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+}
+.erp-guidance-bold-red {
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+}
+.erp-screen-guide-button {
+    -fx-font-weight: 600;
+    -fx-cursor: hand;
 }

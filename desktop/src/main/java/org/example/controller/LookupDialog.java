@@ -46,11 +46,18 @@ public class LookupDialog extends OwnedDialog<Lookup> {
             pane.getStyleClass().add("light-theme");
         }
 
-        // Dynamic adaptive sizing: natural content bounds with zero margin waste (Rule 12)
-        pane.setPrefWidth(1080);
-        pane.setMinWidth(960);
-        pane.setPrefHeight(viewOnly ? 640 : 720);
-        pane.setMinHeight(viewOnly ? 480 : 560);
+        // Dynamic adaptive sizing: responsive bounds based on monitor usable area (Rule 12)
+        javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
+        double maxW = Math.max(760, screen.getWidth() - 48);
+        double maxH = Math.max(500, screen.getHeight() - 48);
+        double targetW = Math.min(maxW, Math.max(880, Math.min(1080, screen.getWidth() * 0.80)));
+        double targetH = Math.min(maxH, Math.max(viewOnly ? 480 : 560, Math.min(viewOnly ? 640 : 720, screen.getHeight() * 0.80)));
+
+        pane.setPrefSize(targetW, targetH);
+        pane.setMaxWidth(maxW);
+        pane.setMaxHeight(maxH);
+        pane.setMinWidth(Math.min(800, targetW));
+        pane.setMinHeight(Math.min(460, targetH));
 
         pane.getButtonTypes().add(ButtonType.CLOSE);
         setOnShowing(ev -> {
@@ -58,6 +65,11 @@ public class LookupDialog extends OwnedDialog<Lookup> {
             if (defaultButtonBar != null) {
                 defaultButtonBar.setVisible(false);
                 defaultButtonBar.setManaged(false);
+            }
+        });
+        setOnShown(ev -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
             }
         });
 

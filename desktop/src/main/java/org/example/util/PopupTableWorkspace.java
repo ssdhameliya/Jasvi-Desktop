@@ -130,18 +130,25 @@ public final class PopupTableWorkspace {
                         ? Screen.getPrimary()
                         : Screen.getScreensForRectangle(owner.getX(), owner.getY(), Math.max(1, owner.getWidth()), Math.max(1, owner.getHeight()))
                                 .stream().findFirst().orElse(Screen.getPrimary());
-                double usable = Math.max(640, screen.getVisualBounds().getWidth() - 64);
-                double target = prefWidth > 0 ? Math.min(prefWidth, usable) : usable;
+                double usableW = Math.max(640, screen.getVisualBounds().getWidth() - 64);
+                double usableH = Math.max(480, screen.getVisualBounds().getHeight() - 64);
+                double target = prefWidth > 0 ? Math.min(prefWidth, usableW) : usableW;
                 dialog.getDialogPane().setPrefWidth(target);
-                dialog.getDialogPane().setMaxWidth(usable);
+                dialog.getDialogPane().setMaxWidth(usableW);
                 dialog.getDialogPane().setMinWidth(Math.min(720, target));
+                dialog.getDialogPane().setMaxHeight(usableH);
+            });
+            dialog.addEventHandler(DialogEvent.DIALOG_SHOWN, event -> {
+                if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                    WindowUtilsFx.fitDialogToOwnerScreen(stage, dialog.getOwner());
+                }
             });
         }
     }
 
     /**
      * Sizes core document inspection dialogs (Sale, Purchase, Returns, Quotation)
-     * to 88% of screen width and 88% of screen height, ensuring no clipping or margin waste.
+     * dynamically based on monitor usable bounds and content, ensuring zero clipping or margin waste.
      */
     public static void applyInspectionSizing(Dialog<?> dialog, Node ownerNode) {
         if (dialog == null) return;
@@ -152,17 +159,17 @@ public final class PopupTableWorkspace {
             if (!screens.isEmpty()) screen = screens.get(0);
         }
         Rectangle2D bounds = screen.getVisualBounds();
-        double maxAvailableW = Math.max(800, bounds.getWidth() - 32);
-        double maxAvailableH = Math.max(560, bounds.getHeight() - 48);
-        double targetW = Math.min(maxAvailableW, Math.max(1180, Math.min(1760, bounds.getWidth() * 0.88)));
-        double targetH = Math.min(maxAvailableH, Math.max(720, Math.min(980, bounds.getHeight() * 0.88)));
+        double maxAvailableW = Math.max(760, bounds.getWidth() - 32);
+        double maxAvailableH = Math.max(520, bounds.getHeight() - 48);
+        double targetW = Math.min(maxAvailableW, Math.max(1040, Math.min(1600, bounds.getWidth() * 0.82)));
+        double targetH = Math.min(maxAvailableH, Math.max(560, Math.min(880, bounds.getHeight() * 0.82)));
 
         DialogPane pane = dialog.getDialogPane();
         pane.setPrefSize(targetW, targetH);
         pane.setMaxWidth(maxAvailableW);
         pane.setMaxHeight(maxAvailableH);
-        pane.setMinWidth(Math.min(1080, targetW));
-        pane.setMinHeight(Math.min(680, targetH));
+        pane.setMinWidth(Math.min(920, targetW));
+        pane.setMinHeight(Math.min(480, targetH));
         if (!pane.getStyleClass().contains("erp-table-workspace-dialog")) {
             pane.getStyleClass().add("erp-table-workspace-dialog");
         }
@@ -170,11 +177,16 @@ public final class PopupTableWorkspace {
             pane.getStyleClass().add("erp-ui-standard");
         }
         dialog.setResizable(true);
+        dialog.addEventHandler(DialogEvent.DIALOG_SHOWN, event -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, stage.getOwner());
+            }
+        });
     }
 
     /**
      * Content-adaptive sizing for inspection dialogs with variable row counts (Audit Trail, Diagnostics).
-     * Eliminates empty dark voids when only a few rows exist while allowing expansion up to 84% screen height.
+     * Eliminates empty dark voids when only a few rows exist while allowing dynamic expansion.
      */
     public static void applyAdaptiveInspectionSizing(Dialog<?> dialog, Node ownerNode, int expectedRows) {
         if (dialog == null) return;
@@ -185,20 +197,20 @@ public final class PopupTableWorkspace {
             if (!screens.isEmpty()) screen = screens.get(0);
         }
         Rectangle2D bounds = screen.getVisualBounds();
-        double maxAvailableW = Math.max(800, bounds.getWidth() - 32);
-        double maxAvailableH = Math.max(560, bounds.getHeight() - 48);
-        double targetW = Math.min(maxAvailableW, Math.max(1100, Math.min(1600, bounds.getWidth() * 0.84)));
+        double maxAvailableW = Math.max(760, bounds.getWidth() - 32);
+        double maxAvailableH = Math.max(520, bounds.getHeight() - 48);
+        double targetW = Math.min(maxAvailableW, Math.max(900, Math.min(1480, bounds.getWidth() * 0.78)));
 
-        // Base chrome: accent (5px) + header (64px) + hero (70px) + toolbar (48px) + footer (50px) + margins ~ 250px
-        double contentH = 260.0 + Math.max(1, expectedRows) * 38.0;
-        double targetH = Math.min(maxAvailableH, Math.max(380.0, Math.min(840.0, contentH)));
+        // Base chrome: accent (5px) + header (64px) + hero (70px) + toolbar (48px) + footer (50px) + margins ~ 240px
+        double contentH = 240.0 + Math.max(1, expectedRows) * 38.0;
+        double targetH = Math.min(maxAvailableH, Math.max(340.0, Math.min(800.0, contentH)));
 
         DialogPane pane = dialog.getDialogPane();
         pane.setPrefSize(targetW, targetH);
         pane.setMaxWidth(maxAvailableW);
         pane.setMaxHeight(maxAvailableH);
-        pane.setMinWidth(Math.min(960, targetW));
-        pane.setMinHeight(Math.min(360, targetH));
+        pane.setMinWidth(Math.min(840, targetW));
+        pane.setMinHeight(Math.min(320, targetH));
         if (!pane.getStyleClass().contains("erp-table-workspace-dialog")) {
             pane.getStyleClass().add("erp-table-workspace-dialog");
         }
@@ -206,6 +218,11 @@ public final class PopupTableWorkspace {
             pane.getStyleClass().add("erp-ui-standard");
         }
         dialog.setResizable(true);
+        dialog.addEventHandler(DialogEvent.DIALOG_SHOWN, event -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, stage.getOwner());
+            }
+        });
     }
 
     public static void prepareTable(TableView<?> table, String profileClass) {

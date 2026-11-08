@@ -32,6 +32,7 @@ import org.example.navigation.ScreenLifecycle;
 import org.example.shortcut.ShortcutRegistry;
 import org.example.shortcut.ShortcutRegistry.Action;
 import org.example.util.AppDialogService;
+import org.example.util.ExportFeedbackManager;
 
 import java.awt.Desktop;
 import java.nio.file.Files;
@@ -3416,7 +3417,20 @@ public class PdfStudioController implements ScreenLifecycle {
         }
     }
 
-    @FXML private void exportPdf(){org.example.service.PermissionService.require("DOCUMENT_STUDIO.EXPORT_PDF", "export PDF output");if(template==null)return;FileChooser chooser=new FileChooser();chooser.setTitle("Export PDF");chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF files","*.pdf"));chooser.setInitialFileName(template.getName().replaceAll("[^A-Za-z0-9._-]","-")+".pdf");var file=chooser.showSaveDialog(root.getScene().getWindow());if(file==null)return;try{PdfStudioRenderer.render(template,previewData(),file.toPath());AppDialogService.success(root,"Test PDF exported",file.getAbsolutePath()+" • Production templates were not changed.");}catch(Exception e){AppDialogService.error(root,"Export failed","PDF Studio",rootMessage(e));}}
+    @FXML private void exportPdf(){
+        org.example.service.PermissionService.require("DOCUMENT_STUDIO.EXPORT_PDF", "export PDF output");
+        if(template==null)return;
+        String safeName = template.getName().replaceAll("[^A-Za-z0-9._-]","-");
+        java.io.File file = ExportFeedbackManager.resolveWorkspaceExportFile("PdfStudio", safeName, "pdf");
+        if(file==null)return;
+        if(!ExportFeedbackManager.checkFileWriteable(root, file))return;
+        try{
+            PdfStudioRenderer.render(template,previewData(),file.toPath());
+            ExportFeedbackManager.notifyExportSuccess(root, file, "Test PDF Exported");
+        }catch(Exception e){
+            AppDialogService.error(root,"Export failed","PDF Studio",rootMessage(e));
+        }
+    }
 
     private TemplateData previewData(){DocumentSample sample=cmbSampleDocument.getValue();if(sample==null)return currentPreviewData==null?DocumentDataService.sample(template.getDocumentType()):currentPreviewData;try{TemplateData data=DocumentDataService.load(template.getDocumentType(),sample.id());currentPreviewData=data;return data;}catch(Exception e){currentPreviewData=null;throw new IllegalStateException("Selected ERP record "+sample.id()+" could not be loaded. Preview/export cancelled.",e);}}
 

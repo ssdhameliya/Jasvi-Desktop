@@ -102,12 +102,18 @@ public final class OperationalUiSupport {
     public static Runnable beginRefresh(javafx.scene.control.Button button) {
         if (button == null) return () -> {};
 
+        button.getProperties().put("erp.refresh.managed", Boolean.TRUE);
         String originalText = button.getText();
         Node graphic = button.getGraphic();
 
         button.setDisable(true);
         if (originalText != null && !originalText.isBlank()) {
             button.setText("Refreshing…");
+        }
+
+        javafx.scene.layout.StackPane host = LoadingOverlayHelper.findHost(button);
+        if (host != null) {
+            LoadingOverlayHelper.show(host, "Refreshing records…");
         }
 
         javafx.animation.RotateTransition rt = null;
@@ -121,6 +127,8 @@ public final class OperationalUiSupport {
 
         final javafx.animation.RotateTransition finalRt = rt;
         return () -> Platform.runLater(() -> {
+            button.getProperties().remove("erp.refresh.managed");
+            button.getProperties().remove("erp.refresh.running");
             if (finalRt != null) {
                 finalRt.stop();
             }
@@ -129,6 +137,9 @@ public final class OperationalUiSupport {
             }
             button.setText(originalText);
             button.setDisable(false);
+            if (host != null) {
+                LoadingOverlayHelper.hide(host);
+            }
         });
     }
 

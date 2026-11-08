@@ -511,12 +511,12 @@ public final class ReturnDocumentInspectionDialog {
                     return api.details(details.no());
                 }, updatedDetails -> {
                     ScreenRefreshPolicy.invalidate(isSales ? "sales-returns" : "purchase-returns");
-                    ToastManager.success(dialog.getDialogPane(), "Reason Updated", "Return reason was updated successfully.");
+                    AppDialogService.success(dialog.getDialogPane(), "Reason Updated", "Return reason was updated successfully.");
                     if (onUpdated != null) onUpdated.run();
                     if (updatedDetails != null) {
                         renderContent(dialog, host, updatedDetails, isSales, api, support, onUpdated);
                     }
-                }, failure -> ToastManager.error(dialog.getDialogPane(), "Update Failed", failure.getMessage()));
+                }, failure -> AppDialogService.error(dialog.getDialogPane(), "Update Failed", failure.getMessage()));
             });
         });
 
@@ -566,9 +566,9 @@ public final class ReturnDocumentInspectionDialog {
                 try {
                     if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(path.toFile());
                 } catch (Exception ex) {
-                    ToastManager.error(dialog.getDialogPane(), "Failed to open PDF", ex.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Failed to open PDF", ex.getMessage());
                 }
-            }, err -> ToastManager.error(dialog.getDialogPane(), "PDF generation failed", err.getMessage()));
+            }, err -> AppDialogService.error(dialog.getDialogPane(), "PDF generation failed", err.getMessage()));
         });
 
         // 5. Excel
@@ -585,9 +585,9 @@ public final class ReturnDocumentInspectionDialog {
                 try {
                     if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(path.toFile());
                 } catch (Exception ex) {
-                    ToastManager.error(dialog.getDialogPane(), "Failed to open Excel", ex.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Failed to open Excel", ex.getMessage());
                 }
-            }, err -> ToastManager.error(dialog.getDialogPane(), "Excel export failed", err.getMessage()));
+            }, err -> AppDialogService.error(dialog.getDialogPane(), "Excel export failed", err.getMessage()));
         });
 
         // 6. Email
@@ -624,10 +624,10 @@ public final class ReturnDocumentInspectionDialog {
                     reporter.stage(2, 2, "Email delivery complete.");
                     reporter.log("Delivered return note #" + details.no() + " to " + result.recipientEmail());
                 }, () -> {
-                    ToastManager.success(dialog.getDialogPane(), "Email sent", "Return #" + details.no() + " emailed successfully to " + result.recipientEmail() + ".");
+                    AppDialogService.success(dialog.getDialogPane(), "Email sent", "Return #" + details.no() + " emailed successfully to " + result.recipientEmail() + ".");
                     if (onUpdated != null) onUpdated.run();
-                }, failure -> ToastManager.error(dialog.getDialogPane(), "Email delivery failed", failure.getMessage()));
-            }, failure -> ToastManager.error(dialog.getDialogPane(), "Failed to prepare email draft", failure.getMessage()));
+                }, failure -> AppDialogService.error(dialog.getDialogPane(), "Email delivery failed", failure.getMessage()));
+            }, failure -> AppDialogService.error(dialog.getDialogPane(), "Failed to prepare email draft", failure.getMessage()));
         });
 
         // 7. Audit Trail
@@ -643,7 +643,7 @@ public final class ReturnDocumentInspectionDialog {
                             ActivityTimelineDialog.show(dialog.getDialogPane(), module, res.recordId().intValue(), details.no());
                         }
                     },
-                    err -> ToastManager.error(dialog.getDialogPane(), "Audit record not found", err.getMessage()));
+                    err -> AppDialogService.error(dialog.getDialogPane(), "Audit record not found", err.getMessage()));
         });
 
         dock.getChildren().addAll(btnEditReason, btnOriginal, btnRefund, btnPdf, btnExcel, btnEmail, btnAudit);
@@ -661,14 +661,14 @@ public final class ReturnDocumentInspectionDialog {
                 }, updatedDetails -> {
                     ScreenRefreshPolicy.invalidate(isSales ? "sales-returns" : "purchase-returns");
                     NotificationService.add(details.no() + " approved.");
-                    ToastManager.success(dialog.getDialogPane(), "Approved", "Return " + details.no() + " approved successfully.");
+                    AppDialogService.success(dialog.getDialogPane(), "Approved", "Return " + details.no() + " approved successfully.");
                     if (onUpdated != null) onUpdated.run();
                     if (updatedDetails != null) {
                         renderContent(dialog, host, updatedDetails, isSales, api, support, onUpdated);
                     }
                 }, ex -> {
                     btnApprove.setDisable(false);
-                    ToastManager.error(dialog.getDialogPane(), "Approval failed", ex.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Approval failed", ex.getMessage());
                 });
             });
 
@@ -688,14 +688,14 @@ public final class ReturnDocumentInspectionDialog {
                     }, updatedDetails -> {
                         ScreenRefreshPolicy.invalidate(isSales ? "sales-returns" : "purchase-returns");
                         NotificationService.add(details.no() + " rejected.");
-                        ToastManager.success(dialog.getDialogPane(), "Rejected", "Return " + details.no() + " was rejected.");
+                        AppDialogService.success(dialog.getDialogPane(), "Rejected", "Return " + details.no() + " was rejected.");
                         if (onUpdated != null) onUpdated.run();
                         if (updatedDetails != null) {
                             renderContent(dialog, host, updatedDetails, isSales, api, support, onUpdated);
                         }
                     }, ex -> {
                         btnReject.setDisable(false);
-                        ToastManager.error(dialog.getDialogPane(), "Rejection failed", ex.getMessage());
+                        AppDialogService.error(dialog.getDialogPane(), "Rejection failed", ex.getMessage());
                     });
                 });
             });

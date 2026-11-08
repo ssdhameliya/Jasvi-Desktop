@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import org.example.api.profile.ProfileApiClient;
@@ -81,7 +83,7 @@ public class ProfileController implements ScreenLifecycle {
     }
 
     @Override public void onScreenHidden(){UiTaskExecutor.cancel("profile-load");}
-    private void show(Alert.AlertType t,String h,String m){String text=m==null?"The request could not be completed.":m;if(t==Alert.AlertType.INFORMATION){org.example.util.ToastManager.success(btnSave,h,text);return;}OwnedAlert a=new OwnedAlert(t,text);a.setHeaderText(h);a.showAndWait();}
+    private void show(Alert.AlertType t,String h,String m){String text=m==null?"The request could not be completed.":m;if(t==Alert.AlertType.INFORMATION){org.example.util.AppDialogService.success(btnSave,h,text);return;}OwnedAlert a=new OwnedAlert(t,text);a.setHeaderText(h);a.showAndWait();}
     private static String safe(String v){return v==null?"":v;}
     private static String displayRole(String v){return "SALES".equalsIgnoreCase(v)?"Sales":safe(v).toUpperCase(Locale.ROOT);}
     private static String initials(String n,String u){String s=safe(n).isBlank()?safe(u):n;String[] p=s.trim().split("\\s+");if(p.length==0||p[0].isBlank())return "U";return(p[0].substring(0,1)+(p.length>1?p[p.length-1].substring(0,1):"")).toUpperCase(Locale.ROOT);}

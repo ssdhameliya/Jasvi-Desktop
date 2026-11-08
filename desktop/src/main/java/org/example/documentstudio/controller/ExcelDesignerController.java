@@ -41,6 +41,7 @@ import org.example.documentstudio.service.ExcelStudioHelpService;
 import org.example.documentstudio.service.TemplateFieldCatalog;
 import org.example.util.IconFactory;
 import org.example.util.AppDialogService;
+import org.example.util.ExportFeedbackManager;
 import org.example.shortcut.ShortcutRegistry;
 import org.example.shortcut.ShortcutRegistry.Action;
 import org.example.navigation.UnsavedChangesManager;
@@ -1290,7 +1291,21 @@ public class ExcelDesignerController {
             if(Desktop.isDesktopSupported())Desktop.getDesktop().open(tmp.toFile());else AppDialogService.info(root,"Preview generated","Excel Studio",tmp.toString());
         }catch(Exception e){AppDialogService.error(root,"Preview failed","Excel Studio",rootMessage(e));}
     }
-    @FXML private void download(){org.example.service.PermissionService.require("DOCUMENT_STUDIO.MANAGE_TEMPLATES", "download an Excel template");try{commitActiveEdit();saveVisibleCells(false);FileChooser chooser=new FileChooser();chooser.setTitle("Save Excel Template");chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Workbook","*.xlsx"));chooser.setInitialFileName(template.getName().replaceAll("[^A-Za-z0-9._ -]","_")+".xlsx");var file=chooser.showSaveDialog(root.getScene().getWindow());if(file==null)return;Files.write(file.toPath(),snapshotWorkbook());AppDialogService.success(root,"Template exported",file.getName()+" was saved.");}catch(Exception e){AppDialogService.error(root,"Export failed","Excel Studio",rootMessage(e));}}
+    @FXML private void download(){
+        org.example.service.PermissionService.require("DOCUMENT_STUDIO.MANAGE_TEMPLATES", "download an Excel template");
+        try{
+            commitActiveEdit();
+            saveVisibleCells(false);
+            String safeName = template.getName().replaceAll("[^A-Za-z0-9._ -]","_");
+            java.io.File file = ExportFeedbackManager.resolveWorkspaceExportFile("Templates", safeName, "xlsx");
+            if (file == null) return;
+            if (!ExportFeedbackManager.checkFileWriteable(root, file)) return;
+            Files.write(file.toPath(), snapshotWorkbook());
+            ExportFeedbackManager.notifyExportSuccess(root, file, "Excel Template Exported");
+        }catch(Exception e){
+            AppDialogService.error(root,"Export failed","Excel Studio",rootMessage(e));
+        }
+    }
     @FXML private void downloadMappingGuide(){
         try {
             Path guide = ExcelStudioHelpService.exportToUserDownloadLocation();

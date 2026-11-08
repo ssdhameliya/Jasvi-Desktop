@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -245,7 +247,7 @@ public class GstComplianceController implements ScreenLifecycle {
                             javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
                             content.putString(row.gstin());
                             javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
-                            ToastManager.info(tblReconciliation, "Copied", "GSTIN " + row.gstin() + " copied to clipboard.");
+                            AppDialogService.info(tblReconciliation, "Copied", "GSTIN " + row.gstin() + " copied to clipboard.");
                         }
                     });
 
@@ -505,7 +507,7 @@ public class GstComplianceController implements ScreenLifecycle {
             target = tblReconciliation.getSelectionModel().getSelectedItem();
         }
         if (target == null) {
-            ToastManager.warning(tblReconciliation, "Select Record", "Please select a reconciliation record to notify the supplier.");
+            AppDialogService.warning(tblReconciliation, "Select Record", "Please select a reconciliation record to notify the supplier.");
             return;
         }
         openSupplierNoticeDialog(target);
@@ -578,9 +580,9 @@ public class GstComplianceController implements ScreenLifecycle {
                 if (!resp.success()) {
                     throw new IllegalStateException(resp.message());
                 }
-                ToastManager.success(tblReconciliation, "WhatsApp Sent", "Statutory notice sent via WAHA channel: " + resp.channelCode());
+                AppDialogService.success(tblReconciliation, "WhatsApp Sent", "Statutory notice sent via WAHA channel: " + resp.channelCode());
             } catch (Exception ex) {
-                ToastManager.error(tblReconciliation, "WhatsApp Error", ex.getMessage());
+                AppDialogService.error(tblReconciliation, "WhatsApp Error", ex.getMessage());
             }
         });
 
@@ -594,9 +596,9 @@ public class GstComplianceController implements ScreenLifecycle {
                 if (Desktop.isDesktopSupported()) {
                     Desktop.getDesktop().browse(URI.create(mailto));
                 }
-                ToastManager.success(tblReconciliation, "Email Client Opened", "Composed notice email in default mail client.");
+                AppDialogService.success(tblReconciliation, "Email Client Opened", "Composed notice email in default mail client.");
             } catch (Exception ex) {
-                ToastManager.error(tblReconciliation, "Email Error", ex.getMessage());
+                AppDialogService.error(tblReconciliation, "Email Error", ex.getMessage());
             }
         });
 
@@ -606,7 +608,7 @@ public class GstComplianceController implements ScreenLifecycle {
             javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
             cc.putString(noticeMessage);
             javafx.scene.input.Clipboard.getSystemClipboard().setContent(cc);
-            ToastManager.info(tblReconciliation, "Notice Copied", "Statutory notice copied to clipboard.");
+            AppDialogService.info(tblReconciliation, "Notice Copied", "Statutory notice copied to clipboard.");
         });
 
         btnRow.getChildren().addAll(btnWhatsapp, btnEmail, btnCopy);
@@ -896,7 +898,7 @@ public class GstComplianceController implements ScreenLifecycle {
                     filterGstr1Records();
                     gstr1DocsRows.setAll(result.docsRows);
                 },
-                ex -> ToastManager.error(tblReconciliation, "GST Load Error", "Failed to load GST records: " + ex.getMessage())
+                ex -> AppDialogService.error(tblReconciliation, "GST Load Error", "Failed to load GST records: " + ex.getMessage())
         );
     }
 
@@ -959,7 +961,7 @@ public class GstComplianceController implements ScreenLifecycle {
     @FXML
     public void refresh2b() {
         loadGstDataAsync();
-        ToastManager.info(tblReconciliation, "Refreshed", "GST Reconciliation and GSTR-1 data refreshed.");
+        AppDialogService.info(tblReconciliation, "Refreshed", "GST Reconciliation and GSTR-1 data refreshed.");
     }
 
     @FXML
@@ -1052,23 +1054,19 @@ public class GstComplianceController implements ScreenLifecycle {
 
             return new int[]{importedCount, matchedCount};
         }, res -> {
-            ToastManager.success(tblReconciliation, "GSTR-2B Imported",
+            AppDialogService.success(tblReconciliation, "GSTR-2B Imported",
                     "Processed " + res[0] + " invoice records from " + file.getName() + " (" + res[1] + " matched with books).");
             loadGstDataAsync();
-        }, err -> ToastManager.error(tblReconciliation, "Import Error", "Could not parse GSTR-2B JSON: " + err.getMessage()));
+        }, err -> AppDialogService.error(tblReconciliation, "Import Error", "Could not parse GSTR-2B JSON: " + err.getMessage()));
     }
 
     @FXML
     public void exportGstr1Json() {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save Government GSTR-1 Offline Tool JSON");
         LocalDate to = dpToDate != null && dpToDate.getValue() != null ? dpToDate.getValue() : BusinessClock.today();
         String period = to.format(DateTimeFormatter.ofPattern("MMyyyy"));
-        chooser.setInitialFileName("GSTR1_" + period + ".json");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"));
-
-        File file = chooser.showSaveDialog(tblReconciliation.getScene().getWindow());
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("GST", "GSTR1_" + period, "json");
         if (file == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(tblReconciliation, file)) return;
 
         UiTaskExecutor.submitAction("gst-1-export", () -> {
             List<Sales> sales = salesService.getAll();
@@ -1216,25 +1214,17 @@ public class GstComplianceController implements ScreenLifecycle {
             ApiRuntime.JSON.writerWithDefaultPrettyPrinter().writeValue(file, root);
             return count;
         }, cnt -> {
-            String fullPath = file.getAbsolutePath();
-            ToastManager.success(tblReconciliation, "GSTR-1 JSON Exported", "Government offline tool JSON saved: " + fullPath);
-            Alert alert = new OwnedAlert(Alert.AlertType.INFORMATION, "GSTR-1 JSON file successfully exported to:\n\n" + fullPath + "\n\n(" + cnt + " sales invoices included)", ButtonType.OK);
-            alert.setHeaderText("Government GST Offline Tool JSON Ready");
-            alert.showAndWait();
-        }, err -> ToastManager.error(tblReconciliation, "Export Error", "Failed to generate GSTR-1 JSON: " + err.getMessage()));
+            ExportFeedbackManager.notifyExportSuccess(tblReconciliation, file, "Government GSTR-1 Offline Tool JSON", cnt);
+        }, err -> AppDialogService.error(tblReconciliation, "Export Error", "GST Export Failed", "Failed to generate GSTR-1 JSON: " + err.getMessage()));
     }
 
     @FXML
     public void exportGstr1Excel() {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save Government GSTR-1 Offline Tool Excel");
         LocalDate to = dpToDate != null && dpToDate.getValue() != null ? dpToDate.getValue() : BusinessClock.today();
         String period = to.format(DateTimeFormatter.ofPattern("MMyyyy"));
-        chooser.setInitialFileName("GSTR1_Offline_Return_" + period + ".xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Workbook (*.xlsx)", "*.xlsx"));
-
-        File file = chooser.showSaveDialog(tblReconciliation.getScene().getWindow());
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("GST", "GSTR1_Offline_Return_" + period, "xlsx");
         if (file == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(tblReconciliation, file)) return;
 
         UiTaskExecutor.submitAction("gst-1-excel", () -> {
             try (Workbook wb = new XSSFWorkbook()) {
@@ -1349,12 +1339,8 @@ public class GstComplianceController implements ScreenLifecycle {
                 return gstr1B2bRows.size() + gstr1B2csRows.size();
             }
         }, totalCount -> {
-            String fullPath = file.getAbsolutePath();
-            ToastManager.success(tblReconciliation, "Excel Exported", "GSTR-1 Excel saved: " + fullPath);
-            Alert alert = new OwnedAlert(Alert.AlertType.INFORMATION, "GSTR-1 multi-sheet Excel file saved successfully:\n\n" + fullPath + "\n\n(Contains Tables 4, 7, 9B, 12, and 13)", ButtonType.OK);
-            alert.setHeaderText("Government GST Offline Tool Compatible Excel");
-            alert.showAndWait();
-        }, err -> ToastManager.error(tblReconciliation, "Export Error", "Failed to create Excel workbook: " + err.getMessage()));
+            ExportFeedbackManager.notifyExportSuccess(tblReconciliation, file, "Government GSTR-1 Multi-Sheet Excel", totalCount);
+        }, err -> AppDialogService.error(tblReconciliation, "Export Error", "Excel Creation Failed", "Failed to create Excel workbook: " + err.getMessage()));
     }
 
     private String fmt(double val) {

@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import org.example.util.BusinessClock;
 import org.example.util.DatePickerFormatter;
 
@@ -33,6 +35,7 @@ import org.example.util.SemanticTableCells;
 import org.example.util.RegisterPageState;
 import org.example.util.RegisterUiSupport;
 import org.example.util.ScreenRefreshPolicy;
+import org.example.util.ExportFeedbackManager;
 
 import java.io.File;
 import java.io.PrintWriter;
@@ -163,7 +166,7 @@ public class PurchaseReturnsController implements ScreenLifecycle {
     @FXML private void nextPage(){if(pageState.next())load();}
     @FXML private void reset(){suppressAutoFilter=true;try{search.clear();supplier.setValue("All Suppliers");status.setValue("All Status");dpFrom.setValue(null);dpTo.setValue(null);}finally{suppressAutoFilter=false;}pageState.reset();load();}
     @FXML private void refreshWithFeedback(){explicitRefreshPending=true;if(btnRefreshReturns!=null){btnRefreshReturns.setDisable(true);btnRefreshReturns.setText("Refreshing...");}load();}
-    private void finishExplicitRefresh(boolean success){if(!explicitRefreshPending)return;explicitRefreshPending=false;if(btnRefreshReturns!=null){btnRefreshReturns.setDisable(false);btnRefreshReturns.setText("Refresh");}if(success)org.example.util.ToastManager.info(table,"Refreshed","Purchase Returns is up to date.");}
+    private void finishExplicitRefresh(boolean success){if(!explicitRefreshPending)return;explicitRefreshPending=false;if(btnRefreshReturns!=null){btnRefreshReturns.setDisable(false);btnRefreshReturns.setText("Refresh");}if(success)org.example.util.AppDialogService.info(table,"Refreshed","Purchase Returns is up to date.");}
     @Override public void onScreenShown(boolean reusedFromCache){org.example.util.OperationalUiSupport.focusWorkArea(table);if(all.isEmpty()||(reusedFromCache&&ScreenRefreshPolicy.shouldRefresh("purchase-returns",ScreenRefreshPolicy.Mode.WHEN_STALE,java.time.Duration.ofSeconds(30))))load();
         LinkedRecordContext.Target linked = LinkedRecordContext.consume("PURCHASE_RETURN");
         if (linked != null && !linked.documentNo().isBlank()) {
@@ -287,29 +290,29 @@ public class PurchaseReturnsController implements ScreenLifecycle {
         if(!confirm("Approve "+row.no()+"?\n\nApproval posts the Return stock movement and starts the Return settlement due period."))return;
         UiTaskExecutor.submitSerial("purchase-return-approve-"+row.no(),()->{ReturnWorkflowService.approve(row.no());return true;},ignored->{
             ScreenRefreshPolicy.invalidate("purchase-returns");ScreenRefreshPolicy.invalidate("purchase-register");
-            NotificationService.add(row.no()+" approved.");org.example.util.ToastManager.success(table,"Return approved",row.no()+" was approved successfully.");load();
+            NotificationService.add(row.no()+" approved.");org.example.util.AppDialogService.success(table,"Return approved",row.no()+" was approved successfully.");load();
         },failure->error(asException(failure)));
     }
     private void rejectReturn(Row row){
         if(row==null||!isPendingApproval(row))return;
         input("", "Reject Return", "Reason:").ifPresent(reason->UiTaskExecutor.submitSerial("purchase-return-reject-"+row.no(),()->{ReturnWorkflowService.reject(row.no(),reason);return true;},ignored->{
             ScreenRefreshPolicy.invalidate("purchase-returns");ScreenRefreshPolicy.invalidate("purchase-register");
-            NotificationService.add(row.no()+" rejected.");org.example.util.ToastManager.success(table,"Return rejected",row.no()+" was rejected successfully.");load();
+            NotificationService.add(row.no()+" rejected.");org.example.util.AppDialogService.success(table,"Return rejected",row.no()+" was rejected successfully.");load();
         },failure->error(asException(failure))));
     }
     private boolean isPendingApproval(Row row){return row!=null&&"PENDING APPROVAL".equalsIgnoreCase(safe(row.status()).trim());}
     private boolean isApproved(Row row){return row!=null&&"APPROVED".equalsIgnoreCase(safe(row.status()).trim());}
     private boolean isCancelled(Row row) { return row != null && "CANCELLED".equalsIgnoreCase(safe(row.status()).trim()); }
-    private void cancel(Row row) { if (!confirm("Cancel " + row.no() + " and reverse its stock movement?")) return; UiTaskExecutor.submitSerial("purchase-return-cancel-"+row.no(),()->{ReturnWorkflowService.cancel(row.no(),false);return true;},ignored->{ScreenRefreshPolicy.invalidate("purchase-returns");ScreenRefreshPolicy.invalidate("purchase-register");NotificationService.add(row.no()+" cancelled.");org.example.util.ToastManager.success(table,"Return cancelled",row.no()+" was cancelled successfully.");load();},failure->error(asException(failure))); }
-    private void delete(Row row) { if (!confirm("Delete " + row.no() + " from the Return Register?\n\nIt will disappear from normal UI, but the backend audit record will be retained as DELETED. Active return stock movement will be reversed safely.")) return; UiTaskExecutor.submitSerial("purchase-return-delete-"+row.no(),()->{ReturnWorkflowService.delete(row.no(),false);return true;},ignored->{ScreenRefreshPolicy.invalidate("purchase-returns");ScreenRefreshPolicy.invalidate("purchase-register");NotificationService.add(row.no()+" deleted from register; audit record retained.");org.example.util.ToastManager.success(table,"Return deleted",row.no()+" was removed from the register; the audit record was retained.");load();},failure->error(asException(failure))); }
-    private void update(String no,String column,String value){if(!Set.of("reason","notes").contains(column))return;UiTaskExecutor.submitAction("purchase-return-update-"+no+"-"+column,()->{var current=returnApi.details(no);returnApi.update(no,column,value,current.rowVersion());return true;},ignored->{org.example.util.ToastManager.success(table,"Return updated",no+" "+column+" was updated.");load();},failure->error(asException(failure)));}
+    private void cancel(Row row) { if (!confirm("Cancel " + row.no() + " and reverse its stock movement?")) return; UiTaskExecutor.submitSerial("purchase-return-cancel-"+row.no(),()->{ReturnWorkflowService.cancel(row.no(),false);return true;},ignored->{ScreenRefreshPolicy.invalidate("purchase-returns");ScreenRefreshPolicy.invalidate("purchase-register");NotificationService.add(row.no()+" cancelled.");org.example.util.AppDialogService.success(table,"Return cancelled",row.no()+" was cancelled successfully.");load();},failure->error(asException(failure))); }
+    private void delete(Row row) { if (!confirm("Delete " + row.no() + " from the Return Register?\n\nIt will disappear from normal UI, but the backend audit record will be retained as DELETED. Active return stock movement will be reversed safely.")) return; UiTaskExecutor.submitSerial("purchase-return-delete-"+row.no(),()->{ReturnWorkflowService.delete(row.no(),false);return true;},ignored->{ScreenRefreshPolicy.invalidate("purchase-returns");ScreenRefreshPolicy.invalidate("purchase-register");NotificationService.add(row.no()+" deleted from register; audit record retained.");org.example.util.AppDialogService.success(table,"Return deleted",row.no()+" was removed from the register; the audit record was retained.");load();},failure->error(asException(failure))); }
+    private void update(String no,String column,String value){if(!Set.of("reason","notes").contains(column))return;UiTaskExecutor.submitAction("purchase-return-update-"+no+"-"+column,()->{var current=returnApi.details(no);returnApi.update(no,column,value,current.rowVersion());return true;},ignored->{org.example.util.AppDialogService.success(table,"Return updated",no+" "+column+" was updated.");load();},failure->error(asException(failure)));}
 
     @FXML private void export() {
         org.example.service.PermissionService.require("PURCHASE.EXPORT", "Export Purchase Returns");
-        FileChooser chooser = new FileChooser(); chooser.setInitialFileName("Purchase_Returns.csv"); chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV", "*.csv"));
-        File file = chooser.showSaveDialog(table.getScene().getWindow()); if (file == null) return;
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("PurchaseReturns", "Purchase_Returns", "csv");
+        if (file == null) return;
         String q=search.getText(),party=supplier.getValue(),state=status.getValue(),from=str(dpFrom.getValue()),to=str(dpTo.getValue());
-        UiTaskExecutor.submitAction("purchase-returns-export",()->{List<ReturnApiClient.Summary> rows=returnApi.allFiltered("PURCHASE RETURN",q,party,state,from,to);try(PrintWriter out=new PrintWriter(file)){out.println("Return No,Date,Purchase No,Supplier,Total,Refund,Status,Refund Status");for(ReturnApiClient.Summary r:rows)out.printf("%s,%s,%s,%s,%.2f,%.2f,%s,%s%n",r.no(),r.date(),r.invoice(),csv(r.party()),r.total(),r.refund(),r.status(),r.refundStatus());}return rows.size();},count->info("Purchase Returns exported • "+count+" records."),failure->error(asException(failure)));
+        UiTaskExecutor.submitAction("purchase-returns-export",()->{List<ReturnApiClient.Summary> rows=returnApi.allFiltered("PURCHASE RETURN",q,party,state,from,to);try(PrintWriter out=new PrintWriter(file)){out.println("Return No,Date,Purchase No,Supplier,Total,Refund,Status,Refund Status");for(ReturnApiClient.Summary r:rows)out.printf("%s,%s,%s,%s,%.2f,%.2f,%s,%s%n",r.no(),r.date(),r.invoice(),csv(r.party()),r.total(),r.refund(),r.status(),r.refundStatus());}return rows.size();},count->ExportFeedbackManager.notifyExportSuccess(table, file, "Purchase Returns CSV", count),failure->error(asException(failure)));
     }
 
 
@@ -319,7 +322,7 @@ public class PurchaseReturnsController implements ScreenLifecycle {
     private String spreadsheetSafe(String value) { String text=safe(value),t=text.stripLeading(); if(t.isEmpty())return text; char c=t.charAt(0); boolean numericNegative=c=='-'&&t.matches("-\\d+(?:\\.\\d+)?"); return c=='='||c=='+'||c=='@'||(c=='-'&&!numericNegative)?"'"+text:text; }
     private String money(double value) { return String.format("₹ %,.2f", value); }
     private boolean confirm(String text) { return org.example.util.AppDialogService.confirm(table, "Confirmation", "Are you sure?", text); }
-    private void info(String value) { org.example.util.ToastManager.success(table, "Completed", value); }
+    private void info(String value) { org.example.util.AppDialogService.success(table, "Completed", value); }
     private void error(Exception e) { org.example.util.AppDialogService.error(table, "Operation failed", "Something went wrong", e.getMessage() == null ? "Operation failed" : e.getMessage()); }
     private void installKpiIcons(){setKpi(iconTotal,"return");setKpi(iconMonth,"calendar");setKpi(iconCount,"document");setKpi(iconRefund,"payment");setKpi(iconAverage,"currency");}
     private void setKpi(StackPane pane,String semantic){if(pane!=null)pane.getChildren().setAll(IconFactory.compactIcon(semantic,22));}

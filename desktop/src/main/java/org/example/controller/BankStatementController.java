@@ -33,6 +33,7 @@ import org.example.util.DatePickerFormatter;
 import org.example.util.DynamicTableLayoutManager;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
+import org.example.util.ExportFeedbackManager;
 import org.example.util.OwnedDialog;
 import org.example.util.LiveOperationDialog;
 import org.example.util.OwnedChoiceDialog;
@@ -47,12 +48,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.*;
-import org.example.util.ToastManager;
 
 public class BankStatementController implements ScreenLifecycle {
     @FXML private StackPane pageIcon,kpiTotalIcon,kpiUnmatchedIcon,kpiSuggestedIcon,kpiMatchedIcon,kpiExpenseIcon,kpiCreditsIcon,kpiDebitsIcon,kpiReconciledIcon,howIcon,historyIcon;
     @FXML private VBox cardKpiTotal,cardKpiUnmatched,cardKpiSuggested,cardKpiMatched,cardKpiExpense;
-    @FXML private Button btnImport,btnSearch,btnReset,btnRefresh,btnPrevPage,btnNextPage,btnBrowseStatements,btnDeleteStatement,btnCloseHistory,btnHistoryPrev,btnHistoryNext,btnOpenStatement,btnHistoryDelete,btnAutoMatch;
+    @FXML private Button btnImport,btnScreenGuide,btnSearch,btnReset,btnRefresh,btnPrevPage,btnNextPage,btnBrowseStatements,btnDeleteStatement,btnCloseHistory,btnHistoryPrev,btnHistoryNext,btnOpenStatement,btnHistoryDelete,btnAutoMatch;
     @FXML private CheckBox chkSelectAll;
     @FXML private Button btnBulkReview,btnBulkIgnore,btnMoveExpense,btnMoveBankEntry;
     @FXML private ComboBox<BankStatementApiClient.BatchDto> cmbBatch;
@@ -205,6 +205,7 @@ public class BankStatementController implements ScreenLifecycle {
         if(btnBulkIgnore!=null) btnBulkIgnore.setGraphic(IconFactory.compactIcon("cancel",15));
         if(btnMoveExpense!=null) btnMoveExpense.setGraphic(IconFactory.compactIcon("payment",15));
         if(btnMoveBankEntry!=null) btnMoveBankEntry.setGraphic(IconFactory.compactIcon("bank",15));
+        if(btnScreenGuide!=null) btnScreenGuide.setGraphic(IconFactory.compactIcon("info",15));
     }
     private void setIcon(StackPane pane,String name,int size){ if(pane!=null)pane.getChildren().setAll(IconFactory.icon(name,size)); }
 
@@ -518,7 +519,7 @@ public class BankStatementController implements ScreenLifecycle {
                 }
                 if(isStatementHistoryOpen())loadStatementHistory();
                 loadBatches();
-                org.example.util.ToastManager.success(table,"Bank Statement Deleted",result.message()+"\n\nTransactions removed: "+result.deletedTransactions()+"\nReconciliations reversed: "+result.reversedTransactions());
+                org.example.util.AppDialogService.success(table,"Bank Statement Deleted",result.message()+"\n\nTransactions removed: "+result.deletedTransactions()+"\nReconciliations reversed: "+result.reversedTransactions());
             },this::error);
         },this::error);
     }
@@ -566,6 +567,12 @@ public class BankStatementController implements ScreenLifecycle {
         boolean alreadyImported,
         List<ImportAuditItem> items
     ) {}
+
+    @FXML
+    private void showScreenGuide() {
+        javafx.stage.Window owner = table != null && table.getScene() != null ? table.getScene().getWindow() : null;
+        org.example.util.ScreenGuidanceManager.showGuidance(owner, "BANK_STATEMENT");
+    }
 
     @FXML private void importStatement(){
         configureBankAccountMaster();
@@ -742,27 +749,17 @@ public class BankStatementController implements ScreenLifecycle {
 
     private void exportImportAuditExcel(ImportAuditSummary summary) {
         if (summary == null || summary.items().isEmpty()) {
-            ToastManager.info(table, "Nothing to Export", "No audit transactions available to export.");
+            AppDialogService.info(table, "Bank Statements", "Nothing to Export", "No audit transactions available to export.");
             return;
         }
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save Bank Statement Import Report");
         String safeName = (summary.fileName() != null ? summary.fileName() : "Statement").replaceAll("[^A-Za-z0-9._-]", "_");
-        chooser.setInitialFileName("Import_Report_" + safeName + "_" + System.currentTimeMillis() + ".xlsx");
-        chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Excel Workbook (*.xlsx)", "*.xlsx"),
-                new FileChooser.ExtensionFilter("CSV File (*.csv)", "*.csv")
-        );
-        File target = chooser.showSaveDialog(table.getScene().getWindow());
+        File target = ExportFeedbackManager.resolveWorkspaceExportFile("Bank_Statements", "Import_Report_" + safeName, "xlsx");
         if (target == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(table, target)) return;
 
         try {
-            if (target.getName().toLowerCase(Locale.ROOT).endsWith(".csv")) {
-                exportImportAuditCsv(target, summary);
-            } else {
-                exportImportAuditXlsx(target, summary);
-            }
-            ToastManager.success(table, "Report Exported", "Saved import audit report to " + target.getName());
+            exportImportAuditXlsx(target, summary);
+            ExportFeedbackManager.notifyExportSuccess(table, target, "Bank Statement Import Audit Report", summary.items().size());
         } catch (Exception ex) {
             error(ex);
         }
@@ -1014,12 +1011,12 @@ public class BankStatementController implements ScreenLifecycle {
 
     private void showBulkExpenseDialog(List<Row> rows,List<String> categories,List<String> modes){
         if(categories.isEmpty()){info("Move to Expense","No Expense Category is configured in Master Data. Configure a category before using bulk move.");return;}
-        Dialog<ButtonType> dialog=new OwnedDialog<>();dialog.setTitle("Bulk Move to Expense");dialog.setHeaderText(rows.size()+" selected transactions • Total ₹ "+money(rows.stream().mapToDouble(r->r.dto.debit()).sum()));
+        Dialog<ButtonType> dialog=new OwnedDialog<>(table);dialog.setTitle("Bulk Move to Expense");dialog.setHeaderText(rows.size()+" selected transactions • Total ₹ "+money(rows.stream().mapToDouble(r->r.dto.debit()).sum()));
         ComboBox<String> category=new ComboBox<>(FXCollections.observableArrayList(categories));category.setPromptText("Select category *");category.setMaxWidth(Double.MAX_VALUE);
         ComboBox<String> mode=new ComboBox<>(FXCollections.observableArrayList(modes));if(!modes.isEmpty())mode.getSelectionModel().selectFirst();mode.setMaxWidth(Double.MAX_VALUE);
         TextField account=new TextField(batchAccountName());TextArea notes=new TextArea();notes.setPromptText("Optional note applied to all selected transactions");notes.setPrefRowCount(3);notes.setWrapText(true);notes.setMinHeight(84);notes.setPrefHeight(92);notes.getStyleClass().add("input-field");
-        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lCat=new Label("Expense Category *");lCat.setMinWidth(Region.USE_PREF_SIZE);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lCat,category);grid.addRow(1,lAcc,account);grid.addRow(2,lMode,mode);grid.addRow(3,lNote,notes);GridPane.setHgrow(category,Priority.ALWAYS);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(240);dialog.getDialogPane().setMinWidth(640);dialog.getDialogPane().setPrefWidth(660);
-        dialog.getDialogPane().setContent(grid);ButtonType move=new ButtonType("Move "+rows.size()+" Entries",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL,move);
+        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lCat=new Label("Expense Category *");lCat.setMinWidth(Region.USE_PREF_SIZE);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lCat,category);grid.addRow(1,lAcc,account);grid.addRow(2,lMode,mode);grid.addRow(3,lNote,notes);GridPane.setHgrow(category,Priority.ALWAYS);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(240);
+        dialog.getDialogPane().setContent(grid);org.example.util.SearchableComboBoxHelper.makeAllSearchable(grid);PopupTableWorkspace.prepareDialog(dialog, 680);ButtonType move=new ButtonType("Move "+rows.size()+" Entries",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL,move);
         Node moveButton=dialog.getDialogPane().lookupButton(move);moveButton.addEventFilter(javafx.event.ActionEvent.ACTION,e->{if(category.getValue()==null||category.getValue().isBlank()){e.consume();info("Category required","Select one Expense Category. The same category will be applied to every selected transaction.");}});
         dialog.showAndWait().filter(move::equals).ifPresent(x->{
             List<Long> ids=rows.stream().map(r->r.dto.id()).toList();String performedBy=user();
@@ -1029,11 +1026,11 @@ public class BankStatementController implements ScreenLifecycle {
     }
 
     private void showBulkBankEntryDialog(List<Row> rows,List<String> modes){
-        Dialog<ButtonType> dialog=new OwnedDialog<>();dialog.setTitle("Bulk Move to Bank Entry");dialog.setHeaderText(rows.size()+" selected transactions • Total ₹ "+money(rows.stream().mapToDouble(r->bankAmount(r.dto)).sum()));
+        Dialog<ButtonType> dialog=new OwnedDialog<>(table);dialog.setTitle("Bulk Move to Bank Entry");dialog.setHeaderText(rows.size()+" selected transactions • Total ₹ "+money(rows.stream().mapToDouble(r->bankAmount(r.dto)).sum()));
         TextField account=new TextField(batchAccountName());ComboBox<String> mode=new ComboBox<>(FXCollections.observableArrayList(modes));if(!modes.isEmpty())mode.getSelectionModel().selectFirst();mode.setMaxWidth(Double.MAX_VALUE);
         TextArea notes=new TextArea();notes.setPromptText("Optional note applied to all selected transactions");notes.setPrefRowCount(3);notes.setWrapText(true);notes.setMinHeight(84);notes.setPrefHeight(92);notes.getStyleClass().add("input-field");
-        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lAcc,account);grid.addRow(1,lMode,mode);grid.addRow(2,lNote,notes);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(210);dialog.getDialogPane().setMinWidth(640);dialog.getDialogPane().setPrefWidth(660);
-        dialog.getDialogPane().setContent(grid);ButtonType move=new ButtonType("Move "+rows.size()+" Entries",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL,move);
+        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lAcc,account);grid.addRow(1,lMode,mode);grid.addRow(2,lNote,notes);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(210);
+        dialog.getDialogPane().setContent(grid);org.example.util.SearchableComboBoxHelper.makeAllSearchable(grid);PopupTableWorkspace.prepareDialog(dialog, 680);ButtonType move=new ButtonType("Move "+rows.size()+" Entries",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL,move);
         dialog.showAndWait().filter(move::equals).ifPresent(x->{
             List<Long> ids=rows.stream().map(r->r.dto.id()).toList();String performedBy=user();
             UiTaskExecutor.submitSerial("bank-statement-bulk-bank",()->api.bulkBankEntry(new BankStatementApiClient.BulkBankEntryRequest(ids,account.getText(),mode.getValue(),notes.getText(),performedBy)),
@@ -1583,14 +1580,15 @@ public class BankStatementController implements ScreenLifecycle {
         HBox details=new HBox(12,overview,side);HBox.setHgrow(overview,Priority.ALWAYS);
         Region counterSpace=new Region();HBox.setHgrow(counterSpace,Priority.ALWAYS);HBox noteFooter=new HBox(counterSpace,counter);
         VBox noteCard=new VBox(6,new Label("ERP Note (Internal)"),note,noteFooter);noteCard.getStyleClass().add("bank-dialog-section");
-        VBox content=new VBox(12,dialogHero("view","View / Edit Transaction","Detailed information of the imported bank transaction."),details,evidence,noteCard); content.setPadding(new Insets(8)); content.setPrefWidth(760);
-        Dialog<ButtonType>d=new OwnedDialog<>(); d.setTitle("Bank Transaction"); d.setHeaderText(null);d.getDialogPane().getStyleClass().addAll("bank-workspace-dialog","bank-transaction-dialog"); d.getDialogPane().setContent(content);
+        VBox content=new VBox(12,dialogHero("view","View / Edit Transaction","Detailed information of the imported bank transaction."),details,evidence,noteCard); content.setPadding(new Insets(8));
+        Dialog<ButtonType> d=new OwnedDialog<>(table); d.setTitle("Bank Transaction"); d.setHeaderText(null);d.getDialogPane().getStyleClass().addAll("bank-workspace-dialog","bank-transaction-dialog"); d.getDialogPane().setContent(content);
+        PopupTableWorkspace.prepareDialog(d, 780);
         ButtonType save=new ButtonType("Save Note",ButtonBar.ButtonData.OK_DONE); d.getDialogPane().getButtonTypes().addAll(save,ButtonType.CLOSE);
         d.showAndWait().filter(x->x==save).ifPresent(x->{
             String value=note.getText().trim(),performedBy=user();
             UiTaskExecutor.submitAction("bank-statement-note-"+t.id(),
                 () -> api.updateNote(t.id(),new BankStatementApiClient.NoteRequest(value,performedBy,t.rowVersion())),
-                ignored -> {org.example.util.ToastManager.success(table,"Note saved","Bank transaction note was saved successfully.");refresh();},this::error);
+                ignored -> {org.example.util.AppDialogService.success(table,"Note saved","Bank transaction note was saved successfully.");refresh();},this::error);
         });
     }
     private void viewStatementSource(){
@@ -1610,8 +1608,10 @@ public class BankStatementController implements ScreenLifecycle {
             Region titleSpace=new Region();HBox.setHgrow(titleSpace,Priority.ALWAYS);HBox evidenceTitle=new HBox(8,sectionTitle("Imported Statement Evidence"),titleSpace,copy);evidenceTitle.setAlignment(Pos.CENTER_LEFT);
             VBox evidenceCard=new VBox(10,evidenceTitle,meta);evidenceCard.getStyleClass().add("bank-dialog-section");
             VBox previewCard=new VBox(8,new Label("CSV Evidence Preview"),preview);previewCard.getStyleClass().add("bank-dialog-section");
-            VBox content=new VBox(12,dialogHero("document","Statement Source & Evidence","Review the source file and evidence of this imported statement."),evidenceCard,help,previewCard);content.setPadding(new Insets(8));content.setPrefWidth(780);
-            Dialog<ButtonType>d=new OwnedDialog<>();d.setTitle("Imported Bank Statement");d.setHeaderText(null);d.getDialogPane().getStyleClass().addAll("bank-workspace-dialog","bank-evidence-dialog");d.getDialogPane().setContent(content);d.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);d.showAndWait();
+            VBox content=new VBox(12,dialogHero("document","Statement Source & Evidence","Review the source file and evidence of this imported statement."),evidenceCard,help,previewCard);content.setPadding(new Insets(8));
+            Dialog<ButtonType> d=new OwnedDialog<>(table);d.setTitle("Imported Bank Statement");d.setHeaderText(null);d.getDialogPane().getStyleClass().addAll("bank-workspace-dialog","bank-evidence-dialog");d.getDialogPane().setContent(content);d.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+            PopupTableWorkspace.prepareDialog(d, 820);
+            d.showAndWait();
     }
     private Label sectionTitle(String text){Label l=new Label(text);l.getStyleClass().add("bank-dialog-title");return l;}
     private void addDialogRow(GridPane g,int row,String label,String value){Label a=new Label(label);a.getStyleClass().add("bank-dialog-label");Label b=new Label(value==null||value.isBlank()?"Not available":value);b.setWrapText(true);b.getStyleClass().add("bank-dialog-value");g.add(a,0,row);g.add(b,1,row);GridPane.setHgrow(b,Priority.ALWAYS);}
@@ -1620,7 +1620,7 @@ public class BankStatementController implements ScreenLifecycle {
             String performedBy=user();
             UiTaskExecutor.submitAction("bank-statement-review-"+row.dto.id(),
                 () -> api.review(row.dto.id(),new BankStatementApiClient.NoteRequest(reason,performedBy,row.dto.rowVersion())),
-                ignored -> {org.example.util.ToastManager.success(table,"Marked for review","Bank transaction was marked for review.");refresh();},this::error);
+                ignored -> {org.example.util.AppDialogService.success(table,"Marked for review","Bank transaction was marked for review.");refresh();},this::error);
         });
     }
     private void ignore(Row row){
@@ -1631,7 +1631,7 @@ public class BankStatementController implements ScreenLifecycle {
                 String performedBy=user();
                 UiTaskExecutor.submitAction("bank-statement-ignore-"+row.dto.id(),
                     () -> api.ignore(row.dto.id(),new BankStatementApiClient.IgnoreRequest(reason,performedBy)),
-                    ignored -> {org.example.util.ToastManager.success(table,"Transaction ignored","Bank transaction was excluded from reconciliation and retained in audit history.");refresh();},this::error);
+                    ignored -> {org.example.util.AppDialogService.success(table,"Transaction ignored","Bank transaction was excluded from reconciliation and retained in audit history.");refresh();},this::error);
             });
         });
     }
@@ -1641,7 +1641,7 @@ public class BankStatementController implements ScreenLifecycle {
         if(value.isEmpty())info(title,"A reason is required so the decision can be understood from the audit history.");
         return value;
     }
-    private void reverse(Row row){Alert a=new OwnedAlert(Alert.AlertType.CONFIRMATION,"Reverse this reconciliation? Linked payment/finance records will be safely reversed and the bank transaction will return to UNMATCHED.");a.showAndWait().filter(x->x==ButtonType.OK).ifPresent(x->{String performedBy=user();UiTaskExecutor.submitSerial("bank-statement-reverse-"+row.dto.id(),()->api.reverse(row.dto.id(),performedBy),ignored->{org.example.util.ToastManager.success(table,"Reconciliation reversed","Bank transaction returned to UNMATCHED successfully.");refresh();},this::error);});}
+    private void reverse(Row row){Alert a=new OwnedAlert(Alert.AlertType.CONFIRMATION,"Reverse this reconciliation? Linked payment/finance records will be safely reversed and the bank transaction will return to UNMATCHED.");a.showAndWait().filter(x->x==ButtonType.OK).ifPresent(x->{String performedBy=user();UiTaskExecutor.submitSerial("bank-statement-reverse-"+row.dto.id(),()->api.reverse(row.dto.id(),performedBy),ignored->{org.example.util.AppDialogService.success(table,"Reconciliation reversed","Bank transaction returned to UNMATCHED successfully.");refresh();},this::error);});}
     private void audit(Row row){
         UiTaskExecutor.submitLatest("bank-statement-audit-"+row.dto.id(),
             () -> api.audit(row.dto.id()),
@@ -1661,8 +1661,10 @@ public class BankStatementController implements ScreenLifecycle {
             }
             ScrollPane scroll=new ScrollPane(list);scroll.setFitToWidth(true);scroll.setPrefViewportHeight(360);scroll.setPrefViewportWidth(650);
             VBox content=new VBox(10,sectionTitle("Complete Reconciliation History"),new Label("Bank transaction: "+safe(row.dto.reference())+"  •  "+safe(row.dto.description())),scroll);content.setPadding(new Insets(8));
-            content.getChildren().add(0,dialogHero("security","Audit Trail & Evidence","Complete history of reconciliation and evidence for this bank transaction."));content.setPrefWidth(760);
-            Dialog<ButtonType>d=new OwnedDialog<>();d.setTitle("Audit History");d.setHeaderText(null);d.getDialogPane().getStyleClass().addAll("bank-workspace-dialog","bank-audit-dialog");d.getDialogPane().setContent(content);d.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);d.showAndWait();
+            content.getChildren().add(0,dialogHero("security","Audit Trail & Evidence","Complete history of reconciliation and evidence for this bank transaction."));
+            Dialog<ButtonType> d=new OwnedDialog<>(table);d.setTitle("Audit History");d.setHeaderText(null);d.getDialogPane().getStyleClass().addAll("bank-workspace-dialog","bank-audit-dialog");d.getDialogPane().setContent(content);d.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+            PopupTableWorkspace.applyAdaptiveInspectionSizing(d, table, Math.max(3, list.getChildren().size()));
+            d.showAndWait();
     }
 
     private StackPane dialogIcon(String semantic,double size){StackPane pane=new StackPane(IconFactory.icon(semantic,size*.55));pane.getStyleClass().add("bank-dialog-icon");pane.setMinSize(size,size);pane.setPrefSize(size,size);pane.setMaxSize(size,size);return pane;}
@@ -1677,7 +1679,7 @@ public class BankStatementController implements ScreenLifecycle {
     private static String money(double v){return String.format(Locale.ENGLISH,"%,.2f",v);} private static String safe(String s){return s==null?"":s;}
     private static String up(String s){return s==null?"":s.trim().toUpperCase(Locale.ROOT);} private static LocalDate parseDate(String s){return BusinessClock.parseDate(s);}
     private void info(String h,String t){Alert a=new OwnedAlert(Alert.AlertType.INFORMATION,t);a.setHeaderText(h);a.showAndWait();}
-    private void success(String h,String t){org.example.util.ToastManager.success(table,h,t);}
+    private void success(String h,String t){org.example.util.AppDialogService.success(table,h,t);}
     private void error(Throwable e){Alert a=new OwnedAlert(Alert.AlertType.ERROR,e.getMessage()==null?e.toString():e.getMessage());a.setHeaderText("Bank Statement operation failed");a.showAndWait();}
 
     private record BulkResult(int completed,int failed,String firstFailure) { }

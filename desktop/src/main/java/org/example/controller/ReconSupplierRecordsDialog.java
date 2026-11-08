@@ -55,11 +55,13 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
                 "Purchase Recon Records",
                 subtitleText,
                 "");
-        pane.setPrefWidth(1420);
-        pane.setMinWidth(1150);
-        pane.setPrefHeight(820);
-        pane.setMinHeight(600);
+        // Dynamic adaptive sizing: responsive bounds based on monitor usable area (Rule 12)
         PopupTableWorkspace.applyInspectionSizing(this, owner != null ? owner.getScene().getRoot() : null);
+        setOnShown(ev -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+            }
+        });
 
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(10, 14, 14, 14));
@@ -359,18 +361,15 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
 
     private void exportToExcel() {
         if (filteredRecords.isEmpty()) {
-            ToastManager.info(table, "Export Excel", "No records available to export.");
+            AppDialogService.info(table, "Purchase Recon", "Export Excel", "No records available to export.");
             return;
         }
-        FileChooser chooser = new FileChooser();
         String safeName = supplier != null && !safe(supplier.legalName()).isBlank()
                 ? supplier.legalName().replaceAll("[^a-zA-Z0-9_-]", "_")
                 : "Supplier";
-        chooser.setInitialFileName("Purchase_Recon_Records_" + safeName + ".xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files (*.xlsx)", "*.xlsx"));
-        Window win = getDialogPane().getScene().getWindow();
-        File file = chooser.showSaveDialog(win);
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("PurchaseRecon", "Purchase_Recon_Records_" + safeName, "xlsx");
         if (file == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(table, file)) return;
 
         try (Workbook wb = new XSSFWorkbook(); FileOutputStream out = new FileOutputStream(file)) {
             Sheet sheet = wb.createSheet("Purchase Recon Records");
@@ -404,7 +403,7 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
                 sheet.autoSizeColumn(i);
             }
             wb.write(out);
-            ToastManager.success(table, "Export Completed", "Exported " + filteredRecords.size() + " records to " + file.getName());
+            ExportFeedbackManager.notifyExportSuccess(table, file, "Purchase Recon Records (" + safeName + ")", filteredRecords.size());
         } catch (Exception ex) {
             AppDialogService.error(table, "Export Failed", "Could not export records to Excel", ex.getMessage());
         }

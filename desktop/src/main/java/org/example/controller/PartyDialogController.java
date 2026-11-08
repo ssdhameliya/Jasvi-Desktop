@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import org.example.navigation.ScreenLifecycle;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -55,8 +57,9 @@ public class PartyDialogController implements ScreenLifecycle {
         btnCancel.setGraphic(IconFactory.icon("cancel", 16));
         installLiveValidation();
         org.example.util.WorkflowFocusManager.install(java.util.List.of(
-            txtName, txtContact, txtPhone, txtEmail, txtGstin, txtOpeningBalance, btnSave));
+            txtName, txtContact, txtPhone, txtEmail, txtGstin, txtOpeningBalance, txtAddress, chkActive, btnSave));
         org.example.util.WorkflowFocusManager.initial(txtName);
+        org.example.util.WorkflowFocusManager.excludeFromTab(btnCancel, btnAuditTrail);
         javafx.application.Platform.runLater(() -> {
             if (txtName != null && txtName.getScene() != null) {
                 txtName.getScene().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
@@ -257,7 +260,7 @@ public class PartyDialogController implements ScreenLifecycle {
                     savedResult = saved;
                     savedCreated = created;
                     close();
-                    org.example.util.ToastManager.success((javafx.stage.Window) null,
+                    org.example.util.AppDialogService.success((javafx.stage.Window) null,
                             entityName + (created ? " saved" : " updated"),
                             party.getPartyCode() + " - " + party.getName());
                 },

@@ -7,7 +7,7 @@ import org.example.api.admin.AdminApiClient;
 import org.example.config.WorkspaceManager;
 import org.example.util.DesktopLog;
 import org.example.util.ShellIndicatorBus;
-import org.example.util.ToastManager;
+import org.example.util.AppDialogService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,7 +117,7 @@ public final class DiagnosticAutoScanner {
                 lastAlertedCount = total;
                 Platform.runLater(() -> {
                     ShellIndicatorBus.publish();
-                    ToastManager.error((Node) null, "System Diagnostic Alert",
+                    AppDialogService.error((Node) null, "System Diagnostic Alert",
                             "Detected " + newErrors + " new system/server error(s). Click Diagnostics icon to inspect.");
                 });
                 try {

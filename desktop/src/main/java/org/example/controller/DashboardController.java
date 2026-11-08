@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import org.example.navigation.ScreenLifecycle;
 import org.example.util.BusinessClock;
 
@@ -1556,6 +1558,20 @@ public class DashboardController implements ScreenLifecycle {
         return c;
     }
 
+    public static void showGlobalLoading(String message) {
+        DashboardController c = currentVisibleShell();
+        if (c != null && c.contentPane != null) {
+            org.example.util.LoadingOverlayHelper.show(c.contentPane, message);
+        }
+    }
+
+    public static void hideGlobalLoading() {
+        DashboardController c = currentVisibleShell();
+        if (c != null && c.contentPane != null) {
+            org.example.util.LoadingOverlayHelper.hide(c.contentPane);
+        }
+    }
+
     @FXML private void createSale() { openPage(btnCreateSale, "Create Sale", "/fxml/pages/Sale.fxml"); }
     public static void createSaleFromWorkflow() {
         DashboardController c = currentVisibleShell();
@@ -1875,7 +1891,7 @@ public class DashboardController implements ScreenLifecycle {
 
             new UserService().changePassword(SessionService.current().getId(), currentPassword.getText(), password);
             NotificationService.add("Your account password was changed.");
-            org.example.util.ToastManager.success(contentPane,"Password changed","Password changed successfully.");
+            org.example.util.AppDialogService.success(contentPane,"Password changed","Password changed successfully.");
         });
     }
 

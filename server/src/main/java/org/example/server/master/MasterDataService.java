@@ -115,6 +115,17 @@ public class MasterDataService {
         ensureReferenceFormat("REF_LOOKUP_REFERENCE_SCHEME","SCH/DD-MM-YYYY/XXXX","Reference Scheme Master code reference",395);
         ensureReferenceFormat("REF_LOOKUP_CREDIT_NOTE_REASON","CNR/DD-MM-YYYY/XXXX","Credit Note Reason Master code reference",400);
         ensureReferenceFormat("REF_LOOKUP_DEBIT_NOTE_REASON","DNR/DD-MM-YYYY/XXXX","Debit Note Reason Master code reference",405);
+        ensureProtectedSystemRoles();
+    }
+
+    private void ensureProtectedSystemRoles() {
+        try {
+            entityManager.createNativeQuery(
+                    "UPDATE lookup_master SET is_active = 1 WHERE UPPER(TRIM(lookup_type)) = 'ROLE' " +
+                    "AND (UPPER(REPLACE(TRIM(lookup_value), '_', ' ')) IN ('ADMIN', 'SUPER ADMIN') " +
+                    "OR UPPER(REPLACE(TRIM(lookup_code), '_', ' ')) IN ('ADMIN', 'SUPER ADMIN'))"
+            ).executeUpdate();
+        } catch (Exception ignored) {}
     }
 
     private void ensureCategory(String code,String name,String description,int order){
@@ -1117,17 +1128,23 @@ public class MasterDataService {
         return new MasterDtos.ItemDto(e.getId(), e.getItemCode(), e.getDescription(), e.getCategory(), e.getBrand(), e.getMaterial(), e.getSize(), e.getUnit(), e.getHsn(), n(e.getGst()), n(e.getDiscountPercent()), n(e.getPurchasePrice()), n(e.getSellingPrice()), n(e.getOpeningStock()), n(e.getMinimumStock()), 0.0, e.getLocation(), e.getRemarks(), e.getActive() == null || e.getActive() != 0, nv(e.getRowVersion()));
     }
 
+    private boolean isProtectedSystemRole(String roleValue) {
+        if (roleValue == null) return false;
+        String n = normal(roleValue).replace("_", " ");
+        return "ADMIN".equals(n) || "SUPER ADMIN".equals(n);
+    }
+
     private void validateRoleLookup(MasterDtos.LookupDto d, LookupEntity existing) {
         if (d == null || !"ROLE".equals(normal(d.lookupType()))) return;
         String roleValue = d.lookupValue() == null ? "" : d.lookupValue().trim();
         if (roleValue.isBlank()) throw new IllegalArgumentException("Role Name is required");
         // Role identity comes from Value only. The generated ROLxxx lookup code is a technical Master ID.
-        if ("ADMIN".equals(normal(roleValue)) && !d.active()) {
-            throw new IllegalArgumentException("The Admin Role Master entry cannot be deactivated");
+        if (isProtectedSystemRole(roleValue) && !d.active()) {
+            throw new IllegalArgumentException("System role '" + roleValue + "' is protected and cannot be deactivated");
         }
-        if (existing != null && "ADMIN".equals(normal(existing.getLookupValue()))
-                && !"ADMIN".equals(normal(roleValue))) {
-            throw new IllegalArgumentException("The protected Admin role name cannot be changed");
+        if (existing != null && isProtectedSystemRole(existing.getLookupValue())
+                && !normal(existing.getLookupValue()).replace("_", " ").equals(normal(roleValue).replace("_", " "))) {
+            throw new IllegalArgumentException("Protected system role '" + existing.getLookupValue() + "' cannot be renamed");
         }
     }
 
@@ -1152,11 +1169,26 @@ public class MasterDataService {
     private void validateRoleDeactivation(LookupEntity role) {
         if (role == null || !"ROLE".equals(normal(role.getLookupType()))) return;
         String roleValue = role.getLookupValue() == null ? "" : role.getLookupValue().trim();
-        if ("ADMIN".equals(normal(roleValue))) throw new IllegalArgumentException("The Admin Role Master entry cannot be deactivated");
+        if (isProtectedSystemRole(roleValue)) {
+            throw new IllegalArgumentException("System role '" + roleValue + "' is protected and cannot be deactivated");
+        }
         if (isConfiguredSelfRegistrationRole(roleValue))
             throw new IllegalArgumentException("Choose another Public Registration Role in Role Management before deactivating this role");
-        long assigned = countText("users", "role", roleValue);
+        long assigned = countAssignedRoleUsers(roleValue);
         if (assigned > 0) throw new IllegalArgumentException("Move " + assigned + " assigned user" + (assigned == 1 ? "" : "s") + " to another active role before deactivating this role");
+    }
+
+    private long countAssignedRoleUsers(String roleValue) {
+        if (roleValue == null || roleValue.isBlank()) return 0;
+        try {
+            Number count = (Number) entityManager.createNativeQuery(
+                            "select count(*) from users where " +
+                            "upper(replace(trim(coalesce(role,'')),'_',' ')) = upper(replace(trim(:role),'_',' '))")
+                    .setParameter("role", roleValue).getSingleResult();
+            return count != null ? count.longValue() : 0;
+        } catch (RuntimeException ignored) {
+            return countText("users", "role", roleValue);
+        }
     }
 
 

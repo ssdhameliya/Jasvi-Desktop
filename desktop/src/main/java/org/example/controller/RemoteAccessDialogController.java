@@ -4,6 +4,7 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -20,7 +21,6 @@ import org.example.config.ConfigManager;
 import org.example.util.AppDialogService;
 import org.example.util.DocumentInspectionScaffold;
 import org.example.util.IconFactory;
-import org.example.util.ToastManager;
 import org.example.util.UiTaskExecutor;
 
 import java.net.URI;
@@ -168,7 +168,7 @@ public class RemoteAccessDialogController {
         String token = txtTunnelToken != null ? txtTunnelToken.getText().trim() : "";
         ConfigManager.set("gateway.custom.url", domain);
         ConfigManager.set("gateway.cloudflare.token", token);
-        ToastManager.success(btnClose, "Configuration Saved", "Custom gateway domain and tunnel settings saved.");
+        AppDialogService.success(btnClose, "Configuration Saved", "Custom gateway domain and tunnel settings saved.");
 
         if (!domain.isBlank()) {
             syncRemoteTelemetryAsync(domain);
@@ -188,7 +188,7 @@ public class RemoteAccessDialogController {
                     status -> {
                         btnToggleTunnel.setDisable(false);
                         applyStatus(status);
-                        ToastManager.info(btnClose, "Remote Access Closed", "Secure HTTPS tunnel has stopped.");
+                        AppDialogService.info(btnClose, "Remote Access Closed", "Secure HTTPS tunnel has stopped.");
                     },
                     err -> {
                         btnToggleTunnel.setDisable(false);
@@ -208,11 +208,11 @@ public class RemoteAccessDialogController {
                         applyStatus(status);
                         String liveUrl = status != null ? String.valueOf(status.getOrDefault("liveUrl", status.getOrDefault("url", ""))) : "";
                         if (!liveUrl.isBlank()) {
-                            ToastManager.success(btnClose, "Remote Access Live", "Secure HTTPS tunnel established!\n" + liveUrl);
+                            AppDialogService.success(btnClose, "Remote Access Live", "Secure HTTPS tunnel established!\n" + liveUrl);
                             // Dispatch telemetry to Super Admin Master Licensor
                             syncRemoteTelemetryAsync(liveUrl);
                         } else {
-                            ToastManager.info(btnClose, "Connecting Tunnel", "Cloudflare tunnel is initializing in background...");
+                            AppDialogService.info(btnClose, "Connecting Tunnel", "Cloudflare tunnel is initializing in background...");
                         }
                     },
                     err -> {
@@ -229,7 +229,18 @@ public class RemoteAccessDialogController {
             ClipboardContent cb = new ClipboardContent();
             cb.putString(txtLiveUrl.getText());
             Clipboard.getSystemClipboard().setContent(cb);
-            ToastManager.info(btnClose, "Copied", "Live HTTPS URL copied to clipboard!");
+            if (btnCopyUrl != null) {
+                String orig = btnCopyUrl.getText();
+                javafx.scene.Node graphic = btnCopyUrl.getGraphic();
+                btnCopyUrl.setText("Copied!");
+                btnCopyUrl.setGraphic(IconFactory.compactIcon("complete", 14));
+                javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+                pause.setOnFinished(e -> {
+                    btnCopyUrl.setText(orig);
+                    btnCopyUrl.setGraphic(graphic);
+                });
+                pause.play();
+            }
         }
     }
 

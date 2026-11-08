@@ -124,6 +124,7 @@ public final class DocumentChargeDialog {
                 empty.getStyleClass().add("sales-charge-editor-empty");
                 rows.getChildren().add(empty);
             }
+            org.example.util.SearchableComboBoxHelper.makeAllSearchable(rows);
             updateTotals.run();
         };
         add.setOnAction(e -> { draft.add(adapter.create()); render[0].run(); });

@@ -19,6 +19,7 @@ import org.example.documentstudio.service.ExcelTemplateRenderer;
 import org.example.documentstudio.util.PdfPreviewSupport;
 import org.example.navigation.ScreenLifecycle;
 import org.example.util.AppDialogService;
+import org.example.util.ExportFeedbackManager;
 import org.example.util.IconFactory;
 import org.example.util.UiTaskExecutor;
 
@@ -423,7 +424,19 @@ public class DocumentStudioController implements ScreenLifecycle {
     private void openExcelDesigner(ExcelTemplate template){org.example.service.PermissionService.require("DOCUMENT_STUDIO.EDIT", "edit an Excel template");ExcelStudioContext.open(template.getId());DashboardController.navigateFromDocumentStudio("Excel Studio","/fxml/pages/ExcelDesigner.fxml");}
     private void previewExcel(ExcelTemplate template){try{Path out=org.example.config.WorkspaceManager.getTempFolder().resolve("excel-studio-sample-"+template.getId()+".xlsx");ExcelTemplateRenderer.renderSample(template,out);if(Desktop.isDesktopSupported())Desktop.getDesktop().open(out.toFile());}catch(Exception e){AppDialogService.error(root,"Excel preview failed","Document Studio",rootMessage(e));}}
     private void setExcelDefault(ExcelTemplate template){org.example.service.PermissionService.require("DOCUMENT_STUDIO.EDIT", "activate a default Excel template");if(!AppDialogService.confirm(root,"Activate Default Excel Template","Use "+template.getName()+" as the default "+template.getDocumentType().label()+" Excel template?","If this workbook becomes unavailable or invalid, " + org.example.service.BrandingService.applicationName() + " automatically falls back to its built-in Excel output."))return;try{ExcelTemplateStorageService.activateAndSetDefault(template);AppDialogService.success(root,"Default Excel template updated",template.getName()+" is now active. Built-in Excel remains the automatic fallback.");refresh();}catch(Exception e){AppDialogService.error(root,"Could not set Excel default","Document Studio",rootMessage(e));}}
-    private void downloadExcelTemplate(ExcelTemplate template){org.example.service.PermissionService.require("DOCUMENT_STUDIO.MANAGE_TEMPLATES", "download an Excel template");try{FileChooser chooser=new FileChooser();chooser.setTitle("Download Excel Template");chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Workbook","*.xlsx"));chooser.setInitialFileName(template.getName().replaceAll("[^A-Za-z0-9._ -]","_")+".xlsx");var file=chooser.showSaveDialog(root.getScene().getWindow());if(file!=null)java.nio.file.Files.copy(ExcelTemplateStorageService.sourceWorkbook(template),file.toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING);}catch(Exception e){AppDialogService.error(root,"Excel download failed","Document Studio",rootMessage(e));}}
+    private void downloadExcelTemplate(ExcelTemplate template){
+        org.example.service.PermissionService.require("DOCUMENT_STUDIO.MANAGE_TEMPLATES", "download an Excel template");
+        try{
+            String safeName = template.getName().replaceAll("[^A-Za-z0-9._ -]","_");
+            java.io.File file = ExportFeedbackManager.resolveWorkspaceExportFile("Templates", safeName, "xlsx");
+            if (file == null) return;
+            if (!ExportFeedbackManager.checkFileWriteable(root, file)) return;
+            java.nio.file.Files.copy(ExcelTemplateStorageService.sourceWorkbook(template), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            ExportFeedbackManager.notifyExportSuccess(root, file, "Excel Template Downloaded");
+        }catch(Exception e){
+            AppDialogService.error(root,"Excel download failed","Document Studio",rootMessage(e));
+        }
+    }
     private void deleteExcel(ExcelTemplate template){org.example.service.PermissionService.require("DOCUMENT_STUDIO.EDIT", "delete an Excel template");if(template.isDefaultTemplate()){AppDialogService.info(root,"Default template","Excel Studio","Choose another default or archive this template first. Runtime Excel will otherwise use its built-in fallback.");return;}if(!AppDialogService.confirm(root,"Delete Excel Template","Delete "+template.getName()+"?","This removes the Document Studio copy and its version history."))return;try{ExcelTemplateStorageService.delete(template);refresh();}catch(Exception e){AppDialogService.error(root,"Could not delete","Excel Studio",rootMessage(e));}}
 
     private void loadThumbnail(DocumentTemplate template, StackPane preview) {
@@ -462,19 +475,15 @@ public class DocumentStudioController implements ScreenLifecycle {
 
     private void exportTemplatePackage(DocumentTemplate template) {
         org.example.service.PermissionService.require("DOCUMENT_STUDIO.MANAGE_TEMPLATES", "export a PDF Studio template package");
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export PDF Template + Mapping");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("DSE PDF Template", "*.dsetemplate"));
-        String safeName = template.getName().replaceAll("[^A-Za-z0-9._ -]", "_").trim();
-        chooser.setInitialFileName((safeName.isBlank() ? "DSE-PDF-Template" : safeName) + ".dsetemplate");
-        var file = chooser.showSaveDialog(root.getScene().getWindow());
-        if (file == null) return;
-        Path output = file.toPath();
-        if (!output.getFileName().toString().toLowerCase().endsWith(".dsetemplate"))
-            output = output.resolveSibling(output.getFileName() + ".dsetemplate");
         try {
+            String safeName = template.getName().replaceAll("[^A-Za-z0-9._ -]", "_").trim();
+            if (safeName.isBlank()) safeName = "DSE-PDF-Template";
+            java.io.File file = ExportFeedbackManager.resolveWorkspaceExportFile("Templates", safeName, "dsetemplate");
+            if (file == null) return;
+            if (!ExportFeedbackManager.checkFileWriteable(root, file)) return;
+            Path output = file.toPath();
             TemplateStorageService.exportPackage(template, output);
-            AppDialogService.success(root, "Template exported", "PDF + complete mapping + assets exported to:\n" + output);
+            ExportFeedbackManager.notifyExportSuccess(root, file, "Template Package Exported");
         } catch (Exception error) {
             AppDialogService.error(root, "Template export failed", "PDF Studio", rootMessage(error));
         }

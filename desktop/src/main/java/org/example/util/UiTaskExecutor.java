@@ -158,6 +158,54 @@ public final class UiTaskExecutor {
     }
 
     /**
+     * Submit cancellable latest-result-wins work with a modal loading overlay attached to the given rootPane.
+     */
+    public static <T> void submitLatestWithOverlay(
+            javafx.scene.layout.Pane rootPane,
+            String message,
+            String key,
+            Callable<T> work,
+            Consumer<T> onSuccess,
+            Consumer<Throwable> onFailure) {
+        if (rootPane != null) {
+            LoadingOverlayHelper.show(rootPane, message);
+        }
+        submitLatest(key, work,
+                result -> {
+                    if (rootPane != null) LoadingOverlayHelper.hide(rootPane);
+                    if (onSuccess != null) onSuccess.accept(result);
+                },
+                error -> {
+                    if (rootPane != null) LoadingOverlayHelper.hide(rootPane);
+                    if (onFailure != null) onFailure.accept(error);
+                });
+    }
+
+    /**
+     * Submit non-cancellable side-effecting work with a modal loading overlay attached to the given rootPane.
+     */
+    public static <T> void submitActionWithOverlay(
+            javafx.scene.layout.Pane rootPane,
+            String message,
+            String key,
+            Callable<T> work,
+            Consumer<T> onSuccess,
+            Consumer<Throwable> onFailure) {
+        if (rootPane != null) {
+            LoadingOverlayHelper.show(rootPane, message);
+        }
+        submitAction(key, work,
+                result -> {
+                    if (rootPane != null) LoadingOverlayHelper.hide(rootPane);
+                    if (onSuccess != null) onSuccess.accept(result);
+                },
+                error -> {
+                    if (rootPane != null) LoadingOverlayHelper.hide(rootPane);
+                    if (onFailure != null) onFailure.accept(error);
+                });
+    }
+
+    /**
      * Submit a reliable action to the single-worker financial/action queue. Use for
      * reconciliation/import/posting operations where client-side overlap is unsafe.
      */

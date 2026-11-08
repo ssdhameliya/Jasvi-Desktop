@@ -63,6 +63,24 @@ class UiArchitectureContractTest {
         assertTrue(violations.isEmpty(), String.join("\n", violations));
     }
 
+    @Test
+    void dialogsAreOwnedAndManagedByPlatformStandards() throws Exception {
+        Path controllerRoot = Path.of("src/main/java/org/example/controller");
+        List<String> violations = new ArrayList<>();
+        try (var files = Files.walk(controllerRoot)) {
+            for (Path path : files.filter(p -> p.toString().endsWith(".java")).toList()) {
+                String content = Files.readString(path);
+                if (content.contains("new Dialog<") && !content.contains("new OwnedDialog<")) {
+                    violations.add(path + ": forbidden unmanaged raw 'new Dialog<' found (must use OwnedDialog or AppDialogService)");
+                }
+                if (content.contains("new Stage(") || content.contains("new Stage ()")) {
+                    violations.add(path + ": forbidden raw 'new Stage(' found in business controller");
+                }
+            }
+        }
+        assertTrue(violations.isEmpty(), String.join("\n", violations));
+    }
+
     private static org.w3c.dom.Document parse(Path path) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);

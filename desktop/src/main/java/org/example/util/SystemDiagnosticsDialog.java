@@ -164,12 +164,14 @@ public final class SystemDiagnosticsDialog {
         cmbLevel.setValue("All Levels");
         cmbLevel.getStyleClass().addAll("approved-combo-box", "audit-category-combo");
         cmbLevel.setPrefWidth(140);
+        SearchableComboBoxHelper.makeSearchable(cmbLevel);
 
         ComboBox<String> cmbSource = new ComboBox<>();
         cmbSource.getItems().addAll("All Sources", "DESKTOP", "SERVER");
         cmbSource.setValue("All Sources");
         cmbSource.getStyleClass().addAll("approved-combo-box", "audit-category-combo");
         cmbSource.setPrefWidth(130);
+        SearchableComboBoxHelper.makeSearchable(cmbSource);
 
         Label lblEntriesCount = new Label("Loading logs…");
         lblEntriesCount.getStyleClass().addAll("status-pill", "pill-neutral");
@@ -189,10 +191,10 @@ public final class SystemDiagnosticsDialog {
                 if (Files.exists(folder)) {
                     java.awt.Desktop.getDesktop().open(folder.toFile());
                 } else {
-                    ToastManager.warning(pane, "Logs Folder", "Logs directory does not exist yet.");
+                    AppDialogService.warning(pane, "Logs Folder", "Logs directory does not exist yet.");
                 }
             } catch (Exception ex) {
-                ToastManager.error(pane, "Open Folder Failed", ex.getMessage());
+                AppDialogService.error(pane, "Open Folder Failed", ex.getMessage());
             }
         });
 
@@ -556,19 +558,16 @@ public final class SystemDiagnosticsDialog {
                 }
             }, ex -> {
                 table.setPlaceholder(new Label("Diagnostic logs could not be loaded: " + ex.getMessage()));
-                ToastManager.error(pane, "Failed to load logs", ex.getMessage());
+                AppDialogService.error(pane, "Failed to load logs", ex.getMessage());
             });
         };
 
         btnRefresh.setOnAction(e -> loadData.run());
 
         btnExportCsv.setOnAction(e -> {
-            FileChooser chooser = new FileChooser();
-            chooser.setTitle("Save System Diagnostics CSV");
-            chooser.setInitialFileName("System_Diagnostics_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".csv");
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV files (*.csv)", "*.csv"));
-            File file = chooser.showSaveDialog(dialog.getDialogPane().getScene().getWindow());
+            File file = ExportFeedbackManager.resolveWorkspaceExportFile("Audit", "System_Diagnostics", "csv");
             if (file != null) {
+                if (!ExportFeedbackManager.checkFileWriteable(pane, file)) return;
                 exportToCsv(filteredList, file, pane);
             }
         });
@@ -764,7 +763,7 @@ public final class SystemDiagnosticsDialog {
             ClipboardContent content = new ClipboardContent();
             content.putString(txtTrace.getText());
             clipboard.setContent(content);
-            ToastManager.info(pane, "Copied", "Technical diagnostic trace copied to clipboard.");
+            AppDialogService.info(pane, "Copied", "Technical diagnostic trace copied to clipboard.");
         });
 
         Button btnClose = new Button("Close");
@@ -1034,9 +1033,9 @@ public final class SystemDiagnosticsDialog {
                         .append("\n");
             }
             Files.writeString(file.toPath(), sb.toString(), StandardCharsets.UTF_8);
-            ToastManager.success(owner, "Export Complete", "Exported " + list.size() + " diagnostic entries to " + file.getName());
+            ExportFeedbackManager.notifyExportSuccess(owner, file, "System Diagnostics CSV", list.size());
         } catch (IOException e) {
-            ToastManager.error(owner, "Export Failed", e.getMessage());
+            AppDialogService.error(owner, "Export Failed", "Diagnostics export error", e.getMessage());
         }
     }
 

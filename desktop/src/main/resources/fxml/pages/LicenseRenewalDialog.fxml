@@ -6,27 +6,11 @@
 
 <BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="org.example.controller.LicenseRenewalDialogController"
-            prefWidth="960" prefHeight="720" minWidth="880" minHeight="660"
-            styleClass="entity-dialog,premium-entity-dialog,approved-ui">
-    <top>
-        <VBox spacing="6" styleClass="premium-dialog-header">
-            <padding>
-                <Insets top="18" right="24" bottom="14" left="24"/>
-            </padding>
-            <HBox alignment="CENTER_LEFT" spacing="12">
-                <StackPane fx:id="headerIconHolder" minWidth="36" minHeight="36" styleClass="auth-logo-badge"/>
-                <VBox spacing="2" HBox.hgrow="ALWAYS">
-                    <Label text="Jasvi Desktop Subscription &amp; Machine Activation" styleClass="page-title"/>
-                    <Label text="Direct Bharat UPI QR code renewal (0% fees) and enterprise machine-bound activation" styleClass="page-subtitle"/>
-                </VBox>
-                <Label fx:id="lblHeaderBadge" text="CHECKING..." styleClass="status-badge,badge-info"/>
-            </HBox>
-        </VBox>
-    </top>
+            styleClass="document-inspection-host,approved-ui">
     <center>
-        <HBox spacing="16" styleClass="premium-dialog-content">
+        <HBox spacing="16" styleClass="document-inspection-content">
             <padding>
-                <Insets top="16" right="24" bottom="16" left="24"/>
+                <Insets top="14" right="20" bottom="14" left="20"/>
             </padding>
 
             <!-- Left Card: Instant Direct UPI QR Renewal -->
@@ -43,7 +27,7 @@
                 </StackPane>
 
                 <VBox spacing="3" alignment="CENTER">
-                    <Label fx:id="lblAmountDisplay" text="₹3,500 + GST = ₹4,130 / Year" styleClass="barcode-sticker-price"/>
+                    <Label fx:id="lblAmountDisplay" text="₹3,500 + GST = ₹4,130 / Year" styleClass="stat-card-value,approved-strong-label"/>
                     <Label fx:id="lblVpaDisplay" text="VPA: jasviindustries@icici" styleClass="page-subtitle"/>
                 </VBox>
 
@@ -58,7 +42,11 @@
                 <padding>
                     <Insets top="16" right="20" bottom="16" left="20"/>
                 </padding>
-                <Label text="Machine Hardware &amp; License Status" styleClass="field-label,email-transmission-field-bold"/>
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Machine Hardware &amp; License Status" styleClass="field-label,email-transmission-field-bold"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="lblHeaderBadge" text="CHECKING..." styleClass="status-badge,badge-info"/>
+                </HBox>
 
                 <VBox spacing="4" styleClass="email-transmission-sig-box">
                     <HBox alignment="CENTER_LEFT" spacing="6">
@@ -88,14 +76,16 @@
                     <Label fx:id="lblDaysRemaining" text="-" GridPane.rowIndex="3" GridPane.columnIndex="1" styleClass="field-label"/>
                 </GridPane>
 
-                <HBox alignment="CENTER_LEFT" spacing="10">
+                <VBox spacing="8">
                     <Button fx:id="btnSendWhatsAppLead" text="Send Machine ID via WhatsApp" onAction="#handleSendWhatsAppLead"
-                            styleClass="approved-button,approved-primary-button"/>
-                    <Button fx:id="btnRegisterOnlineLead" text="Register Online" onAction="#handleRegisterOnlineLead"
-                            styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSelfActivateNow" text="Activate Locally" onAction="#handleSelfActivateNow"
-                            styleClass="approved-button,approved-secondary-button"/>
-                </HBox>
+                            styleClass="approved-button,approved-primary-button" maxWidth="Infinity"/>
+                    <HBox spacing="10">
+                        <Button fx:id="btnRegisterOnlineLead" text="Register Online" onAction="#handleRegisterOnlineLead"
+                                styleClass="approved-button,approved-secondary-button" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                        <Button fx:id="btnSelfActivateNow" text="Activate Locally" onAction="#handleSelfActivateNow"
+                                styleClass="approved-button,approved-secondary-button" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                    </HBox>
+                </VBox>
 
                 <Separator/>
 
@@ -113,20 +103,19 @@
                     <TextArea fx:id="txtRawLicensePayload" prefRowCount="2" minHeight="74" prefHeight="84" promptText="Paste Base64 or JSON license payload here..."
                               styleClass="approved-input" wrapText="true"/>
                 </VBox>
-
-                <HBox alignment="CENTER_RIGHT" spacing="10">
-                    <Button fx:id="btnApplyActivation" text="Apply &amp; Activate License" onAction="#handleApplyActivation"
-                            styleClass="approved-button,approved-primary-button"/>
-                </HBox>
             </VBox>
         </HBox>
     </center>
     <bottom>
-        <HBox alignment="CENTER_RIGHT" spacing="12" styleClass="premium-dialog-footer">
+        <HBox alignment="CENTER_RIGHT" spacing="12" styleClass="dse-dialog-footer,erp-popup-footer">
             <padding>
-                <Insets top="10" right="24" bottom="12" left="24"/>
+                <Insets top="10" right="20" bottom="14" left="20"/>
             </padding>
-            <Button fx:id="btnClose" text="Close" onAction="#handleClose" styleClass="approved-button,approved-secondary-button"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnApplyActivation" text="Apply &amp; Activate License" onAction="#handleApplyActivation"
+                    styleClass="approved-button,approved-primary-button"/>
+            <Button fx:id="btnClose" text="Close" onAction="#handleClose"
+                    styleClass="approved-button,approved-secondary-button,approved-cancel-button"/>
         </HBox>
     </bottom>
 </BorderPane>

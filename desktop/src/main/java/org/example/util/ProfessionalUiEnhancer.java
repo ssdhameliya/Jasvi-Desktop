@@ -20,6 +20,10 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.ListView;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.skin.ComboBoxListViewSkin;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -37,6 +41,13 @@ import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.text.Text;
 import javafx.collections.ListChangeListener;
+import javafx.animation.Animation;
+import javafx.animation.FadeTransition;
+import javafx.animation.Interpolator;
+import javafx.animation.PauseTransition;
+import javafx.animation.RotateTransition;
+import javafx.event.ActionEvent;
+import javafx.util.Duration;
 
 import java.util.Locale;
 import java.util.IdentityHashMap;
@@ -82,6 +93,9 @@ public final class ProfessionalUiEnhancer {
         if (node instanceof ButtonBase button) {
             UiDesignSystem.decorate(button);
             IconFactory.decorate(button);
+            if (button instanceof Button btn) {
+                installUniversalTactileInteractions(btn);
+            }
         }
         if (node instanceof TableView<?> table) {
             refreshTableDecorations(table);
@@ -114,6 +128,148 @@ public final class ProfessionalUiEnhancer {
         DynamicTableLayoutManager.requestLayout(table);
     }
 
+    /**
+     * Installs universal tactile interaction filters on Refresh and Reset buttons ERP-wide.
+     * Guarantees 3D glassmorphic overlay + 360° spinning icon on Refresh,
+     * and reverse -360° spin + filter bar pulse on Reset across all 74 screens.
+     */
+    private static void installUniversalTactileInteractions(Button button) {
+        if (button == null) return;
+        if (Boolean.TRUE.equals(button.getProperties().get("erp.tactile.installed"))) return;
+        button.getProperties().put("erp.tactile.installed", Boolean.TRUE);
+
+        boolean isRefresh = isRefreshButton(button);
+        boolean isReset = isResetButton(button);
+        if (!isRefresh && !isReset) return;
+
+        if (isRefresh) {
+            button.addEventFilter(ActionEvent.ACTION, event -> {
+                if (Boolean.TRUE.equals(button.getProperties().get("erp.refresh.running"))) {
+                    return;
+                }
+                button.getProperties().put("erp.refresh.running", Boolean.TRUE);
+
+                String origText = button.getText();
+                if (button.getGraphic() == null) {
+                    IconFactory.decorate(button);
+                }
+                Node graphic = button.getGraphic();
+                button.setDisable(true);
+                if (origText != null && !origText.isBlank()) {
+                    button.setText("Refreshing…");
+                }
+
+                StackPane host = LoadingOverlayHelper.findHost(button);
+                if (host != null) {
+                    LoadingOverlayHelper.show(host, "Refreshing records…");
+                }
+
+                RotateTransition rt = null;
+                if (graphic != null) {
+                    rt = new RotateTransition(Duration.millis(750), graphic);
+                    rt.setByAngle(360);
+                    rt.setCycleCount(Animation.INDEFINITE);
+                    rt.setInterpolator(Interpolator.LINEAR);
+                    rt.play();
+                }
+
+                final RotateTransition finalRt = rt;
+                PauseTransition watchdog = new PauseTransition(Duration.millis(950));
+                watchdog.setOnFinished(e -> {
+                    if (!Boolean.TRUE.equals(button.getProperties().get("erp.refresh.managed"))) {
+                        if (finalRt != null) {
+                            finalRt.stop();
+                        }
+                        if (graphic != null) {
+                            graphic.setRotate(0);
+                        }
+                        button.setText(origText);
+                        button.setDisable(false);
+                        button.getProperties().remove("erp.refresh.running");
+                        if (host != null) {
+                            LoadingOverlayHelper.hide(host);
+                        }
+                    }
+                });
+                watchdog.play();
+            });
+        } else {
+            button.addEventFilter(ActionEvent.ACTION, event -> {
+                if (button.getGraphic() == null) {
+                    IconFactory.decorate(button);
+                }
+                Node graphic = button.getGraphic();
+                if (graphic != null) {
+                    RotateTransition rt = new RotateTransition(Duration.millis(400), graphic);
+                    rt.setByAngle(-360);
+                    rt.setCycleCount(1);
+                    rt.setInterpolator(Interpolator.EASE_OUT);
+                    rt.setOnFinished(e -> graphic.setRotate(0));
+                    rt.play();
+                }
+                Parent parent = button.getParent();
+                if (parent != null) {
+                    FadeTransition ft = new FadeTransition(Duration.millis(250), parent);
+                    ft.setFromValue(0.65);
+                    ft.setToValue(1.0);
+                    ft.play();
+                }
+            });
+        }
+    }
+
+    private static boolean isRefreshButton(Button button) {
+        String text = button.getText();
+        if (text != null && !text.isBlank()) {
+            String lower = text.trim().toLowerCase(Locale.ROOT);
+            if (lower.contains("refresh") || lower.contains("reload") || lower.contains("recalculate")) {
+                return true;
+            }
+        }
+        String id = button.getId();
+        if (id != null && !id.isBlank()) {
+            String lower = id.toLowerCase(Locale.ROOT);
+            if (lower.contains("refresh") || lower.contains("reload")) {
+                return true;
+            }
+        }
+        for (String sc : button.getStyleClass()) {
+            if (sc != null) {
+                String lower = sc.toLowerCase(Locale.ROOT);
+                if (lower.contains("refresh") || lower.equals("erp-action-refresh")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isResetButton(Button button) {
+        String text = button.getText();
+        if (text != null && !text.isBlank()) {
+            String lower = text.trim().toLowerCase(Locale.ROOT);
+            if (lower.contains("reset")) {
+                return true;
+            }
+        }
+        String id = button.getId();
+        if (id != null && !id.isBlank()) {
+            String lower = id.toLowerCase(Locale.ROOT);
+            if (lower.contains("reset")) {
+                return true;
+            }
+        }
+        for (String sc : button.getStyleClass()) {
+            if (sc != null) {
+                String lower = sc.toLowerCase(Locale.ROOT);
+                if (lower.contains("reset") || lower.equals("erp-action-reset")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static void walk(Node node) {
         walk(node, new IdentityHashMap<>());
     }
@@ -129,12 +285,15 @@ public final class ProfessionalUiEnhancer {
         UiDesignSystem.decorate(node);
         ResponsiveKpiLayoutManager.install(node);
         if (node instanceof TableView<?> table) enhanceTable(table);
+        if (node instanceof Button btn) installUniversalTactileInteractions(btn);
         if (node instanceof TabPane tabPane && !Boolean.TRUE.equals(tabPane.getProperties().get("erp-tab-enhanced"))) {
             tabPane.getProperties().put("erp-tab-enhanced", true);
             // Tab activation reflows are pulse-coalesced via UiViewportLayoutCoordinator in installTabContentEnhancement
         }
         if (node instanceof DialogPane pane) enhanceDialog(pane);
         if (node instanceof PasswordField passwordField) schedulePasswordReveal(passwordField);
+        if (node instanceof ComboBox<?> combo) enhanceComboBox(combo);
+        if (node instanceof MenuButton menuBtn) enhanceMenuButton(menuBtn);
 
         installLogicalContentEnhancement(node);
 
@@ -378,6 +537,106 @@ public final class ProfessionalUiEnhancer {
         // Dialog presentation is exclusively owned by AppDialogRenderer.
         // Generic UI enhancement must never add dialog shell classes, icons or button styles.
         if (pane != null && Boolean.TRUE.equals(pane.getProperties().get(AppDialogRenderer.OWNED))) return;
+    }
+
+    /**
+     * Enhances ComboBox dropdown behavior to guarantee zero clipping:
+     * 1. Dynamically expands the popup ListView and window to fit the widest option text.
+     * 2. Automatically updates the tooltip with the full selected text when values are chosen.
+     */
+    private static void enhanceComboBox(ComboBox<?> combo) {
+        if (combo == null || Boolean.TRUE.equals(combo.getProperties().get("erp.combo.enhanced"))) return;
+        combo.getProperties().put("erp.combo.enhanced", true);
+
+        combo.valueProperty().addListener((obs, oldVal, newVal) -> updateComboBoxTooltip(combo, newVal));
+        if (combo.getValue() != null) {
+            updateComboBoxTooltip(combo, combo.getValue());
+        }
+
+        combo.showingProperty().addListener((obs, wasShowing, isShowing) -> {
+            if (isShowing) {
+                Platform.runLater(() -> adjustComboBoxPopupWidth(combo));
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void updateComboBoxTooltip(ComboBox<?> combo, Object value) {
+        if (value == null) {
+            combo.setTooltip(null);
+            return;
+        }
+        var converter = combo.getConverter();
+        String text;
+        try {
+            text = (converter != null) ? ((javafx.util.StringConverter<Object>) converter).toString(value) : String.valueOf(value);
+        } catch (Exception ignored) {
+            text = String.valueOf(value);
+        }
+        if (text != null && !text.isBlank()) {
+            Tooltip current = combo.getTooltip();
+            if (current == null) {
+                combo.setTooltip(new Tooltip(text));
+            } else if (!text.equals(current.getText())) {
+                current.setText(text);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void adjustComboBoxPopupWidth(ComboBox<?> combo) {
+        if (combo == null || !combo.isShowing()) return;
+        if (!(combo.getSkin() instanceof ComboBoxListViewSkin<?> skin)) return;
+        Node popupContent = skin.getPopupContent();
+        if (!(popupContent instanceof ListView<?> listView)) return;
+
+        double maxItemWidth = 0.0;
+        Text textMeasure = new Text();
+        var items = combo.getItems();
+        if (items != null && !items.isEmpty()) {
+            var converter = combo.getConverter();
+            for (Object item : items) {
+                if (item == null) continue;
+                String text;
+                try {
+                    text = (converter != null) ? ((javafx.util.StringConverter<Object>) converter).toString(item) : String.valueOf(item);
+                } catch (Exception ignored) {
+                    text = String.valueOf(item);
+                }
+                if (text == null || text.isBlank()) continue;
+                textMeasure.setText(text);
+                double w = textMeasure.getLayoutBounds().getWidth();
+                if (w > maxItemWidth) {
+                    maxItemWidth = w;
+                }
+            }
+        }
+
+        double comboWidth = combo.getWidth();
+        // 48px covers list-cell padding (14px * 2) + vertical scrollbar (16px) + margin
+        double neededWidth = Math.max(comboWidth, maxItemWidth + 48.0);
+        listView.setMinWidth(neededWidth);
+        listView.setPrefWidth(neededWidth);
+
+        if (listView.getScene() != null && listView.getScene().getWindow() != null) {
+            javafx.stage.Window window = listView.getScene().getWindow();
+            if (window.getWidth() < neededWidth) {
+                window.setWidth(neededWidth);
+            }
+        }
+    }
+
+    /**
+     * Enhances MenuButton to ensure prompt tooltips on action buttons and template downloads.
+     */
+    private static void enhanceMenuButton(MenuButton menuButton) {
+        if (menuButton == null || Boolean.TRUE.equals(menuButton.getProperties().get("erp.menubtn.enhanced"))) return;
+        menuButton.getProperties().put("erp.menubtn.enhanced", true);
+
+        String text = menuButton.getText();
+        if (text != null && !text.isBlank() && menuButton.getTooltip() == null) {
+            menuButton.setTooltip(new Tooltip(text));
+        }
     }
 
 
@@ -962,7 +1221,7 @@ public final class ProfessionalUiEnhancer {
                         ClipboardContent content = new ClipboardContent();
                         content.putString(str);
                         clipboard.setContent(content);
-                        ToastManager.info(getTableView(), "Copied", str + " copied to clipboard.");
+                        AppDialogService.info(getTableView(), "Copied", str + " copied to clipboard.");
                     }
                 });
             } else {

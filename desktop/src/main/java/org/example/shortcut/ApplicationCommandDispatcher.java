@@ -8,7 +8,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.TreeView;
 import org.example.navigation.NavigationManager;
 import org.example.shortcut.ShortcutRegistry.Action;
-import org.example.util.ToastManager;
+import org.example.util.AppDialogService;
 
 import java.lang.reflect.Method;
 import java.util.*;
@@ -20,7 +20,7 @@ public final class ApplicationCommandDispatcher {
         Spec spec=spec(action); if(spec==null)return false; Node root=NavigationManager.currentNode(); Object controller=NavigationManager.currentController();
         if(root!=null){ButtonBase button=findButton(root,spec.labels);if(button!=null){button.fire();return true;}}
         if(controller!=null&&invoke(controller,spec.methods))return true;
-        if(root!=null)ToastManager.info(root,"Shortcut unavailable",spec.display+" is not available on this screen.");
+        if(root!=null)AppDialogService.info(root,"Shortcut unavailable",spec.display+" is not available on this screen.");
         return false;
     }
 

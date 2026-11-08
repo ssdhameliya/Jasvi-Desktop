@@ -26,6 +26,8 @@ import org.example.util.PlatformUiSupport;
 import org.example.util.IconFactory;
 import org.example.util.RegisterDetailDrawer;
 import org.example.util.RegisterUiSupport;
+import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ExportFeedbackManager;
 import org.example.util.OperationalUiSupport;
 import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
@@ -281,7 +283,7 @@ public class ItemMasterController implements ScreenLifecycle {
             loadItems();
             if (result.isPresent()) {
                 Item saved = result.get();
-                org.example.util.ToastManager.success(tableItems,
+                org.example.util.AppDialogService.success(tableItems,
                         "Item Updated",
                         saved.getItemCode() + " • " + saved.getDescription() + " was updated successfully.");
                 javafx.application.Platform.runLater(() -> selectSavedItem(saved.getItemCode()));
@@ -303,7 +305,7 @@ public class ItemMasterController implements ScreenLifecycle {
             loadItems();
             if (result.isPresent()) {
                 Item saved = result.get();
-                org.example.util.ToastManager.success(tableItems,
+                org.example.util.AppDialogService.success(tableItems,
                         item == null ? "Item Created" : "Item Updated",
                         saved.getItemCode() + " • " + saved.getDescription() + (item == null ? " was added successfully." : " was updated successfully."));
                 javafx.application.Platform.runLater(() -> selectSavedItem(saved.getItemCode()));
@@ -347,7 +349,7 @@ public class ItemMasterController implements ScreenLifecycle {
                 () -> { service.delete(selected); NotificationService.add("Item '" + description + "' was deleted."); return null; },
                 ignored -> {
                     if (tableItems != null) tableItems.setDisable(false);
-                    org.example.util.ToastManager.success(tableItems, "Item Deleted", "Item deleted successfully.");
+                    org.example.util.AppDialogService.success(tableItems, "Item Deleted", "Item deleted successfully.");
                     loadItems();
                 },
                 failure -> {
@@ -384,20 +386,14 @@ public class ItemMasterController implements ScreenLifecycle {
     @FXML
     private void exportItems() {
         org.example.service.PermissionService.require("INVENTORY.EXPORT", "Export Items");
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export Item Master");
-        chooser.setInitialFileName("item-master.xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Workbook", "*.xlsx"));
-        File file = chooser.showSaveDialog(tableItems.getScene().getWindow());
-        if (file == null) return;
-        Path path = file.toPath();
-        if (!path.toString().toLowerCase(Locale.ROOT).endsWith(".xlsx")) path = Path.of(path + ".xlsx");
-        Path exportPath = path;
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("Items", "Item_Master", "xlsx");
+        if (!ExportFeedbackManager.checkFileWriteable(tableItems, file)) return;
+        Path exportPath = file.toPath();
         List<Item> snapshot = List.copyOf(allItems);
         UiTaskExecutor.submitAction(
                 "item-master-export",
                 () -> { spreadsheetService.exportItems(snapshot, exportPath); return exportPath; },
-                saved -> org.example.util.ToastManager.success(tableItems, "Export complete", "Item master exported to:\n" + saved),
+                saved -> ExportFeedbackManager.notifyExportSuccess(tableItems, saved.toFile(), "Item Master Export", snapshot.size()),
                 failure -> showError("Could not export the workbook: " + message(failure))
         );
     }
@@ -553,7 +549,7 @@ public class ItemMasterController implements ScreenLifecycle {
                                 String detail = result == null || result.message() == null || result.message().isBlank()
                                         ? codes.size() + " item" + (codes.size() == 1 ? "" : "s") + " deleted successfully."
                                         : result.message() + ".";
-                                org.example.util.ToastManager.success(tableItems, "Items Deleted", detail);
+                                org.example.util.AppDialogService.success(tableItems, "Items Deleted", detail);
                             },
                             failure -> showError("Could not delete the selected items: " + message(failure))
                     );

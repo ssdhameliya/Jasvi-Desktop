@@ -177,9 +177,9 @@ public final class CreditDebitNoteInspectionDialog {
                 if (loaded != null) {
                     renderDialogContent(shell.dialog(), shell.host(), loaded, isCreditNote, onUpdated, onReissue);
                 } else {
-                    ToastManager.error(shell.pane(), "Not Found", "Note could not be loaded.");
+                    AppDialogService.error(shell.pane(), "Not Found", "Note could not be loaded.");
                 }
-            }, err -> ToastManager.error(shell.pane(), "Failed", err.getMessage()));
+            }, err -> AppDialogService.error(shell.pane(), "Failed", err.getMessage()));
         }
 
         shell.dialog().showAndWait();
@@ -242,7 +242,7 @@ public final class CreditDebitNoteInspectionDialog {
             ClipboardContent content = new ClipboardContent();
             content.putString(details.noteNo());
             clipboard.setContent(content);
-            ToastManager.info(btnCopy, "Copied", details.noteNo() + " copied to clipboard.");
+            AppDialogService.info(btnCopy, "Copied", details.noteNo() + " copied to clipboard.");
         });
 
         HBox docTitleLine = new HBox(8, docNoLabel, btnCopy);
@@ -561,10 +561,10 @@ public final class CreditDebitNoteInspectionDialog {
                     HttpResponse<String> resp = ApiRuntime.HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
                     return resp.statusCode() == 200;
                 }, ok -> {
-                    ToastManager.success(parentDialog.getDialogPane(), "Saved", "Remarks updated successfully.");
+                    AppDialogService.success(parentDialog.getDialogPane(), "Saved", "Remarks updated successfully.");
                     if (onUpdated != null) onUpdated.run();
                     parentDialog.close();
-                }, err -> ToastManager.error(parentDialog.getDialogPane(), "Save Failed", err.getMessage()));
+                }, err -> AppDialogService.error(parentDialog.getDialogPane(), "Save Failed", err.getMessage()));
             } else if (result.get() == btnReissue) {
                 if (AppDialogService.doubleConfirmation(parentDialog.getDialogPane(), "REVERSE", "Confirm Statutory Reversal",
                         "Cancel Note " + details.noteNo() + " and Reissue?",
@@ -579,11 +579,11 @@ public final class CreditDebitNoteInspectionDialog {
                         HttpResponse<String> resp = ApiRuntime.HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
                         return resp.statusCode() == 200;
                     }, ok -> {
-                        ToastManager.success(parentDialog.getDialogPane(), "Cancelled", "Original note voided cleanly. Opening creation dialog...");
+                        AppDialogService.success(parentDialog.getDialogPane(), "Cancelled", "Original note voided cleanly. Opening creation dialog...");
                         if (onUpdated != null) onUpdated.run();
                         parentDialog.close();
                         if (onReissue != null) onReissue.run();
-                    }, err -> ToastManager.error(parentDialog.getDialogPane(), "Cancellation Failed", err.getMessage()));
+                    }, err -> AppDialogService.error(parentDialog.getDialogPane(), "Cancellation Failed", err.getMessage()));
                 }
             }
         }

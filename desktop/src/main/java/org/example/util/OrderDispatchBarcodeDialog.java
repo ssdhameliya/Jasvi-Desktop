@@ -404,20 +404,14 @@ public final class OrderDispatchBarcodeDialog {
         });
 
         btnExportPdf.setOnAction(e -> {
-            FileChooser chooser = new FileChooser();
-            chooser.setTitle("Save 4\" × 6\" Order Barcode Label PDF");
-            String safeDocNo = doc.documentNo().replaceAll("[^a-zA-Z0-9_-]", "_");
-            chooser.setInitialFileName("Order_Label_" + safeDocNo + "_Box" + boxIndexProp.get() + "of" + boxTotalProp.get() + ".pdf");
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF Files (*.pdf)", "*.pdf"));
-
-            File target = chooser.showSaveDialog(dialog.getDialogPane().getScene().getWindow());
+            String safeDocNo = doc.documentNo() == null ? "Document" : doc.documentNo().replaceAll("[^a-zA-Z0-9_-]", "_");
+            String base = "Order_Label_" + safeDocNo + "_Box" + boxIndexProp.get() + "of" + boxTotalProp.get();
+            File target = ExportFeedbackManager.resolveWorkspaceExportFile("Barcodes", base, "pdf");
             if (target != null) {
+                if (!ExportFeedbackManager.checkFileWriteable(owner, target)) return;
                 try {
                     exportLabelPdf(target, doc, boxIndexProp.get(), boxTotalProp.get(), destinationProp.get());
-                    AppDialogService.success(owner, "PDF Saved", "Label exported successfully to " + target.getName());
-                    if (Desktop.isDesktopSupported()) {
-                        try { Desktop.getDesktop().open(target); } catch (Exception ignored) {}
-                    }
+                    ExportFeedbackManager.notifyExportSuccess(owner, target, "Order Barcode Label PDF (" + safeDocNo + ")");
                 } catch (Exception ex) {
                     AppDialogService.error(owner, "Export Failed", "Could not export PDF: " + ex.getMessage(), ex.getMessage());
                 }
@@ -428,11 +422,19 @@ public final class OrderDispatchBarcodeDialog {
         rootLayout.setPadding(new Insets(10));
         rootLayout.setStyle("-fx-background-color: -fx-background;");
 
+        javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
+        double maxW = Math.max(760, screen.getWidth() - 48);
+        double maxH = Math.max(520, screen.getHeight() - 48);
+        double targetW = Math.min(maxW, Math.max(780, Math.min(980, screen.getWidth() * 0.82)));
+        double targetH = Math.min(maxH, Math.max(540, Math.min(780, screen.getHeight() * 0.85)));
+
         DialogPane dp = dialog.getDialogPane();
-        dp.setMinWidth(880);
-        dp.setPrefWidth(980);
-        dp.setMinHeight(680);
-        dp.setPrefHeight(780);
+        dp.setMinWidth(Math.min(760, targetW));
+        dp.setPrefWidth(targetW);
+        dp.setMaxWidth(maxW);
+        dp.setMinHeight(Math.min(480, targetH));
+        dp.setPrefHeight(targetH);
+        dp.setMaxHeight(maxH);
         dp.setContent(rootLayout);
         dp.getButtonTypes().setAll(ButtonType.CLOSE);
 
@@ -441,6 +443,12 @@ public final class OrderDispatchBarcodeDialog {
             closeBtn.getStyleClass().addAll("approved-button", "approved-secondary-button");
             closeBtn.setOnAction(e -> dialog.close());
         }
+
+        dialog.setOnShown(ev -> {
+            if (dp.getScene() != null && dp.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+            }
+        });
 
         // Ensure ESC key instantly closes the dialog
         dialog.setOnShowing(ev -> {

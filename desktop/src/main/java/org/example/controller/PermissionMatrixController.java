@@ -18,7 +18,6 @@ import org.example.service.PermissionService;
 import org.example.shared.PermissionCatalog;
 import org.example.util.IconFactory;
 import org.example.util.AppDialogService;
-import org.example.util.ToastManager;
 import org.example.util.UiTaskExecutor;
 import org.example.navigation.ScreenLifecycle;
 
@@ -502,7 +501,7 @@ public class PermissionMatrixController implements ScreenLifecycle {
                     btnSave.setDisable(!canEdit());
                     permissionsDirty = false;
                     org.example.navigation.UnsavedChangesManager.markClean(root);
-                    ToastManager.success(root, "Permissions saved", role + " access has been updated.");
+                    AppDialogService.success(root, "Permissions saved", role + " access has been updated.");
                     lblHint.setText("Permissions saved for " + role + ".");
                 },
                 failure -> { btnSave.setDisable(!canEdit()); showError("Permissions could not be saved", asException(failure)); }

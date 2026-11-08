@@ -229,7 +229,7 @@ public final class SalesDocumentInspectionDialog {
                         ClipboardContent content = new ClipboardContent();
                         content.putString(item);
                         clipboard.setContent(content);
-                        ToastManager.info(getTableView(), "Copied", item + " copied to clipboard.");
+                        AppDialogService.info(getTableView(), "Copied", item + " copied to clipboard.");
                     }
                 });
             }
@@ -680,9 +680,9 @@ public final class SalesDocumentInspectionDialog {
                                 java.awt.Desktop.getDesktop().open(file.toFile());
                             }
                         } catch (Exception ex) {
-                            ToastManager.error(dialog.getDialogPane(), "Failed to open file", ex.getMessage());
+                            AppDialogService.error(dialog.getDialogPane(), "Failed to open file", ex.getMessage());
                         }
-                    }, ex -> ToastManager.error(dialog.getDialogPane(), "Failed to open attachment", ex.getMessage()));
+                    }, ex -> AppDialogService.error(dialog.getDialogPane(), "Failed to open attachment", ex.getMessage()));
                 });
 
                 Button btnDownload = new Button("Download");
@@ -694,23 +694,23 @@ public final class SalesDocumentInspectionDialog {
                         return item.fetcher().fetch();
                     }, downloaded -> {
                         if (downloaded == null || downloaded.data() == null) {
-                            ToastManager.error(dialog.getDialogPane(), "Download error", "Attachment file content is empty.");
+                            AppDialogService.error(dialog.getDialogPane(), "Download error", "Attachment file content is empty.");
                             return;
                         }
-                        FileChooser chooser = new FileChooser();
-                        chooser.setTitle("Save Attachment");
                         String defaultName = (downloaded.fileName() != null && !downloaded.fileName().isBlank()) ? downloaded.fileName() : item.fileName();
-                        chooser.setInitialFileName(defaultName);
-                        File target = chooser.showSaveDialog(dialog.getDialogPane().getScene().getWindow());
+                        String ext = defaultName.contains(".") ? defaultName.substring(defaultName.lastIndexOf('.') + 1) : "bin";
+                        String base = defaultName.contains(".") ? defaultName.substring(0, defaultName.lastIndexOf('.')) : defaultName;
+                        File target = ExportFeedbackManager.resolveWorkspaceExportFile("Attachments", base, ext);
                         if (target != null) {
+                            if (!ExportFeedbackManager.checkFileWriteable(dialog.getDialogPane(), target)) return;
                             try {
                                 Files.write(target.toPath(), downloaded.data());
-                                ToastManager.success(dialog.getDialogPane(), "Download complete", "Saved to " + target.getName());
+                                ExportFeedbackManager.notifyExportSuccess(dialog.getDialogPane(), target, "Attachment (" + defaultName + ")");
                             } catch (Exception writeEx) {
-                                ToastManager.error(dialog.getDialogPane(), "Save failed", writeEx.getMessage());
+                                AppDialogService.error(dialog.getDialogPane(), "Save Error", "Attachment Save Failed", writeEx.getMessage());
                             }
                         }
-                    }, ex -> ToastManager.error(dialog.getDialogPane(), "Failed to download", ex.getMessage()));
+                    }, ex -> AppDialogService.error(dialog.getDialogPane(), "Failed to download", ex.getMessage()));
                 });
 
                 HBox actions = new HBox(8, btnOpen, btnDownload);
@@ -922,11 +922,11 @@ public final class SalesDocumentInspectionDialog {
                 try {
                     if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(path.toFile());
                 } catch (Exception ex) {
-                    ToastManager.error(dialog.getDialogPane(), "Failed to open PDF", ex.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Failed to open PDF", ex.getMessage());
                 }
             }, err -> {
                 btnPrint.setDisable(false);
-                ToastManager.error(dialog.getDialogPane(), "PDF generation failed", err.getMessage());
+                AppDialogService.error(dialog.getDialogPane(), "PDF generation failed", err.getMessage());
             });
         });
 
@@ -961,12 +961,12 @@ public final class SalesDocumentInspectionDialog {
                         java.awt.Desktop.getDesktop().open(path.toFile());
                     }
                 } catch (Exception ex) {
-                    ToastManager.error(dialog.getDialogPane(), "Failed to open Excel", ex.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Failed to open Excel", ex.getMessage());
                 }
             }, err -> {
                 btnExcel.setDisable(false);
                 btnExcel.setText("Excel");
-                ToastManager.error(dialog.getDialogPane(), "Excel export failed", err.getMessage());
+                AppDialogService.error(dialog.getDialogPane(), "Excel export failed", err.getMessage());
             });
         });
 
@@ -1012,7 +1012,7 @@ public final class SalesDocumentInspectionDialog {
                     reporter.stage(3, 3, "Email delivery complete.");
                     reporter.log("Delivered tax invoice #" + sale.getInvoiceNo() + " to " + result.recipientEmail());
                 }, () -> {
-                    ToastManager.success(dialog.getDialogPane(), "Email sent", "Invoice #" + sale.getInvoiceNo() + " emailed successfully to " + result.recipientEmail() + ".");
+                    AppDialogService.success(dialog.getDialogPane(), "Email sent", "Invoice #" + sale.getInvoiceNo() + " emailed successfully to " + result.recipientEmail() + ".");
                     if (onUpdated != null) onUpdated.run();
                 }, failure -> {
                     try {
@@ -1021,9 +1021,9 @@ public final class SalesDocumentInspectionDialog {
                                 "SALE", sale.getId(), "EMAIL", result.recipientEmail(), result.subject(), "FAILED", failure.getMessage(), actor
                         ));
                     } catch (Exception ignored) {}
-                    ToastManager.error(dialog.getDialogPane(), "Email delivery failed", failure.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Email delivery failed", failure.getMessage());
                 });
-            }, failure -> ToastManager.error(dialog.getDialogPane(), "Failed to prepare email draft", failure.getMessage()));
+            }, failure -> AppDialogService.error(dialog.getDialogPane(), "Failed to prepare email draft", failure.getMessage()));
         });
 
         // 7. Record Payment (Enabled if pending, disabled if paid or approval locked)
@@ -1123,12 +1123,12 @@ public final class SalesDocumentInspectionDialog {
                     return true;
                 }, ok -> {
                     NotificationService.add("Sale " + sale.getInvoiceNo() + " approved.");
-                    ToastManager.success(dialog.getDialogPane(), "Approved", "Sale invoice approved successfully.");
+                    AppDialogService.success(dialog.getDialogPane(), "Approved", "Sale invoice approved successfully.");
                     if (onUpdated != null) onUpdated.run();
                     dialog.close();
                 }, ex -> {
                     btnApprove.setDisable(false);
-                    ToastManager.error(dialog.getDialogPane(), "Approval failed", ex.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Approval failed", ex.getMessage());
                 });
             });
 
@@ -1151,7 +1151,7 @@ public final class SalesDocumentInspectionDialog {
                         dialog.close();
                     }, ex -> {
                         btnReject.setDisable(false);
-                        ToastManager.error(dialog.getDialogPane(), "Rejection failed", ex.getMessage());
+                        AppDialogService.error(dialog.getDialogPane(), "Rejection failed", ex.getMessage());
                     });
                 });
             });

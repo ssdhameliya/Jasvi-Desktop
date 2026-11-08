@@ -5,8 +5,8 @@ import javafx.geometry.Insets;
 import java.util.Optional;
 import java.time.LocalDate;
 import org.example.shared.ReferenceFormatRules;
-import org.example.util.ToastManager;
 import org.example.util.AppDialogService;
+import org.example.util.ExportFeedbackManager;
 import javafx.scene.control.Separator;
 import javafx.scene.layout.GridPane;
 import javafx.scene.control.TextFormatter;
@@ -149,7 +149,7 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private StackPane panelHost;
     @FXML private ScrollPane panelScroll;
 
-    @FXML private Button btnCheckUpdates,btnTestEmail,btnSaveSettings;
+    @FXML private Button btnCheckUpdates,btnTestEmail,btnSaveSettings,btnSectionGuide;
     @FXML private VBox panelSecurity;
     @FXML private TextField txtSessionTimeoutMinutes, txtSessionWarningMinutes;
     @FXML private ComboBox<String> cmbMfaPolicy;
@@ -1195,7 +1195,7 @@ public class SettingsController implements ScreenLifecycle {
                     String ex = ReferenceFormatRules.format(fmt, 1, LocalDate.now());
                     lblActiveRefFormat.setText(fmt + " (e.g., " + ex + ")");
                 }
-                ToastManager.success(lblActiveRefFormat, "Synchronization Complete", "Synchronized all 27 reference formats to " + sch + " successfully.");
+                AppDialogService.success(lblActiveRefFormat, "Synchronization Complete", "Synchronized all 27 reference formats to " + sch + " successfully.");
             } catch (Exception ex) {
                 AppDialogService.error(lblActiveRefFormat, "Sync Error", "Reference Synchronization Failed", "Failed to standardize reference formats: " + ex.getMessage());
             }
@@ -1605,6 +1605,10 @@ private record AssetPreviewRequest(
         btnSaveSettings.setText(label);
         btnSaveSettings.setAccessibleText(label);
         btnSaveSettings.setTooltip(new Tooltip(label + " only"));
+        if (btnSectionGuide != null) {
+            btnSectionGuide.setText("Guide");
+            btnSectionGuide.setTooltip(new Tooltip("Operational guidance for " + saveLabel(activeSection)));
+        }
     }
 
     @FXML private void showCompany() { selectSection(Section.COMPANY, navCompany, ensureSectionLoaded(Section.COMPANY)); }
@@ -1710,7 +1714,7 @@ private record AssetPreviewRequest(
                     UiTaskExecutor.submitAction("settings-storage-cleanup-run",
                             WorkspaceSettingsService::cleanNow,
                             result -> {
-                                org.example.util.ToastManager.success(panelWorkspace, "Storage cleanup completed", result.summary());
+                                org.example.util.AppDialogService.success(panelWorkspace, "Storage cleanup completed", result.summary());
                                 refreshStorageUsage();
                             },
                             error -> showError("Storage cleanup failed: " + safeMessage(error)));
@@ -1745,7 +1749,7 @@ private record AssetPreviewRequest(
         Path chosen = selected.toPath().toAbsolutePath().normalize();
         Path current = WorkspaceManager.getWorkspaceRoot().toAbsolutePath().normalize();
         if (chosen.equals(current)) {
-            org.example.util.ToastManager.info(panelWorkspace, "Workspace unchanged",
+            org.example.util.AppDialogService.info(panelWorkspace, "Workspace unchanged",
                     "The selected folder is already the active application workspace.");
             return;
         }
@@ -1992,7 +1996,7 @@ private record AssetPreviewRequest(
         ShortcutRegistry.saveActions(shortcutManagerDraft(), shortcutManagerScopeDraft(), SettingsShortcutSupport.managerActions());
         refreshShortcutWorkspace();
         if (selectedShortcutAction != null) openShortcutEditor(selectedShortcutAction);
-        org.example.util.ToastManager.success(panelHost, "Shortcuts reset", "All keyboard shortcuts were restored to product defaults.");
+        org.example.util.AppDialogService.success(panelHost, "Shortcuts reset", "All keyboard shortcuts were restored to product defaults.");
     }
 
     @FXML
@@ -2048,20 +2052,7 @@ private record AssetPreviewRequest(
 
     @FXML
     private void showLicenseRenewalDialog() {
-        try {
-            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(getClass().getResource("/fxml/pages/LicenseRenewalDialog.fxml"));
-            javafx.scene.Parent root = loader.load();
-            javafx.stage.Stage stage = new javafx.stage.Stage();
-            stage.setTitle("Jasvi Desktop Subscription & Licensing");
-            stage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
-            if (panelUpdates != null && panelUpdates.getScene() != null) {
-                stage.initOwner(panelUpdates.getScene().getWindow());
-            }
-            stage.setScene(new javafx.scene.Scene(root));
-            stage.show();
-        } catch (Exception e) {
-            org.example.util.AppDialogService.error(panelUpdates, "Licensing", "Could not open Licensing", e.getMessage());
-        }
+        LicenseRenewalDialogController.show(panelUpdates != null && panelUpdates.getScene() != null ? panelUpdates.getScene().getWindow() : null);
     }
 
     private void putSetting(String key, String value) {
@@ -2354,7 +2345,7 @@ private record AssetPreviewRequest(
         ShortcutRegistry.saveActions(Map.of(selectedShortcutAction, ""), Map.of(selectedShortcutAction, scope), List.of(selectedShortcutAction));
         refreshShortcutWorkspace();
         openShortcutEditor(selectedShortcutAction);
-        org.example.util.ToastManager.success(panelHost, "Shortcut disabled", selectedShortcutAction.label() + " is disabled for this user.");
+        org.example.util.AppDialogService.success(panelHost, "Shortcut disabled", selectedShortcutAction.label() + " is disabled for this user.");
     }
 
     @FXML
@@ -2396,7 +2387,7 @@ private record AssetPreviewRequest(
         ShortcutRegistry.refreshBoundLabels();
         refreshShortcutWorkspace();
         openShortcutEditor(selectedShortcutAction);
-        org.example.util.ToastManager.success(panelHost, "Shortcut saved", selectedShortcutAction.label() + " shortcut updated.");
+        org.example.util.AppDialogService.success(panelHost, "Shortcut saved", selectedShortcutAction.label() + " shortcut updated.");
     }
 
     private void refreshSelectedShortcutConflict() {
@@ -2479,7 +2470,7 @@ private record AssetPreviewRequest(
             }
             refreshShortcutWorkspace();
             if (selectedShortcutAction != null) openShortcutEditor(selectedShortcutAction);
-            org.example.util.ToastManager.success(panelHost, "Shortcuts imported", "Shortcut profile imported successfully.");
+            org.example.util.AppDialogService.success(panelHost, "Shortcuts imported", "Shortcut profile imported successfully.");
         } catch (Exception exception) {
             showError("The shortcut profile could not be imported: " + exception.getMessage());
         }
@@ -2488,12 +2479,9 @@ private record AssetPreviewRequest(
     @FXML
     private void exportShortcuts() {
         if (panelShortcuts == null || panelShortcuts.getScene() == null) return;
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export Shortcut Profile");
-        chooser.setInitialFileName("dse-erp-shortcuts.properties");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Shortcut profile (*.properties)", "*.properties"));
-        File selected = chooser.showSaveDialog(panelShortcuts.getScene().getWindow());
+        File selected = ExportFeedbackManager.resolveWorkspaceExportFile("Settings", "dse-erp-shortcuts", "properties");
         if (selected == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(panelHost, selected)) return;
         try (var writer = Files.newBufferedWriter(selected.toPath())) {
             Properties properties = new Properties();
             for (Action action : SettingsShortcutSupport.managerActions()) {
@@ -2503,7 +2491,7 @@ private record AssetPreviewRequest(
                 properties.setProperty(action.id() + ".requireSelection", Boolean.toString(ShortcutRegistry.requireSelection(action)));
             }
             properties.store(writer, "DSE ERP keyboard shortcut profile");
-            org.example.util.ToastManager.success(panelHost, "Shortcuts exported", "Shortcut profile exported successfully.");
+            ExportFeedbackManager.notifyExportSuccess(panelHost, selected, "Shortcut Profile (.properties)");
         } catch (Exception exception) {
             showError("The shortcut profile could not be exported: " + exception.getMessage());
         }
@@ -2544,7 +2532,7 @@ private record AssetPreviewRequest(
                 NotificationService.add("Notification settings were updated.");
             }
             markActiveSettingsClean();
-            org.example.util.ToastManager.success(panelHost, "Settings saved", saveLabel(section) + " saved successfully.");
+            org.example.util.AppDialogService.success(panelHost, "Settings saved", saveLabel(section) + " saved successfully.");
         } catch (Exception exception) {
             if (section == Section.WORKSPACE) {
                 deploymentRestartRequired = false;
@@ -2939,7 +2927,7 @@ private record AssetPreviewRequest(
             return;
         }
         if (btnStartWaha != null) btnStartWaha.setDisable(true);
-        ToastManager.info(txtWahaEndpoint, "Starting WAHA", "Sending container startup command to server...");
+        AppDialogService.info(txtWahaEndpoint, "Starting WAHA", "Sending container startup command to server...");
         UiTaskExecutor.submitAction(
             "start-waha-engine",
             () -> {
@@ -3923,6 +3911,28 @@ private record AssetPreviewRequest(
     }
 
     /* =========================================================
+       SECTION OPERATIONAL GUIDANCE
+       ========================================================= */
+
+    @FXML
+    private void showSectionGuide() {
+        String key = switch (activeSection) {
+            case COMPANY -> "SETTINGS_COMPANY";
+            case PAYMENT -> "SETTINGS_PAYMENT";
+            case INVOICE -> "SETTINGS_INVOICE";
+            case NOTIFICATIONS -> "SETTINGS_NOTIFICATIONS";
+            case EMAIL -> "SETTINGS_EMAIL";
+            case SECURITY -> "SETTINGS_SECURITY";
+            case WORKSPACE -> "SETTINGS_WORKSPACE";
+            case SHORTCUTS -> "SETTINGS_SHORTCUTS";
+            case UPDATES -> "SETTINGS_UPDATES";
+            case MODULES -> "SETTINGS_MODULES";
+            case SHOWCASE -> "SETTINGS_SHOWCASE";
+        };
+        org.example.util.ScreenGuidanceManager.showGuidance(btnSectionGuide != null ? btnSectionGuide : settingsPageHeader, key);
+    }
+
+    /* =========================================================
        EMAIL TEST
        ========================================================= */
 
@@ -3958,7 +3968,7 @@ private record AssetPreviewRequest(
                 reporter.log("Test email successfully delivered to " + recipient);
             },
             () -> {
-                org.example.util.ToastManager.success(panelWorkspace, "Test email sent",
+                org.example.util.AppDialogService.success(panelWorkspace, "Test email sent",
                     "Test email sent successfully to " + recipient + ".");
             },
             failure -> {
@@ -4576,7 +4586,7 @@ private record AssetPreviewRequest(
             }
             putSetting("showcase.content", jsonPayload);
             ConfigManager.save();
-            org.example.util.ToastManager.success(panelHost, "Showcase Published", "Website & 3D Showcase content published successfully.");
+            org.example.util.AppDialogService.success(panelHost, "Showcase Published", "Website & 3D Showcase content published successfully.");
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to save showcase settings: " + ex.getMessage(), ex);
         }

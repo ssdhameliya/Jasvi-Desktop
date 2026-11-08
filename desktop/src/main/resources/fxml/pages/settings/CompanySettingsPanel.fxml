@@ -90,7 +90,6 @@
                                 <VBox spacing="5" GridPane.columnIndex="0" GridPane.rowIndex="2">
                                     <Label text="Application Display Name" styleClass="settings-form-label"/>
                                     <TextField fx:id="txtApplicationName" promptText="Uses Company Name" editable="false" focusTraversable="false" styleClass="approved-input,readonly-field"/>
-                                    <Label text="Uses Company Name automatically across the customer-facing application." wrapText="true" styleClass="settings-help-text"/>
                                 </VBox>
 
                                 <VBox spacing="5" GridPane.columnIndex="1" GridPane.rowIndex="2">
@@ -101,7 +100,6 @@
                                 <VBox spacing="5" GridPane.columnIndex="2" GridPane.columnSpan="2" GridPane.rowIndex="2">
                                     <Label text="Startup Message" styleClass="settings-form-label"/>
                                     <TextField fx:id="txtApplicationStartingText" promptText="Starting your company..." styleClass="approved-input"/>
-                                    <Label text="Used on splash and sign-in screens; document branding remains independent." wrapText="true" styleClass="settings-help-text"/>
                                 </VBox>
 
                             </GridPane>
@@ -113,7 +111,6 @@
                             <VBox spacing="10" maxWidth="Infinity" styleClass="settings-information-card,settings-application-branding-panel">
                                 <VBox spacing="4">
                                     <Label text="Application Branding" styleClass="settings-subsection-title"/>
-                                    <Label text="Used consistently on Splash, Login, Forgot Password, Registration and Email / OTP setup screens." wrapText="true" styleClass="settings-help-text"/>
                                 </VBox>
                                 <GridPane hgap="14" alignment="TOP_LEFT" maxWidth="Infinity" styleClass="settings-brand-assets-row">
                                     <columnConstraints>

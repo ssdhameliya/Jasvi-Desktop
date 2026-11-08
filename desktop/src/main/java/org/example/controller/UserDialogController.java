@@ -11,7 +11,9 @@ import org.example.service.NotificationService;
 import org.example.service.SessionService;
 import org.example.util.OwnedAlert;
 import org.example.util.IconFactory;
+import org.example.util.SearchableComboBoxHelper;
 import org.example.util.UiTaskExecutor;
+import org.example.util.WorkflowFocusManager;
 
 import java.util.Locale;
 import java.util.LinkedHashMap;
@@ -67,6 +69,16 @@ public class UserDialogController implements ScreenLifecycle {
         cmbAccess.getItems().setAll("FULL ACCESS", "STANDARD", "LIMITED ACCESS", "READ ONLY");
         cmbAccess.setValue("STANDARD");
         chkActive.setSelected(true);
+
+        SearchableComboBoxHelper.makeSearchable(cmbRole);
+        SearchableComboBoxHelper.makeSearchable(cmbAccess);
+
+        WorkflowFocusManager.install(java.util.List.of(
+            txtFullName, txtUsername, txtEmail, txtPhone, txtDepartment, txtBranch,
+            cmbRole, cmbAccess, txtPassword, txtConfirm, chkActive, btnSave
+        ));
+        WorkflowFocusManager.initial(txtFullName);
+        WorkflowFocusManager.excludeFromTab(btnPasswordEye, btnConfirmEye, btnCancel, btnResetMfa);
 
         txtPasswordVisible.textProperty().bindBidirectional(txtPassword.textProperty());
         txtConfirmVisible.textProperty().bindBidirectional(txtConfirm.textProperty());

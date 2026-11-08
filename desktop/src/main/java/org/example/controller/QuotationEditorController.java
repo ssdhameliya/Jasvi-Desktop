@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import org.example.navigation.ScreenLifecycle;
 import javafx.application.Platform;
 import javafx.animation.PauseTransition;
@@ -10,6 +12,7 @@ import javafx.fxml.FXML;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.StackPane;
+import org.example.util.SearchableComboBoxHelper;
 import org.example.util.WorkflowFocusManager;
 import javafx.stage.FileChooser;
 import javafx.util.Duration;
@@ -106,9 +109,15 @@ public final class QuotationEditorController implements ScreenLifecycle {
     }
 
     private void installBusinessFocusOrder(){
+        cmbCustomer.getProperties().put(SearchableComboBoxHelper.SEARCHABLE_INSTALLED_PROP, true);
+        SearchableComboBoxHelper.makeSearchable(cmbSource);
+
         WorkflowFocusManager.install(java.util.List.of(
-            cmbCustomer, dpDate, dpValid, dpFollowUp,
-            txtItemSearch, txtQuantity, txtRate, txtDiscount, txtGst, btnAdd, btnSave));
+            cmbCustomer, dpDate, dpValid, dpFollowUp, cmbSource,
+            txtItemSearch, txtQuantity, txtRate, txtDiscount, txtGst, btnAdd,
+            txtRemarks, btnSave));
+        WorkflowFocusManager.excludeFromTab(btnCancel, btnDeleteLine, btnAttachmentAdd, btnAttachmentPreview, btnAttachmentRemove);
+        WorkflowFocusManager.installSmartLoopBreakout(txtItemSearch, txtRemarks);
         WorkflowFocusManager.selectAllOnFocus(txtQuantity);
         WorkflowFocusManager.selectAllOnFocus(txtRate);
         WorkflowFocusManager.selectAllOnFocus(txtDiscount);
@@ -122,8 +131,9 @@ public final class QuotationEditorController implements ScreenLifecycle {
         Platform.runLater(() -> {
             if (txtItemSearch != null && txtItemSearch.getScene() != null) {
                 txtItemSearch.getScene().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
-                    if ((event.isControlDown() && event.getCode() == javafx.scene.input.KeyCode.S)
-                            || event.getCode() == javafx.scene.input.KeyCode.F10) {
+                    if ((event.isControlDown() && (event.getCode() == javafx.scene.input.KeyCode.S || event.getCode() == javafx.scene.input.KeyCode.ENTER))
+                            || event.getCode() == javafx.scene.input.KeyCode.F10
+                            || (event.isAltDown() && event.getCode() == javafx.scene.input.KeyCode.S)) {
                         btnSave.fire();
                         event.consume();
                     } else if (event.getCode() == javafx.scene.input.KeyCode.F2) {
@@ -283,9 +293,27 @@ public final class QuotationEditorController implements ScreenLifecycle {
     private void configureCustomerSearch(){
         cmbCustomer.setEditable(true);
         cmbCustomer.setVisibleRowCount(10);
+        cmbCustomer.getProperties().put(SearchableComboBoxHelper.SEARCHABLE_INSTALLED_PROP, true);
         cmbCustomer.setConverter(new StringConverter<>(){@Override public String toString(CustomerChoice value){return value==null?"":value.display();}@Override public CustomerChoice fromString(String text){String q=safe(text).trim();if(q.isBlank())return null;return cmbCustomer.getItems().stream().filter(c->c.display().equalsIgnoreCase(q)||c.name.equalsIgnoreCase(q)||c.code.equalsIgnoreCase(q)).findFirst().orElse(null);}});
         customerSearchDebounce.setOnFinished(e->searchQuotationCustomers(cmbCustomer.getEditor().getText()));
-        cmbCustomer.getEditor().textProperty().addListener((o,a,text)->{if(updatingCustomerSearch||!cmbCustomer.getEditor().isFocused())return;CustomerChoice selected=cmbCustomer.getValue();if(selected!=null&&selected.display().equalsIgnoreCase(safe(text))){customerSearchDebounce.stop();return;}customerSearchDebounce.playFromStart();});
+        cmbCustomer.getEditor().textProperty().addListener((o,a,text)->{if(updatingCustomerSearch||!cmbCustomer.getEditor().isFocused())return;CustomerChoice selected=cmbCustomer.getValue();if(selected!=null&&selected.display().equalsIgnoreCase(safe(text))){customerSearchDebounce.stop();return;}if(text!=null&&cmbCustomer.isShowing()){String trimmed=text.trim();boolean matches=cmbCustomer.getItems().stream().anyMatch(c->c.display().equalsIgnoreCase(trimmed)||c.name.equalsIgnoreCase(trimmed));if(matches){customerSearchDebounce.stop();return;}}customerSearchDebounce.playFromStart();});
+        cmbCustomer.getEditor().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.DOWN) {
+                if (!cmbCustomer.isShowing() && !cmbCustomer.getItems().isEmpty()) {
+                    cmbCustomer.show();
+                    event.consume();
+                }
+            } else if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                if (cmbCustomer.isShowing()) {
+                    CustomerChoice hovered = cmbCustomer.getSelectionModel().getSelectedItem();
+                    if (hovered != null) {
+                        cmbCustomer.setValue(hovered);
+                        cmbCustomer.hide();
+                        event.consume();
+                    }
+                }
+            }
+        });
         cmbCustomer.showingProperty().addListener((o,a,showing)->{if(showing&&cmbCustomer.getItems().isEmpty())searchQuotationCustomers("");});
     }
     private void searchQuotationCustomers(String text){String query=safe(text).trim();UiTaskExecutor.submitLatest("quotation-customer-search",()->partyService.search("CUSTOMER",query,30),rows->{if(cmbCustomer.getEditor().isFocused()&&!safe(cmbCustomer.getEditor().getText()).equalsIgnoreCase(query))return;CustomerChoice selected=cmbCustomer.getValue();List<CustomerChoice> choices=new ArrayList<>();if(rows!=null)for(Party p:rows)choices.add(new CustomerChoice(p));if(selected!=null&&choices.stream().noneMatch(c->c.id==selected.id))choices.add(0,selected);updatingCustomerSearch=true;try{cmbCustomer.getItems().setAll(choices);if(selected!=null)cmbCustomer.getItems().stream().filter(c->c.id==selected.id).findFirst().ifPresent(cmbCustomer::setValue);}finally{updatingCustomerSearch=false;}if(!choices.isEmpty()&&cmbCustomer.getEditor().isFocused()){if(cmbCustomer.isShowing()){cmbCustomer.hide();cmbCustomer.show();}else{cmbCustomer.show();}}},failure->System.err.println("Quotation customer search: "+message(failure)));}
@@ -366,7 +394,7 @@ public final class QuotationEditorController implements ScreenLifecycle {
 
     @FXML private void saveQuotation(){save();}
     private record SaveOutcome(QuotationApiClient.QuoteDto quote,String attachment){}
-    private void save(){try{CustomerChoice customer=Objects.requireNonNull(cmbCustomer.getValue(),"Select a customer.");String source=safe(cmbSource.getValue()).trim();if(source.isBlank()||cmbSource.getItems().stream().noneMatch(v->v.equalsIgnoreCase(source)))throw new IllegalArgumentException("Select Quotation Source from Master Data.");if(dpDate.getValue()==null||dpValid.getValue()==null)throw new IllegalArgumentException("Quotation date and valid-until date are required.");if(dpValid.getValue().isBefore(dpDate.getValue()))throw new IllegalArgumentException("Valid-until date cannot be before quotation date.");if(tableLines.getItems().isEmpty())throw new IllegalArgumentException("Add at least one item.");updateTotals();double gross=tableLines.getItems().stream().mapToDouble(r->r.quantity.get()*r.rate.get()).sum(),discount=tableLines.getItems().stream().mapToDouble(r->r.discountAmount.get()).sum(),taxable=gross-discount,gst=tableLines.getItems().stream().mapToDouble(r->r.gstAmount.get()).sum(),total=taxable+gst;List<QuotationApiClient.LineDto> lines=tableLines.getItems().stream().map(r->new QuotationApiClient.LineDto(r.code.get(),r.description.get(),r.category.get(),r.hsn.get(),r.unit.get(),r.quantity.get(),r.rate.get(),r.gst.get(),r.discount.get(),r.total.get())).toList();Integer currentId=quotationId;Path pendingAttachment=selectedAttachment;boolean removeAttachment=attachmentRemovalPending;String currentAttachment=existingAttachment;var request=new QuotationApiClient.SaveRequest(currentId,dpDate.getValue().toString(),dpValid.getValue().toString(),customer.id,taxable,discount,gst,total,txtRemarks.getText(),dpFollowUp.getValue()==null?"":dpFollowUp.getValue().toString(),user(),source,user(),lines,quotationRowVersion);setSaveBusy(true);UiTaskExecutor.submitAction("quotation-editor-save",()->{QuotationApiClient.QuoteDto saved=api.save(request);String attachment=currentAttachment;if(removeAttachment){supportApi.deleteDocumentAttachment("QUOTATION",saved.id());attachment="";}else if(pendingAttachment!=null)attachment=supportApi.uploadDocumentAttachment("QUOTATION",saved.id(),pendingAttachment);return new SaveOutcome(saved,attachment==null?"":attachment);},outcome->{setSaveBusy(false);quotationId=outcome.quote().id();quotationRowVersion=outcome.quote().rowVersion();existingAttachment=outcome.attachment();selectedAttachment=null;attachmentRemovalPending=false;dirty=false;ScreenRefreshPolicy.invalidate("quotations");org.example.util.ToastManager.success(tableLines,"Quotation saved","Quotation saved successfully.");org.example.navigation.UnsavedChangesManager.clear(tableLines);backToRegister();},failure->{setSaveBusy(false);error(asException(failure));});}catch(Exception e){error(e);}}
+    private void save(){try{CustomerChoice customer=Objects.requireNonNull(cmbCustomer.getValue(),"Select a customer.");String source=safe(cmbSource.getValue()).trim();if(source.isBlank()||cmbSource.getItems().stream().noneMatch(v->v.equalsIgnoreCase(source)))throw new IllegalArgumentException("Select Quotation Source from Master Data.");if(dpDate.getValue()==null||dpValid.getValue()==null)throw new IllegalArgumentException("Quotation date and valid-until date are required.");if(dpValid.getValue().isBefore(dpDate.getValue()))throw new IllegalArgumentException("Valid-until date cannot be before quotation date.");if(tableLines.getItems().isEmpty())throw new IllegalArgumentException("Add at least one item.");updateTotals();double gross=tableLines.getItems().stream().mapToDouble(r->r.quantity.get()*r.rate.get()).sum(),discount=tableLines.getItems().stream().mapToDouble(r->r.discountAmount.get()).sum(),taxable=gross-discount,gst=tableLines.getItems().stream().mapToDouble(r->r.gstAmount.get()).sum(),total=taxable+gst;List<QuotationApiClient.LineDto> lines=tableLines.getItems().stream().map(r->new QuotationApiClient.LineDto(r.code.get(),r.description.get(),r.category.get(),r.hsn.get(),r.unit.get(),r.quantity.get(),r.rate.get(),r.gst.get(),r.discount.get(),r.total.get())).toList();Integer currentId=quotationId;Path pendingAttachment=selectedAttachment;boolean removeAttachment=attachmentRemovalPending;String currentAttachment=existingAttachment;var request=new QuotationApiClient.SaveRequest(currentId,dpDate.getValue().toString(),dpValid.getValue().toString(),customer.id,taxable,discount,gst,total,txtRemarks.getText(),dpFollowUp.getValue()==null?"":dpFollowUp.getValue().toString(),user(),source,user(),lines,quotationRowVersion);setSaveBusy(true);UiTaskExecutor.submitAction("quotation-editor-save",()->{QuotationApiClient.QuoteDto saved=api.save(request);String attachment=currentAttachment;if(removeAttachment){supportApi.deleteDocumentAttachment("QUOTATION",saved.id());attachment="";}else if(pendingAttachment!=null)attachment=supportApi.uploadDocumentAttachment("QUOTATION",saved.id(),pendingAttachment);return new SaveOutcome(saved,attachment==null?"":attachment);},outcome->{setSaveBusy(false);quotationId=outcome.quote().id();quotationRowVersion=outcome.quote().rowVersion();existingAttachment=outcome.attachment();selectedAttachment=null;attachmentRemovalPending=false;dirty=false;ScreenRefreshPolicy.invalidate("quotations");org.example.util.AppDialogService.success(tableLines,"Quotation saved","Quotation saved successfully.");org.example.navigation.UnsavedChangesManager.clear(tableLines);backToRegister();},failure->{setSaveBusy(false);error(asException(failure));});}catch(Exception e){error(e);}}
     @FXML private void cancel(){backToRegister();}
     private void setSaveBusy(boolean busy){btnSave.setDisable(busy);btnCancel.setDisable(busy);btnAttachmentAdd.setDisable(busy);btnAttachmentRemove.setDisable(busy||(!attachmentAvailable()));btnDeleteLine.setDisable(busy||tableLines.getSelectionModel().getSelectedItem()==null);}
     private void backToRegister(){NavigationManager manager=NavigationManager.getInstance();if(manager!=null){manager.invalidate("/fxml/pages/Quotations.fxml");manager.loadPage("/fxml/pages/Quotations.fxml");}}

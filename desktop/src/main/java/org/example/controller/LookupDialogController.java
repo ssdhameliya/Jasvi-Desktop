@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import org.example.navigation.ScreenLifecycle;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -12,6 +14,7 @@ import org.example.util.DocumentInspectionScaffold;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
 import org.example.util.UiTaskExecutor;
+import org.example.util.WorkflowFocusManager;
 
 import java.util.Locale;
 
@@ -97,6 +100,11 @@ public class LookupDialogController implements ScreenLifecycle {
                 DocumentInspectionScaffold.installDragPhysics(heroHeader, hostDialog);
             }
         });
+        WorkflowFocusManager.install(java.util.List.of(
+            txtCode, txtValue, txtDescription, spnOrder, chkActive, btnSave
+        ));
+        WorkflowFocusManager.initial(txtValue);
+        WorkflowFocusManager.excludeFromTab(btnCancel);
     }
 
     public void setLookupType(String type) {
@@ -177,7 +185,7 @@ public class LookupDialogController implements ScreenLifecycle {
                     savedResult = savedLookup;
                     close();
                     String displayCode = roleMode ? roleDisplayCode(lookup.getLookupValue()) : lookup.getLookupCode();
-                    org.example.util.ToastManager.success((javafx.stage.Window) null,
+                    org.example.util.AppDialogService.success((javafx.stage.Window) null,
                             "Master value " + (created ? "saved" : "updated"),
                             displayCode + " - " + lookup.getLookupValue());
                 },

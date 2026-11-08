@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -440,7 +442,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
             LinkedRecordContext.open("PURCHASE", null, row.referenceNo(), "VIEW", "General Ledger");
             NavigationManager.getInstance().loadPage("/fxml/pages/PurchaseList.fxml");
         } else {
-            ToastManager.info(tblJournals, "General Ledger", "Voucher " + row.entryNumber() + " is an internal journal record.");
+            AppDialogService.info(tblJournals, "General Ledger", "Voucher " + row.entryNumber() + " is an internal journal record.");
         }
     }
 
@@ -454,7 +456,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
         ClipboardContent cc = new ClipboardContent();
         cc.putString(row.entryNumber());
         Clipboard.getSystemClipboard().setContent(cc);
-        ToastManager.info(tblJournals, "Copied", "Voucher number copied to clipboard: " + row.entryNumber());
+        AppDialogService.info(tblJournals, "Copied", "Voucher number copied to clipboard: " + row.entryNumber());
     }
 
     private void loadLedgerDataAsync() {
@@ -657,7 +659,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
                     allTbRows.setAll(result.tbRows());
                     filterTrialBalance();
                 },
-                ex -> ToastManager.error(tblJournals, "General Ledger Error", "Unable to load financial statements: " + ex.getMessage())
+                ex -> AppDialogService.error(tblJournals, "General Ledger Error", "Unable to load financial statements: " + ex.getMessage())
         );
     }
 
@@ -670,12 +672,8 @@ public class GeneralLedgerController implements ScreenLifecycle {
 
     @FXML
     public void exportStatement() {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export Financial Statement");
-        chooser.setInitialFileName("Financial_Statement_" + BusinessClock.today() + ".xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Workbook (*.xlsx)", "*.xlsx"));
-        File file = chooser.showSaveDialog(tblJournals.getScene().getWindow());
-        if (file == null) return;
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("GeneralLedger", "Financial_Statement", "xlsx");
+        if (!ExportFeedbackManager.checkFileWriteable(tblJournals, file)) return;
 
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet s1 = workbook.createSheet("General Ledger");
@@ -733,11 +731,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
                 workbook.write(fos);
             }
 
-            String absolutePath = file.getAbsolutePath();
-            ToastManager.success(tblJournals, "Financial Statement Exported", "File saved at:\n" + absolutePath);
-            Alert alert = new OwnedAlert(Alert.AlertType.INFORMATION, "Financial statement workbook exported successfully to:\n\n" + absolutePath, ButtonType.OK);
-            alert.setHeaderText("Export Successful");
-            alert.showAndWait();
+            ExportFeedbackManager.notifyExportSuccess(tblJournals, file, "Financial Statement Workbook Export");
         } catch (Exception e) {
             org.example.util.AppDialogService.error(tblJournals, "Export failed", "Could not write Excel workbook", e.getMessage());
         }
