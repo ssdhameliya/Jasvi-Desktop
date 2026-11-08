@@ -32,7 +32,7 @@ req('Reference sequence exhausted' not in ops and 'capacity=' not in ops, 'confi
 req('seq.length()>width' not in ops, 'existing reference scan must accept expanded numeric sequences')
 req('minimum zero-padding' in master, 'Master Data help must describe expandable X padding')
 req('savedResult=saved' in item and 'Item saved but notification could not be created' in item, 'Item save must survive notification failure and return a parent-screen result')
-req('ToastManager.success(tableItems' in items and 'selectSavedItem(saved.getItemCode())' in items, 'Item Master must show persistent success and select the saved record')
+req('AppDialogService.success(tableItems' in items and 'selectSavedItem(saved.getItemCode())' in items, 'Item Master must show persistent success and select the saved record')
 req('Create new • Skip existing posted documents' in imp and 'isFixedImportPolicy' in imp and ('selectedImportMode()' in imp), 'Import Step 4 must be module-aware')
 req('cmbImportMode.setDisable(running || isFixedImportPolicy' in imp, 'Import mode must lock while import runs')
 req('sourceChoices()' in qsvc and 'activeQuotationSources()' in qsvc and ('QUOTATION_SOURCE_CODE="QUOTATION_SOURCE"' in qsvc) and ('masterData.valuesByCategoryCode(QUOTATION_SOURCE_CODE)' in qsvc), 'Quotation service must expose canonical Master-driven Source choices')

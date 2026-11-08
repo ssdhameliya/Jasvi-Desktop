@@ -1,5 +1,7 @@
 package org.example.app;
 
+import org.example.util.AppDialogService;
+
 import org.example.util.OwnedAlert;
 import org.example.util.OwnedDialog;
 import org.example.util.AppDialogRenderer;
@@ -201,14 +203,14 @@ public final class Main {
                     ? "No previous database existed."
                     : "Safety backup: " + restoreResult.safetyBackup();
             if (recoveryFiles.applied()) {
-                org.example.util.ToastManager.success(stage, "LOCAL recovery completed",
+                org.example.util.AppDialogService.success(stage, "LOCAL recovery completed",
                         "The company-server database and business files were restored to this LOCAL workspace. " + safety);
             } else {
-                org.example.util.ToastManager.success(stage, "Database restore completed",
+                org.example.util.AppDialogService.success(stage, "Database restore completed",
                         "The staged database restore was applied successfully. " + safety);
             }
         } else if (recoveryFiles.applied()) {
-            org.example.util.ToastManager.success(stage, "LOCAL recovery files completed",
+            org.example.util.AppDialogService.success(stage, "LOCAL recovery files completed",
                     "The staged company-server business files were applied successfully.");
         }
     }

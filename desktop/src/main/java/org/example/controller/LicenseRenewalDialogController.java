@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itextpdf.barcodes.BarcodeQRCode;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -17,11 +18,14 @@ import javafx.stage.Stage;
 import org.example.api.ApiRuntime;
 import org.example.api.licensing.LicenseApiClient;
 import org.example.shared.licensing.HardwareFingerprintUtil;
+import org.example.util.AppDialogRenderer;
 import org.example.util.AppDialogService;
+import org.example.util.DocumentInspectionScaffold;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
-import org.example.util.ToastManager;
+import org.example.util.UiActionIcons;
 import org.example.util.UiTaskExecutor;
+import org.example.util.WindowUtilsFx;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;
@@ -63,6 +67,7 @@ public class LicenseRenewalDialogController {
 
     private final LicenseApiClient api = new LicenseApiClient();
     private final ObjectMapper json = ApiRuntime.JSON;
+    private Dialog<?> hostDialog;
     private String currentUpiUri = "";
     private String supportPhone = "9537544008";
     private String upiVpa = "jasviindustries@icici";
@@ -78,6 +83,14 @@ public class LicenseRenewalDialogController {
         if (txtMachineId != null) {
             txtMachineId.setText(HardwareFingerprintUtil.getDisplayMachineId());
         }
+        if (btnApplyActivation != null) UiActionIcons.apply(btnApplyActivation, "complete", "Apply & Activate License");
+        if (btnClose != null) UiActionIcons.apply(btnClose, "cancel", "Close");
+        if (btnSendWhatsAppLead != null) UiActionIcons.apply(btnSendWhatsAppLead, "communication", "Send Machine ID via WhatsApp");
+        if (btnRegisterOnlineLead != null) UiActionIcons.apply(btnRegisterOnlineLead, "link", "Register Online");
+        if (btnSelfActivateNow != null) UiActionIcons.apply(btnSelfActivateNow, "security", "Activate Locally");
+        if (btnBrowseLicenseFile != null) UiActionIcons.apply(btnBrowseLicenseFile, "document", "Browse License File");
+        if (btnCopyUpiUri != null) UiActionIcons.apply(btnCopyUpiUri, "copy", "Copy UPI Payment String");
+        if (btnCopyMachineId != null) UiActionIcons.apply(btnCopyMachineId, "copy", "Copy ID");
         loadCatalogAsync();
         refreshStatus();
     }
@@ -145,7 +158,7 @@ public class LicenseRenewalDialogController {
                         lblVpaDisplay.setText("VPA: " + upiVpa);
                     }
                 },
-                err -> AppDialogService.error(btnClose, "QR Render Error", "Failed to render UPI QR", err.getMessage())
+                err -> AppDialogService.error(btnApplyActivation != null ? btnApplyActivation : txtMachineId, "QR Render Error", "Failed to render UPI QR", err.getMessage())
         );
     }
 
@@ -169,8 +182,16 @@ public class LicenseRenewalDialogController {
         if (lblCompany != null) lblCompany.setText(dto.companyName() != null ? dto.companyName() : "-");
         if (lblTier != null) lblTier.setText(dto.tier() != null ? dto.tier() : "GOLD");
         if (lblValidUntil != null) {
-            lblValidUntil.setText(dto.validUntil() != null
-                    ? DateTimeFormatter.ISO_INSTANT.format(dto.validUntil()) : "-");
+            String formattedDate = "-";
+            if (dto.validUntil() != null) {
+                try {
+                    java.time.LocalDate date = dto.validUntil().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+                    formattedDate = date.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy"));
+                } catch (Exception ignored) {
+                    formattedDate = dto.validUntil().toString();
+                }
+            }
+            lblValidUntil.setText(formattedDate);
         }
         if (lblDaysRemaining != null) lblDaysRemaining.setText(dto.daysRemaining() + " Days");
 
@@ -213,7 +234,7 @@ public class LicenseRenewalDialogController {
             ClipboardContent content = new ClipboardContent();
             content.putString(txtMachineId.getText());
             Clipboard.getSystemClipboard().setContent(content);
-            ToastManager.info(btnClose, "Copied", "Machine ID copied: " + txtMachineId.getText());
+            applyCopiedFeedback(btnCopyMachineId, "Copied!");
         }
     }
 
@@ -293,13 +314,13 @@ public class LicenseRenewalDialogController {
 
         dialog.showAndWait().ifPresent(req -> {
             if (String.valueOf(req.get("companyName")).isBlank() || String.valueOf(req.get("phone")).isBlank()) {
-                ToastManager.warning(btnClose, "Validation", "Company Name and Phone are required.");
+                AppDialogService.warning(btnClose, "Validation", "Company Name and Phone are required.");
                 return;
             }
             UiTaskExecutor.submitAction(
                     "submit-lead",
                     () -> api.selfRegister(req),
-                    res -> ToastManager.success(btnClose, "Submitted", "Registration sent to Jasvi Support! We will review and activate your license shortly."),
+                    res -> AppDialogService.success(btnClose, "Submitted", "Registration sent to Jasvi Support! We will review and activate your license shortly."),
                     err -> AppDialogService.error(btnClose, "Submission Failed", "Could not submit lead", err.getMessage())
             );
         });
@@ -311,8 +332,22 @@ public class LicenseRenewalDialogController {
             ClipboardContent content = new ClipboardContent();
             content.putString(currentUpiUri);
             Clipboard.getSystemClipboard().setContent(content);
-            ToastManager.info(btnClose, "Copied", "UPI payment string copied to clipboard!");
+            applyCopiedFeedback(btnCopyUpiUri, "Copied UPI!");
         }
+    }
+
+    private void applyCopiedFeedback(Button btn, String msg) {
+        if (btn == null) return;
+        String orig = btn.getText();
+        javafx.scene.Node graphic = btn.getGraphic();
+        btn.setText(msg);
+        btn.setGraphic(org.example.util.IconFactory.compactIcon("complete", 14));
+        javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+        pause.setOnFinished(e -> {
+            btn.setText(orig);
+            btn.setGraphic(graphic);
+        });
+        pause.play();
     }
 
     @FXML
@@ -341,7 +376,7 @@ public class LicenseRenewalDialogController {
                         }
                         api.activate(licJsonObj);
                         refreshStatus();
-                        ToastManager.success(btnClose, "Computer Activated", "License activated and locked to this computer successfully!");
+                        AppDialogService.success(btnClose, "Computer Activated", "License activated and locked to this computer successfully!");
                     } catch (Exception ex) {
                         AppDialogService.error(btnClose, "Activation Error", "Could not activate generated license", ex.getMessage());
                     }
@@ -402,18 +437,25 @@ public class LicenseRenewalDialogController {
                     return api.activate(payloadMap);
                 },
                 result -> {
-                    ToastManager.success(btnClose, "License Activated", "License activated successfully!");
+                    AppDialogService.success(btnApplyActivation != null ? btnApplyActivation : txtMachineId, "License Activated", "License activated successfully!");
                     refreshStatus();
                 },
-                err -> AppDialogService.error(btnClose, "Activation Failed", "Invalid License File", err.getMessage())
+                err -> AppDialogService.error(btnApplyActivation != null ? btnApplyActivation : txtMachineId, "Activation Failed", "Invalid License File", err.getMessage())
         );
+    }
+
+    public void setHostDialog(Dialog<?> hostDialog) {
+        this.hostDialog = hostDialog;
     }
 
     @FXML
     private void handleClose() {
-        Stage stage = (Stage) btnClose.getScene().getWindow();
-        if (stage != null) {
-            stage.close();
+        if (hostDialog != null) {
+            hostDialog.close();
+            return;
+        }
+        if (btnApplyActivation != null && btnApplyActivation.getScene() != null && btnApplyActivation.getScene().getWindow() != null) {
+            btnApplyActivation.getScene().getWindow().hide();
         }
     }
 
@@ -423,18 +465,42 @@ public class LicenseRenewalDialogController {
 
     public static void show(javafx.stage.Window owner, int defaultTabIndex) {
         try {
+            javafx.scene.Node ownerNode = owner != null && owner.getScene() != null ? owner.getScene().getRoot() : null;
+            var shell = DocumentInspectionScaffold.createShell(ownerNode,
+                    "Subscription & Machine Activation",
+                    "license-renewal-dialog");
+
             javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(LicenseRenewalDialogController.class.getResource("/fxml/pages/LicenseRenewalDialog.fxml"));
             javafx.scene.Parent root = loader.load();
-            javafx.stage.Stage stage = new javafx.stage.Stage();
-            stage.setTitle("Jasvi Desktop Subscription & Machine Activation");
-            stage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
-            if (owner != null) {
-                stage.initOwner(owner);
+            LicenseRenewalDialogController controller = loader.getController();
+
+            if (controller != null) {
+                controller.setHostDialog(shell.dialog());
             }
-            stage.setScene(new javafx.scene.Scene(root));
-            stage.show();
+
+            shell.host().getChildren().setAll(root);
+
+            javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
+            double maxW = Math.max(760, screen.getWidth() - 48);
+            double maxH = Math.max(540, screen.getHeight() - 48);
+            double targetW = Math.min(maxW, Math.max(880, Math.min(1040, screen.getWidth() * 0.82)));
+            double targetH = Math.min(maxH, Math.max(620, Math.min(780, screen.getHeight() * 0.85)));
+
+            shell.pane().setPrefSize(targetW, targetH);
+            shell.pane().setMaxWidth(maxW);
+            shell.pane().setMaxHeight(maxH);
+            shell.pane().setMinWidth(Math.min(840, targetW));
+            shell.pane().setMinHeight(Math.min(560, targetH));
+
+            shell.dialog().setOnShown(ev -> {
+                if (shell.pane().getScene() != null && shell.pane().getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                    WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+                }
+            });
+
+            shell.dialog().showAndWait();
         } catch (Exception e) {
-            org.example.util.AppDialogService.error(null, "Licensing", "Could not open Licensing", e.getMessage());
+            org.example.util.AppDialogService.error(owner, "Licensing", "Could not open Licensing", e.getMessage());
         }
     }
 }

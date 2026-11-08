@@ -1,11 +1,17 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
+import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.collections.*;
 import javafx.fxml.FXML;
+import javafx.geometry.Rectangle2D;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
+import javafx.stage.Window;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -331,14 +337,12 @@ public class ReconSupplierController implements ScreenLifecycle {
     @FXML
     private void exportExcel() {
         if (all.isEmpty()) {
-            ToastManager.info(table, "Export Excel", "No suppliers to export.");
+            AppDialogService.info(table, "Recon Suppliers", "Export Excel", "No suppliers to export.");
             return;
         }
-        FileChooser chooser = new FileChooser();
-        chooser.setInitialFileName("Recon_Suppliers_Register.xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files (*.xlsx)", "*.xlsx"));
-        File file = chooser.showSaveDialog(table.getScene().getWindow());
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("PurchaseRecon", "Recon_Suppliers_Register", "xlsx");
         if (file == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(table, file)) return;
 
         try (Workbook wb = new XSSFWorkbook(); FileOutputStream out = new FileOutputStream(file)) {
             Sheet sheet = wb.createSheet("Recon Suppliers");
@@ -364,7 +368,7 @@ public class ReconSupplierController implements ScreenLifecycle {
             }
             for (int i = 0; i < headers.length; i++) sheet.autoSizeColumn(i);
             wb.write(out);
-            ToastManager.success(table, "Export Completed", "Exported " + all.size() + " suppliers to " + file.getName());
+            ExportFeedbackManager.notifyExportSuccess(table, file, "Recon Suppliers Register", all.size());
         } catch (Exception ex) {
             AppDialogService.error(table, "Export Failed", "Could not export suppliers to Excel", ex.getMessage());
         }
@@ -408,7 +412,7 @@ public class ReconSupplierController implements ScreenLifecycle {
             api.deleteSupplier(row.id());
             return true;
         }, ok -> {
-            ToastManager.success(table, "Recon Supplier deleted", row.legalName() + " was deleted.");
+            AppDialogService.success(table, "Recon Supplier deleted", row.legalName() + " was deleted.");
             refresh();
         }, this::error);
     }
@@ -475,13 +479,36 @@ public class ReconSupplierController implements ScreenLifecycle {
     }
 
     private void showEditor() {
+        closeDetails();
         if (editorDialog == null) {
-            editorDialog = new OwnedDialog<>();
-            editorDialog.getDialogPane().setContent(editorPanel);
-            editorDialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+            editorDialog = new OwnedDialog<>(table);
+            editorDialog.setResizable(true);
+            DialogPane pane = editorDialog.getDialogPane();
+            pane.getStyleClass().addAll("approved-dialog", "erp-document-inspection-dialog", "recon-editor-dialog");
+            editorPanel.setPrefWidth(600);
+            editorPanel.setMinWidth(480);
+            pane.setContent(editorPanel);
+            pane.getButtonTypes().add(ButtonType.CLOSE);
+            javafx.scene.Node defaultButtonBar = pane.lookup(".button-bar");
+            if (defaultButtonBar != null) {
+                defaultButtonBar.setVisible(false);
+                defaultButtonBar.setManaged(false);
+            }
         }
         editorDialog.setTitle(editing == null ? "New Recon Supplier" : "Edit Recon Supplier");
-        if (!editorDialog.isShowing()) editorDialog.show();
+        javafx.stage.Window owner = table != null && table.getScene() != null ? table.getScene().getWindow() : null;
+        javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
+        double maxH = Math.max(460, screen.getHeight() - 48);
+        editorPanel.setMaxHeight(maxH);
+        editorPanel.setPrefHeight(Math.min(maxH, 680));
+        if (!editorDialog.isShowing()) {
+            editorDialog.show();
+            javafx.application.Platform.runLater(() -> {
+                if (editorDialog.getDialogPane().getScene() != null && editorDialog.getDialogPane().getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                    WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+                }
+            });
+        }
         txtName.requestFocus();
     }
 
@@ -510,7 +537,7 @@ public class ReconSupplierController implements ScreenLifecycle {
                 editing == null ? 0L : editing.rowVersion()
         );
         UiTaskExecutor.submitAction("recon-supplier-save", () -> api.saveSupplier(req), saved -> {
-            ToastManager.success(table, "Recon Supplier saved", saved.reference() + " • " + saved.legalName());
+            AppDialogService.success(table, "Recon Supplier saved", saved.reference() + " • " + saved.legalName());
             pendingSelectSupplierId = saved.id();
             cancelEdit();
             refresh();

@@ -1,5 +1,7 @@
 package org.example.bank;
 
+import org.example.util.AppDialogService;
+
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -18,6 +20,7 @@ import org.example.api.bank.BankStatementApiClient;
 import org.example.api.master.MasterApiClient;
 import org.example.importing.ImportTemplateService;
 import org.example.model.Lookup;
+import org.example.service.NotificationService;
 import org.example.util.*;
 
 import java.io.File;
@@ -79,12 +82,13 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         }
         pane.getButtonTypes().add(ButtonType.CLOSE);
 
-        // Apply generous sizing so nothing is clipped
-        pane.setPrefWidth(1380);
-        pane.setMinWidth(1100);
-        pane.setPrefHeight(820);
-        pane.setMinHeight(640);
+        // Dynamic adaptive sizing: responsive bounds based on monitor usable area (Rule 12)
         PopupTableWorkspace.applyInspectionSizing(this, owner != null && owner.getScene() != null ? owner.getScene().getRoot() : null);
+        setOnShown(ev -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+            }
+        });
 
         VBox content = new VBox(14);
         content.setPadding(new Insets(14, 18, 14, 18));
@@ -100,18 +104,17 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         // 2. Template Download & File Ingestion Section
         content.getChildren().add(buildFileIngestionSection());
 
-        // 3. Smart Normalization Summary Card
-        content.getChildren().add(buildNormalizationSummaryCard());
-
-        // 4. Preflight Color-Coded Validation Table
+        // 3. Preflight Color-Coded Validation Table
         VBox tableSection = buildValidationTableSection();
         VBox.setVgrow(tableSection, Priority.ALWAYS);
         content.getChildren().add(tableSection);
 
-        // 5. Action Footer
+        // 4. Action Footer
         content.getChildren().add(buildActionFooter());
 
         pane.setContent(content);
+        org.example.util.SearchableComboBoxHelper.makeSearchable(cmbBankAccount, b -> b == null ? "" : b.toString());
+        org.example.util.SearchableComboBoxHelper.makeAllSearchable(content);
 
         // Load Bank Accounts from Master Data
         loadBankAccounts();
@@ -151,7 +154,9 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        header.getChildren().addAll(icon, titleBox, spacer);
+        Button btnGuide = org.example.util.ScreenGuidanceManager.createGuideButton(this, "BANK_STATEMENT");
+
+        header.getChildren().addAll(icon, titleBox, spacer, btnGuide);
         org.example.util.DocumentInspectionScaffold.installDragPhysics(header, this);
         return header;
     }
@@ -255,31 +260,6 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         return box;
     }
 
-    private Node buildNormalizationSummaryCard() {
-        HBox box = new HBox(20);
-        box.setAlignment(Pos.CENTER_LEFT);
-        box.getStyleClass().addAll("approved-card");
-        box.setPadding(new Insets(8, 14, 8, 14));
-        String cardBg = lightMode ? "#f8fafc" : "rgba(30, 41, 59, 0.5)";
-        String cardBorder = lightMode ? "#cbd5e1" : "rgba(255,255,255,0.06)";
-        box.setStyle("-fx-background-color: " + cardBg + "; -fx-border-color: " + cardBorder + "; -fx-border-radius: 6px; -fx-background-radius: 6px;");
-
-        Label title = new Label("3. SMART COLUMN NORMALIZATION:");
-        title.getStyleClass().addAll("form-section-title", "section-title");
-
-        Label chip1 = new Label("• System Template ──► 1-to-1 Direct Mapping");
-        chip1.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: " + (lightMode ? "#059669" : "#34d399") + ";");
-
-        Label chip2 = new Label("• Known Banks (Kotak, HDFC, ICICI, SBI, Axis) ──► Auto-detected & Mapped");
-        chip2.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: " + (lightMode ? "#0284c7" : "#38bdf8") + ";");
-
-        Label chip3 = new Label("• Custom File ──► Fuzzy Synonym Matching (Date, Narration, Ref, Dr, Cr)");
-        chip3.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: " + (lightMode ? "#6d28d9" : "#a78bfa") + ";");
-
-        box.getChildren().addAll(title, chip1, chip2, chip3);
-        return box;
-    }
-
     private VBox buildValidationTableSection() {
         VBox box = new VBox(8);
         VBox.setVgrow(box, Priority.ALWAYS);
@@ -287,21 +267,15 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         HBox top = new HBox(12);
         top.setAlignment(Pos.CENTER_LEFT);
 
-        Label lbl = new Label("4. PREFLIGHT COLOR-CODED VALIDATION TABLE");
+        Label lbl = new Label("3. PREFLIGHT COLOR-CODED VALIDATION TABLE");
         lbl.getStyleClass().addAll("form-section-title", "section-title");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        lblTotalRows.setStyle(lightMode
-            ? "-fx-background-color: #e2e8f0; -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 700; -fx-text-fill: #0f172a;"
-            : "-fx-background-color: rgba(255,255,255,0.08); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 600; -fx-text-fill: #f8fafc;");
-        lblValidRows.setStyle(lightMode
-            ? "-fx-background-color: rgba(16, 185, 129, 0.16); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 700; -fx-text-fill: #047857;"
-            : "-fx-background-color: rgba(52, 211, 153, 0.2); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 600; -fx-text-fill: #34d399;");
-        lblErrorRows.setStyle(lightMode
-            ? "-fx-background-color: rgba(239, 68, 68, 0.15); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 700; -fx-text-fill: #b91c1c;"
-            : "-fx-background-color: rgba(248, 113, 113, 0.2); -fx-padding: 3 10 3 10; -fx-background-radius: 4; -fx-font-weight: 600; -fx-text-fill: #f87171;");
+        lblTotalRows.getStyleClass().addAll("approved-status", "erp-table-value-colour-blue");
+        lblValidRows.getStyleClass().addAll("approved-status", "erp-table-value-colour-green");
+        lblErrorRows.getStyleClass().addAll("approved-status", "erp-table-value-colour-red");
 
         top.getChildren().addAll(lbl, spacer, lblTotalRows, lblValidRows, lblErrorRows);
 
@@ -431,36 +405,20 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
     }
 
     private void onDownloadTemplate(String formatMode) {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save Bank Statement Import Template");
         String ext = "ALL".equalsIgnoreCase(formatMode) ? "xlsx" : formatMode.toLowerCase(Locale.ROOT);
-        chooser.setInitialFileName("Bank_Statement_Template." + ext);
-        if ("ALL".equalsIgnoreCase(formatMode)) {
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All 3 Formats (.xlsx + .xls + .csv)", "*.xlsx"));
-        } else if ("xls".equalsIgnoreCase(ext)) {
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel 97-2003 Workbook (*.xls)", "*.xls"));
-        } else if ("csv".equalsIgnoreCase(ext)) {
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV (Comma Delimited) (*.csv)", "*.csv"));
-        } else {
-            chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Excel Workbook (*.xlsx)", "*.xlsx"),
-                new FileChooser.ExtensionFilter("Excel 97-2003 Workbook (*.xls)", "*.xls"),
-                new FileChooser.ExtensionFilter("CSV (Comma Delimited) (*.csv)", "*.csv")
-            );
-        }
-        File target = chooser.showSaveDialog(getDialogPane().getScene().getWindow());
+        File target = ExportFeedbackManager.resolveWorkspaceExportFile("Templates", "Bank_Statement_Template", ext);
         if (target == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(table, target)) return;
 
         try {
             ImportTemplateService service = new ImportTemplateService();
             String ver = org.example.update.BuildInfo.version();
             if ("ALL".equalsIgnoreCase(formatMode)) {
                 List<Path> written = service.writeAllThreeFormats(target.toPath(), "Bank Statement", ver);
-                ToastManager.success(table, "All 3 Templates Downloaded",
-                    "Saved .xlsx, .xls, and .csv templates in: " + written.getFirst().getParent());
+                ExportFeedbackManager.notifyExportSuccess(table, written.getFirst().toFile(), "All 3 Bank Templates Downloaded", 3);
             } else {
                 service.write(target.toPath(), "Bank Statement", ver);
-                ToastManager.success(table, "Template Downloaded", "Bank statement template saved to: " + target.getName());
+                ExportFeedbackManager.notifyExportSuccess(table, target, "Bank Statement Template Downloaded");
             }
         } catch (Exception ex) {
             AppDialogService.error(table, "Template Error", "Template Export Failed", "Could not write template: " + ex.getMessage());
@@ -500,9 +458,9 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
 
             btnStartShipping.setDisable(errors > 0 || valid == 0);
             if (errors > 0) {
-                ToastManager.error(table, "Preflight Errors Detected", "File contains " + errors + " error rows. Please correct highlighted rows in red.");
+                AppDialogService.error(table, "Preflight Errors Detected", "File contains " + errors + " error rows. Please correct highlighted rows in red.");
             } else {
-                ToastManager.success(table, "Validation Passed", "All " + valid + " rows passed verification and are ready for data shipping.");
+                AppDialogService.success(table, "Validation Passed", "All " + valid + " rows passed verification and are ready for data shipping.");
             }
         } catch (Exception ex) {
             auditRows.clear();
@@ -547,21 +505,43 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         btnStartShipping.setDisable(true);
         btnStartShipping.setText("Shipping Data to Server…");
 
-        org.example.util.UiTaskExecutor.submitAction(
-            "bank-statement-data-shipping",
-            () -> api.importStatement(request),
+        LiveOperationDialog.execute(
+            table,
+            "Importing Bank Statement: " + chosenFile.getName(),
+            "banking",
+            "Validating Statement Transactions…",
+            reporter -> {
+                reporter.stage(1, 3, "Validating " + statement.rows().size() + " statement transactions…");
+                reporter.log("Parsed " + statement.rows().size() + " transaction records from " + chosenFile.getName());
+                reporter.progress(0.33);
+
+                reporter.stage(2, 3, "Shipping batch to Spring Boot backend…");
+                reporter.log("Encoding payload and transmitting to server API…");
+                var result = api.importStatement(request);
+                reporter.progress(0.75);
+
+                reporter.stage(3, 3, "Finalizing ledger reconciliation…");
+                reporter.log("Server processed " + result.importedRows() + " transactions. Auto-reconciliation active.");
+                reporter.progress(1.0);
+                return result;
+            },
             result -> {
                 if (result.alreadyImported()) {
-                    AppDialogService.info(table, "Already Imported", "Duplicate Statement", "This exact bank statement was imported previously. Statement batch reference: " + (result.batch() != null ? result.batch().statementReference() : ""));
+                    AppDialogService.warning(table, "Already Imported", "Duplicate Statement Detected",
+                            "This exact bank statement was already imported previously.\nBatch Reference: "
+                                    + (result.batch() != null ? result.batch().statementReference() : "N/A"));
                 } else {
-                    org.example.service.NotificationService.createNotification(
-                            org.example.service.NotificationService.Category.BANKING,
+                    NotificationService.createNotification(
+                            NotificationService.Category.BANKING,
                             "Bank Statement Imported",
                             "Imported " + result.importedRows() + " transactions (Ref: " + (result.batch() != null ? result.batch().statementReference() : "") + ")",
                             "INFO",
                             "/fxml/pages/BankStatement.fxml",
                             result.batch() != null ? result.batch().statementReference() : null
                     );
+                    AppDialogService.success(table, "Statement Import Complete", "Transactions Ingested Successfully",
+                            "Successfully imported " + result.importedRows() + " bank transactions into the ledger.\nStatement Batch: "
+                                    + (result.batch() != null ? result.batch().statementReference() : ""));
                 }
                 if (onSuccessCallback != null) onSuccessCallback.run();
                 close();

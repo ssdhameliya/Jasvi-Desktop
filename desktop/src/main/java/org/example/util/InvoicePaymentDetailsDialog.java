@@ -31,7 +31,20 @@ public final class InvoicePaymentDetailsDialog {
         dialog.setTitle("Invoice Payment Details");
         dialog.setHeaderText(null);
         dialog.getDialogPane().getStyleClass().addAll("invoice-payment-dialog");
-        dialog.getDialogPane().setPrefSize(920, 590);
+
+        javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
+        double maxW = Math.max(760, screen.getWidth() - 48);
+        double maxH = Math.max(500, screen.getHeight() - 48);
+        double targetW = Math.min(maxW, Math.max(760, Math.min(920, screen.getWidth() * 0.78)));
+        double targetH = Math.min(maxH, Math.max(460, Math.min(590, screen.getHeight() * 0.78)));
+        dialog.getDialogPane().setPrefSize(targetW, targetH);
+        dialog.getDialogPane().setMaxWidth(maxW);
+        dialog.getDialogPane().setMaxHeight(maxH);
+        dialog.setOnShown(ev -> {
+            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+            }
+        });
 
         Label title = new Label("Invoice Payment Details");
         title.getStyleClass().add("bank-dialog-hero-title");

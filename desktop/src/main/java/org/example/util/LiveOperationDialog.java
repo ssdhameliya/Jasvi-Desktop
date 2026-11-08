@@ -56,16 +56,7 @@ public final class LiveOperationDialog {
     public static <T> void execute(Node ownerNode, String title, String semantic,
                                    String initialStage, Operation<T> task,
                                    Consumer<T> onSuccess, Consumer<Throwable> onFailure) {
-        Window owner = DialogOwnerResolver.resolve(ownerNode);
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.initStyle(PlatformUiSupport.isMac() ? StageStyle.UTILITY : StageStyle.TRANSPARENT);
-        if (owner != null) {
-            dialog.initOwner(owner);
-            dialog.initModality(Modality.WINDOW_MODAL);
-        } else {
-            dialog.initModality(Modality.APPLICATION_MODAL);
-        }
-        AppDialogRenderer.install(dialog);
+        Dialog<Void> dialog = new OwnedDialog<>(ownerNode);
         AppDialogRenderer.configureWorkspace(dialog, semantic == null || semantic.isBlank() ? "process" : semantic,
                 title, title, "", "");
 

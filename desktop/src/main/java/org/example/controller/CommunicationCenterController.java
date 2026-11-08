@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
@@ -189,7 +191,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
                                 row.entityType, row.entityId, "WHATSAPP", result.recipientPhone(), row.subject.get(), "SENT", null, (SessionService.current() != null ? SessionService.current().getUsername() : "System")
                         ));
                     }, () -> {
-                        ToastManager.success(table, "WhatsApp Resent", "Document " + row.entity.get() + " was resent successfully via WhatsApp.");
+                        AppDialogService.success(table, "WhatsApp Resent", "Document " + row.entity.get() + " was resent successfully via WhatsApp.");
                         refresh();
                     }, error -> new OwnedAlert(Alert.AlertType.ERROR, error.getMessage()).showAndWait());
                 },
@@ -234,7 +236,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
                                 row.entityType, row.entityId, "EMAIL", result.recipientEmail(), result.subject(), "SENT", null, (SessionService.current() != null ? SessionService.current().getUsername() : "System")
                         ));
                     }, () -> {
-                        ToastManager.success(table, "Email Resent", "Document " + row.entity.get() + " was resent successfully to " + result.recipientEmail());
+                        AppDialogService.success(table, "Email Resent", "Document " + row.entity.get() + " was resent successfully to " + result.recipientEmail());
                         refresh();
                     }, error -> new OwnedAlert(Alert.AlertType.ERROR, error.getMessage()).showAndWait());
                 },

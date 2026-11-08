@@ -202,7 +202,7 @@ public final class QuotationDocumentInspectionDialog {
                         ClipboardContent content = new ClipboardContent();
                         content.putString(item);
                         clipboard.setContent(content);
-                        ToastManager.info(getTableView(), "Copied", item + " copied to clipboard.");
+                        AppDialogService.info(getTableView(), "Copied", item + " copied to clipboard.");
                     }
                 });
             }
@@ -450,10 +450,10 @@ public final class QuotationDocumentInspectionDialog {
                 api.duplicate(quote.id(), actor);
                 return true;
             }, ignored -> {
-                ToastManager.success(dialog.getDialogPane(), "Quotation Duplicated", quote.no() + " was duplicated successfully.");
+                AppDialogService.success(dialog.getDialogPane(), "Quotation Duplicated", quote.no() + " was duplicated successfully.");
                 if (onUpdated != null) onUpdated.run();
                 dialog.close();
-            }, err -> ToastManager.error(dialog.getDialogPane(), "Duplication failed", err.getMessage()));
+            }, err -> AppDialogService.error(dialog.getDialogPane(), "Duplication failed", err.getMessage()));
         });
 
         // 3. Print / PDF
@@ -467,9 +467,9 @@ public final class QuotationDocumentInspectionDialog {
                 try {
                     if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(path.toFile());
                 } catch (Exception ex) {
-                    ToastManager.error(dialog.getDialogPane(), "Failed to open PDF", ex.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Failed to open PDF", ex.getMessage());
                 }
-            }, err -> ToastManager.error(dialog.getDialogPane(), "PDF generation failed", err.getMessage()));
+            }, err -> AppDialogService.error(dialog.getDialogPane(), "PDF generation failed", err.getMessage()));
         });
 
         // 4. Excel
@@ -483,9 +483,9 @@ public final class QuotationDocumentInspectionDialog {
                 try {
                     if (java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop().open(path.toFile());
                 } catch (Exception ex) {
-                    ToastManager.error(dialog.getDialogPane(), "Failed to open Excel", ex.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Failed to open Excel", ex.getMessage());
                 }
-            }, err -> ToastManager.error(dialog.getDialogPane(), "Excel generation failed", err.getMessage()));
+            }, err -> AppDialogService.error(dialog.getDialogPane(), "Excel generation failed", err.getMessage()));
         });
 
         // 5. Email
@@ -531,10 +531,10 @@ public final class QuotationDocumentInspectionDialog {
                     reporter.stage(3, 3, "Email delivery complete.");
                     reporter.log("Delivered quotation #" + quote.no() + " to " + result.recipientEmail());
                 }, () -> {
-                    ToastManager.success(dialog.getDialogPane(), "Quotation emailed", "Quotation " + quote.no() + " sent successfully to " + result.recipientEmail() + ".");
+                    AppDialogService.success(dialog.getDialogPane(), "Quotation emailed", "Quotation " + quote.no() + " sent successfully to " + result.recipientEmail() + ".");
                     if (onUpdated != null) onUpdated.run();
-                }, failure -> ToastManager.error(dialog.getDialogPane(), "Email failed", failure.getMessage()));
-            }, failure -> ToastManager.error(dialog.getDialogPane(), "Email preparation failed", failure.getMessage()));
+                }, failure -> AppDialogService.error(dialog.getDialogPane(), "Email failed", failure.getMessage()));
+            }, failure -> AppDialogService.error(dialog.getDialogPane(), "Email preparation failed", failure.getMessage()));
         });
 
         // 6. Schedule Follow Up
@@ -562,9 +562,9 @@ public final class QuotationDocumentInspectionDialog {
                     api.followUp(quote.id(), due, text, quote.rowVersion());
                     return true;
                 }, ignored -> {
-                    ToastManager.success(dialog.getDialogPane(), "Follow-up saved", quote.no() + " follow-up scheduled successfully.");
+                    AppDialogService.success(dialog.getDialogPane(), "Follow-up saved", quote.no() + " follow-up scheduled successfully.");
                     if (onUpdated != null) onUpdated.run();
-                }, failure -> ToastManager.error(dialog.getDialogPane(), "Failed to save follow-up", failure.getMessage()));
+                }, failure -> AppDialogService.error(dialog.getDialogPane(), "Failed to save follow-up", failure.getMessage()));
             });
         });
 
@@ -581,10 +581,10 @@ public final class QuotationDocumentInspectionDialog {
                 try {
                     String actor = SessionService.current() == null ? "Admin" : SessionService.current().getFullName();
                     String saleInvoice = api.convert(quote.id(), actor, quote.rowVersion());
-                    ToastManager.success(dialog.getDialogPane(), "Converted", "Quotation converted to " + saleInvoice);
+                    AppDialogService.success(dialog.getDialogPane(), "Converted", "Quotation converted to " + saleInvoice);
                     if (onUpdated != null) onUpdated.run();
                 } catch (Exception ex) {
-                    ToastManager.error(dialog.getDialogPane(), "Conversion failed", ex.getMessage());
+                    AppDialogService.error(dialog.getDialogPane(), "Conversion failed", ex.getMessage());
                 }
             }
         });
@@ -601,7 +601,7 @@ public final class QuotationDocumentInspectionDialog {
                             ActivityTimelineDialog.show(dialog.getDialogPane(), "QUOTATION", res.recordId().intValue(), quote.no());
                         }
                     },
-                    err -> ToastManager.error(dialog.getDialogPane(), "Audit record not found", err.getMessage()));
+                    err -> AppDialogService.error(dialog.getDialogPane(), "Audit record not found", err.getMessage()));
         });
 
         dock.getChildren().addAll(btnEdit, btnDuplicate, btnPdf, btnExcel, btnEmail, btnFollowUp, btnConvert, btnAudit);

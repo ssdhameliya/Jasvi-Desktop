@@ -30,6 +30,7 @@ import org.example.util.OperationalUiSupport;
 import org.example.util.UiTaskExecutor;
 import org.example.navigation.NavigationManager;
 import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ExportFeedbackManager;
 import org.example.util.ProfessionalUiEnhancer;
 
 import java.io.File;
@@ -284,7 +285,7 @@ public abstract class PartyMasterController implements ScreenLifecycle {
                         "WARN",
                         partyType().equals("CUSTOMER") ? "/fxml/pages/Customer.fxml" : "/fxml/pages/Suppliers.fxml",
                         party.getPartyCode());
-                    org.example.util.ToastManager.success(tableParties, displayName() + " deleted",
+                    org.example.util.AppDialogService.success(tableParties, displayName() + " deleted",
                         party.getPartyCode() + " - " + party.getName() + " was deleted successfully.");
                     load();
                 },
@@ -405,25 +406,18 @@ public abstract class PartyMasterController implements ScreenLifecycle {
     @FXML
     protected void exportparties() {
         org.example.service.PermissionService.require("CUSTOMER".equalsIgnoreCase(partyType()) ? "CUSTOMERS.EXPORT" : "SUPPLIERS.EXPORT", "Export " + displayName() + "s");
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export " + displayName() + "s");
-        chooser.setInitialFileName(displayName().toLowerCase(Locale.ROOT) + "-master.xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Workbook", "*.xlsx"));
-        File file = chooser.showSaveDialog(tableParties.getScene().getWindow());
-        if (file == null) return;
-
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile(displayName() + "s", displayName() + "_Master", "xlsx");
+        if (!ExportFeedbackManager.checkFileWriteable(tableParties, file)) return;
         Path path = file.toPath();
-        if (!path.toString().toLowerCase(Locale.ROOT).endsWith(".xlsx")) {
-            path = Path.of(path + ".xlsx");
-        }
 
         try {
             // Reuse ItemSpreadsheetService for writing Excel
             ItemSpreadsheetService spreadsheetService = new ItemSpreadsheetService();
-            spreadsheetService.exportparties(service.getByType(partyType()), path);
+            List<Party> parties = service.getByType(partyType());
+            spreadsheetService.exportparties(parties, path);
 
-            org.example.util.ToastManager.success(tableParties, "Export complete",
-                displayName() + " master exported to:\n" + path);
+            ExportFeedbackManager.notifyExportSuccess(tableParties, file,
+                displayName() + " Master Export", parties != null ? parties.size() : -1);
         } catch (Exception ex) {
             error("Could not export the workbook: " + ex.getMessage());
         }

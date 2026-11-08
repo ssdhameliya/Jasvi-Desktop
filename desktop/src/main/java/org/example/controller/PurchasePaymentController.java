@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import javafx.application.Platform;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -405,7 +407,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                     },
                     warning -> {
                         setSaveBusy(false);
-                        org.example.util.ToastManager.success(amount, "Payment saved", "Supplier payment saved successfully.");
+                        org.example.util.AppDialogService.success(amount, "Payment saved", "Supplier payment saved successfully.");
                         org.example.util.ScreenRefreshPolicy.invalidate("purchase-register");
                         refreshInvoiceAmounts(); resetForm(); org.example.navigation.UnsavedChangesManager.markClean(amount); loadHistory();
                         if (warning != null) new OwnedAlert(Alert.AlertType.WARNING, warning).showAndWait();
@@ -448,7 +450,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                     },
                     ignored -> {
                         setSaveBusy(false);
-                        org.example.util.ToastManager.success(amount, "Payment updated", "Payment updated and purchase totals recalculated.");
+                        org.example.util.AppDialogService.success(amount, "Payment updated", "Payment updated and purchase totals recalculated.");
                         org.example.util.ScreenRefreshPolicy.invalidate("purchase-register");
                         refreshInvoiceAmounts(); resetForm(); org.example.navigation.UnsavedChangesManager.markClean(amount); loadHistory();
                     },
@@ -635,7 +637,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
         if(new OwnedAlert(Alert.AlertType.CONFIRMATION,"Remove this payment proof?",ButtonType.YES,ButtonType.NO).showAndWait().orElse(ButtonType.NO)!=ButtonType.YES)return;
         UiTaskExecutor.submitAction("purchase-payment-proof-delete-"+row.id(),
                 () -> {supportApi.deletePaymentAttachment(row.id());return null;},
-                ignored -> {loadHistory();org.example.util.ToastManager.success(historyTable,"Proof removed","Payment proof removed.");},
+                ignored -> {loadHistory();org.example.util.AppDialogService.success(historyTable,"Proof removed","Payment proof removed.");},
                 failure -> new OwnedAlert(Alert.AlertType.ERROR,message(failure)).showAndWait());
     }
 
@@ -663,7 +665,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                             org.example.service.BrandingService.companyName(), pdf);
             purchaseService.markEmailSent(purchase.getId());
             logCommunication(recipient, subject, "SENT", null);
-            org.example.util.ToastManager.success(amount, "Email sent", "Purchase invoice emailed successfully.");
+            org.example.util.AppDialogService.success(amount, "Email sent", "Purchase invoice emailed successfully.");
         } catch (Exception error) {
             logCommunication(recipient, subject, "FAILED", stage + ": " + message(error));
             new OwnedAlert(Alert.AlertType.ERROR, message(error)).showAndWait();

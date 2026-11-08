@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -44,6 +46,7 @@ public class ClientTemplateController implements ScreenLifecycle {
 
     @FXML private StackPane pageIcon;
     @FXML private Button btnLockTemplate;
+    @FXML private Button btnScreenGuide;
     @FXML private Button btnBackToDirectory;
     @FXML private ComboBox<TallyAutomationApiClient.ClientProfileDto> cmbClientProfile;
     @FXML private Button btnUploadSample;
@@ -153,6 +156,7 @@ public class ClientTemplateController implements ScreenLifecycle {
     public void initialize() {
         if (pageIcon != null) pageIcon.getChildren().setAll(IconFactory.icon("document", 22));
         if (btnLockTemplate != null) btnLockTemplate.setGraphic(IconFactory.compactIcon("lock", 14));
+        if (btnScreenGuide != null) btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 14));
         if (btnBackToDirectory != null) btnBackToDirectory.setGraphic(IconFactory.compactIcon("previous", 14));
         if (btnUploadSample != null) btnUploadSample.setGraphic(IconFactory.compactIcon("upload", 14));
         if (btnViewTemplateDoc != null) btnViewTemplateDoc.setGraphic(IconFactory.compactIcon("view", 14));
@@ -340,7 +344,7 @@ public class ClientTemplateController implements ScreenLifecycle {
 
         populateDefaultDocumentHeaders();
 
-        ToastManager.info(tableColumnsBlueprint, "Headers Reset", "Document headers reset to standard ERP extraction blueprint.");
+        AppDialogService.info(tableColumnsBlueprint, "Headers Reset", "Document headers reset to standard ERP extraction blueprint.");
 
     }
 
@@ -446,7 +450,7 @@ public class ClientTemplateController implements ScreenLifecycle {
                         initDefaultVersion("v1");
                     }
                 },
-                failure -> ToastManager.error(tableColumnsBlueprint, "Load Templates Error", failure.getMessage())
+                failure -> AppDialogService.error(tableColumnsBlueprint, "Load Templates Error", failure.getMessage())
         );
     }
 
@@ -685,7 +689,7 @@ public class ClientTemplateController implements ScreenLifecycle {
     @FXML
     public void handleUploadSample() {
         if (activeClient == null) {
-            ToastManager.warning(tableColumnsBlueprint, "No Client", "Please select a client before uploading a sample bill.");
+            AppDialogService.warning(tableColumnsBlueprint, "No Client", "Please select a client before uploading a sample bill.");
             return;
         }
 
@@ -696,7 +700,7 @@ public class ClientTemplateController implements ScreenLifecycle {
         if (f == null) return;
 
         this.activeSampleFile = f;
-        ToastManager.info(tableColumnsBlueprint, "Analyzing Sample", "Scanning document headers with native OCR...");
+        AppDialogService.info(tableColumnsBlueprint, "Analyzing Sample", "Scanning document headers with native OCR...");
 
         UiTaskExecutor.submitLatest(
                 "analyze-sample-template",
@@ -705,10 +709,10 @@ public class ClientTemplateController implements ScreenLifecycle {
                     if (!lines.isEmpty()) {
                         detectHeadersFromOcrLines(lines, f);
                     } else {
-                        ToastManager.info(tableColumnsBlueprint, "Sample Attached", "Attached " + f.getName() + " to template (no OCR text detected).");
+                        AppDialogService.info(tableColumnsBlueprint, "Sample Attached", "Attached " + f.getName() + " to template (no OCR text detected).");
                     }
                 },
-                err -> ToastManager.error(tableColumnsBlueprint, "Analysis Failed", err.getMessage())
+                err -> AppDialogService.error(tableColumnsBlueprint, "Analysis Failed", err.getMessage())
         );
     }
 
@@ -1073,7 +1077,7 @@ public class ClientTemplateController implements ScreenLifecycle {
     @FXML
     public void handleDeleteVersion() {
         if (activeTemplate == null || activeTemplate.id() == null || activeTemplate.id() <= 0) {
-            ToastManager.warning(tableColumnsBlueprint, "Cannot Delete", "No saved template version selected to delete.");
+            AppDialogService.warning(tableColumnsBlueprint, "Cannot Delete", "No saved template version selected to delete.");
             return;
         }
 
@@ -1095,7 +1099,7 @@ public class ClientTemplateController implements ScreenLifecycle {
                             return true;
                         },
                         ok -> {
-                            ToastManager.success(tableColumnsBlueprint, "Version Deleted", "Template version " + vCode + " was deleted.");
+                            AppDialogService.success(tableColumnsBlueprint, "Version Deleted", "Template version " + vCode + " was deleted.");
                             currentVersions.removeIf(v -> Objects.equals(v.id(), templateId));
                             if (!currentVersions.isEmpty()) {
                                 selectTemplateVersion(currentVersions.get(0));
@@ -1113,14 +1117,14 @@ public class ClientTemplateController implements ScreenLifecycle {
         if (activeSampleFile != null && activeSampleFile.exists()) {
             handleUploadSample();
         } else {
-            ToastManager.warning(tableColumnsBlueprint, "No Sample", "Please upload a sample bill file first.");
+            AppDialogService.warning(tableColumnsBlueprint, "No Sample", "Please upload a sample bill file first.");
         }
     }
 
     @FXML
     public void handleViewTemplateDoc() {
         if (activeSampleFile == null || !activeSampleFile.exists()) {
-            ToastManager.warning(tableColumnsBlueprint, "No Document", "No sample bill document has been attached to this template yet.");
+            AppDialogService.warning(tableColumnsBlueprint, "No Document", "No sample bill document has been attached to this template yet.");
             return;
         }
         String title = "Template Source Document — " + (activeClient != null ? activeClient.clientName() : "Client");
@@ -1131,19 +1135,26 @@ public class ClientTemplateController implements ScreenLifecycle {
     @FXML
     public void handleNewVersion() {
         if (activeClient == null) {
-            ToastManager.warning(tableColumnsBlueprint, "No Client", "Select a client first.");
+            AppDialogService.warning(tableColumnsBlueprint, "No Client", "Select a client first.");
             return;
         }
         int nextNum = currentVersions.size() + 1;
         initDefaultVersion("v" + nextNum);
         renderVersionPills();
-        ToastManager.info(tableColumnsBlueprint, "New Version", "Created Draft Version v" + nextNum + ". Adjust headers and click 'Lock & Save'.");
+        AppDialogService.info(tableColumnsBlueprint, "New Version", "Created Draft Version v" + nextNum + ". Adjust headers and click 'Lock & Save'.");
+    }
+
+    @FXML
+    public void handleShowGuide() {
+        javafx.stage.Window owner = tableColumnsBlueprint != null && tableColumnsBlueprint.getScene() != null
+                ? tableColumnsBlueprint.getScene().getWindow() : null;
+        org.example.util.ScreenGuidanceManager.showGuidance(owner, "CLIENT_TEMPLATE");
     }
 
     @FXML
     public void handleLockTemplate() {
         if (activeClient == null) {
-            ToastManager.warning(tableColumnsBlueprint, "Cannot Lock", "Select a client first.");
+            AppDialogService.warning(tableColumnsBlueprint, "Cannot Lock", "Select a client first.");
             return;
         }
 
@@ -1207,25 +1218,25 @@ public class ClientTemplateController implements ScreenLifecycle {
                     saved -> {
                         this.activeTemplate = saved;
                         loadTemplatesForClient(activeClient.id());
-                        ToastManager.success(tableColumnsBlueprint, "Template Locked", "Version " + saved.versionCode() + " locked and saved! Ready for Bill to Tally.");
+                        AppDialogService.success(tableColumnsBlueprint, "Template Locked", "Version " + saved.versionCode() + " locked and saved! Ready for Bill to Tally.");
                     },
-                    failure -> ToastManager.error(tableColumnsBlueprint, "Lock Failed", failure.getMessage())
+                    failure -> AppDialogService.error(tableColumnsBlueprint, "Lock Failed", failure.getMessage())
             );
         } catch (Exception ex) {
-            ToastManager.error(tableColumnsBlueprint, "Serialization Error", ex.getMessage());
+            AppDialogService.error(tableColumnsBlueprint, "Serialization Error", ex.getMessage());
         }
     }
 
     @FXML
     public void handleViewFullGst() {
         if (activeClient == null) {
-            ToastManager.info(tableColumnsBlueprint, "Select Client", "Please select a client from the dropdown first to view full GST details.");
+            AppDialogService.info(tableColumnsBlueprint, "Select Client", "Please select a client from the dropdown first to view full GST details.");
             return;
         }
 
         String gstin = activeClient.gstin();
         if (gstin != null && !gstin.isBlank()) {
-            ToastManager.info(tableColumnsBlueprint, "Fetching GST Profile", "Querying verified live taxpayer profile for " + gstin + "...");
+            AppDialogService.info(tableColumnsBlueprint, "Fetching GST Profile", "Querying verified live taxpayer profile for " + gstin + "...");
             UiTaskExecutor.submitLatest(
                     "view-full-gst-profile",
                     () -> api.verifyGstin(gstin),
@@ -1262,7 +1273,7 @@ public class ClientTemplateController implements ScreenLifecycle {
                         cmbClientProfile.setValue(list.get(0));
                     }
                 },
-                failure -> ToastManager.error(tableColumnsBlueprint, "Load Clients Error", failure.getMessage())
+                failure -> AppDialogService.error(tableColumnsBlueprint, "Load Clients Error", failure.getMessage())
         );
     }
 

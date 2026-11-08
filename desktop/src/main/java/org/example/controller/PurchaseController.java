@@ -13,6 +13,7 @@ import org.example.util.OwnedAlert;
 import org.example.util.AppDialogService;
 import org.example.util.OwnedDialog;
 import org.example.util.AttachmentPreviewSupport;
+import org.example.util.SearchableComboBoxHelper;
 import org.example.util.WorkflowFocusManager;
 import javafx.animation.PauseTransition;
 import javafx.collections.FXCollections;
@@ -345,9 +346,22 @@ public class PurchaseController implements ScreenLifecycle {
     }
 
     private void installBusinessFocusOrder() {
+        SearchableComboBoxHelper.makeSearchable(cmbPaymentTerms);
+        SearchableComboBoxHelper.makeSearchable(cmbWarehouse);
+        SearchableComboBoxHelper.makeSearchable(cmbCurrency);
+        SearchableComboBoxHelper.makeSearchable(cmbGstTreatment);
+        SearchableComboBoxHelper.makeSearchable(cmbDiscountType);
+        SearchableComboBoxHelper.makeSearchable(cmbGstType);
+        SearchableComboBoxHelper.makeSearchable(cmbTransporter);
+
         WorkflowFocusManager.install(java.util.List.of(
             cmbSupplier, dpInvoiceDate, cmbPaymentTerms, txtPoDate, txtOrderNo,
-            txtItemSearch, txtQuantity, txtRate, txtLineDiscount, txtGST, btnAddLine, btnSavePurchase));
+            txtItemSearch, txtQuantity, txtRate, txtLineDiscount, txtGST, btnAddLine,
+            cmbGstType, txtDiscount, txtRemarks, btnSavePurchase));
+        WorkflowFocusManager.excludeFromTab(
+            btnAddSupplier, btnManageCharges, btnPrintInwardBarcode,
+            btnAttachmentAdd, btnAttachmentPreview, btnAttachmentRemove, btnRemoveLine);
+        WorkflowFocusManager.installSmartLoopBreakout(txtItemSearch, cmbGstType);
         WorkflowFocusManager.selectAllOnFocus(txtQuantity);
         WorkflowFocusManager.selectAllOnFocus(txtRate);
         WorkflowFocusManager.selectAllOnFocus(txtLineDiscount);
@@ -361,8 +375,9 @@ public class PurchaseController implements ScreenLifecycle {
         Platform.runLater(() -> {
             if (purchaseEntryRoot != null && purchaseEntryRoot.getScene() != null) {
                 purchaseEntryRoot.getScene().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
-                    if ((event.isControlDown() && event.getCode() == javafx.scene.input.KeyCode.S)
-                            || event.getCode() == javafx.scene.input.KeyCode.F10) {
+                    if ((event.isControlDown() && (event.getCode() == javafx.scene.input.KeyCode.S || event.getCode() == javafx.scene.input.KeyCode.ENTER))
+                            || event.getCode() == javafx.scene.input.KeyCode.F10
+                            || (event.isAltDown() && event.getCode() == javafx.scene.input.KeyCode.S)) {
                         btnSavePurchase.fire();
                         event.consume();
                     } else if (event.getCode() == javafx.scene.input.KeyCode.F2) {
@@ -659,7 +674,7 @@ public class PurchaseController implements ScreenLifecycle {
                 attachmentRemovals.clear();
                 this.editingPurchase = saved;
                 if(saved != null && saved.getInvoiceNo() != null) txtInvoiceNo.setText(saved.getInvoiceNo());
-                org.example.util.ToastManager.success(tableLines,"Purchase saved","Purchase saved successfully.");
+                org.example.util.AppDialogService.success(tableLines,"Purchase saved","Purchase saved successfully.");
                 org.example.navigation.UnsavedChangesManager.clear(tableLines);
                 ScreenRefreshPolicy.invalidate("purchase-register");
                 org.example.navigation.WorkspaceTabManager.getInstance().closeTabByFxml("/fxml/pages/Purchase.fxml");
@@ -1105,6 +1120,7 @@ public class PurchaseController implements ScreenLifecycle {
 
     private void configureSupplierSearch() {
         cmbSupplier.setEditable(true);
+        cmbSupplier.getProperties().put(SearchableComboBoxHelper.SEARCHABLE_INSTALLED_PROP, true);
         cmbSupplier.setConverter(new StringConverter<>() {
             @Override public String toString(Party party) { return supplierDisplay(party); }
             @Override public Party fromString(String text) {
@@ -1118,7 +1134,33 @@ public class PurchaseController implements ScreenLifecycle {
             if (updatingSupplierSearch || !cmbSupplier.getEditor().isFocused()) return;
             Party selected = cmbSupplier.getValue();
             if (selected != null && supplierDisplay(selected).equalsIgnoreCase(safeValue(text, ""))) { supplierSearchDebounce.stop(); return; }
+            if (text != null && cmbSupplier.isShowing()) {
+                String trimmed = text.trim();
+                boolean matchesItem = cmbSupplier.getItems().stream()
+                        .anyMatch(p -> supplierDisplay(p).equalsIgnoreCase(trimmed) || safeValue(p.getName(), "").equalsIgnoreCase(trimmed));
+                if (matchesItem) {
+                    supplierSearchDebounce.stop();
+                    return;
+                }
+            }
             supplierSearchDebounce.playFromStart();
+        });
+        cmbSupplier.getEditor().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.DOWN) {
+                if (!cmbSupplier.isShowing() && !cmbSupplier.getItems().isEmpty()) {
+                    cmbSupplier.show();
+                    event.consume();
+                }
+            } else if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                if (cmbSupplier.isShowing()) {
+                    Party hovered = cmbSupplier.getSelectionModel().getSelectedItem();
+                    if (hovered != null) {
+                        cmbSupplier.setValue(hovered);
+                        cmbSupplier.hide();
+                        event.consume();
+                    }
+                }
+            }
         });
         cmbSupplier.showingProperty().addListener((obs, oldValue, showing) -> { if (showing && cmbSupplier.getItems().isEmpty()) searchSuppliers(""); });
     }
@@ -1220,7 +1262,7 @@ public class PurchaseController implements ScreenLifecycle {
 
     private void importPurchaseItems(){
         FileChooser chooser=new FileChooser();chooser.setTitle("Import Purchase Items");chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV File","*.csv"));File file=chooser.showOpenDialog(tableLines.getScene().getWindow());if(file==null)return;
-        try{int count=0;for(String row:Files.readAllLines(file.toPath())){if(row.isBlank()||row.toLowerCase().startsWith("item"))continue;String[]v=row.split(",");if(v.length<3)throw new IllegalArgumentException("CSV columns must be: item_code,quantity,rate,gst_percent");Item item=allItems.stream().filter(i->i.getItemCode().equalsIgnoreCase(v[0].trim())).findFirst().orElseThrow(()->new IllegalArgumentException("Unknown item code: "+v[0]));double q=Double.parseDouble(v[1].trim()),rate=Double.parseDouble(v[2].trim()),gst=v.length>3?Double.parseDouble(v[3].trim()):item.getGst();PurchaseLine line=new PurchaseLine();line.setItemCode(item.getItemCode());line.setItemDescription(item.getDescription());line.setItemCategory(item.getCategory());line.setItemHsn(item.getHsn());line.setItemUnit(item.getUnit());line.setItemRemarks(item.getRemarks());line.setQuantity(q);line.setRate(rate);line.setGstPercent(gst);recalculateLine(line);tableLines.getItems().add(line);count++;}recalculate();org.example.util.ToastManager.success(tableLines,"Import complete",count+" purchase item(s) imported.");}catch(Exception e){new OwnedAlert(Alert.AlertType.ERROR,"Could not import items: "+e.getMessage()).showAndWait();}
+        try{int count=0;for(String row:Files.readAllLines(file.toPath())){if(row.isBlank()||row.toLowerCase().startsWith("item"))continue;String[]v=row.split(",");if(v.length<3)throw new IllegalArgumentException("CSV columns must be: item_code,quantity,rate,gst_percent");Item item=allItems.stream().filter(i->i.getItemCode().equalsIgnoreCase(v[0].trim())).findFirst().orElseThrow(()->new IllegalArgumentException("Unknown item code: "+v[0]));double q=Double.parseDouble(v[1].trim()),rate=Double.parseDouble(v[2].trim()),gst=v.length>3?Double.parseDouble(v[3].trim()):item.getGst();PurchaseLine line=new PurchaseLine();line.setItemCode(item.getItemCode());line.setItemDescription(item.getDescription());line.setItemCategory(item.getCategory());line.setItemHsn(item.getHsn());line.setItemUnit(item.getUnit());line.setItemRemarks(item.getRemarks());line.setQuantity(q);line.setRate(rate);line.setGstPercent(gst);recalculateLine(line);tableLines.getItems().add(line);count++;}recalculate();org.example.util.AppDialogService.success(tableLines,"Import complete",count+" purchase item(s) imported.");}catch(Exception e){new OwnedAlert(Alert.AlertType.ERROR,"Could not import items: "+e.getMessage()).showAndWait();}
     }
 
 
@@ -1291,9 +1333,13 @@ public class PurchaseController implements ScreenLifecycle {
     private void setTaxRowVisible(HBox row,boolean visible){if(row!=null){row.setVisible(visible);row.setManaged(visible);}}
     private void suggestGstTypeFromGstin() {
         if (cmbGstType == null || txtBillingGstin == null) return;
+        Node currentFocus = cmbSupplier != null && cmbSupplier.getScene() != null ? cmbSupplier.getScene().getFocusOwner() : null;
         DocumentLookupPolicy.suggestedGstType(
             companyGstin, txtBillingGstin.getText(), cmbGstType.getItems()
         ).ifPresent(cmbGstType::setValue);
+        if (currentFocus != null && currentFocus != cmbGstType) {
+            Platform.runLater(currentFocus::requestFocus);
+        }
     }
 
 

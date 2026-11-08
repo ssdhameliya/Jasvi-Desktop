@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
@@ -275,18 +277,38 @@ public class ReportViewerController implements ScreenLifecycle {
     @FXML private void showInformation(){String formula=switch(reportId){case "SALES_REGISTER","SALES_BY_CUSTOMER","SALES_BY_ITEM"->"Gross Sales are original approved invoice values. Approved Sales Returns are deducted only from Net Sales. Original invoice Payment Status is never replaced by Return refund status.";case "PURCHASE_REGISTER"->"Gross Purchases are posted approved purchase values. Approved Purchase Returns are deducted from Net Purchases. Supplier payment and Return refund settlement remain separate.";case "RECEIVABLE_AGEING","PAYABLE_AGEING"->"Outstanding is original document value minus posted payments. Return refund obligations are reported in the Return lifecycle and are not rewritten into historical payment rows.";case "PROFITABILITY"->"Profit = net taxable sales after approved Returns minus historical unit-cost COGS after the corresponding returned quantities.";default->"This report is calculated by the server-owned "+org.example.update.BuildInfo.version()+" reporting engine. UI, PDF, Excel, CSV and Print consume the same ReportResult.";};Alert a=new OwnedAlert(Alert.AlertType.INFORMATION,formula);a.setHeaderText(lblTitle.getText()+" — calculation rules");a.showAndWait();}
 
     @FXML private void saveReport(){
-        if(current==null)return;TextInputDialog d=new OwnedTextInputDialog();d.setHeaderText("Save Report");d.setContentText("Name:");d.showAndWait().map(String::trim).filter(x->!x.isBlank()).ifPresent(name->{ReportRequest req=requestFor(0,cmbRows.getValue()==null?25:cmbRows.getValue());String payload=ReportingSavedConfig.encode(name,cmbDatePreset.getValue(),req);Integer uid=SessionService.current()==null?null:SessionService.current().getId();UiTaskExecutor.submitAction("save-unified-report",()->{supportApi.saveView(uid,"REPORT_CENTER",name,payload);return true;},x->ToastManager.success(tblReport,"Saved","Report configuration saved with filters, grouping, sorting, columns and date mode."),e->error("Could not save report: "+root(e)));});
+        if(current==null)return;TextInputDialog d=new OwnedTextInputDialog();d.setHeaderText("Save Report");d.setContentText("Name:");d.showAndWait().map(String::trim).filter(x->!x.isBlank()).ifPresent(name->{ReportRequest req=requestFor(0,cmbRows.getValue()==null?25:cmbRows.getValue());String payload=ReportingSavedConfig.encode(name,cmbDatePreset.getValue(),req);Integer uid=SessionService.current()==null?null:SessionService.current().getId();UiTaskExecutor.submitAction("save-unified-report",()->{supportApi.saveView(uid,"REPORT_CENTER",name,payload);return true;},x->AppDialogService.success(tblReport,"Saved","Report configuration saved with filters, grouping, sorting, columns and date mode."),e->error("Could not save report: "+root(e)));});
     }
 
     @FXML private void exportPdf(){export("PDF Report","pdf");}
     @FXML private void exportExcel(){export("Excel Report","xlsx");}
     @FXML private void exportCsv(){export("CSV Report","csv");}
-    @FXML private void printReport(){if(current==null)return;setBusy(true);UiTaskExecutor.submitAction("print-unified-report",()->{ReportResult all=loadAllForExport();return UnifiedReportExportService.print(all,visibleKeys);},p->{setBusy(false);ToastManager.success(tblReport,"Print","Report sent to the system PDF print handler.");},e->{setBusy(false);error("Could not print report: "+root(e));});}
+    @FXML private void printReport(){if(current==null)return;setBusy(true);UiTaskExecutor.submitAction("print-unified-report",()->{ReportResult all=loadAllForExport();return UnifiedReportExportService.print(all,visibleKeys);},p->{setBusy(false);AppDialogService.success(tblReport,"Print","Report sent to the system PDF print handler.");},e->{setBusy(false);error("Could not print report: "+root(e));});}
 
     private void export(String title,String ext){
         org.example.service.PermissionService.require("REPORTS.EXPORT", "Export Reports");
-        if(current==null)return;FileChooser chooser=new FileChooser();chooser.setTitle(title);chooser.setInitialFileName(fileBase()+"."+ext);try{Path folder=org.example.config.WorkspaceStorageManager.reportFolder(reportStorageCategory(),BusinessClock.today());if(Files.isDirectory(folder))chooser.setInitialDirectory(folder.toFile());}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(title,"*."+ext));File file=chooser.showSaveDialog(tblReport.getScene().getWindow());if(file==null)return;Path target=file.toPath();if(!target.toString().toLowerCase(Locale.ROOT).endsWith("."+ext))target=Path.of(target+"."+ext);Path finalTarget=target;setBusy(true);
-        UiTaskExecutor.submitAction("export-unified-report-"+ext,()->{ReportResult all=loadAllForExport();switch(ext){case "pdf"->UnifiedReportExportService.pdf(finalTarget,all,visibleKeys,true,true);case "xlsx"->UnifiedReportExportService.excel(finalTarget,all,visibleKeys);case "csv"->UnifiedReportExportService.csv(finalTarget,all,visibleKeys);default->throw new IllegalArgumentException("Unsupported export format");}return finalTarget;},p->{setBusy(false);ToastManager.success(tblReport,"Export complete","Created: "+p);},e->{setBusy(false);error("Could not export report: "+root(e));});
+        if(current==null)return;
+        File file=ExportFeedbackManager.resolveWorkspaceExportFile(reportStorageCategory(), fileBase(), ext);
+        if(file==null)return;
+        if(!ExportFeedbackManager.checkFileWriteable(tblReport, file)) return;
+        Path finalTarget=file.toPath();
+        setBusy(true);
+        UiTaskExecutor.submitAction("export-unified-report-"+ext,()->{
+            ReportResult all=loadAllForExport();
+            switch(ext){
+                case "pdf"->UnifiedReportExportService.pdf(finalTarget,all,visibleKeys,true,true);
+                case "xlsx"->UnifiedReportExportService.excel(finalTarget,all,visibleKeys);
+                case "csv"->UnifiedReportExportService.csv(finalTarget,all,visibleKeys);
+                default->throw new IllegalArgumentException("Unsupported export format");
+            }
+            return finalTarget;
+        },p->{
+            setBusy(false);
+            ExportFeedbackManager.notifyExportSuccess(tblReport, p.toFile(), title);
+        },e->{
+            setBusy(false);
+            error("Could not export report: "+root(e));
+        });
     }
     private String reportStorageCategory(){String id=reportId==null?"":reportId.toUpperCase(Locale.ROOT);if(id.contains("SALE")||id.contains("RECEIV"))return "Sales";if(id.contains("PURCHASE")||id.contains("PAYABLE"))return "Purchase";if(id.contains("INVENT")||id.contains("STOCK"))return "Inventory";if(id.contains("BANK"))return "Bank";if(id.contains("GST")||id.contains("TAX"))return "GST-Tax";return "Financial";}
     private ReportResult loadAllForExport(){ReportRequest first=requestFor(0,250);ReportResult result=api.run(first);if(result.totalPages()<=1)return result;List<ReportRow> all=new ArrayList<>(result.rows());for(int p=1;p<result.totalPages();p++){ReportRequest next=new ReportRequest(first.reportId(),first.from(),first.to(),first.party(),first.item(),first.salesperson(),first.documentStatus(),first.paymentStatus(),first.returnStatus(),first.gstRate(),first.warehouse(),first.bankStatus(),first.search(),first.groupBy(),first.sortKey(),first.sortDirection(),first.minAmount(),first.maxAmount(),p,250,first.visibleColumns());all.addAll(api.run(next).rows());}return new ReportResult(result.reportId(),result.title(),result.description(),result.periodFrom(),result.periodTo(),result.metrics(),result.columns(),all,result.totalRows(),0,all.size(),1,result.groupByOptions(),result.appliedFilters(),result.totals(),result.generatedAt(),result.generatedBy());}

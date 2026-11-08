@@ -7,6 +7,7 @@ import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
@@ -22,12 +23,13 @@ import org.example.api.bank.BankStatementApiClient;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
 import org.example.util.OwnedDialog;
-import org.example.util.ToastManager;
 import org.example.util.UiTaskExecutor;
 import org.example.util.RegisterDetailDrawer;
 import org.example.util.PopupTableWorkspace;
 import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ExportFeedbackManager;
 import org.example.util.SemanticTableCells;
+import org.example.util.SearchableComboBoxHelper;
 import org.example.util.AppDialogService;
 
 import java.io.File;
@@ -104,6 +106,11 @@ public class BankExpenseController implements ScreenLifecycle {
         installKpiIcons();
         loadMasterLookups();
         loadAccounts();
+        SearchableComboBoxHelper.makeSearchable(bankAccount);
+        SearchableComboBoxHelper.makeSearchable(expenseCategory);
+        SearchableComboBoxHelper.makeSearchable(expenseAccount);
+        SearchableComboBoxHelper.makeSearchable(paymentMode);
+        SearchableComboBoxHelper.makeSearchable(typeFilter);
         paymentMode.setOnShowing(e -> loadMasterLookups());
         expenseCategory.setOnShowing(e -> loadMasterLookups());
         bankAccount.setOnShowing(e -> loadAccounts());
@@ -253,7 +260,7 @@ public class BankExpenseController implements ScreenLifecycle {
         UiTaskExecutor.submitLatest("finance-linked-entry",()->financeService.get(id),entry->{
             if(entry==null){activeDeepLinkEntryId=null;org.example.util.AppDialogService.warning(table,"Linked record unavailable","Expense / Bank entry not found","The linked finance entry is no longer available.");reloadRows();return;}
             String raw=safe(entry.voucherType(),"").toUpperCase(Locale.ROOT);Mode entryMode=raw.contains("EXPENSE")?Mode.EXPENSE:Mode.BANK;if(mode!=entryMode)applyMode(entryMode);
-            EntryRow row=toRow(entry);table.getItems().setAll(row);filtered.clear();filtered.add(row);totalRows=1;totalPages=1;currentPage=0;renderPage();table.getSelectionModel().select(row);table.scrollTo(row);table.requestFocus();ToastManager.info(table, "Bank Entry Linked", "Viewing matched voucher: " + row.voucherNo);
+            EntryRow row=toRow(entry);table.getItems().setAll(row);filtered.clear();filtered.add(row);totalRows=1;totalPages=1;currentPage=0;renderPage();table.getSelectionModel().select(row);table.scrollTo(row);table.requestFocus();AppDialogService.info(table, "Bank Entry Linked", "Viewing matched voucher: " + row.voucherNo);
             org.example.util.PerformanceMonitor.event("linked-navigation",(entryMode==Mode.EXPENSE?"EXPENSE":"BANK_ENTRY")+" -> "+id);
         },failure->{activeDeepLinkEntryId=null;error("Unable to open linked finance entry: "+failure.getMessage());});
     }
@@ -682,14 +689,24 @@ public class BankExpenseController implements ScreenLifecycle {
     @FXML private void focusForm(){ clearForm(); showEntryDialog(); if(mode==Mode.EXPENSE)expenseCategory.requestFocus(); else bankAccount.requestFocus(); }
     private void showEntryDialog(){
         if(entryFormPanel==null)return;
+        if(formTitle!=null){formTitle.setVisible(false);formTitle.setManaged(false);}
         if(entryDialog==null){
-            entryDialog=new OwnedDialog<>();
+            entryDialog=new OwnedDialog<>(table);
             entryDialog.setResizable(true);
-            entryDialog.setTitle(mode==Mode.EXPENSE?"Expense Entry":"Bank Entry");
-            org.example.util.AppDialogRenderer.configureWorkspace(entryDialog, "complete", mode==Mode.EXPENSE?"Expense Entry":"Bank Entry", mode==Mode.EXPENSE?"Expense Entry":"Bank Entry", "", "");
+            String title = mode==Mode.EXPENSE?"Expense Entry":"Bank Entry";
+            String semantic = mode==Mode.EXPENSE?"expense":"bank";
+            entryDialog.setTitle(title);
+            org.example.util.AppDialogRenderer.configureWorkspace(entryDialog, semantic, title, title, mode==Mode.EXPENSE?"Corporate Expenditure Record":"Bank Account Ledger Record", "");
             entryDialog.getDialogPane().setContent(entryFormPanel);
-            entryDialog.getDialogPane().setPrefWidth(840);
+            PopupTableWorkspace.prepareDialog(entryDialog, 860);
             entryDialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+            entryDialog.setOnShowing(ev -> {
+                Node defaultButtonBar = entryDialog.getDialogPane().lookup(".button-bar");
+                if (defaultButtonBar != null) {
+                    defaultButtonBar.setVisible(false);
+                    defaultButtonBar.setManaged(false);
+                }
+            });
             entryDialog.setOnHidden(e->{if(entryFormPanel!=null)entryFormPanel.setVisible(true);});
         }
         entryDialog.setTitle(editingId==null?(mode==Mode.EXPENSE?"New Expense Entry":"New Bank Entry"):(mode==Mode.EXPENSE?"Edit Expense Entry":"Edit Bank Entry"));
@@ -711,14 +728,13 @@ public class BankExpenseController implements ScreenLifecycle {
     }
     @FXML private void exportExcel(){
         if(table.getItems().isEmpty()){
-            ToastManager.info(table,"Export Excel","No entries to export.");
+            AppDialogService.info(table,"Export Excel","No entries to export.");
             return;
         }
-        FileChooser chooser=new FileChooser();
-        chooser.setInitialFileName((mode==Mode.BANK?"Bank_Entries":"Expense_Entries")+".xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files (*.xlsx)","*.xlsx"));
-        File file=chooser.showSaveDialog(table.getScene().getWindow());
-        if(file==null)return;
+        String mod=mode==Mode.BANK?"Bank":"Expenses";
+        String base=mode==Mode.BANK?"Bank_Entries":"Expense_Entries";
+        File file=ExportFeedbackManager.resolveWorkspaceExportFile(mod, base, "xlsx");
+        if(!ExportFeedbackManager.checkFileWriteable(table, file))return;
         try(org.apache.poi.ss.usermodel.Workbook wb=new org.apache.poi.xssf.usermodel.XSSFWorkbook();java.io.FileOutputStream out=new java.io.FileOutputStream(file)){
             org.apache.poi.ss.usermodel.Sheet sheet=wb.createSheet(mode==Mode.BANK?"Bank Entries":"Expense Entries");
             String[] headers={"Date","Type / Category","Description","Account","Payment Mode","Amount","Reference","Match / Link"};
@@ -738,7 +754,7 @@ public class BankExpenseController implements ScreenLifecycle {
             }
             for(int i=0;i<headers.length;i++)sheet.autoSizeColumn(i);
             wb.write(out);
-            ToastManager.success(table,"Export Completed","Exported "+table.getItems().size()+" entries to "+file.getName());
+            ExportFeedbackManager.notifyExportSuccess(table, file, (mode==Mode.BANK?"Bank Entries Export":"Expense Entries Export"), table.getItems().size());
         }catch(Exception ex){error(userMessage(ex));}
     }
     @FXML private void refreshWithFeedback(){
@@ -855,7 +871,7 @@ public class BankExpenseController implements ScreenLifecycle {
     private String chipStyle(String s){String x=s.toLowerCase(Locale.ROOT); if(x.contains("deposit"))return"finance-chip-green";if(x.contains("withdraw"))return"finance-chip-red";if(x.contains("office"))return"finance-chip-purple";if(x.contains("travel")||x.contains("transport"))return"finance-chip-blue";if(x.contains("marketing")||x.contains("maintenance"))return"finance-chip-orange";return"finance-chip-teal";}
     private static String currentUser(){var u=org.example.service.SessionService.current();return u==null?"User":safe(u.getFullName(),"User");}
     private void info(String header,String text){OwnedAlert a=new OwnedAlert(Alert.AlertType.INFORMATION,text);a.setHeaderText(header);a.showAndWait();}
-    private void success(String header,String text){org.example.util.ToastManager.success(table,header,text);}
+    private void success(String header,String text){org.example.util.AppDialogService.success(table,header,text);}
     private void error(String text){new OwnedAlert(Alert.AlertType.ERROR,text==null||text.isBlank()?"The operation could not be completed. Please try again.":text).showAndWait();}
     private static String userMessage(Throwable failure){Throwable root=failure;while(root!=null&&root.getCause()!=null&&root.getCause()!=root)root=root.getCause();String message=root==null?null:root.getMessage();if(message==null||message.isBlank()||"empty String".equalsIgnoreCase(message.trim()))return "The ERP could not complete this request. Please review the entered values and try again.";return message;}
     private static LocalDate parseEntryDate(String value){if(value==null||value.isBlank())return BusinessClock.today();String text=value.trim();for(var pattern:List.of(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE,java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"),java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"))){try{return LocalDate.parse(text.length()>=10?text.substring(0,10):text,pattern);}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }}return BusinessClock.today();}

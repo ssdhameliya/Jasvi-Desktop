@@ -349,6 +349,7 @@ public class CreditNoteRegisterController implements ScreenLifecycle {
         );
         content.setPrefWidth(420);
         dp.setContent(content);
+        org.example.util.SearchableComboBoxHelper.makeAllSearchable(content);
 
         dialog.setResultConverter(btn -> {
             if (btn == ButtonType.OK) {

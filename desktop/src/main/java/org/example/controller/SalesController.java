@@ -61,6 +61,7 @@ import org.example.theme.ThemeManager;
 import org.example.util.PlatformUiSupport;
 import org.example.util.UiTaskExecutor;
 import org.example.util.ScreenRefreshPolicy;
+import org.example.util.SearchableComboBoxHelper;
 import org.example.util.WorkflowFocusManager;
 
 import java.io.File;
@@ -437,6 +438,7 @@ public class SalesController implements ScreenLifecycle {
                 });
 
         cmbCustomer.setEditable(true);
+        cmbCustomer.getProperties().put(SearchableComboBoxHelper.SEARCHABLE_INSTALLED_PROP, true);
         cmbCustomer.setConverter(new StringConverter<>() {
             @Override
             public String toString(Party party) {
@@ -463,7 +465,33 @@ public class SalesController implements ScreenLifecycle {
                 customerSearchDebounce.stop();
                 return;
             }
+            if (text != null && cmbCustomer.isShowing()) {
+                String trimmed = text.trim();
+                boolean matchesItem = cmbCustomer.getItems().stream()
+                        .anyMatch(p -> customerDisplay(p).equalsIgnoreCase(trimmed) || safeParty(p.getName()).equalsIgnoreCase(trimmed));
+                if (matchesItem) {
+                    customerSearchDebounce.stop();
+                    return;
+                }
+            }
             customerSearchDebounce.playFromStart();
+        });
+        cmbCustomer.getEditor().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.DOWN) {
+                if (!cmbCustomer.isShowing() && !cmbCustomer.getItems().isEmpty()) {
+                    cmbCustomer.show();
+                    event.consume();
+                }
+            } else if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                if (cmbCustomer.isShowing()) {
+                    Party hovered = cmbCustomer.getSelectionModel().getSelectedItem();
+                    if (hovered != null) {
+                        cmbCustomer.setValue(hovered);
+                        cmbCustomer.hide();
+                        event.consume();
+                    }
+                }
+            }
         });
         cmbCustomer.showingProperty().addListener((obs, oldValue, showing) -> {
             if (showing && cmbCustomer.getItems().isEmpty())
@@ -528,9 +556,20 @@ public class SalesController implements ScreenLifecycle {
     }
 
     private void installBusinessFocusOrder() {
+        SearchableComboBoxHelper.makeSearchable(cmbPaymentTerms);
+        SearchableComboBoxHelper.makeSearchable(cmbSalesPerson);
+        SearchableComboBoxHelper.makeSearchable(cmbChargeType);
+        SearchableComboBoxHelper.makeSearchable(cmbGstType);
+        SearchableComboBoxHelper.makeSearchable(cmbTransporter, lookup -> lookup != null ? lookup.getLookupValue() : "");
+
         WorkflowFocusManager.install(java.util.List.of(
                 cmbCustomer, dpInvoiceDate, cmbPaymentTerms, txtPoDate, txtOrderNo,
-                txtItemSearch, txtQuantity, txtRate, txtLineDiscount, txtGST, btnAddLine, btnSaveSale));
+                txtItemSearch, txtQuantity, txtRate, txtLineDiscount, txtGST, btnAddLine,
+                cmbGstType, txtTransport, txtOtherCharges, txtRemarks, btnSaveSale));
+        WorkflowFocusManager.excludeFromTab(
+                btnAddCustomer, btnManageCharges, btnPrintDispatchBarcode,
+                btnAttachmentAdd, btnAttachmentPreview, btnAttachmentRemove, btnRemoveLine);
+        WorkflowFocusManager.installSmartLoopBreakout(txtItemSearch, cmbGstType);
         WorkflowFocusManager.selectAllOnFocus(txtQuantity);
         WorkflowFocusManager.selectAllOnFocus(txtRate);
         WorkflowFocusManager.selectAllOnFocus(txtLineDiscount);
@@ -549,8 +588,9 @@ public class SalesController implements ScreenLifecycle {
         });
         if (salesEntryRoot != null)
             salesEntryRoot.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
-                if ((event.isControlDown() && event.getCode() == javafx.scene.input.KeyCode.S)
-                        || event.getCode() == javafx.scene.input.KeyCode.F10) {
+                if ((event.isControlDown() && (event.getCode() == javafx.scene.input.KeyCode.S || event.getCode() == javafx.scene.input.KeyCode.ENTER))
+                        || event.getCode() == javafx.scene.input.KeyCode.F10
+                        || (event.isAltDown() && event.getCode() == javafx.scene.input.KeyCode.S)) {
                     btnSaveSale.fire();
                     event.consume();
                 } else if (event.getCode() == javafx.scene.input.KeyCode.F2) {
@@ -765,8 +805,12 @@ public class SalesController implements ScreenLifecycle {
     private void suggestGstTypeFromGstin() {
         if (cmbGstType == null || txtBillingGstin == null)
             return;
+        Node currentFocus = cmbCustomer != null && cmbCustomer.getScene() != null ? cmbCustomer.getScene().getFocusOwner() : null;
         DocumentLookupPolicy.suggestedGstType(
                 companyGstin, txtBillingGstin.getText(), cmbGstType.getItems()).ifPresent(cmbGstType::setValue);
+        if (currentFocus != null && currentFocus != cmbGstType) {
+            Platform.runLater(currentFocus::requestFocus);
+        }
     }
 
     private void configureItemSearch() {

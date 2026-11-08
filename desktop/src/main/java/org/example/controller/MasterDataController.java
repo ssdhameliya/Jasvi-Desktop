@@ -10,6 +10,8 @@ import org.example.util.RegisterUiSupport;
 import org.example.util.OperationalUiSupport;
 import org.example.util.UiActionIcons;
 import org.example.util.ButtonAction;
+import org.example.util.ExportFeedbackManager;
+import org.example.util.AppDialogService;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -1039,7 +1041,7 @@ public class MasterDataController implements ScreenLifecycle {
     }
 
     private void showSuccess(String header, String message) {
-        org.example.util.ToastManager.success(tblLookup, header, message);
+        org.example.util.AppDialogService.success(tblLookup, header, message);
     }
 
     private void showWarning(String message) {
@@ -1070,12 +1072,11 @@ public class MasterDataController implements ScreenLifecycle {
     @FXML
     private void exportLookup() {
         org.example.service.PermissionService.require("MASTERS.EXPORT", "Export Master Data");
-        FileChooser chooser = new FileChooser();
         String category = lstTypes.getSelectionModel().getSelectedItem();
-        chooser.setInitialFileName((category == null ? "Master_Data" : category.replaceAll("[^A-Za-z0-9_-]", "_")) + ".csv");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV File", "*.csv"));
-        java.io.File selected = chooser.showSaveDialog(tblLookup.getScene().getWindow());
+        String safeName = (category == null ? "Master_Data" : category.replaceAll("[^A-Za-z0-9_-]", "_"));
+        java.io.File selected = ExportFeedbackManager.resolveWorkspaceExportFile("MasterData", safeName, "csv");
         if (selected == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(tblLookup, selected)) return;
         try (BufferedWriter writer = Files.newBufferedWriter(selected.toPath(), StandardCharsets.UTF_8)) {
             boolean role = isRoleCategory(category);
             writer.write(role ? "Role Code,Role Name,Description" : "Code,Value,Description");
@@ -1085,8 +1086,9 @@ public class MasterDataController implements ScreenLifecycle {
                 writer.newLine();
             }
             setStatus("Master data exported successfully.");
+            ExportFeedbackManager.notifyExportSuccess(tblLookup, selected, "Master Data (" + safeName + ")", tblLookup.getItems().size());
         } catch (IOException ex) {
-            new OwnedAlert(Alert.AlertType.ERROR, "Unable to export master data: " + ex.getMessage()).showAndWait();
+            AppDialogService.error(tblLookup, "Export Failed", "Unable to export master data", ex.getMessage());
         }
     }
 

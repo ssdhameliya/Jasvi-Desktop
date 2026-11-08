@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import org.example.util.BusinessClock;
 import org.example.util.DatePickerFormatter;
 import org.example.util.SalesDocumentInspectionDialog;
@@ -43,6 +45,7 @@ import org.example.util.FxDebouncer;
 import org.example.util.PerformanceMonitor;
 import org.example.util.PlatformUiSupport;
 import org.example.util.ScreenRefreshPolicy;
+import org.example.util.ExportFeedbackManager;
 import org.example.service.*;
 import org.example.util.IconFactory;
 import org.example.util.TableSelectionSupport;
@@ -68,7 +71,7 @@ import java.util.function.Predicate;
 public class SalesListController implements ScreenLifecycle {
     @FXML private Label lblTotalSales,lblInvoiceCount,lblTodaySales,lblTodayCount,lblPending,lblPendingCount,lblOverdue,lblOverdueCount,lblDueSoon,lblDueSoonCount,lblEmailRate;
     @FXML private StackPane salesTitleIcon,salesHeaderSearchIcon,totalSalesIcon,todaySalesIcon,pendingSalesIcon,overdueSalesIcon,dueSoonIcon,emailRateIcon;
-    @FXML private Button btnNewSale,btnResetFilters,btnRefreshSales,btnExportExcel,btnExportPdf,btnPrintRegister;
+    @FXML private Button btnNewSale,btnScreenGuide,btnResetFilters,btnRefreshSales,btnExportExcel,btnExportPdf,btnPrintRegister;
     private Button btnSaveView; private MenuButton savedViewsMenu;
     @FXML private Button btnAllDatesRange,btnTodayRange,btnYesterdayRange,btnSevenDaysRange,btnThirtyDaysRange,btnThisFyRange,btnThisQuarterRange,btnCustomRange,btnCloseDetails,btnApproveSale,btnRejectSale;
     @FXML private TextField txtSearch,txtInvoice,txtAmountFrom,txtAmountTo;
@@ -169,6 +172,7 @@ public class SalesListController implements ScreenLifecycle {
         setIcon(dueSoonIcon,"calendar",24);
         setIcon(emailRateIcon,"email",24);
         setButtonIcon(btnNewSale,"sale");
+        if (btnScreenGuide != null) btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 14));
         setButtonIcon(btnResetFilters,"reset");
         setButtonIcon(btnRefreshSales,"refresh");
         setButtonIcon(btnExportExcel,"excel");
@@ -691,7 +695,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
         d.showAndWait().map(String::trim).filter(x->!x.isBlank()).ifPresent(name->{
             String data=String.join("|",safe(txtInvoice.getText()),safe(cmbCustomer.getValue()),str(dpFrom.getValue()),str(dpTo.getValue()),safe(cmbPaymentStatus.getValue()),"All",safe(cmbMailStatus.getValue()),safe(cmbWhatsappStatus.getValue()),safe(cmbInvoiceType.getValue()),safe(txtAmountFrom.getText()),safe(txtAmountTo.getText()),safe(cmbDocumentStatus.getValue()),safe(txtSearch.getText()),safe(cmbReturnStatus.getValue()));
             Integer uid=SessionService.current()==null?null:SessionService.current().getId();
-            UiTaskExecutor.submitAction("sales-save-view",()->{support.saveView(uid,"SALES_REGISTER",name,data);return true;},ignored->{loadSavedViews();org.example.util.ToastManager.success(tableSales,"Saved view created",name);},failure->error(failure instanceof Exception e?e:new RuntimeException(failure)));
+            UiTaskExecutor.submitAction("sales-save-view",()->{support.saveView(uid,"SALES_REGISTER",name,data);return true;},ignored->{loadSavedViews();org.example.util.AppDialogService.success(tableSales,"Saved view created",name);},failure->error(failure instanceof Exception e?e:new RuntimeException(failure)));
         });
     }
     private MenuItem savedViewPlaceholder(){MenuItem i=new MenuItem("No saved views");i.getStyleClass().add("register-saved-view-item");i.setGraphic(IconFactory.compactIcon("view",14));i.setDisable(true);return i;}
@@ -700,9 +704,15 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
         UiTaskExecutor.submitLatest("sales-saved-views",()->support.savedViews("SALES_REGISTER",uid),views->{savedViewsMenu.getItems().clear();for(SupportApiClient.SavedView v:views){MenuItem i=new MenuItem(v.name());i.getStyleClass().add("register-saved-view-item");i.setGraphic(IconFactory.compactIcon("view",14));i.setOnAction(e->applySaved(v.name(),v.data()));savedViewsMenu.getItems().add(i);}if(savedViewsMenu.getItems().isEmpty())savedViewsMenu.getItems().add(savedViewPlaceholder());},failure->{savedViewsMenu.getItems().setAll(savedViewPlaceholder());PerformanceMonitor.event("sales-saved-views",String.valueOf(failure.getMessage()));});
     }
     private void applySaved(String name,String data){String[]x=data==null?new String[0]:data.split("\\|",-1);if(x.length==0){warning("The saved view is empty and cannot be applied.");return;}filterDebouncer.cancel();applyingSavedView=true;try{txtInvoice.setText(part(x,0));String customer=part(x,1);org.example.util.PartySearchUi.preserveSelection(cmbCustomer,customer.isBlank()?"All customers":customer,"All customers");dpFrom.setValue(date(part(x,2)));dpTo.setValue(date(part(x,3)));selectSaved(cmbPaymentStatus,part(x,4),"All");selectSaved(cmbMailStatus,part(x,6),"All");selectSaved(cmbWhatsappStatus,part(x,7),"All");selectSaved(cmbInvoiceType,part(x,8),"All");txtAmountFrom.setText(part(x,9));txtAmountTo.setText(part(x,10));selectSaved(cmbDocumentStatus,part(x,11),"All");txtSearch.setText(part(x,12));selectSaved(cmbReturnStatus,part(x,13),"All");pageState.reset();pendingSavedViewName=name;}finally{applyingSavedView=false;}filterDebouncer.cancel();renderChips();reloadPage(true);}
-    private void notifyAppliedSavedView(){if(pendingSavedViewName==null)return;String name=pendingSavedViewName;pendingSavedViewName=null;org.example.util.ToastManager.info(tableSales,"Saved view applied",name+" filters are now active.");}
+    private void notifyAppliedSavedView(){if(pendingSavedViewName==null)return;String name=pendingSavedViewName;pendingSavedViewName=null;org.example.util.AppDialogService.info(tableSales,"Saved view applied",name+" filters are now active.");}
     private static String part(String[] values,int index){return values!=null&&index>=0&&index<values.length&&values[index]!=null?values[index]:"";}
     private static void selectSaved(ComboBox<String> box,String raw,String fallback){if(box==null)return;String value=raw==null||raw.isBlank()?fallback:raw.trim();String match=box.getItems().stream().filter(v->v!=null&&v.equalsIgnoreCase(value)).findFirst().orElse(null);if(match==null&&!value.equalsIgnoreCase(fallback)){box.getItems().add(value);match=value;}box.setValue(match!=null?match:fallback);}
+
+    @FXML
+    private void showScreenGuide() {
+        javafx.stage.Window owner = btnNewSale != null && btnNewSale.getScene() != null ? btnNewSale.getScene().getWindow() : null;
+        org.example.util.ScreenGuidanceManager.showGuidance(owner, "SALES_REGISTER");
+    }
 
     @FXML private void newSale(){NavigationManager.navigateOrReport("/fxml/pages/Sale.fxml");}
     private void edit(Sales sale){
@@ -902,19 +912,23 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
         File f=chooseSave("Export Sales Register","Sales_Register.xlsx","Excel","*.xlsx");if(f==null)return;
         String customer=cmbCustomer.getValue();if(customer!=null&&customer.startsWith("All"))customer="";String selectedCustomer=customer;
         String q=txtSearch.getText(),invoice=txtInvoice.getText(),payment=cmbPaymentStatus.getValue(),due="All",mail=cmbMailStatus.getValue(),whatsapp=cmbWhatsappStatus.getValue(),invoiceType=cmbInvoiceType.getValue(),documentStatus=cmbDocumentStatus.getValue(),returnStatus=cmbReturnStatus.getValue();LocalDate from=dpFrom.getValue(),to=dpTo.getValue();Double min=parseOptionalAmount(txtAmountFrom.getText()),max=parseOptionalAmount(txtAmountTo.getText());
-        UiTaskExecutor.submitAction("sales-register-export-excel",()->{List<Sales> rows=service.allFiltered(q,invoice,selectedCustomer,from,to,payment,due,mail,whatsapp,invoiceType,documentStatus,returnStatus,min,max);writeSalesExcel(f,rows);return rows.size();},count->info("Sales register exported • "+count+" records."),this::error);
+        UiTaskExecutor.submitAction("sales-register-export-excel",()->{List<Sales> rows=service.allFiltered(q,invoice,selectedCustomer,from,to,payment,due,mail,whatsapp,invoiceType,documentStatus,returnStatus,min,max);writeSalesExcel(f,rows);return rows.size();},count->ExportFeedbackManager.notifyExportSuccess(tableSales, f, "Sales Register Excel", count),this::error);
     }
     @FXML private void exportRegisterPdf(){
         org.example.service.PermissionService.require("SALES.EXPORT", "Export Sales");
         File f=chooseSave("Export Sales Register PDF","Sales_Register.pdf","PDF","*.pdf");if(f==null)return;
         String customer=cmbCustomer.getValue();if(customer!=null&&customer.startsWith("All"))customer="";String selectedCustomer=customer;
         String q=txtSearch.getText(),invoice=txtInvoice.getText(),payment=cmbPaymentStatus.getValue(),due="All",mail=cmbMailStatus.getValue(),whatsapp=cmbWhatsappStatus.getValue(),invoiceType=cmbInvoiceType.getValue(),documentStatus=cmbDocumentStatus.getValue(),returnStatus=cmbReturnStatus.getValue();LocalDate from=dpFrom.getValue(),to=dpTo.getValue();Double min=parseOptionalAmount(txtAmountFrom.getText()),max=parseOptionalAmount(txtAmountTo.getText());
-        UiTaskExecutor.submitAction("sales-register-export-pdf",()->{List<Sales> rows=service.allFiltered(q,invoice,selectedCustomer,from,to,payment,due,mail,whatsapp,invoiceType,documentStatus,returnStatus,min,max);org.example.service.BrandedRegisterPdfService.export(f.toPath(),"Sales Register",new String[]{"Invoice","Date","Customer","Amount","Paid","Pending","Document Status","Payment Status"},rows.stream().map(x->new String[]{x.getInvoiceNo(),BusinessClock.formatDate(x.getInvoiceDate()),x.getCustomer()==null?"":safe(x.getCustomer().getName()),exportMoney(x.getTotalAmount()),exportMoney(x.getPaidAmount()),exportMoney(x.getBalanceAmount()),documentStatus(x),paymentStatusDisplay(x)}).toList(),new float[]{2,1.3f,2.4f,1.3f,1.3f,1.3f,1.5f,1.6f});return rows.size();},count->info("Sales register PDF exported • "+count+" records."),this::error);
+        UiTaskExecutor.submitAction("sales-register-export-pdf",()->{List<Sales> rows=service.allFiltered(q,invoice,selectedCustomer,from,to,payment,due,mail,whatsapp,invoiceType,documentStatus,returnStatus,min,max);org.example.service.BrandedRegisterPdfService.export(f.toPath(),"Sales Register",new String[]{"Invoice","Date","Customer","Amount","Paid","Pending","Document Status","Payment Status"},rows.stream().map(x->new String[]{x.getInvoiceNo(),BusinessClock.formatDate(x.getInvoiceDate()),x.getCustomer()==null?"":safe(x.getCustomer().getName()),exportMoney(x.getTotalAmount()),exportMoney(x.getPaidAmount()),exportMoney(x.getBalanceAmount()),documentStatus(x),paymentStatusDisplay(x)}).toList(),new float[]{2,1.3f,2.4f,1.3f,1.3f,1.3f,1.5f,1.6f});return rows.size();},count->ExportFeedbackManager.notifyExportSuccess(tableSales, f, "Sales Register PDF", count),this::error);
     }
     private void writeSalesExcel(File f,List<Sales> rows)throws Exception{try(Workbook w=new XSSFWorkbook();FileOutputStream out=new FileOutputStream(f)){Sheet sh=w.createSheet("Sales Register");String[]h={"Invoice No","Date","Customer","Mobile","GSTIN","Amount","Paid","Pending","Due Date","Document Status","Payment Status","Email","WhatsApp"};Row row=sh.createRow(0);for(int i=0;i<h.length;i++)row.createCell(i).setCellValue(h[i]);int n=1;for(Sales x:rows){row=sh.createRow(n++);org.example.model.Party party=x.getCustomer();Object[]v={x.getInvoiceNo(),BusinessClock.formatDate(x.getInvoiceDate()),party==null?"":safe(party.getName()),party==null?"":safe(party.getPhone()),party==null?"":safe(party.getGstin()),x.getTotalAmount(),x.getPaidAmount(),x.getBalanceAmount(),dueLabel(x),documentStatus(x),paymentStatusDisplay(x),x.isEmailSent()?"Sent":"Not Sent",x.isWhatsappSent()?"Sent":"Not Sent"};for(int i=0;i<v.length;i++){if(v[i] instanceof Number z)row.createCell(i).setCellValue(z.doubleValue());else row.createCell(i).setCellValue(String.valueOf(v[i]));}}for(int i=0;i<h.length;i++)sh.autoSizeColumn(i);w.write(out);}}
     private String exportMoney(double value){return NumberFormat.getCurrencyInstance(Locale.of("en","IN")).format(value).replace("₹","₹ ");}
     @FXML private void printRegister(){PrinterJob job=PrinterJob.createPrinterJob();if(job!=null&&job.showPrintDialog(tableSales.getScene().getWindow())){boolean ok=job.printPage(tableSales);if(ok)job.endJob();}}
-    private File chooseSave(String title,String name,String label,String pattern){FileChooser c=new FileChooser();c.setTitle(title);c.setInitialFileName(name);try{Path folder=org.example.config.WorkspaceStorageManager.reportFolder("Sales",dpFrom.getValue());if(Files.isDirectory(folder))c.setInitialDirectory(folder.toFile());}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }c.getExtensionFilters().add(new FileChooser.ExtensionFilter(label,pattern));return c.showSaveDialog(tableSales.getScene().getWindow());}
+    private File chooseSave(String title,String name,String label,String pattern){
+        String ext = pattern.replace("*.", "").trim().toLowerCase(java.util.Locale.ROOT);
+        String base = name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name;
+        return ExportFeedbackManager.resolveWorkspaceExportFile("Sales", base, ext);
+    }
     private void communication(String type,int id,String channel,String recipient,String subject,String status,String error){try{support.communication(new SupportApiClient.CommunicationRequest(type,id,channel,recipient,subject,status,error,user()));}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }}
     private void log(String type,int id,String action,String detail){try{support.activity(type,id,action,detail,user());}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }}
     private String user(){return SessionService.current()==null?"System":SessionService.current().getFullName();}
@@ -946,5 +960,5 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
     private String str(Object v){return v==null?"":v.toString();}
     private LocalDate date(String v){try{return v==null||v.isBlank()?null:LocalDate.parse(v);}catch(Exception e){return null;}}
     private double parseAmount(String v,double fallback){try{return v==null||v.isBlank()?fallback:Double.parseDouble(v.replace(",",""));}catch(Exception e){return fallback;}}
-    private boolean confirm(String text){return org.example.util.AppDialogService.confirm(tableSales,"Confirmation","Are you sure?",text);}private void info(String m){org.example.util.ToastManager.success(tableSales,"Completed",m);}private void warning(String m){org.example.util.AppDialogService.warning(tableSales,"Warning","Please review",m);}private void error(Throwable e){e.printStackTrace();String message=rootMessage(e);org.example.util.AppDialogService.error(tableSales,"Operation failed","Something went wrong",message);}private String rootMessage(Throwable failure){Throwable root=failure;while(root.getCause()!=null)root=root.getCause();String message=root.getMessage();return message==null||message.isBlank()?root.getClass().getSimpleName():message;}
+    private boolean confirm(String text){return org.example.util.AppDialogService.confirm(tableSales,"Confirmation","Are you sure?",text);}private void info(String m){org.example.util.AppDialogService.success(tableSales,"Completed",m);}private void warning(String m){org.example.util.AppDialogService.warning(tableSales,"Warning","Please review",m);}private void error(Throwable e){e.printStackTrace();String message=rootMessage(e);org.example.util.AppDialogService.error(tableSales,"Operation failed","Something went wrong",message);}private String rootMessage(Throwable failure){Throwable root=failure;while(root.getCause()!=null)root=root.getCause();String message=root.getMessage();return message==null||message.isBlank()?root.getClass().getSimpleName():message;}
 }

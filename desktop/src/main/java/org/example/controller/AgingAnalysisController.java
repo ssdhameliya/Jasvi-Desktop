@@ -328,6 +328,8 @@ public class AgingAnalysisController implements ScreenLifecycle {
 
         ScrollPane scroll = new ScrollPane(grid);
         scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         // Action Dock

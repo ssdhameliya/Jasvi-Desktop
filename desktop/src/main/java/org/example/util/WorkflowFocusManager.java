@@ -13,7 +13,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-/** Central business-order focus sequence and keyboard navigation for ERP screens. */
+/** Central business-order focus sequence and keyboard navigation for ERP screens and dialogs. */
 public final class WorkflowFocusManager {
     private static final String FOCUS_INSTALLED_PROP = "erp.workflow.focus.installed";
     private static final String ACTIVE_FOCUS_CLASS = "erp-input-active-focused";
@@ -33,6 +33,19 @@ public final class WorkflowFocusManager {
             node.getProperties().put(FOCUS_INSTALLED_PROP, true);
             attachInputFocusHighlightAndSelection(node);
             final int index = i;
+
+            @SuppressWarnings("unchecked")
+            javafx.event.EventHandler<KeyEvent> oldFilter =
+                    (javafx.event.EventHandler<KeyEvent>) node.getProperties().get("erp.workflow.focus.filter");
+            if (oldFilter != null) {
+                node.removeEventFilter(KeyEvent.KEY_PRESSED, oldFilter);
+                if (node instanceof ComboBox<?> cb && cb.getEditor() != null) {
+                    cb.getEditor().removeEventFilter(KeyEvent.KEY_PRESSED, oldFilter);
+                } else if (node instanceof DatePicker dp && dp.getEditor() != null) {
+                    dp.getEditor().removeEventFilter(KeyEvent.KEY_PRESSED, oldFilter);
+                }
+            }
+
             javafx.event.EventHandler<KeyEvent> keyFilter = event -> {
                 if (event.getCode() == KeyCode.TAB) {
                     focus(nodes, index, event.isShiftDown() ? -1 : 1);
@@ -48,11 +61,22 @@ public final class WorkflowFocusManager {
                     event.consume();
                 }
             };
+            node.getProperties().put("erp.workflow.focus.filter", keyFilter);
             node.addEventFilter(KeyEvent.KEY_PRESSED, keyFilter);
-            if (node instanceof ComboBox<?> cb && cb.getEditor() != null) {
-                cb.getEditor().addEventFilter(KeyEvent.KEY_PRESSED, keyFilter);
-            } else if (node instanceof DatePicker dp && dp.getEditor() != null) {
-                dp.getEditor().addEventFilter(KeyEvent.KEY_PRESSED, keyFilter);
+            if (node instanceof ComboBox<?> cb) {
+                if (cb.getEditor() != null) {
+                    cb.getEditor().addEventFilter(KeyEvent.KEY_PRESSED, keyFilter);
+                }
+                cb.editorProperty().addListener((obs, oldEd, newEd) -> {
+                    if (newEd != null) newEd.addEventFilter(KeyEvent.KEY_PRESSED, keyFilter);
+                });
+            } else if (node instanceof DatePicker dp) {
+                if (dp.getEditor() != null) {
+                    dp.getEditor().addEventFilter(KeyEvent.KEY_PRESSED, keyFilter);
+                }
+                dp.editorProperty().addListener((obs, oldEd, newEd) -> {
+                    if (newEd != null) newEd.addEventFilter(KeyEvent.KEY_PRESSED, keyFilter);
+                });
             }
         }
     }
@@ -72,36 +96,221 @@ public final class WorkflowFocusManager {
     }
 
     /**
-     * Automatically enhances any screen root:
-     * 1. Attaches universal active focus highlighting and selectAll on inputs.
-     * 2. If the container does not already have an explicit business focus chain,
-     *    sorts editable controls geometrically in natural bookkeeping order (row by row, left to right).
+     * Excludes auxiliary or secondary action controls (such as + Add Customer, date range pills, export icons)
+     * from keyboard tab traversal to maintain high-speed accounting data entry.
+     */
+    public static void excludeFromTab(Node... nodes) {
+        if (nodes == null) return;
+        for (Node n : nodes) {
+            if (n != null) n.setFocusTraversable(false);
+        }
+    }
+
+    /**
+     * Installs smart loop breakout on an item search field:
+     * If the field is blank/empty when Tab or Down Arrow is pressed, smoothly bypasses
+     * the line inputs (Qty, Rate, Discount, GST, Add Line) and transfers focus directly to
+     * the next target zone (e.g. GST Type, Transport, or Save).
+     */
+    public static void installSmartLoopBreakout(TextField itemSearchInput, Node nextTargetZone) {
+        if (itemSearchInput == null || nextTargetZone == null) return;
+        itemSearchInput.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.TAB && !event.isShiftDown()) {
+                String text = itemSearchInput.getText();
+                if (text == null || text.trim().isEmpty()) {
+                    focusDirectly(nextTargetZone);
+                    event.consume();
+                }
+            }
+        });
+    }
+
+    /**
+     * Installs global quick-save accelerators (Ctrl+S, Ctrl+Enter, F10) on a container root.
+     */
+    public static void installQuickSaveAccelerator(Node root, Button saveButton) {
+        if (root == null || saveButton == null) return;
+        root.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if ((event.isControlDown() && (event.getCode() == KeyCode.S || event.getCode() == KeyCode.ENTER))
+                    || event.getCode() == KeyCode.F10
+                    || (event.isAltDown() && event.getCode() == KeyCode.S)) {
+                if (!saveButton.isDisabled() && saveButton.isVisible()) {
+                    saveButton.fire();
+                    event.consume();
+                }
+            }
+        });
+    }
+
+    /**
+     * Automatically enhances any screen or modal dialog root:
+     * 1. Makes all ComboBoxes searchable via SearchableComboBoxHelper.
+     * 2. Silences non-data-entry buttons and date-range preset pills from tab traversal.
+     * 3. Attaches universal active focus highlighting and selectAll on inputs.
+     * 4. Enforces natural left-to-right, row-by-row focus order if no explicit business chain was set.
      */
     public static void autoEnhanceScreen(Node root) {
         if (!(root instanceof Parent parent)) return;
         if (Boolean.TRUE.equals(parent.getProperties().get(FOCUS_INSTALLED_PROP))) return;
 
+        // Step 1: Universal Searchable Dropdowns across all screens & popups
+        SearchableComboBoxHelper.makeAllSearchable(parent);
+
+        // Step 2: Silence auxiliary buttons so they don't break high-speed tab flow
+        silenceAuxiliaryButtons(parent);
+
+        // Step 3: Collect interactive controls
         List<Node> candidates = new ArrayList<>();
         collectInteractiveControls(parent, candidates);
 
+        TextField primarySearch = null;
         for (Node node : candidates) {
             attachInputFocusHighlightAndSelection(node);
+            if (node instanceof TextArea ta) {
+                installTextAreaTabForwarding(ta);
+            } else if (node instanceof TextField tf && primarySearch == null) {
+                String id = tf.getId() != null ? tf.getId().toLowerCase() : "";
+                if ((id.contains("search") || tf.getStyleClass().stream().anyMatch(c -> c.contains("search")))
+                        && !id.contains("item") && tf.getStyleClass().stream().noneMatch(c -> c.contains("item-search"))) {
+                    primarySearch = tf;
+                }
+            }
+        }
+
+        if (primarySearch != null) {
+            installSearchToTableNavigation(primarySearch, parent);
         }
 
         boolean hasExplicitChain = candidates.stream()
                 .anyMatch(n -> Boolean.TRUE.equals(n.getProperties().get(FOCUS_INSTALLED_PROP)));
-        if (!hasExplicitChain && candidates.size() > 1) {
-            candidates.sort(Comparator.comparingDouble((Node n) -> {
-                Bounds b = n.localToScene(n.getBoundsInLocal());
-                return b != null ? Math.round(b.getMinY() / 24.0) * 24.0 : 0.0;
-            }).thenComparingDouble(n -> {
-                Bounds b = n.localToScene(n.getBoundsInLocal());
-                return b != null ? b.getMinX() : 0.0;
-            }));
 
-            install(candidates);
+        if (!hasExplicitChain && candidates.size() > 1) {
+            // If already attached to scene, sort immediately; otherwise wait for scene attachment
+            if (parent.getScene() != null) {
+                sortAndInstallCandidates(parent, candidates);
+            } else {
+                parent.sceneProperty().addListener((obs, oldScene, newScene) -> {
+                    if (newScene != null) {
+                        Platform.runLater(() -> sortAndInstallCandidates(parent, candidates));
+                    }
+                });
+            }
         }
         parent.getProperties().put(FOCUS_INSTALLED_PROP, true);
+    }
+
+    private static void sortAndInstallCandidates(Parent parent, List<Node> candidates) {
+        if (candidates.isEmpty()) return;
+        candidates.sort(Comparator.comparingDouble((Node n) -> {
+            Bounds b = n.localToScene(n.getBoundsInLocal());
+            if (b != null && (b.getMinX() != 0 || b.getMinY() != 0)) {
+                return Math.round(b.getMinY() / 28.0) * 28.0;
+            }
+            return n.getLayoutY();
+        }).thenComparingDouble(n -> {
+            Bounds b = n.localToScene(n.getBoundsInLocal());
+            if (b != null && (b.getMinX() != 0 || b.getMinY() != 0)) {
+                return b.getMinX();
+            }
+            return n.getLayoutX();
+        }));
+
+        install(candidates);
+    }
+
+    private static void silenceAuxiliaryButtons(Parent parent) {
+        if (parent == null) return;
+        for (Node child : parent.getChildrenUnmodifiable()) {
+            if (child instanceof Button btn) {
+                String id = btn.getId() != null ? btn.getId().toLowerCase() : "";
+                String text = btn.getText() != null ? btn.getText().toLowerCase() : "";
+                boolean isPresetOrAux = id.contains("range") || id.contains("preset") || id.contains("export")
+                        || id.contains("print") || id.contains("refresh") || id.contains("reset")
+                        || id.contains("attachment") || id.contains("managecharges") || id.contains("help")
+                        || id.contains("barcode") || id.contains("addcustomer") || id.contains("addsupplier")
+                        || id.contains("customrange") || id.contains("removeline") || id.contains("deleteline")
+                        || id.contains("filtertoggle") || id.contains("advanced");
+
+                if (!isPresetOrAux) {
+                    for (String cls : btn.getStyleClass()) {
+                        String c = cls.toLowerCase();
+                        if (c.contains("range") || c.contains("pill") || c.contains("icon-button")
+                                || c.contains("action-icon") || c.contains("quick-filter") || c.contains("table-tool")
+                                || c.contains("filter-pill") || c.contains("secondary-icon") || c.contains("tools-button")) {
+                            isPresetOrAux = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!isPresetOrAux) {
+                    if (text.contains("today") || text.contains("this month") || text.contains("q1")
+                            || text.contains("custom") || text.contains("preset") || text.contains("manage charges")
+                            || text.contains("refresh") || text.contains("reset") || text.contains("+ add customer")
+                            || text.contains("+ add supplier") || text.contains("barcode") || text.contains("export")
+                            || text.contains("close details")) {
+                        isPresetOrAux = true;
+                    }
+                }
+
+                if (isPresetOrAux) {
+                    btn.setFocusTraversable(false);
+                }
+            } else if (child instanceof Parent nested) {
+                silenceAuxiliaryButtons(nested);
+            }
+        }
+    }
+
+    private static void installTextAreaTabForwarding(TextArea ta) {
+        if (ta == null || Boolean.TRUE.equals(ta.getProperties().get("erp.textarea.tab.installed"))) return;
+        ta.getProperties().put("erp.textarea.tab.installed", true);
+        ta.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.TAB && !event.isControlDown()) {
+                if (Boolean.TRUE.equals(ta.getProperties().get(FOCUS_INSTALLED_PROP))) {
+                    return; // Handled by installed focus chain
+                }
+                event.consume();
+                if (ta.getScene() != null && ta.getScene().getRoot() instanceof Parent root) {
+                    List<Node> candidates = new ArrayList<>();
+                    collectInteractiveControls(root, candidates);
+                    int idx = candidates.indexOf(ta);
+                    if (idx >= 0 && candidates.size() > 1) {
+                        focus(candidates, idx, event.isShiftDown() ? -1 : 1);
+                    }
+                }
+            }
+        });
+    }
+
+    public static void installSearchToTableNavigation(TextField searchField, Parent parent) {
+        if (searchField == null || parent == null) return;
+        searchField.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.DOWN) {
+                TableView<?> table = findTableView(parent);
+                if (table != null && !table.getItems().isEmpty()) {
+                    table.requestFocus();
+                    if (table.getSelectionModel().getSelectedIndex() < 0) {
+                        table.getSelectionModel().selectFirst();
+                    }
+                    event.consume();
+                }
+            }
+        });
+    }
+
+    private static TableView<?> findTableView(Parent parent) {
+        if (parent == null) return null;
+        for (Node child : parent.getChildrenUnmodifiable()) {
+            if (child instanceof TableView<?> tv && tv.isVisible() && !tv.isDisabled()) {
+                return tv;
+            }
+            if (child instanceof Parent p) {
+                TableView<?> found = findTableView(p);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static void collectInteractiveControls(Parent parent, List<Node> result) {
@@ -196,10 +405,19 @@ public final class WorkflowFocusManager {
                     wireEditorFocus(cb, cb.getEditor());
                 }
             });
+            cb.editorProperty().addListener((obs, oldEd, newEd) -> {
+                if (newEd != null) wireEditorFocus(cb, newEd);
+            });
         } else if (node instanceof DatePicker dp) {
             wireEditorFocus(dp, dp.getEditor());
+            dp.editorProperty().addListener((obs, oldEd, newEd) -> {
+                if (newEd != null) wireEditorFocus(dp, newEd);
+            });
         } else if (node instanceof Spinner<?> sp) {
             wireEditorFocus(sp, sp.getEditor());
+            sp.editorProperty().addListener((obs, oldEd, newEd) -> {
+                if (newEd != null) wireEditorFocus(sp, newEd);
+            });
         }
     }
 
@@ -245,6 +463,7 @@ public final class WorkflowFocusManager {
     }
 
     private static boolean advanceOnEnter(Node node) {
+        if (Boolean.FALSE.equals(node.getProperties().get("erp.focus.advance.on.enter"))) return false;
         if (node instanceof TextArea) return false;
         if (node instanceof Button || node instanceof MenuButton) return false;
         return node instanceof TextField || node instanceof ComboBox<?> || node instanceof DatePicker || node instanceof Spinner<?>;

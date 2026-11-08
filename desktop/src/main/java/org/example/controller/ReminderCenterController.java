@@ -929,7 +929,7 @@ public class ReminderCenterController implements ScreenLifecycle {
     }
 
     private void information(String message) {
-        org.example.util.ToastManager.success(table, "Completed", message);
+        org.example.util.AppDialogService.success(table, "Completed", message);
     }
 
     private void error(String title, Exception exception) {

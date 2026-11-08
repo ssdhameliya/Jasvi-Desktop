@@ -9,6 +9,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
@@ -24,6 +25,7 @@ import org.example.util.AppDialogRenderer;
 import org.example.util.AppDialogService;
 import org.example.util.ButtonAction;
 import org.example.util.SceneManager;
+import org.example.util.SearchableComboBoxHelper;
 import org.example.util.UiActionIcons;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
@@ -31,6 +33,7 @@ import org.example.util.QrCodeImageFactory;
 import org.example.util.UiTaskExecutor;
 import org.example.util.PerformanceMonitor;
 import org.example.util.PerformanceBudgets;
+import org.example.util.WorkflowFocusManager;
 import org.example.update.BuildInfo;
 import org.example.config.ConfigManager;
 import org.example.shared.SecretValueCodec;
@@ -93,6 +96,10 @@ public class LoginController implements ScreenLifecycle {
 
         cmbRole.getItems().clear();
         cmbRole.setDisable(true);
+        SearchableComboBoxHelper.makeSearchable(cmbRole);
+        cmbRole.getProperties().put("erp.focus.advance.on.enter", false);
+        txtPassword.getProperties().put("erp.focus.advance.on.enter", false);
+        txtOtp.getProperties().put("erp.focus.advance.on.enter", false);
 
         // Render the selected role explicitly in the closed ComboBox.
         // Some JavaFX skins do not repaint the button cell reliably after a
@@ -122,6 +129,14 @@ public class LoginController implements ScreenLifecycle {
             roleButtonCell.setText(visibleRole);
             roleButtonCell.setTooltip(newRole == null || newRole.isBlank() ? null : new Tooltip(newRole));
             roleButtonCell.requestLayout();
+        });
+
+        // Fast keyboard commit: Enter on role submits credentials immediately if popup is closed
+        cmbRole.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.ENTER && !cmbRole.isShowing()) {
+                event.consume();
+                login();
+            }
         });
 
         restoreRememberedLogin();
@@ -743,6 +758,7 @@ public class LoginController implements ScreenLifecycle {
         } else {
             btnLogin.setText("LOGIN");
         }
+        installLoginFocusOrder();
     }
 
     @FXML private void forgotPassword() {
@@ -845,6 +861,7 @@ public class LoginController implements ScreenLifecycle {
             resetPanel.setManaged(false);
             resetPanel.setVisible(false);
         }
+        installLoginFocusOrder();
     }
 
     private void showResetPanel() {
@@ -856,6 +873,10 @@ public class LoginController implements ScreenLifecycle {
             resetPanel.setManaged(true);
             resetPanel.setVisible(true);
         }
+        WorkflowFocusManager.install(java.util.List.of(
+                txtResetIdentity, btnSendResetOtp, txtResetOtp, txtResetTotp,
+                txtNewPassword, txtConfirmPassword, btnResetPassword, btnBackToLogin
+        ));
         txtResetIdentity.requestFocus();
     }
 
@@ -897,6 +918,7 @@ public class LoginController implements ScreenLifecycle {
             loginRoleCodes.clear();
             cmbRole.getItems().clear();
             cmbRole.setDisable(false);
+            updateLoginMode();
             showFieldError(cmbRole, lblRoleError, "Unable to load Role Master.");
             message("Unable to load login roles from the server: " +
                     (failure.getMessage() == null ? "Role Master is unavailable." : failure.getMessage()), true);
@@ -1009,6 +1031,30 @@ public class LoginController implements ScreenLifecycle {
         lblMessage.setText(text);
         lblMessage.getStyleClass().removeAll("message-error", "message-success");
         lblMessage.getStyleClass().add(error ? "message-error" : "message-success");
+    }
+
+    private void installLoginFocusOrder() {
+        boolean otpActive = otpPanel != null && otpPanel.isVisible() && !txtOtp.isDisabled();
+        if (otpActive) {
+            WorkflowFocusManager.install(java.util.List.of(txtUsername, txtPassword, cmbRole, txtOtp, btnLogin));
+        } else {
+            WorkflowFocusManager.install(java.util.List.of(txtUsername, txtPassword, cmbRole, btnLogin));
+        }
+        WorkflowFocusManager.excludeFromTab(
+                btnTheme, chkRemember, btnRegister, btnLicenseActivation,
+                btnEmailSettings, btnForgotPassword, btnResendOtp, btnBackToLogin,
+                btnSendResetOtp, btnResetPassword
+        );
+    }
+
+    @Override
+    public void onScreenShown(boolean reusedFromCache) {
+        installLoginFocusOrder();
+        if (txtUsername != null && (txtUsername.getText() == null || txtUsername.getText().isBlank())) {
+            WorkflowFocusManager.initial(txtUsername);
+        } else if (txtPassword != null) {
+            WorkflowFocusManager.initial(txtPassword);
+        }
     }
 
     @Override

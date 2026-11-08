@@ -31,6 +31,7 @@ import org.example.service.NotificationService;
 import org.example.service.SessionService;
 import org.example.util.IconFactory;
 import org.example.util.UiTaskExecutor;
+import org.example.util.ExportFeedbackManager;
 
 import java.awt.Desktop;
 import java.io.File;
@@ -409,27 +410,14 @@ public class BackupRestoreController implements ScreenLifecycle {
             showWarning("Recovery package export is available only to an administrator while this PC is connected to the company server.");
             return;
         }
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save Disaster Recovery Package");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Application recovery package (*.zip)", "*.zip"));
-        chooser.setInitialFileName("DSE-ERP-Recovery-" + java.time.LocalDate.now() + ".zip");
-        File selected = chooser.showSaveDialog(backupTable.getScene().getWindow());
+        File selected = ExportFeedbackManager.resolveWorkspaceExportFile("Recovery", "DSE-ERP-Recovery-" + BusinessClock.today(), "zip");
         if (selected == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(backupTable, selected)) return;
         Path target = selected.toPath().toAbsolutePath().normalize();
-        if (!target.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".zip")) {
-            target = target.resolveSibling(target.getFileName() + ".zip");
-        }
-        Path finalTarget = target;
         runOperation("Creating and exporting a fresh off-server recovery package...", () ->
-                serverBackups.downloadRecoveryPackage(finalTarget), result -> {
+                serverBackups.downloadRecoveryPackage(target), result -> {
             NotificationService.add("Disaster recovery package exported: " + result.file());
-            OwnedAlert ready = new OwnedAlert(Alert.AlertType.INFORMATION,
-                    "A fresh verified disaster-recovery package was saved outside the company server.\n\n"
-                            + "File: " + result.file() + "\n"
-                            + "Source: " + result.environment() + " • " + result.applicationVersion() + "\n\n"
-                            + "Keep this file secure. It contains a database snapshot and company business files and can be used for explicit LOCAL recovery if the server is unavailable.");
-            ready.setHeaderText("Recovery package exported");
-            ready.showAndWait();
+            ExportFeedbackManager.notifyExportSuccess(backupTable, selected, "Disaster Recovery Package (.zip)");
         });
     }
 

@@ -33,6 +33,8 @@ import org.example.shared.RuntimeContract;
 import org.example.api.recon.PurchaseReconApiClient;
 import org.example.util.IconFactory;
 import org.example.util.SpreadsheetLayoutDetector;
+import org.example.util.ExportFeedbackManager;
+import org.example.util.AppDialogService;
 import org.example.util.BusinessClock;
 import org.example.util.AppDialogService;
 import org.example.util.SemanticTableCells;
@@ -105,7 +107,7 @@ public class ImportController implements ScreenLifecycle {
     @FXML private Label step1Badge, step2Badge, step3Badge, step4Badge, lblImportCompletedSummary;
     @FXML private javafx.scene.layout.Region wizardLine1, wizardLine2, wizardLine3;
     @FXML private StackPane itemChoiceIcon, customerChoiceIcon, supplierChoiceIcon, salesChoiceIcon, purchaseChoiceIcon, purchaseReconChoiceIcon, masterChoiceIcon, bankStatementChoiceIcon, selectedFileExcelIcon;
-    @FXML private Button btnDownloadItemTemplate, btnDownloadCustomerTemplate, btnDownloadSupplierTemplate,
+    @FXML private MenuButton btnDownloadItemTemplate, btnDownloadCustomerTemplate, btnDownloadSupplierTemplate,
                          btnDownloadSalesTemplate, btnDownloadPurchaseTemplate, btnDownloadPurchaseReconTemplate, btnDownloadMasterTemplate, btnDownloadBankStatementTemplate;
 
     /* =========================================================
@@ -305,13 +307,14 @@ public class ImportController implements ScreenLifecycle {
         if (btnAutoMap != null) btnAutoMap.setGraphic(IconFactory.compactIcon("settings", 16));
         if (btnResetMapping != null) btnResetMapping.setGraphic(IconFactory.compactIcon("reset", 16));
 
-        Button[] templateButtons = {
-            btnDownloadItemTemplate, btnDownloadCustomerTemplate, btnDownloadSupplierTemplate,
-            btnDownloadSalesTemplate, btnDownloadPurchaseTemplate, btnDownloadPurchaseReconTemplate, btnDownloadMasterTemplate, btnDownloadBankStatementTemplate
-        };
-        for (Button button : templateButtons) {
-            if (button != null) button.setGraphic(IconFactory.compactIcon("excel", 16));
-        }
+        configureTemplateMenuButton(btnDownloadItemTemplate, "Item Master");
+        configureTemplateMenuButton(btnDownloadCustomerTemplate, "Customers/CRM");
+        configureTemplateMenuButton(btnDownloadSupplierTemplate, "Suppliers/HRM");
+        configureTemplateMenuButton(btnDownloadSalesTemplate, "Sales");
+        configureTemplateMenuButton(btnDownloadPurchaseTemplate, "Purchases");
+        configureTemplateMenuButton(btnDownloadPurchaseReconTemplate, "Purchase Recon");
+        configureTemplateMenuButton(btnDownloadBankStatementTemplate, "Bank Statement");
+        configureTemplateMenuButton(btnDownloadMasterTemplate, "Master Categories and Values");
 
         if (itemChoiceIcon != null) itemChoiceIcon.getChildren().setAll(IconFactory.icon("item", 46));
         if (customerChoiceIcon != null) customerChoiceIcon.getChildren().setAll(IconFactory.icon("customer", 46));
@@ -1725,90 +1728,111 @@ public class ImportController implements ScreenLifecycle {
        TEMPLATE DOWNLOADS
        ========================================================= */
 
-    @FXML
-    private void downloadTemplate() {
-        org.example.service.PermissionService.require("IMPORT.EXPORT", "download an import template");
+    private void configureTemplateMenuButton(MenuButton button, String module) {
+        if (button == null) return;
+        button.setText("Template");
+        button.setTooltip(new Tooltip("Download Excel / CSV template for " + module));
+        button.setGraphic(IconFactory.compactIcon("excel", 15));
 
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Save Import Template");
-        chooser.setInitialFileName(cmbImportModule.getValue().replaceAll("[^A-Za-z0-9]+", "_") + "_Template.xlsx");
-        chooser.getExtensionFilters().addAll(
-            new FileChooser.ExtensionFilter("All 3 Formats (.xlsx + .xls + .csv)", "*.xlsx"),
-            new FileChooser.ExtensionFilter("Excel workbook (*.xlsx)", "*.xlsx"),
-            new FileChooser.ExtensionFilter("CSV (Comma Delimited) (*.csv)", "*.csv"),
-            new FileChooser.ExtensionFilter("Excel 97-2003 workbook (*.xls)", "*.xls")
-        );
-        File target = chooser.showSaveDialog(cmbImportModule.getScene().getWindow());
-        if (target == null) return;
+        MenuItem itemAllThree = new MenuItem("Download All 3 Formats (.xlsx + .xls + .csv)");
+        itemAllThree.setGraphic(IconFactory.compactIcon("package", 15));
+        itemAllThree.getStyleClass().add("erp-menu-semantic-orange");
+        itemAllThree.setOnAction(e -> downloadTemplateFor(module, "ALL"));
 
-        try {
-            var selectedExt = chooser.getSelectedExtensionFilter();
-            if (selectedExt != null && selectedExt.getDescription() != null && selectedExt.getDescription().startsWith("All 3 Formats")) {
-                var written = importTemplateService.writeAllThreeFormats(target.toPath(), cmbImportModule.getValue(), org.example.update.BuildInfo.version());
-                org.example.util.ToastManager.success(btnRunImport, "All 3 Templates Created",
-                    "Saved .xlsx, .xls, and .csv templates to: " + written.getFirst().getParent());
-            } else {
-                importTemplateService.write(target.toPath(), cmbImportModule.getValue(), org.example.update.BuildInfo.version());
-            }
-            org.example.util.ToastManager.success(btnRunImport, "Template created",
-                "Template saved to: " + target.getAbsolutePath());
-        } catch (Exception exception) {
-            Alert alert = new OwnedAlert(Alert.AlertType.ERROR,
-                "Could not create template: " + safeMessage(exception), ButtonType.OK);
-            alert.setHeaderText("Template creation failed");
-            alert.showAndWait();
-        }
+        MenuItem itemXlsx = new MenuItem("Excel Workbook (.xlsx) — Multi-Color Headers");
+        itemXlsx.setGraphic(IconFactory.compactIcon("excel", 15));
+        itemXlsx.getStyleClass().add("erp-menu-semantic-green");
+        itemXlsx.setOnAction(e -> downloadTemplateFor(module, "xlsx"));
+
+        MenuItem itemXls = new MenuItem("Excel 97-2003 Workbook (.xls) — Multi-Color Headers");
+        itemXls.setGraphic(IconFactory.compactIcon("inventory", 15));
+        itemXls.getStyleClass().add("erp-menu-semantic-teal");
+        itemXls.setOnAction(e -> downloadTemplateFor(module, "xls"));
+
+        MenuItem itemCsv = new MenuItem("CSV (Comma Delimited) (.csv) — Mandatory (*) Headers");
+        itemCsv.setGraphic(IconFactory.compactIcon("document", 15));
+        itemCsv.getStyleClass().add("erp-menu-semantic-blue");
+        itemCsv.setOnAction(e -> downloadTemplateFor(module, "csv"));
+
+        button.getItems().setAll(itemAllThree, new SeparatorMenuItem(), itemXlsx, itemXls, itemCsv);
     }
 
+    @FXML
+    private void downloadTemplate() {
+        downloadTemplateFor(cmbImportModule.getValue() == null ? "Item Master" : cmbImportModule.getValue(), "ALL");
+    }
 
+    private void downloadTemplateFor(String module, String formatMode) {
+        org.example.service.PermissionService.require("IMPORT.EXPORT", "download an import template");
+
+        cmbImportModule.setValue(module);
+        String safeName = module.replaceAll("[^A-Za-z0-9]+", "_") + "_Template";
+        String ext = "ALL".equalsIgnoreCase(formatMode) ? "xlsx" : formatMode.toLowerCase(java.util.Locale.ROOT);
+        File target = ExportFeedbackManager.resolveWorkspaceExportFile("Templates", safeName, ext);
+        if (target == null) return;
+        javafx.scene.Node ownerNode = stepSelect != null && stepSelect.getScene() != null ? stepSelect : cmbImportModule;
+        if (!ExportFeedbackManager.checkFileWriteable(ownerNode, target)) return;
+
+        try {
+            String ver = org.example.update.BuildInfo.version();
+            if ("ALL".equalsIgnoreCase(formatMode)) {
+                var written = importTemplateService.writeAllThreeFormats(target.toPath(), module, ver);
+                ExportFeedbackManager.notifyExportSuccess(ownerNode, written.getFirst().toFile(), module + " Templates Generated (.xlsx, .xls, .csv)", 3);
+            } else {
+                importTemplateService.write(target.toPath(), module, ver);
+                ExportFeedbackManager.notifyExportSuccess(ownerNode, target, module + " Template Downloaded (" + ext.toUpperCase(java.util.Locale.ROOT) + ")");
+            }
+        } catch (Exception exception) {
+            AppDialogService.error(ownerNode, "Template Error", "Template creation failed", safeMessage(exception));
+        }
+    }
 
     private void downloadTemplateFor(
         String module
     ) {
-
-        cmbImportModule.setValue(module);
-        downloadTemplate();
+        downloadTemplateFor(module, "ALL");
     }
 
     @FXML
     private void downloadItemTemplate() {
-        downloadTemplateFor("Item Master");
+        downloadTemplateFor("Item Master", "ALL");
     }
 
     @FXML
     private void downloadCustomerTemplate() {
-        downloadTemplateFor("Customers/CRM");
+        downloadTemplateFor("Customers/CRM", "ALL");
     }
 
     @FXML
     private void downloadSupplierTemplate() {
-        downloadTemplateFor("Suppliers/HRM");
+        downloadTemplateFor("Suppliers/HRM", "ALL");
     }
 
     @FXML
     private void downloadSalesTemplate() {
-        downloadTemplateFor("Sales");
+        downloadTemplateFor("Sales", "ALL");
     }
 
     @FXML
     private void downloadPurchaseTemplate() {
-        downloadTemplateFor("Purchases");
+        downloadTemplateFor("Purchases", "ALL");
     }
 
     @FXML
     private void downloadPurchaseReconTemplate() {
-        downloadTemplateFor("Purchase Recon");
+        downloadTemplateFor("Purchase Recon", "ALL");
     }
 
     @FXML
     private void downloadBankStatementTemplate() {
-        downloadTemplateFor("Bank Statement");
+        downloadTemplateFor("Bank Statement", "ALL");
     }
 
     @FXML
     private void downloadMasterTemplate() {
         downloadTemplateFor(
-            "Master Categories and Values"
+            "Master Categories and Values",
+            "ALL"
         );
     }
 
@@ -1821,32 +1845,7 @@ public class ImportController implements ScreenLifecycle {
 
     @FXML
     private void showImportGuide() {
-
-        Alert alert =
-            new OwnedAlert(
-                Alert.AlertType.INFORMATION
-            );
-
-        alert.setTitle("Data Import Guide");
-        alert.setHeaderText(
-            "How to import ERP data"
-        );
-
-        alert.setContentText(
-            """
-            1. Select the destination module.
-            2. Download the matching Excel template.
-            3. Keep the template header row unchanged.
-            4. Enter or paste your records into the workbook.
-            5. Choose or drag the completed workbook here.
-            6. Review the automatic column mappings.
-            7. Check the first 50 rows in Data Preview.
-            8. Select “Validate only” for a safe test.
-            9. Click Import Data when everything is correct.
-            """
-        );
-
-        alert.showAndWait();
+        org.example.util.ScreenGuidanceManager.showGuidance(btnImportGuide != null ? btnImportGuide : stepSelect, "DATA_IMPORT");
     }
 
     /* =========================================================

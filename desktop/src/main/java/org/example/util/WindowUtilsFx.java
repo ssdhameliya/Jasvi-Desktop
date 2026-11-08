@@ -81,6 +81,8 @@ public final class WindowUtilsFx {
             stage.getScene().getRoot().layout();
             stage.sizeToScene();
         }
+        stage.setMaxWidth(maxW);
+        stage.setMaxHeight(maxH);
         if (stage.getWidth() > maxW) stage.setWidth(maxW);
         if (stage.getHeight() > maxH) stage.setHeight(maxH);
         centreInside(stage, owner, screen);
@@ -93,6 +95,8 @@ public final class WindowUtilsFx {
         double margin = screen.getWidth() < 1100 || screen.getHeight() < 700 ? 16 : 36;
         double maxW = Math.max(320, screen.getWidth() - margin * 2);
         double maxH = Math.max(260, screen.getHeight() - margin * 2);
+        stage.setMaxWidth(maxW);
+        stage.setMaxHeight(maxH);
         if (stage.getScene() != null && stage.getScene().getRoot() != null) {
             stage.getScene().getRoot().applyCss();
             stage.getScene().getRoot().layout();
@@ -124,6 +128,24 @@ public final class WindowUtilsFx {
             for (Screen s: Screen.getScreens()) if (s.getVisualBounds().contains(cx,cy)) return s.getVisualBounds();
         }
         return Screen.getPrimary().getVisualBounds();
+    }
+
+    public static Rectangle2D visualBoundsFor(javafx.scene.Node node) {
+        Window window = DialogOwnerResolver.resolve(node);
+        return visualBoundsFor(window);
+    }
+
+    public static Rectangle2D visualBoundsFor(Object target) {
+        Window window = DialogOwnerResolver.resolve(target);
+        return visualBoundsFor(window);
+    }
+
+    public static void fitDialogToOwnerScreen(Stage stage, javafx.scene.Node ownerNode) {
+        fitDialogToOwnerScreen(stage, DialogOwnerResolver.resolve(ownerNode));
+    }
+
+    public static void fitDialogToOwnerScreen(Stage stage, Object ownerTarget) {
+        fitDialogToOwnerScreen(stage, DialogOwnerResolver.resolve(ownerTarget));
     }
 
     public static void applyAdaptiveMinimums(Stage stage, Rectangle2D screen) {

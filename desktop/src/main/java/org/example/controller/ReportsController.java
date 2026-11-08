@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
@@ -517,24 +519,24 @@ public class ReportsController implements ScreenLifecycle {
         pane.setContent(grid);
         dialog.setResultConverter(bt->{if(bt!=saveType)return null;SavedReportOption option=saved.getValue();String f=safe(frequency.getValue()).toUpperCase(Locale.ROOT);Integer dow="WEEKLY".equals(f)?weekday.getSelectionModel().getSelectedIndex()+1:null;Integer dom=Set.of("MONTHLY","QUARTERLY","YEARLY").contains(f)?day.getValue():null;Integer moy="YEARLY".equals(f)?month.getSelectionModel().getSelectedIndex()+1:null;return new ScheduleRequest(name.getText(),option==null?"":option.name(),f,dow,dom,moy,time.getText(),format.getValue(),delivery.getValue(),recipients.getText(),existing==null?0:existing.rowVersion());});
         dialog.showAndWait().ifPresent(request->{
-            if(existing==null)UiTaskExecutor.submitAction("report-schedule-create",()->scheduleApi.create(request),x->{ToastManager.success(tblSchedules,"Schedule created","Scheduled Report is active and will run automatically on the server.");loadSchedules();},e->error("Could not create schedule: "+root(e)));
-            else UiTaskExecutor.submitAction("report-schedule-update-"+existing.id(),()->scheduleApi.update(existing.id(),request),x->{ToastManager.success(tblSchedules,"Schedule updated","The next run has been recalculated.");loadSchedules();},e->error("Could not update schedule: "+root(e)));
+            if(existing==null)UiTaskExecutor.submitAction("report-schedule-create",()->scheduleApi.create(request),x->{AppDialogService.success(tblSchedules,"Schedule created","Scheduled Report is active and will run automatically on the server.");loadSchedules();},e->error("Could not create schedule: "+root(e)));
+            else UiTaskExecutor.submitAction("report-schedule-update-"+existing.id(),()->scheduleApi.update(existing.id(),request),x->{AppDialogService.success(tblSchedules,"Schedule updated","The next run has been recalculated.");loadSchedules();},e->error("Could not update schedule: "+root(e)));
         });
     }
     private static void addScheduleField(GridPane grid,int row,String title,Node control){Label label=new Label(title);label.getStyleClass().add("field-label");grid.add(label,0,row);grid.add(control,1,row);GridPane.setHgrow(control,Priority.ALWAYS);}
 
     private void runScheduleNow(ScheduleRow row){
-        if(row==null)return;UiTaskExecutor.submitAction("report-schedule-run-"+row.id(),()->scheduleApi.run(row.id()),x->{ToastManager.success(tblSchedules,"Scheduled Report completed",safe(x.message()));loadSchedules();},e->{error("Scheduled Report failed: "+root(e));loadSchedules();});
+        if(row==null)return;UiTaskExecutor.submitAction("report-schedule-run-"+row.id(),()->scheduleApi.run(row.id()),x->{AppDialogService.success(tblSchedules,"Scheduled Report completed",safe(x.message()));loadSchedules();},e->{error("Scheduled Report failed: "+root(e));loadSchedules();});
     }
     private void toggleSchedule(ScheduleRow row){
-        if(row==null)return;boolean active="ACTIVE".equalsIgnoreCase(row.status());UiTaskExecutor.submitAction("report-schedule-toggle-"+row.id(),()->active?scheduleApi.pause(row.id(),row.rowVersion()):scheduleApi.resume(row.id(),row.rowVersion()),x->{ToastManager.success(tblSchedules,active?"Schedule paused":"Schedule resumed",active?"Automatic runs are paused.":"The next automatic run has been scheduled.");loadSchedules();},e->error("Could not update schedule: "+root(e)));
+        if(row==null)return;boolean active="ACTIVE".equalsIgnoreCase(row.status());UiTaskExecutor.submitAction("report-schedule-toggle-"+row.id(),()->active?scheduleApi.pause(row.id(),row.rowVersion()):scheduleApi.resume(row.id(),row.rowVersion()),x->{AppDialogService.success(tblSchedules,active?"Schedule paused":"Schedule resumed",active?"Automatic runs are paused.":"The next automatic run has been scheduled.");loadSchedules();},e->error("Could not update schedule: "+root(e)));
     }
     private void duplicateSchedule(ScheduleRow row){
-        if(row==null)return;UiTaskExecutor.submitAction("report-schedule-duplicate-"+row.id(),()->scheduleApi.duplicate(row.id()),x->{ToastManager.success(tblSchedules,"Schedule duplicated","The copy is created paused so you can review it before enabling.");loadSchedules();},e->error("Could not duplicate schedule: "+root(e)));
+        if(row==null)return;UiTaskExecutor.submitAction("report-schedule-duplicate-"+row.id(),()->scheduleApi.duplicate(row.id()),x->{AppDialogService.success(tblSchedules,"Schedule duplicated","The copy is created paused so you can review it before enabling.");loadSchedules();},e->error("Could not duplicate schedule: "+root(e)));
     }
     private void deleteSchedule(ScheduleRow row){
         if(row==null)return;Alert confirm=new OwnedAlert(Alert.AlertType.CONFIRMATION,"Delete schedule ‘"+row.name()+"’? Its run history will also be removed.",ButtonType.CANCEL,ButtonType.OK);confirm.setHeaderText("Delete Scheduled Report");if(confirm.showAndWait().orElse(ButtonType.CANCEL)!=ButtonType.OK)return;
-        UiTaskExecutor.submitAction("report-schedule-delete-"+row.id(),()->scheduleApi.delete(row.id(),row.rowVersion()),x->{ToastManager.success(tblSchedules,"Schedule deleted","The Scheduled Report was removed.");loadSchedules();},e->error("Could not delete schedule: "+root(e)));
+        UiTaskExecutor.submitAction("report-schedule-delete-"+row.id(),()->scheduleApi.delete(row.id(),row.rowVersion()),x->{AppDialogService.success(tblSchedules,"Schedule deleted","The Scheduled Report was removed.");loadSchedules();},e->error("Could not delete schedule: "+root(e)));
     }
     private void showScheduleHistory(ScheduleRow row){
         if(row==null)return;UiTaskExecutor.submitLatest("report-schedule-history-"+row.id(),()->scheduleApi.history(row.id()),history->showHistoryDialog(row,history),e->error("Could not load schedule history: "+root(e)));
@@ -551,7 +553,22 @@ public class ReportsController implements ScreenLifecycle {
     @FXML private void exportCsv(){exportDashboard("CSV Report","business-report.csv","csv");}
     private void exportDashboard(String title,String name,String format){
         org.example.service.PermissionService.require("REPORTS.EXPORT", "Export Reports");
-        FileChooser f=new FileChooser();f.setTitle(title);String suffix="."+format.toLowerCase(Locale.ROOT);String stamp=java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));String base=name.substring(0,name.length()-suffix.length());f.setInitialFileName(base+"-"+stamp+suffix);try{Path folder=org.example.config.WorkspaceStorageManager.reportFolder("Financial",dpFrom.getValue());if(java.nio.file.Files.isDirectory(folder))f.setInitialDirectory(folder.toFile());}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }f.getExtensionFilters().add(new FileChooser.ExtensionFilter(title,"*"+suffix));File selected=f.showSaveDialog(dpFrom.getScene().getWindow());if(selected==null)return;Path path=selected.toPath();if(!path.toString().toLowerCase(Locale.ROOT).endsWith(suffix))path=Path.of(path+suffix);final Path target=path;UiTaskExecutor.submitAction("reports-export-"+format,()->{switch(format){case "pdf"->reportService.exportPdf(target,dpFrom.getValue(),dpTo.getValue());case "xlsx"->reportService.exportExcel(target,dpFrom.getValue(),dpTo.getValue());case "csv"->reportService.exportCsv(target,dpFrom.getValue(),dpTo.getValue());default->throw new IllegalArgumentException("Unsupported export format: "+format);}return target;},done->ToastManager.success(dpFrom,"Report created","Report created successfully:\n"+done),e->error("Could not create report: "+root(e)));
+        String suffix="."+format.toLowerCase(Locale.ROOT);
+        String base=name.endsWith(suffix)?name.substring(0,name.length()-suffix.length()):name;
+        File selected=ExportFeedbackManager.resolveWorkspaceExportFile("Reports", base, format.toLowerCase(Locale.ROOT));
+        if(selected==null)return;
+        Path path=selected.toPath();
+        if(!ExportFeedbackManager.checkFileWriteable(dpFrom, path.toFile())) return;
+        final Path target=path;
+        UiTaskExecutor.submitAction("reports-export-"+format,()->{
+            switch(format){
+                case "pdf"->reportService.exportPdf(target,dpFrom.getValue(),dpTo.getValue());
+                case "xlsx"->reportService.exportExcel(target,dpFrom.getValue(),dpTo.getValue());
+                case "csv"->reportService.exportCsv(target,dpFrom.getValue(),dpTo.getValue());
+                default->throw new IllegalArgumentException("Unsupported export format: "+format);
+            }
+            return target;
+        },done->ExportFeedbackManager.notifyExportSuccess(dpFrom, done.toFile(), title),e->error("Could not create report: "+root(e)));
     }
 
     private void navigate(String page){NavigationManager.navigateOrReport(page);}

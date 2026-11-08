@@ -254,7 +254,7 @@ public class BarcodeStudioController implements ScreenLifecycle {
         org.example.util.AppDialogRenderer.configureWorkspace(dialog, "info", "Label Design & Live Preview", "Thermal Sticker & Sheet Preview", "Item: " + (item.itemName != null ? item.itemName : item.itemCode), "");
 
         DialogPane dp = dialog.getDialogPane();
-        dp.setPrefWidth(780);
+        PopupTableWorkspace.prepareDialog(dialog, 840);
         dp.setPrefHeight(480);
         dp.getButtonTypes().addAll(ButtonType.CLOSE);
         dp.getStyleClass().addAll("approved-dialog", "erp-dialog");
@@ -435,6 +435,7 @@ public class BarcodeStudioController implements ScreenLifecycle {
         dialog.setHeaderText("Assign or Generate Barcode for " + item.itemName + " [" + item.itemCode + "]");
 
         DialogPane dp = dialog.getDialogPane();
+        PopupTableWorkspace.prepareDialog(dialog, 580);
         dp.getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         dp.getStyleClass().addAll("approved-dialog", "erp-dialog");
 
@@ -491,6 +492,7 @@ public class BarcodeStudioController implements ScreenLifecycle {
         dialog.setHeaderText("Generate Transport Slip for " + item.itemName + " [" + item.itemCode + "]");
 
         DialogPane dp = dialog.getDialogPane();
+        PopupTableWorkspace.prepareDialog(dialog, 580);
         dp.getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         dp.getStyleClass().addAll("approved-dialog", "erp-dialog");
 
@@ -544,28 +546,16 @@ public class BarcodeStudioController implements ScreenLifecycle {
         Optional<Map<String, String>> res = dialog.showAndWait();
         if (res.isPresent()) {
             Map<String, String> info = res.get();
-            FileChooser chooser = new FileChooser();
-            chooser.setTitle("Save Consignment Dispatch Slip PDF");
             String safeCode = item.itemCode != null ? item.itemCode.replaceAll("[^a-zA-Z0-9.-]", "_") : "Item";
-            chooser.setInitialFileName("Dispatch_Slip_" + safeCode + ".pdf");
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF Document (*.pdf)", "*.pdf"));
-
-            File target = chooser.showSaveDialog(tblItems.getScene().getWindow());
+            File target = ExportFeedbackManager.resolveWorkspaceExportFile("Barcodes", "Dispatch_Slip_" + safeCode, "pdf");
             if (target != null) {
+                if (!ExportFeedbackManager.checkFileWriteable(tblItems, target)) return;
                 try {
                     generateDispatchSlipPdf(target, item, info.get("consignee"), info.get("destination"),
                         info.get("transporter"), info.get("trackingNo"), info.get("quantity"));
 
-                    AppDialogService.success(tblItems, "Dispatch Slip Generated",
-                        "Saved transport slip to " + target.getName() + ".");
-
                     logPrintAsync(1);
-
-                    if (Desktop.isDesktopSupported()) {
-                        try {
-                            Desktop.getDesktop().open(target);
-                        } catch (Exception ignored) {}
-                    }
+                    ExportFeedbackManager.notifyExportSuccess(tblItems, target, "Consignment Dispatch Slip PDF (" + safeCode + ")");
                 } catch (Exception ex) {
                     AppDialogService.error(tblItems, "PDF Generation Failed",
                         "Could not generate dispatch slip PDF: " + ex.getMessage(), ex.getMessage());
@@ -770,7 +760,7 @@ public class BarcodeStudioController implements ScreenLifecycle {
         dlg.setTitle("Universal Order Barcode Label");
         AppDialogRenderer.configureWorkspace(dlg, "info", "Universal Order Barcode Label", "Select Order for Dispatch", "Select a valid Sales Invoice or Purchase Order to generate order barcode labels.", "");
         DialogPane pane = dlg.getDialogPane();
-        pane.setPrefWidth(680);
+        PopupTableWorkspace.prepareDialog(dlg, 700);
         pane.getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
 
         VBox content = new VBox(10);

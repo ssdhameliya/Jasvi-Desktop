@@ -148,14 +148,23 @@ public final class IconFactory {
             return;
         }
 
-        // CheckBox already has a native checked/unchecked affordance.  Do not
-        // decorate it with a second generic action/settings icon.
+        // CheckBox and RadioButton already have native selection affordances. Do not
+        // decorate them with a second generic action/settings icon.
         if (node instanceof CheckBox checkBox) {
             Node graphic = checkBox.getGraphic();
             if (graphic != null && Boolean.TRUE.equals(graphic.getProperties().get("erp.icon.factory"))) {
                 checkBox.setGraphic(null);
             }
             checkBox.getProperties().put("erp.icon.skip", true);
+            return;
+        }
+
+        if (node instanceof javafx.scene.control.RadioButton radioButton) {
+            Node graphic = radioButton.getGraphic();
+            if (graphic != null && Boolean.TRUE.equals(graphic.getProperties().get("erp.icon.factory"))) {
+                radioButton.setGraphic(null);
+            }
+            radioButton.getProperties().put("erp.icon.skip", true);
             return;
         }
 

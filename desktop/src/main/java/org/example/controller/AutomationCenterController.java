@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -408,6 +410,8 @@ public class AutomationCenterController implements ScreenLifecycle {
 
         ScrollPane scroll = new ScrollPane(grid);
         scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         // Action Dock
@@ -530,6 +534,8 @@ public class AutomationCenterController implements ScreenLifecycle {
 
         ScrollPane scroll = new ScrollPane(grid);
         scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         // Action Dock
@@ -617,7 +623,7 @@ public class AutomationCenterController implements ScreenLifecycle {
     }
 
     private void createPurchaseOrderForItem(ReorderRow row) {
-        ToastManager.info(tblReorderSuggestions, "Draft PO Initiated", "Draft Purchase Order created for " + row.code() + " with qty " + row.suggestedQty() + ".");
+        AppDialogService.info(tblReorderSuggestions, "Draft PO Initiated", "Draft Purchase Order created for " + row.code() + " with qty " + row.suggestedQty() + ".");
         NavigationManager.getInstance().loadPage("/fxml/pages/Purchase.fxml");
     }
 
@@ -744,7 +750,7 @@ public class AutomationCenterController implements ScreenLifecycle {
 
                     ruleRows.setAll(result.rules);
                 },
-                ex -> ToastManager.error(tblMatchLogs, "Automation Error", "Failed to load automation engine data: " + ex.getMessage())
+                ex -> AppDialogService.error(tblMatchLogs, "Automation Error", "Failed to load automation engine data: " + ex.getMessage())
         );
     }
 
@@ -784,13 +790,13 @@ public class AutomationCenterController implements ScreenLifecycle {
     @FXML
     public void scanReorders() {
         loadAutomationDataAsync();
-        ToastManager.success(tblReorderSuggestions, "Inventory Scanned", "Real-time safety stock scan completed across catalog items.");
+        AppDialogService.success(tblReorderSuggestions, "Inventory Scanned", "Real-time safety stock scan completed across catalog items.");
     }
 
     @FXML
     public void refreshAll() {
         loadAutomationDataAsync();
-        ToastManager.info(tblMatchLogs, "Refreshed", "Automation center rules, matching, and stock reorders reloaded.");
+        AppDialogService.info(tblMatchLogs, "Refreshed", "Automation center rules, matching, and stock reorders reloaded.");
     }
 
     private String fmt(double val) {

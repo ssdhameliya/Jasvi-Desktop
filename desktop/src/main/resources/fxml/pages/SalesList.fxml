@@ -17,6 +17,7 @@
             <StackPane.margin><Insets right="8"/></StackPane.margin>
           </StackPane>
         </StackPane>
+        <Button fx:id="btnScreenGuide" text="Guide" onAction="#showScreenGuide" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button"/>
         <Button fx:id="btnNewSale" text="New Sale" onAction="#newSale" styleClass="primary-action,sales-new-button,approved-button,approved-primary-button"/>
       </HBox>
 

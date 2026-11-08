@@ -137,9 +137,7 @@
 
                                         <Label text="How the payment QR is used" styleClass="settings-form-label"/>
 
-                                        <Label text="The selected QR image is printed beside your bank details on sales invoices, quotations, receipts and return documents." wrapText="true" styleClass="settings-information-text"/>
-
-                                        <Label text="When no QR image is uploaded, the application may generate a QR code automatically from the configured UPI ID." wrapText="true" styleClass="settings-information-text"/>
+                                        <Label text="Printed beside bank details on invoices, quotations and receipts with UPI payload." styleClass="settings-information-text"/>
 
                                     </VBox>
 

@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -646,6 +648,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         grid.add(txtDays, 1, 3);
 
         dialog.getDialogPane().setContent(grid);
+        PopupTableWorkspace.prepareDialog(dialog, 600);
         dialog.setResultConverter(b -> {
             if (b == btnApprove) {
                 int days = 365;
@@ -666,11 +669,11 @@ public class ClientRegistryController implements ScreenLifecycle {
                         boolean emSent = dispatch != null && Boolean.TRUE.equals(dispatch.get("emailSent"));
 
                         if (waSent) {
-                            ToastManager.success(tableLeads, "Lead Approved & Dispatched",
+                            AppDialogService.success(tableLeads, "Lead Approved & Dispatched",
                                     "License issued and dispatched automatically via WhatsApp to " + company + "!" +
                                             (emSent ? " (and official email sent)" : ""));
                         } else {
-                            ToastManager.success(tableLeads, "Lead Approved", "License issued for " + company + ". Opening WhatsApp Web...");
+                            AppDialogService.success(tableLeads, "Lead Approved", "License issued for " + company + ". Opening WhatsApp Web...");
                             openManualWhatsApp(res);
                         }
                         loadDataAsync();
@@ -696,7 +699,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                 "reject-lead-" + id,
                 () -> api.rejectLead(id),
                 res -> {
-                    ToastManager.info(tableLeads, "Lead Rejected", "Registration for " + company + " rejected.");
+                    AppDialogService.info(tableLeads, "Lead Rejected", "Registration for " + company + " rejected.");
                     loadDataAsync();
                 },
                 err -> AppDialogService.error(tableLeads, "Reject Error", "Could not reject lead", err.getMessage())
@@ -826,6 +829,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         grid.add(txtFeatures, 1, 5);
 
         dialog.getDialogPane().setContent(grid);
+        PopupTableWorkspace.prepareDialog(dialog, 600);
         dialog.setResultConverter(b -> {
             if (b == btnSave) {
                 java.util.Map<String, Object> req = new java.util.HashMap<>();
@@ -847,7 +851,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     "save-plan",
                     () -> api.savePlan(req),
                     res -> {
-                        ToastManager.success(tablePlans, "Plan Saved", "Commercial subscription plan saved!");
+                        AppDialogService.success(tablePlans, "Plan Saved", "Commercial subscription plan saved!");
                         loadDataAsync();
                     },
                     err -> AppDialogService.error(tablePlans, "Save Error", "Could not save plan", err.getMessage())
@@ -869,7 +873,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         UiTaskExecutor.submitAction(
                 "save-comm-settings",
                 () -> api.saveCommercialSettings(req),
-                res -> ToastManager.success(registryTabPane, "Settings Saved", "Commercial settings updated and synced with cloud catalog!"),
+                res -> AppDialogService.success(registryTabPane, "Settings Saved", "Commercial settings updated and synced with cloud catalog!"),
                 err -> AppDialogService.error(registryTabPane, "Save Error", "Could not save settings", err.getMessage())
         );
     }
@@ -1045,6 +1049,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         grid.add(txtRemoteUrl, 1, 9);
 
         dialog.getDialogPane().setContent(grid);
+        PopupTableWorkspace.prepareDialog(dialog, 680);
         dialog.setResultConverter(btn -> {
             if (btn == btnSave) {
                 java.util.Map<String, Object> reqMap = new java.util.HashMap<>();
@@ -1066,7 +1071,7 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         dialog.showAndWait().ifPresent(req -> {
             if (String.valueOf(req.get("companyName")).isBlank() || String.valueOf(req.get("machineId")).isBlank()) {
-                ToastManager.warning(tableClients, "Validation", "Company Name and Machine ID are required.");
+                AppDialogService.warning(tableClients, "Validation", "Company Name and Machine ID are required.");
                 return;
             }
 
@@ -1074,7 +1079,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     "register-client",
                     () -> api.registerClient(req),
                     client -> {
-                        ToastManager.success(tableClients, "License Issued", "Registered " + req.get("companyName") + "!");
+                        AppDialogService.success(tableClients, "License Issued", "Registered " + req.get("companyName") + "!");
                         loadDataAsync();
                     },
                     err -> AppDialogService.error(tableClients, "Issuance Failed", "Could not register client", err.getMessage())
@@ -1090,7 +1095,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                 "renew-client-" + id,
                 () -> api.renewClient(id, days),
                 res -> {
-                    ToastManager.success(tableClients, "License Renewed", "Added " + days + " days to " + company + ".");
+                    AppDialogService.success(tableClients, "License Renewed", "Added " + days + " days to " + company + ".");
                     loadDataAsync();
                 },
                 err -> AppDialogService.error(tableClients, "Renewal Error", "Could not renew license", err.getMessage())
@@ -1122,9 +1127,9 @@ public class ClientRegistryController implements ScreenLifecycle {
             ClipboardContent content = new ClipboardContent();
             content.putString(payload);
             Clipboard.getSystemClipboard().setContent(content);
-            ToastManager.info(tableClients, "Copied", "Cryptographic license token copied to clipboard!");
+            AppDialogService.info(tableClients, "Copied", "Cryptographic license token copied to clipboard!");
         } else {
-            ToastManager.warning(tableClients, "Unavailable", "No license token generated for this client.");
+            AppDialogService.warning(tableClients, "Unavailable", "No license token generated for this client.");
         }
     }
 
@@ -1132,24 +1137,16 @@ public class ClientRegistryController implements ScreenLifecycle {
         Long id = ((Number) item.get("id")).longValue();
         String company = String.valueOf(item.getOrDefault("company_name", "client")).replaceAll("[^a-zA-Z0-9_-]", "_");
 
-        FileChooser fc = new FileChooser();
-        fc.setTitle("Save Jasvi License File");
-        fc.setInitialFileName(company + ".jlic");
-        fc.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Jasvi License (*.jlic)", "*.jlic"),
-                new FileChooser.ExtensionFilter("Standard License (*.lic)", "*.lic"),
-                new FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
-        );
-
-        File target = fc.showSaveDialog(tableClients.getScene().getWindow());
+        File target = ExportFeedbackManager.resolveWorkspaceExportFile("Licenses", company, "jlic");
         if (target != null) {
+            if (!ExportFeedbackManager.checkFileWriteable(tableClients, target)) return;
             UiTaskExecutor.submitAction(
                     "download-license",
                     () -> api.downloadLicenseFile(id),
                     bytes -> {
                         try {
                             Files.write(target.toPath(), bytes);
-                            ToastManager.success(tableClients, "Exported", "Saved to " + target.getName());
+                            ExportFeedbackManager.notifyExportSuccess(tableClients, target, "Jasvi License File (" + company + ")");
                         } catch (Exception e) {
                             AppDialogService.error(tableClients, "Save Error", "Could not save file", e.getMessage());
                         }
@@ -1179,7 +1176,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     boolean emSent = Boolean.TRUE.equals(res.get("emailSent"));
                     String emErr = String.valueOf(res.getOrDefault("emailError", ""));
                     if (emSent) {
-                        ToastManager.success(tableClients, "License Email Dispatched",
+                        AppDialogService.success(tableClients, "License Email Dispatched",
                                 "Official license file (.jlic) dispatched to " + email);
                     } else {
                         AppDialogService.error(tableClients, "Email Delivery Notice",
@@ -1206,10 +1203,10 @@ public class ClientRegistryController implements ScreenLifecycle {
                     String waErr = String.valueOf(res.getOrDefault("whatsappError", ""));
 
                     if (waSent) {
-                        ToastManager.success(tableClients, "WhatsApp Dispatched",
+                        AppDialogService.success(tableClients, "WhatsApp Dispatched",
                                 "Official license file and message dispatched automatically via WhatsApp to " + item.getOrDefault("company_name", "client"));
                     } else {
-                        ToastManager.warning(tableClients, "WhatsApp Channel Notice",
+                        AppDialogService.warning(tableClients, "WhatsApp Channel Notice",
                                 (waErr.isBlank() ? "WAHA channel unavailable" : waErr) + ". Opening WhatsApp Web in browser...");
                         openManualWhatsApp(item);
                     }
@@ -1230,7 +1227,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     String summary = (waSent ? "✓ WhatsApp Sent" : "✗ WhatsApp Failed") + " | " +
                             (emSent ? "✓ Email Sent (.jlic attached)" : "✗ Email Failed");
                     if (waSent || emSent) {
-                        ToastManager.success(tableClients, "Multi-Channel Dispatch", summary);
+                        AppDialogService.success(tableClients, "Multi-Channel Dispatch", summary);
                     } else {
                         AppDialogService.warning(tableClients, "Dispatch Notice", summary, "Neither channel could complete delivery. Please check WAHA and SMTP configurations.");
                     }
@@ -1294,7 +1291,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                 "revoke-client-" + id,
                 () -> api.revokeClient(id),
                 res -> {
-                    ToastManager.info(tableClients, "Revoked", "Client " + company + " revoked.");
+                    AppDialogService.info(tableClients, "Revoked", "Client " + company + " revoked.");
                     loadDataAsync();
                 },
                 err -> AppDialogService.error(tableClients, "Revoke Error", "Could not revoke client", err.getMessage())

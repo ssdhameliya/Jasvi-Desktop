@@ -179,7 +179,7 @@ public class UserAccessController implements ScreenLifecycle {
             permissionRowVersion=set.rowVersion();
             PermissionService.refresh();
             NotificationService.add(role+" permissions updated.");
-            org.example.util.ToastManager.success(permissionTable,"Permissions saved",role+" permissions were updated successfully.");
+            org.example.util.AppDialogService.success(permissionTable,"Permissions saved",role+" permissions were updated successfully.");
         }, e -> error("Permissions could not be saved. Reload the role if another administrator changed it first.", e instanceof Exception ex ? ex : new RuntimeException(e)));
     }
     @FXML private void registrationApprovals(){ DashboardController.navigateFromChildPage("Registration Approvals", "/fxml/pages/RegistrationApprovals.fxml"); }
@@ -215,7 +215,7 @@ public class UserAccessController implements ScreenLifecycle {
             }, success -> {
                 audit(row.id,"PASSWORD_RESET",row.user.get());
                 NotificationService.add("Password reset for "+row.user.get()+".");
-                org.example.util.ToastManager.success(table,"Password reset","Temporary password was set for "+row.user.get()+".");
+                org.example.util.AppDialogService.success(table,"Password reset","Temporary password was set for "+row.user.get()+".");
                 refresh();
             }, e -> error("Password could not be reset", e instanceof Exception ex ? ex : new RuntimeException(e)));
         });
@@ -225,7 +225,7 @@ public class UserAccessController implements ScreenLifecycle {
         if(!confirm("Reset Authenticator for '"+row.user.get()+"'? The old phone will stop working and a new QR enrollment will be required at the next sign-in."))return;
         UiTaskExecutor.submitAction("user-access-mfa-reset", () -> adminApi.resetMfa(row.id), state -> {
             if(SessionService.current()!=null&&SessionService.current().getId()==row.id){new OwnedAlert(Alert.AlertType.INFORMATION,state.message()+" Sign in again to continue.",ButtonType.OK).showAndWait();SessionService.clear();org.example.util.SceneManager.showLogin();return;}
-            org.example.util.ToastManager.success(table,"Authenticator reset",state.message());refresh();
+            org.example.util.AppDialogService.success(table,"Authenticator reset",state.message());refresh();
         }, failure -> error("Authenticator could not be reset", failure instanceof Exception e ? e : new RuntimeException(failure)));
     }
     private void toggleLock(UserRow row){
@@ -239,7 +239,7 @@ public class UserAccessController implements ScreenLifecycle {
             return !row.locked;
         }, locked -> {
             audit(row.id,locked?"USER_LOCKED":"USER_UNLOCKED",row.user.get());
-            org.example.util.ToastManager.success(table,locked?"Account locked":"Account unlocked",row.user.get()+" was "+(locked?"locked":"unlocked")+" successfully.");
+            org.example.util.AppDialogService.success(table,locked?"Account locked":"Account unlocked",row.user.get()+" was "+(locked?"locked":"unlocked")+" successfully.");
             refresh();
         }, e -> error("Lock status could not be changed", e instanceof Exception ex ? ex : new RuntimeException(e)));
     }
@@ -255,7 +255,7 @@ public class UserAccessController implements ScreenLifecycle {
             adminApi.deleteUser(row.id);
             return true;
         }, success -> {
-            org.example.util.ToastManager.success(table,"User deleted",row.user.get()+" was deleted successfully.");
+            org.example.util.AppDialogService.success(table,"User deleted",row.user.get()+" was deleted successfully.");
             refresh();
         }, e -> error("User could not be deleted", e instanceof Exception ex ? ex : new RuntimeException(e)));
     }

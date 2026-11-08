@@ -1,5 +1,6 @@
 package org.example.util;
 
+import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -66,14 +67,34 @@ public final class AppDialogService {
     }
 
     public static void info(Object owner, String title, String heading, String message) {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> info(owner, title, heading, message));
+            return;
+        }
         show(owner, "notification", title, heading, message, null, new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE));
     }
 
+    public static void info(Object owner, String title, String message) {
+        info(owner, title, "Notification", message);
+    }
+
     public static void warning(Object owner, String title, String heading, String message) {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> warning(owner, title, heading, message));
+            return;
+        }
         show(owner, "warning", title, heading, message, null, new ButtonType("Review", ButtonBar.ButtonData.CANCEL_CLOSE));
     }
 
+    public static void warning(Object owner, String title, String message) {
+        warning(owner, title, "Attention Required", message);
+    }
+
     public static void error(Object owner, String title, String heading, String message) {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> error(owner, title, heading, message));
+            return;
+        }
         String visible = UserFacingErrorMapper.message(message);
         String detail = UserFacingErrorMapper.reference(message);
         if (message != null && !message.isBlank() && !visible.contains(message.trim())
@@ -91,7 +112,15 @@ public final class AppDialogService {
         }
     }
 
+    public static void error(Object owner, String title, String message) {
+        error(owner, title, "Operation Failed", message);
+    }
+
     public static void success(Object owner, String title, String heading, String message) {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(() -> success(owner, title, heading, message));
+            return;
+        }
         show(owner, "complete", title, heading, message, null, new ButtonType("Done", ButtonBar.ButtonData.CANCEL_CLOSE));
     }
 
@@ -123,10 +152,19 @@ public final class AppDialogService {
         AppDialogRenderer.configureWorkspace(dialog, semantic, title, heading, message, null);
         DialogPane pane = dialog.getDialogPane();
         pane.setContent(content);
-        pane.setMinWidth(Math.min(980, Math.max(720, preferredWidth)));
-        pane.setMinHeight(Math.min(620, Math.max(520, preferredHeight)));
-        pane.setPrefWidth(Math.max(900, preferredWidth));
-        pane.setPrefHeight(Math.max(620, preferredHeight));
+
+        javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
+        double maxW = Math.max(760, screen.getWidth() - 48);
+        double maxH = Math.max(500, screen.getHeight() - 48);
+        double targetW = Math.min(maxW, Math.max(720, Math.min(Math.max(900, preferredWidth), screen.getWidth() * 0.82)));
+        double targetH = Math.min(maxH, Math.max(480, Math.min(Math.max(620, preferredHeight), screen.getHeight() * 0.82)));
+
+        pane.setMinWidth(Math.min(720, targetW));
+        pane.setMinHeight(Math.min(460, targetH));
+        pane.setPrefWidth(targetW);
+        pane.setPrefHeight(targetH);
+        pane.setMaxWidth(maxW);
+        pane.setMaxHeight(maxH);
         pane.getButtonTypes().setAll(buttons);
         return dialog.showAndWait();
     }

@@ -7,10 +7,12 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import org.example.api.tally.TallyAutomationApiClient;
 import org.example.util.DynamicTableLayoutManager;
+import org.example.util.ExportFeedbackManager;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
 import org.example.util.SemanticTableCells;
-import org.example.util.ToastManager;
+import org.example.util.AppDialogService;
+import org.example.util.WindowUtilsFx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,12 +68,20 @@ public final class TallyExportPreviewDialog {
         dialog.setHeaderText(null);
         dialog.setResizable(true);
 
+        javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(ownerNode);
+        double maxW = Math.max(760, screen.getWidth() - 48);
+        double maxH = Math.max(500, screen.getHeight() - 48);
+        double targetW = Math.min(maxW, Math.max(760, Math.min(840, screen.getWidth() * 0.75)));
+        double targetH = Math.min(maxH, Math.max(500, Math.min(620, screen.getHeight() * 0.78)));
+
         DialogPane pane = dialog.getDialogPane();
         pane.getStyleClass().addAll("approved-dialog", "erp-export-preview-dialog");
         pane.getProperties().put("dse.dialog.presented", true);
-        pane.setMinWidth(780);
-        pane.setMinHeight(560);
-        pane.setPrefSize(840, 620);
+        pane.setMinWidth(Math.min(720, targetW));
+        pane.setMinHeight(Math.min(460, targetH));
+        pane.setPrefSize(targetW, targetH);
+        pane.setMaxWidth(maxW);
+        pane.setMaxHeight(maxH);
 
         pane.getButtonTypes().add(ButtonType.CLOSE);
         dialog.setOnShowing(ev -> {
@@ -79,6 +89,11 @@ public final class TallyExportPreviewDialog {
             if (defaultButtonBar != null) {
                 defaultButtonBar.setVisible(false);
                 defaultButtonBar.setManaged(false);
+            }
+        });
+        dialog.setOnShown(ev -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, ownerNode);
             }
         });
 
@@ -195,13 +210,10 @@ public final class TallyExportPreviewDialog {
                 }
 
                 dialog.close();
-                ToastManager.success(ownerNode, "Downloaded Successfully", "Saved to " + downloadsPath.getFileName().toString());
-
-                // Reveal in folder if supported
-                revealDownloadedFile(downloadsPath.toFile());
+                ExportFeedbackManager.notifyExportSuccess(ownerNode, downloadsPath.toFile(), "Tally Export Download");
             } catch (Exception ex) {
                 log.error("Failed automatic download to {}: {}", downloadsPath, ex.getMessage());
-                ToastManager.error(ownerNode, "Download Failed", ex.getMessage());
+                AppDialogService.error(ownerNode, "Download Failed", ex.getMessage());
             }
         });
 

@@ -242,7 +242,7 @@ public final class DocumentInspectionScaffold {
         btnCopy.setGraphic(IconFactory.compactIcon("copy", 13));
         btnCopy.setTooltip(new Tooltip("Copy reference number"));
         btnCopy.getStyleClass().addAll("icon-button", "copy-ref-button", "approved-button");
-        btnCopy.setOnAction(e -> copyToClipboard(dialog, docNo));
+        btnCopy.setOnAction(e -> copyToClipboard(btnCopy, docNo));
 
         HBox docNoBox = new HBox(8, docNoLabel, btnCopy);
         docNoBox.setAlignment(Pos.CENTER_LEFT);
@@ -274,6 +274,7 @@ public final class DocumentInspectionScaffold {
     private static String resolveKicker(String title, String specificDialogClass) {
         String lowerClass = specificDialogClass != null ? specificDialogClass.toLowerCase(Locale.ROOT) : "";
         String lowerTitle = title != null ? title.toLowerCase(Locale.ROOT) : "";
+        if (lowerClass.contains("license") || lowerClass.contains("subscription") || lowerTitle.contains("subscription") || lowerTitle.contains("license")) return "Enterprise Licensing • Security Authentication";
         if (lowerClass.contains("sales") || lowerTitle.contains("sale") || lowerTitle.contains("invoice")) return "Tax Invoice • Commercial Record";
         if (lowerClass.contains("purchase") || lowerTitle.contains("purchase") || lowerTitle.contains("bill")) return "Purchase Bill • Commercial Record";
         if (lowerClass.contains("quotation") || lowerTitle.contains("quotation") || lowerTitle.contains("quote")) return "Quotation Specification • Commercial Record";
@@ -290,6 +291,7 @@ public final class DocumentInspectionScaffold {
     private static String resolveIcon(String title, String specificDialogClass) {
         String lowerClass = specificDialogClass != null ? specificDialogClass.toLowerCase(Locale.ROOT) : "";
         String lowerTitle = title != null ? title.toLowerCase(Locale.ROOT) : "";
+        if (lowerClass.contains("license") || lowerClass.contains("subscription") || lowerTitle.contains("subscription") || lowerTitle.contains("license")) return "security";
         if (lowerClass.contains("sales") || lowerTitle.contains("sale")) return "sale";
         if (lowerClass.contains("purchase") || lowerTitle.contains("purchase")) return "purchase";
         if (lowerClass.contains("quotation") || lowerTitle.contains("quote")) return "quotation";
@@ -414,7 +416,30 @@ public final class DocumentInspectionScaffold {
     }
 
     /**
-     * Copies text to system clipboard and renders a non-intrusive feedback toast.
+     * Copies text to system clipboard with in-place button confirmation animation.
+     */
+    public static void copyToClipboard(Button button, String text) {
+        if (text == null || text.isBlank()) return;
+        Clipboard clipboard = Clipboard.getSystemClipboard();
+        ClipboardContent content = new ClipboardContent();
+        content.putString(text);
+        clipboard.setContent(content);
+        if (button != null) {
+            String origText = button.getText();
+            Node origGraphic = button.getGraphic();
+            button.setGraphic(IconFactory.compactIcon("complete", 13));
+            if (origText != null && !origText.isBlank()) button.setText("Copied!");
+            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+            pause.setOnFinished(ev -> {
+                button.setText(origText);
+                button.setGraphic(origGraphic);
+            });
+            pause.play();
+        }
+    }
+
+    /**
+     * Copies text to system clipboard silently without intrusive popups.
      */
     public static void copyToClipboard(Dialog<?> dialog, String text) {
         if (text == null || text.isBlank()) return;
@@ -422,9 +447,6 @@ public final class DocumentInspectionScaffold {
         ClipboardContent content = new ClipboardContent();
         content.putString(text);
         clipboard.setContent(content);
-        if (dialog != null && dialog.getDialogPane() != null) {
-            ToastManager.info(dialog.getDialogPane(), "Copied", text + " copied to clipboard.");
-        }
     }
 
     /**

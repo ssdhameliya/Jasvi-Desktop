@@ -82,6 +82,23 @@ public final class WorkspaceStorageManager {
         return ensure(folder).resolve(safeFileName(fileName));
     }
 
+    /**
+     * Resolves a clean, structured export file path under the workspace drive:
+     * Exports / {module} / {financialYear} / {baseName}_{timestamp}.{extension}
+     * Automatically creates parent directories.
+     */
+    public static Path structuredExportFile(String module, String baseName, String extension) throws IOException {
+        LocalDate today = LocalDate.now();
+        String fy = financialYear(today);
+        String safeMod = safeSegment(module == null || module.isBlank() ? "General" : module);
+        Path folder = ensure(exportsRoot().resolve(safeMod).resolve(fy));
+        String stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String cleanBase = safeFileName(baseName == null || baseName.isBlank() ? "Export" : baseName);
+        String cleanExt = extension == null || extension.isBlank() ? "xlsx" : extension.replace(".", "").toLowerCase(Locale.ROOT);
+        String fileName = cleanBase + "_" + stamp + "." + cleanExt;
+        return folder.resolve(fileName);
+    }
+
     public static String financialYear(LocalDate date) {
         LocalDate effective = date == null ? LocalDate.now() : date;
         int start = effective.getMonthValue() >= 4 ? effective.getYear() : effective.getYear() - 1;

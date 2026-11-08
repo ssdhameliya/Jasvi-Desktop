@@ -384,6 +384,7 @@ public class EWayBillCenterController implements ScreenLifecycle {
             new Label("Transporter GSTIN / ID:"), txtTransporterId
         );
         dp.setContent(content);
+        org.example.util.SearchableComboBoxHelper.makeAllSearchable(content);
 
         dialog.setResultConverter(btn -> {
             if (btn == ButtonType.OK) {
@@ -459,6 +460,7 @@ public class EWayBillCenterController implements ScreenLifecycle {
             new Label("Current Location:"), txtPlace
         );
         dp.setContent(content);
+        org.example.util.SearchableComboBoxHelper.makeAllSearchable(content);
 
         dialog.setResultConverter(btn -> {
             if (btn == ButtonType.OK) {
@@ -514,15 +516,13 @@ public class EWayBillCenterController implements ScreenLifecycle {
                 throw new RuntimeException("Failed to generate JSON: " + ApiRuntime.errorMessage(resp.statusCode(), resp.body()));
             },
             jsonContent -> {
-                FileChooser fc = new FileChooser();
-                fc.setTitle("Save NIC E-Way Bill JSON");
-                fc.setInitialFileName("EWayBill_" + bill.docNo.replaceAll("[^a-zA-Z0-9.-]", "_") + ".json");
-                fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files (*.json)", "*.json"));
-                File file = fc.showSaveDialog(tblBills.getScene().getWindow());
+                String safeDoc = bill.docNo == null ? "Document" : bill.docNo.replaceAll("[^a-zA-Z0-9.-]", "_");
+                File file = ExportFeedbackManager.resolveWorkspaceExportFile("EWayBills", "EWayBill_" + safeDoc, "json");
                 if (file != null) {
+                    if (!ExportFeedbackManager.checkFileWriteable(tblBills, file)) return;
                     try {
                         Files.writeString(file.toPath(), jsonContent);
-                        AppDialogService.success(tblBills, "Export Complete", "NIC schema JSON saved to: " + file.getAbsolutePath());
+                        ExportFeedbackManager.notifyExportSuccess(tblBills, file, "NIC E-Way Bill JSON (" + safeDoc + ")");
                     } catch (Exception e) {
                         AppDialogService.error(tblBills, "E-Way Bill", "Save Failed", e.getMessage());
                     }

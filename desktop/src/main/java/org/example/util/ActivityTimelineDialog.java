@@ -121,6 +121,7 @@ public final class ActivityTimelineDialog {
         cmbCategory.setValue("All Events");
         cmbCategory.getStyleClass().addAll("approved-combo-box", "audit-category-combo");
         cmbCategory.setPrefWidth(190);
+        SearchableComboBoxHelper.makeSearchable(cmbCategory);
 
         Label lblEntriesCount = new Label("Loading audit records…");
         lblEntriesCount.getStyleClass().addAll("status-pill", "pill-neutral");
@@ -577,7 +578,7 @@ public final class ActivityTimelineDialog {
             ClipboardContent content = new ClipboardContent();
             content.putString(safeRef);
             clipboard.setContent(content);
-            ToastManager.info(dialog.getDialogPane(), "Copied", safeRef + " copied to clipboard.");
+            AppDialogService.info(dialog.getDialogPane(), "Copied", safeRef + " copied to clipboard.");
         });
 
         HBox titleLine = new HBox(8, docNoLabel, btnCopy);
@@ -752,22 +753,19 @@ public final class ActivityTimelineDialog {
         ClipboardContent content = new ClipboardContent();
         content.putString(text);
         clipboard.setContent(content);
-        ToastManager.info(table, "Copied", toastMsg);
+        AppDialogService.info(table, "Copied", toastMsg);
     }
 
     private static void exportCsv(Window window, String entityType, String reference, List<AuditTableRow> items) {
         if (items == null || items.isEmpty()) {
-            new OwnedAlert(Alert.AlertType.INFORMATION, "No audit trail rows available to export.").showAndWait();
+            AppDialogService.info(window, "Audit Trail", "Nothing to Export", "No audit trail rows available to export.");
             return;
         }
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export Audit Trail CSV");
         String safeRef = safe(reference).replaceAll("[^a-zA-Z0-9_-]", "_");
         String safeType = safe(entityType).replaceAll("[^a-zA-Z0-9_-]", "_");
-        chooser.setInitialFileName("AuditTrail_" + safeType + "_" + safeRef + "_" + BusinessClock.today() + ".csv");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV Files (*.csv)", "*.csv"));
-        File file = chooser.showSaveDialog(window);
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("Audit", "AuditTrail_" + safeType + "_" + safeRef, "csv");
         if (file != null) {
+            if (!ExportFeedbackManager.checkFileWriteable(window, file)) return;
             try (java.io.PrintWriter pw = new java.io.PrintWriter(file, java.nio.charset.StandardCharsets.UTF_8)) {
                 pw.println("Index,Date & Time,Event Action,Category,Field,Old Value,New Value,User,Remarks,Source,Reference");
                 int idx = 1;
@@ -785,9 +783,9 @@ public final class ActivityTimelineDialog {
                             csvEscape(r.source()),
                             csvEscape(r.referenceNo()));
                 }
-                new OwnedAlert(Alert.AlertType.INFORMATION, "Audit Trail exported successfully to:\n" + file.getAbsolutePath()).showAndWait();
+                ExportFeedbackManager.notifyExportSuccess(window, file, "Audit Trail (" + safeRef + ")", items.size());
             } catch (Exception ex) {
-                new OwnedAlert(Alert.AlertType.ERROR, "Failed to export audit trail: " + ex.getMessage()).showAndWait();
+                AppDialogService.error(window, "Export Failed", "Failed to export audit trail", ex.getMessage());
             }
         }
     }

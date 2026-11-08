@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import org.example.util.BusinessClock;
 import org.example.util.DatePickerFormatter;
 
@@ -33,6 +35,7 @@ import org.example.util.RegisterPageState;
 import org.example.util.RegisterUiSupport;
 import org.example.util.ScreenRefreshPolicy;
 import org.example.service.MessageTemplateService;
+import org.example.util.ExportFeedbackManager;
 import org.example.util.LiveOperationDialog;
 
 import java.io.File;
@@ -190,7 +193,7 @@ public class SalesReturnsController implements ScreenLifecycle {
     @FXML private void nextPage(){if(pageState.next())load();}
     @FXML private void reset(){suppressAutoFilter=true;try{search.clear();customerFilter.setValue("All Customers");statusFilter.setValue("All Status");dpFrom.setValue(BusinessClock.today().minusMonths(6));dpTo.setValue(BusinessClock.today());}finally{suppressAutoFilter=false;}pageState.reset();load();}
     @FXML private void refreshWithFeedback(){explicitRefreshPending=true;if(btnRefreshReturns!=null){btnRefreshReturns.setDisable(true);btnRefreshReturns.setText("Refreshing...");}load();}
-    private void finishExplicitRefresh(boolean success){if(!explicitRefreshPending)return;explicitRefreshPending=false;if(btnRefreshReturns!=null){btnRefreshReturns.setDisable(false);btnRefreshReturns.setText("Refresh");}if(success)org.example.util.ToastManager.info(table,"Refreshed","Sales Returns is up to date.");}
+    private void finishExplicitRefresh(boolean success){if(!explicitRefreshPending)return;explicitRefreshPending=false;if(btnRefreshReturns!=null){btnRefreshReturns.setDisable(false);btnRefreshReturns.setText("Refresh");}if(success)org.example.util.AppDialogService.info(table,"Refreshed","Sales Returns is up to date.");}
     @Override public void onScreenShown(boolean reusedFromCache){
         org.example.util.OperationalUiSupport.focusWorkArea(table);
         LinkedRecordContext.Target linked = LinkedRecordContext.consume("SALES_RETURN");
@@ -283,21 +286,21 @@ public class SalesReturnsController implements ScreenLifecycle {
         if(!confirm("Approve "+row.no()+"?\n\nApproval posts the Return stock movement and starts the Return settlement due period."))return;
         UiTaskExecutor.submitSerial("sales-return-approve-"+row.no(),()->{ReturnWorkflowService.approve(row.no());return true;},ignored->{
             ScreenRefreshPolicy.invalidate("sales-returns");ScreenRefreshPolicy.invalidate("sales-register");
-            NotificationService.add(row.no()+" approved.");org.example.util.ToastManager.success(table,"Return approved",row.no()+" was approved successfully.");load();
+            NotificationService.add(row.no()+" approved.");org.example.util.AppDialogService.success(table,"Return approved",row.no()+" was approved successfully.");load();
         },failure->error(asException(failure)));
     }
     private void rejectReturn(Row row){
         if(row==null||!isPendingApproval(row))return;
         input("", "Reject Return", "Reason:").ifPresent(reason->UiTaskExecutor.submitSerial("sales-return-reject-"+row.no(),()->{ReturnWorkflowService.reject(row.no(),reason);return true;},ignored->{
             ScreenRefreshPolicy.invalidate("sales-returns");ScreenRefreshPolicy.invalidate("sales-register");
-            NotificationService.add(row.no()+" rejected.");org.example.util.ToastManager.success(table,"Return rejected",row.no()+" was rejected successfully.");load();
+            NotificationService.add(row.no()+" rejected.");org.example.util.AppDialogService.success(table,"Return rejected",row.no()+" was rejected successfully.");load();
         },failure->error(asException(failure))));
     }
     private boolean isPendingApproval(Row row){return row!=null&&"PENDING APPROVAL".equalsIgnoreCase(safe(row.status()).trim());}
     private boolean isApproved(Row row){return row!=null&&"APPROVED".equalsIgnoreCase(safe(row.status()).trim());}
     private boolean isCancelled(Row row) { return row != null && "CANCELLED".equalsIgnoreCase(safe(row.status()).trim()); }
-    private void cancel(Row row) { if (!confirm("Cancel " + row.no() + " and reverse its stock movement?")) return; UiTaskExecutor.submitSerial("sales-return-cancel-"+row.no(),()->{ReturnWorkflowService.cancel(row.no(),true);return true;},ignored->{ScreenRefreshPolicy.invalidate("sales-returns");ScreenRefreshPolicy.invalidate("sales-register");NotificationService.add(row.no()+" cancelled.");org.example.util.ToastManager.success(table,"Return cancelled",row.no()+" was cancelled successfully.");load();},failure->error(asException(failure))); }
-    private void delete(Row row) { if (!confirm("Delete " + row.no() + " from the Return Register?\n\nIt will disappear from normal UI, but the backend audit record will be retained as DELETED. Active return stock movement will be reversed safely.")) return; UiTaskExecutor.submitSerial("sales-return-delete-"+row.no(),()->{ReturnWorkflowService.delete(row.no(),true);return true;},ignored->{ScreenRefreshPolicy.invalidate("sales-returns");ScreenRefreshPolicy.invalidate("sales-register");NotificationService.add(row.no()+" deleted from register; audit record retained.");org.example.util.ToastManager.success(table,"Return deleted",row.no()+" was removed from the register; the audit record was retained.");load();},failure->error(asException(failure))); }
+    private void cancel(Row row) { if (!confirm("Cancel " + row.no() + " and reverse its stock movement?")) return; UiTaskExecutor.submitSerial("sales-return-cancel-"+row.no(),()->{ReturnWorkflowService.cancel(row.no(),true);return true;},ignored->{ScreenRefreshPolicy.invalidate("sales-returns");ScreenRefreshPolicy.invalidate("sales-register");NotificationService.add(row.no()+" cancelled.");org.example.util.AppDialogService.success(table,"Return cancelled",row.no()+" was cancelled successfully.");load();},failure->error(asException(failure))); }
+    private void delete(Row row) { if (!confirm("Delete " + row.no() + " from the Return Register?\n\nIt will disappear from normal UI, but the backend audit record will be retained as DELETED. Active return stock movement will be reversed safely.")) return; UiTaskExecutor.submitSerial("sales-return-delete-"+row.no(),()->{ReturnWorkflowService.delete(row.no(),true);return true;},ignored->{ScreenRefreshPolicy.invalidate("sales-returns");ScreenRefreshPolicy.invalidate("sales-register");NotificationService.add(row.no()+" deleted from register; audit record retained.");org.example.util.AppDialogService.success(table,"Return deleted",row.no()+" was removed from the register; the audit record was retained.");load();},failure->error(asException(failure))); }
     private void email(Row row) {
         if(row == null) return;
         UiTaskExecutor.submitAction("sales-return-prepare-email-" + row.no(), () -> {
@@ -341,14 +344,14 @@ public class SalesReturnsController implements ScreenLifecycle {
     }
 
     private String partyEmail(String returnNo){ return supportApi.returnPartyEmail(returnNo); }
-    private void update(String returnNo,String column,String value){if(!Set.of("reason","notes").contains(column))return;UiTaskExecutor.submitAction("sales-return-update-"+returnNo+"-"+column,()->{var current=returnApi.details(returnNo);returnApi.update(returnNo,column,value,current.rowVersion());return true;},ignored->{ScreenRefreshPolicy.invalidate("sales-returns");org.example.util.ToastManager.success(table,"Return updated",returnNo+" "+column+" was updated.");load();},failure->error(asException(failure)));}
+    private void update(String returnNo,String column,String value){if(!Set.of("reason","notes").contains(column))return;UiTaskExecutor.submitAction("sales-return-update-"+returnNo+"-"+column,()->{var current=returnApi.details(returnNo);returnApi.update(returnNo,column,value,current.rowVersion());return true;},ignored->{ScreenRefreshPolicy.invalidate("sales-returns");org.example.util.AppDialogService.success(table,"Return updated",returnNo+" "+column+" was updated.");load();},failure->error(asException(failure)));}
 
     @FXML private void export() {
         org.example.service.PermissionService.require("SALES.EXPORT", "Export Sales Returns");
-        FileChooser chooser = new FileChooser(); chooser.setInitialFileName("Sales_Returns.csv"); chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV", "*.csv"));
-        File file = chooser.showSaveDialog(table.getScene().getWindow()); if (file == null) return;
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("SalesReturns", "Sales_Returns", "csv");
+        if (file == null) return;
         String q=search.getText(),party=customerFilter.getValue(),state=statusFilter.getValue(),from=str(dpFrom.getValue()),to=str(dpTo.getValue());
-        UiTaskExecutor.submitAction("sales-returns-export",()->{List<ReturnApiClient.Summary> rows=returnApi.allFiltered("SALES RETURN",q,party,state,from,to);try(PrintWriter out=new PrintWriter(file)){out.println("Return No,Date,Invoice,Customer,Amount,Reason,Status,Refund Status");for(ReturnApiClient.Summary r:rows)out.printf("%s,%s,%s,%s,%.2f,%s,%s,%s%n",r.no(),r.date(),r.invoice(),csv(r.party()),r.total(),csv(r.reason()),r.status(),r.refundStatus());}return rows.size();},count->info("Sales Returns exported • "+count+" records."),failure->error(asException(failure)));
+        UiTaskExecutor.submitAction("sales-returns-export",()->{List<ReturnApiClient.Summary> rows=returnApi.allFiltered("SALES RETURN",q,party,state,from,to);try(PrintWriter out=new PrintWriter(file)){out.println("Return No,Date,Invoice,Customer,Amount,Reason,Status,Refund Status");for(ReturnApiClient.Summary r:rows)out.printf("%s,%s,%s,%s,%.2f,%s,%s,%s%n",r.no(),r.date(),r.invoice(),csv(r.party()),r.total(),csv(r.reason()),r.status(),r.refundStatus());}return rows.size();},count->ExportFeedbackManager.notifyExportSuccess(table, file, "Sales Returns CSV", count),failure->error(asException(failure)));
     }
 
 
@@ -358,7 +361,7 @@ public class SalesReturnsController implements ScreenLifecycle {
     private String money(double value) { return String.format("₹ %,.2f", value); }
     private String safe(String value) { return value == null ? "" : value; }
     private boolean confirm(String text) { return org.example.util.AppDialogService.confirm(table, "Confirmation", "Are you sure?", text); }
-    private void info(String value) { org.example.util.ToastManager.success(table, "Completed", value); }
+    private void info(String value) { org.example.util.AppDialogService.success(table, "Completed", value); }
     private void error(Exception e) { org.example.util.AppDialogService.error(table, "Operation failed", "Something went wrong", e.getMessage() == null ? "Operation failed" : e.getMessage()); }
     private Exception asException(Throwable failure){return failure instanceof Exception e?e:new RuntimeException(failure);}
     private static String str(Object v){return v==null?"":String.valueOf(v);}

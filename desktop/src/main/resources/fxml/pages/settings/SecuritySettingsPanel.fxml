@@ -87,7 +87,6 @@
     <VBox spacing="7" styleClass="security-settings-subsection">
         <Label text="Authentication / MFA Policy" styleClass="settings-form-label"/>
         <ComboBox fx:id="cmbMfaPolicy" maxWidth="420" styleClass="approved-input"/>
-        <Label text="Required: non-Admin MFA remains mandatory. Admin Controlled: the MFA checkbox in User Access is authoritative. Disabled: password-only login for all users." wrapText="true" styleClass="muted-text"/>
     </VBox>
     <Separator/>
 
@@ -131,7 +130,6 @@
             <Region HBox.hgrow="ALWAYS"/>
             <Button text="Synchronize Reference Formats" onAction="#handleRefFormatSyncAction" styleClass="settings-secondary-button,approved-button"/>
         </HBox>
-        <Label text="Configure global numbering conventions across Sales Invoices, Purchase Bills, Customers, Suppliers, and Items. Changing reference formatting applies exclusively to subsequent documents while preserving audit integrity." wrapText="true" styleClass="settings-help-text"/>
         <HBox spacing="10" alignment="CENTER_LEFT" styleClass="settings-asset-card">
             <Label text="Active Pattern:" styleClass="settings-form-label"/>
             <Label fx:id="lblActiveRefFormat" text="PREFIX / DD-MM-YYYY / XXXX (e.g., IN/01-11-2026/0001)" styleClass="settings-asset-filename"/>
@@ -142,6 +140,5 @@
     <!-- UI Diagnostics -->
     <VBox spacing="7" styleClass="security-settings-subsection">
         <CheckBox fx:id="chkUiDiagnostics" text="Enable UI Diagnostics"/>
-        <Label text="When enabled, rendered screen, KPI, table and semantic-icon contract results are written to desktop.log and included in the existing Diagnostic Package." wrapText="true" styleClass="muted-text"/>
     </VBox>
 </VBox>

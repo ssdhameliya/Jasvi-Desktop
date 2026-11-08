@@ -11,9 +11,10 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import org.example.api.tally.TallyAutomationApiClient;
 import org.example.util.DynamicTableLayoutManager;
-import org.example.util.ToastManager;
+import org.example.util.AppDialogService;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
+import org.example.util.WindowUtilsFx;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -158,10 +159,16 @@ public final class GstFullDetailsDialog {
 
         dialog.setOnShown(ev -> {
             if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage stage) {
-                stage.setMinWidth(1100);
-                stage.setMinHeight(780);
-                stage.setWidth(1150);
-                stage.setHeight(820);
+                javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(ownerNode);
+                double maxW = Math.max(760, screen.getWidth() - 48);
+                double maxH = Math.max(520, screen.getHeight() - 48);
+                double targetW = Math.min(maxW, Math.max(900, Math.min(1150, screen.getWidth() * 0.82)));
+                double targetH = Math.min(maxH, Math.max(540, Math.min(820, screen.getHeight() * 0.85)));
+                stage.setMinWidth(Math.min(800, targetW));
+                stage.setMinHeight(Math.min(480, targetH));
+                stage.setWidth(targetW);
+                stage.setHeight(targetH);
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, ownerNode);
             }
         });
 
@@ -330,12 +337,12 @@ public final class GstFullDetailsDialog {
                     content.putString(gstin);
                     Clipboard.getSystemClipboard().setContent(content);
                 }
-                ToastManager.info(pane, "Copied", "GSTIN copied to clipboard. Opening GST Portal...");
+                AppDialogService.info(pane, "Copied", "GSTIN copied to clipboard. Opening GST Portal...");
                 if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
                     java.awt.Desktop.getDesktop().browse(new java.net.URI("https://services.gst.gov.in/services/searchtp"));
                 }
             } catch (Exception ex) {
-                ToastManager.error(pane, "Portal Error", "Unable to open browser: " + ex.getMessage());
+                AppDialogService.error(pane, "Portal Error", "Unable to open browser: " + ex.getMessage());
             }
         });
 
@@ -347,7 +354,7 @@ public final class GstFullDetailsDialog {
                 ClipboardContent content = new ClipboardContent();
                 content.putString(address);
                 Clipboard.getSystemClipboard().setContent(content);
-                ToastManager.info(pane, "Copied", "Registered address copied to clipboard.");
+                AppDialogService.info(pane, "Copied", "Registered address copied to clipboard.");
             }
         });
 

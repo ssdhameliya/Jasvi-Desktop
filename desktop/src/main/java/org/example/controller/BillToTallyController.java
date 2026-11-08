@@ -21,7 +21,6 @@ import org.example.tally.TallyExportPreviewDialog;
 import org.example.util.AppDialogService;
 import org.example.util.DynamicTableLayoutManager;
 import org.example.util.IconFactory;
-import org.example.util.ToastManager;
 import org.example.util.UiActionIcons;
 import org.example.util.UiTaskExecutor;
 import org.slf4j.Logger;
@@ -47,6 +46,7 @@ public class BillToTallyController implements ScreenLifecycle {
     @FXML private ComboBox<String> cmbTemplateVersion;
     @FXML private Label lblTemplateVersion;
     @FXML private Button btnUploadBills;
+    @FXML private Button btnScreenGuide;
 
     @FXML private TableView<TallyAutomationApiClient.BillRecordDto> tblBills;
     @FXML private TableColumn<TallyAutomationApiClient.BillRecordDto, String> colStatus;
@@ -99,6 +99,7 @@ public class BillToTallyController implements ScreenLifecycle {
         }
 
         if (btnUploadBills != null) btnUploadBills.setGraphic(IconFactory.compactIcon("add", 14));
+        if (btnScreenGuide != null) btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 14));
         if (btnDeleteBill != null) btnDeleteBill.setGraphic(IconFactory.compactIcon("delete", 14));
         if (btnRecalculate != null) btnRecalculate.setGraphic(IconFactory.compactIcon("refresh", 14));
         if (btnExportJson != null) btnExportJson.setGraphic(IconFactory.compactIcon("file", 14));
@@ -269,10 +270,10 @@ public class BillToTallyController implements ScreenLifecycle {
                 "update-bill-" + bill.id(),
                 () -> api.saveBill(bill),
                 saved -> {
-                    ToastManager.success(tblBills, "Saved", "Updated voucher " + saved.invoiceNumber());
+                    AppDialogService.success(tblBills, "Saved", "Updated voucher " + saved.invoiceNumber());
                     reloadActiveBatch();
                 },
-                failure -> ToastManager.error(tblBills, "Update Failed", failure.getMessage())
+                failure -> AppDialogService.error(tblBills, "Update Failed", failure.getMessage())
         );
     }
 
@@ -350,7 +351,7 @@ public class BillToTallyController implements ScreenLifecycle {
                         }
                     }
                 },
-                failure -> ToastManager.error(cmbClientProfile, "Profiles Failed", "Could not load client profiles: " + failure.getMessage())
+                failure -> AppDialogService.error(cmbClientProfile, "Profiles Failed", "Could not load client profiles: " + failure.getMessage())
         );
     }
 
@@ -725,7 +726,7 @@ public class BillToTallyController implements ScreenLifecycle {
                     tblBills.refresh();
                     tblLineItems.refresh();
                 },
-                failure -> ToastManager.error(tblBills, "Load Failed", "Could not load batch bills: " + failure.getMessage())
+                failure -> AppDialogService.error(tblBills, "Load Failed", "Could not load batch bills: " + failure.getMessage())
         );
     }
 
@@ -750,6 +751,12 @@ public class BillToTallyController implements ScreenLifecycle {
     /* =========================================================================
        USER ACTIONS & HANDLERS
        ========================================================================= */
+
+    @FXML
+    public void handleShowGuide() {
+        javafx.stage.Window owner = tblBills != null && tblBills.getScene() != null ? tblBills.getScene().getWindow() : null;
+        org.example.util.ScreenGuidanceManager.showGuidance(owner, "BILL_TO_TALLY");
+    }
 
     @FXML
     public void handleUploadBills() {
@@ -852,7 +859,7 @@ public class BillToTallyController implements ScreenLifecycle {
                     Label emptyLbl = new Label("Ingestion failed: " + failure.getMessage());
                     emptyLbl.getStyleClass().add("muted-label");
                     tblBills.setPlaceholder(emptyLbl);
-                    ToastManager.error(tblBills, "Ingestion Failed", failure.getMessage());
+                    AppDialogService.error(tblBills, "Ingestion Failed", failure.getMessage());
                 }
         );
     }
@@ -861,7 +868,7 @@ public class BillToTallyController implements ScreenLifecycle {
     public void handleDeleteBill() {
         var bill = tblBills.getSelectionModel().getSelectedItem();
         if (bill == null || bill.id() == null) {
-            ToastManager.info(tblBills, "Select Voucher", "Please select a bill from the table to delete.");
+            AppDialogService.info(tblBills, "Select Voucher", "Please select a bill from the table to delete.");
             return;
         }
 
@@ -882,16 +889,16 @@ public class BillToTallyController implements ScreenLifecycle {
                 ok -> {
                     billsList.remove(bill);
                     lineItemsList.clear();
-                    ToastManager.success(tblBills, "Deleted", "Removed voucher " + bill.invoiceNumber());
+                    AppDialogService.success(tblBills, "Deleted", "Removed voucher " + bill.invoiceNumber());
                 },
-                failure -> ToastManager.error(tblBills, "Delete Failed", failure.getMessage())
+                failure -> AppDialogService.error(tblBills, "Delete Failed", failure.getMessage())
         );
     }
 
     @FXML
     public void handleRecalculateAccuracy() {
         if (activeBatchId == null) {
-            ToastManager.info(tblBills, "No Batch", "Please upload or select bills before re-calculating math.");
+            AppDialogService.info(tblBills, "No Batch", "Please upload or select bills before re-calculating math.");
             return;
         }
 
@@ -906,16 +913,16 @@ public class BillToTallyController implements ScreenLifecycle {
                 },
                 recalculated -> {
                     billsList.setAll(recalculated);
-                    ToastManager.success(tblBills, "Math Re-Validated", "Cross-validation re-calculated for " + recalculated.size() + " vouchers.");
+                    AppDialogService.success(tblBills, "Math Re-Validated", "Cross-validation re-calculated for " + recalculated.size() + " vouchers.");
                 },
-                failure -> ToastManager.error(tblBills, "Calculation Error", failure.getMessage())
+                failure -> AppDialogService.error(tblBills, "Calculation Error", failure.getMessage())
         );
     }
 
     @FXML
     public void handleExportJson() {
         if (activeBatchId == null || billsList.isEmpty()) {
-            ToastManager.info(tblBills, "No Batch", "Please upload bills before exporting.");
+            AppDialogService.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
         }
 
@@ -934,21 +941,21 @@ public class BillToTallyController implements ScreenLifecycle {
                             null
                     );
                 },
-                failure -> ToastManager.error(tblBills, "Export Error", failure.getMessage())
+                failure -> AppDialogService.error(tblBills, "Export Error", failure.getMessage())
         );
     }
 
     @FXML
     public void handleExportGstPortal() {
         if (activeBatchId == null || billsList.isEmpty()) {
-            ToastManager.info(tblBills, "No Batch", "Please upload bills before exporting.");
+            AppDialogService.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
         }
 
         long invalidCount = billsList.stream().filter(b -> !"EXTRACTED".equalsIgnoreCase(b.status())
                 || (b.accuracyPercentage() != null && b.accuracyPercentage().compareTo(new BigDecimal("90.00")) < 0)).count();
         if (invalidCount > 0) {
-            ToastManager.error(tblBills, "Accuracy Verification Failed",
+            AppDialogService.error(tblBills, "Accuracy Verification Failed",
                     invalidCount + " bill(s) require review or have math discrepancies. Resolve before exporting to GST Portal.");
             return;
         }
@@ -968,14 +975,14 @@ public class BillToTallyController implements ScreenLifecycle {
                             null
                     );
                 },
-                failure -> ToastManager.error(tblBills, "Export Error", failure.getMessage())
+                failure -> AppDialogService.error(tblBills, "Export Error", failure.getMessage())
         );
     }
 
     @FXML
     public void handleExportExcel() {
         if (activeBatchId == null || billsList.isEmpty()) {
-            ToastManager.info(tblBills, "No Batch", "Please upload bills before exporting.");
+            AppDialogService.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
         }
 
@@ -993,28 +1000,28 @@ public class BillToTallyController implements ScreenLifecycle {
                             null
                     );
                 },
-                failure -> ToastManager.error(tblBills, "Excel Error", failure.getMessage())
+                failure -> AppDialogService.error(tblBills, "Excel Error", failure.getMessage())
         );
     }
 
     @FXML
     public void handlePushToTally() {
         if (activeBatchId == null || billsList.isEmpty()) {
-            ToastManager.info(tblBills, "Empty Batch", "No bills available to push to TallyPrime.");
+            AppDialogService.info(tblBills, "Empty Batch", "No bills available to push to TallyPrime.");
             return;
         }
 
         long invalidCount = billsList.stream().filter(b -> !"EXTRACTED".equalsIgnoreCase(b.status())
                 || (b.accuracyPercentage() != null && b.accuracyPercentage().compareTo(new BigDecimal("90.00")) < 0)).count();
         if (invalidCount > 0) {
-            ToastManager.error(tblBills, "Accuracy Verification Failed",
+            AppDialogService.error(tblBills, "Accuracy Verification Failed",
                     invalidCount + " bill(s) require review or have math discrepancies. Resolve before pushing to TallyPrime.");
             return;
         }
 
         String targetUrl = txtTallyUrl.getText().trim();
         if (targetUrl.isBlank()) {
-            ToastManager.error(tblBills, "URL Required", "Please specify TallyPrime HTTP port (e.g. http://localhost:9000).");
+            AppDialogService.error(tblBills, "URL Required", "Please specify TallyPrime HTTP port (e.g. http://localhost:9000).");
             return;
         }
 
@@ -1033,7 +1040,7 @@ public class BillToTallyController implements ScreenLifecycle {
                             confirmed -> executePushToTally(targetUrl)
                     );
                 },
-                failure -> ToastManager.error(tblBills, "Push Preparation Error", failure.getMessage())
+                failure -> AppDialogService.error(tblBills, "Push Preparation Error", failure.getMessage())
         );
     }
 
@@ -1043,18 +1050,18 @@ public class BillToTallyController implements ScreenLifecycle {
                 () -> api.exportToTally(new TallyAutomationApiClient.TallyExportRequest(activeBatchId, null, "HTTP", targetUrl)),
                 resp -> {
                     if (resp.success()) {
-                        ToastManager.success(tblBills, "Pushed to Tally", "Vouchers created successfully in TallyPrime!");
+                        AppDialogService.success(tblBills, "Pushed to Tally", "Vouchers created successfully in TallyPrime!");
                         reloadActiveBatch();
                     } else {
-                        ToastManager.error(tblBills, "Tally Response", resp.message());
+                        AppDialogService.error(tblBills, "Tally Response", resp.message());
                     }
                 },
                 failure -> {
                     if (failure.getCause() instanceof ConnectException || failure instanceof ConnectException) {
-                        ToastManager.error(tblBills, "Tally Connection Error",
+                        AppDialogService.error(tblBills, "Tally Connection Error",
                                 "Could not connect to TallyPrime at " + targetUrl + ". Ensure TallyPrime is running with ODBC/HTTP Server enabled on port 9000.");
                     } else {
-                        ToastManager.error(tblBills, "Tally Push Error", failure.getMessage());
+                        AppDialogService.error(tblBills, "Tally Push Error", failure.getMessage());
                     }
                 }
         );

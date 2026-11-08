@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import org.example.util.AppDialogService;
+
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -555,7 +557,7 @@ public class FinancialStatementsController implements ScreenLifecycle {
                 return ApiRuntime.JSON.readValue(resp.body(), DrillDownResponse.class);
             }
             throw new RuntimeException("HTTP " + resp.statusCode() + ": " + resp.body());
-        }, data -> showDrillDownModal(data, category), err -> ToastManager.error(treeTblPnl, "Drill-Down Error", "Could not load transaction details: " + err.getMessage()));
+        }, data -> showDrillDownModal(data, category), err -> AppDialogService.error(treeTblPnl, "Drill-Down Error", "Could not load transaction details: " + err.getMessage()));
     }
 
     private void showDrillDownModal(DrillDownResponse res, String category) {
@@ -644,11 +646,7 @@ public class FinancialStatementsController implements ScreenLifecycle {
         });
 
         btnExportCsv.setOnAction(e -> {
-            FileChooser chooser = new FileChooser();
-            chooser.setTitle("Save Drill-Down CSV");
-            chooser.setInitialFileName("DrillDown_" + category + "_" + BusinessClock.today() + ".csv");
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV Files (*.csv)", "*.csv"));
-            File file = chooser.showSaveDialog(dialog.getDialogPane().getScene().getWindow());
+            File file = ExportFeedbackManager.resolveWorkspaceExportFile("FinancialStatements", "DrillDown_" + category, "csv");
             if (file != null) {
                 try (java.io.PrintWriter pw = new java.io.PrintWriter(file)) {
                     pw.println("Date,Voucher No,Party / Account,Description,Debit,Credit,Balance");
@@ -662,9 +660,9 @@ public class FinancialStatementsController implements ScreenLifecycle {
                                 r.credit != null ? r.credit.doubleValue() : 0.0,
                                 r.balance != null ? r.balance.doubleValue() : 0.0);
                     }
-                    ToastManager.success(treeTblPnl, "CSV Exported", "Saved to: " + file.getAbsolutePath());
+                    ExportFeedbackManager.notifyExportSuccess(treeTblPnl, file, "Drill-Down CSV", table.getItems().size());
                 } catch (Exception ex) {
-                    ToastManager.error(treeTblPnl, "Export Error", ex.getMessage());
+                    AppDialogService.error(treeTblPnl, "Export Failed", "Could not export drill-down CSV", ex.getMessage());
                 }
             }
         });
@@ -719,12 +717,9 @@ public class FinancialStatementsController implements ScreenLifecycle {
 
     @FXML
     public void exportPdf() {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export Financial Statements");
-        chooser.setInitialFileName("Financial_Statements_" + BusinessClock.today() + ".pdf");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF Document (*.pdf)", "*.pdf"));
-        File file = chooser.showSaveDialog(treeTblPnl.getScene().getWindow());
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("FinancialStatements", "Financial_Statements", "pdf");
         if (file == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(treeTblPnl, file)) return;
 
         try {
             List<String[]> rows = new ArrayList<>();
@@ -739,11 +734,7 @@ public class FinancialStatementsController implements ScreenLifecycle {
                 new float[]{3.5f, 1.2f, 1.8f, 2.0f, 1.2f}
             );
 
-            String path = file.getAbsolutePath();
-            ToastManager.success(treeTblPnl, "Export Complete", "Financial statements PDF saved to:\n" + path);
-            Alert alert = new OwnedAlert(Alert.AlertType.INFORMATION, "Financial statements PDF saved successfully:\n\n" + path, ButtonType.OK);
-            alert.setHeaderText("PDF Export Successful");
-            alert.showAndWait();
+            ExportFeedbackManager.notifyExportSuccess(treeTblPnl, file, "Financial Statements PDF", rows.size());
         } catch (Exception ex) {
             AppDialogService.error(treeTblPnl, "Export Failed", "Could not export PDF statement", ex.getMessage());
         }
@@ -769,12 +760,9 @@ public class FinancialStatementsController implements ScreenLifecycle {
 
     @FXML
     public void exportExcel() {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export Financial Statements");
-        chooser.setInitialFileName("Financial_Statements_" + BusinessClock.today() + ".xlsx");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Workbook (*.xlsx)", "*.xlsx"));
-        File file = chooser.showSaveDialog(treeTblPnl.getScene().getWindow());
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("FinancialStatements", "Financial_Statements", "xlsx");
         if (file == null) return;
+        if (!ExportFeedbackManager.checkFileWriteable(treeTblPnl, file)) return;
 
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet pnlSheet = workbook.createSheet("Profit & Loss");
@@ -802,11 +790,7 @@ public class FinancialStatementsController implements ScreenLifecycle {
                 workbook.write(fos);
             }
 
-            String path = file.getAbsolutePath();
-            ToastManager.success(treeTblPnl, "Export Complete", "Financial statements exported to:\n" + path);
-            Alert alert = new OwnedAlert(Alert.AlertType.INFORMATION, "Financial statements workbook saved successfully:\n\n" + path, ButtonType.OK);
-            alert.setHeaderText("Excel Export Successful");
-            alert.showAndWait();
+            ExportFeedbackManager.notifyExportSuccess(treeTblPnl, file, "Financial Statements Workbook");
         } catch (Exception ex) {
             AppDialogService.error(treeTblPnl, "Export Failed", "Could not export financial statements", ex.getMessage());
         }

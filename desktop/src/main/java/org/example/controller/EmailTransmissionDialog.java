@@ -12,6 +12,7 @@ import org.example.util.DialogOwnerResolver;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
 import org.example.util.UiTaskExecutor;
+import org.example.util.WindowUtilsFx;
 
 import java.awt.Desktop;
 import java.io.File;
@@ -402,14 +403,27 @@ public class EmailTransmissionDialog {
             pane.getProperties().put("dse.dialog.presented", true);
             pane.getProperties().put("dse.dialog.workspace", true);
             pane.setContent(content);
-            pane.setPrefSize(860, 780);
-            pane.setMinSize(760, 620);
+            javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
+            double maxW = Math.max(760, screen.getWidth() - 48);
+            double maxH = Math.max(540, screen.getHeight() - 48);
+            double targetW = Math.min(maxW, Math.max(760, Math.min(860, screen.getWidth() * 0.75)));
+            double targetH = Math.min(maxH, Math.max(560, Math.min(780, screen.getHeight() * 0.85)));
+            pane.setPrefSize(targetW, targetH);
+            pane.setMaxWidth(maxW);
+            pane.setMaxHeight(maxH);
+            pane.setMinWidth(Math.min(720, targetW));
+            pane.setMinHeight(Math.min(500, targetH));
             pane.getButtonTypes().add(ButtonType.CLOSE);
             Node closeBtn = pane.lookupButton(ButtonType.CLOSE);
             if (closeBtn != null) {
                 closeBtn.setVisible(false);
                 closeBtn.setManaged(false);
             }
+            dialog.setOnShown(ev -> {
+                if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                    WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+                }
+            });
             pane.sceneProperty().addListener((obs, oldScene, scene) -> {
                 if (scene != null) {
                     scene.setFill(javafx.scene.paint.Color.TRANSPARENT);

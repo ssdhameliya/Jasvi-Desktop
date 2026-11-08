@@ -1,5 +1,7 @@
 package org.example.update;
 
+import org.example.util.AppDialogService;
+
 import org.example.service.BrandingService;
 
 import org.example.util.OwnedAlert;
@@ -26,7 +28,7 @@ public final class UpdateLifecycle {
                 // Guarantee one user-visible What's New dialog after a real application upgrade,
                 // even if an older profile already carried a releaseNotesSeen value.
                 ConfigManager.set("update.releaseNotesPending", buildVersion);
-                Platform.runLater(() -> org.example.util.ToastManager.success(owner,
+                Platform.runLater(() -> org.example.util.AppDialogService.success(owner,
                     sharedClient ? "Client updated" : "Update completed",
                     sharedClient
                             ? BrandingService.applicationName() + " " + buildVersion + " client is ready for the company server."

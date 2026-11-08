@@ -49,8 +49,8 @@
         <Label text="Protected Workspace Data" styleClass="settings-subsection-title"/>
         <GridPane hgap="24" vgap="8">
             <columnConstraints><ColumnConstraints percentWidth="50" hgrow="ALWAYS"/><ColumnConstraints percentWidth="50" hgrow="ALWAYS"/></columnConstraints>
-            <VBox spacing="4"><Label text="Database &amp; Configuration" styleClass="settings-form-label"/><Label text="PostgreSQL data and application configuration are never automatically deleted." wrapText="true" styleClass="settings-help-text"/></VBox>
-            <VBox spacing="4" GridPane.columnIndex="1"><Label text="Permanent Business Evidence" styleClass="settings-form-label"/><Label text="Documents, attachments and backups are permanently excluded from storage cleanup." wrapText="true" styleClass="settings-help-text"/></VBox>
+            <VBox spacing="4"><Label text="Database &amp; Configuration" styleClass="settings-form-label"/></VBox>
+            <VBox spacing="4" GridPane.columnIndex="1"><Label text="Permanent Business Evidence" styleClass="settings-form-label"/></VBox>
         </GridPane>
     </VBox>
     <Separator styleClass="workspace-separator"/>
@@ -90,12 +90,6 @@
             <VBox spacing="5" GridPane.rowIndex="3"><Label text="Old log archives" styleClass="settings-form-label"/><CheckBox fx:id="chkCompressOldLogs" text="Compress eligible old logs"/></VBox>
         </GridPane>
         <FlowPane hgap="10" vgap="10"><Button text="Preview Cleanup" onAction="#previewStorageCleanup" styleClass="settings-action-button,settings-secondary-button"/><Button text="Clean Now" onAction="#cleanStorageNow" styleClass="settings-action-button,settings-primary-button"/></FlowPane>
-        <Label text="Default policy: Logs 30 • Reports 365 • Exports 90 • Import results 90 • Diagnostics 30 • Temp 7 days." wrapText="true" styleClass="settings-help-text"/>
-    </VBox>
-
-    <VBox spacing="6" styleClass="workspace-safety-strip">
-        <Label text="Safe Cleanup Boundary" styleClass="settings-form-label"/>
-        <Label text="Cleanup never targets Documents, Attachments, Backups or Database. It can remove only expired Reports, Exports, Temp files and non-active Log archives." wrapText="true" styleClass="settings-help-text"/>
     </VBox>
 
     <FlowPane hgap="10" vgap="10" styleClass="workspace-actions">

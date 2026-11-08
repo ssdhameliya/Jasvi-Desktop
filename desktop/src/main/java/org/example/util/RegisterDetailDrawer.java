@@ -3,6 +3,7 @@ package org.example.util;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
@@ -10,12 +11,14 @@ import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableView;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.example.theme.ThemeManager;
 
@@ -140,47 +143,50 @@ public final class RegisterDetailDrawer extends VBox {
         }
 
         // Header
-        Label iconLabel = new Label();
         String semantic = resolveHeadingSemantic(safeHeading);
-        iconLabel.setGraphic(IconFactory.compactIcon(semantic, 22));
+        pane.getStyleClass().add("dse-dialog-semantic-" + semantic);
 
-        boolean isDark = ThemeManager.isDark();
-        String titleColor = isDark ? "#ffffff" : "#0f172a";
-        String subtitleColor = isDark ? "#94a3b8" : "#64748b";
-        String headerBg = isDark ? "rgba(15, 23, 42, 0.95)" : "linear-gradient(to bottom, #ffffff, #f8fafc)";
-        String headerBorder = isDark ? "rgba(255, 255, 255, 0.08)" : "#e2e8f0";
+        Region accent = new Region();
+        accent.getStyleClass().add("dse-dialog-accent");
+        accent.setMinHeight(5);
+        accent.setPrefHeight(5);
+        accent.setMaxHeight(5);
 
-        title.setText(safeHeading);
-        title.setStyle("-fx-font-size: 16px; -fx-font-weight: 800; -fx-text-fill: " + titleColor + ";");
+        StackPane iconBox = new StackPane(IconFactory.compactIcon(semantic, 22));
+        iconBox.getStyleClass().add("dse-dialog-icon-box");
 
         subtitle.setText(safe(caption, "Review selected record."));
-        subtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: " + subtitleColor + ";");
+        subtitle.getStyleClass().setAll("dse-dialog-kicker");
         subtitle.setWrapText(true);
 
-        VBox titleBox = new VBox(2, title, subtitle);
+        title.setText(safeHeading);
+        title.getStyleClass().setAll("dse-dialog-title");
+
+        VBox titleBox = new VBox(2, subtitle, title);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        Button btnCloseTop = new Button("×");
-        btnCloseTop.getStyleClass().addAll("dialog-close-btn");
-        btnCloseTop.setStyle("-fx-background-color: transparent; -fx-text-fill: " + subtitleColor + "; -fx-font-size: 22px; -fx-font-weight: bold; -fx-cursor: hand; -fx-padding: 0 6;");
+        Button btnCloseTop = new Button();
+        btnCloseTop.setGraphic(SemanticIconManager.compact("close", 14));
+        btnCloseTop.getStyleClass().addAll("dse-dialog-close", "icon-button");
+        btnCloseTop.getProperties().put("erp-icon-preserve", true);
+        btnCloseTop.setTooltip(new Tooltip("Close"));
         btnCloseTop.setOnAction(e -> hideDrawer());
 
-        HBox header = new HBox(12, iconLabel, titleBox, btnCloseTop);
+        HBox header = new HBox(12, iconBox, titleBox, btnCloseTop);
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(16, 20, 14, 20));
-        header.setStyle("-fx-background-color: " + headerBg + "; -fx-border-color: " + headerBorder + "; -fx-border-width: 0 0 1 0;");
+        header.getStyleClass().add("dse-dialog-header");
+        header.setPadding(new Insets(14, 20, 12, 20));
 
         // Body Content
-        String bodyBg = isDark ? "#0b1325" : "#f8fafc";
         VBox body = new VBox(14, fieldsGrid, extra);
         body.setPadding(new Insets(16, 20, 16, 20));
-        body.setStyle("-fx-background-color: " + bodyBg + ";");
+        body.getStyleClass().add("erp-detail-drawer-body");
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
         scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setStyle("-fx-background: " + bodyBg + "; -fx-background-color: " + bodyBg + "; -fx-border-color: transparent;");
+        scroll.getStyleClass().addAll("erp-detail-drawer-scroll", "import-inner-scroll");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         // Footer / Action Bar
@@ -196,31 +202,45 @@ public final class RegisterDetailDrawer extends VBox {
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setMinWidth(Region.USE_PREF_SIZE);
 
-        String footerBg = isDark ? "rgba(15, 23, 42, 0.95)" : "linear-gradient(to bottom, #f8fafc, #f1f5f9)";
-        String footerBorder = isDark ? "rgba(255, 255, 255, 0.08)" : "#e2e8f0";
-
         HBox footer = new HBox(12, spacer, actions, btnClose);
         footer.setAlignment(Pos.CENTER_RIGHT);
         footer.setFillHeight(false);
         footer.setPadding(new Insets(14, 20, 14, 20));
-        footer.setStyle("-fx-background-color: " + footerBg + "; -fx-border-color: " + footerBorder + "; -fx-border-width: 1 0 0 0;");
+        footer.getStyleClass().addAll("dse-dialog-footer", "erp-popup-footer");
 
-        String dialogBg = isDark ? "#0b1325" : "linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%)";
-        String dialogBorder = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(203, 213, 225, 0.90)";
-        String dialogShadow = isDark
-                ? "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.65), 36, 0.20, 0, 12);"
-                : "-fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.22), 36, 0.15, 0, 12);";
+        VBox dialogRoot = new VBox(accent, header, scroll, footer);
+        dialogRoot.getStyleClass().addAll("dse-dialog-shell", "dse-dialog-shell-workspace", "erp-detail-drawer-dialog", "dse-dialog-semantic-" + semantic);
 
-        VBox dialogRoot = new VBox(header, scroll, footer);
-        dialogRoot.setStyle("-fx-background-color: " + dialogBg + "; -fx-background-radius: 14; -fx-border-color: " + dialogBorder + "; -fx-border-radius: 14; -fx-border-width: 1; " + dialogShadow);
-        dialogRoot.setPrefSize(980, 640);
-        dialogRoot.setMinSize(860, 540);
+        int fieldRows = Math.max(1, (fieldsGrid.getChildren().size() + 1) / 2);
+        boolean hasExtra = extra != null && extra.isManaged() && !extra.getChildren().isEmpty();
+        double extraH = hasExtra ? 230.0 : 0.0;
+        double calculatedH = 150.0 + (fieldRows * 44.0) + extraH;
+
+        Rectangle2D screen = WindowUtilsFx.visualBoundsFor(anchor != null && anchor.getScene() != null ? anchor.getScene().getWindow() : null);
+        double maxAvailW = Math.max(760, screen.getWidth() - 36);
+        double maxAvailH = Math.max(480, screen.getHeight() - 48);
+
+        double targetW = Math.min(maxAvailW, 940.0);
+        double targetH = Math.min(maxAvailH, Math.max(340.0, Math.min(760.0, calculatedH)));
+
+        dialogRoot.setPrefSize(targetW, targetH);
+        dialogRoot.setMinSize(Math.min(760, maxAvailW), Math.min(300, maxAvailH));
+        dialogRoot.setMaxSize(maxAvailW, targetH);
+        pane.setPrefSize(targetW, targetH);
+        pane.setMaxSize(maxAvailW, targetH);
 
         dialog.setOnShowing(ev -> {
             Node bar = pane.lookup(".button-bar");
             if (bar != null) {
                 bar.setVisible(false);
                 bar.setManaged(false);
+            }
+        });
+        dialog.setOnShown(ev -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                stage.setWidth(targetW);
+                stage.setHeight(targetH);
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, anchor);
             }
         });
 
@@ -305,16 +325,16 @@ public final class RegisterDetailDrawer extends VBox {
     }
 
     private static String resolveHeadingSemantic(String heading) {
-        if (heading == null) return "details";
+        if (heading == null) return "inspect";
         String lower = heading.toLowerCase(Locale.ROOT);
         if (lower.contains("bank")) return "bank";
-        if (lower.contains("expense")) return "currency";
-        if (lower.contains("recon")) return "reconcile";
-        if (lower.contains("user")) return "user";
-        if (lower.contains("item") || lower.contains("stock")) return "item";
-        if (lower.contains("customer") || lower.contains("supplier") || lower.contains("party")) return "supplier";
-        if (lower.contains("lookup") || lower.contains("master")) return "settings";
-        return "details";
+        if (lower.contains("expense")) return "bank";
+        if (lower.contains("recon")) return "inspect";
+        if (lower.contains("user")) return "notification";
+        if (lower.contains("item") || lower.contains("stock")) return "inspect";
+        if (lower.contains("customer") || lower.contains("supplier") || lower.contains("party")) return "inspect";
+        if (lower.contains("lookup") || lower.contains("master")) return "mapping";
+        return "inspect";
     }
 
     private static boolean isWideField(Field field) {
@@ -338,22 +358,15 @@ public final class RegisterDetailDrawer extends VBox {
         caption.setGraphicTextGap(6);
         IconFactory.applySemanticLabelColour(caption, semantic);
         caption.getProperties().put("erp.label.icon.skip", true);
-        boolean isDark = ThemeManager.isDark();
-        String captionColor = isDark ? "#94a3b8" : "#64748b";
-        caption.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: " + captionColor + ";");
 
         Label value = new Label(safe(field.value(), "—"));
         value.setWrapText(true);
         value.getStyleClass().addAll("erp-drawer-value", "erp-drawer-value-" + colourClass(semantic));
-        value.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: " + colourHex(semantic, isDark) + ";");
         VBox.setVgrow(value, Priority.NEVER);
 
         VBox row = new VBox(4, caption, value);
-        row.getStyleClass().add("erp-detail-drawer-field");
-        String rowBg = isDark ? "rgba(255, 255, 255, 0.03)" : "#ffffff";
-        String rowBorder = isDark ? "rgba(255, 255, 255, 0.06)" : "rgba(203, 213, 225, 0.85)";
-        String rowEffect = isDark ? "" : "-fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.04), 4, 0, 0, 1);";
-        row.setStyle("-fx-background-color: " + rowBg + "; -fx-background-radius: 8; -fx-border-color: " + rowBorder + "; -fx-border-radius: 8; -fx-border-width: 1; -fx-padding: 8 12; " + rowEffect);
+        row.getStyleClass().addAll("erp-detail-drawer-field", "approved-card");
+        row.setPadding(new Insets(8, 12, 8, 12));
         return row;
     }
 
@@ -367,34 +380,6 @@ public final class RegisterDetailDrawer extends VBox {
             case "bank", "status", "reconcile", "notes", "calendar", "role", "security" -> "purple";
             default -> "blue";
         };
-    }
-
-    private static String colourHex(String semantic) {
-        return colourHex(semantic, ThemeManager.isDark());
-    }
-
-    private static String colourHex(String semantic, boolean isDark) {
-        if (isDark) {
-            if (semantic == null) return "#f1f5f9";
-            return switch (semantic.toLowerCase(Locale.ROOT)) {
-                case "complete", "credit", "sale", "save" -> "#34d399";
-                case "error", "delete", "debit" -> "#f87171";
-                case "warning", "partial", "tax", "category", "reference" -> "#fbbf24";
-                case "supplier", "attachment", "email", "phone", "inventory", "location" -> "#38bdf8";
-                case "bank", "status", "reconcile", "notes", "calendar", "role", "security" -> "#c084fc";
-                default -> "#f1f5f9";
-            };
-        } else {
-            if (semantic == null) return "#0f172a";
-            return switch (semantic.toLowerCase(Locale.ROOT)) {
-                case "complete", "credit", "sale", "save" -> "#047857";
-                case "error", "delete", "debit" -> "#be123c";
-                case "warning", "partial", "tax", "category", "reference" -> "#b45309";
-                case "supplier", "attachment", "email", "phone", "inventory", "location" -> "#0369a1";
-                case "bank", "status", "reconcile", "notes", "calendar", "role", "security" -> "#6d28d9";
-                default -> "#0f172a";
-            };
-        }
     }
 
     private static String display(Object value) {

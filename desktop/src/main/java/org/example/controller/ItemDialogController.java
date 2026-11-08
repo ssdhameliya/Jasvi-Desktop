@@ -14,6 +14,7 @@ import org.example.service.LookupService;
 import org.example.service.NotificationService;
 import org.example.util.DocumentInspectionScaffold;
 import org.example.util.IconFactory;
+import org.example.util.SearchableComboBoxHelper;
 import org.example.util.UiTaskExecutor;
 
 import java.util.List;
@@ -66,11 +67,17 @@ public class ItemDialogController implements ScreenLifecycle {
         txtSellingPrice.textProperty().addListener((o, a, b) -> updateMarginCalculation());
         updateMarginCalculation();
 
+        SearchableComboBoxHelper.makeSearchable(cmbCategory);
+        SearchableComboBoxHelper.makeSearchable(cmbUnit);
+        SearchableComboBoxHelper.makeSearchable(cmbGST);
+        SearchableComboBoxHelper.makeSearchable(cmbDiscount);
+
         org.example.util.WorkflowFocusManager.install(java.util.List.of(
             txtItemCode, txtDescription, cmbCategory, cmbUnit, txtRemarks, txtHSN,
             txtPurchasePrice, txtSellingPrice, cmbGST, cmbDiscount,
             txtOpeningStock, txtMinimumStock, txtLocation, btnSave));
         org.example.util.WorkflowFocusManager.initial(txtItemCode);
+        org.example.util.WorkflowFocusManager.excludeFromTab(btnCancel, btnAuditTrail);
         javafx.application.Platform.runLater(() -> {
             if (txtItemCode != null && txtItemCode.getScene() != null) {
                 txtItemCode.getScene().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {

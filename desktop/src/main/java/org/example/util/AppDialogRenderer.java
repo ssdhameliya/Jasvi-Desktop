@@ -4,6 +4,7 @@ import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -56,6 +57,10 @@ public final class AppDialogRenderer {
             }
             render(dialog);
             if (pane.getContent() != null) ProfessionalUiEnhancer.enhance(pane.getContent());
+            if (pane.getContent() instanceof Parent contentParent) {
+                SearchableComboBoxHelper.makeAllSearchable(contentParent);
+            }
+            SearchableComboBoxHelper.makeAllSearchable(pane);
             DynamicTableLayoutManager.requestLayoutIn(pane);
             if (scene != null && scene.getRoot() != null) {
                 scene.getRoot().applyCss();
@@ -70,7 +75,17 @@ public final class AppDialogRenderer {
         });
         dialog.addEventHandler(DialogEvent.DIALOG_SHOWN, event -> {
             Scene scene = pane.getScene();
+            if (scene != null && scene.getWindow() instanceof Stage stage) {
+                boolean workspace = Boolean.TRUE.equals(pane.getProperties().get(WORKSPACE))
+                        || pane.getStyleClass().contains("dse-dialog-workspace");
+                if (workspace) WindowUtilsFx.fitDialogToOwnerScreen(stage, stage.getOwner());
+                else WindowUtilsFx.fitCompactDialogToOwnerScreen(stage, stage.getOwner());
+            }
             if (scene != null && scene.getRoot() != null) {
+                if (pane.getContent() instanceof Parent contentParent) {
+                    SearchableComboBoxHelper.makeAllSearchable(contentParent);
+                }
+                SearchableComboBoxHelper.makeAllSearchable(pane);
                 UiDiagnostics.audit(scene.getRoot(), "dialog:" + safe(dialog.getTitle()));
                 PlatformUiSupport.animateEntrance(scene.getRoot());
             }

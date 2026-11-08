@@ -44,7 +44,7 @@
     <Button fx:id="btnNextPage" text="Next" onAction="#nextPage" styleClass="approved-button,approved-secondary-button"/>
    </HBox>
   </VBox>
-  <VBox fx:id="editorPanel" spacing="10" prefWidth="390" minWidth="360" styleClass="approved-card,recon-editor-panel"><HBox alignment="CENTER_LEFT"><VBox><Label fx:id="lblEditorTitle" text="New Recon Supplier" styleClass="section-title"/><Label fx:id="lblReference" text="Reference generated on save" styleClass="muted-label"/></VBox><Region HBox.hgrow="ALWAYS"/><Button text="Close" onAction="#cancelEdit" styleClass="approved-button,approved-secondary-button"/></HBox><Separator/>
+  <VBox fx:id="editorPanel" spacing="10" prefWidth="600" minWidth="480" styleClass="approved-card,recon-editor-panel"><HBox alignment="CENTER_LEFT"><VBox><Label fx:id="lblEditorTitle" text="New Recon Supplier" styleClass="section-title"/><Label fx:id="lblReference" text="Reference generated on save" styleClass="muted-label"/></VBox><Region HBox.hgrow="ALWAYS"/><Button text="Close" onAction="#cancelEdit" styleClass="approved-button,approved-secondary-button"/></HBox><Separator/>
    <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="import-inner-scroll">
     <VBox spacing="9">
      <Label text="Supplier Reference (Auto-Generated)" styleClass="field-label"/>
