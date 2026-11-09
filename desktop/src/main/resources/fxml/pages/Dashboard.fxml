@@ -46,11 +46,11 @@
                     <Label fx:id="lblBankExpenseChevron" mouseTransparent="true" styleClass="nav-chevron" StackPane.alignment="CENTER_RIGHT"/>
                 </StackPane>
                 <VBox fx:id="bankExpenseSubmenu" spacing="1" visible="false" managed="false" styleClass="nav-children">
-                    <Button fx:id="btnBankEntry" text="Bank Entry" onAction="#openBankEntry" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnExpenseEntry" text="Expense Entry" onAction="#openExpenseEntry" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnBankStatement" text="Bank Statement" onAction="#openBankStatement" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnPurchaseRecon" text="Purchase Recon" onAction="#openPurchaseRecon" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnReconSupplier" text="Recon Supplier" onAction="#openReconSupplier" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnBankEntry" text="Bank Entry" onAction="#openBankEntry" maxWidth="Infinity" styleClass="approved-button,approved-cyan-button,erp-button-cyan"/>
+                    <Button fx:id="btnExpenseEntry" text="Expense Entry" onAction="#openExpenseEntry" maxWidth="Infinity" styleClass="approved-button,approved-orange-button,erp-button-orange"/>
+                    <Button fx:id="btnBankStatement" text="Bank Statement" onAction="#openBankStatement" maxWidth="Infinity" styleClass="approved-button,approved-sky-button,erp-button-sky"/>
+                    <Button fx:id="btnPurchaseRecon" text="Purchase Recon" onAction="#openPurchaseRecon" maxWidth="Infinity" styleClass="approved-button,approved-teal-button,erp-button-teal"/>
+                    <Button fx:id="btnReconSupplier" text="Recon Supplier" onAction="#openReconSupplier" maxWidth="Infinity" styleClass="approved-button,approved-indigo-button,erp-button-indigo"/>
                 </VBox>
             </VBox>
             <VBox styleClass="nav-group">

@@ -201,16 +201,16 @@ public final class PopupTableWorkspace {
         double maxAvailableH = Math.max(520, bounds.getHeight() - 48);
         double targetW = Math.min(maxAvailableW, Math.max(900, Math.min(1480, bounds.getWidth() * 0.78)));
 
-        // Base chrome: accent (5px) + header (64px) + hero (70px) + toolbar (48px) + footer (50px) + margins ~ 240px
-        double contentH = 240.0 + Math.max(1, expectedRows) * 38.0;
-        double targetH = Math.min(maxAvailableH, Math.max(340.0, Math.min(800.0, contentH)));
+        // Base chrome: window title (38px) + header (64px) + hero (72px) + toolbar (52px) + table header (38px) + footer (54px) + margins ~ 320px
+        double contentH = 340.0 + Math.max(2, expectedRows) * 40.0;
+        double targetH = Math.min(maxAvailableH, Math.max(500.0, Math.min(820.0, contentH)));
 
         DialogPane pane = dialog.getDialogPane();
         pane.setPrefSize(targetW, targetH);
         pane.setMaxWidth(maxAvailableW);
         pane.setMaxHeight(maxAvailableH);
         pane.setMinWidth(Math.min(840, targetW));
-        pane.setMinHeight(Math.min(320, targetH));
+        pane.setMinHeight(Math.min(480, targetH));
         if (!pane.getStyleClass().contains("erp-table-workspace-dialog")) {
             pane.getStyleClass().add("erp-table-workspace-dialog");
         }

@@ -541,7 +541,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
         Double min=parseOptionalAmount(txtAmountFrom.getText()),max=parseOptionalAmount(txtAmountTo.getText());
         String selectedCustomer=customer;
         org.example.util.OperationalUiSupport.showLoading(tableSales,"Loading sales invoices…");
-        UiTaskExecutor.submitLatest("sales-register-load",()->service.page(requestedPage,size,txtSearch.getText(),txtInvoice.getText(),selectedCustomer,dpFrom.getValue(),dpTo.getValue(),payment,due,mail,whatsapp,invoiceType,documentStatus,returnStatus,min,max,includeSummary),this::applyPage,failure->{pendingSavedViewName=null;finishExplicitRefresh(false);org.example.util.OperationalUiSupport.showError(tableSales,"Sales register could not load",failure);error(failure);});
+        UiTaskExecutor.submitLatestWithOverlay(tableSales, "Loading sales invoices…", "sales-register-load",()->service.page(requestedPage,size,txtSearch.getText(),txtInvoice.getText(),selectedCustomer,dpFrom.getValue(),dpTo.getValue(),payment,due,mail,whatsapp,invoiceType,documentStatus,returnStatus,min,max,includeSummary),this::applyPage,failure->{pendingSavedViewName=null;finishExplicitRefresh(false);org.example.util.OperationalUiSupport.showError(tableSales,"Sales register could not load",failure);error(failure);});
     }
     private void applyPage(org.example.api.operations.OperationsApiClient.SalesPage loaded){
         pageState.runApplying(() -> {
@@ -730,7 +730,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
     }
     private void openPdf(Sales sale){
         if(sale==null)return;
-        UiTaskExecutor.submitAction("sales-tax-invoice-pdf-"+sale.getId(),()->{
+        UiTaskExecutor.submitActionWithOverlay(tableSales, "Generating tax invoice PDF…", "sales-tax-invoice-pdf-"+sale.getId(),()->{
             Sales full=service.getByInvoice(sale.getInvoiceNo());
             if(full==null)throw new IllegalStateException("Sales invoice not found. Refresh and try again.");
             return ManagedInvoicePdfService.sales(full);
@@ -742,7 +742,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
     private void openExcel(Sales sale){try{Sales full=service.getByInvoice(sale.getInvoiceNo());if(full==null)throw new IllegalStateException("Sales invoice "+sale.getInvoiceNo()+" was not found. Refresh the register and try again.");Path excel=ExcelOutputService.sales(full);if(java.awt.Desktop.isDesktopSupported())java.awt.Desktop.getDesktop().open(excel.toFile());else info("Excel file created: "+excel);log("SALE",sale.getId(),"EXCEL_OPENED",sale.getInvoiceNo());}catch(Exception e){error(e);}}
     private void sendEmail(Sales sale){
         if (sale == null) return;
-        UiTaskExecutor.submitAction("sales-prepare-email-" + sale.getId(), () -> {
+        UiTaskExecutor.submitActionWithOverlay(tableSales, "Preparing email draft…", "sales-prepare-email-" + sale.getId(), () -> {
             Sales full = service.getByInvoice(sale.getInvoiceNo());
             if (full == null) throw new IllegalStateException("Sales invoice " + sale.getInvoiceNo() + " was not found. Refresh the register and try again.");
             Path pdf = ManagedInvoicePdfService.sales(full);
@@ -785,7 +785,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
     private void sendWhatsapp(Sales sale){
         if(isApprovalLocked(sale)){warning("Admin approval is required before sharing this Sale document.");return;}
         if(sale == null) return;
-        UiTaskExecutor.submitAction("sales-prepare-whatsapp-" + sale.getId(), () -> {
+        UiTaskExecutor.submitActionWithOverlay(tableSales, "Preparing WhatsApp transmission…", "sales-prepare-whatsapp-" + sale.getId(), () -> {
             Sales full = service.getByInvoice(sale.getInvoiceNo());
             if (full == null) throw new IllegalStateException("Sales invoice " + sale.getInvoiceNo() + " was not found. Refresh the register and try again.");
             Path pdf = ManagedInvoicePdfService.sales(full);

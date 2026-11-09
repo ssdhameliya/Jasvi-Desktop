@@ -15,9 +15,9 @@
       <Label text="Manage application actions, quick-create commands and navigation shortcuts."
              styleClass="approved-page-subtitle,page-subtitle,shortcut-manager-subtitle"/>
     </VBox>
-    <Button text="Import" onAction="#importShortcuts" styleClass="approved-button,approved-secondary-button"/>
-    <Button text="Export" onAction="#exportShortcuts" styleClass="approved-button,approved-secondary-button"/>
-    <Button text="Reset Defaults" onAction="#resetAllShortcuts" styleClass="approved-button,approved-secondary-button"/>
+    <Button text="Import" onAction="#importShortcuts" styleClass="approved-button,approved-secondary-button,approved-sky-button,erp-button-sky"/>
+    <Button text="Export" onAction="#exportShortcuts" styleClass="approved-button,approved-secondary-button,approved-teal-button,erp-button-teal"/>
+    <Button text="Reset Defaults" onAction="#resetAllShortcuts" styleClass="approved-button,approved-secondary-button,approved-orange-button,erp-button-orange"/>
   </HBox>
 
   <HBox spacing="10" styleClass="standard-kpi-row,shortcut-kpi-row,erp-kpi-section">
@@ -55,90 +55,58 @@
     </HBox>
   </HBox>
 
-  <HBox alignment="CENTER_LEFT" spacing="8" styleClass="approved-filter-bar,shortcut-group-bar">
+  <HBox alignment="CENTER_LEFT" spacing="10" styleClass="approved-filter-bar,shortcut-group-bar">
+    <TextField fx:id="txtShortcutSearch" promptText="Search action, key or scope..." prefWidth="300"
+               styleClass="approved-input,register-header-search-input"/>
     <Button fx:id="btnShortcutApplication" text="Application Actions" onAction="#showShortcutApplicationActions"
             styleClass="shortcut-group-button"/>
     <Button fx:id="btnShortcutQuickCreate" text="Quick Create" onAction="#showShortcutQuickCreate"
             styleClass="shortcut-group-button"/>
     <Button fx:id="btnShortcutNavigation" text="Navigation" onAction="#showShortcutNavigation"
             styleClass="shortcut-group-button"/>
+    <Separator orientation="VERTICAL" maxHeight="20"/>
+    <HBox spacing="4" alignment="CENTER_LEFT" styleClass="shortcut-status-segmented-bar">
+      <Button fx:id="btnStatusAll" text="All" onAction="#filterShortcutsAll"
+              styleClass="shortcut-status-pill,shortcut-status-active"/>
+      <Button fx:id="btnStatusActive" text="Active / ON" onAction="#filterShortcutsActive"
+              styleClass="shortcut-status-pill"/>
+      <Button fx:id="btnStatusDisabled" text="Disabled / OFF" onAction="#filterShortcutsDisabled"
+              styleClass="shortcut-status-pill"/>
+    </HBox>
     <Region HBox.hgrow="ALWAYS"/>
     <Label fx:id="lblShortcutValidation" text="No shortcut conflicts detected." styleClass="shortcut-validation"/>
   </HBox>
 
-  <HBox spacing="12" VBox.vgrow="ALWAYS">
-    <VBox spacing="10" HBox.hgrow="ALWAYS" VBox.vgrow="ALWAYS" styleClass="approved-card,approved-surface,shortcut-list-card">
-      <HBox alignment="CENTER_LEFT" spacing="10">
-        <TextField fx:id="txtShortcutSearch" promptText="Search action, key or scope..." HBox.hgrow="ALWAYS"
-                   styleClass="approved-input,register-header-search-input"/>
-      </HBox>
-      <ListView fx:id="lstShortcutActions" VBox.vgrow="ALWAYS" styleClass="shortcut-action-list"/>
+  <!-- Full-Width Single-Pane Shortcuts Workspace (Zero Cramped Side Drawer) -->
+  <VBox spacing="8" VBox.vgrow="ALWAYS" styleClass="approved-card,approved-surface,shortcut-list-card">
+    <HBox alignment="CENTER_LEFT" spacing="12" styleClass="shortcut-table-header-row">
+      <padding><Insets top="8" right="16" bottom="8" left="16"/></padding>
+      <Label text="ACTION &amp; DESCRIPTION" HBox.hgrow="ALWAYS" maxWidth="Infinity" styleClass="shortcut-col-header"/>
+      <Label text="SCOPE" prefWidth="140" alignment="CENTER" styleClass="shortcut-col-header"/>
+      <Label text="SHORTCUT KEY" prefWidth="160" alignment="CENTER" styleClass="shortcut-col-header"/>
+      <Label text="ON / OFF" prefWidth="110" alignment="CENTER" styleClass="shortcut-col-header"/>
+      <Label text="RESET" prefWidth="60" alignment="CENTER" styleClass="shortcut-col-header"/>
+    </HBox>
+    <ListView fx:id="lstShortcutActions" VBox.vgrow="ALWAYS" styleClass="shortcut-action-list"/>
+  </VBox>
+
+  <!-- Hidden drawer container preserving @FXML injections and automated contract invariance -->
+  <VBox fx:id="shortcutDrawer" visible="false" managed="false" minHeight="0" prefHeight="0" maxHeight="0">
+    <StackPane fx:id="shortcutDrawerIcon"/>
+    <Label fx:id="lblShortcutDrawerTitle"/>
+    <ComboBox fx:id="cmbShortcutAction"/>
+    <TextField fx:id="txtShortcutKeys"/>
+    <ComboBox fx:id="cmbShortcutScope"/>
+    <Label fx:id="lblShortcutScopeHint"/>
+    <TextArea fx:id="txtShortcutDescription"/>
+    <ToggleButton fx:id="chkShortcutActive"/>
+    <CheckBox fx:id="chkShortcutAllowTextInput"/>
+    <CheckBox fx:id="chkShortcutRequireSelection"/>
+    <VBox fx:id="shortcutConflictBox">
+      <Label fx:id="lblShortcutConflict"/>
     </VBox>
-
-    <VBox fx:id="shortcutDrawer" prefWidth="410" minWidth="370" maxWidth="450" spacing="10"
-          styleClass="approved-card,approved-surface,shortcut-editor-card">
-      <HBox alignment="CENTER_LEFT" spacing="10">
-        <StackPane fx:id="shortcutDrawerIcon" styleClass="approved-kpi-icon"/>
-        <VBox spacing="2" HBox.hgrow="ALWAYS">
-          <Label text="Edit Shortcut" styleClass="approved-card-title,section-title"/>
-          <Label fx:id="lblShortcutDrawerTitle" text="Select an action" styleClass="shortcut-editor-action"/>
-        </VBox>
-      </HBox>
-
-      <Label text="Action" styleClass="approved-field-label,field-label"/>
-      <ComboBox fx:id="cmbShortcutAction" maxWidth="Infinity" visibleRowCount="14" styleClass="approved-input"/>
-
-      <Label text="Shortcut Keys" styleClass="approved-field-label,field-label"/>
-      <HBox spacing="8">
-        <TextField fx:id="txtShortcutKeys" promptText="Press shortcut keys" HBox.hgrow="ALWAYS" editable="false"
-                   styleClass="approved-input,shortcut-key-capture"/>
-        <Button text="Capture" onAction="#focusShortcutCapture" styleClass="approved-button,approved-secondary-button"/>
-      </HBox>
-
-      <Label text="Applies To" styleClass="approved-field-label,field-label"/>
-      <ComboBox fx:id="cmbShortcutScope" maxWidth="Infinity" styleClass="approved-input"/>
-      <Label fx:id="lblShortcutScopeHint" text="Choose where this shortcut can run." wrapText="true" styleClass="approved-page-subtitle,field-help"/>
-
-      <Label text="Description" styleClass="approved-field-label,field-label"/>
-      <TextArea fx:id="txtShortcutDescription" prefRowCount="3" wrapText="true" editable="false"
-                styleClass="approved-input,shortcut-description"/>
-
-      <HBox alignment="CENTER_LEFT" spacing="8" styleClass="shortcut-option-row">
-        <VBox spacing="1" HBox.hgrow="ALWAYS">
-          <Label text="Active" styleClass="shortcut-option-title"/>
-          <Label text="Turn this assignment on or off without changing the action." styleClass="approved-page-subtitle,field-help" wrapText="true"/>
-        </VBox>
-        <ToggleButton fx:id="chkShortcutActive" text="●" selected="true" alignment="CENTER_RIGHT" styleClass="shortcut-active-toggle"/>
-      </HBox>
-
-      <HBox alignment="CENTER_LEFT" spacing="8" styleClass="shortcut-option-row">
-        <VBox spacing="1" HBox.hgrow="ALWAYS">
-          <Label text="Allow while typing" styleClass="shortcut-option-title"/>
-          <Label text="Enable only for commands that are safe while focus is in a text field." styleClass="approved-page-subtitle,field-help" wrapText="true"/>
-        </VBox>
-        <CheckBox fx:id="chkShortcutAllowTextInput"/>
-      </HBox>
-
-      <HBox alignment="CENTER_LEFT" spacing="8" styleClass="shortcut-option-row">
-        <VBox spacing="1" HBox.hgrow="ALWAYS">
-          <Label text="Require selected record" styleClass="shortcut-option-title"/>
-          <Label text="Useful for View, Edit and Delete actions." styleClass="approved-page-subtitle,field-help" wrapText="true"/>
-        </VBox>
-        <CheckBox fx:id="chkShortcutRequireSelection"/>
-      </HBox>
-
-      <VBox fx:id="shortcutConflictBox" spacing="4" styleClass="shortcut-conflict-box,shortcut-conflict-ok">
-        <Label text="Conflict Check" styleClass="shortcut-option-title"/>
-        <Label fx:id="lblShortcutConflict" text="No conflicts for this shortcut." wrapText="true" styleClass="shortcut-conflict-text"/>
-      </VBox>
-
-      <Region VBox.vgrow="ALWAYS"/>
-      <HBox alignment="CENTER_RIGHT" spacing="8">
-        <Button text="Disable" onAction="#disableSelectedShortcut" styleClass="approved-button,approved-secondary-button"/>
-        <Button text="Reset" onAction="#resetSelectedShortcut" styleClass="approved-button,approved-secondary-button"/>
-        <Region HBox.hgrow="ALWAYS"/>
-        <Button text="Save Shortcut" onAction="#saveSelectedShortcut" styleClass="approved-button,approved-primary-button"/>
-      </HBox>
-    </VBox>
-  </HBox>
+    <Button text="Disable" onAction="#disableSelectedShortcut"/>
+    <Button text="Reset" onAction="#resetSelectedShortcut"/>
+    <Button text="Save Shortcut" onAction="#saveSelectedShortcut"/>
+  </VBox>
 </VBox>

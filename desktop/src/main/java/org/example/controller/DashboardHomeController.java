@@ -231,13 +231,24 @@ public class DashboardHomeController implements ScreenLifecycle {
     }
 
     private void showLoading(String message) {
-        if (loadingMessage != null) loadingMessage.setText(message);
-        if (loadingOverlay != null) { loadingOverlay.setManaged(true); loadingOverlay.setVisible(true); loadingOverlay.toFront(); }
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisible(false);
+            loadingOverlay.setManaged(false);
+        }
+        if (dashboardRoot != null) {
+            org.example.util.LoadingOverlayHelper.show(dashboardRoot, message != null && !message.isBlank() ? message : "Loading dashboard data…");
+        }
         if (dashboardContent != null) dashboardContent.setDisable(true);
     }
 
     private void hideLoading() {
-        if (loadingOverlay != null) { loadingOverlay.setVisible(false); loadingOverlay.setManaged(false); }
+        if (dashboardRoot != null) {
+            org.example.util.LoadingOverlayHelper.hide(dashboardRoot);
+        }
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisible(false);
+            loadingOverlay.setManaged(false);
+        }
         if (dashboardContent != null) dashboardContent.setDisable(false);
         ensureQuickActionsVisible();
     }

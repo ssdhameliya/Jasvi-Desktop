@@ -274,6 +274,7 @@ public final class DocumentInspectionScaffold {
     private static String resolveKicker(String title, String specificDialogClass) {
         String lowerClass = specificDialogClass != null ? specificDialogClass.toLowerCase(Locale.ROOT) : "";
         String lowerTitle = title != null ? title.toLowerCase(Locale.ROOT) : "";
+        if (lowerClass.contains("notification") || lowerTitle.contains("notification")) return "Alerts & Activity • Live Notifications";
         if (lowerClass.contains("license") || lowerClass.contains("subscription") || lowerTitle.contains("subscription") || lowerTitle.contains("license")) return "Enterprise Licensing • Security Authentication";
         if (lowerClass.contains("sales") || lowerTitle.contains("sale") || lowerTitle.contains("invoice")) return "Tax Invoice • Commercial Record";
         if (lowerClass.contains("purchase") || lowerTitle.contains("purchase") || lowerTitle.contains("bill")) return "Purchase Bill • Commercial Record";
@@ -291,6 +292,7 @@ public final class DocumentInspectionScaffold {
     private static String resolveIcon(String title, String specificDialogClass) {
         String lowerClass = specificDialogClass != null ? specificDialogClass.toLowerCase(Locale.ROOT) : "";
         String lowerTitle = title != null ? title.toLowerCase(Locale.ROOT) : "";
+        if (lowerClass.contains("notification") || lowerTitle.contains("notification")) return "notification";
         if (lowerClass.contains("license") || lowerClass.contains("subscription") || lowerTitle.contains("subscription") || lowerTitle.contains("license")) return "security";
         if (lowerClass.contains("sales") || lowerTitle.contains("sale")) return "sale";
         if (lowerClass.contains("purchase") || lowerTitle.contains("purchase")) return "purchase";

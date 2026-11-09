@@ -32,6 +32,7 @@ import org.example.util.BusinessClock;
 import org.example.util.DatePickerFormatter;
 import org.example.util.DynamicTableLayoutManager;
 import org.example.util.IconFactory;
+import org.example.util.LoadingOverlayHelper;
 import org.example.util.OwnedAlert;
 import org.example.util.ExportFeedbackManager;
 import org.example.util.OwnedDialog;
@@ -576,7 +577,11 @@ public class BankStatementController implements ScreenLifecycle {
 
     @FXML private void importStatement(){
         configureBankAccountMaster();
-        UniversalBankStatementImportDialog.show(table != null && table.getScene() != null ? table.getScene().getWindow() : null, api, new org.example.api.master.MasterApiClient(), () -> loadBatches(null));
+        UniversalBankStatementImportDialog.show(table != null && table.getScene() != null ? table.getScene().getWindow() : null, api, new org.example.api.master.MasterApiClient(), () -> {
+            javafx.scene.layout.StackPane host = LoadingOverlayHelper.findHost(table);
+            if (host != null) LoadingOverlayHelper.show(host, "Synchronizing imported statement…");
+            loadBatches(null);
+        });
     }
 
     private void legacyImportStatement(){
@@ -867,12 +872,15 @@ public class BankStatementController implements ScreenLifecycle {
 
     private void loadBatch(long id){
         org.example.util.OperationalUiSupport.showLoading(table,"Loading statement transactions…");
+        javafx.scene.layout.StackPane host = LoadingOverlayHelper.findHost(table);
+        if (host != null) LoadingOverlayHelper.show(host, "Loading statement transactions…");
         String status=selectedStatus(),direction=selectedDirection(),from=dateText(fromDate.getValue()),to=dateText(toDate.getValue()),query=safe(txtSearch.getText()).trim();
         int requestedPage=currentPage,pageSize=cmbPageSize.getValue()==null?50:cmbPageSize.getValue();
         UiTaskExecutor.submitLatest(
             "bank-statement-batch-load",
             () -> api.page(id,requestedPage,pageSize,status,direction,from,to,query),
             loaded -> {
+                if (host != null) LoadingOverlayHelper.hide(host);
                 if(cmbBatch.getValue()==null || !Objects.equals(cmbBatch.getValue().id(), id)) return;
                 currentPage=loaded.page(); totalPages=loaded.totalPages(); totalRows=loaded.totalRows();
                 List<Row> rows=loaded.rows()==null?List.of():loaded.rows().stream().map(Row::new).toList();
@@ -894,7 +902,12 @@ public class BankStatementController implements ScreenLifecycle {
                 }
                 finishExplicitRefresh(true);
             },
-            failure->{finishExplicitRefresh(false);org.example.util.OperationalUiSupport.showError(table,"Statement transactions could not load",failure);error(failure);}
+            failure->{
+                if (host != null) LoadingOverlayHelper.hide(host);
+                finishExplicitRefresh(false);
+                org.example.util.OperationalUiSupport.showError(table,"Statement transactions could not load",failure);
+                error(failure);
+            }
         );
     }
 
@@ -924,6 +937,8 @@ public class BankStatementController implements ScreenLifecycle {
 
     @FXML private void applyFilters(){resetPageAndLoad();}
     @FXML private void resetFilters(){
+        explicitRefreshPending=true;
+        bankStmtRefreshFinish=org.example.util.OperationalUiSupport.beginReset(btnReset, "Resetting statement filters…");
         org.example.util.OperationalUiSupport.animateReset(btnReset, txtSearch != null ? txtSearch.getParent() : null, () -> {
             suppressFilterReload=true;
             try{pendingLinkedTransactionId=null;applyBatchPeriod();cmbStatus.setValue("All Status");if(cmbDirection!=null)cmbDirection.setValue("All");txtSearch.clear();currentPage=0;}
@@ -933,7 +948,7 @@ public class BankStatementController implements ScreenLifecycle {
     }
     @FXML private void refreshWithFeedback(){
         explicitRefreshPending=true;
-        bankStmtRefreshFinish=org.example.util.OperationalUiSupport.beginRefresh(btnRefresh);
+        bankStmtRefreshFinish=org.example.util.OperationalUiSupport.beginRefresh(btnRefresh, "Refreshing bank statement…");
         reloadCurrentPage();
     }
     private void refresh(){reloadCurrentPage();}

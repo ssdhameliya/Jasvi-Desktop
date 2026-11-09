@@ -725,7 +725,16 @@ public final class SalesDocumentInspectionDialog {
         Label statusLabel = new Label("Loading attachments and payment proofs…");
         statusLabel.getStyleClass().add("muted-label");
 
-        VBox container = new VBox(8, listView, statusLabel);
+        Button btnUpload = new Button("Upload Document");
+        btnUpload.getStyleClass().addAll("approved-button", "approved-secondary-button", "compact-action-button");
+        btnUpload.setGraphic(IconFactory.compactIcon("attachment", 14));
+
+        Region topSpacer = new Region();
+        HBox.setHgrow(topSpacer, Priority.ALWAYS);
+        HBox topBar = new HBox(10, statusLabel, topSpacer, btnUpload);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        VBox container = new VBox(8, topBar, listView);
         container.setPadding(new Insets(8, 0, 0, 0));
 
         UiTaskExecutor.submitLatest("sales-inspection-attachments-" + sale.getId(),
@@ -821,6 +830,20 @@ public final class SalesDocumentInspectionDialog {
                     }
                 },
                 err -> statusLabel.setText("Failed to load attachments: " + err.getMessage()));
+
+        btnUpload.setOnAction(e -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Upload Attachment to Sale #" + sale.getInvoiceNo());
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documents", "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.csv", "*.txt", "*.*"));
+            File file = chooser.showOpenDialog(dialog.getDialogPane().getScene().getWindow());
+            if (file == null) return;
+            UiTaskExecutor.submitActionWithOverlay(dialog.getDialogPane(), "Uploading attachment…", "upload-sale-inspection-attachment-" + sale.getId(), () -> {
+                support.addDocumentAttachment("SALE", sale.getId(), file.toPath(), sale.getRowVersion());
+                return true;
+            }, ok -> {
+                AppDialogService.success(dialog.getDialogPane(), "Uploaded", "Document '" + file.getName() + "' attached successfully to Invoice #" + sale.getInvoiceNo() + ".");
+            }, err -> AppDialogService.error(dialog.getDialogPane(), "Upload Failed", err.getMessage()));
+        });
 
         return container;
     }

@@ -96,12 +96,14 @@ public final class ThemeManager {
             while (change.next()) if (change.wasAdded()) for (Window window : change.getAddedSubList()) {
                 window.showingProperty().addListener((o, oldValue, showing) -> {
                     if (showing && window.getScene() != null) {
-                        Window owner = window instanceof Stage stage ? stage.getOwner() : null;
+                        Window owner = window instanceof Stage stage ? stage.getOwner()
+                                : (window instanceof javafx.stage.PopupWindow popup ? popup.getOwnerWindow() : null);
                         applyTheme(window.getScene(), owner);
                     }
                 });
                 if (window.getScene() != null) {
-                    Window owner = window instanceof Stage stage ? stage.getOwner() : null;
+                    Window owner = window instanceof Stage stage ? stage.getOwner()
+                            : (window instanceof javafx.stage.PopupWindow popup ? popup.getOwnerWindow() : null);
                     applyTheme(window.getScene(), owner);
                 }
             }
@@ -109,7 +111,6 @@ public final class ThemeManager {
     }
 
     public static void toggle(Scene scene) {
-
         if (currentTheme == Theme.LIGHT) {
             currentTheme = Theme.DARK;
         } else {
@@ -117,7 +118,11 @@ public final class ThemeManager {
         }
 
         ConfigManager.set("theme", currentTheme.name());
-        applyTheme(scene);
+        for (Window window : Window.getWindows()) {
+            if (window.getScene() != null) {
+                applyTheme(window.getScene());
+            }
+        }
     }
 
     public static Theme getCurrentTheme() {

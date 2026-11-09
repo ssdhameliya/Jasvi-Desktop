@@ -126,6 +126,7 @@ public final class DynamicTableLayoutManager {
         if (!Boolean.TRUE.equals(table.getProperties().get(COLUMN_LISTENER))) {
             table.getProperties().put(COLUMN_LISTENER, true);
             table.getColumns().addListener((ListChangeListener<TableColumn>) change -> {
+                table.getProperties().remove(LAST_AVAILABLE);
                 bindColumns(table);
                 layoutNow(table);
                 requestLayout(table);
@@ -215,7 +216,10 @@ public final class DynamicTableLayoutManager {
             prepareColumn(column);
             if (!Boolean.TRUE.equals(column.getProperties().get(COLUMN_BOUND))) {
                 column.getProperties().put(COLUMN_BOUND, true);
-                column.visibleProperty().addListener((obs, oldValue, newValue) -> requestLayout(table));
+                column.visibleProperty().addListener((obs, oldValue, newValue) -> {
+                    table.getProperties().remove(LAST_AVAILABLE);
+                    requestLayout(table);
+                });
                 column.graphicProperty().addListener((obs, oldValue, newValue) -> {
                     column.getProperties().remove(HEADER_MINIMUM);
                     requestLayout(table);
@@ -579,7 +583,8 @@ public final class DynamicTableLayoutManager {
         return key.contains("customer") || key.contains("supplier") || key.contains("description")
                 || key.contains("address") || key.contains("notes") || key.contains("remarks")
                 || key.contains("narration") || key.contains("item") || key.contains("party")
-                || key.contains("name") || key.contains("details");
+                || key.contains("name") || key.contains("details")
+                || key.contains("explanation") || key.contains("guidance") || key.contains("summary");
     }
 
     private static double flexWeight(String semantic, String heading) {

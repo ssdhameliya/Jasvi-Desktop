@@ -188,5 +188,5 @@
             </VBox>
         </content>
     </ScrollPane>
-    <StackPane fx:id="loadingOverlay" visible="false" managed="false" styleClass="erp-loading-overlay"><VBox alignment="CENTER" spacing="12" maxWidth="360" styleClass="erp-loading-card"><ProgressIndicator fx:id="loadingProgress" progress="-1" prefWidth="48" prefHeight="48"/><Label fx:id="loadingMessage" text="Loading dashboard data…" styleClass="erp-loading-title"/><Label text="The ERP remains responsive while data is prepared." wrapText="true" styleClass="erp-loading-subtitle"/></VBox></StackPane>
+    <StackPane fx:id="loadingOverlay" visible="false" managed="false" styleClass="erp-loading-overlay"><VBox alignment="CENTER" spacing="12" maxWidth="340" minHeight="140" prefHeight="160" maxHeight="180" styleClass="erp-loading-card"><ProgressIndicator fx:id="loadingProgress" progress="-1" prefWidth="48" prefHeight="48"/><Label fx:id="loadingMessage" text="Loading dashboard data…" styleClass="erp-loading-title"/><Label text="The ERP remains responsive while data is prepared." wrapText="true" styleClass="erp-loading-subtitle"/></VBox></StackPane>
 </StackPane>

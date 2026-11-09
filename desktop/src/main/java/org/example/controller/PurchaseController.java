@@ -445,7 +445,7 @@ public class PurchaseController implements ScreenLifecycle {
 
 
     private void setupTable(){
-
+        setupResponsiveTableColumns();
 
         colCode.setCellValueFactory(value -> new javafx.beans.property.SimpleStringProperty(safeItem(value.getValue().getItemCode())));
         colItem.setCellValueFactory(value -> new javafx.beans.property.SimpleStringProperty(
@@ -487,6 +487,44 @@ public class PurchaseController implements ScreenLifecycle {
             new PropertyValueFactory<>("totalAmount")
         );
 
+    }
+
+    private void setupResponsiveTableColumns() {
+        if (colCode == null || tableLines == null) return;
+        colCode.setMinWidth(85);
+        colItem.setMinWidth(140);
+        colCategory.setMinWidth(75);
+        colHsn.setMinWidth(75);
+        colUnit.setMinWidth(55);
+        colQuantity.setMinWidth(60);
+        colRate.setMinWidth(75);
+        colDiscount.setMinWidth(60);
+        colDiscountAmount.setMinWidth(75);
+        colGst.setMinWidth(60);
+        colNetAmount.setMinWidth(85);
+        colGstAmount.setMinWidth(90);
+        colTotal.setMinWidth(105);
+
+        tableLines.widthProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && newVal.doubleValue() > 0) {
+                double total = newVal.doubleValue() - 18;
+                if (total > 1040) {
+                    colCode.setPrefWidth(total * 0.08);
+                    colItem.setPrefWidth(total * 0.18);
+                    colCategory.setPrefWidth(total * 0.07);
+                    colHsn.setPrefWidth(total * 0.07);
+                    colUnit.setPrefWidth(total * 0.05);
+                    colQuantity.setPrefWidth(total * 0.06);
+                    colRate.setPrefWidth(total * 0.07);
+                    colDiscount.setPrefWidth(total * 0.06);
+                    colDiscountAmount.setPrefWidth(total * 0.07);
+                    colGst.setPrefWidth(total * 0.06);
+                    colNetAmount.setPrefWidth(total * 0.08);
+                    colGstAmount.setPrefWidth(total * 0.07);
+                    colTotal.setPrefWidth(total * 0.08);
+                }
+            }
+        });
     }
 
 
@@ -821,6 +859,20 @@ public class PurchaseController implements ScreenLifecycle {
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documents","*.pdf","*.png","*.jpg","*.jpeg","*.doc","*.docx","*.xls","*.xlsx","*.csv","*.txt","*.*"));
         List<File> files=chooser.showOpenMultipleDialog(tableLines.getScene().getWindow());
         if(files==null||files.isEmpty())return;
+        if (editingPurchase != null && editingPurchase.getId() > 0 && (viewMode || (btnSavePurchase != null && btnSavePurchase.isDisabled()))) {
+            UiTaskExecutor.submitActionWithOverlay(tableLines, "Uploading attachment…", "upload-purchase-attachment-" + editingPurchase.getId(), () -> {
+                for (File file : files) {
+                    if (file == null || !file.isFile()) continue;
+                    long version = editingPurchase.getRowVersion();
+                    supportApi.addDocumentAttachment("PURCHASE", editingPurchase.getId(), file.toPath(), version);
+                }
+                return loadAttachmentEntriesFromServer(editingPurchase);
+            }, loaded -> {
+                applyAttachmentEntries(editingPurchase, loaded);
+                org.example.util.AppDialogService.success(tableLines, "Attachment Uploaded", "Purchase attachment(s) have been saved to Purchase #" + editingPurchase.getInvoiceNo() + ".");
+            }, failure -> warn("Failed to upload attachment: " + rootMessage(failure)));
+            return;
+        }
         for(File file:files){
             if(file==null||!file.isFile())continue;
             boolean duplicate=attachmentEntries.stream().anyMatch(a->a.localFile()!=null&&a.localFile().toPath().toAbsolutePath().normalize().equals(file.toPath().toAbsolutePath().normalize()));
@@ -891,6 +943,20 @@ public class PurchaseController implements ScreenLifecycle {
         PurchaseAttachmentEntry entry=listAttachments==null?null:listAttachments.getSelectionModel().getSelectedItem();
         if(entry==null){warn("Select an attachment to remove.");return;}
         if(!confirmAction("Remove attachment","Remove "+entry.name()+" from this Purchase?"))return;
+        if (editingPurchase != null && editingPurchase.getId() > 0 && (viewMode || (btnSavePurchase != null && btnSavePurchase.isDisabled()))) {
+            UiTaskExecutor.submitActionWithOverlay(tableLines, "Removing attachment…", "remove-purchase-attachment-" + editingPurchase.getId(), () -> {
+                if (entry.legacy()) {
+                    supportApi.deletePrimaryDocumentAttachment("PURCHASE", editingPurchase.getId(), editingPurchase.getRowVersion());
+                } else if (entry.id() > 0) {
+                    supportApi.deleteDocumentAttachment("PURCHASE", editingPurchase.getId(), entry.id(), editingPurchase.getRowVersion());
+                }
+                return loadAttachmentEntriesFromServer(editingPurchase);
+            }, loaded -> {
+                applyAttachmentEntries(editingPurchase, loaded);
+                org.example.util.AppDialogService.success(tableLines, "Attachment Removed", "Attachment has been removed from Purchase #" + editingPurchase.getInvoiceNo() + ".");
+            }, failure -> warn("Failed to remove attachment: " + rootMessage(failure)));
+            return;
+        }
         if(!entry.pending())attachmentRemovals.add(entry.id());
         attachmentEntries.remove(entry);
         updateAttachmentButtons();
@@ -1502,9 +1568,9 @@ public class PurchaseController implements ScreenLifecycle {
         if(btnRemoveLine!=null)btnRemoveLine.setDisable(value);
         if(btnAddSupplier!=null)btnAddSupplier.setDisable(value);
         if(btnManageCharges!=null)btnManageCharges.setDisable(value);
-        if(btnAttachmentAdd!=null)btnAttachmentAdd.setDisable(value);
+        if(btnAttachmentAdd!=null)btnAttachmentAdd.setDisable(value && (editingPurchase == null || editingPurchase.getId() <= 0));
         if(btnAttachmentPreview!=null)btnAttachmentPreview.setDisable(listAttachments==null || listAttachments.getSelectionModel().getSelectedItem()==null);
-        if(btnAttachmentRemove!=null)btnAttachmentRemove.setDisable(value || listAttachments==null || listAttachments.getSelectionModel().getSelectedItem()==null);
+        if(btnAttachmentRemove!=null)btnAttachmentRemove.setDisable((value && (editingPurchase == null || editingPurchase.getId() <= 0)) || listAttachments==null || listAttachments.getSelectionModel().getSelectedItem()==null);
         if(btnSavePurchase!=null)btnSavePurchase.setDisable(value);
         tableLines.setEditable(!value);
         tableLines.setDisable(value);

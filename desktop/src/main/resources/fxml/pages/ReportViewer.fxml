@@ -11,9 +11,9 @@
         <StackPane fx:id="viewerPageIcon" styleClass="erp-page-header-icon"/>
         <VBox spacing="3"><Label fx:id="lblTitle" text="Report" styleClass="approved-page-title,page-title"/><Label fx:id="lblDescription" text="Unified financial and operational report" styleClass="approved-page-subtitle,page-subtitle,reports-header-subtitle"/></VBox>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button text="Report Information" onAction="#showInformation" styleClass="approved-button,approved-secondary-button"/>
-        <Button text="Refresh" onAction="#refreshReport" styleClass="approved-button,approved-secondary-button"/>
-        <MenuButton text="Export" styleClass="approved-menu-button,approved-button,approved-primary-button,reports-export-button"><items><MenuItem text="PDF" onAction="#exportPdf"/><MenuItem text="Excel" onAction="#exportExcel"/><MenuItem text="CSV" onAction="#exportCsv"/></items></MenuButton>
+        <Button fx:id="btnInfo" text="Report Information" onAction="#showInformation" styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnRefresh" text="Refresh" onAction="#refreshReport" styleClass="approved-button,approved-secondary-button"/>
+        <MenuButton fx:id="btnExport" text="Export" styleClass="approved-menu-button,approved-button,approved-primary-button,reports-export-button"><items><MenuItem fx:id="miPdf" text="PDF" onAction="#exportPdf"/><MenuItem fx:id="miExcel" text="Excel" onAction="#exportExcel"/><MenuItem fx:id="miCsv" text="CSV" onAction="#exportCsv"/></items></MenuButton>
     </HBox>
 
     <HBox spacing="8" alignment="CENTER_LEFT" styleClass="report-view-nav,reports-view-nav">
@@ -42,7 +42,7 @@
             <VBox fx:id="boxMinAmount" GridPane.rowIndex="3" spacing="3"><Label text="Min Amount" styleClass="field-label"/><TextField fx:id="txtMinAmount" promptText="Any" styleClass="approved-input"/></VBox>
             <VBox fx:id="boxMaxAmount" GridPane.rowIndex="3" GridPane.columnIndex="1" spacing="3"><Label text="Max Amount" styleClass="field-label"/><TextField fx:id="txtMaxAmount" promptText="Any" styleClass="approved-input"/></VBox>
         </GridPane>
-        <HBox alignment="CENTER_LEFT" spacing="8" minHeight="36" styleClass="report-filter-actions"><Label fx:id="lblActiveFilters" text="Active filters: Period" styleClass="approved-page-subtitle,page-subtitle"/><Region HBox.hgrow="ALWAYS"/><Button text="Reset" onAction="#resetFilters" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnApply" text="Apply Filters" onAction="#applyFilters" styleClass="approved-button,approved-primary-button"/></HBox>
+        <HBox alignment="CENTER_LEFT" spacing="8" minHeight="36" styleClass="report-filter-actions"><Label fx:id="lblActiveFilters" text="Active filters: Period" styleClass="approved-page-subtitle,page-subtitle"/><Region HBox.hgrow="ALWAYS"/><Button fx:id="btnReset" text="Reset" onAction="#resetFilters" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnApply" text="Apply Filters" onAction="#applyFilters" styleClass="approved-button,approved-primary-button"/></HBox>
     </VBox>
 
     <HBox alignment="BOTTOM_LEFT" spacing="8" minHeight="54" VBox.vgrow="NEVER" styleClass="approved-toolbar,report-results-toolbar">
@@ -56,13 +56,13 @@
         <VBox spacing="3"><Label text="Sort" styleClass="field-label"/><ComboBox fx:id="cmbSort" prefWidth="145" styleClass="approved-input"/></VBox>
         <VBox spacing="3"><Label text="Direction" styleClass="field-label"/><ComboBox fx:id="cmbDirection" prefWidth="115" styleClass="approved-input"/></VBox>
         <MenuButton fx:id="btnColumns" text="Columns" styleClass="approved-menu-button,approved-button,approved-secondary-button"/>
-        <Button text="Save Report" onAction="#saveReport" styleClass="approved-button,approved-success-button,success-button"/>
+        <Button fx:id="btnSaveReport" text="Save Report" onAction="#saveReport" styleClass="approved-button,approved-success-button,success-button"/>
     </HBox>
 
     <VBox spacing="6" VBox.vgrow="ALWAYS" styleClass="report-card,report-results-panel">
         <TableView fx:id="tblReport" VBox.vgrow="ALWAYS" styleClass="approved-table,report-table,erp-table-profile-register"/>
         <HBox alignment="CENTER_LEFT" spacing="8" styleClass="report-viewer-footer">
-            <Button text="View Source" onAction="#viewSelectedSource" styleClass="approved-button,approved-secondary-button"/>
+            <Button fx:id="btnViewSource" text="View Source" onAction="#viewSelectedSource" styleClass="approved-button,approved-secondary-button"/>
             <Label text="Select a row to open the originating transaction." styleClass="approved-page-subtitle,page-subtitle"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Label text="Rows per page" styleClass="field-label"/><ComboBox fx:id="cmbRows" prefWidth="96" styleClass="approved-input"/>
@@ -71,7 +71,7 @@
             <Label fx:id="lblPage" text="1 / 1" styleClass="section-title"/>
             <Button fx:id="btnNext" text="Next" onAction="#nextPage" styleClass="approved-button,approved-secondary-button"/>
             <Button fx:id="btnLast" text="Last" onAction="#lastPage" styleClass="approved-button,approved-secondary-button"/>
-            <Button text="Print" onAction="#printReport" styleClass="approved-button,approved-secondary-button"/>
+            <Button fx:id="btnPrint" text="Print" onAction="#printReport" styleClass="approved-button,approved-secondary-button"/>
         </HBox>
     </VBox>
 </VBox>

@@ -71,14 +71,14 @@
                     <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnSpan="2">
                         <Label text="Billing Address *" styleClass="sales-entry-field-label,field-label-address"/>
                         <TextArea fx:id="txtBillingAddress" promptText="Billing address..."
-                                  prefRowCount="2" prefHeight="52" wrapText="true" maxWidth="Infinity"
+                                  prefRowCount="2" prefHeight="50" wrapText="true" maxWidth="Infinity"
                                   styleClass="approved-input,sales-entry-delivery-area,sales-entry-address-area"/>
                     </VBox>
 
                     <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="2" GridPane.columnSpan="3">
                         <Label text="Delivery Address *" styleClass="sales-entry-field-label,field-label-address"/>
                         <TextArea fx:id="txtDeliveryAddress" promptText="Enter delivery address..."
-                                  prefRowCount="2" prefHeight="52" wrapText="true" maxWidth="Infinity"
+                                  prefRowCount="2" prefHeight="50" wrapText="true" maxWidth="Infinity"
                                   styleClass="approved-input,sales-entry-delivery-area,sales-entry-address-area"/>
                     </VBox>
 

@@ -563,7 +563,9 @@ public class ClientRegistryService {
         if (mailService != null && !email.isBlank()) {
             try {
                 String subject = "Official Jasvi ERP Enterprise License Activation - " + company;
-                String filename = company.replaceAll("[^a-zA-Z0-9_-]", "_") + "-license.jlic";
+                String baseName = company.replaceAll("[^a-zA-Z0-9_-]", "_");
+                String filenameJlic = baseName + "-license.jlic";
+                String filenameJson = baseName + "-license.json";
                 byte[] jlicBytes = payload.getBytes(StandardCharsets.UTF_8);
 
                 String emailHtml = """
@@ -574,7 +576,7 @@ public class ClientRegistryService {
                             </div>
                             <p style="font-size: 15px; line-height: 1.5;">Dear <strong>{{company}}</strong>,</p>
                             <p style="font-size: 14px; line-height: 1.5; color: #334155;">
-                                Your Jasvi ERP production license has been issued and approved. Your official digital license file (<strong>{{filename}}</strong>) is attached to this email.
+                                Your Jasvi ERP production license has been issued and approved. Both your official digital license file (<strong>{{filenameJlic}}</strong>) and readable IT certificate copy (<strong>{{filenameJson}}</strong>) are attached to this email.
                             </p>
                             <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px; margin: 20px 0;">
                                 <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
@@ -586,9 +588,9 @@ public class ClientRegistryService {
                             </div>
                             <h3 style="font-size: 16px; color: #0f172a; margin-top: 24px; margin-bottom: 12px;">How to Activate:</h3>
                             <ol style="font-size: 14px; line-height: 1.6; padding-left: 20px; color: #334155;">
-                                <li>Download and save the attached <strong>{{filename}}</strong> file on your computer.</li>
+                                <li>Download and save the attached <strong>{{filenameJlic}}</strong> (or <strong>{{filenameJson}}</strong>) file on your workstation.</li>
                                 <li>Open <strong>Jasvi ERP Desktop</strong>.</li>
-                                <li>On the startup prompt or in <em>Settings &gt; License</em>, click <strong>[Import .jlic File]</strong>.</li>
+                                <li>On the startup prompt or in <em>Settings &gt; License</em>, click <strong>[Import .jlic File]</strong> (both formats are supported).</li>
                                 <li>Select the downloaded file. Your system will immediately activate with full enterprise capabilities.</li>
                             </ol>
                             <div style="margin-top: 28px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
@@ -597,12 +599,15 @@ public class ClientRegistryService {
                         </div>
                         """
                         .replace("{{company}}", company)
-                        .replace("{{filename}}", filename)
+                        .replace("{{filenameJlic}}", filenameJlic)
+                        .replace("{{filenameJson}}", filenameJson)
                         .replace("{{tier}}", tier)
                         .replace("{{machineId}}", machineId)
                         .replace("{{validUntil}}", validUntil);
 
-                mailService.sendBusiness(email, subject, emailHtml, filename, jlicBytes);
+                var attJlic = new org.example.server.auth.SmtpMailService.Attachment(filenameJlic, "application/octet-stream", jlicBytes);
+                var attJson = new org.example.server.auth.SmtpMailService.Attachment(filenameJson, "application/json", jlicBytes);
+                mailService.sendBusiness(email, subject, emailHtml, List.of(attJlic, attJson));
                 emailSent = true;
             } catch (Exception ex) {
                 emailError = ex.getMessage();
@@ -632,7 +637,9 @@ public class ClientRegistryService {
         boolean whatsappSent = false;
         String whatsappError = null;
 
-        String filename = company.replaceAll("[^a-zA-Z0-9_-]", "_") + "-license.jlic";
+        String baseName = company.replaceAll("[^a-zA-Z0-9_-]", "_");
+        String filenameJlic = baseName + "-license.jlic";
+        String filenameJson = baseName + "-license.json";
         byte[] jlicBytes = payload.getBytes(StandardCharsets.UTF_8);
 
         String caption = "Dear " + company + ",\n\n" +
@@ -641,18 +648,20 @@ public class ClientRegistryService {
                 "💻 Machine ID: " + machineId + "\n" +
                 "💎 Plan Tier: " + tier + "\n" +
                 "⏳ Valid Until: " + validUntil + "\n\n" +
-                "📄 Please find your official license file (" + filename + ") attached.\n" +
-                "To activate: Open Jasvi ERP Desktop > Import License File > Select this file.\n\n" +
+                "📄 Attached: Official Jasvi License (" + filenameJlic + ") & readable IT certificate copy (" + filenameJson + ").\n" +
+                "To activate: Open Jasvi ERP Desktop > Import License File > Select either file.\n\n" +
                 "Thank you for choosing Jasvi ERP!";
 
         if (whatsappService != null && !phone.isBlank()) {
             try {
-                // Attempt to send .jlic document via WhatsApp
-                var resp = whatsappService.sendRawFile(phone, filename, "application/octet-stream", jlicBytes, caption);
-                whatsappSent = resp != null && resp.success();
+                // Send primary .jlic file via WhatsApp
+                var resp1 = whatsappService.sendRawFile(phone, filenameJlic, "application/octet-stream", jlicBytes, caption);
+                // Follow up with readable .json certificate
+                var resp2 = whatsappService.sendRawFile(phone, filenameJson, "application/json", jlicBytes, "📄 Attached: Readable JSON license certificate copy for your IT records (" + filenameJson + ")");
+                whatsappSent = (resp1 != null && resp1.success()) || (resp2 != null && resp2.success());
                 if (!whatsappSent) {
                     // Fall back to clean text message if file sending fails
-                    String fallbackText = caption + (!email.isBlank() ? "\n\n(Official license file has also been emailed to " + email + ")" : "");
+                    String fallbackText = caption + (!email.isBlank() ? "\n\n(Official license files have also been emailed to " + email + ")" : "");
                     var textResp = whatsappService.sendText(new WahaDtos.TextSendRequest(phone, fallbackText, null));
                     whatsappSent = textResp != null && textResp.success();
                     if (!whatsappSent && textResp != null) whatsappError = textResp.message();
