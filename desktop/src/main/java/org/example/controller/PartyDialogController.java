@@ -260,9 +260,6 @@ public class PartyDialogController implements ScreenLifecycle {
                     savedResult = saved;
                     savedCreated = created;
                     close();
-                    org.example.util.AppDialogService.success((javafx.stage.Window) null,
-                            entityName + (created ? " saved" : " updated"),
-                            party.getPartyCode() + " - " + party.getName());
                 },
                 failure -> {
                     btnSave.setDisable(false);

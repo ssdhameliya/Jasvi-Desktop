@@ -1,3 +1,48 @@
+# What's New in DSE ERP v11.0.54
+
+### Ambient Activity Spinner Debounce, Real-Time Bulk Loader Progress, Large-Dataset Pagination & Review Toolbar Modernization
+- **Active Loader Breadcrumb & Dynamic Wizard Identity (`ImportController`, `Import.fxml`) (Rule 5, Rule 11 & Rule 12)**:
+  - Installed a prominent, colorized active loader badge (`lblActiveLoaderBadge`) in the header next to the page title (e.g. `[🛒 Purchases Loader]`), guaranteeing users always know which loader is selected across Steps 2, 3, and 4.
+  - Dynamically updated Step 1 subtitle in the wizard bar (*"Selected: Purchases"*) and step subtitles across mapping and review stages.
+- **Top Review & Mapping Control Toolbars & 100% Vertical Table Expansion (`Import.fxml`, `ImportController`) (Rule 5 & Rule 12)**:
+  - Reclaimed 140px+ of vertical space for Step 3 (`stepMap`) and Step 4 (`stepReview`) by relocating action buttons (`Auto Map`, `Reset Mapping`, `Back`, `Continue`, `Existing records`, `[x] Validate only`, `Run Pre-Validation`, `Import Records`) into modern top toolbars.
+  - Tables now expand to the full vertical height of the viewport, eliminating cramped scrolling.
+- **Large-Dataset Pagination, Real-Time Search & Status Filtering (`ImportController`, `ImportPreviewService`) (Rule 4, Rule 7 & Rule 12)**:
+  - Lifted the hardcoded 50-row preview limit in `ImportPreviewService` to 10,000 records.
+  - Added an instant text search bar (`txtSearchRecords`) filtering across Invoice Reference, Row #, and Error message in real time.
+  - Added a status filter dropdown (`All Records`, `Failed Only`, `Passed Only`, `Skipped Only`) and a smooth pagination toolbar (`« ‹ Page X of Y › »` with configurable page sizes: 50, 100, 250, 500, All).
+- **Colorized Semantic Validation Summary KPI Badges (`ImportController`, `Import.fxml`, `light-theme.css`, `dark-theme.css`) (Rule 6, Rule 11 & Rule 12)**:
+  - Replaced plain monochrome text with vibrant theme KPI pills: `[ 5,149 Checked ]`, `[ 0 Passed ]`, `[ 0 Failed ]`, `[ 5,149 Skipped ]`.
+- **Preflight Existing Records Protection & Interactive Dry-Run Testing (`ImportService`, `ImportController`) (Rule 4, Rule 10 & Rule 17)**:
+  - Corrected preflight validation so existing posted documents in PostgreSQL are reported as `SKIPPED (Protected)` rather than fatal `FAILED` errors under skip policy, preventing false import blocking.
+  - Dynamic button mode: Checking `Validate only (do not save)` immediately updates the button to `Test Validation (Dry Run)` and keeps it clickable on demand.
+  - Added a dedicated `Run Pre-Validation` button on the top toolbar for one-click re-validation without navigating back.
+- **Top-Bar Ambient Activity Spinner 1-Second Debounce & Dynamic Title (`DashboardController`, `UiTaskExecutor`, `Dashboard.fxml`) (Rule 4, Rule 5 & Rule 12)**:
+  - Installed a smooth 800ms – 1.0s grace period / debounce timer on the dashboard top-bar ambient activity card (`shellActivityCard`) located between the live business clock and global search bar.
+  - Sub-second operations (< 1s) remain completely tranquil without visual flicker or distracting pop-ins, while long-running operations (> 1s) gracefully reveal the rotating indicator card.
+  - Upgraded task feedback from a static "Working…" to dynamic, context-aware operational descriptions (*"Refreshing…", "Sending Email…", "Sending WhatsApp…", "Generating PDF…", "Importing Data…"*) driven by `UiTaskExecutor.activeDescriptionProperty()`.
+- **Two-Phase Real-Time Progress Tracking for Enterprise Bulk Loading (`ImportService`, `BankStatementImportCoordinator`) (Rule 4, Rule 10 & Rule 17)**:
+  - Re-architected data import execution across all ERP modules (Purchases, Sales, Items, Customers, Suppliers, Master Categories, Bank Statements) into an explicit two-phase progress model.
+  - **Phase 1 (Workbook Pre-Validation)**: Real-time row-by-row scanning, reference normalization, and validation progress reporting.
+  - **Phase 2 (Live Database Ledger Booking)**: Solved the frozen progress bar defect where saving thousands of records occurred in silence after sheet parsing. Every single document saved to PostgreSQL now dispatches live transactional progress (*"Booking Purchase 1,240 of 5,100 (Invoice: PUR-2026-0812) • 24%"*).
+  - Enhanced `BankStatementImportCoordinator` to stream multi-stage progress (*"Parsing Statement"*, *"Shipping Batch to Server"*, *"Reconciling Transactions"*) during CSV statement ingestion.
+- **Dedicated Modal Import Guard Shield & Global Navigation Lockout (`ImportController`, `Import.fxml`, `light-theme.css`, `dark-theme.css`) (Rule 5 & Rule 12)**:
+  - Introduced a full-pane glassmorphism modal shield (`importShieldOverlay`) over the data import workspace that consumes all mouse and keyboard events during active transactional imports.
+  - Features the centralized 3D dual-ring glowing gyroscope spinner (`LoadingOverlayHelper.createGyroscope`), live record counter, percentage tracker, and guidance notice (*"Navigation is temporarily locked. Please do not close or leave this screen until data import completes safely"*).
+  - Enforced strict navigation locking via `UnsavedChangesManager`, preventing accidental Back-button clicks, tab switching, or state corruption while database commits are in-flight.
+- **Enterprise Multi-Department WhatsApp Routing & Real-Time QR Scanner Pairing (`SecuritySettingsPanel.fxml`, `SettingsController`, `BusinessWhatsappService`, `BusinessWhatsappController`, `WahaApiClient`) (Rule 4, Rule 5, Rule 11 & Rule 17)**:
+  - Added Department Channel Routing matrix ComboBoxes in System Settings (`SecuritySettingsPanel.fxml`) allowing independent or shared WhatsApp channel assignments across Sales, Purchases, Quotations, and General communications.
+  - Resolved secondary WhatsApp pairing freeze on workstation scanners: distinguished WAHA `ENGINE_STARTING` from `AUTHENTICATING` states and added active session startup (`POST /api/sessions/{session}/start`).
+  - Added dynamic document type routing in voucher dispatch flows (`SalesListController`, `PurchaseListController`, `QuotationController`), displaying real-time "Sending via: <channel>" indicator labels.
+- **Option B Universal Modal Immunity & Zero Window Occlusion Guarantee (Rule 4, Rule 5, Rule 10 & Rule 12)**:
+  - Eliminated the native Win32 Desktop Window Manager Z-order inversion bug where closing child modal dialogs caused success popups to hide behind the main window, locking the workstation until `[Esc]` was pressed.
+  - Re-architected `PartyDialogController` and `LookupDialogController` to close cleanly and return saved records to parent callers (`PartyMasterController`, `SalesController`, `PurchaseController`, `Customer360Controller`, `Supplier360Controller`, `MasterDataController`).
+  - Parent callers now dispatch top-level, non-occluded success toasts via `Platform.runLater(() -> AppDialogService.success(...))` across all 7 screens with 100% theme contrast and zero window occlusion.
+- **Customer 360° & Supplier 360° Optional Symbol Modernization (`Customer360Controller`, `Supplier360Controller`) (Rule 4 & Rule 10)**:
+  - Resolved `Optional<Party>` javac lookup symbol definitions in both 360° controller compilation targets for seamless workstation IDE and CI builds.
+- **Offline PostgreSQL Outbox Synchronization Engine & Protocol (`OfflineSyncWorker`, `SyncApiClient`, `SyncService`, `SyncController`) (Rule 4, Rule 10 & Rule 17)**:
+  - Established offline transactional sync architecture with dedicated Flyway migration `V11_0_50_1__offline_postgresql_sync_schema.sql`, audit entities, and outbox batch pipelines.
+
 # What's New in DSE ERP v11.0.53
 
 ### Universal 3D Loading Overlay, Post-Payment Attachment Retention & Context Menu Modernization

@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.awt.Desktop;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * DSE ERP 9.0.52 Customer 360°.
@@ -126,7 +127,7 @@ public class Customer360Controller implements ScreenLifecycle {
     private <T> void load(String key,java.util.concurrent.Callable<List<T>> task,java.util.function.Consumer<List<T>> apply){UiTaskExecutor.submitLatest(key,task,x->apply.accept(x==null?List.of():x),e->{loaded.remove(tabs.getSelectionModel().getSelectedItem());showError(e);});}
 
     @FXML private void backToCustomers(){NavigationManager.navigateOrReport("/fxml/pages/Customer.fxml");}
-    @FXML private void editCustomer(){if(customer==null)return;try{PartyDialog.show(tabs,"CUSTOMER",customer);refreshCustomerFromMaster();}catch(Exception e){showError(e);}}
+    @FXML private void editCustomer(){if(customer==null)return;try{Optional<org.example.model.Party> saved = PartyDialog.show(tabs,"CUSTOMER",customer);refreshCustomerFromMaster();if(saved.isPresent()){org.example.model.Party p = saved.get();javafx.application.Platform.runLater(()->org.example.util.AppDialogService.success(tabs,"Customer Updated Successfully",p.getPartyCode()+" — "+p.getName()));}}catch(Exception e){showError(e);}}
     private void refreshCustomerFromMaster(){UiTaskExecutor.submitLatest("customer-360-master-refresh",()->new org.example.service.PartyService().search("CUSTOMER",customer.getPartyCode(),20),rows->{rows.stream().filter(p->p.getId()==customer.getId()).findFirst().ifPresent(p->{customer=p;renderParty(p);loadSummary();});},this::showError);}
     @FXML private void newSale(){if(customer==null)return;CustomerSaleContext.select(customer.getId());NavigationManager.navigateOrReport("/fxml/pages/Sale.fxml");}
     @FXML private void refresh(){if(customer==null)return;loaded.clear();loaded.add(tabOverview);loadSummary();loadTab(tabs.getSelectionModel().getSelectedItem());}

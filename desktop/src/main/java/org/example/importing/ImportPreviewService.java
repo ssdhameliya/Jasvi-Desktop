@@ -16,8 +16,8 @@ import java.util.*;
  * without starting JavaFX.</p>
  */
 public final class ImportPreviewService {
-    private static final int STANDARD_PREVIEW_LIMIT = 50;
-    private static final int RECON_PREVIEW_LIMIT = 100;
+    private static final int STANDARD_PREVIEW_LIMIT = 10000;
+    private static final int RECON_PREVIEW_LIMIT = 10000;
 
     public record Inspection(SpreadsheetLayoutDetector.Layout layout, List<String> headers) { }
     public record Preview(List<Map<String, String>> rows, int sheetCount, String message, boolean success) { }

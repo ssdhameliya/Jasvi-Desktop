@@ -65,6 +65,14 @@ public final class BusinessWhatsappApiClient {
         return put("/api/authority/whatsapp/channels/" + id + "/default", null, new TypeReference<Map<String, Object>>() {});
     }
 
+    public DepartmentRoutingDto getDepartmentRouting() {
+        return get("/api/authority/whatsapp/routing", DepartmentRoutingDto.class);
+    }
+
+    public DepartmentRoutingDto saveDepartmentRouting(DepartmentRoutingDto dto) {
+        return put("/api/authority/whatsapp/routing", dto, DepartmentRoutingDto.class);
+    }
+
     public QrResponse getQrCode(String session) {
         String path = (session == null || session.isBlank())
                 ? "/api/authority/whatsapp/qr"
@@ -138,5 +146,6 @@ public final class BusinessWhatsappApiClient {
     public record SendResponse(boolean success, String message, String messageId, String channelCode, String recipientPhone) {}
     public record QrResponse(String session, String qrImageBase64, String status, String message) {}
     public record HealthResponse(boolean connected, String message, String serverVersion, List<SessionStatus> sessions) {}
+    public record DepartmentRoutingDto(Long defaultChannelId, Long salesChannelId, Long purchaseChannelId, Long quotationChannelId) {}
     public record SessionStatus(String name, String status) {}
 }

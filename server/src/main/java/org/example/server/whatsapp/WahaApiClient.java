@@ -180,6 +180,16 @@ public class WahaApiClient {
                     .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
                     .build();
             HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+            
+            // Explicitly start the session to trigger headless browser launch
+            try {
+                HttpRequest startReq = request(endpoint, "/api/sessions/" + session + "/start", apiKey)
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.noBody())
+                        .build();
+                http.send(startReq, HttpResponse.BodyHandlers.ofString());
+            } catch (Exception ignored) {}
+
             return (res.statusCode() >= 200 && res.statusCode() < 300) || res.statusCode() == 422;
         } catch (Exception e) {
             log.warn("Failed to start WAHA session {}: {}", session, e.getMessage());
@@ -219,12 +229,7 @@ public class WahaApiClient {
                     continue;
                 }
 
-                if ("STARTING".equalsIgnoreCase(current.status())) {
-                    // Return fast so client poll timeline can smoothly update without hitting HTTP timeouts
-                    return new WahaDtos.QrResponse(session, null, "STARTING", "WhatsApp Web is starting up. Preparing QR code...");
-                }
-
-                // Request QR code image/png with ?format=image
+                // First attempt to fetch the QR image directly (works even during transition to SCAN_QR_CODE)
                 HttpRequest req = request(endpoint, "/api/" + session + "/auth/qr?format=image", apiKey)
                         .header("Accept", "image/png, application/json, */*")
                         .GET()
@@ -249,9 +254,9 @@ public class WahaApiClient {
                             }
                         } catch (Exception ignored) {}
                     }
-                } else if (res.statusCode() == 422) {
-                    // Session is transitioning
-                    return new WahaDtos.QrResponse(session, null, "STARTING", "WhatsApp session is initializing. Preparing QR code...");
+                } else if (res.statusCode() == 422 || (current != null && "STARTING".equalsIgnoreCase(current.status()))) {
+                    // Session is booting headless browser
+                    return new WahaDtos.QrResponse(session, null, "ENGINE_STARTING", "WhatsApp Web engine is starting up. Preparing pairing QR code...");
                 } else if (res.statusCode() == 404 || res.statusCode() == 400) {
                     return new WahaDtos.QrResponse(session, null, "ALREADY_CONNECTED", "Session is already connected or QR code is not pending.");
                 }
@@ -264,7 +269,7 @@ public class WahaApiClient {
             log.info("WAHA QR notice for {}: {}", session, e.getMessage());
             return new WahaDtos.QrResponse(session, null, "OFFLINE", "WhatsApp engine (WAHA) is not running on the server. Please ensure the server container is started.");
         }
-        return new WahaDtos.QrResponse(session, null, "STARTING", "WhatsApp Web is starting up. Preparing QR code...");
+        return new WahaDtos.QrResponse(session, null, "ENGINE_STARTING", "WhatsApp Web engine is starting up. Preparing pairing QR code...");
     }
 
     public WahaDtos.SendResponse sendText(String endpoint, String apiKey, String sessionName, String chatId, String text) {

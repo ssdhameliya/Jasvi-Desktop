@@ -62,6 +62,45 @@ public class BusinessWhatsappService {
                 key, value == null ? "" : value);
     }
 
+    private Long getSettingLong(String key, Long def) {
+        try {
+            String val = getSetting(key, "");
+            if (val != null && !val.isBlank()) return Long.parseLong(val.trim());
+        } catch (Exception ignored) {}
+        return def;
+    }
+
+    @Transactional(readOnly = true)
+    public WahaDtos.DepartmentRoutingDto getDepartmentRouting() {
+        Long defId = getSettingLong("whatsapp.channel.default_id", null);
+        if (defId == null || defId <= 0) {
+            defId = channelRepo.findFirstByIsDefaultTrueAndIsActiveTrue()
+                    .map(WhatsappSenderChannelEntity::getId)
+                    .orElse(null);
+        }
+        Long salesId = getSettingLong("whatsapp.channel.sales_id", 0L);
+        Long purchaseId = getSettingLong("whatsapp.channel.purchase_id", 0L);
+        Long quoteId = getSettingLong("whatsapp.channel.quotation_id", 0L);
+        return new WahaDtos.DepartmentRoutingDto(defId, salesId, purchaseId, quoteId);
+    }
+
+    @Transactional
+    public void saveDepartmentRouting(WahaDtos.DepartmentRoutingDto dto) {
+        if (dto == null) return;
+        if (dto.defaultChannelId() != null && dto.defaultChannelId() > 0) {
+            updateSetting("whatsapp.channel.default_id", String.valueOf(dto.defaultChannelId()));
+            setDefaultChannel(dto.defaultChannelId());
+        }
+        updateSetting("whatsapp.channel.sales_id", String.valueOf(dto.salesChannelId() == null ? 0L : dto.salesChannelId()));
+        updateSetting("whatsapp.channel.purchase_id", String.valueOf(dto.purchaseChannelId() == null ? 0L : dto.purchaseChannelId()));
+        updateSetting("whatsapp.channel.quotation_id", String.valueOf(dto.quotationChannelId() == null ? 0L : dto.quotationChannelId()));
+
+        audit.logChange("SETTING", 0, "WHATSAPP_ROUTING_UPDATED",
+                "WhatsApp department routing updated", "DepartmentRouting", "",
+                "Default=" + dto.defaultChannelId() + ", Sales=" + dto.salesChannelId() +
+                ", Purchase=" + dto.purchaseChannelId() + ", Quotation=" + dto.quotationChannelId());
+    }
+
     @Transactional(readOnly = true)
     public WahaDtos.WahaSettingsDto getSettings() {
         String endpoint = getSetting("whatsapp.waha.endpoint", "http://localhost:3000");
@@ -282,7 +321,7 @@ public class BusinessWhatsappService {
             throw new IllegalStateException("WhatsApp integration is currently disabled in Settings.");
         }
 
-        WhatsappSenderChannelEntity channel = resolveChannel(req.channelId());
+        WhatsappSenderChannelEntity channel = resolveChannelForDocument(req.documentType(), req.channelId());
         String chatId = formatChatId(req.recipientPhone());
 
         String companyName = getSetting("company.name", "Jasvi Industries");
@@ -385,7 +424,7 @@ public class BusinessWhatsappService {
             throw new IllegalStateException("WhatsApp integration is currently disabled in Settings.");
         }
 
-        WhatsappSenderChannelEntity channel = resolveChannel(req.channelId());
+        WhatsappSenderChannelEntity channel = resolveChannelForDocument(null, req.channelId());
         String chatId = formatChatId(req.recipientPhone());
 
         WahaDtos.SendResponse response = wahaClient.sendText(settings.endpoint(), settings.apiKey(),
@@ -409,6 +448,30 @@ public class BusinessWhatsappService {
         } catch (Exception logEx) {
             log.warn("Failed to record text communication log: {}", logEx.getMessage());
         }
+    }
+
+    public WhatsappSenderChannelEntity resolveChannelForDocument(String docType, Long explicitChannelId) {
+        if (explicitChannelId != null && explicitChannelId > 0) {
+            var ch = channelRepo.findById(explicitChannelId).filter(WhatsappSenderChannelEntity::getIsActive);
+            if (ch.isPresent()) return ch.get();
+        }
+
+        String type = docType != null ? docType.toUpperCase(Locale.ROOT) : "";
+        Long deptChannelId = switch (type) {
+            case "SALE", "SALES", "SALES_INVOICE", "DELIVERY_CHALLAN" -> getSettingLong("whatsapp.channel.sales_id", 0L);
+            case "PURCHASE", "PURCHASE_ORDER", "VENDOR_PO" -> getSettingLong("whatsapp.channel.purchase_id", 0L);
+            case "QUOTATION", "QUOTE", "ESTIMATE" -> getSettingLong("whatsapp.channel.quotation_id", 0L);
+            default -> 0L;
+        };
+
+        if (deptChannelId != null && deptChannelId > 0) {
+            var ch = channelRepo.findById(deptChannelId).filter(WhatsappSenderChannelEntity::getIsActive);
+            if (ch.isPresent()) {
+                return ch.get();
+            }
+        }
+
+        return resolveDefaultChannel();
     }
 
     private WhatsappSenderChannelEntity resolveChannel(Long channelId) {

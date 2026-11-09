@@ -73,6 +73,13 @@ public final class WahaDtos {
         List<SessionStatus> sessions
     ) {}
 
+    public record DepartmentRoutingDto(
+        Long defaultChannelId,
+        Long salesChannelId,
+        Long purchaseChannelId,
+        Long quotationChannelId
+    ) {}
+
     public record SessionStatus(
         String name,
         String status

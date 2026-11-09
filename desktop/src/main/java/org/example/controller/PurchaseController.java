@@ -1260,6 +1260,16 @@ public class PurchaseController implements ScreenLifecycle {
                 suppliers -> {
                     cmbSupplier.getItems().setAll(suppliers == null ? List.of() : suppliers);
                     if (selected != null) selectPurchaseSupplier(selected);
+                    if (saved.isPresent()) {
+                        Party p = saved.get();
+                        javafx.application.Platform.runLater(() -> {
+                            org.example.util.AppDialogService.success(
+                                cmbSupplier,
+                                "Supplier Created Successfully",
+                                p.getPartyCode() + " — " + p.getName()
+                            );
+                        });
+                    }
                 },
                 failure -> warn("Supplier list could not be refreshed: " + rootMessage(failure))
             );

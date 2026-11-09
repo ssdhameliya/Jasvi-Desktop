@@ -81,6 +81,55 @@ class UiArchitectureContractTest {
         assertTrue(violations.isEmpty(), String.join("\n", violations));
     }
 
+    @Test
+    void everyFxmlOnActionMatchesAValidControllerMethod() throws Exception {
+        List<String> violations = new ArrayList<>();
+        try (var files = Files.walk(FXML_ROOT)) {
+            for (Path path : files.filter(p -> p.toString().endsWith(".fxml")).toList()) {
+                var document = parse(path);
+                Element root = document.getDocumentElement();
+                String controllerName = root.getAttributeNS("http://javafx.com/fxml/1", "controller");
+                if (controllerName == null || controllerName.isBlank()) {
+                    controllerName = root.getAttribute("fx:controller");
+                }
+                if (controllerName == null || controllerName.isBlank()) continue;
+                Class<?> controllerClass;
+                try {
+                    controllerClass = Class.forName(controllerName);
+                } catch (ClassNotFoundException e) {
+                    continue;
+                }
+                NodeList all = document.getElementsByTagName("*");
+                for (int i = 0; i < all.getLength(); i++) {
+                    if (!(all.item(i) instanceof Element element)) continue;
+                    String onAction = element.getAttribute("onAction");
+                    if (onAction == null || !onAction.startsWith("#")) continue;
+                    String methodName = onAction.substring(1).trim();
+                    if (methodName.isEmpty()) continue;
+                    boolean found = false;
+                    Class<?> current = controllerClass;
+                    while (current != null && current != Object.class) {
+                        for (var method : current.getDeclaredMethods()) {
+                            if (method.getName().equals(methodName)) {
+                                if (java.lang.reflect.Modifier.isPublic(method.getModifiers())
+                                        || method.isAnnotationPresent(javafx.fxml.FXML.class)) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (found) break;
+                        current = current.getSuperclass();
+                    }
+                    if (!found) {
+                        violations.add(path + " -> " + controllerName + " :: onAction='#" + methodName + "' is missing @FXML annotation or method declaration");
+                    }
+                }
+            }
+        }
+        assertTrue(violations.isEmpty(), "Unresolved FXML onAction handlers found:\n" + String.join("\n", violations));
+    }
+
     private static org.w3c.dom.Document parse(Path path) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);

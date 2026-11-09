@@ -101,21 +101,46 @@ public class ImportService {
         }
     }
 
+    @FunctionalInterface
+    public interface ImportProgressCallback {
+        void onProgress(String phase, String detail, int current, int total);
+    }
+
+    private static ImportProgressCallback wrap(BiConsumer<Integer, Integer> progress) {
+        if (progress == null) return null;
+        return (phase, detail, cur, tot) -> progress.accept(cur, tot);
+    }
+
     // ---------------- Customers ----------------
     public ImportResult importCustomers(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
                                         BiConsumer<Integer,Integer> progress) throws Exception {
+        return importCustomers(file, mapping, dryRun, mode, wrap(progress));
+    }
+
+    public ImportResult importCustomers(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
+                                        ImportProgressCallback progress) throws Exception {
         return importParties(file, mapping, dryRun, mode, progress, "CUSTOMER");
     }
 
     // ---------------- Suppliers ----------------
     public ImportResult importSuppliers(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
                                         BiConsumer<Integer,Integer> progress) throws Exception {
+        return importSuppliers(file, mapping, dryRun, mode, wrap(progress));
+    }
+
+    public ImportResult importSuppliers(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
+                                        ImportProgressCallback progress) throws Exception {
         return importParties(file, mapping, dryRun, mode, progress, "SUPPLIER");
     }
 
     // ---------------- Items ----------------
     public ImportResult importItems(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
                                     BiConsumer<Integer,Integer> progress) throws Exception {
+        return importItems(file, mapping, dryRun, mode, wrap(progress));
+    }
+
+    public ImportResult importItems(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
+                                    ImportProgressCallback progress) throws Exception {
         List<Item> items = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         List<ImportRowResult> details = new ArrayList<>();
@@ -165,7 +190,9 @@ public class ImportService {
                     errors.add("Row " + (i + 1) + ": " + ex.getMessage());
                     details.add(new ImportRowResult(String.valueOf(i + 1), "", "FAILED", "NONE", ex.getMessage(), "", 0));
                 }
-                progress.accept(i, total);
+                if (progress != null) {
+                    progress.onProgress("Validating Workbook", "Scanning item row " + (i + 1) + " of " + Math.max(1, total), i, Math.max(1, total));
+                }
             }
         }
 
@@ -200,6 +227,7 @@ public class ImportService {
                 }
             }
         } else {
+            int saved = 0;
             for (Item item : items) {
                 if (seenCodes.contains(item.getItemCode())) {
                     errors.add("Duplicate in sheet skipped: " + item.getItemCode());
@@ -235,6 +263,10 @@ public class ImportService {
                     details.add(new ImportRowResult("", item.getItemCode(), "FAILED", "NONE", message, "", 0));
                     skipped++;
                 }
+                saved++;
+                if (progress != null) {
+                    progress.onProgress("Saving Items to Inventory", "Saved item " + item.getItemCode() + " (" + saved + " of " + items.size() + ")", saved, items.size());
+                }
             }
         }
 
@@ -244,17 +276,27 @@ public class ImportService {
     /** Imports sales invoices, grouping multiple spreadsheet rows by invoice number. */
     public ImportResult importSales(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
                                     BiConsumer<Integer,Integer> progress) throws Exception {
+        return importSales(file, mapping, dryRun, mode, wrap(progress));
+    }
+
+    public ImportResult importSales(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
+                                    ImportProgressCallback progress) throws Exception {
         return importDocuments(file, mapping, dryRun, mode, progress, true);
     }
 
     /** Imports purchase invoices, grouping multiple spreadsheet rows by invoice number. */
     public ImportResult importPurchases(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
                                         BiConsumer<Integer,Integer> progress) throws Exception {
+        return importPurchases(file, mapping, dryRun, mode, wrap(progress));
+    }
+
+    public ImportResult importPurchases(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
+                                        ImportProgressCallback progress) throws Exception {
         return importDocuments(file, mapping, dryRun, mode, progress, false);
     }
 
     private ImportResult importDocuments(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
-                                         BiConsumer<Integer,Integer> progress, boolean sales) throws Exception {
+                                         ImportProgressCallback progress, boolean sales) throws Exception {
         List<DocumentImportRow> rows = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         List<ImportRowResult> details = new ArrayList<>();
@@ -316,7 +358,9 @@ public class ImportService {
                     details.add(new ImportRowResult(String.valueOf(sourceRow), "", "FAILED", "NONE",
                         ex.getMessage(), "", 0));
                 }
-                progress.accept(i, Math.max(1, total));
+                if (progress != null) {
+                    progress.onProgress("Validating Workbook", "Scanning row " + sourceRow + " of " + Math.max(1, total), i - layout.headerRowIndex(), Math.max(1, total));
+                }
             }
         }
 
@@ -332,12 +376,22 @@ public class ImportService {
         }
 
         if (dryRun) {
+            int validated = 0;
+            int drySkipped = 0;
             for (Map.Entry<String,List<DocumentImportRow>> entry : grouped.entrySet()) {
+                validated++;
+                if (progress != null) {
+                    progress.onProgress("Validating Documents", "Checking document consistency: " + entry.getKey() + " (" + validated + " of " + grouped.size() + ")", validated, grouped.size());
+                }
                 DocumentImportRow first = entry.getValue().get(0);
                 try {
                     validateDocumentHeaderConsistency(entry.getValue());
-                    if (existingDocumentNumbers.contains(entry.getKey().toUpperCase(Locale.ROOT)))
-                        throw new IllegalArgumentException("Existing posted " + (sales ? "sales" : "purchase") + " invoice is protected and cannot be imported again");
+                    if (existingDocumentNumbers.contains(entry.getKey().toUpperCase(Locale.ROOT))) {
+                        drySkipped++;
+                        details.add(new ImportRowResult(sourceRows(entry.getValue()), entry.getKey(), "SKIPPED", "NONE",
+                            "Existing posted " + (sales ? "sales" : "purchase") + " invoice is protected and will be skipped", first.taxType(), first.gst()));
+                        continue;
+                    }
                     if (sales) {
                         Map<String,Double> invoiceQty = new HashMap<>();
                         for (DocumentImportRow importedRow : entry.getValue()) {
@@ -369,7 +423,7 @@ public class ImportService {
                         ex.getMessage(), first.taxType(), first.gst()));
                 }
             }
-            return new ImportResult(grouped.size(), 0, 0, errors.size(), errors, details);
+            return new ImportResult(grouped.size(), 0, 0, drySkipped, errors, details);
         }
 
         PartyService partyService = new PartyService();
@@ -387,6 +441,8 @@ public class ImportService {
             addDocumentIdentity(existingDocuments, doc.getInvoiceNo());
         });
         int imported = 0, skipped = 0;
+        int booked = 0;
+        int totalDocs = grouped.size();
 
         for (Map.Entry<String,List<DocumentImportRow>> entry : grouped.entrySet()) {
             DocumentImportRow first = entry.getValue().get(0);
@@ -523,6 +579,13 @@ public class ImportService {
                 }
 
                 imported++;
+                booked++;
+                if (progress != null) {
+                    String docType = sales ? "Sales Invoice" : "Purchase Invoice";
+                    progress.onProgress("Booking " + (sales ? "Sales" : "Purchases") + " into Ledger",
+                        "Booked " + docType + " " + booked + " of " + totalDocs + " (Ref: " + entry.getKey() + ")",
+                        booked, totalDocs);
+                }
                 String action = postSaveWarning.isBlank() ? "CREATED" : "CREATED WITH WARNING";
                 String detailMessage = postSaveWarning.isBlank()
                     ? ImportDocumentPolicy.taxDescription(taxType, representativeRate)
@@ -531,6 +594,13 @@ public class ImportService {
                     detailMessage, taxType, representativeRate));
             } catch (Exception ex) {
                 skipped++;
+                booked++;
+                if (progress != null) {
+                    String docType = sales ? "Sales Invoice" : "Purchase Invoice";
+                    progress.onProgress("Booking " + (sales ? "Sales" : "Purchases") + " into Ledger",
+                        "Processed " + docType + " " + booked + " of " + totalDocs + " (Skipped / Error)",
+                        booked, totalDocs);
+                }
                 String message = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
                 errors.add(entry.getKey() + ": " + message);
                 details.add(new ImportRowResult(rowRange, entry.getKey(), "FAILED", "NONE",
@@ -551,6 +621,11 @@ public class ImportService {
     /** Imports both master categories and their reusable values. */
     public ImportResult importMasterValues(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
                                            BiConsumer<Integer,Integer> progress) throws Exception {
+        return importMasterValues(file, mapping, dryRun, mode, wrap(progress));
+    }
+
+    public ImportResult importMasterValues(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
+                                           ImportProgressCallback progress) throws Exception {
         List<String> errors = new ArrayList<>();
         List<ImportRowResult> details = new ArrayList<>();
         int processed = 0, imported = 0, updated = 0, skipped = 0;
@@ -626,7 +701,7 @@ public class ImportService {
                         if (exists && (mode == ImportMode.CREATE_ONLY || mode == ImportMode.SKIP_EXISTING)) {
                             skipped++;
                             details.add(new ImportRowResult(String.valueOf(i + 1), categoryCode + "/" + effectiveCode, "SKIPPED", "NONE", "Existing master value preserved", "", 0));
-                            progress.accept(i, Math.max(1, total));
+                            progress.onProgress("Processing Master Values", "Skipped " + categoryCode + "/" + effectiveCode, i, Math.max(1, total));
                             continue;
                         }
                         if (!exists) lookup = new Lookup();
@@ -654,7 +729,9 @@ public class ImportService {
                     errors.add("Row " + (i + 1) + ": " + message);
                     details.add(new ImportRowResult(String.valueOf(i + 1), "", "FAILED", "NONE", message, "", 0));
                 }
-                progress.accept(i, Math.max(1, total));
+                if (progress != null) {
+                    progress.onProgress("Saving Master Values", "Processed master row " + (i + 1) + " of " + Math.max(1, total), i - layout.headerRowIndex(), Math.max(1, total));
+                }
             }
         }
         return new ImportResult(processed, imported, updated, skipped, errors, details);
@@ -663,7 +740,7 @@ public class ImportService {
 
     // ---------------- Shared Party Import ----------------
     private ImportResult importParties(Path file, Map<String,String> mapping, boolean dryRun, ImportMode mode,
-                                       BiConsumer<Integer,Integer> progress, String partyType) throws Exception {
+                                       ImportProgressCallback progress, String partyType) throws Exception {
         List<Party> parties = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         List<ImportRowResult> details = new ArrayList<>();
@@ -713,7 +790,9 @@ public class ImportService {
                     errors.add("Row " + (i + 1) + ": " + ex.getMessage());
                     details.add(new ImportRowResult(String.valueOf(i + 1), "", "FAILED", "NONE", ex.getMessage(), "", 0));
                 }
-                progress.accept(i, total);
+                if (progress != null) {
+                    progress.onProgress("Validating Workbook", "Scanning " + ("CUSTOMER".equals(partyType) ? "customer" : "supplier") + " row " + (i + 1) + " of " + Math.max(1, total), i - layout.headerRowIndex(), Math.max(1, total));
+                }
             }
         }
 
@@ -750,6 +829,7 @@ public class ImportService {
                 }
             }
         } else {
+            int saved = 0;
             for (Party p : parties) {
                 if (seenCodes.contains(p.getPartyCode())) {
                     errors.add("Duplicate in sheet skipped: " + p.getPartyCode());
@@ -781,6 +861,12 @@ public class ImportService {
                     errors.add("Party " + p.getPartyCode() + ": " + message);
                     details.add(new ImportRowResult("", p.getPartyCode(), "FAILED", "NONE", message, "", 0));
                     skipped++;
+                }
+                saved++;
+                if (progress != null) {
+                    progress.onProgress("Saving " + ("CUSTOMER".equals(partyType) ? "Customers" : "Suppliers") + " to Database",
+                        "Saved " + p.getName() + " (" + saved + " of " + parties.size() + ")",
+                        saved, parties.size());
                 }
             }
         }
