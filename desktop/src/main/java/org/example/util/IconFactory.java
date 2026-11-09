@@ -1233,7 +1233,8 @@ public final class IconFactory {
         if (value.startsWith("←") && value.contains("template")) return "previous";
         if (value.equals("↶") || value.equals("undo")) return "reset";
         if (value.equals("↷") || value.equals("redo")) return "reopen";
-        if (value.equals("●")) return "active";
+        if (value.equals("●") || value.contains("active")) return "active";
+        if (value.contains("disabled") || value.contains("inactive")) return "dismiss";
 
         // Specific actions must win before broad business nouns.
         if (value.contains("remote access") || value.contains("remote sharing") || value.contains("tunnel")) return "server";
