@@ -1108,6 +1108,7 @@ public class SalesController implements ScreenLifecycle {
     // -------------------------------------------------------
 
     private void setupTable() {
+        setupResponsiveTableColumns();
 
         colCode.setCellValueFactory(
                 value -> new javafx.beans.property.SimpleStringProperty(safeItem(value.getValue().getItemCode())));
@@ -1141,6 +1142,44 @@ public class SalesController implements ScreenLifecycle {
         colTotal.setCellValueFactory(
                 new PropertyValueFactory<>("totalAmount"));
 
+    }
+
+    private void setupResponsiveTableColumns() {
+        if (colCode == null || tableLines == null) return;
+        colCode.setMinWidth(85);
+        colItem.setMinWidth(140);
+        colCategory.setMinWidth(75);
+        colHsn.setMinWidth(75);
+        colUnit.setMinWidth(55);
+        colQuantity.setMinWidth(60);
+        colRate.setMinWidth(75);
+        colDiscount.setMinWidth(60);
+        colDiscountAmount.setMinWidth(75);
+        colGst.setMinWidth(60);
+        colNetAmount.setMinWidth(85);
+        colGstAmount.setMinWidth(90);
+        colTotal.setMinWidth(105);
+
+        tableLines.widthProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && newVal.doubleValue() > 0) {
+                double total = newVal.doubleValue() - 18;
+                if (total > 1040) {
+                    colCode.setPrefWidth(total * 0.08);
+                    colItem.setPrefWidth(total * 0.18);
+                    colCategory.setPrefWidth(total * 0.07);
+                    colHsn.setPrefWidth(total * 0.07);
+                    colUnit.setPrefWidth(total * 0.05);
+                    colQuantity.setPrefWidth(total * 0.06);
+                    colRate.setPrefWidth(total * 0.07);
+                    colDiscount.setPrefWidth(total * 0.06);
+                    colDiscountAmount.setPrefWidth(total * 0.07);
+                    colGst.setPrefWidth(total * 0.06);
+                    colNetAmount.setPrefWidth(total * 0.08);
+                    colGstAmount.setPrefWidth(total * 0.07);
+                    colTotal.setPrefWidth(total * 0.08);
+                }
+            }
+        });
     }
 
     // -------------------------------------------------------
@@ -1670,13 +1709,27 @@ public class SalesController implements ScreenLifecycle {
 
     @FXML
     private void attachFile() {
-        if (viewMode)
+        if (viewMode && (editingSale == null || editingSale.getId() <= 0))
             return;
         javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
         chooser.setTitle("Attach document to sale");
         File file = chooser.showOpenDialog(tableLines.getScene().getWindow());
         if (file == null)
             return;
+        if (editingSale != null && editingSale.getId() > 0 && (viewMode || (btnSaveSale != null && btnSaveSale.isDisabled()))) {
+            UiTaskExecutor.submitActionWithOverlay(tableLines, "Uploading attachment…", "upload-sale-attachment-" + editingSale.getId(), () -> {
+                long version = editingSale.getRowVersion();
+                return supportApi.uploadDocumentAttachment("SALE", editingSale.getId(), file.toPath(), version);
+            }, reference -> {
+                editingSale.setAttachmentPath(reference);
+                if (txtAttachment != null) txtAttachment.setText(reference);
+                pendingAttachment = null;
+                attachmentRemovalPending = false;
+                refreshAttachmentUi();
+                org.example.util.AppDialogService.success(tableLines, "Attachment Uploaded", "Document attachment '" + file.getName() + "' has been saved to Invoice #" + editingSale.getInvoiceNo() + ".");
+            }, failure -> warn("Failed to upload attachment: " + rootMessage(failure)));
+            return;
+        }
         pendingAttachment = file;
         attachmentRemovalPending = false;
         org.example.navigation.UnsavedChangesManager.touch(tableLines);
@@ -1715,13 +1768,27 @@ public class SalesController implements ScreenLifecycle {
 
     @FXML
     private void removeAttachment() {
-        if (viewMode)
-            return;
         boolean hasAttachment = pendingAttachment != null
                 || (!attachmentRemovalPending && currentAttachmentReference() != null
                         && !currentAttachmentReference().isBlank());
-        if (hasAttachment && !confirmAction("Remove attachment", "Remove the selected sales attachment?"))
+        if (!hasAttachment)
             return;
+        if (!confirmAction("Remove attachment", "Remove the selected sales attachment?"))
+            return;
+        if (editingSale != null && editingSale.getId() > 0 && (viewMode || (btnSaveSale != null && btnSaveSale.isDisabled()))) {
+            UiTaskExecutor.submitActionWithOverlay(tableLines, "Removing attachment…", "remove-sale-attachment-" + editingSale.getId(), () -> {
+                supportApi.deletePrimaryDocumentAttachment("SALE", editingSale.getId(), editingSale.getRowVersion());
+                return true;
+            }, success -> {
+                editingSale.setAttachmentPath("");
+                if (txtAttachment != null) txtAttachment.clear();
+                pendingAttachment = null;
+                attachmentRemovalPending = false;
+                refreshAttachmentUi();
+                org.example.util.AppDialogService.success(tableLines, "Attachment Removed", "Attachment has been removed from Invoice #" + editingSale.getInvoiceNo() + ".");
+            }, failure -> warn("Failed to remove attachment: " + rootMessage(failure)));
+            return;
+        }
         pendingAttachment = null;
         attachmentRemovalPending = true;
         org.example.navigation.UnsavedChangesManager.touch(tableLines);
@@ -1741,12 +1808,15 @@ public class SalesController implements ScreenLifecycle {
         lblAttachmentName.setTooltip(available ? new Tooltip(name) : null);
         if (btnAttachmentAdd != null) {
             btnAttachmentAdd.setText(available ? "Replace" : "Add");
-            btnAttachmentAdd.setDisable(viewMode);
+            boolean disableAdd = viewMode && (editingSale == null || editingSale.getId() <= 0);
+            btnAttachmentAdd.setDisable(disableAdd);
         }
         if (btnAttachmentPreview != null)
             btnAttachmentPreview.setDisable(!available);
-        if (btnAttachmentRemove != null)
-            btnAttachmentRemove.setDisable(viewMode || !available);
+        if (btnAttachmentRemove != null) {
+            boolean disableRemove = (viewMode && (editingSale == null || editingSale.getId() <= 0)) || !available;
+            btnAttachmentRemove.setDisable(disableRemove);
+        }
     }
 
     private String currentAttachmentReference() {

@@ -35,6 +35,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
@@ -484,6 +485,10 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private Button btnShortcutApplication;
     @FXML private Button btnShortcutQuickCreate;
     @FXML private Button btnShortcutNavigation;
+    @FXML private Button btnStatusAll;
+    @FXML private Button btnStatusActive;
+    @FXML private Button btnStatusDisabled;
+    private String shortcutStatusFilter = "ALL";
     @FXML private StackPane shortcutHeaderIcon;
     @FXML private StackPane shortcutDrawerIcon;
     @FXML private StackPane shortcutKpiTotalIcon;
@@ -2084,7 +2089,9 @@ private record AssetPreviewRequest(
             panelShortcuts.getProperties().put("dse.shortcut-manager.listeners", Boolean.TRUE);
             txtShortcutSearch.textProperty().addListener((obs, oldValue, value) -> refreshShortcutWorkspace());
             lstShortcutActions.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, value) -> {
-                if (!shortcutUiLoading && value != null && value != selectedShortcutAction) openShortcutEditor(value);
+                if (!shortcutUiLoading && value != null && value != selectedShortcutAction) {
+                    selectedShortcutAction = value;
+                }
             });
             cmbShortcutAction.valueProperty().addListener((obs, oldValue, value) -> {
                 if (!shortcutUiLoading && value != null && value != selectedShortcutAction) {
@@ -2162,27 +2169,199 @@ private record AssetPreviewRequest(
 
                 Label name = new Label(action.label());
                 name.getStyleClass().add("shortcut-list-name");
-                Label category = new Label(SettingsShortcutSupport.category(action));
+                Label category = new Label(SettingsShortcutSupport.description(action));
                 category.getStyleClass().add("shortcut-list-category");
+                category.setWrapText(true);
                 VBox labels = new VBox(2, name, category);
                 HBox.setHgrow(labels, javafx.scene.layout.Priority.ALWAYS);
 
                 ShortcutRegistry.Scope configuredScope = shortcutDraftScopes.getOrDefault(action, ShortcutRegistry.configuredScope(action));
                 Label scope = new Label(configuredScope.label());
                 scope.getStyleClass().add("shortcut-scope-badge");
-                String raw = shortcutDraftValues.getOrDefault(action, ShortcutRegistry.configuredBinding(action));
-                Label key = new Label(SettingsShortcutSupport.display(raw));
-                key.getStyleClass().add("shortcut-key-badge");
-                Label status = new Label(raw == null || raw.isBlank() ? "UNASSIGNED" : "ACTIVE");
-                status.getStyleClass().addAll("shortcut-status", raw == null || raw.isBlank() ? "status-unassigned" : "status-active");
+                scope.setPrefWidth(140);
+                scope.setAlignment(javafx.geometry.Pos.CENTER);
 
-                HBox row = new HBox(10, iconBox, labels, key, scope, status);
+                String raw = shortcutDraftValues.getOrDefault(action, ShortcutRegistry.configuredBinding(action));
+                boolean active = raw != null && !raw.isBlank();
+
+                Button keycap = new Button();
+                if (active) {
+                    keycap.setText("⌨ " + SettingsShortcutSupport.display(raw));
+                    keycap.getStyleClass().addAll("shortcut-key-badge", "keyboard-keycap", "shortcut-key-assigned-btn");
+                } else {
+                    keycap.setText("+ Assign Key");
+                    keycap.getStyleClass().addAll("shortcut-key-badge", "keyboard-keycap", "shortcut-key-unassigned-btn");
+                }
+                keycap.setPrefWidth(160);
+                keycap.setAlignment(javafx.geometry.Pos.CENTER);
+                keycap.setTooltip(new Tooltip(active ? "Click to change key assignment" : "Click to record and assign a shortcut key"));
+                keycap.setOnAction(e -> {
+                    e.consume();
+                    promptKeyCapture(action);
+                });
+
+                ToggleButton toggle = new ToggleButton(active ? "ON" : "OFF");
+                toggle.setSelected(active);
+                toggle.getStyleClass().addAll("toggle-button", "apple-toggle-switch", "ios-toggle-switch");
+                toggle.setPrefWidth(90);
+                toggle.setAlignment(javafx.geometry.Pos.CENTER);
+                toggle.setOnAction(e -> {
+                    e.consume();
+                    boolean newActive = toggle.isSelected();
+                    toggle.setText(newActive ? "ON" : "OFF");
+                    toggleShortcutActive(action, newActive);
+                });
+
+                Button btnReset = new Button();
+                btnReset.setGraphic(IconFactory.compactIcon("refresh", 13));
+                btnReset.getStyleClass().addAll("approved-button", "approved-secondary-button", "icon-button");
+                btnReset.setTooltip(new Tooltip("Reset to default (" + SettingsShortcutSupport.display(action.defaultBinding()) + ")"));
+                btnReset.setPrefWidth(46);
+                btnReset.setOnAction(e -> {
+                    e.consume();
+                    resetShortcutToDefault(action);
+                });
+
+                HBox row = new HBox(12, iconBox, labels, scope, keycap, toggle, btnReset);
                 row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 row.getStyleClass().add("shortcut-list-row");
                 setText(null);
                 setGraphic(row);
             }
         });
+    }
+
+    private void toggleShortcutActive(Action action, boolean active) {
+        if (action == null) return;
+        String newBinding;
+        if (active) {
+            String existing = shortcutDraftValues.get(action);
+            if (existing != null && !existing.isBlank()) {
+                newBinding = existing;
+            } else {
+                newBinding = action.defaultBinding();
+            }
+            if (newBinding == null || newBinding.isBlank()) {
+                promptKeyCapture(action);
+                return;
+            }
+        } else {
+            newBinding = "";
+        }
+
+        shortcutDraftValues.put(action, newBinding);
+        ShortcutRegistry.Scope scope = shortcutDraftScopes.getOrDefault(action, ShortcutRegistry.configuredScope(action));
+        ShortcutRegistry.saveActions(Map.of(action, newBinding), Map.of(action, scope), List.of(action));
+
+        if (chkShortcutActive != null) chkShortcutActive.setSelected(active);
+        if (txtShortcutKeys != null) txtShortcutKeys.setText(SettingsShortcutSupport.display(newBinding));
+
+        refreshShortcutWorkspace();
+        if (panelHost != null) {
+            org.example.util.AppDialogService.info(panelHost, "Shortcut Updated", action.label() + (active ? " enabled (" + SettingsShortcutSupport.display(newBinding) + ")" : " disabled"));
+        }
+    }
+
+    private void resetShortcutToDefault(Action action) {
+        if (action == null) return;
+        String defaultBinding = action.defaultBinding();
+        ShortcutRegistry.Scope defaultScope = action.scope();
+        shortcutDraftValues.put(action, defaultBinding);
+        shortcutDraftScopes.put(action, defaultScope);
+        ShortcutRegistry.saveActions(Map.of(action, defaultBinding), Map.of(action, defaultScope), List.of(action));
+
+        if (txtShortcutKeys != null) txtShortcutKeys.setText(SettingsShortcutSupport.display(defaultBinding));
+        if (chkShortcutActive != null) chkShortcutActive.setSelected(!defaultBinding.isBlank());
+        if (cmbShortcutScope != null) cmbShortcutScope.getSelectionModel().select(defaultScope.label());
+
+        refreshShortcutWorkspace();
+        if (panelHost != null) {
+            org.example.util.AppDialogService.info(panelHost, "Shortcut Reset", action.label() + " reset to default (" + SettingsShortcutSupport.display(defaultBinding) + ")");
+        }
+    }
+
+    private void promptKeyCapture(Action action) {
+        if (action == null || panelShortcuts == null) return;
+        org.example.util.OwnedDialog<ButtonType> dialog = new org.example.util.OwnedDialog<>(panelShortcuts);
+        dialog.setTitle("Set Shortcut Key — " + action.label());
+        dialog.setHeaderText(null);
+        dialog.setResizable(false);
+
+        VBox content = new VBox(14);
+        content.setPadding(new javafx.geometry.Insets(18, 20, 18, 20));
+        content.setPrefWidth(440);
+        content.getStyleClass().addAll("approved-card", "approved-surface", "erp-ui-standard");
+
+        Label title = new Label("Assign Shortcut: " + action.label());
+        title.getStyleClass().addAll("approved-card-title", "section-title");
+
+        Label subtitle = new Label("Press the desired key combination on your keyboard (e.g. Ctrl+S, Alt+F1, F9).");
+        subtitle.setWrapText(true);
+        subtitle.getStyleClass().addAll("approved-page-subtitle", "field-help");
+
+        TextField keyInput = new TextField(SettingsShortcutSupport.display(shortcutDraftValues.getOrDefault(action, action.defaultBinding())));
+        keyInput.setEditable(false);
+        keyInput.getStyleClass().addAll("approved-input", "shortcut-key-capture");
+        keyInput.setAlignment(javafx.geometry.Pos.CENTER);
+
+        Label conflictLabel = new Label("Press keys now…");
+        conflictLabel.getStyleClass().add("shortcut-conflict-text");
+        conflictLabel.setWrapText(true);
+
+        java.util.concurrent.atomic.AtomicReference<String> capturedKey = new java.util.concurrent.atomic.AtomicReference<>(shortcutDraftValues.getOrDefault(action, ""));
+
+        keyInput.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                dialog.close();
+                event.consume();
+                return;
+            }
+            if ((event.getCode() == javafx.scene.input.KeyCode.BACK_SPACE || event.getCode() == javafx.scene.input.KeyCode.DELETE)
+                    && !event.isControlDown() && !event.isMetaDown() && !event.isAltDown() && !event.isShiftDown()) {
+                capturedKey.set("");
+                keyInput.setText("(Disabled)");
+                conflictLabel.setText("Shortcut will be cleared / unassigned.");
+                event.consume();
+                return;
+            }
+            String captured = ShortcutRegistry.fromEvent(event);
+            if (!captured.isBlank()) {
+                capturedKey.set(captured);
+                keyInput.setText(SettingsShortcutSupport.display(captured));
+
+                Map<Action, String> candidate = new LinkedHashMap<>(shortcutDraftValues);
+                candidate.put(action, captured);
+                Map<Action, ShortcutRegistry.Scope> candidateScopes = new LinkedHashMap<>(shortcutDraftScopes);
+                List<String> errors = SettingsShortcutSupport.validate(candidate, candidateScopes);
+                if (!errors.isEmpty()) {
+                    conflictLabel.setText("⚠ Conflict: " + errors.get(0));
+                } else {
+                    conflictLabel.setText("✔ Valid shortcut key combination.");
+                }
+            }
+            event.consume();
+        });
+
+        content.getChildren().addAll(title, subtitle, keyInput, conflictLabel);
+
+        dialog.getDialogPane().setContent(content);
+        ButtonType saveBtnType = new ButtonType("Save Key", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelBtnType = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().setAll(saveBtnType, cancelBtnType);
+
+        javafx.application.Platform.runLater(keyInput::requestFocus);
+
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isPresent() && result.get() == saveBtnType) {
+            String newKey = capturedKey.get();
+            shortcutDraftValues.put(action, newKey);
+            ShortcutRegistry.Scope scope = shortcutDraftScopes.getOrDefault(action, ShortcutRegistry.configuredScope(action));
+            ShortcutRegistry.saveActions(Map.of(action, newKey), Map.of(action, scope), List.of(action));
+            refreshShortcutWorkspace();
+            if (panelHost != null) {
+                org.example.util.AppDialogService.info(panelHost, "Shortcut Updated", action.label() + " updated to " + (newKey.isBlank() ? "Disabled" : SettingsShortcutSupport.display(newKey)));
+            }
+        }
     }
 
     private Map<Action,String> shortcutManagerDraft() {
@@ -2234,6 +2413,42 @@ private record AssetPreviewRequest(
         if (selected) button.getStyleClass().add("shortcut-group-selected");
     }
 
+    @FXML
+    private void filterShortcutsAll() {
+        setShortcutStatusFilter("ALL");
+    }
+
+    @FXML
+    private void filterShortcutsActive() {
+        setShortcutStatusFilter("ACTIVE");
+    }
+
+    @FXML
+    private void filterShortcutsDisabled() {
+        setShortcutStatusFilter("DISABLED");
+    }
+
+    private void setShortcutStatusFilter(String filter) {
+        this.shortcutStatusFilter = filter != null ? filter : "ALL";
+        updateStatusFilterButtonStyles();
+        refreshShortcutWorkspace();
+    }
+
+    private void updateStatusFilterButtonStyles() {
+        if (btnStatusAll != null) {
+            btnStatusAll.getStyleClass().remove("shortcut-status-active");
+            if ("ALL".equalsIgnoreCase(shortcutStatusFilter)) btnStatusAll.getStyleClass().add("shortcut-status-active");
+        }
+        if (btnStatusActive != null) {
+            btnStatusActive.getStyleClass().remove("shortcut-status-active");
+            if ("ACTIVE".equalsIgnoreCase(shortcutStatusFilter)) btnStatusActive.getStyleClass().add("shortcut-status-active");
+        }
+        if (btnStatusDisabled != null) {
+            btnStatusDisabled.getStyleClass().remove("shortcut-status-active");
+            if ("DISABLED".equalsIgnoreCase(shortcutStatusFilter)) btnStatusDisabled.getStyleClass().add("shortcut-status-active");
+        }
+    }
+
     private void refreshShortcutWorkspace() {
         if (lstShortcutActions == null) return;
         String query = txtShortcutSearch == null || txtShortcutSearch.getText() == null
@@ -2241,6 +2456,13 @@ private record AssetPreviewRequest(
 
         List<Action> filtered = SettingsShortcutSupport.managerActions().stream()
                 .filter(action -> shortcutCategoryFilter.equals(SettingsShortcutSupport.category(action)))
+                .filter(action -> {
+                    String raw = shortcutDraftValues.getOrDefault(action, ShortcutRegistry.configuredBinding(action));
+                    boolean active = raw != null && !raw.isBlank();
+                    if ("ACTIVE".equalsIgnoreCase(shortcutStatusFilter)) return active;
+                    if ("DISABLED".equalsIgnoreCase(shortcutStatusFilter)) return !active;
+                    return true;
+                })
                 .filter(action -> {
                     if (query.isBlank()) return true;
                     String raw = shortcutDraftValues.getOrDefault(action, ShortcutRegistry.configuredBinding(action));

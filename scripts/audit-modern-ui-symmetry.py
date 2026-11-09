@@ -27,8 +27,9 @@ selectors_count = 0
 for idx, (d, l) in enumerate(zip(dark_lines, light_lines)):
     if d.endswith("{"):
         selectors_count += 1
-        assert d == l, f"Selector mismatch at line {idx+1}:\n  Dark:  {d}\n  Light: {l}"
+        d_norm = d.replace(".dse-theme-dark", ".dse-theme-light")
+        assert d_norm == l, f"Selector mismatch at line {idx+1}:\n  Dark:  {d}\n  Light: {l}"
     if d == "}":
         assert l == "}", f"Closing brace mismatch at line {idx+1}:\n  Dark:  {d}\n  Light: {l}"
 
-print(f"MODERN_UI_SYMMETRY_OK lines={len(dark_lines)} selectors={selectors_count} parity=100%")
+print(f"MODERN_UI_SYMMETRY_OK lines={len(dark_lines)} selectors={selectors_count} parity=100%")                         

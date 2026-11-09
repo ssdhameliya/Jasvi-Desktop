@@ -43,10 +43,12 @@ public class ReportViewerController implements ScreenLifecycle {
     @FXML private ComboBox<Integer> cmbRows;
     @FXML private TextField txtMinAmount,txtMaxAmount,txtSearch;
     @FXML private Button btnApply,btnCollapseFilters,btnFirst,btnPrev,btnNext,btnLast,btnNavDashboard,btnNavReportCenter,btnNavSavedReports,btnNavScheduled;
+    @FXML private Button btnInfo,btnRefresh,btnReset,btnSaveReport,btnViewSource,btnPrint;
+    @FXML private MenuButton btnColumns,btnExport;
+    @FXML private MenuItem miPdf,miExcel,miCsv;
     @FXML private VBox filterPanel;
     @FXML private VBox boxPeriod,boxFrom,boxTo,boxParty,boxItem,boxSalesperson,boxDocumentStatus,boxPaymentStatus,boxReturnStatus,boxGstRate,boxWarehouse,boxBankStatus,boxMinAmount,boxMaxAmount;
     @FXML private GridPane filterGrid;
-    @FXML private MenuButton btnColumns;
     @FXML private TableView<ReportRow> tblReport;
 
     private final ReportingApiClient api=new ReportingApiClient();
@@ -65,6 +67,7 @@ public class ReportViewerController implements ScreenLifecycle {
     private ReportDefinition definition;
     private volatile boolean filterOptionsLoaded;
     private volatile boolean definitionLoaded;
+    private Runnable pendingFeedbackFinish;
 
     @FXML public void initialize(){
         DatePickerFormatter.attach(dpFrom);
@@ -85,12 +88,32 @@ public class ReportViewerController implements ScreenLifecycle {
         filterGrid.widthProperty().addListener((o,a,b)->reflowFilterGrid());
         tblReport.setPlaceholder(new Label("No transactions found for the selected criteria."));
         updateReportIdentityIcon();
+        configureIcons();
         loadFilterOptions();
         consumeContext();
         updateSubNavSelection();
         loadDefinition();
         initializing=false;
         requestLoad();
+    }
+
+    private void configureIcons(){
+        if(btnInfo!=null)btnInfo.setGraphic(IconFactory.compactIcon("info",15));
+        if(btnRefresh!=null)btnRefresh.setGraphic(IconFactory.compactIcon("refresh",15));
+        if(btnExport!=null)btnExport.setGraphic(IconFactory.compactIcon("export",15));
+        if(miPdf!=null)miPdf.setGraphic(IconFactory.compactIcon("pdf",15));
+        if(miExcel!=null)miExcel.setGraphic(IconFactory.compactIcon("excel",15));
+        if(miCsv!=null)miCsv.setGraphic(IconFactory.compactIcon("csv",15));
+        if(btnReset!=null)btnReset.setGraphic(IconFactory.compactIcon("reset",15));
+        if(btnApply!=null)btnApply.setGraphic(IconFactory.compactIcon("filter",15));
+        if(btnColumns!=null)btnColumns.setGraphic(IconFactory.compactIcon("table",15));
+        if(btnSaveReport!=null)btnSaveReport.setGraphic(IconFactory.compactIcon("save",15));
+        if(btnViewSource!=null)btnViewSource.setGraphic(IconFactory.compactIcon("view",15));
+        if(btnPrint!=null)btnPrint.setGraphic(IconFactory.compactIcon("print",15));
+        if(btnNavDashboard!=null)btnNavDashboard.setGraphic(IconFactory.compactIcon("dashboard",14));
+        if(btnNavReportCenter!=null)btnNavReportCenter.setGraphic(IconFactory.compactIcon("report",14));
+        if(btnNavSavedReports!=null)btnNavSavedReports.setGraphic(IconFactory.compactIcon("save",14));
+        if(btnNavScheduled!=null)btnNavScheduled.setGraphic(IconFactory.compactIcon("calendar",14));
     }
 
 
@@ -181,16 +204,36 @@ public class ReportViewerController implements ScreenLifecycle {
 
     @FXML private void applyFilters(){page=0;requestLoad();}
     @FXML private void resetFilters(){
+        pendingFeedbackFinish = OperationalUiSupport.beginReset(btnReset, "Resetting report filters…");
         initializing=true;cmbDatePreset.setValue("This Month");applyDatePreset("This Month");first(cmbParty);first(cmbItem);first(cmbSalesperson);first(cmbDocumentStatus);first(cmbPaymentStatus);first(cmbReturnStatus);first(cmbGstRate);first(cmbWarehouse);first(cmbBankStatus);txtMinAmount.clear();txtMaxAmount.clear();txtSearch.clear();cmbGroup.getSelectionModel().selectFirst();cmbSort.getSelectionModel().selectFirst();cmbDirection.setValue("Descending");page=0;initializing=false;requestLoad();
     }
     private void first(ComboBox<?> c){if(c!=null&&!c.getItems().isEmpty())c.getSelectionModel().selectFirst();}
 
     private void requestLoad(){
-        if(dpFrom.getValue()==null||dpTo.getValue()==null||dpFrom.getValue().isAfter(dpTo.getValue())){error("Choose a valid reporting date range.");return;}
+        if(dpFrom.getValue()==null||dpTo.getValue()==null||dpFrom.getValue().isAfter(dpTo.getValue())){
+            if(pendingFeedbackFinish!=null){pendingFeedbackFinish.run();pendingFeedbackFinish=null;}
+            error("Choose a valid reporting date range.");
+            return;
+        }
         ReportRequest request;
-        try{request=requestFor(page,cmbRows.getValue()==null?25:cmbRows.getValue());}catch(IllegalArgumentException ex){error(ex.getMessage());return;}
+        try{request=requestFor(page,cmbRows.getValue()==null?25:cmbRows.getValue());}catch(IllegalArgumentException ex){
+            if(pendingFeedbackFinish!=null){pendingFeedbackFinish.run();pendingFeedbackFinish=null;}
+            error(ex.getMessage());
+            return;
+        }
         setBusy(true);
-        UiTaskExecutor.submitLatest(LOAD_KEY,()->api.run(request),this::applyResult,e->{setBusy(false);error("Could not run report: "+root(e));});
+        javafx.scene.layout.StackPane host = LoadingOverlayHelper.findHost(tblReport);
+        if(host != null && pendingFeedbackFinish == null) LoadingOverlayHelper.show(host, "Loading report data…");
+        UiTaskExecutor.submitLatest(LOAD_KEY,()->api.run(request),r -> {
+            if(host != null && pendingFeedbackFinish == null) LoadingOverlayHelper.hide(host);
+            if(pendingFeedbackFinish != null){pendingFeedbackFinish.run();pendingFeedbackFinish=null;}
+            applyResult(r);
+        },e->{
+            if(host != null && pendingFeedbackFinish == null) LoadingOverlayHelper.hide(host);
+            if(pendingFeedbackFinish != null){pendingFeedbackFinish.run();pendingFeedbackFinish=null;}
+            setBusy(false);
+            error("Could not run report: "+root(e));
+        });
     }
 
     private ReportRequest requestFor(int requestedPage,int size){
@@ -210,18 +253,48 @@ public class ReportViewerController implements ScreenLifecycle {
         ScreenRefreshPolicy.markRefreshed("report-viewer:"+reportId);
     }
 
+    private String colorForReportColumn(ReportColumn meta) {
+        if (meta == null || meta.key() == null) return "blue";
+        String k = meta.key().toLowerCase(Locale.ROOT);
+        String label = safe(meta.label()).toLowerCase(Locale.ROOT);
+        if (k.contains("profit") || k.contains("paid") || label.contains("profit") || label.contains("paid")) return "green";
+        if (k.contains("outstanding") || k.contains("balance") || k.contains("purchase") || label.contains("outstanding") || label.contains("balance") || label.contains("purchase")) return "orange";
+        if (k.contains("return") || k.contains("refund") || label.contains("return") || label.contains("refund")) return "pink";
+        if (k.contains("tax") || k.contains("gst") || k.contains("date") || label.contains("tax") || label.contains("gst") || label.contains("date")) return "purple";
+        if (k.contains("taxable") || k.contains("net") || k.contains("item") || k.contains("salesperson") || k.contains("mobile") || label.contains("taxable") || label.contains("net")) return "teal";
+        if (k.contains("qty") || k.contains("quantity") || k.contains("customer") || k.contains("party") || k.contains("supplier") || k.contains("bank") || label.contains("customer") || label.contains("party")) return "indigo";
+        return "blue";
+    }
+
     private void configureColumns(ReportResult result){
-        tblReport.getColumns().clear();btnColumns.getItems().clear();
+        btnColumns.getItems().clear();
+        for(ReportColumn meta : result.columns()){
+            CheckMenuItem item=new CheckMenuItem(meta.label());
+            item.setSelected(visibleKeys.contains(meta.key()));
+            item.selectedProperty().addListener((o,a,b)->{
+                if(Boolean.TRUE.equals(b)) visibleKeys.add(meta.key());
+                else visibleKeys.remove(meta.key());
+                rebuildTableColumns(current);
+            });
+            btnColumns.getItems().add(item);
+        }
+        rebuildTableColumns(result);
+    }
+
+    private void rebuildTableColumns(ReportResult result){
+        if(result==null) return;
+        tblReport.getColumns().clear();
         for(int index=0;index<result.columns().size();index++){
-            ReportColumn meta=result.columns().get(index);CheckMenuItem item=new CheckMenuItem(meta.label());item.setSelected(visibleKeys.contains(meta.key()));item.selectedProperty().addListener((o,a,b)->{if(b)visibleKeys.add(meta.key());else visibleKeys.remove(meta.key());configureColumns(current);});btnColumns.getItems().add(item);
+            ReportColumn meta=result.columns().get(index);
             if(!visibleKeys.contains(meta.key()))continue;
-            final int p=index;TableColumn<ReportRow,String> col=new TableColumn<>(meta.label());col.setSortable(false);col.setCellValueFactory(v->new SimpleStringProperty(value(v.getValue(),p)));
+            final int p=index;
+            TableColumn<ReportRow,String> col=new TableColumn<>(meta.label());
+            col.setSortable(false);
+            col.setCellValueFactory(v->new SimpleStringProperty(value(v.getValue(),p)));
+            String colColor = colorForReportColumn(meta);
             if ("status".equals(semanticForColumn(meta.key()))) {
                 col.setCellFactory(c -> SemanticTableCells.status("status"));
             } else if (meta.numeric()) {
-                String color = meta.key().toLowerCase(Locale.ROOT).contains("profit") ? "green"
-                             : meta.key().toLowerCase(Locale.ROOT).contains("purchase") ? "orange"
-                             : "blue";
                 col.setCellFactory(c -> new TableCell<>() {
                     @Override protected void updateItem(String v, boolean empty) {
                         super.updateItem(v, empty);
@@ -233,7 +306,7 @@ public class ReportViewerController implements ScreenLifecycle {
                         }
                         setText(display(meta, v));
                         setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
-                        String colorClass = "erp-table-value-colour-" + color;
+                        String colorClass = "erp-table-value-colour-" + colColor;
                         if (!getStyleClass().contains(colorClass)) {
                             getStyleClass().removeAll("erp-table-value-colour-blue", "erp-table-value-colour-green", "erp-table-value-colour-orange", "erp-table-value-colour-purple", "erp-table-value-colour-pink", "erp-table-value-colour-teal", "erp-table-value-colour-indigo");
                             getStyleClass().add(colorClass);
@@ -248,15 +321,24 @@ public class ReportViewerController implements ScreenLifecycle {
                         if (empty || v == null) {
                             setText(null);
                             setGraphic(null);
+                            getStyleClass().removeAll("erp-table-value-colour-blue", "erp-table-value-colour-green", "erp-table-value-colour-orange", "erp-table-value-colour-purple", "erp-table-value-colour-pink", "erp-table-value-colour-teal", "erp-table-value-colour-indigo");
                             return;
                         }
                         setText(display(meta, v));
                         setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                        String colorClass = "erp-table-value-colour-" + colColor;
+                        if (!getStyleClass().contains(colorClass)) {
+                            getStyleClass().removeAll("erp-table-value-colour-blue", "erp-table-value-colour-green", "erp-table-value-colour-orange", "erp-table-value-colour-purple", "erp-table-value-colour-pink", "erp-table-value-colour-teal", "erp-table-value-colour-indigo");
+                            getStyleClass().add(colorClass);
+                        }
                     }
                 });
             }
             tblReport.getColumns().add(col);
         }
+        DynamicTableLayoutManager.install(tblReport);
+        ProfessionalUiEnhancer.refreshTableDecorations(tblReport);
+        DynamicTableLayoutManager.forceLayout(tblReport);
     }
     private void configureGroups(ReportResult r){String selected=cmbGroup.getValue();List<String> values=new ArrayList<>();values.add("None");if(r.groupByOptions()!=null)for(String v:r.groupByOptions())if(v!=null&&!"NONE".equalsIgnoreCase(v)&&!values.contains(v))values.add(v);cmbGroup.getItems().setAll(values);if(selected!=null&&values.stream().anyMatch(x->x.equalsIgnoreCase(selected)))cmbGroup.setValue(values.stream().filter(x->x.equalsIgnoreCase(selected)).findFirst().orElse("None"));else cmbGroup.getSelectionModel().selectFirst();}
     private void configureSort(ReportResult r){String selected=cmbSort.getValue();String savedKey=pendingSavedRequest==null?null:pendingSavedRequest.sortKey();sortLabelToKey.clear();for(ReportColumn c:r.columns()){sortLabelToKey.put(c.label(),c.key());}cmbSort.getItems().setAll(sortLabelToKey.keySet());if(savedKey!=null&&!savedKey.isBlank()){String savedLabel=sortLabelToKey.entrySet().stream().filter(e->e.getValue().equalsIgnoreCase(savedKey)).map(Map.Entry::getKey).findFirst().orElse(null);if(savedLabel!=null){cmbSort.setValue(savedLabel);return;}}if(selected!=null&&sortLabelToKey.containsKey(selected))cmbSort.setValue(selected);else{String preferred=r.columns().stream().filter(c->"date".equals(c.key())).map(ReportColumn::label).findFirst().orElse(r.columns().isEmpty()?null:r.columns().getFirst().label());if(preferred!=null)cmbSort.setValue(preferred);}}
@@ -269,7 +351,10 @@ public class ReportViewerController implements ScreenLifecycle {
     @FXML private void lastPage(){if(current!=null&&current.totalPages()>0){page=current.totalPages()-1;requestLoad();}}
 
     @FXML private void toggleFilters(){filtersCollapsed=!filtersCollapsed;filterGrid.setVisible(!filtersCollapsed);filterGrid.setManaged(!filtersCollapsed);btnCollapseFilters.setText(filtersCollapsed?"Expand ▼":"Collapse ▲");}
-    @FXML private void refreshReport(){requestLoad();}
+    @FXML private void refreshReport(){
+        pendingFeedbackFinish = OperationalUiSupport.beginRefresh(btnRefresh, "Refreshing report data…");
+        requestLoad();
+    }
     @FXML private void goDashboard(){ReportsController.requestTab(0);NavigationManager.navigateOrReport("/fxml/pages/Reports.fxml");}
     @FXML private void goReportCenter(){ReportsController.requestTab(1);NavigationManager.navigateOrReport("/fxml/pages/Reports.fxml");}
     @FXML private void goSavedReports(){ReportsController.requestTab(2);NavigationManager.navigateOrReport("/fxml/pages/Reports.fxml");}

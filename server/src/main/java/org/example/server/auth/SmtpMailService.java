@@ -221,8 +221,13 @@ public class SmtpMailService {
             List<Attachment> files = attachments == null ? List.of() : attachments.stream()
                     .filter(a -> a != null && a.data() != null && a.data().length > 0).toList();
             boolean hasSig = signatureImage != null && signatureImage.data() != null && signatureImage.data().length > 0;
+            boolean isHtml = isHtmlContent(body);
             if (files.isEmpty() && !hasSig) {
-                message.setText(body == null ? "" : body);
+                if (isHtml) {
+                    message.setContent(body == null ? "" : body, "text/html; charset=UTF-8");
+                } else {
+                    message.setText(body == null ? "" : body);
+                }
             } else {
                 var rootMultipart = new jakarta.mail.internet.MimeMultipart("mixed");
 
@@ -248,7 +253,11 @@ public class SmtpMailService {
                     rootMultipart.addBodyPart(bodyWrapper);
                 } else {
                     var text = new jakarta.mail.internet.MimeBodyPart();
-                    text.setText(body == null ? "" : body);
+                    if (isHtml) {
+                        text.setContent(body == null ? "" : body, "text/html; charset=UTF-8");
+                    } else {
+                        text.setText(body == null ? "" : body);
+                    }
                     rootMultipart.addBodyPart(text);
                 }
 
@@ -270,24 +279,49 @@ public class SmtpMailService {
         }
     }
 
-    private static String formatHtmlEmailBody(String plainText, boolean includeInlineSignatureImage) {
-        if (plainText == null) plainText = "";
-        String escaped = plainText
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\r\n", "\n")
-                .replace("\n", "<br/>\n");
+    private static boolean isHtmlContent(String content) {
+        if (content == null || content.isBlank()) return false;
+        String trimmed = content.trim().toLowerCase(java.util.Locale.ROOT);
+        return trimmed.startsWith("<") || trimmed.contains("<html") || trimmed.contains("<div") || trimmed.contains("<table") || trimmed.contains("<p>");
+    }
+
+    private static String formatHtmlEmailBody(String body, boolean includeInlineSignatureImage) {
+        if (body == null) body = "";
+        boolean isHtml = isHtmlContent(body);
+        String contentHtml;
+        if (isHtml) {
+            contentHtml = body;
+        } else {
+            String escaped = body
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\r\n", "\n")
+                    .replace("\n", "<br/>\n");
+            contentHtml = "<div>" + escaped + "</div>";
+        }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body style=\"margin:0; padding:12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;\">");
-        sb.append("<div>").append(escaped).append("</div>");
-        if (includeInlineSignatureImage) {
-            sb.append("<div style=\"margin-top: 16px; margin-bottom: 8px;\">");
-            sb.append("<img src=\"cid:signatureImage\" alt=\"Signature / Stamp\" style=\"max-height: 90px; max-width: 260px; object-fit: contain; border: none; display: block;\" />");
-            sb.append("</div>");
+        if (!isHtml) {
+            sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body style=\"margin:0; padding:12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;\">");
+            sb.append(contentHtml);
+            if (includeInlineSignatureImage) {
+                sb.append("<div style=\"margin-top: 16px; margin-bottom: 8px;\">");
+                sb.append("<img src=\"cid:signatureImage\" alt=\"Signature / Stamp\" style=\"max-height: 90px; max-width: 260px; object-fit: contain; border: none; display: block;\" />");
+                sb.append("</div>");
+            }
+            sb.append("</body></html>");
+        } else {
+            if (includeInlineSignatureImage) {
+                String sigTag = "<div style=\"margin-top: 16px; margin-bottom: 8px;\"><img src=\"cid:signatureImage\" alt=\"Signature / Stamp\" style=\"max-height: 90px; max-width: 260px; object-fit: contain; border: none; display: block;\" /></div>";
+                if (contentHtml.contains("</body>")) {
+                    contentHtml = contentHtml.replace("</body>", sigTag + "</body>");
+                } else {
+                    contentHtml = contentHtml + sigTag;
+                }
+            }
+            sb.append(contentHtml);
         }
-        sb.append("</body></html>");
         return sb.toString();
     }
 
@@ -303,11 +337,21 @@ public class SmtpMailService {
             message.setSubject(subject == null ? companyName() + " document" : subject);
             List<PathAttachment> files = attachments == null ? List.of() : attachments.stream()
                     .filter(a -> a != null && a.path() != null && Files.isRegularFile(a.path())).toList();
-            if (files.isEmpty()) message.setText(body == null ? "" : body);
-            else {
+            boolean isHtml = isHtmlContent(body);
+            if (files.isEmpty()) {
+                if (isHtml) {
+                    message.setContent(body == null ? "" : body, "text/html; charset=UTF-8");
+                } else {
+                    message.setText(body == null ? "" : body);
+                }
+            } else {
                 var multipart = new jakarta.mail.internet.MimeMultipart();
                 var text = new jakarta.mail.internet.MimeBodyPart();
-                text.setText(body == null ? "" : body);
+                if (isHtml) {
+                    text.setContent(body == null ? "" : body, "text/html; charset=UTF-8");
+                } else {
+                    text.setText(body == null ? "" : body);
+                }
                 multipart.addBodyPart(text);
                 for (PathAttachment attachment : files) {
                     var file = new jakarta.mail.internet.MimeBodyPart();

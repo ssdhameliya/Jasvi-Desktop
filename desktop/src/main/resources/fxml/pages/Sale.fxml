@@ -71,14 +71,14 @@
                     <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnSpan="2">
                         <Label text="Billing Address *" styleClass="sales-entry-field-label,field-label-address"/>
                         <TextArea fx:id="txtBillingAddress" promptText="Billing address..."
-                                  prefRowCount="2" prefHeight="52" wrapText="true" maxWidth="Infinity"
+                                  prefRowCount="2" prefHeight="50" wrapText="true" maxWidth="Infinity"
                                   styleClass="approved-input,sales-entry-delivery-area,sales-entry-address-area"/>
                     </VBox>
 
                     <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="2" GridPane.columnSpan="3">
                         <Label text="Delivery Address *" styleClass="sales-entry-field-label,field-label-address"/>
                         <TextArea fx:id="txtDeliveryAddress" promptText="Enter delivery address..."
-                                  prefRowCount="2" prefHeight="52" wrapText="true" maxWidth="Infinity"
+                                  prefRowCount="2" prefHeight="50" wrapText="true" maxWidth="Infinity"
                                   styleClass="approved-input,sales-entry-delivery-area,sales-entry-address-area"/>
                     </VBox>
 
@@ -273,7 +273,7 @@
                 <Label text="Notes &amp; Attachment"
                        styleClass="flow-title,sales-entry-section-title,sales-entry-section-actions"/>
                 <TextArea fx:id="txtInvoiceMessage" promptText="Optional invoice note..." wrapText="true"
-                          prefRowCount="3" prefHeight="78" minHeight="68" maxHeight="96" maxWidth="Infinity"
+                          prefRowCount="2" prefHeight="52" minHeight="48" maxHeight="60" maxWidth="Infinity"
                           styleClass="approved-input,sales-entry-note-area"/>
                 <Label text="Attached Document" styleClass="sales-entry-attachment-caption"/>
                 <Label fx:id="lblAttachmentName" text="No attachment selected" wrapText="true" maxWidth="Infinity"

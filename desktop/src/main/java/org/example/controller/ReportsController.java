@@ -73,6 +73,7 @@ public class ReportsController implements ScreenLifecycle {
     private final List<ScheduleRow> allSchedules = new ArrayList<>();
     private volatile boolean loaded;
     private volatile boolean loadRequested;
+    private Runnable pendingFeedbackFinish;
     private volatile boolean filtersLoaded;
     private volatile boolean savedReportsLoaded;
     private volatile boolean schedulesLoaded;
@@ -203,18 +204,30 @@ public class ReportsController implements ScreenLifecycle {
     private void setOptions(ComboBox<String> box,String all,List<String> values){ String selected=box.getValue(); box.getItems().setAll(all); if(values!=null)box.getItems().addAll(values); if(selected!=null&&box.getItems().contains(selected))box.setValue(selected); else box.getSelectionModel().selectFirst(); }
 
     @FXML private void resetFilters(){
+        pendingFeedbackFinish = OperationalUiSupport.beginReset(btnReset, "Resetting report filters…");
         cmbReportType.getSelectionModel().selectFirst(); cmbParty.getSelectionModel().selectFirst(); cmbItem.getSelectionModel().selectFirst(); cmbSalesPerson.getSelectionModel().selectFirst();
         initializingPeriod=true; cmbDashboardPeriod.setValue("This Month"); applyDashboardPeriod("This Month"); initializingPeriod=false; refresh();
     }
-    @FXML private void refresh(){ requestRefresh(); }
+    @FXML private void refresh(){
+        if(pendingFeedbackFinish == null) pendingFeedbackFinish = OperationalUiSupport.beginRefresh(btnRefresh, "Refreshing reports…");
+        requestRefresh();
+    }
     private void requestRefresh(){
-        if(dpFrom.getValue()==null||dpTo.getValue()==null||dpFrom.getValue().isAfter(dpTo.getValue())){ error("Choose a valid reporting date range."); return; }
+        if(dpFrom.getValue()==null||dpTo.getValue()==null||dpFrom.getValue().isAfter(dpTo.getValue())){
+            if(pendingFeedbackFinish!=null){pendingFeedbackFinish.run();pendingFeedbackFinish=null;}
+            error("Choose a valid reporting date range.");
+            return;
+        }
         String from=dpFrom.getValue().toString(),to=dpTo.getValue().toString();
         String reportType=selected(cmbReportType,"All Reports"),party=selected(cmbParty,"All Customers / Suppliers"),item=selected(cmbItem,"All Items"),salesperson=selected(cmbSalesPerson,"All Sales Persons");
         loadRequested=true; setBusy(true);
         UiTaskExecutor.submitLatest(TASK_KEY, () -> loadReport(from,to,reportType,party,item,salesperson), data -> {
+            if(pendingFeedbackFinish!=null){pendingFeedbackFinish.run();pendingFeedbackFinish=null;}
             applyReportCore(data); loaded=true; loadRequested=false; ScreenRefreshPolicy.markRefreshed("reports"); setBusy(false);
-        }, failure -> { loadRequested=false; setBusy(false); if (!org.example.api.ApiSession.isEstablished()) return; error("Could not load report data: "+root(failure)); });
+        }, failure -> {
+            if(pendingFeedbackFinish!=null){pendingFeedbackFinish.run();pendingFeedbackFinish=null;}
+            loadRequested=false; setBusy(false); if (!org.example.api.ApiSession.isEstablished()) return; error("Could not load report data: "+root(failure));
+        });
     }
     private ReportData loadReport(String from,String to,String reportType,String party,String item,String salesperson) {
         var d=insightsApi.report(from,to,reportType,party,item,salesperson);
@@ -596,7 +609,7 @@ public class ReportsController implements ScreenLifecycle {
     private void configureIcons(){
         if(reportPageIcon!=null)reportPageIcon.getChildren().setAll(IconFactory.icon("report",24));
         if(reportTabs!=null&&reportTabs.getTabs().size()>=4){reportTabs.getTabs().get(0).setGraphic(IconFactory.compactIcon("dashboard",14));reportTabs.getTabs().get(1).setGraphic(IconFactory.compactIcon("report",14));reportTabs.getTabs().get(2).setGraphic(IconFactory.compactIcon("save",14));reportTabs.getTabs().get(3).setGraphic(IconFactory.compactIcon("calendar",14));}
-        btnRefresh.setGraphic(IconFactory.icon("refresh",16));btnApply.setGraphic(IconFactory.icon("filter",16));btnReset.setGraphic(IconFactory.icon("reset",16));btnExport.setGraphic(IconFactory.icon("export",16));btnViewSales.setGraphic(IconFactory.icon("view",15));btnViewPurchases.setGraphic(IconFactory.icon("view",15));miExcel.setGraphic(IconFactory.icon("excel",15));miPdf.setGraphic(IconFactory.icon("pdf",15));miCsv.setGraphic(IconFactory.icon("document",15));
+        btnRefresh.setGraphic(IconFactory.icon("refresh",16));btnApply.setGraphic(IconFactory.icon("filter",16));btnReset.setGraphic(IconFactory.icon("reset",16));btnExport.setGraphic(IconFactory.icon("export",16));btnViewSales.setGraphic(IconFactory.icon("view",15));btnViewPurchases.setGraphic(IconFactory.icon("view",15));miExcel.setGraphic(IconFactory.icon("excel",15));miPdf.setGraphic(IconFactory.icon("pdf",15));miCsv.setGraphic(IconFactory.icon("csv",15));
         reportSalesIcon.getChildren().setAll(IconFactory.icon("sales",22));reportPurchaseIcon.getChildren().setAll(IconFactory.icon("purchase",22));reportProfitIcon.getChildren().setAll(IconFactory.icon("chart",22));reportReceivableIcon.getChildren().setAll(IconFactory.icon("payment",22));reportStockIcon.getChildren().setAll(IconFactory.icon("inventory",22));reportCustomerIcon.getChildren().setAll(IconFactory.icon("customer",22));
         if(scheduleActiveIcon!=null)scheduleActiveIcon.getChildren().setAll(IconFactory.icon("calendar",22));
         if(scheduleNextRunIcon!=null)scheduleNextRunIcon.getChildren().setAll(IconFactory.icon("time",22));

@@ -324,8 +324,8 @@ public final class SystemDiagnosticsDialog {
 
         // Col 5: Component / Module
         TableColumn<DiagnosticRow, String> colComp = new TableColumn<>("Component / Scope");
-        colComp.setPrefWidth(150);
-        colComp.setMinWidth(120);
+        colComp.setPrefWidth(180);
+        colComp.setMinWidth(150);
         colComp.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().component()));
         colComp.setCellFactory(col -> new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {
@@ -343,8 +343,8 @@ public final class SystemDiagnosticsDialog {
         IconFactory.applyTableHeaderIcon(colComp, "category");
 
         // Col 6: User-Friendly Summary
-        TableColumn<DiagnosticRow, String> colTitle = new TableColumn<>("User-Friendly Issue");
-        colTitle.setPrefWidth(220);
+        TableColumn<DiagnosticRow, String> colTitle = new TableColumn<>("Event Summary");
+        colTitle.setPrefWidth(210);
         colTitle.setMinWidth(180);
         colTitle.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().friendlyTitle()));
         colTitle.setCellFactory(col -> new TableCell<>() {
@@ -370,27 +370,30 @@ public final class SystemDiagnosticsDialog {
                 }
             }
         });
+        colTitle.getProperties().put("erp-header-explicit", true);
         IconFactory.applyTableHeaderIcon(colTitle, "document");
 
         // Col 7: Plain-English Explanation & Action
         TableColumn<DiagnosticRow, String> colExplain = new TableColumn<>("Explanation & Guidance");
-        colExplain.setPrefWidth(300);
-        colExplain.setMinWidth(220);
-        colExplain.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().friendlyExplanation() + " • " + v.getValue().actionableGuidance()));
+        colExplain.setPrefWidth(380);
+        colExplain.setMinWidth(280);
+        colExplain.setCellValueFactory(v -> {
+            String exp = v.getValue().friendlyExplanation();
+            String act = v.getValue().actionableGuidance();
+            String lvl = v.getValue().level();
+            boolean hasAction = act != null && !act.isBlank() && !"INFO".equalsIgnoreCase(lvl) && !"DEBUG".equalsIgnoreCase(lvl);
+            return new ReadOnlyStringWrapper(hasAction ? exp + " • " + act : exp);
+        });
         colExplain.setCellFactory(col -> new TableCell<>() {
-            private final Tooltip explainTooltip = new Tooltip();
             @Override protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
-                    setTooltip(null);
                     return;
                 }
                 setText(item);
                 setAlignment(Pos.CENTER_LEFT);
-                explainTooltip.setText(item);
-                setTooltip(explainTooltip);
             }
         });
         IconFactory.applyTableHeaderIcon(colExplain, "notes");
@@ -665,7 +668,9 @@ public final class SystemDiagnosticsDialog {
         lblReason.setWrapText(true);
         lblReason.getStyleClass().add("diagnostic-incident-reason");
 
-        Label lblAction = new Label("Recommended Action: " + row.actionableGuidance());
+        String guidance = row.actionableGuidance();
+        boolean hasGuidance = guidance != null && !guidance.isBlank() && !"INFO".equalsIgnoreCase(row.level()) && !"DEBUG".equalsIgnoreCase(row.level());
+        Label lblAction = new Label("Recommended Action: " + (hasGuidance ? guidance : "Normal system operation • No operator action required."));
         lblAction.setWrapText(true);
         lblAction.getStyleClass().add("diagnostic-incident-action");
 
@@ -1090,9 +1095,12 @@ public final class SystemDiagnosticsDialog {
             return new DiagnosticsInterpretation("Database Pool Timeout", "PostgreSQL database connection pool timed out under heavy load.", "Check PostgreSQL service status on port 55432.");
         }
 
+        boolean isError = "ERROR".equalsIgnoreCase(level) || "FATAL".equalsIgnoreCase(level);
+        boolean isWarn = "WARN".equalsIgnoreCase(level) || "WARNING".equalsIgnoreCase(level);
+
         String title = "Application Diagnostic Event";
         String explanation = cleanDetail;
-        String action = "Review the failure details above or retry the operation.";
+        String action = isError ? "Review the failure details above or retry the operation." : (isWarn ? "Monitor system activity or check warning logs." : "");
 
         if ("SERVER_START_FAILED".equalsIgnoreCase(event)) {
             title = "Backend Server Startup Failed";
@@ -1108,13 +1116,36 @@ public final class SystemDiagnosticsDialog {
             String key = cleanDetail.substring(0, pipe).trim();
             explanation = cleanDetail.substring(pipe + 3).trim();
             title = formatActionKey(key);
-        } else if ("ERROR".equalsIgnoreCase(level)) {
+        } else if ("SERVER".equalsIgnoreCase(source)) {
+            String lower = cleanDetail.toLowerCase(Locale.ROOT);
+            if (lower.contains("completed initialization in")) {
+                title = "DispatcherServlet Initialized";
+            } else if (lower.contains("initializing servlet") || lower.contains("initializing spring dispatcherservlet")) {
+                title = "Servlet Container Initializing";
+            } else if (lower.contains("tomcat started on port")) {
+                title = "Embedded Tomcat Active";
+            } else if (lower.contains("started dseerpserverapplication") || lower.contains("started in ")) {
+                title = "Server Application Started";
+            } else if (lower.contains("initialized jpa entitymanagerfactory")) {
+                title = "JPA EntityManager Ready";
+            } else if (lower.contains("database info:")) {
+                title = "Database Engine Connected";
+            } else if (lower.contains("hibernate is in classpath") || lower.contains("no jta platform")) {
+                title = "Hibernate Persistence Configuration";
+            } else if (isError) {
+                title = (!component.isBlank() && !"Server".equalsIgnoreCase(component) ? component : "Server") + " Operation Failed";
+            } else if (isWarn) {
+                title = (!component.isBlank() && !"Server".equalsIgnoreCase(component) ? component : "Server") + " System Warning";
+            } else {
+                title = (!component.isBlank() && !"Server".equalsIgnoreCase(component) ? component : "Server") + " Operational Event";
+            }
+        } else if (isError) {
             if (!component.equalsIgnoreCase("Server") && !component.equalsIgnoreCase("General")) {
                 title = component + " Operation Failed";
             } else {
                 title = "Internal Application Error";
             }
-        } else if ("WARN".equalsIgnoreCase(level)) {
+        } else if (isWarn) {
             title = component + " System Warning";
         } else {
             title = event.replace("_", " ");

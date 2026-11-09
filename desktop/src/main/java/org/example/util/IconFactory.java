@@ -1014,6 +1014,7 @@ public final class IconFactory {
             case "download" -> "fas-download";
             case "export" -> "fas-file-export";
             case "excel" -> "fas-file-excel";
+            case "csv" -> "fas-file-csv";
             case "pdf" -> "fas-file-pdf";
             case "first" -> "fas-angle-double-left";
             case "previous" -> "fas-angle-left";
@@ -1120,7 +1121,7 @@ public final class IconFactory {
         if (registered != null) return registered;
         return switch (semantic) {
             case "amount", "sale", "sales-order", "complete", "add", "import", "whatsapp", "save", "validate", "approve", "publish" -> "green";
-            case "export", "excel" -> "blue";
+            case "export", "excel", "csv" -> "blue";
             case "balance", "purchase", "purchase-order", "goods-receipt", "item", "reminder", "warning", "snooze", "quantity", "tax", "gstin", "discount", "category", "minimum", "source", "reference", "rollback", "package", "set-default", "transporter", "vehicle", "lock" -> "orange";
             case "quotation", "document", "master", "return", "settings", "more", "actions", "status", "reopen", "role", "reset", "notes", "print", "application", "calendar", "audit", "archive", "duplicate", "barcode", "template" -> "purple";
             case "report", "delete", "error", "cancel", "pdf", "debit", "reject", "exit" -> "pink";
@@ -1473,6 +1474,7 @@ public final class IconFactory {
         if (value.contains("inventory") || value.contains("barcode")) return "inventory";
         if (value.contains("item") || value.contains("product")) return "item";
         if (value.contains("excel") || value.contains("spreadsheet")) return "excel";
+        if (value.contains("csv")) return "csv";
         if (value.contains("pdf")) return "pdf";
         if (value.contains("reset")) return "reset";
         if (value.contains("note") || value.contains("remark")) return "notes";

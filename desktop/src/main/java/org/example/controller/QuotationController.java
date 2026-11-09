@@ -177,7 +177,7 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
  }
  private void sendEmail(QuoteRow q){
   if(q == null) return;
-  UiTaskExecutor.submitAction("quotation-prepare-email-" + q.id, () -> {
+  UiTaskExecutor.submitActionWithOverlay(table, "Preparing email draft…", "quotation-prepare-email-" + q.id, () -> {
    Path pdf = quotePdf(q);
    LocalDate qDate = null;
    try {
@@ -226,7 +226,7 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
 
  private void sendWhatsapp(QuoteRow q){
   if(q==null)return;
-  UiTaskExecutor.submitAction("quotation-prepare-whatsapp-"+q.id,()->{
+  UiTaskExecutor.submitActionWithOverlay(table, "Preparing WhatsApp transmission…", "quotation-prepare-whatsapp-"+q.id,()->{
    Path pdf=quotePdf(q);
    LocalDate qDate=null;
    try{if(q.date!=null&&!q.date.get().isBlank())qDate=LocalDate.parse(q.date.get());}catch(Exception ignored){}

@@ -1,6 +1,8 @@
 package org.example.util;
 
 import javafx.application.Platform;
+import javafx.scene.Node;
+import javafx.scene.layout.Pane;
 
 import java.util.Map;
 import java.util.Objects;
@@ -158,6 +160,29 @@ public final class UiTaskExecutor {
     }
 
     /**
+     * Submit cancellable latest-result-wins work with a modal loading overlay attached to the given hostNode.
+     * If hostNode is null, automatically attaches to the active screen content pane.
+     */
+    public static <T> void submitLatestWithOverlay(
+            javafx.scene.Node hostNode,
+            String message,
+            String key,
+            Callable<T> work,
+            Consumer<T> onSuccess,
+            Consumer<Throwable> onFailure) {
+        LoadingOverlayHelper.show(hostNode, message);
+        submitLatest(key, work,
+                result -> {
+                    LoadingOverlayHelper.hide(hostNode);
+                    if (onSuccess != null) onSuccess.accept(result);
+                },
+                error -> {
+                    LoadingOverlayHelper.hide(hostNode);
+                    if (onFailure != null) onFailure.accept(error);
+                });
+    }
+
+    /**
      * Submit cancellable latest-result-wins work with a modal loading overlay attached to the given rootPane.
      */
     public static <T> void submitLatestWithOverlay(
@@ -167,16 +192,28 @@ public final class UiTaskExecutor {
             Callable<T> work,
             Consumer<T> onSuccess,
             Consumer<Throwable> onFailure) {
-        if (rootPane != null) {
-            LoadingOverlayHelper.show(rootPane, message);
-        }
-        submitLatest(key, work,
+        submitLatestWithOverlay((javafx.scene.Node) rootPane, message, key, work, onSuccess, onFailure);
+    }
+
+    /**
+     * Submit non-cancellable side-effecting work with a modal loading overlay attached to the given hostNode.
+     * If hostNode is null, automatically attaches to the active screen content pane.
+     */
+    public static <T> void submitActionWithOverlay(
+            javafx.scene.Node hostNode,
+            String message,
+            String key,
+            Callable<T> work,
+            Consumer<T> onSuccess,
+            Consumer<Throwable> onFailure) {
+        LoadingOverlayHelper.show(hostNode, message);
+        submitAction(key, work,
                 result -> {
-                    if (rootPane != null) LoadingOverlayHelper.hide(rootPane);
+                    LoadingOverlayHelper.hide(hostNode);
                     if (onSuccess != null) onSuccess.accept(result);
                 },
                 error -> {
-                    if (rootPane != null) LoadingOverlayHelper.hide(rootPane);
+                    LoadingOverlayHelper.hide(hostNode);
                     if (onFailure != null) onFailure.accept(error);
                 });
     }
@@ -191,18 +228,7 @@ public final class UiTaskExecutor {
             Callable<T> work,
             Consumer<T> onSuccess,
             Consumer<Throwable> onFailure) {
-        if (rootPane != null) {
-            LoadingOverlayHelper.show(rootPane, message);
-        }
-        submitAction(key, work,
-                result -> {
-                    if (rootPane != null) LoadingOverlayHelper.hide(rootPane);
-                    if (onSuccess != null) onSuccess.accept(result);
-                },
-                error -> {
-                    if (rootPane != null) LoadingOverlayHelper.hide(rootPane);
-                    if (onFailure != null) onFailure.accept(error);
-                });
+        submitActionWithOverlay((javafx.scene.Node) rootPane, message, key, work, onSuccess, onFailure);
     }
 
     /**

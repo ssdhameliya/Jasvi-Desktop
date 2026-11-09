@@ -659,7 +659,9 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
 
         dialog.showAndWait().ifPresent(req -> {
-            UiTaskExecutor.submitAction(
+            UiTaskExecutor.submitActionWithOverlay(
+                    tableLeads,
+                    "Approving Registration Lead & Generating License...",
                     "approve-lead-" + id,
                     () -> api.approveLead(id, String.valueOf(req.get("tier")), (Integer) req.get("days")),
                     res -> {
@@ -695,7 +697,9 @@ public class ClientRegistryController implements ScreenLifecycle {
         );
         if (!confirmed) return;
 
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                tableLeads,
+                "Rejecting Registration Lead...",
                 "reject-lead-" + id,
                 () -> api.rejectLead(id),
                 res -> {
@@ -847,7 +851,9 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
 
         dialog.showAndWait().ifPresent(req -> {
-            UiTaskExecutor.submitAction(
+            UiTaskExecutor.submitActionWithOverlay(
+                    tablePlans,
+                    "Saving Commercial Subscription Plan...",
                     "save-plan",
                     () -> api.savePlan(req),
                     res -> {
@@ -870,7 +876,9 @@ public class ClientRegistryController implements ScreenLifecycle {
                 "whatsappTemplateIssued", txtCommIssuedTpl.getText() != null ? txtCommIssuedTpl.getText().trim() : ""
         );
 
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                registryTabPane,
+                "Saving Settings & Updating Cloud Catalog...",
                 "save-comm-settings",
                 () -> api.saveCommercialSettings(req),
                 res -> AppDialogService.success(registryTabPane, "Settings Saved", "Commercial settings updated and synced with cloud catalog!"),
@@ -886,7 +894,9 @@ public class ClientRegistryController implements ScreenLifecycle {
         if (UiTaskExecutor.actionInProgress("load-client-registry")) {
             return;
         }
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                tableClients,
+                "Loading Enterprise Client Registry...",
                 "load-client-registry",
                 () -> {
                     var list = api.getClients(null, null);
@@ -1075,7 +1085,9 @@ public class ClientRegistryController implements ScreenLifecycle {
                 return;
             }
 
-            UiTaskExecutor.submitAction(
+            UiTaskExecutor.submitActionWithOverlay(
+                    tableClients,
+                    "Issuing License & Registering Client...",
                     "register-client",
                     () -> api.registerClient(req),
                     client -> {
@@ -1091,7 +1103,9 @@ public class ClientRegistryController implements ScreenLifecycle {
         Long id = ((Number) item.get("id")).longValue();
         String company = String.valueOf(item.get("company_name"));
 
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                tableClients,
+                "Renewing Client License & Generating Signature...",
                 "renew-client-" + id,
                 () -> api.renewClient(id, days),
                 res -> {
@@ -1140,13 +1154,18 @@ public class ClientRegistryController implements ScreenLifecycle {
         File target = ExportFeedbackManager.resolveWorkspaceExportFile("Licenses", company, "jlic");
         if (target != null) {
             if (!ExportFeedbackManager.checkFileWriteable(tableClients, target)) return;
-            UiTaskExecutor.submitAction(
+            UiTaskExecutor.submitActionWithOverlay(
+                    tableClients,
+                    "Exporting Dual License Package (.jlic & .json)...",
                     "download-license",
                     () -> api.downloadLicenseFile(id),
                     bytes -> {
                         try {
                             Files.write(target.toPath(), bytes);
-                            ExportFeedbackManager.notifyExportSuccess(tableClients, target, "Jasvi License File (" + company + ")");
+                            // Also save companion readable JSON certificate in the same directory
+                            File jsonTarget = new File(target.getParentFile(), company + "-license.json");
+                            Files.write(jsonTarget.toPath(), bytes);
+                            ExportFeedbackManager.notifyExportSuccess(tableClients, target, "Jasvi License Package (.jlic & .json for " + company + ")");
                         } catch (Exception e) {
                             AppDialogService.error(tableClients, "Save Error", "Could not save file", e.getMessage());
                         }
@@ -1169,7 +1188,9 @@ public class ClientRegistryController implements ScreenLifecycle {
             return;
         }
 
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                tableClients,
+                "Connecting to SMTP & Dispatching Dual License Package...",
                 "dispatch-email-" + id,
                 () -> api.dispatchEmail(id),
                 res -> {
@@ -1177,7 +1198,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     String emErr = String.valueOf(res.getOrDefault("emailError", ""));
                     if (emSent) {
                         AppDialogService.success(tableClients, "License Email Dispatched",
-                                "Official license file (.jlic) dispatched to " + email);
+                                "Official license files (.jlic & .json) dispatched to " + email);
                     } else {
                         AppDialogService.error(tableClients, "Email Delivery Notice",
                                 "Failed to send license email to " + email,
@@ -1195,7 +1216,9 @@ public class ClientRegistryController implements ScreenLifecycle {
             return;
         }
 
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                tableClients,
+                "Connecting to WhatsApp Gateway & Transmitting License...",
                 "dispatch-whatsapp-" + id,
                 () -> api.dispatchWhatsApp(id),
                 res -> {
@@ -1204,7 +1227,7 @@ public class ClientRegistryController implements ScreenLifecycle {
 
                     if (waSent) {
                         AppDialogService.success(tableClients, "WhatsApp Dispatched",
-                                "Official license file and message dispatched automatically via WhatsApp to " + item.getOrDefault("company_name", "client"));
+                                "Official license files (.jlic & .json) and activation message dispatched via WhatsApp to " + item.getOrDefault("company_name", "client"));
                     } else {
                         AppDialogService.warning(tableClients, "WhatsApp Channel Notice",
                                 (waErr.isBlank() ? "WAHA channel unavailable" : waErr) + ". Opening WhatsApp Web in browser...");
@@ -1218,14 +1241,16 @@ public class ClientRegistryController implements ScreenLifecycle {
     private void dispatchAll(Map<String, Object> item) {
         Long id = item.get("id") instanceof Number n ? n.longValue() : null;
         if (id == null) return;
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                tableClients,
+                "Dispatching Multi-Channel License (Email + WhatsApp)...",
                 "dispatch-all-" + id,
                 () -> api.dispatchChannels(id),
                 res -> {
                     boolean waSent = Boolean.TRUE.equals(res.get("whatsappSent"));
                     boolean emSent = Boolean.TRUE.equals(res.get("emailSent"));
-                    String summary = (waSent ? "✓ WhatsApp Sent" : "✗ WhatsApp Failed") + " | " +
-                            (emSent ? "✓ Email Sent (.jlic attached)" : "✗ Email Failed");
+                    String summary = (waSent ? "✓ WhatsApp Sent (.jlic & .json)" : "✗ WhatsApp Failed") + " | " +
+                            (emSent ? "✓ Email Sent (.jlic & .json attached)" : "✗ Email Failed");
                     if (waSent || emSent) {
                         AppDialogService.success(tableClients, "Multi-Channel Dispatch", summary);
                     } else {
@@ -1287,7 +1312,9 @@ public class ClientRegistryController implements ScreenLifecycle {
         );
         if (!confirmed) return;
 
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                tableClients,
+                "Revoking Client License & Updating Registry...",
                 "revoke-client-" + id,
                 () -> api.revokeClient(id),
                 res -> {

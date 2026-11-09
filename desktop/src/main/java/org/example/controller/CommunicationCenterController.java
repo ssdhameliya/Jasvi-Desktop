@@ -71,7 +71,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
 
     @FXML
     public void refresh() {
-        UiTaskExecutor.submitLatest("communication-load", this::readRows, this::applyRows, error -> new OwnedAlert(Alert.AlertType.ERROR, error.getMessage()).showAndWait());
+        UiTaskExecutor.submitLatestWithOverlay(table, "Refreshing communications log…", "communication-load", this::readRows, this::applyRows, error -> new OwnedAlert(Alert.AlertType.ERROR, error.getMessage()).showAndWait());
     }
 
     private List<Row> readRows() {
@@ -142,7 +142,9 @@ public class CommunicationCenterController implements ScreenLifecycle {
     }
 
     private void resendWhatsapp(Row row) {
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                table,
+                "Preparing WhatsApp transmission…",
                 "prep-whatsapp-resend",
                 () -> {
                     Path pdf = originalDocumentPdf(row);
@@ -200,7 +202,9 @@ public class CommunicationCenterController implements ScreenLifecycle {
     }
 
     private void resendEmail(Row row) {
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                table,
+                "Preparing email draft…",
                 "prep-email-resend",
                 () -> {
                     Path pdf = originalDocumentPdf(row);

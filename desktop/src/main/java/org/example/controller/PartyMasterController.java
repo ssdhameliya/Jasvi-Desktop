@@ -54,6 +54,7 @@ public abstract class PartyMasterController implements ScreenLifecycle {
     protected TableColumn<Party, Void> colActions;
     @FXML
     protected Label lblRecordCount;
+    @FXML protected Button btnRefresh;
     @FXML protected Label lblKpiTotal,lblKpiActive,lblKpiGst,lblKpiBalance;
     @FXML protected StackPane kpiTotalIcon,kpiActiveIcon,kpiGstIcon,kpiBalanceIcon;
     @FXML protected StackPane partyPageIcon;
@@ -62,6 +63,7 @@ public abstract class PartyMasterController implements ScreenLifecycle {
     private final List<Party> cachedParties = new java.util.ArrayList<>();
     private RegisterDetailDrawer detailDrawer;
     private Party detailParty;
+    private Runnable partyRefreshFinish;
 
     protected abstract String partyType();
 
@@ -298,6 +300,12 @@ public abstract class PartyMasterController implements ScreenLifecycle {
 
     @FXML
     protected void refresh() {
+        if (btnRefresh != null) {
+            partyRefreshFinish = org.example.util.OperationalUiSupport.beginRefresh(btnRefresh, "Refreshing " + displayName().toLowerCase(Locale.ROOT) + "s…");
+        } else {
+            javafx.scene.layout.StackPane host = org.example.util.LoadingOverlayHelper.findHost(tableParties);
+            if (host != null) org.example.util.LoadingOverlayHelper.show(host, "Refreshing " + displayName().toLowerCase(Locale.ROOT) + "s…");
+        }
         load();
     }
 
@@ -331,6 +339,11 @@ public abstract class PartyMasterController implements ScreenLifecycle {
             "party-master-load-" + partyType().toLowerCase(Locale.ROOT),
             () -> service.getByType(partyType()),
             loaded -> {
+                if (partyRefreshFinish != null) { partyRefreshFinish.run(); partyRefreshFinish = null; }
+                else {
+                    javafx.scene.layout.StackPane host = org.example.util.LoadingOverlayHelper.findHost(tableParties);
+                    if (host != null) org.example.util.LoadingOverlayHelper.hide(host);
+                }
                 List<Party> all = loaded == null ? List.of() : List.copyOf(loaded);
                 cachedParties.clear();
                 cachedParties.addAll(all);
@@ -342,6 +355,11 @@ public abstract class PartyMasterController implements ScreenLifecycle {
                 if (selectPartyCode != null && !selectPartyCode.isBlank()) selectSavedParty(selectPartyCode);
             },
             failure -> {
+                if (partyRefreshFinish != null) { partyRefreshFinish.run(); partyRefreshFinish = null; }
+                else {
+                    javafx.scene.layout.StackPane host = org.example.util.LoadingOverlayHelper.findHost(tableParties);
+                    if (host != null) org.example.util.LoadingOverlayHelper.hide(host);
+                }
                 if (!org.example.api.ApiSession.isEstablished()) return;
                 org.example.util.OperationalUiSupport.showError(tableParties, displayName() + " master could not load", failure);
                 error("Could not load " + displayName().toLowerCase(Locale.ROOT) + "s: " + message(failure));

@@ -1788,7 +1788,8 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML
     private void showNotifications() {
-        openPage(null, "Notification Center", "/fxml/pages/NotificationCenter.fxml");
+        Node owner = btnNotifications != null ? btnNotifications : shellRoot;
+        org.example.util.NotificationCenterDialog.show(owner, this::refreshShellIndicatorsAsync);
     }
 
 

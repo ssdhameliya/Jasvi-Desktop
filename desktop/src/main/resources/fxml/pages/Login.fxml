@@ -69,10 +69,10 @@
                         <Label text="OR" styleClass="auth-or"/>
                         <Region HBox.hgrow="ALWAYS" styleClass="auth-divider"/>
                     </HBox>
-                    <Button fx:id="btnRegister" text="Create a new User account" onAction="#register" maxWidth="360" styleClass="auth-secondary-button"/>
-                    <Button fx:id="btnLicenseActivation" text="Terminal License &amp; Machine Activation" onAction="#openLicenseActivation" maxWidth="360" styleClass="auth-secondary-button,auth-email-button"/>
-                    <Button fx:id="btnEmailSettings" text="Configure Email / OTP Settings" onAction="#openEmailSettings" maxWidth="360" styleClass="auth-secondary-button,auth-email-button"/>
-                    <Button fx:id="btnForgotPassword" text="Forgot Password?" onAction="#forgotPassword" maxWidth="360" styleClass="auth-secondary-button"/>
+                    <Button fx:id="btnRegister" text="Create a new User account" onAction="#register" maxWidth="360" styleClass="auth-secondary-button,btn-register-emerald"/>
+                    <Button fx:id="btnLicenseActivation" text="Terminal License &amp; Machine Activation" onAction="#openLicenseActivation" maxWidth="360" styleClass="auth-secondary-button,btn-license-purple"/>
+                    <Button fx:id="btnEmailSettings" text="Configure Email / OTP Settings" onAction="#openEmailSettings" maxWidth="360" styleClass="auth-secondary-button,btn-email-sky"/>
+                    <Button fx:id="btnForgotPassword" text="Forgot Password?" onAction="#forgotPassword" maxWidth="360" styleClass="auth-secondary-button,btn-forgot-amber"/>
                 </VBox>
 
                 <VBox fx:id="resetPanel" managed="false" visible="false" spacing="11" maxWidth="620" alignment="CENTER">
@@ -85,7 +85,7 @@
                         <Label fx:id="lblResetIdentityError" managed="false" visible="false" styleClass="field-error"/>
                     </VBox>
 
-                    <Button fx:id="btnSendResetOtp" text="SEND RESET CODE" onAction="#sendResetOtp" maxWidth="360" styleClass="auth-secondary-button,auth-email-button"/>
+                    <Button fx:id="btnSendResetOtp" text="SEND RESET CODE" onAction="#sendResetOtp" maxWidth="360" styleClass="auth-secondary-button,btn-email-sky"/>
 
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Reset verification code *" styleClass="auth-field-label"/>

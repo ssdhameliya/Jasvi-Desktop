@@ -31,6 +31,7 @@ import org.example.util.PlatformUiSupport;import org.example.api.operations.Oper
 public class InventoryController implements ScreenLifecycle {
  @FXML private TextField txtSearch;@FXML private Button btnRefresh;@FXML private ComboBox<String>cmbCategory,cmbStatus;@FXML private TableView<Item>tableItems;@FXML private TableColumn<Item,String>colCode,colDescription,colCategory,colHsn,colUnit,colStatus;@FXML private TableColumn<Item,Double>colGst;@FXML private TableColumn<Item,Double>colStock,colAvailable,colMinimum,colValue;@FXML private TableColumn<Item,Void>colActions;@FXML private Label lblTotalItems,lblInStock,lblLowStock,lblOutStock,lblStockValue,lblSelectedItem,lblSelectedDetail,lblRecordCount;@FXML private PieChart categoryChart;@FXML private StackPane inventoryPageIcon,inventoryTotalIcon,inventoryStockIcon,inventoryLowIcon,inventoryOutIcon,inventoryValueIcon;
  private final ItemService service=new ItemService();private final OperationsApiClient operationsApi=new OperationsApiClient();private final FxDebouncer searchDebouncer=new FxDebouncer(java.time.Duration.ofMillis(220));private final NumberFormat money=NumberFormat.getCurrencyInstance(Locale.of("en", "IN"));private List<Item>all=List.of();private Item selected;private Item detailItem;private RegisterDetailDrawer detailDrawer;private String pendingSelectItemCode;
+ private Runnable inventoryRefreshFinish;
  @FXML public void initialize(){
         installKpiIcons();colCode.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getItemCode()));colDescription.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getDescription()));colCategory.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getCategory())));colHsn.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getHsn())));colUnit.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getUnit())));colGst.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getGst()).asObject());colGst.setCellFactory(x->numberCell());colStock.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getOpeningStock()).asObject());colAvailable.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getAvailableStock()).asObject());colMinimum.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getMinimumStock()).asObject());colValue.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getOpeningStock()*v.getValue().getPurchasePrice()).asObject());colStatus.setCellValueFactory(v->new SimpleStringProperty(status(v.getValue())));for(TableColumn<Item,Double>c:List.of(colStock,colAvailable,colMinimum))c.setCellFactory(x->numberCell());colValue.setCellFactory(x->moneyCell());colStatus.setCellFactory(x->statusCell());setupActions();configureTableInteractions();cmbStatus.getItems().setAll("All Status","In Stock","Low Stock","Out of Stock");cmbStatus.setValue("All Status");txtSearch.textProperty().addListener((o,a,b)->searchDebouncer.submit(this::filter));cmbCategory.valueProperty().addListener((o,a,b)->filter());cmbStatus.valueProperty().addListener((o,a,b)->filter());tableItems.getSelectionModel().selectedItemProperty().addListener((o,a,b)->selected=b);installDetailDrawer();
         IconFactory.applyTableHeaderIcon(colCode, "reference");
@@ -100,14 +101,20 @@ public class InventoryController implements ScreenLifecycle {
  private TableCell<Item,Double>numberCell(){return new TableCell<>(){protected void updateItem(Double v,boolean e){super.updateItem(v,e);setText(e?null:String.format("%.2f",v));setAlignment(Pos.CENTER_RIGHT);}};}private TableCell<Item,Double>moneyCell(){return new TableCell<>(){protected void updateItem(Double v,boolean e){super.updateItem(v,e);setText(e?null:money.format(v));setAlignment(Pos.CENTER_RIGHT);}};}private TableCell<Item,String>statusCell(){return SemanticTableCells.status("inventory");}
 private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final MenuButton m=new MenuButton();{MenuItem v=new MenuItem("View Item",IconFactory.compactIcon("view",16)),eItem=new MenuItem("Edit Item",IconFactory.compactIcon("edit",16)),a=new MenuItem("Adjust Stock",IconFactory.compactIcon("adjust",16)),h=new MenuItem("View History",IconFactory.compactIcon("history",16));v.setOnAction(e->{Item i=getTableView().getItems().get(getIndex());tableItems.getSelectionModel().select(i);showDetails(i);});eItem.setOnAction(e->openItemDialog(getTableView().getItems().get(getIndex())));a.setOnAction(e->adjust(getTableView().getItems().get(getIndex())));h.setOnAction(e->history(getTableView().getItems().get(getIndex())));m.getItems().addAll(v,eItem,a,h);m.getStyleClass().add("row-actions");m.setGraphic(IconFactory.compactIcon("actions",16));m.setText("Actions");m.setContentDisplay(ContentDisplay.LEFT);m.setGraphicTextGap(6);m.setTooltip(new Tooltip("Actions"));IconFactory.decorateActionMenu(m);}protected void updateItem(Void v,boolean e){super.updateItem(v,e);setGraphic(e?null:m);}});}
  @FXML public void refresh(){
-  btnRefresh.setDisable(true);
-  org.example.util.OperationalUiSupport.showLoading(tableItems,"Loading inventory…");
-  UiTaskExecutor.submitLatest(
-   "inventory-load",
-   ()->{List<Item> rows=service.getAll();return rows==null?List.<Item>of():List.copyOf(rows);},
-   this::applyInventoryLoad,
-   failure->{btnRefresh.setDisable(false);all=List.of();filter();org.example.util.OperationalUiSupport.showError(tableItems,"Inventory could not load",failure);error(asException(failure));}
-  );
+   inventoryRefreshFinish = org.example.util.OperationalUiSupport.beginRefresh(btnRefresh, "Refreshing inventory…");
+   org.example.util.OperationalUiSupport.showLoading(tableItems,"Loading inventory…");
+   UiTaskExecutor.submitLatest(
+    "inventory-load",
+    ()->{List<Item> rows=service.getAll();return rows==null?List.<Item>of():List.copyOf(rows);},
+    rows -> {
+        if(inventoryRefreshFinish!=null){inventoryRefreshFinish.run();inventoryRefreshFinish=null;}
+        applyInventoryLoad(rows);
+    },
+    failure->{
+        if(inventoryRefreshFinish!=null){inventoryRefreshFinish.run();inventoryRefreshFinish=null;}
+        all=List.of();filter();org.example.util.OperationalUiSupport.showError(tableItems,"Inventory could not load",failure);error(asException(failure));
+    }
+   );
  }
  private void applyInventoryLoad(List<Item> rows){
    all=rows==null?List.of():List.copyOf(rows);

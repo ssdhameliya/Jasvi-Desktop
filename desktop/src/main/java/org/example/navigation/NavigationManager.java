@@ -150,7 +150,7 @@ public class NavigationManager {
             && instance != null && instance.contentPane == pane;
     }
 
-    private static StackPane findActiveContentPane() {
+    public static StackPane findActiveContentPane() {
         for (Window window : Window.getWindows()) {
             if (window == null || !window.isShowing() || window.getScene() == null) continue;
             Node node = window.getScene().lookup("#contentPane");

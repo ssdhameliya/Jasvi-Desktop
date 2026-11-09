@@ -100,6 +100,10 @@ public final class OperationalUiSupport {
      * Returns a Runnable to execute when the refresh operation finishes (restoring rotation, text, and enabled state).
      */
     public static Runnable beginRefresh(javafx.scene.control.Button button) {
+        return beginRefresh(button, "Refreshing records…");
+    }
+
+    public static Runnable beginRefresh(javafx.scene.control.Button button, String message) {
         if (button == null) return () -> {};
 
         button.getProperties().put("erp.refresh.managed", Boolean.TRUE);
@@ -113,7 +117,7 @@ public final class OperationalUiSupport {
 
         javafx.scene.layout.StackPane host = LoadingOverlayHelper.findHost(button);
         if (host != null) {
-            LoadingOverlayHelper.show(host, "Refreshing records…");
+            LoadingOverlayHelper.show(host, message != null && !message.isBlank() ? message : "Refreshing records…");
         }
 
         javafx.animation.RotateTransition rt = null;
@@ -129,6 +133,52 @@ public final class OperationalUiSupport {
         return () -> Platform.runLater(() -> {
             button.getProperties().remove("erp.refresh.managed");
             button.getProperties().remove("erp.refresh.running");
+            if (finalRt != null) {
+                finalRt.stop();
+            }
+            if (graphic != null) {
+                graphic.setRotate(0);
+            }
+            button.setText(originalText);
+            button.setDisable(false);
+            if (host != null) {
+                LoadingOverlayHelper.hide(host);
+            }
+        });
+    }
+
+    /**
+     * Provides tactile feedback and a modal 3D loading overlay when a Reset button is clicked.
+     * Rotates the broom/reset icon, activates the 3D acrylic loading card, and disables the button.
+     * Returns a Runnable to execute when the reset/reload operation finishes.
+     */
+    public static Runnable beginReset(javafx.scene.control.Button button) {
+        return beginReset(button, "Resetting filters…");
+    }
+
+    public static Runnable beginReset(javafx.scene.control.Button button, String message) {
+        if (button == null) return () -> {};
+
+        String originalText = button.getText();
+        Node graphic = button.getGraphic();
+
+        button.setDisable(true);
+        javafx.scene.layout.StackPane host = LoadingOverlayHelper.findHost(button);
+        if (host != null) {
+            LoadingOverlayHelper.show(host, message != null && !message.isBlank() ? message : "Resetting filters…");
+        }
+
+        javafx.animation.RotateTransition rt = null;
+        if (graphic != null) {
+            rt = new javafx.animation.RotateTransition(javafx.util.Duration.millis(450), graphic);
+            rt.setByAngle(-360);
+            rt.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            rt.setInterpolator(javafx.animation.Interpolator.LINEAR);
+            rt.play();
+        }
+
+        final javafx.animation.RotateTransition finalRt = rt;
+        return () -> Platform.runLater(() -> {
             if (finalRt != null) {
                 finalRt.stop();
             }

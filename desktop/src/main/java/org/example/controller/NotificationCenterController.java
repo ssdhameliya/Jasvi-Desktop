@@ -31,7 +31,7 @@ public final class NotificationCenterController implements ScreenLifecycle {
     @FXML private ListView<CategoryOption> listNotificationCategories;
     @FXML private ListView<NotificationItem> listNotifications;
     @FXML private Label lblNotificationCount,lblAllCount,lblUnreadCount,lblActionCount,lblDetailTitle,lblDetailMessage,lblDetailMeta,lblDetailReference;
-    @FXML private Button btnOpenRecord,btnToggleRead,btnDeleteNotification,btnMarkAllRead,btnRefresh,btnClearHistory;
+    @FXML private Button btnOpenRecord,btnToggleRead,btnDeleteNotification,btnMarkAllRead,btnRefresh,btnClearHistory,btnClose,btnBottomClose;
     private List<NotificationItem> all = List.of();
     private long refreshSerial;
 
@@ -50,11 +50,14 @@ public final class NotificationCenterController implements ScreenLifecycle {
 
     private void installIcons(){
         if(notificationHeaderIcon!=null)notificationHeaderIcon.getChildren().setAll(IconFactory.compactIcon("notification",22));
-        if(allSummaryIcon!=null)allSummaryIcon.getChildren().setAll(IconFactory.compactIcon("grouping",20));
-        if(unreadSummaryIcon!=null)unreadSummaryIcon.getChildren().setAll(IconFactory.compactIcon("email",19));
+        if(allSummaryIcon!=null)allSummaryIcon.getChildren().setAll(IconFactory.compactIcon("inbox",20));
+        if(unreadSummaryIcon!=null)unreadSummaryIcon.getChildren().setAll(IconFactory.compactIcon("notification",20));
         if(actionSummaryIcon!=null)actionSummaryIcon.getChildren().setAll(IconFactory.compactIcon("warning",20));
         if(detailIcon!=null)detailIcon.getChildren().setAll(IconFactory.compactIcon("notification",22));
-        graphic(btnMarkAllRead,"complete"); graphic(btnRefresh,"refresh"); graphic(btnClearHistory,"delete"); graphic(btnOpenRecord,"view"); graphic(btnToggleRead,"complete"); graphic(btnDeleteNotification,"delete");
+        if(lblAllCount!=null)lblAllCount.getProperties().put("erp.value.icon.skip",true);
+        if(lblUnreadCount!=null)lblUnreadCount.getProperties().put("erp.value.icon.skip",true);
+        if(lblActionCount!=null)lblActionCount.getProperties().put("erp.value.icon.skip",true);
+        graphic(btnMarkAllRead,"complete"); graphic(btnRefresh,"refresh"); graphic(btnClearHistory,"delete"); graphic(btnOpenRecord,"view"); graphic(btnToggleRead,"complete"); graphic(btnDeleteNotification,"delete"); graphic(btnClose,"cancel"); graphic(btnBottomClose,"cancel");
     }
     private void graphic(Button button,String semantic){if(button==null)return;button.setGraphic(IconFactory.compactIcon(semantic,14));button.getProperties().put("erp-icon-preserve",true);}
 
@@ -93,6 +96,15 @@ public final class NotificationCenterController implements ScreenLifecycle {
     @FXML private void openRecord() {
         NotificationItem item = selected(); if(item==null)return;
         NotificationService.markRead(item.id());
+        if (isDiagnosticAlert(item)) {
+            Node owner = btnOpenRecord != null ? btnOpenRecord : listNotifications;
+            javafx.stage.Window win = owner != null && owner.getScene() != null ? owner.getScene().getWindow() : null;
+            javafx.stage.Window parentWin = (win instanceof javafx.stage.Stage st && st.getOwner() != null) ? st.getOwner() : win;
+            Node targetOwner = (parentWin != null && parentWin.getScene() != null) ? parentWin.getScene().getRoot() : owner;
+            closeDialogIfPresent();
+            org.example.util.SystemDiagnosticsDialog.show(targetOwner);
+            return;
+        }
         String ref=safe(item.referenceNo()).trim();
         boolean legacyPayment="PAYMENT".equalsIgnoreCase(safe(item.moduleKey()))||"PAYMENTS".equalsIgnoreCase(safe(item.moduleKey()))||safe(item.targetFxml()).endsWith("/PaymentHistory.fxml");
         if(item.recordId()!=null&&!legacyPayment){
@@ -119,7 +131,22 @@ public final class NotificationCenterController implements ScreenLifecycle {
         String key=!safe(resolved.moduleKey()).isBlank()?resolved.moduleKey():item.moduleKey();
         String ref=!safe(resolved.reference()).isBlank()?resolved.reference():item.referenceNo();
         if(safe(target).isBlank()){lblDetailReference.setText("The linked record exists but no application destination is available for it.");return;}
+        closeDialogIfPresent();
         DeepLinkRouter.open(target,key,resolved.recordId(),ref,safe(item.actionCode()).isBlank()?"VIEW":item.actionCode(),"Notification #"+item.id());
+    }
+
+    @FXML private void closeDialog() {
+        closeDialogIfPresent();
+    }
+
+    private void closeDialogIfPresent() {
+        Node anchor = btnClose != null ? btnClose : (btnOpenRecord != null ? btnOpenRecord : listNotifications);
+        if (anchor != null && anchor.getScene() != null && anchor.getScene().getWindow() != null) {
+            javafx.stage.Window window = anchor.getScene().getWindow();
+            if (window instanceof javafx.stage.Stage stage && stage.getOwner() != null) {
+                stage.close();
+            }
+        }
     }
 
     private void updateSummary() {
@@ -169,12 +196,32 @@ public final class NotificationCenterController implements ScreenLifecycle {
     private boolean canOpen(NotificationItem n){return n!=null&&(n.recordId()!=null||!safe(n.referenceNo()).isBlank());}
     private NotificationItem selected(){return listNotifications.getSelectionModel().getSelectedItem();}
 
+    private boolean isDiagnosticAlert(NotificationItem item) {
+        if (item == null) return false;
+        String title = safe(item.title()).toLowerCase(Locale.ROOT);
+        String cat = safe(item.category()).toLowerCase(Locale.ROOT);
+        String msg = safe(item.message()).toLowerCase(Locale.ROOT);
+        return title.contains("diagnostic") || title.contains("system error") || cat.contains("diagnostic")
+                || (cat.contains("system") && (msg.contains("scanner") || msg.contains("diagnostic") || msg.contains("error")));
+    }
+
     private void showDetail(NotificationItem n) {
         boolean has=n!=null;
-        btnOpenRecord.setDisable(!has||!canOpen(n)); btnToggleRead.setDisable(!has); btnDeleteNotification.setDisable(!has);
+        boolean diagnostic = isDiagnosticAlert(n);
+        boolean canOpen = has && (diagnostic || canOpen(n));
+        btnOpenRecord.setDisable(!has || !canOpen);
+        btnToggleRead.setDisable(!has);
+        btnDeleteNotification.setDisable(!has);
         if(!has){
-            lblDetailTitle.setText("Select a notification");lblDetailMessage.setText("Choose an item from the list to see its details and available actions.");lblDetailMessage.setVisible(true);lblDetailMessage.setManaged(true);lblDetailMeta.setText("");lblDetailReference.setText("");btnOpenRecord.setText("Open Record");
-            if(detailIcon!=null)detailIcon.getChildren().setAll(IconFactory.compactIcon("notification",22)); return;
+            lblDetailTitle.setText("Select a notification");
+            lblDetailMessage.setText("Choose an item from the list to see its details and available actions.");
+            lblDetailMessage.setVisible(true);
+            lblDetailMessage.setManaged(true);
+            lblDetailMeta.setText("");
+            lblDetailReference.setText("");
+            btnOpenRecord.setText("Open Record");
+            if(detailIcon!=null)detailIcon.getChildren().setAll(IconFactory.compactIcon("notification",22));
+            return;
         }
         String category=displayCategory(n.category());
         lblDetailTitle.setText(displayTitle(n));
@@ -182,18 +229,27 @@ public final class NotificationCenterController implements ScreenLifecycle {
         lblDetailMessage.setText(detailMessage);
         lblDetailMessage.setVisible(!detailMessage.isBlank());
         lblDetailMessage.setManaged(!detailMessage.isBlank());
-        lblDetailMeta.setGraphic(IconFactory.compactIcon(categorySemantic(category),13));
+        lblDetailMeta.setGraphic(IconFactory.compactIcon(diagnostic ? "warning" : categorySemantic(category), 13));
         lblDetailMeta.setText(category+"  •  "+safe(n.severity())+"  •  "+whenText(n.createdAt())+(n.read()?"  •  Read":"  •  Unread"));
-        String ref=safe(n.referenceNo()); String module=safe(n.moduleKey());
-        lblDetailReference.setGraphic(IconFactory.compactIcon("link",13));
-        lblDetailReference.setText(ref.isBlank()?"No record reference":("Reference: "+ref+(module.isBlank()?"":"  •  "+module)));
+        String ref=safe(n.referenceNo());
+        String module=safe(n.moduleKey());
+        lblDetailReference.setGraphic(IconFactory.compactIcon(diagnostic ? "warning" : "link", 13));
+        if (diagnostic) {
+            lblDetailReference.setText("System diagnostic telemetry available. Click Inspect Diagnostics below.");
+        } else {
+            lblDetailReference.setText(ref.isBlank() ? "No record reference" : ("Reference: " + ref + (module.isBlank() ? "" : "  •  " + module)));
+        }
         btnToggleRead.setText(n.read()?"Mark Unread":"Mark Read");
         btnOpenRecord.setText(actionButtonText(n));
-        graphic(btnOpenRecord,"APPROVE".equalsIgnoreCase(safe(n.actionCode()))?"complete":"view");
-        if(detailIcon!=null)detailIcon.getChildren().setAll(IconFactory.compactIcon(categorySemantic(category),22));
+        graphic(btnOpenRecord, diagnostic ? "validate" : ("APPROVE".equalsIgnoreCase(safe(n.actionCode())) ? "complete" : "view"));
+        if(detailIcon!=null)detailIcon.getChildren().setAll(IconFactory.compactIcon(diagnostic ? "warning" : categorySemantic(category), 22));
     }
 
-    private String actionButtonText(NotificationItem n){return "APPROVE".equalsIgnoreCase(safe(n.actionCode()))?"Review Approval":"Open Record";}
+    private String actionButtonText(NotificationItem n){
+        if (isDiagnosticAlert(n)) return "Inspect Diagnostics";
+        if (!canOpen(n)) return "No Linked Record";
+        return "APPROVE".equalsIgnoreCase(safe(n.actionCode())) ? "Review Approval" : "Open Record";
+    }
     private String whenText(long epoch){return DateTimeFormatter.ofPattern(BusinessClock.datePattern()+" • hh:mm a").withZone(BusinessClock.zone()).format(Instant.ofEpochMilli(epoch));}
     private String rowTimestamp(long epoch){return DateTimeFormatter.ofPattern(BusinessClock.datePattern()+"  •  hh:mm a").withZone(BusinessClock.zone()).format(Instant.ofEpochMilli(epoch));}
     private boolean genericTitle(NotificationItem n){String t=safe(n==null?null:n.title()).trim();return t.isBlank()||"Notification".equalsIgnoreCase(t);}
