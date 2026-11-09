@@ -655,6 +655,7 @@ public final class ProfessionalUiEnhancer {
         installCellValueTooltips(table);
         TablePerformanceOptimizer.optimize(table);
         DynamicTableLayoutManager.install(table);
+        installLoadingPlaceholder(table);
 
         // A cached page or a TabPane can recreate/show its header skin after the
         // original decoration pass. Re-assert the semantic header graphic when
@@ -847,6 +848,28 @@ public final class ProfessionalUiEnhancer {
         }
     }
 
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void installLoadingPlaceholder(TableView table) {
+        if (Boolean.TRUE.equals(table.getProperties().get("erp-skeleton-placeholder-installed"))) return;
+        table.getProperties().put("erp-skeleton-placeholder-installed", true);
+
+        if (table.getPlaceholder() == null) {
+            Classy3DLoadingView skeleton = Classy3DLoadingView.createTableSkeleton("Loading records…", "Syncing with Jasvi Cloud");
+            Label emptyPlaceholder = new Label("No records found");
+            emptyPlaceholder.getStyleClass().add("erp-table-empty-label");
+
+            table.setPlaceholder(UiTaskExecutor.isBusy() ? skeleton : emptyPlaceholder);
+
+            UiTaskExecutor.busyProperty().addListener((obs, wasBusy, isBusy) -> {
+                Platform.runLater(() -> {
+                    if (table.getItems() == null || table.getItems().isEmpty()) {
+                        table.setPlaceholder(Boolean.TRUE.equals(isBusy) ? skeleton : emptyPlaceholder);
+                    }
+                });
+            });
+        }
+    }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void applyTableProfile(TableView table) {

@@ -1,6 +1,10 @@
 package org.example.util;
 
 import javafx.application.Platform;
+import javafx.beans.property.ReadOnlyBooleanProperty;
+import javafx.beans.property.ReadOnlyBooleanWrapper;
+import javafx.beans.property.ReadOnlyIntegerProperty;
+import javafx.beans.property.ReadOnlyIntegerWrapper;
 import javafx.scene.Node;
 import javafx.scene.layout.Pane;
 
@@ -84,6 +88,69 @@ public final class UiTaskExecutor {
     private static final Map<String, Future<?>> ACTIVE_READS = new ConcurrentHashMap<>();
     private static final Map<String, Long> READ_TOKENS = new ConcurrentHashMap<>();
     private static final Map<String, Future<?>> ACTIVE_ACTIONS = new ConcurrentHashMap<>();
+    private static final Map<String, String> ACTIVE_TITLES = new ConcurrentHashMap<>();
+    private static final ReadOnlyIntegerWrapper ACTIVE_TASK_COUNT = new ReadOnlyIntegerWrapper(0);
+    private static final ReadOnlyBooleanWrapper BUSY = new ReadOnlyBooleanWrapper(false);
+    private static final javafx.beans.property.ReadOnlyStringWrapper ACTIVE_DESCRIPTION =
+            new javafx.beans.property.ReadOnlyStringWrapper("Working…");
+
+    public static ReadOnlyIntegerProperty activeTaskCountProperty() {
+        return ACTIVE_TASK_COUNT.getReadOnlyProperty();
+    }
+
+    public static ReadOnlyBooleanProperty busyProperty() {
+        return BUSY.getReadOnlyProperty();
+    }
+
+    public static javafx.beans.property.ReadOnlyStringProperty activeDescriptionProperty() {
+        return ACTIVE_DESCRIPTION.getReadOnlyProperty();
+    }
+
+    public static String getActiveDescription() {
+        return ACTIVE_DESCRIPTION.get();
+    }
+
+    public static boolean isBusy() {
+        return BUSY.get();
+    }
+
+    public static String resolveHumanDescription(String key) {
+        if (key == null || key.isBlank()) return "Working…";
+        String lower = key.toLowerCase(java.util.Locale.ROOT);
+        if (lower.contains("email")) return "Sending Email…";
+        if (lower.contains("whatsapp")) return "Sending WhatsApp…";
+        if (lower.contains("pdf")) return "Generating PDF…";
+        if (lower.contains("import")) return "Importing Data…";
+        if (lower.contains("kpi")) return "Refreshing KPIs…";
+        if (lower.contains("refresh") || lower.contains("reload")) return "Refreshing…";
+        if (lower.contains("search") || lower.contains("lookup")) return "Searching Records…";
+        if (lower.contains("bank")) return "Syncing Banking…";
+        if (lower.contains("telemetry") || lower.contains("heartbeat")) return "Syncing Telemetry…";
+        return "Working…";
+    }
+
+    private static void notifyTaskStateChanged() {
+        try {
+            if (Platform.isFxApplicationThread()) {
+                updateTaskState();
+            } else {
+                Platform.runLater(UiTaskExecutor::updateTaskState);
+            }
+        } catch (Throwable ignored) {
+            // JavaFX toolkit not initialized or shutting down
+        }
+    }
+
+    private static void updateTaskState() {
+        int count = activeTaskCount();
+        ACTIVE_TASK_COUNT.set(count);
+        BUSY.set(count > 0);
+        if (count > 0 && !ACTIVE_TITLES.isEmpty()) {
+            ACTIVE_DESCRIPTION.set(ACTIVE_TITLES.values().iterator().next());
+        } else {
+            ACTIVE_DESCRIPTION.set("Working…");
+        }
+    }
 
     private UiTaskExecutor() { }
 
@@ -137,12 +204,16 @@ public final class UiTaskExecutor {
             return null;
         });
 
+        ACTIVE_TITLES.put(key, resolveHumanDescription(key));
         ACTIVE_READS.put(key, task);
+        notifyTaskStateChanged();
         try {
             READ_EXECUTOR.execute(task);
         } catch (RejectedExecutionException rejected) {
+            ACTIVE_TITLES.remove(key);
             ACTIVE_READS.remove(key, task);
             cleanupReadIfCurrent(key, token);
+            notifyTaskStateChanged();
             notifyFailure(onFailure, rejected);
         }
     }
@@ -268,16 +339,21 @@ public final class UiTaskExecutor {
             return null;
         });
 
+        ACTIVE_TITLES.put(key, resolveHumanDescription(key));
         Future<?> existing = ACTIVE_ACTIONS.putIfAbsent(key, task);
         if (existing != null) {
+            ACTIVE_TITLES.remove(key);
             notifyFailure(onFailure, new IllegalStateException("This action is already in progress."));
             return;
         }
+        notifyTaskStateChanged();
 
         try {
             executor.execute(task);
         } catch (RejectedExecutionException rejected) {
+            ACTIVE_TITLES.remove(key);
             ACTIVE_ACTIONS.remove(key, task);
+            notifyTaskStateChanged();
             notifyFailure(onFailure, new RejectedExecutionException(
                     "The action queue is busy. The action was not submitted; please retry.", rejected));
         }
@@ -361,7 +437,9 @@ public final class UiTaskExecutor {
             PerformanceMonitor.event("background-action-apply-failed", key + " | " + safeMessage(applyError));
             invokeFailureHandler(key, onFailure, applyError);
         } finally {
+            ACTIVE_TITLES.remove(key);
             ACTIVE_ACTIONS.remove(key);
+            notifyTaskStateChanged();
         }
     }
 
@@ -374,7 +452,9 @@ public final class UiTaskExecutor {
             DesktopLog.error("UiTaskExecutor", "ACTION_FAILED", key + " | " + safeMessage(error), error);
             invokeFailureHandler(key, onFailure, error);
         } finally {
+            ACTIVE_TITLES.remove(key);
             ACTIVE_ACTIONS.remove(key);
+            notifyTaskStateChanged();
         }
     }
 
@@ -409,15 +489,21 @@ public final class UiTaskExecutor {
 
     private static void cleanupReadIfCurrent(String key, long token) {
         if (READ_TOKENS.remove(key, token)) {
+            ACTIVE_TITLES.remove(key);
             ACTIVE_READS.remove(key);
+            notifyTaskStateChanged();
         }
     }
 
     /** Cancel only latest-result-wins read work. Reliable actions are never cancelled here. */
     public static void cancel(String key) {
         READ_TOKENS.remove(key);
+        ACTIVE_TITLES.remove(key);
         Future<?> previous = ACTIVE_READS.remove(key);
-        if (previous != null) previous.cancel(true);
+        if (previous != null) {
+            previous.cancel(true);
+            notifyTaskStateChanged();
+        }
     }
 
     /** Cancel only latest-result-wins reads matching the prefix. */
@@ -435,6 +521,7 @@ public final class UiTaskExecutor {
             if (future != null) future.cancel(true);
         }
         ACTIVE_READS.clear();
+        notifyTaskStateChanged();
     }
 
     public static boolean actionInProgress(String key) {

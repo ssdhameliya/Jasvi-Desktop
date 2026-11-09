@@ -1,4 +1,4 @@
-.page-header, .screen-header {
+iled.page-header, .screen-header {
 -fx-padding: 16 20 16 20;
     -fx-spacing: 12;
     -fx-alignment: CENTER_LEFT;
@@ -17103,6 +17103,27 @@
     -fx-fill: #059669;
 }
 
+.shell-activity-card {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-padding: 4px 10px 4px 10px;
+    -fx-alignment: CENTER_LEFT;
+}
+
+.shell-activity-text {
+    -fx-font-family: 'Segoe UI', 'SF Pro Text', -apple-system, sans-serif;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #64748b;
+}
+
+.shell-activity-spinner .progress-indicator {
+    -fx-progress-color: #0284c7;
+}
+
 .top-icon, .approved-icon-button {
     -fx-background-color: #f8fafc;
     -fx-border-color: #cbd5e1;
@@ -18572,4 +18593,173 @@
     -fx-background-color: linear-gradient(to bottom, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
     -fx-border-color: #fde68a;
     -fx-text-fill: #ffffff;
+}
+
+/* ==========================================================================
+   Import Dedicated Modal Shield Overlay (Live Progress & 3D Gyroscope)
+   ========================================================================== */
+.import-shield-overlay {
+    -fx-background-color: rgba(15, 23, 42, 0.45);
+    -fx-alignment: center;
+}
+
+.import-shield-card {
+    -fx-background-color: rgba(255, 255, 255, 0.98);
+    -fx-background-radius: 18;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 18;
+    -fx-border-width: 1.5;
+    -fx-padding: 32 36;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.16), 28, 0, 0, 10);
+}
+
+.import-shield-title {
+    -fx-font-size: 17px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #0f172a;
+}
+
+.import-shield-detail {
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #0284c7;
+    -fx-text-alignment: center;
+}
+
+.import-shield-progress-container {
+    -fx-padding: 8 0;
+}
+
+.import-shield-counter {
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #475569;
+}
+
+.import-shield-percent {
+    -fx-font-size: 14px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #0284c7;
+}
+
+.import-shield-progress-bar {
+    -fx-pref-height: 12px;
+    -fx-accent: #0284c7;
+}
+
+.import-shield-progress-bar > .track {
+    -fx-background-color: #e2e8f0;
+    -fx-background-radius: 6;
+}
+
+.import-shield-progress-bar > .bar {
+    -fx-background-color: linear-gradient(to right, #0284c7, #38bdf8);
+    -fx-background-radius: 6;
+}
+
+.import-shield-notice-box {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 10 14;
+}
+
+.import-shield-lock-icon {
+    -fx-font-size: 14px;
+}
+
+.import-shield-notice-text {
+    -fx-font-size: 11px;
+    -fx-text-fill: #64748b;
+    -fx-font-weight: 600;
+}
+
+.import-active-loader-badge {
+    -fx-background-color: rgba(59, 130, 246, 0.12);
+    -fx-border-color: rgba(59, 130, 246, 0.40);
+    -fx-border-radius: 9999px;
+    -fx-background-radius: 9999px;
+    -fx-padding: 4 12;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #1d4ed8;
+}
+
+.import-kpi-pill-box {
+    -fx-alignment: center-right;
+}
+
+.import-kpi-chip {
+    -fx-padding: 4 10;
+    -fx-border-radius: 9999px;
+    -fx-background-radius: 9999px;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+
+.import-kpi-checked {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #cbd5e1;
+    -fx-text-fill: #334155;
+}
+
+.import-kpi-passed {
+    -fx-background-color: #dcfce7;
+    -fx-border-color: #86efac;
+    -fx-text-fill: #15803d;
+}
+
+.import-kpi-failed {
+    -fx-background-color: #fee2e2;
+    -fx-border-color: #fca5a5;
+    -fx-text-fill: #b91c1c;
+}
+
+.import-kpi-skipped {
+    -fx-background-color: #fef3c7;
+    -fx-border-color: #fde68a;
+    -fx-text-fill: #b45309;
+}
+
+.import-review-toolbar {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 8 12;
+}
+
+.import-toolbar-label {
+    -fx-font-weight: 600;
+    -fx-font-size: 13px;
+    -fx-text-fill: #475569;
+}
+
+.import-search-pagination-bar {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 6 10;
+}
+
+.import-page-btn {
+    -fx-min-width: 32px;
+    -fx-pref-width: 32px;
+    -fx-padding: 3 6;
+}
+
+.import-page-info {
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #64748b;
+}
+
+.import-review-footer-bar {
+    -fx-padding: 4 6;
+}
+
+.import-validation-skip-row {
+    -fx-background-color: rgba(245, 158, 11, 0.08);
 }

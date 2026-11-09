@@ -1452,7 +1452,7 @@ public final class IconFactory {
         if (value.contains("snooze")) return "snooze";
         if (value.contains("reminder")) return "reminder";
         if (value.contains("complete") || value.contains("approve")) return "complete";
-        if (value.contains("validate") || value.contains("verify")) return "validate";
+        if (value.contains("validate") || value.contains("validation") || value.contains("verify") || value.contains("preflight")) return "validate";
         if (value.contains("rollback")) return "rollback";
         if (value.contains("restore")) return "restore";
         if (value.contains("backup")) return "backup";

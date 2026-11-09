@@ -85,21 +85,8 @@ public final class LoadingOverlayHelper {
             card.setMaxHeight(Region.USE_PREF_SIZE);
 
             // 3D Dual-Ring Glowing Gyro Spinner
-            StackPane gyroContainer = new StackPane();
-            gyroContainer.setAlignment(Pos.CENTER);
-            gyroContainer.setPrefSize(72.0, 72.0);
-            gyroContainer.setMaxSize(72.0, 72.0);
-
-            Circle halo = new Circle(28.0);
-            halo.getStyleClass().addAll("erp-loading-halo", "approved-ui");
-
-            ProgressIndicator spinner = new ProgressIndicator();
-            spinner.getStyleClass().addAll("erp-loading-spinner", "approved-ui");
-            spinner.setPrefSize(56.0, 56.0);
-            spinner.setMinSize(56.0, 56.0);
-            spinner.setMaxSize(56.0, 56.0);
-
-            gyroContainer.getChildren().addAll(halo, spinner);
+            StackPane gyroContainer = createGyroscope(72.0);
+            Timeline breathing = (Timeline) gyroContainer.getProperties().get(PROPERTY_TIMELINE);
 
             // Dynamic Typography with Subtitle
             lblText = new Label(message != null && !message.isBlank() ? message : "Refreshing records…");
@@ -113,23 +100,6 @@ public final class LoadingOverlayHelper {
 
             card.getChildren().addAll(gyroContainer, textGroup);
             overlay.getChildren().add(card);
-
-            // Gentle breathing animation on the halo and card
-            Timeline breathing = new Timeline(
-                    new KeyFrame(Duration.ZERO,
-                            new KeyValue(halo.scaleXProperty(), 0.94, Interpolator.EASE_BOTH),
-                            new KeyValue(halo.scaleYProperty(), 0.94, Interpolator.EASE_BOTH),
-                            new KeyValue(halo.opacityProperty(), 0.55, Interpolator.EASE_BOTH)
-                    ),
-                    new KeyFrame(Duration.millis(750),
-                            new KeyValue(halo.scaleXProperty(), 1.08, Interpolator.EASE_BOTH),
-                            new KeyValue(halo.scaleYProperty(), 1.08, Interpolator.EASE_BOTH),
-                            new KeyValue(halo.opacityProperty(), 0.95, Interpolator.EASE_BOTH)
-                    )
-            );
-            breathing.setAutoReverse(true);
-            breathing.setCycleCount(Animation.INDEFINITE);
-            breathing.play();
 
             host.getProperties().put(PROPERTY_OVERLAY, overlay);
             host.getProperties().put(PROPERTY_LABEL, lblText);
@@ -280,5 +250,47 @@ public final class LoadingOverlayHelper {
             return sp;
         }
         return findHost(node);
+    }
+
+    /**
+     * Creates an animated 3D dual-ring glowing gyroscope node with breathing halo physics.
+     * Reusable across standalone dialogs, shields, and custom overlays.
+     */
+    public static StackPane createGyroscope(double size) {
+        StackPane gyroContainer = new StackPane();
+        gyroContainer.setAlignment(Pos.CENTER);
+        gyroContainer.setPrefSize(size, size);
+        gyroContainer.setMaxSize(size, size);
+
+        Circle halo = new Circle(size * 0.38);
+        halo.getStyleClass().addAll("erp-loading-halo", "approved-ui");
+
+        ProgressIndicator spinner = new ProgressIndicator();
+        spinner.getStyleClass().addAll("erp-loading-spinner", "approved-ui");
+        double spinnerSize = size * 0.78;
+        spinner.setPrefSize(spinnerSize, spinnerSize);
+        spinner.setMinSize(spinnerSize, spinnerSize);
+        spinner.setMaxSize(spinnerSize, spinnerSize);
+
+        gyroContainer.getChildren().addAll(halo, spinner);
+
+        Timeline breathing = new Timeline(
+                new KeyFrame(Duration.ZERO,
+                        new KeyValue(halo.scaleXProperty(), 0.94, Interpolator.EASE_BOTH),
+                        new KeyValue(halo.scaleYProperty(), 0.94, Interpolator.EASE_BOTH),
+                        new KeyValue(halo.opacityProperty(), 0.55, Interpolator.EASE_BOTH)
+                ),
+                new KeyFrame(Duration.millis(750),
+                        new KeyValue(halo.scaleXProperty(), 1.08, Interpolator.EASE_BOTH),
+                        new KeyValue(halo.scaleYProperty(), 1.08, Interpolator.EASE_BOTH),
+                        new KeyValue(halo.opacityProperty(), 0.95, Interpolator.EASE_BOTH)
+                )
+        );
+        breathing.setAutoReverse(true);
+        breathing.setCycleCount(Animation.INDEFINITE);
+        breathing.play();
+        gyroContainer.getProperties().put(PROPERTY_TIMELINE, breathing);
+
+        return gyroContainer;
     }
 }

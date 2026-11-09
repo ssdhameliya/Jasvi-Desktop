@@ -273,6 +273,9 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private PasswordField txtWahaApiKey;
     @FXML private CheckBox chkWahaEnabled;
     @FXML private ComboBox<String> cmbActiveWhatsappSender;
+    @FXML private ComboBox<String> cmbWhatsappSalesChannel;
+    @FXML private ComboBox<String> cmbWhatsappPurchaseChannel;
+    @FXML private ComboBox<String> cmbWhatsappQuotationChannel;
     @FXML private Button btnWhatsappTest;
     @FXML private Button btnStartWaha;
     @FXML private Button btnWhatsappInfo;
@@ -1015,6 +1018,31 @@ public class SettingsController implements ScreenLifecycle {
             cmbActiveWhatsappSender.setValue(match);
         } else if (!items.isEmpty()) {
             cmbActiveWhatsappSender.getSelectionModel().selectFirst();
+        }
+
+        List<String> deptOptions = new ArrayList<>();
+        deptOptions.add("⭐ Default (Use Primary Company WhatsApp)");
+        deptOptions.addAll(items);
+
+        List<String> quoteOptions = new ArrayList<>();
+        quoteOptions.add("⭐ Default (Use Primary Company WhatsApp)");
+        quoteOptions.add("🔗 Same as Sales Channel");
+        quoteOptions.addAll(items);
+
+        if (cmbWhatsappSalesChannel != null) {
+            cmbWhatsappSalesChannel.setItems(FXCollections.observableArrayList(deptOptions));
+            String salesVal = ConfigManager.get("whatsapp.channel.sales_name", "⭐ Default (Use Primary Company WhatsApp)");
+            cmbWhatsappSalesChannel.setValue(deptOptions.contains(salesVal) ? salesVal : "⭐ Default (Use Primary Company WhatsApp)");
+        }
+        if (cmbWhatsappPurchaseChannel != null) {
+            cmbWhatsappPurchaseChannel.setItems(FXCollections.observableArrayList(deptOptions));
+            String purchVal = ConfigManager.get("whatsapp.channel.purchase_name", "⭐ Default (Use Primary Company WhatsApp)");
+            cmbWhatsappPurchaseChannel.setValue(deptOptions.contains(purchVal) ? purchVal : "⭐ Default (Use Primary Company WhatsApp)");
+        }
+        if (cmbWhatsappQuotationChannel != null) {
+            cmbWhatsappQuotationChannel.setItems(FXCollections.observableArrayList(quoteOptions));
+            String quoteVal = ConfigManager.get("whatsapp.channel.quotation_name", "🔗 Same as Sales Channel");
+            cmbWhatsappQuotationChannel.setValue(quoteOptions.contains(quoteVal) ? quoteVal : "🔗 Same as Sales Channel");
         }
     }
 
@@ -3095,14 +3123,38 @@ private record AssetPreviewRequest(
             putSetting("whatsapp.active_sender_number", sender);
             ConfigManager.setWithoutSaving("whatsapp.active_sender_number", sender);
         }
+        if (cmbWhatsappSalesChannel != null && cmbWhatsappSalesChannel.getValue() != null) {
+            String val = cmbWhatsappSalesChannel.getValue();
+            putSetting("whatsapp.channel.sales_name", val);
+            ConfigManager.setWithoutSaving("whatsapp.channel.sales_name", val);
+        }
+        if (cmbWhatsappPurchaseChannel != null && cmbWhatsappPurchaseChannel.getValue() != null) {
+            String val = cmbWhatsappPurchaseChannel.getValue();
+            putSetting("whatsapp.channel.purchase_name", val);
+            ConfigManager.setWithoutSaving("whatsapp.channel.purchase_name", val);
+        }
+        if (cmbWhatsappQuotationChannel != null && cmbWhatsappQuotationChannel.getValue() != null) {
+            String val = cmbWhatsappQuotationChannel.getValue();
+            putSetting("whatsapp.channel.quotation_name", val);
+            ConfigManager.setWithoutSaving("whatsapp.channel.quotation_name", val);
+        }
         if (SessionService.isAdmin()) {
             try {
                 String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null && !txtWahaEndpoint.getText().isBlank() ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
                 if (!ep.startsWith("http://") && !ep.startsWith("https://")) ep = "http://" + ep;
                 boolean on = chkWahaEnabled != null && chkWahaEnabled.isSelected();
-                new org.example.api.whatsapp.BusinessWhatsappApiClient().saveSettings(
+                var api = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+                api.saveSettings(
                     new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, "", on, null)
                 );
+                // Also persist department routing mappings to server
+                var channels = api.listChannels();
+                Long salesChId = resolveChannelIdFromSelection(cmbWhatsappSalesChannel, channels);
+                Long purchChId = resolveChannelIdFromSelection(cmbWhatsappPurchaseChannel, channels);
+                Long quoteChId = resolveChannelIdFromSelection(cmbWhatsappQuotationChannel, channels);
+                api.saveDepartmentRouting(new org.example.api.whatsapp.BusinessWhatsappApiClient.DepartmentRoutingDto(
+                    null, salesChId, purchChId, quoteChId
+                ));
             } catch (Exception ignored) {}
         }
     }
@@ -3140,6 +3192,20 @@ private record AssetPreviewRequest(
                         "\n\nWAHA Docker container is not running on port 3000.\nTo start it, run: docker run -d --name waha -p 3000:3000 devlikeapro/waha\nor click 'Start WAHA Engine' above.");
             }
         );
+    }
+
+    private Long resolveChannelIdFromSelection(ComboBox<String> cmb, List<org.example.api.whatsapp.BusinessWhatsappApiClient.ChannelDto> channels) {
+        if (cmb == null || cmb.getValue() == null || channels == null) return 0L;
+        String val = cmb.getValue().trim();
+        if (val.startsWith("⭐") || val.startsWith("🔗") || val.isBlank()) return 0L;
+        String digits = val.replaceAll("[^0-9]", "");
+        for (var ch : channels) {
+            String chDigits = ch.phoneNumber() != null ? ch.phoneNumber().replaceAll("[^0-9]", "") : "";
+            if (!digits.isBlank() && !chDigits.isBlank() && (digits.equals(chDigits) || digits.endsWith(chDigits) || chDigits.endsWith(digits))) {
+                return ch.id();
+            }
+        }
+        return 0L;
     }
 
     @FXML
@@ -3444,13 +3510,9 @@ private record AssetPreviewRequest(
                     if (qrResp != null && ("WORKING".equalsIgnoreCase(qrResp.status()) || "CONNECTED".equalsIgnoreCase(qrResp.status()))) {
                         pollTimeline.stop();
                         lblStatus.setText("✅ WhatsApp device paired successfully! Sender is now active and ready.");
-                        lblStatus.getStyleClass().removeAll("status-success", "status-info");
+                        lblStatus.getStyleClass().removeAll("status-success", "status-info", "status-warning");
                         lblStatus.getStyleClass().add("status-success");
                         if (onPairedCallback != null) onPairedCallback.run();
-                    } else if (qrResp != null && ("STARTING".equalsIgnoreCase(qrResp.status()) || "AUTHENTICATING".equalsIgnoreCase(qrResp.status()))) {
-                        lblStatus.setText("🔄 Scan detected! Establishing secure WhatsApp session with phone...");
-                        lblStatus.getStyleClass().removeAll("status-success", "status-info");
-                        lblStatus.getStyleClass().add("status-info");
                     } else if (qrResp != null && qrResp.qrImageBase64() != null && !qrResp.qrImageBase64().isBlank()) {
                         try {
                             String b64 = qrResp.qrImageBase64();
@@ -3458,10 +3520,19 @@ private record AssetPreviewRequest(
                             byte[] imgBytes = java.util.Base64.getDecoder().decode(b64);
                             qrView.setImage(new javafx.scene.image.Image(new java.io.ByteArrayInputStream(imgBytes)));
                             lblStatus.setText("Status: Ready to scan • Open WhatsApp on your phone > Linked Devices > Link a Device.");
-                            lblStatus.getStyleClass().removeAll("status-success", "status-info");
+                            lblStatus.getStyleClass().removeAll("status-success", "status-info", "status-warning");
+                            lblStatus.getStyleClass().add("status-info");
                         } catch (Exception ex) {
                             lblStatus.setText("Error decoding QR image: " + ex.getMessage());
                         }
+                    } else if (qrResp != null && ("AUTHENTICATING".equalsIgnoreCase(qrResp.status()) || "PAIRING".equalsIgnoreCase(qrResp.status()))) {
+                        lblStatus.setText("🔄 Scan detected! Establishing secure WhatsApp session with phone...");
+                        lblStatus.getStyleClass().removeAll("status-success", "status-info", "status-warning");
+                        lblStatus.getStyleClass().add("status-info");
+                    } else if (qrResp != null && ("STARTING".equalsIgnoreCase(qrResp.status()) || "ENGINE_STARTING".equalsIgnoreCase(qrResp.status()))) {
+                        lblStatus.setText("⏳ Starting WhatsApp engine for this channel... Preparing QR code (please wait ~5s)...");
+                        lblStatus.getStyleClass().removeAll("status-success", "status-info", "status-warning");
+                        lblStatus.getStyleClass().add("status-warning");
                     } else if (qrResp != null && qrResp.message() != null && !qrResp.message().isBlank()) {
                         lblStatus.setText(qrResp.message());
                     } else {

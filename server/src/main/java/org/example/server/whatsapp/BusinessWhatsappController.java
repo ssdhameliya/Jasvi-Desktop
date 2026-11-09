@@ -72,6 +72,19 @@ public class BusinessWhatsappController {
         return Map.of("success", true, "message", "Channel marked as default");
     }
 
+    @GetMapping("/routing")
+    public WahaDtos.DepartmentRoutingDto getDepartmentRouting() {
+        requireAdmin();
+        return service.getDepartmentRouting();
+    }
+
+    @PutMapping("/routing")
+    public WahaDtos.DepartmentRoutingDto saveDepartmentRouting(@RequestBody WahaDtos.DepartmentRoutingDto dto) {
+        requireAdmin();
+        service.saveDepartmentRouting(dto);
+        return service.getDepartmentRouting();
+    }
+
     @GetMapping("/qr")
     public WahaDtos.QrResponse getQrDefault() {
         return service.getQrCode("default");

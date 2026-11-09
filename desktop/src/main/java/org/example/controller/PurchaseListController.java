@@ -444,7 +444,7 @@ private void configureDetailsCloseButton(){
               phone,
               message,
               pdf,
-              "Connected: Primary Company WhatsApp"
+              "Sending via: " + org.example.config.ConfigManager.get("whatsapp.channel.purchase_name", "Primary Company WhatsApp")
       );
     }, draft -> {
       Optional<WhatsappTransmissionDialog.WhatsappTransmissionResult> opt = WhatsappTransmissionDialog.show(tablePurchase, draft);

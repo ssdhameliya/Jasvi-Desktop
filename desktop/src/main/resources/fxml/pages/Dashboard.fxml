@@ -157,6 +157,11 @@
                 <Label fx:id="lblClock" styleClass="shell-clock-text"/>
                 <Circle radius="4" styleClass="shell-clock-live"/>
             </HBox>
+            <!-- Ambient Background Activity Spinner Card -->
+            <HBox fx:id="shellActivityCard" alignment="CENTER_LEFT" spacing="6" styleClass="shell-activity-card" visible="false" managed="false">
+                <ProgressIndicator fx:id="shellActivitySpinner" prefWidth="16" prefHeight="16" minWidth="16" minHeight="16" maxWidth="16" maxHeight="16" styleClass="shell-activity-spinner"/>
+                <Label fx:id="lblActivityStatus" text="Working…" styleClass="shell-activity-text"/>
+            </HBox>
             <TextField fx:id="txtSearch" id="shellSearch" promptText="Search invoices, parties, items, payments... (Ctrl + K)" prefWidth="390" minWidth="190" maxWidth="390" HBox.hgrow="SOMETIMES" onAction="#search" styleClass="erp-global-search"/>
             <Button fx:id="shellNewSale" text="New Sale" onAction="#createSale" styleClass="top-add,approved-button,approved-emerald-button,erp-button-emerald"/>
             <!-- iPhone-style switch located next to notifications and email. -->

@@ -1097,6 +1097,16 @@ public class SalesController implements ScreenLifecycle {
                         .findFirst().orElse(selected);
                 cmbCustomer.getSelectionModel().select(match);
             }
+            if (saved.isPresent()) {
+                Party p = saved.get();
+                javafx.application.Platform.runLater(() -> {
+                    org.example.util.AppDialogService.success(
+                        cmbCustomer,
+                        "Customer Created Successfully",
+                        p.getPartyCode() + " — " + p.getName()
+                    );
+                });
+            }
         } catch (Exception ex) {
             new OwnedAlert(Alert.AlertType.ERROR,
                     "Unable to open customer form: " + ex.getMessage(), ButtonType.OK).showAndWait();

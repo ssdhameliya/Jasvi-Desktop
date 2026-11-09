@@ -67,12 +67,13 @@ public final class Main {
             SceneManager.showSetupWizard(() -> completeFirstRun(stage));
             return;
         }
-        // A saved, valid workspace must always be attempted automatically. Older workspaces may
-        // pre-date the local setup.completed marker; the authoritative setup state is verified
+        // A saved, valid workspace must always be attempted automatically. Older
+        // workspaces may
+        // pre-date the local setup.completed marker; the authoritative setup state is
+        // verified
         // through the server API after PostgreSQL/Spring services are ready.
         initializeConfiguredApplication(stage);
     }
-
 
     static boolean requiresWorkspaceChooser(boolean workspaceConfigured) {
         return !workspaceConfigured;
@@ -93,7 +94,8 @@ public final class Main {
     private void initializeInBackground(Stage stage) {
         SceneManager.updateSplashStage(1, "Workspace and configuration loaded.");
         // Reload is intentionally safe here in case another startup component changed
-        // configuration after the initial splash preload, then refresh visible branding.
+        // configuration after the initial splash preload, then refresh visible
+        // branding.
         ConfigManager.load();
         SceneManager.refreshSplashBranding();
         try {
@@ -109,23 +111,28 @@ public final class Main {
             Platform.runLater(() -> showStartupFailureWithWorkspaceRecovery(
                     stage,
                     "Database runtime startup failed",
-                    BrandingService.applicationName() + " could not prepare its local PostgreSQL database.\n\n" + exception.getMessage()));
+                    BrandingService.applicationName() + " could not prepare its local PostgreSQL database.\n\n"
+                            + exception.getMessage()));
             return;
         }
         BackupManager.RestoreResult restoreResult = ConfigManager.isSharedClient()
                 ? BackupManager.RestoreResult.none()
                 : BackupManager.applyPendingRestoreIfPresent();
         if (restoreResult.attempted() && !restoreResult.applied()) {
-            if (restoreResult.failure() != null) DesktopLog.error("Main", "RESTORE_FAILED", restoreResult.message(), restoreResult.failure());
+            if (restoreResult.failure() != null)
+                DesktopLog.error("Main", "RESTORE_FAILED", restoreResult.message(), restoreResult.failure());
         }
         LocalRecoveryManager.FileApplyResult recoveryFiles = ConfigManager.isSharedClient()
                 ? LocalRecoveryManager.FileApplyResult.none()
                 : LocalRecoveryManager.applyPendingFilesIfReady();
         if (recoveryFiles.attempted() && !recoveryFiles.applied()) {
-            if (recoveryFiles.failure() != null) DesktopLog.error("Main", "LOCAL_RECOVERY_FILES_FAILED", recoveryFiles.message(), recoveryFiles.failure());
+            if (recoveryFiles.failure() != null)
+                DesktopLog.error("Main", "LOCAL_RECOVERY_FILES_FAILED", recoveryFiles.message(),
+                        recoveryFiles.failure());
             Platform.runLater(() -> showStartupFailureWithWorkspaceRecovery(stage,
                     "LOCAL disaster recovery incomplete",
-                    recoveryFiles.message() + "\n\n" + BrandingService.applicationName() + " will not open the recovered LOCAL company until its business files are consistent."));
+                    recoveryFiles.message() + "\n\n" + BrandingService.applicationName()
+                            + " will not open the recovered LOCAL company until its business files are consistent."));
             return;
         }
         RuntimeApiClient.RuntimeStatus startupRuntime;
@@ -135,15 +142,19 @@ public final class Main {
             SceneManager.updateSplashStage(4, "Verifying database, schema and migrations...");
             new org.example.api.runtime.RuntimeApiClient().status();
             if (new SetupApiClient().requiresSetup()) {
-                if (ConfigManager.isSharedClient()) throw new IllegalStateException(
-                        "The company server has not been initialized. Complete setup on the server computer first.");
+                if (ConfigManager.isSharedClient())
+                    throw new IllegalStateException(
+                            "The company server has not been initialized. Complete setup on the server computer first.");
                 Platform.runLater(() -> SceneManager.showSetupWizard(() -> completeFirstRun(stage)));
                 return;
             }
-            // The database/server is already initialized, so repair only the local legacy marker.
-            // This is deliberately non-destructive and prevents upgrades from asking users to
+            // The database/server is already initialized, so repair only the local legacy
+            // marker.
+            // This is deliberately non-destructive and prevents upgrades from asking users
+            // to
             // select an already-configured workspace again.
-            if (!WorkspaceManager.isSetupComplete()) WorkspaceManager.markSetupComplete();
+            if (!WorkspaceManager.isSetupComplete())
+                WorkspaceManager.markSetupComplete();
             SceneManager.updateSplashStage(5, "Finalizing " + BrandingService.applicationName() + "...");
             SceneManager.markSplashReady("Services ready. Opening " + BrandingService.applicationName() + "...");
         } catch (Exception exception) {
@@ -158,7 +169,8 @@ public final class Main {
             String startupMessage = ConfigManager.isSharedClient()
                     ? "Could not connect to the company server.\n\n" + exception.getMessage()
                             + "\n\nThe Shared Client does not start or replace the remote company server."
-                    : BrandingService.applicationName() + " services could not start automatically.\n\n" + exception.getMessage()
+                    : BrandingService.applicationName() + " services could not start automatically.\n\n"
+                            + exception.getMessage()
                             + "\n\nServer log: " + RuntimeBootstrapper.serverLogPath();
             if (ConfigManager.isSharedClient()) {
                 Platform.runLater(() -> showStartupFailureWithWorkspaceRecovery(
@@ -190,10 +202,12 @@ public final class Main {
     }
 
     private void completeStartupTransition(Stage stage, BackupManager.RestoreResult restoreResult,
-                                           LocalRecoveryManager.FileApplyResult recoveryFiles) {
-        // Splash is non-interactive. Still guard the transition so a late startup callback
+            LocalRecoveryManager.FileApplyResult recoveryFiles) {
+        // Splash is non-interactive. Still guard the transition so a late startup
+        // callback
         // can never replace an already authenticated application shell.
-        if (SessionService.current() == null) SceneManager.showLogin();
+        if (SessionService.current() == null)
+            SceneManager.showLogin();
         finishStartup(stage);
         if (restoreResult.attempted() && !restoreResult.applied()) {
             new OwnedAlert(Alert.AlertType.ERROR,
@@ -204,7 +218,8 @@ public final class Main {
                     : "Safety backup: " + restoreResult.safetyBackup();
             if (recoveryFiles.applied()) {
                 org.example.util.AppDialogService.success(stage, "LOCAL recovery completed",
-                        "The company-server database and business files were restored to this LOCAL workspace. " + safety);
+                        "The company-server database and business files were restored to this LOCAL workspace. "
+                                + safety);
             } else {
                 org.example.util.AppDialogService.success(stage, "Database restore completed",
                         "The staged database restore was applied successfully. " + safety);
@@ -215,7 +230,10 @@ public final class Main {
         }
     }
 
-    /** SetupWizardController has created the workspace and bootstrapped company/admin data through the Spring API. */
+    /**
+     * SetupWizardController has created the workspace and bootstrapped
+     * company/admin data through the Spring API.
+     */
     private void showLocalBackendStartupFailure(Stage stage, String header, String message) {
         ButtonType retry = new ButtonType("Retry Startup", ButtonBar.ButtonData.OK_DONE);
         ButtonType openLog = new ButtonType("Open Server Log", ButtonBar.ButtonData.OTHER);
@@ -268,17 +286,21 @@ public final class Main {
             ButtonType configure = new ButtonType("Configure Server", ButtonBar.ButtonData.OTHER);
             ButtonType recover = new ButtonType("Recover from Package", ButtonBar.ButtonData.OTHER);
             Alert alert = new OwnedAlert(Alert.AlertType.ERROR,
-                    message + "\n\nThis PC remains in Shared Client mode. " + BrandingService.applicationName() + " will not silently switch to an older LOCAL database.",
+                    message + "\n\nThis PC remains in Shared Client mode. " + BrandingService.applicationName()
+                            + " will not silently switch to an older LOCAL database.",
                     retry, configure, recover, exit);
             alert.setHeaderText(header);
             ButtonType choice = alert.showAndWait().orElse(exit);
-            if (choice == retry) initializeConfiguredApplication(stage);
+            if (choice == retry)
+                initializeConfiguredApplication(stage);
             else if (choice == configure) {
                 if (!configureSharedClientConnectionAtStartup(stage))
                     showStartupFailureWithWorkspaceRecovery(stage, header, message);
             } else if (choice == recover) {
-                if (!prepareOfflineLocalRecovery(stage)) showStartupFailureWithWorkspaceRecovery(stage, header, message);
-            } else Platform.exit();
+                if (!prepareOfflineLocalRecovery(stage))
+                    showStartupFailureWithWorkspaceRecovery(stage, header, message);
+            } else
+                Platform.exit();
             return;
         }
 
@@ -286,13 +308,17 @@ public final class Main {
         Alert alert = new OwnedAlert(Alert.AlertType.ERROR, message, existing, exit);
         alert.setHeaderText(header);
         ButtonType choice = alert.showAndWait().orElse(exit);
-        if (choice == existing) SceneManager.showSetupWizard(() -> completeFirstRun(stage));
-        else Platform.exit();
+        if (choice == existing)
+            SceneManager.showSetupWizard(() -> completeFirstRun(stage));
+        else
+            Platform.exit();
     }
 
-
-    /** Repairs only the managed Shared Client endpoint when startup cannot reach its company server.
-     * The previous LOCAL workspace and all server data remain untouched. */
+    /**
+     * Repairs only the managed Shared Client endpoint when startup cannot reach its
+     * company server.
+     * The previous LOCAL workspace and all server data remain untouched.
+     */
     private boolean configureSharedClientConnectionAtStartup(Stage stage) {
         OwnedDialog<ButtonType> dialog = new OwnedDialog<>();
         dialog.setTitle("Company Server Connection");
@@ -370,10 +396,12 @@ public final class Main {
         });
 
         ButtonType result = dialog.showAndWait().orElse(cancel);
-        if (result != save) return false;
+        if (result != save)
+            return false;
         String normalized = validatedUrl.get();
         String selectedEnvironment = validatedEnvironment.get();
-        if (normalized == null || selectedEnvironment == null) return false;
+        if (normalized == null || selectedEnvironment == null)
+            return false;
 
         try {
             WorkspaceManager.updateManagedSharedClientConnection(normalized, selectedEnvironment);
@@ -381,7 +409,8 @@ public final class Main {
             OwnedAlert saved = new OwnedAlert(Alert.AlertType.INFORMATION,
                     "The verified company-server connection was saved.\n\n"
                             + "This PC remains in Shared Client mode and the previous LOCAL workspace was not modified. "
-                            + BrandingService.applicationName() + " will close now; reopen it to connect using the repaired profile.",
+                            + BrandingService.applicationName()
+                            + " will close now; reopen it to connect using the repaired profile.",
                     ButtonType.OK);
             saved.setHeaderText("Company server connection repaired");
             saved.showAndWait();
@@ -402,14 +431,17 @@ public final class Main {
     private boolean prepareOfflineLocalRecovery(Stage stage) {
         FileChooser packageChooser = new FileChooser();
         packageChooser.setTitle("Choose Application Recovery Package");
-        packageChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Application recovery package (*.zip)", "*.zip"));
+        packageChooser.getExtensionFilters()
+                .add(new FileChooser.ExtensionFilter("Application recovery package (*.zip)", "*.zip"));
         File packageFile = packageChooser.showOpenDialog(stage);
-        if (packageFile == null) return false;
+        if (packageFile == null)
+            return false;
 
         DirectoryChooser targetChooser = new DirectoryChooser();
         targetChooser.setTitle("Choose LOCAL Recovery Workspace");
         File targetFolder = targetChooser.showDialog(stage);
-        if (targetFolder == null) return false;
+        if (targetFolder == null)
+            return false;
         Path target = targetFolder.toPath().toAbsolutePath().normalize();
         var inspection = WorkspaceManager.inspectLocalRecoveryTarget(target);
         if (!inspection.valid()) {
@@ -424,25 +456,31 @@ public final class Main {
         OwnedAlert confirmation = new OwnedAlert(Alert.AlertType.WARNING,
                 "Recovery package: " + packageFile.getAbsolutePath() + "\n\n"
                         + "LOCAL workspace: " + target + "\n\n"
-                        + "The package checksum and contents will be validated before this PC is switched. The company server will not be modified. After preparation " + BrandingService.applicationName() + " will close; on the next start the database is restored before login and business files are applied only after the database restore succeeds.",
+                        + "The package checksum and contents will be validated before this PC is switched. The company server will not be modified. After preparation "
+                        + BrandingService.applicationName()
+                        + " will close; on the next start the database is restored before login and business files are applied only after the database restore succeeds.",
                 cancel, recover);
         confirmation.setHeaderText("Explicit offline LOCAL disaster recovery");
-        if (confirmation.showAndWait().orElse(cancel) != recover) return false;
+        if (confirmation.showAndWait().orElse(cancel) != recover)
+            return false;
 
         try {
             LocalRecoveryManager.StageResult staged = LocalRecoveryManager.stageForLocal(
                     packageFile.toPath(), target, ConfigManager.getConfiguredServerUrl());
             OwnedAlert ready = new OwnedAlert(Alert.AlertType.INFORMATION,
                     "The recovery package was verified and staged successfully.\n\n"
-                            + "Source: " + staged.sourceEnvironment() + " • " + staged.sourceVersion() + " • " + staged.databaseName() + "\n"
+                            + "Source: " + staged.sourceEnvironment() + " • " + staged.sourceVersion() + " • "
+                            + staged.databaseName() + "\n"
                             + "LOCAL workspace: " + staged.workspace() + "\n\n"
-                            + BrandingService.applicationName() + " will now close. Start it again to complete the LOCAL database and business-file recovery before login.");
+                            + BrandingService.applicationName()
+                            + " will now close. Start it again to complete the LOCAL database and business-file recovery before login.");
             ready.setHeaderText("LOCAL recovery prepared");
             ready.showAndWait();
             Platform.exit();
             return true;
         } catch (Exception failure) {
-            DesktopLog.error("Main", "OFFLINE_LOCAL_RECOVERY_FAILED", "Offline LOCAL recovery package could not be staged", failure);
+            DesktopLog.error("Main", "OFFLINE_LOCAL_RECOVERY_FAILED",
+                    "Offline LOCAL recovery package could not be staged", failure);
             OwnedAlert error = new OwnedAlert(Alert.AlertType.ERROR,
                     "The recovery package was not applied.\n\n" + failure.getMessage());
             error.setHeaderText("LOCAL recovery preparation failed");
@@ -464,7 +502,8 @@ public final class Main {
                 if (!ConfigManager.isSharedClient()) {
                     SceneManager.updateSplashStage(2, "Preparing local PostgreSQL...");
                     ManagedPostgresRuntime.ensureReady();
-                } else SceneManager.updateSplashStage(2, "Connecting to company server...");
+                } else
+                    SceneManager.updateSplashStage(2, "Connecting to company server...");
                 SceneManager.updateSplashStage(3, "Starting Spring Boot services...");
                 RuntimeApiClient.RuntimeStatus startupRuntime = RuntimeBootstrapper.ensureServerReady();
                 SceneManager.updateSplashStage(4, "Verifying database, schema and migrations...");
@@ -474,7 +513,8 @@ public final class Main {
                 RuntimeApiClient.RuntimeStatus verifiedRuntime = startupRuntime;
                 Platform.runLater(() -> {
                     Runnable continueStartup = () -> {
-                        if (SessionService.current() == null) SceneManager.showLogin();
+                        if (SessionService.current() == null)
+                            SceneManager.showLogin();
                         finishStartup(stage);
                     };
                     if (ConfigManager.isSharedClient()
@@ -500,7 +540,8 @@ public final class Main {
                 String startupMessage = ConfigManager.isSharedClient()
                         ? "Could not connect to the company server after setup.\n\n" + exception.getMessage()
                                 + "\n\nThe Shared Client does not start or replace the remote company server."
-                        : BrandingService.applicationName() + " services could not start after setup.\n\n" + exception.getMessage()
+                        : BrandingService.applicationName() + " services could not start after setup.\n\n"
+                                + exception.getMessage()
                                 + "\n\nServer log: " + RuntimeBootstrapper.serverLogPath();
                 Platform.runLater(() -> {
                     Alert alert = new OwnedAlert(Alert.AlertType.ERROR, startupMessage);
@@ -517,26 +558,31 @@ public final class Main {
         stage.show();
         responsivenessMonitor.start();
         long startupMillis = PerformanceMonitor.finish("warm-startup");
-        if (startupMillis >= 0) PerformanceBudgets.record("warm-startup", startupMillis,
-                PerformanceBudgets.WARM_STARTUP_MS);
+        if (startupMillis >= 0)
+            PerformanceBudgets.record("warm-startup", startupMillis,
+                    PerformanceBudgets.WARM_STARTUP_MS);
         PerformanceMonitor.event("runtime",
-            "os=" + System.getProperty("os.name")
-                + " | arch=" + System.getProperty("os.arch")
-                + " | java=" + System.getProperty("java.version")
-                + " | javafx=" + System.getProperty("javafx.version")
-                + " | scale=" + stage.getOutputScaleX() + "x" + stage.getOutputScaleY()
-                + " | prism.order=" + System.getProperty("prism.order", "javafx-default")
-                + " | prism.verbose=" + System.getProperty("prism.verbose", "false"));
+                "os=" + System.getProperty("os.name")
+                        + " | arch=" + System.getProperty("os.arch")
+                        + " | java=" + System.getProperty("java.version")
+                        + " | javafx=" + System.getProperty("javafx.version")
+                        + " | scale=" + stage.getOutputScaleX() + "x" + stage.getOutputScaleY()
+                        + " | prism.order=" + System.getProperty("prism.order", "javafx-default")
+                        + " | prism.verbose=" + System.getProperty("prism.verbose", "false"));
         runtimeHealthMonitor.start();
+        org.example.api.sync.OfflineSyncWorker.getInstance().start();
         UpdateLifecycle.afterDatabaseInitialization(stage);
-        if (stage.getScene() == null) SceneManager.showLogin();
+        if (stage.getScene() == null)
+            SceneManager.showLogin();
         startBackupScheduler();
         UpdateStartupChecker.checkLater(stage);
     }
 
     private void startBackupScheduler() {
-        if (ConfigManager.isSharedClient()) return;
-        if (backupScheduler != null) return;
+        if (ConfigManager.isSharedClient())
+            return;
+        if (backupScheduler != null)
+            return;
         backupScheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "erp-backup-scheduler");
             thread.setDaemon(true);
@@ -547,9 +593,12 @@ public final class Main {
     }
 
     public synchronized void stop() {
-        if (stopped) return;
+        if (stopped)
+            return;
         stopped = true;
-        if (backupScheduler != null) backupScheduler.shutdownNow();
+        org.example.api.sync.OfflineSyncWorker.getInstance().stop();
+        if (backupScheduler != null)
+            backupScheduler.shutdownNow();
         responsivenessMonitor.stop();
         runtimeHealthMonitor.close();
         RuntimeBootstrapper.shutdownManagedServer();

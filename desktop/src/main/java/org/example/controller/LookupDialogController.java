@@ -184,10 +184,6 @@ public class LookupDialogController implements ScreenLifecycle {
                     saved = true;
                     savedResult = savedLookup;
                     close();
-                    String displayCode = roleMode ? roleDisplayCode(lookup.getLookupValue()) : lookup.getLookupCode();
-                    org.example.util.AppDialogService.success((javafx.stage.Window) null,
-                            "Master value " + (created ? "saved" : "updated"),
-                            displayCode + " - " + lookup.getLookupValue());
                 },
                 failure -> { btnSave.setDisable(false); showOperationError("Unable to save master value", failure); }
         );

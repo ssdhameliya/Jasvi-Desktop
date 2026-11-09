@@ -318,11 +318,20 @@ public abstract class PartyMasterController implements ScreenLifecycle {
 
     private void open(Party party) {
         try {
+            boolean isNew = party == null;
             Optional<Party> result = PartyDialog.show(tableParties, partyType(), party);
             if (result.isEmpty()) {
                 load();
             } else {
-                load(result.get().getPartyCode());
+                Party saved = result.get();
+                load(saved.getPartyCode());
+                javafx.application.Platform.runLater(() -> {
+                    org.example.util.AppDialogService.success(
+                        tableParties,
+                        displayName() + (isNew ? " Created" : " Updated") + " Successfully",
+                        saved.getPartyCode() + " — " + saved.getName()
+                    );
+                });
             }
         } catch (Exception exception) {
             error("Could not open the dialog: " + exception.getMessage());

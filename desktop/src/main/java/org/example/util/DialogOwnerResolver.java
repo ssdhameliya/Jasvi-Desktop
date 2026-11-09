@@ -9,7 +9,8 @@ public final class DialogOwnerResolver {
     private DialogOwnerResolver() {}
 
     public static Window resolve(Node node) {
-        if (node != null && node.getScene() != null && node.getScene().getWindow() != null) {
+        if (node != null && node.getScene() != null && node.getScene().getWindow() != null
+                && node.getScene().getWindow().isShowing()) {
             return node.getScene().getWindow();
         }
         Window focused = Window.getWindows().stream()
@@ -18,16 +19,21 @@ public final class DialogOwnerResolver {
                 .filter(DialogOwnerResolver::isPrimaryCandidate)
                 .findFirst().orElse(null);
         if (focused != null) return focused;
-        return Window.getWindows().stream()
+        Window primary = Window.getWindows().stream()
                 .filter(Window::isShowing)
                 .filter(DialogOwnerResolver::isPrimaryCandidate)
+                .findFirst().orElse(null);
+        if (primary != null) return primary;
+        return Window.getWindows().stream()
+                .filter(Window::isShowing)
+                .filter(w -> w instanceof Stage)
                 .findFirst().orElse(null);
     }
 
     public static Window resolve() { return resolve((Node) null); }
 
     public static Window resolve(Object target) {
-        if (target instanceof Window window) return window;
+        if (target instanceof Window window && window.isShowing()) return window;
         if (target instanceof Node node) return resolve(node);
         return resolve((Node) null);
     }

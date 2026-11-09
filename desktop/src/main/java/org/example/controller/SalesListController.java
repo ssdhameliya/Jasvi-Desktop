@@ -799,7 +799,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
                     target,
                     message,
                     pdf,
-                    "Connected: Primary Company WhatsApp"
+                    "Sending via: " + org.example.config.ConfigManager.get("whatsapp.channel.sales_name", "Primary Company WhatsApp")
             );
         }, draft -> {
             Optional<WhatsappTransmissionDialog.WhatsappTransmissionResult> opt = WhatsappTransmissionDialog.show(tableSales, draft);

@@ -18,6 +18,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ContentDisplay;
@@ -50,6 +51,8 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.animation.RotateTransition;
 import javafx.animation.PauseTransition;
+import javafx.animation.FadeTransition;
+import javafx.scene.control.ProgressIndicator;
 import javafx.util.Duration;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
@@ -205,6 +208,9 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML
     private Label lblClock;
+    @FXML private HBox shellActivityCard;
+    @FXML private ProgressIndicator shellActivitySpinner;
+    @FXML private Label lblActivityStatus;
 
     /** Shared footer populated from values maintained in Settings. */
     @FXML
@@ -251,6 +257,7 @@ public class DashboardController implements ScreenLifecycle {
         PermissionService.addChangeListener(permissionChangeListener);
 
         ClockService.start(lblClock);
+        initializeActivityIndicator();
         // Company details do not change every second. Refreshing the complete
         // footer from the clock listener caused repeated ConfigManager reads and
         // layout pulses, especially on macOS Retina displays.
@@ -505,6 +512,57 @@ public class DashboardController implements ScreenLifecycle {
     }
 
     /** Refreshes the shell footer from the current company configuration without blocking the JavaFX thread. */
+    private void initializeActivityIndicator() {
+        if (shellActivityCard == null) return;
+        Tooltip.install(shellActivityCard, new Tooltip("Jasvi ERP background tasks active"));
+        PauseTransition showDelay = new PauseTransition(Duration.millis(800));
+        showDelay.setOnFinished(e -> {
+            if (UiTaskExecutor.isBusy()) {
+                if (lblActivityStatus != null) {
+                    lblActivityStatus.setText(UiTaskExecutor.getActiveDescription());
+                }
+                shellActivityCard.setVisible(true);
+                shellActivityCard.setManaged(true);
+                FadeTransition ft = new FadeTransition(Duration.millis(180), shellActivityCard);
+                ft.setFromValue(shellActivityCard.getOpacity());
+                ft.setToValue(1.0);
+                ft.play();
+            }
+        });
+
+        UiTaskExecutor.activeDescriptionProperty().addListener((obs, oldDesc, newDesc) -> {
+            Platform.runLater(() -> {
+                if (lblActivityStatus != null && newDesc != null && !newDesc.isBlank()) {
+                    lblActivityStatus.setText(newDesc);
+                }
+            });
+        });
+
+        UiTaskExecutor.busyProperty().addListener((obs, wasBusy, isBusy) -> {
+            Platform.runLater(() -> {
+                if (Boolean.TRUE.equals(isBusy)) {
+                    showDelay.playFromStart();
+                } else {
+                    showDelay.stop();
+                    PauseTransition pause = new PauseTransition(Duration.millis(250));
+                    pause.setOnFinished(e -> {
+                        if (!UiTaskExecutor.isBusy()) {
+                            FadeTransition ft = new FadeTransition(Duration.millis(150), shellActivityCard);
+                            ft.setFromValue(shellActivityCard.getOpacity());
+                            ft.setToValue(0.0);
+                            ft.setOnFinished(ev -> {
+                                shellActivityCard.setVisible(false);
+                                shellActivityCard.setManaged(false);
+                            });
+                            ft.play();
+                        }
+                    });
+                    pause.play();
+                }
+            });
+        });
+    }
+
     private void refreshCompanyFooter() {
         if (lblCompanyFooter == null) return;
         UiTaskExecutor.submitLatest("dashboard-company-footer",

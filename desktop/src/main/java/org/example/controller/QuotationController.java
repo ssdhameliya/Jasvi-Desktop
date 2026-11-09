@@ -240,7 +240,7 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
            target,
            message,
            pdf,
-           "Connected: Primary Company WhatsApp"
+           "Sending via: " + org.example.config.ConfigManager.get("whatsapp.channel.quotation_name", "Primary Company WhatsApp")
    );
   },draft->{
    Optional<WhatsappTransmissionDialog.WhatsappTransmissionResult> opt=WhatsappTransmissionDialog.show(table,draft);

@@ -80,6 +80,14 @@ public class ImportController implements ScreenLifecycle {
     @FXML private Label lblChosenFile;
     @FXML private Label lblDropIcon;
     @FXML private StackPane importPageIcon;
+    @FXML private Label lblActiveLoaderBadge;
+    @FXML private Label lblStep1SubTitle;
+    @FXML private Label lblStepMapSubTitle;
+    @FXML private Label lblStepReviewSubTitle;
+    @FXML private Label lblKpiChecked;
+    @FXML private Label lblKpiPassed;
+    @FXML private Label lblKpiFailed;
+    @FXML private Label lblKpiSkipped;
     @FXML private Label lblMappingCount;
     @FXML private Label lblPreviewCount;
     @FXML private Label lblPreviewStatus;
@@ -89,9 +97,18 @@ public class ImportController implements ScreenLifecycle {
 
     @FXML private Button btnChooseFile;
     @FXML private Button btnRunImport;
+    @FXML private Button btnRevalidate;
     @FXML private Button btnAutoMap;
     @FXML private Button btnResetMapping;
     @FXML private Button btnImportGuide;
+    @FXML private TextField txtSearchRecords;
+    @FXML private ComboBox<String> cmbStatusFilter;
+    @FXML private ComboBox<String> cmbPageSize;
+    @FXML private Button btnPageFirst;
+    @FXML private Button btnPagePrev;
+    @FXML private Button btnPageNext;
+    @FXML private Button btnPageLast;
+    @FXML private Label lblPaginationInfo;
 
     @FXML private VBox dropZone;
     @FXML private VBox progressContainer;
@@ -104,6 +121,13 @@ public class ImportController implements ScreenLifecycle {
     @FXML private ProgressBar progressBar;
     @FXML private CheckBox chkDryRun;
     @FXML private VBox stepSelect, stepUpload, stepMap, stepReview, importCompletedPanel;
+    @FXML private StackPane importShieldOverlay;
+    @FXML private StackPane shieldGyroHost;
+    @FXML private Label lblShieldTitle;
+    @FXML private Label lblShieldDetail;
+    @FXML private Label lblShieldCounter;
+    @FXML private Label lblShieldPercent;
+    @FXML private ProgressBar shieldProgressBar;
     @FXML private Label step1Badge, step2Badge, step3Badge, step4Badge, lblImportCompletedSummary;
     @FXML private javafx.scene.layout.Region wizardLine1, wizardLine2, wizardLine3;
     @FXML private StackPane itemChoiceIcon, customerChoiceIcon, supplierChoiceIcon, salesChoiceIcon, purchaseChoiceIcon, purchaseReconChoiceIcon, masterChoiceIcon, bankStatementChoiceIcon, selectedFileExcelIcon;
@@ -147,6 +171,12 @@ public class ImportController implements ScreenLifecycle {
     private boolean importCompleted;
     private String completedModule;
 
+    private final List<Map<String, String>> allValidationRows = new ArrayList<>();
+    private final List<Map<String, String>> allPreviewRows = new ArrayList<>();
+    private int currentValidationPage = 1;
+    private int currentPreviewPage = 1;
+    private int pageSize = 50;
+
     /* =========================================================
        INITIALIZATION
        ========================================================= */
@@ -189,6 +219,14 @@ public class ImportController implements ScreenLifecycle {
 
         btnRunImport.setDisable(true);
 
+        if (shieldGyroHost != null && shieldGyroHost.getChildren().isEmpty()) {
+            shieldGyroHost.getChildren().add(org.example.util.LoadingOverlayHelper.createGyroscope(64.0));
+        }
+        if (importShieldOverlay != null) {
+            importShieldOverlay.addEventFilter(javafx.scene.input.MouseEvent.ANY, javafx.event.Event::consume);
+            importShieldOverlay.addEventFilter(javafx.scene.input.KeyEvent.ANY, javafx.event.Event::consume);
+        }
+
         showWizardStep(1);
         Platform.runLater(() -> UnsavedChangesManager.installGuard(btnRunImport, this::allowNavigationAway));
 
@@ -209,6 +247,44 @@ public class ImportController implements ScreenLifecycle {
             invalidatePreflight("Import mode changed • Run validation again");
             updateMappingSummary();
         });
+
+        if (chkDryRun != null) {
+            chkDryRun.selectedProperty().addListener((obs, oldV, newV) -> {
+                boolean dry = Boolean.TRUE.equals(newV);
+                btnRunImport.setText(dry ? "Test Validation (Dry Run)" : "Import Records");
+                updateMappingSummary();
+            });
+        }
+        if (cmbStatusFilter != null) {
+            cmbStatusFilter.setItems(FXCollections.observableArrayList("All Records", "Failed Only", "Passed Only", "Skipped Only"));
+            cmbStatusFilter.getSelectionModel().selectFirst();
+            cmbStatusFilter.valueProperty().addListener((obs, o, n) -> {
+                currentValidationPage = 1;
+                applyFilterAndPagination();
+            });
+        }
+        if (cmbPageSize != null) {
+            cmbPageSize.setItems(FXCollections.observableArrayList("50 / page", "100 / page", "250 / page", "500 / page", "All"));
+            cmbPageSize.getSelectionModel().selectFirst();
+            cmbPageSize.valueProperty().addListener((obs, o, n) -> {
+                pageSize = parsePageSize(n);
+                currentValidationPage = 1;
+                currentPreviewPage = 1;
+                applyFilterAndPagination();
+            });
+        }
+        if (txtSearchRecords != null) {
+            txtSearchRecords.textProperty().addListener((obs, o, n) -> {
+                currentValidationPage = 1;
+                currentPreviewPage = 1;
+                applyFilterAndPagination();
+            });
+        }
+        if (reviewTabs != null) {
+            reviewTabs.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+                applyFilterAndPagination();
+            });
+        }
     }
 
 
@@ -295,12 +371,34 @@ public class ImportController implements ScreenLifecycle {
             else if(i == step-1 && step < 4) lines[i].getStyleClass().add("wizard-line-active");
             else lines[i].getStyleClass().add("wizard-line-pending");
         }
+
+        String mod = cmbImportModule == null ? null : cmbImportModule.getValue();
+        if (lblActiveLoaderBadge != null) {
+            if (step > 1 && mod != null && !mod.isBlank()) {
+                lblActiveLoaderBadge.setText(mod + " Loader");
+                lblActiveLoaderBadge.setVisible(true);
+                lblActiveLoaderBadge.setManaged(true);
+            } else {
+                lblActiveLoaderBadge.setVisible(false);
+                lblActiveLoaderBadge.setManaged(false);
+            }
+        }
+        if (lblStep1SubTitle != null) {
+            lblStep1SubTitle.setText(step > 1 && mod != null ? "Selected: " + mod : "Choose what to import");
+        }
+        if (lblStepMapSubTitle != null && mod != null) {
+            lblStepMapSubTitle.setText("Map Excel columns to " + mod + " ERP fields.");
+        }
+        if (lblStepReviewSubTitle != null && mod != null) {
+            lblStepReviewSubTitle.setText("Review & Validate " + mod + " mapped records before importing.");
+        }
     }
 
     private void configureIcons() {
 
         btnChooseFile.setGraphic(IconFactory.compactIcon("folder", 16));
         btnRunImport.setGraphic(IconFactory.compactIcon("import", 16));
+        if (btnRevalidate != null) btnRevalidate.setGraphic(IconFactory.compactIcon("validate", 16));
         lblDropIcon.setGraphic(IconFactory.icon("import", 30));
 
         if (btnImportGuide != null) btnImportGuide.setGraphic(IconFactory.compactIcon("document", 16));
@@ -661,7 +759,11 @@ public class ImportController implements ScreenLifecycle {
         );
 
         boolean mappingsComplete = requiredMappingsComplete();
-        btnRunImport.setDisable(!isImportReady());
+        boolean dry = chkDryRun != null && chkDryRun.isSelected();
+        if (btnRunImport != null) {
+            btnRunImport.setText(dry ? "Test Validation (Dry Run)" : "Import Records");
+            btnRunImport.setDisable(!isImportReady());
+        }
 
         if (selectedFile == null) {
             lblReadyStatus.setText(
@@ -671,6 +773,8 @@ public class ImportController implements ScreenLifecycle {
             lblReadyStatus.setText(
                 "Map all required fields before importing"
             );
+        } else if (dry) {
+            lblReadyStatus.setText("Dry-run test mode • Ready to validate without saving");
         } else if (!preflightPassed) {
             lblReadyStatus.setText("Run validation before importing");
         } else {
@@ -679,13 +783,20 @@ public class ImportController implements ScreenLifecycle {
     }
 
     private boolean isImportReady() {
-        return !importRunning && selectedFile != null && preflightPassed;
+        if (importRunning || selectedFile == null) return false;
+        if (chkDryRun != null && chkDryRun.isSelected()) {
+            return requiredMappingsComplete();
+        }
+        return preflightPassed;
     }
 
     private void invalidatePreflight(String status) {
         preflightPassed = false;
         lastPreflightResult = null;
-        if (btnRunImport != null) btnRunImport.setDisable(true);
+        if (btnRunImport != null) {
+            boolean dry = chkDryRun != null && chkDryRun.isSelected();
+            btnRunImport.setDisable(dry ? (importRunning || selectedFile == null || !requiredMappingsComplete()) : true);
+        }
         if (status != null && !status.isBlank() && lblReadyStatus != null) lblReadyStatus.setText(status);
     }
 
@@ -813,6 +924,7 @@ public class ImportController implements ScreenLifecycle {
 
     private void buildPreviewColumns() {
 
+        tblPreview.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
         tblPreview.getColumns().clear();
         tblPreview.setRowFactory(null);
 
@@ -822,18 +934,21 @@ public class ImportController implements ScreenLifecycle {
         if ("Purchase Recon".equals(cmbImportModule.getValue())) {
             TableColumn<Map<String, String>, String> sheetColumn = new TableColumn<>("Sheet");
             sheetColumn.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().getOrDefault("_source_sheet", "")));
+            sheetColumn.setMinWidth(120);
             IconFactory.applyTableHeaderIcon(sheetColumn, "document");
             tblPreview.getColumns().add(sheetColumn);
             TableColumn<Map<String, String>, String> rowColumn = new TableColumn<>("Row");
             rowColumn.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().getOrDefault("_source_row", "")));
+            rowColumn.setMinWidth(90);
             IconFactory.applyTableHeaderIcon(rowColumn, "reference");
             tblPreview.getColumns().add(rowColumn);
         }
 
         for (String field : mappedFields) {
 
+            String label = humanize(field);
             TableColumn<Map<String, String>, String> column =
-                new TableColumn<>(humanize(field));
+                new TableColumn<>(label);
 
             column.setCellValueFactory(
                 cellData ->
@@ -843,6 +958,7 @@ public class ImportController implements ScreenLifecycle {
                             .getOrDefault(field, "")
                     )
             );
+            column.setMinWidth(Math.max(130, label.length() * 11));
             IconFactory.applyTableHeaderIcon(column, semanticIconForField(field));
 
             tblPreview
@@ -904,20 +1020,25 @@ public class ImportController implements ScreenLifecycle {
         try {
             ImportPreviewService.Preview preview = importPreviewService.preview(
                 selectedFile, cmbImportModule.getValue(), collectCurrentMapping(), getMappedFieldsInDomainOrder());
-            tblPreview.getItems().setAll(preview.rows());
+            allPreviewRows.clear();
+            allPreviewRows.addAll(preview.rows());
+            currentPreviewPage = 1;
+            applyFilterAndPagination();
             String suffix = "Purchase Recon".equals(cmbImportModule.getValue())
                 ? " • " + preview.sheetCount() + " sheet" + (preview.sheetCount() == 1 ? "" : "s")
                 : "";
-            lblPreviewCount.setText(preview.rows().size() + " rows shown" + suffix);
+            if (lblPreviewCount != null) lblPreviewCount.setText(preview.rows().size() + " rows shown" + suffix);
             lblPreviewStatus.setText(preview.message());
             lblPreviewStatus.getStyleClass().removeAll("import-success-text", "import-warning-text");
             lblPreviewStatus.getStyleClass().add(preview.success() ? "import-success-text" : "import-warning-text");
         } catch (Exception exception) {
+            allPreviewRows.clear();
             tblPreview.getItems().clear();
-            lblPreviewCount.setText("0 rows");
+            if (lblPreviewCount != null) lblPreviewCount.setText("0 rows");
             lblPreviewStatus.setText("Preview could not be loaded: " + safeMessage(exception));
             lblPreviewStatus.getStyleClass().removeAll("import-success-text", "import-warning-text");
             lblPreviewStatus.getStyleClass().add("import-warning-text");
+            applyFilterAndPagination();
         }
     }
 
@@ -1150,6 +1271,7 @@ public class ImportController implements ScreenLifecycle {
         }
     }
 
+    @FXML
     private void runPreflightValidation() {
         if (selectedFile == null || !requiredMappingsComplete()) return;
         preflightPassed = false;
@@ -1211,12 +1333,14 @@ public class ImportController implements ScreenLifecycle {
                 values.put("rows", row.sourceRows);
                 values.put("reference", row.reference);
                 boolean failed = "FAILED".equalsIgnoreCase(row.status);
-                values.put("mandatory", failed ? "Review" : "✓ Passed");
-                values.put("format", failed ? "Review" : "✓ Passed");
-                values.put("master", failed ? "Review" : "✓ Passed");
-                values.put("data", failed ? "Review" : (row.action == null || row.action.isBlank() ? "✓ Passed" : row.action));
+                boolean skipped = "SKIPPED".equalsIgnoreCase(row.status);
+                values.put("mandatory", failed ? "Review" : (skipped ? "– Protected" : "✓ Passed"));
+                values.put("format", failed ? "Review" : (skipped ? "– Protected" : "✓ Passed"));
+                values.put("master", failed ? "Review" : (skipped ? "– Protected" : "✓ Passed"));
+                values.put("data", failed ? "Review" : (skipped ? "– Skipped" : (row.action == null || row.action.isBlank() ? "✓ Passed" : row.action)));
                 boolean noteworthy = row.action != null && !row.action.isBlank() && !row.action.equalsIgnoreCase("VALIDATED") && !row.action.equalsIgnoreCase("CREATED");
                 values.put("message", failed ? (row.message == null ? "Validation failed" : row.message)
+                    : skipped ? (row.message == null ? "Record is protected and will be skipped" : row.message)
                     : noteworthy && row.message != null && !row.message.isBlank() ? row.message : "✓ All validations passed");
                 values.put("_status", row.status);
                 rows.add(values);
@@ -1225,22 +1349,130 @@ public class ImportController implements ScreenLifecycle {
         tblValidation.setRowFactory(tv -> new TableRow<>() {
             @Override protected void updateItem(Map<String,String> item, boolean empty) {
                 super.updateItem(item, empty);
-                getStyleClass().removeAll("import-validation-pass-row","import-validation-fail-row");
-                if (!empty && item != null) getStyleClass().add("FAILED".equalsIgnoreCase(item.get("_status")) ? "import-validation-fail-row" : "import-validation-pass-row");
+                getStyleClass().removeAll("import-validation-pass-row","import-validation-fail-row","import-validation-skip-row");
+                if (!empty && item != null) {
+                    String st = item.get("_status");
+                    if ("FAILED".equalsIgnoreCase(st)) getStyleClass().add("import-validation-fail-row");
+                    else if ("SKIPPED".equalsIgnoreCase(st)) getStyleClass().add("import-validation-skip-row");
+                    else getStyleClass().add("import-validation-pass-row");
+                }
             }
         });
-        tblValidation.getItems().setAll(rows);
+
+        allValidationRows.clear();
+        allValidationRows.addAll(rows);
+        currentValidationPage = 1;
+        applyFilterAndPagination();
+
         int failed = result == null ? 0 : result.failedCount();
-        int passed = result == null ? 0 : Math.max(0, result.details.size() - failed);
-        lblPreviewCount.setText((passed + failed) + " checked • " + passed + " passed • " + failed + " failed");
+        int skipped = result == null ? 0 : result.skipped;
+        int total = result == null ? 0 : result.details.size();
+        int passed = Math.max(0, total - failed - skipped);
+
+        if (lblKpiChecked != null) lblKpiChecked.setText(String.format("%,d Checked", total));
+        if (lblKpiPassed != null) lblKpiPassed.setText(String.format("%,d Passed", passed));
+        if (lblKpiFailed != null) lblKpiFailed.setText(String.format("%,d Failed", failed));
+        if (lblKpiSkipped != null) lblKpiSkipped.setText(String.format("%,d Skipped", skipped));
+        if (lblPreviewCount != null) lblPreviewCount.setText((passed + failed + skipped) + " checked • " + passed + " passed • " + failed + " failed");
         lblPreviewStatus.getStyleClass().removeAll("import-success-text","import-warning-text");
         if (failed == 0) {
-            lblPreviewStatus.setText("✓ All validations passed");
+            lblPreviewStatus.setText(skipped > 0 ? "✓ Validations passed (" + skipped + " existing protected records will be skipped)" : "✓ All validations passed");
             lblPreviewStatus.getStyleClass().add("import-success-text");
         } else {
-            lblPreviewStatus.setText("✕ Validation errors found");
+            lblPreviewStatus.setText("✕ Validation errors found (" + failed + " failed)");
             lblPreviewStatus.getStyleClass().add("import-warning-text");
         }
+    }
+
+    @FXML private void onPageFirst() {
+        if (isValidationTabActive()) currentValidationPage = 1;
+        else currentPreviewPage = 1;
+        applyFilterAndPagination();
+    }
+
+    @FXML private void onPagePrev() {
+        if (isValidationTabActive()) currentValidationPage = Math.max(1, currentValidationPage - 1);
+        else currentPreviewPage = Math.max(1, currentPreviewPage - 1);
+        applyFilterAndPagination();
+    }
+
+    @FXML private void onPageNext() {
+        if (isValidationTabActive()) currentValidationPage++;
+        else currentPreviewPage++;
+        applyFilterAndPagination();
+    }
+
+    @FXML private void onPageLast() {
+        if (isValidationTabActive()) currentValidationPage = Integer.MAX_VALUE;
+        else currentPreviewPage = Integer.MAX_VALUE;
+        applyFilterAndPagination();
+    }
+
+    @FXML private void onRevalidate() {
+        runPreflightValidation();
+    }
+
+    private boolean isValidationTabActive() {
+        return reviewTabs != null && reviewTabs.getSelectionModel().getSelectedItem() == validationResultsTab;
+    }
+
+    private int parsePageSize(String text) {
+        if (text == null) return 50;
+        if (text.startsWith("All")) return 100000;
+        try {
+            return Integer.parseInt(text.replaceAll("[^0-9]", ""));
+        } catch (Exception ex) {
+            return 50;
+        }
+    }
+
+    private void applyFilterAndPagination() {
+        boolean valTab = isValidationTabActive();
+        List<Map<String, String>> source = valTab ? allValidationRows : allPreviewRows;
+        String query = txtSearchRecords != null && txtSearchRecords.getText() != null
+                ? txtSearchRecords.getText().trim().toLowerCase(Locale.ROOT) : "";
+        String statusFilter = cmbStatusFilter != null && cmbStatusFilter.getValue() != null
+                ? cmbStatusFilter.getValue() : "All Records";
+
+        List<Map<String, String>> filtered = source.stream().filter(row -> {
+            if (valTab && !"All Records".equals(statusFilter)) {
+                String st = row.getOrDefault("_status", "");
+                if ("Failed Only".equals(statusFilter) && !"FAILED".equalsIgnoreCase(st)) return false;
+                if ("Passed Only".equals(statusFilter) && !"PASSED".equalsIgnoreCase(st)) return false;
+                if ("Skipped Only".equals(statusFilter) && !"SKIPPED".equalsIgnoreCase(st)) return false;
+            }
+            if (!query.isBlank()) {
+                boolean matches = row.values().stream().anyMatch(val -> val != null && val.toLowerCase(Locale.ROOT).contains(query));
+                if (!matches) return false;
+            }
+            return true;
+        }).toList();
+
+        int total = filtered.size();
+        int activePage = valTab ? currentValidationPage : currentPreviewPage;
+        int totalPages = Math.max(1, (int) Math.ceil((double) total / pageSize));
+        if (activePage > totalPages) activePage = totalPages;
+        if (activePage < 1) activePage = 1;
+        if (valTab) currentValidationPage = activePage;
+        else currentPreviewPage = activePage;
+
+        int from = (activePage - 1) * pageSize;
+        int to = Math.min(from + pageSize, total);
+        List<Map<String, String>> pageSlice = total == 0 ? List.of() : filtered.subList(from, to);
+
+        if (valTab) {
+            if (tblValidation != null) tblValidation.getItems().setAll(pageSlice);
+        } else {
+            if (tblPreview != null) tblPreview.getItems().setAll(pageSlice);
+        }
+
+        if (lblPaginationInfo != null) {
+            lblPaginationInfo.setText(String.format("Page %d of %d (%,d of %,d records)", activePage, totalPages, total, source.size()));
+        }
+        if (btnPageFirst != null) btnPageFirst.setDisable(activePage <= 1);
+        if (btnPagePrev != null) btnPagePrev.setDisable(activePage <= 1);
+        if (btnPageNext != null) btnPageNext.setDisable(activePage >= totalPages);
+        if (btnPageLast != null) btnPageLast.setDisable(activePage >= totalPages);
     }
 
     private void addValidationColumn(String title, String key) {
@@ -1434,7 +1666,7 @@ public class ImportController implements ScreenLifecycle {
                     mapping,
                     dryRun,
                     importMode,
-                    this::updateProgress
+                    this::updateImportProgress
                 );
 
             case "Suppliers/HRM" ->
@@ -1443,7 +1675,7 @@ public class ImportController implements ScreenLifecycle {
                     mapping,
                     dryRun,
                     importMode,
-                    this::updateProgress
+                    this::updateImportProgress
                 );
 
             case "Sales" ->
@@ -1452,7 +1684,7 @@ public class ImportController implements ScreenLifecycle {
                     mapping,
                     dryRun,
                     importMode,
-                    this::updateProgress
+                    this::updateImportProgress
                 );
 
             case "Purchases" ->
@@ -1461,7 +1693,7 @@ public class ImportController implements ScreenLifecycle {
                     mapping,
                     dryRun,
                     importMode,
-                    this::updateProgress
+                    this::updateImportProgress
                 );
 
             case "Master Categories and Values" ->
@@ -1470,7 +1702,7 @@ public class ImportController implements ScreenLifecycle {
                     mapping,
                     dryRun,
                     importMode,
-                    this::updateProgress
+                    this::updateImportProgress
                 );
 
             case "Purchase Recon" -> importPurchaseRecon(dryRun, mapping);
@@ -1483,7 +1715,7 @@ public class ImportController implements ScreenLifecycle {
                     mapping,
                     dryRun,
                     importMode,
-                    this::updateProgress
+                    this::updateImportProgress
                 );
         };
     }
@@ -1494,10 +1726,7 @@ public class ImportController implements ScreenLifecycle {
     }
 
     private ImportService.ImportResult importBankStatement(boolean dryRun) throws Exception {
-        var audit = new org.example.bank.UniversalBankStatementParser().parseWithAudit(selectedFile.toPath());
-        var parsed = audit.statement() != null ? audit.statement() : new org.example.bank.UniversalBankStatementParser().parse(selectedFile.toPath());
-        updateProgress(parsed.rows().size(), parsed.rows().size());
-        return bankStatementImportCoordinator.execute(selectedFile.toPath(), dryRun);
+        return bankStatementImportCoordinator.execute(selectedFile.toPath(), dryRun, this::updateImportProgress);
     }
 
     private Map<String, String> collectCurrentMapping() {
@@ -1543,6 +1772,21 @@ public class ImportController implements ScreenLifecycle {
         btnResetMapping.setDisable(running);
         chkDryRun.setDisable(running);
 
+        if (importShieldOverlay != null) {
+            importShieldOverlay.setVisible(running);
+            importShieldOverlay.setManaged(running);
+            if (running) {
+                importShieldOverlay.toFront();
+                if (shieldProgressBar != null) shieldProgressBar.setProgress(0);
+                if (lblShieldPercent != null) lblShieldPercent.setText("0%");
+                if (lblShieldTitle != null) {
+                    lblShieldTitle.setText(chkDryRun.isSelected() ? "Validating Workbook Data" : "Importing Data into Financial Ledger");
+                }
+                if (lblShieldDetail != null) lblShieldDetail.setText("Initializing batch transaction…");
+                if (lblShieldCounter != null) lblShieldCounter.setText("Preparing records…");
+            }
+        }
+
         if (running) {
 
             progressBar.setProgress(0);
@@ -1560,33 +1804,33 @@ public class ImportController implements ScreenLifecycle {
         int processed,
         int total
     ) {
+        updateImportProgress("Importing Data", "Processed " + processed + " of " + total + " rows", processed, total);
+    }
 
-        double progress =
-            total <= 0
-                ? 0
-                : Math.min(
-                1,
-                (double) processed / total
-            );
-
-        int percentage =
-            (int) Math.round(progress * 100);
+    private void updateImportProgress(String phase, String detail, int current, int total) {
+        double progress = total <= 0 ? 0 : Math.min(1.0, (double) current / total);
+        int percentage = (int) Math.round(progress * 100);
 
         Platform.runLater(() -> {
-
             progressBar.setProgress(progress);
+            lblProgressPercent.setText(percentage + "%");
+            lblProgressStatus.setText(detail != null && !detail.isBlank() ? detail : ("Processed " + current + " of " + total));
 
-            lblProgressPercent.setText(
-                percentage + "%"
-            );
-
-            lblProgressStatus.setText(
-                "Processed "
-                    + processed
-                    + " of "
-                    + total
-                    + " rows"
-            );
+            if (shieldProgressBar != null) {
+                shieldProgressBar.setProgress(progress);
+            }
+            if (lblShieldPercent != null) {
+                lblShieldPercent.setText(percentage + "%");
+            }
+            if (lblShieldTitle != null && phase != null && !phase.isBlank()) {
+                lblShieldTitle.setText(phase);
+            }
+            if (lblShieldDetail != null && detail != null && !detail.isBlank()) {
+                lblShieldDetail.setText(detail);
+            }
+            if (lblShieldCounter != null) {
+                lblShieldCounter.setText(current + " of " + total + " records processed (" + percentage + "%)");
+            }
         });
     }
 
