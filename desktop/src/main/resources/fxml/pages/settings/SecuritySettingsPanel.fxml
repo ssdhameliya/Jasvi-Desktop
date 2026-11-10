@@ -90,63 +90,6 @@
     </VBox>
     <Separator/>
 
-    <!-- WhatsApp Business Integration -->
-    <VBox spacing="12" styleClass="settings-subcard">
-        <HBox alignment="CENTER_LEFT" spacing="8">
-            <Label text="WhatsApp Business Integration (WAHA)" styleClass="section-title"/>
-            <Button fx:id="btnWhatsappInfo" text="Information &amp; Guidance" onAction="#showWhatsappGuidance" styleClass="secondary-button,help-button"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnStartWaha" text="Start WAHA Engine" onAction="#startWahaEngine" styleClass="secondary-button"/>
-            <Button fx:id="btnWhatsappTest" text="Check Status" onAction="#testWhatsappConnection" styleClass="secondary-button"/>
-            <Label text="Managed centrally on the company server" styleClass="page-subtitle"/>
-        </HBox>
-        <GridPane hgap="18" vgap="14">
-            <columnConstraints>
-                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
-                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
-            </columnConstraints>
-            <VBox spacing="7" GridPane.columnIndex="0">
-                <Label text="WAHA Docker Endpoint" styleClass="settings-form-label"/>
-                <TextField fx:id="txtWahaEndpoint" promptText="http://localhost:3000" styleClass="approved-input"/>
-            </VBox>
-            <VBox spacing="7" GridPane.columnIndex="1">
-                <Label text="Active WhatsApp Sender Number (from Master Lookup)" styleClass="settings-form-label"/>
-                <ComboBox fx:id="cmbActiveWhatsappSender" maxWidth="Infinity" promptText="Select sender number from Master Lookup (WhatsApp Senders)" styleClass="approved-combobox"/>
-            </VBox>
-        </GridPane>
-        <VBox spacing="8" styleClass="settings-asset-card">
-            <Label text="Department Channel Routing" styleClass="settings-form-label"/>
-            <GridPane hgap="18" vgap="12">
-                <columnConstraints>
-                    <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
-                    <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
-                </columnConstraints>
-                <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="0">
-                    <Label text="Sales Invoices &amp; Challans" styleClass="settings-field-hint"/>
-                    <ComboBox fx:id="cmbWhatsappSalesChannel" maxWidth="Infinity" promptText="Default (Same as Primary Company)" styleClass="approved-combobox"/>
-                </VBox>
-                <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="0">
-                    <Label text="Purchase Orders &amp; RFQs" styleClass="settings-field-hint"/>
-                    <ComboBox fx:id="cmbWhatsappPurchaseChannel" maxWidth="Infinity" promptText="Default (Same as Primary Company)" styleClass="approved-combobox"/>
-                </VBox>
-                <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="1">
-                    <Label text="Quotations &amp; Estimates" styleClass="settings-field-hint"/>
-                    <ComboBox fx:id="cmbWhatsappQuotationChannel" maxWidth="Infinity" promptText="Default (Same as Sales Channel)" styleClass="approved-combobox"/>
-                </VBox>
-                <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="1" alignment="CENTER_LEFT">
-                    <Label text="Generic Dispatches &amp; Fallback:" styleClass="settings-field-hint"/>
-                    <Label text="Payment receipts, briefing &amp; direct chat route via Active Primary Sender." styleClass="page-subtitle"/>
-                </VBox>
-            </GridPane>
-        </VBox>
-        <HBox spacing="16" alignment="CENTER_LEFT">
-            <CheckBox fx:id="chkWahaEnabled" text="Enable Server Automated WhatsApp Dispatch" styleClass="approved-checkbox"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnManageWhatsappChannels" text="Manage Channels &amp; Scan QR" onAction="#openWhatsappChannelDialog" styleClass="approved-button,approved-primary-button"/>
-        </HBox>
-    </VBox>
-    <Separator/>
-
     <!-- Document Numbering & Reference Formats -->
     <VBox spacing="6" maxWidth="Infinity" styleClass="settings-information-card">
         <HBox spacing="8" alignment="CENTER_LEFT">

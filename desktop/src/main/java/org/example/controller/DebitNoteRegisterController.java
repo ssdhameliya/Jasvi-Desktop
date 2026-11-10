@@ -33,13 +33,13 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
     @FXML private StackPane kpiCountIcon, kpiAmountIcon, kpiTaxIcon, kpiStockIcon;
     @FXML private Label kpiTotalCount, kpiTotalAmount, kpiTaxReversed, kpiReturnedCount;
 
-    @FXML private Button btnNewDebitNote, btnRefresh;
+    @FXML private Button btnNewDebitNote, btnRefresh, btnScreenGuidance;
     @FXML private TextField txtSearch;
     @FXML private ComboBox<String> cmbReasonFilter;
 
     @FXML private SplitPane mainSplit;
     @FXML private TableView<DebitNoteRow> tblDebitNotes;
-    @FXML private TableColumn<DebitNoteRow, String> colNoteNo, colDate, colParty, colInvoiceRef, colReason;
+    @FXML private TableColumn<DebitNoteRow, String> colNoteNo, colDate, colParty, colInvoiceRef, colReason, colStock;
     @FXML private TableColumn<DebitNoteRow, String> colTaxable, colTax, colTotal, colStatus, colActions;
 
     @FXML private VBox detailDrawer;
@@ -61,6 +61,7 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
         if (kpiAmountIcon != null) kpiAmountIcon.getChildren().setAll(IconFactory.compactIcon("wallet", 16));
         if (kpiTaxIcon != null) kpiTaxIcon.getChildren().setAll(IconFactory.compactIcon("tax", 16));
         if (kpiStockIcon != null) kpiStockIcon.getChildren().setAll(IconFactory.compactIcon("inventory", 16));
+        if (btnScreenGuidance != null) btnScreenGuidance.setGraphic(IconFactory.compactIcon("help", 14));
 
         configureTableColumns();
         IconFactory.applyTableHeaderIcon(colActions, "actions");
@@ -111,6 +112,28 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
         colParty.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().partyName));
         colInvoiceRef.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().originalPurchaseNo != null ? d.getValue().originalPurchaseNo : "-"));
         colReason.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().reasonCode));
+        if (colStock != null) {
+            colStock.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().adjustInventory ? "Deducted" : "Financial Only"));
+            colStock.setCellFactory(col -> new TableCell<>() {
+                @Override protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setGraphic(null); setText(null);
+                    } else {
+                        Label badge = new Label();
+                        if ("Deducted".equalsIgnoreCase(item)) {
+                            badge.setText("📦 Deducted");
+                            badge.getStyleClass().addAll("badge-warning", "badge-compact");
+                        } else {
+                            badge.setText("🚫 Financial");
+                            badge.getStyleClass().addAll("badge-neutral", "badge-compact");
+                        }
+                        setGraphic(badge);
+                        setAlignment(Pos.CENTER);
+                    }
+                }
+            });
+        }
         colTaxable.setCellValueFactory(d -> new SimpleStringProperty(currency.format(d.getValue().taxableAmount)));
         colTax.setCellValueFactory(d -> new SimpleStringProperty(currency.format(d.getValue().cgstAmount.add(d.getValue().sgstAmount).add(d.getValue().igstAmount))));
         colTotal.setCellValueFactory(d -> new SimpleStringProperty(currency.format(d.getValue().totalAmount)));
@@ -261,14 +284,30 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
     }
 
     @FXML
+    private void showHowItWorks() {
+        ScreenGuidanceManager.showGuidance(tblDebitNotes, "DEBIT_NOTE");
+    }
+
+    @FXML
     public void createDebitNote() {
         Dialog<Map<String, Object>> dialog = new OwnedDialog<>(tblDebitNotes);
-        dialog.setTitle("New Purchase Debit Note");
-        dialog.setHeaderText("Issue a Debit Note to Supplier with automatic ITC reversal");
+        dialog.setTitle("New Purchase Return / Debit Note");
+        dialog.setHeaderText("Issue a Purchase Return or Debit Note with automatic GST ITC reversal and stock adjustment");
 
         DialogPane dp = dialog.getDialogPane();
         dp.getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         dp.getStyleClass().addAll("approved-dialog", "erp-dialog");
+
+        RadioButton rbGoodsReturn = new RadioButton("Physical Goods Return (Deduct items from Inventory)");
+        RadioButton rbFinancialAdjustment = new RadioButton("Price / Rate Adjustment (Financial Only — No Stock Movement)");
+        ToggleGroup tgType = new ToggleGroup();
+        rbGoodsReturn.setToggleGroup(tgType);
+        rbFinancialAdjustment.setToggleGroup(tgType);
+        rbGoodsReturn.setSelected(true);
+        rbGoodsReturn.getStyleClass().add("approved-radio-button");
+        rbFinancialAdjustment.getStyleClass().add("approved-radio-button");
+        VBox typeBox = new VBox(6, new Label("Return / Debit Note Category:"), rbGoodsReturn, rbFinancialAdjustment);
+        typeBox.getStyleClass().addAll("approved-card", "compact-section");
 
         ComboBox<String> cmbSupplier = new ComboBox<>();
         cmbSupplier.setPromptText("Search & select supplier...");
@@ -290,6 +329,12 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
         cmbReason.setValue(reasons.get(0));
         cmbReason.setMaxWidth(Double.MAX_VALUE);
 
+        // Dynamic Reason-Specific Guidance Callout Box
+        Label lblReasonHelp = new Label();
+        lblReasonHelp.setWrapText(true);
+        lblReasonHelp.getStyleClass().addAll("approved-callout", "reason-guidance-callout");
+        lblReasonHelp.setMinHeight(42);
+
         TextField txtTaxable = new TextField();
         txtTaxable.setPromptText("Taxable Amount (₹)");
 
@@ -304,6 +349,81 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
 
         CheckBox chkAdjustInventory = new CheckBox("Adjust Inventory (Deduct returned stock)");
         chkAdjustInventory.setSelected(true);
+
+        // Live Statutory & Ledger Impact Summary Card
+        Label lblStockImpactBadge = new Label();
+        lblStockImpactBadge.getStyleClass().addAll("metric-trend-pill", "trend-positive");
+
+        Label lblLedgerImpactBadge = new Label();
+        lblLedgerImpactBadge.getStyleClass().addAll("metric-trend-pill", "trend-warning");
+
+        Label lblGstImpactBadge = new Label();
+        lblGstImpactBadge.getStyleClass().addAll("metric-trend-pill", "trend-info");
+
+        VBox impactCard = new VBox(6,
+            new Label("Statutory & Operational Impact Preview:"),
+            lblStockImpactBadge,
+            lblLedgerImpactBadge,
+            lblGstImpactBadge
+        );
+        impactCard.getStyleClass().addAll("approved-card", "compact-section");
+
+        Runnable updateImpact = () -> {
+            String r = cmbReason.getValue();
+            if (r == null) r = "Purchase Return";
+            boolean isGoods = rbGoodsReturn.isSelected() || chkAdjustInventory.isSelected();
+
+            if (r.contains("Return")) {
+                lblReasonHelp.setText("📦 Physical Vendor Return: Rejected/damaged materials returned to vendor. Warehouse inventory is deducted and Input Tax Credit (ITC) is reversed under GSTR-3B Table 4B(2).");
+            } else if (r.contains("Rate")) {
+                lblReasonHelp.setText("📉 Rate Difference: Supplier overcharged on unit rates. Financial debit adjustment against supplier ledger; reverses excess claimed ITC without stock movement.");
+            } else if (r.contains("Discount")) {
+                lblReasonHelp.setText("🏷️ Supplier Discount: Post-purchase commercial rebate from supplier. Reduces Accounts Payable balance and offsets claimed ITC proportionately.");
+            } else if (r.contains("Correction")) {
+                lblReasonHelp.setText("✏️ Bill Correction: Corrects typographical, invoice amount, or tax rate discrepancies. Financial adjustment only.");
+            } else {
+                lblReasonHelp.setText("ℹ️ Supplier Debit Note: Debits supplier ledger balance with statutory GST Input Tax Credit (ITC) reversal.");
+            }
+
+            BigDecimal taxable = BigDecimal.ZERO;
+            try {
+                taxable = new BigDecimal(txtTaxable.getText().trim());
+            } catch (Exception ignored) {}
+            BigDecimal rate = new BigDecimal("18");
+            try {
+                if (cmbGstRate.getValue() != null) rate = new BigDecimal(cmbGstRate.getValue().trim());
+            } catch (Exception ignored) {}
+            BigDecimal tax = taxable.multiply(rate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+            BigDecimal total = taxable.add(tax);
+
+            if (isGoods) {
+                lblStockImpactBadge.setText("📦 Stock: Deducts returned units from warehouse inventory (-1 qty)");
+            } else {
+                lblStockImpactBadge.setText("🚫 Stock: Zero movement (Financial debit adjustment only)");
+            }
+            lblLedgerImpactBadge.setText(String.format(Locale.ROOT, "⚖️ Ledger: Decreases Supplier Payable by ₹ %,.2f (Debit)", total));
+            lblGstImpactBadge.setText(String.format(Locale.ROOT, "🏛️ GST: Reverses Input Tax Credit (ITC) ₹ %,.2f in GSTR-3B Table 4B(2)", tax));
+        };
+
+        rbGoodsReturn.selectedProperty().addListener((obs, oldVal, isGoods) -> {
+            chkAdjustInventory.setSelected(isGoods);
+            if (isGoods) {
+                if (cmbReason.getItems().contains("Purchase Return")) {
+                    cmbReason.setValue("Purchase Return");
+                }
+            } else {
+                if (cmbReason.getItems().contains("Rate Difference")) {
+                    cmbReason.setValue("Rate Difference");
+                }
+            }
+            updateImpact.run();
+        });
+
+        cmbReason.valueProperty().addListener((obs, o, n) -> updateImpact.run());
+        txtTaxable.textProperty().addListener((obs, o, n) -> updateImpact.run());
+        cmbGstRate.valueProperty().addListener((obs, o, n) -> updateImpact.run());
+        chkAdjustInventory.selectedProperty().addListener((obs, o, n) -> updateImpact.run());
+        updateImpact.run();
 
         // Cascading: when supplier is selected, load supplier purchase bills
         cmbSupplier.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -334,20 +454,24 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
                 }, purchase -> {
                     if (purchase != null && purchase.getTotalAmount() > 0) {
                         txtTaxable.setText(String.format(Locale.ROOT, "%.2f", purchase.getTotalAmount()));
+                        updateImpact.run();
                     }
                 }, err -> {});
             }
         });
 
         VBox content = new VBox(10,
+            typeBox,
             new Label("Supplier:"), cmbSupplier,
             new Label("Original Bill No:"), cmbBillNo,
             new Label("Reason:"), cmbReason,
+            lblReasonHelp,
             new Label("Taxable Amount (₹):"), txtTaxable,
             new Label("GST Rate (%):"), cmbGstRate,
-            chkAdjustInventory
+            chkAdjustInventory,
+            impactCard
         );
-        content.setPrefWidth(420);
+        content.setPrefWidth(540);
         dp.setContent(content);
         org.example.util.SearchableComboBoxHelper.makeAllSearchable(content);
 
@@ -362,27 +486,51 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
                     bill = cmbBillNo.getEditor().getText().trim();
                 }
 
+                BigDecimal taxableAmt = BigDecimal.ZERO;
+                try {
+                    taxableAmt = new BigDecimal(txtTaxable.getText().trim());
+                } catch (Exception ignored) {}
+
+                BigDecimal rate = new BigDecimal("18");
+                try {
+                    rate = new BigDecimal(cmbGstRate.getValue().trim());
+                } catch (Exception ignored) {}
+
+                BigDecimal taxTotal = taxableAmt.multiply(rate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+                BigDecimal totalDebit = taxableAmt.add(taxTotal);
+
+                // Error Prevention Confirmation Modal
+                String confirmTitle = "Confirm Purchase Return / Debit Note Issuance";
+                String confirmHeader = "Please review the operational and statutory tax impact:";
+                String confirmContent = String.format(
+                    Locale.ROOT,
+                    "• Supplier: %s\n• Original Bill: %s\n• Reason: %s\n• Taxable Amount: ₹ %,.2f\n• GST Rate: %s%% (Tax: ₹ %,.2f)\n• Total Debit Amount: ₹ %,.2f\n• Inventory Adjustment: %s\n• Statutory ITC Reversal: Reverses ₹ %,.2f Input Tax Credit in GSTR-3B Table 4B(2)\n\nConfirm issuance and post to general ledger?",
+                    (party != null && !party.isBlank()) ? party : "Not specified",
+                    (bill != null && !bill.isBlank()) ? bill : "Unlinked",
+                    cmbReason.getValue(),
+                    taxableAmt,
+                    rate,
+                    taxTotal,
+                    totalDebit,
+                    chkAdjustInventory.isSelected() ? "YES (Deduct physical items from inventory)" : "NO (Financial adjustment only — Zero stock movement)",
+                    taxTotal
+                );
+
+                if (!AppDialogService.confirm(tblDebitNotes, confirmTitle, confirmHeader, confirmContent)) {
+                    return null;
+                }
+
                 Map<String, Object> req = new HashMap<>();
                 req.put("partyName", party != null ? party.trim() : "");
                 req.put("supplierName", party != null ? party.trim() : "");
                 req.put("originalBillNo", bill != null ? bill.trim() : "");
                 req.put("originalPurchaseNo", bill != null ? bill.trim() : "");
                 req.put("reasonCode", cmbReason.getValue());
-                BigDecimal taxableAmt = BigDecimal.ZERO;
-                try {
-                    taxableAmt = new BigDecimal(txtTaxable.getText().trim());
-                } catch (Exception ignored) {}
                 req.put("taxableAmount", taxableAmt);
-
-                BigDecimal rate = new BigDecimal("18");
-                try {
-                    rate = new BigDecimal(cmbGstRate.getValue().trim());
-                } catch (Exception ignored) {}
                 req.put("gstRate", rate);
                 req.put("adjustInventory", chkAdjustInventory.isSelected());
 
                 // Synthesize 1 line item for accurate tax split and GL journal calculation
-                BigDecimal taxTotal = taxableAmt.multiply(rate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
                 BigDecimal halfTax = taxTotal.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
                 Map<String, Object> line = new HashMap<>();
                 line.put("itemDescription", "Debit Note Adjustment: " + cmbReason.getValue());

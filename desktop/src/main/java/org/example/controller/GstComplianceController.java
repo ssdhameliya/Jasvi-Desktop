@@ -35,6 +35,7 @@ import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.PurchaseService;
 import org.example.service.SalesService;
+import org.example.service.NotificationService;
 import org.example.util.*;
 
 import java.awt.Desktop;
@@ -1215,6 +1216,9 @@ public class GstComplianceController implements ScreenLifecycle {
             return count;
         }, cnt -> {
             ExportFeedbackManager.notifyExportSuccess(tblReconciliation, file, "Government GSTR-1 Offline Tool JSON", cnt);
+            NotificationService.createNotification(NotificationService.Category.GST, "GSTR-1 JSON Exported",
+                    "Government GSTR-1 JSON return exported for " + period + " (" + cnt + " invoices)", "INFO",
+                    "/fxml/pages/GstComplianceCenter.fxml", period);
         }, err -> AppDialogService.error(tblReconciliation, "Export Error", "GST Export Failed", "Failed to generate GSTR-1 JSON: " + err.getMessage()));
     }
 
@@ -1340,6 +1344,9 @@ public class GstComplianceController implements ScreenLifecycle {
             }
         }, totalCount -> {
             ExportFeedbackManager.notifyExportSuccess(tblReconciliation, file, "Government GSTR-1 Multi-Sheet Excel", totalCount);
+            NotificationService.createNotification(NotificationService.Category.GST, "GSTR-1 Excel Generated",
+                    "Government GSTR-1 multi-sheet workbook generated for " + period + " (" + totalCount + " vouchers)", "INFO",
+                    "/fxml/pages/GstComplianceCenter.fxml", period);
         }, err -> AppDialogService.error(tblReconciliation, "Export Error", "Excel Creation Failed", "Failed to create Excel workbook: " + err.getMessage()));
     }
 

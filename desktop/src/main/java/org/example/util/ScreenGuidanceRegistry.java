@@ -533,5 +533,55 @@ public final class ScreenGuidanceRegistry {
             ),
             List.of("Ctrl + S : Lock & Save Template", "Esc : Back to Client Directory")
         ));
+
+        // 12. Sales Return & Credit Notes
+        register(new ScreenGuidance(
+            "CREDIT_NOTE",
+            "Sales Return & Credit Notes — Statutory & Operational Guide",
+            "document",
+            "Manage customer sales returns and financial credit notes with automated inventory restock, customer ledger balance credit, and statutory GST Output Tax reversal (CGST Section 34).",
+            List.of(
+                "Categorize return: Choose 'Physical Goods Return' if customer is returning defective/unwanted merchandise, or 'Price / Discount Adjustment' for commercial rebates and rate differences.",
+                "Mandatory Invoice Linking: Select the original sales invoice number so the credit note links properly to the tax invoice in GSTR-1 Table 9B (CDNR).",
+                "Automatic Stock Movement: Marking 'Physical Goods Return' automatically adjusts inventory and creates a stock ledger return entry.",
+                "Ledger Posting: Customer ledger is immediately credited by the note amount, reducing Accounts Receivable.",
+                "Statutory GST Reversal: System calculates IGST/CGST/SGST tax components from the original invoice and marks tax liability for reversal in GSTR-1 and GSTR-3B Table 3.1."
+            ),
+            List.of(
+                "Physical returns automatically update item master stock and reflect in stock valuation reports.",
+                "Financial price adjustments alter customer ledger and tax liabilities without touching warehouse inventory levels.",
+                "One-click 'Apply to Invoice' allows offsetting outstanding unpaid balances directly from the register."
+            ),
+            List.of(
+                "CRITICAL STATUTORY DEADLINE: Under Section 34(2) of CGST Act, credit notes for a financial year must be declared on or before 30th November following the end of that financial year, or date of filing annual return, whichever is earlier.",
+                "Do not mark 'Physical Goods Return' until goods have been physically received and inspected at the warehouse.",
+                "Once approved and issued, credit notes cannot be silently altered without an official cancellation audit trail."
+            ),
+            List.of("Ctrl + N : New Credit Note", "F5 : Refresh Register", "Ctrl + P : Print / Export Note")
+        ));
+
+        // 13. Purchase Return & Debit Notes
+        register(new ScreenGuidance(
+            "DEBIT_NOTE",
+            "Purchase Return & Debit Notes — Statutory & Operational Guide",
+            "document",
+            "Manage supplier purchase returns and debit notes with automated warehouse stock deduction, supplier ledger balance debit, and statutory Input Tax Credit (ITC) reversal (GSTR-3B Table 4B(2)).",
+            List.of(
+                "Categorize return: Choose 'Physical Goods Return' when returning damaged or rejected materials back to the vendor, or 'Rate / Shortage Adjustment' for supplier overcharges.",
+                "Link Original Purchase Bill: Bind to the supplier's purchase invoice number and date for accurate statutory audit and GSTR-2B reconciliation.",
+                "Stock Deduction: Physical returns deduct units from inventory holding, updating warehouse stock in real time.",
+                "Supplier Ledger Debit: Reduces Accounts Payable balance owed to the vendor.",
+                "Input Tax Credit (ITC) Reversal: In accordance with GST statutory provisions, previously claimed ITC is marked for mandatory reversal under GSTR-3B Table 4B(2)."
+            ),
+            List.of(
+                "Attaching the vendor delivery challan and return gate pass guarantees audit readiness.",
+                "Debit notes ensure you never overpay suppliers on rate discrepancies or damaged consignments."
+            ),
+            List.of(
+                "CRITICAL STATUTORY REVERSAL: When goods are returned to a supplier, claiming Input Tax Credit on those goods is illegal under CGST rules; ITC must be reversed in the corresponding return filing.",
+                "Ensure outward dispatch gate pass or courier tracking is confirmed before finalizing physical vendor return."
+            ),
+            List.of("Ctrl + N : New Debit Note", "F5 : Refresh Register", "Ctrl + P : Print / Export Note")
+        ));
     }
 }

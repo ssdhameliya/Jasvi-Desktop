@@ -56,7 +56,20 @@ public final class PermissionCatalog {
             entry("APPLICATION_UPDATES", "Application Updates", "Administration", "update", 93),
             entry("SAFE_ROLLBACK", "Safe Rollback", "Administration", "rollback", 94),
             entry("AUTOMATION", "Automation Center", "Administration", "automation", 95),
-            entry("AUDIT", "Global Audit Trail", "Administration", "audit", 96)
+            entry("AUDIT", "Global Audit Trail", "Administration", "audit", 96),
+            entry("MULTI_BRANCH", "Multi-Branch Support", "Enterprise & Sync", "master", 97),
+            entry("OFFLINE_SYNC", "Offline P2P Sync", "Enterprise & Sync", "update", 98)
+    );
+
+    private static final Set<String> ALWAYS_ACCESSIBLE_MODULES = Set.of(
+            "DASHBOARD", "SETTINGS", "USERS", "APPLICATION_UPDATES", "SAFE_ROLLBACK", "AUDIT"
+    );
+
+    private static final Set<String> CORE_FINANCE_MODULES = Set.of(
+            "DASHBOARD", "SALES", "QUOTATION", "CUSTOMERS", "CREDIT_NOTE", "REMINDERS",
+            "PURCHASE", "SUPPLIERS", "DEBIT_NOTE", "INVENTORY", "BARCODE",
+            "BANK_EXPENSE", "GST_COMPLIANCE", "GENERAL_LEDGER", "FINANCIAL_STATEMENTS",
+            "AGING_ANALYSIS", "MASTERS", "REPORTS"
     );
 
     private static final Set<String> SALES_MODULES = Set.of(
@@ -72,6 +85,67 @@ public final class PermissionCatalog {
         if (known != null) return known;
         String label = title(normalized.replace('_', ' '));
         return new ModuleMeta(normalized, label, "Other", "permission", 999);
+    }
+
+    /**
+     * Returns all licensable ERP modules sorted by display order for Super Admin plan & client entitlement toggles.
+     */
+    public static List<ModuleMeta> subscriptionModules() {
+        return MODULES.values().stream()
+                .filter(m -> !ALWAYS_ACCESSIBLE_MODULES.contains(m.key()))
+                .sorted(java.util.Comparator.comparingInt(ModuleMeta::order).thenComparing(ModuleMeta::label))
+                .toList();
+    }
+
+    public static boolean isAlwaysAccessibleModule(String moduleKey) {
+        return ALWAYS_ACCESSIBLE_MODULES.contains(normalize(moduleKey));
+    }
+
+    /**
+     * Expands both granular module keys (e.g. SALES, PURCHASE, TALLY) and legacy macro bundle tags
+     * (e.g. CORE_FINANCE, PRINT_EXPORT, WHATSAPP_ROUTING, TALLY_SYNC) into a canonical set of active tokens.
+     */
+    public static Set<String> expandFeatureTokens(java.util.Collection<String> rawTokens) {
+        if (rawTokens == null || rawTokens.isEmpty()) return Set.of();
+        java.util.Set<String> expanded = new java.util.LinkedHashSet<>();
+        for (String raw : rawTokens) {
+            if (raw == null || raw.isBlank()) continue;
+            for (String part : raw.split("[,;\\s]+")) {
+                String token = normalize(part.replace("\"", "").replace("'", ""));
+                if (token.isEmpty() || "NULL".equals(token)) continue;
+                expanded.add(token);
+                switch (token) {
+                    case "ALL", "*" -> {
+                        MODULES.keySet().forEach(expanded::add);
+                        expanded.addAll(List.of("CORE_FINANCE", "PRINT_EXPORT", "DATA_IMPORTER", "EWAY_BILL",
+                                "CLOUD_BACKUP", "WHATSAPP_ROUTING", "BANK_RECON", "TALLY_SYNC", "MULTI_BRANCH", "OFFLINE_SYNC"));
+                    }
+                    case "CORE_FINANCE", "GST_INVOICE" -> expanded.addAll(CORE_FINANCE_MODULES);
+                    case "PRINT_EXPORT" -> expanded.add("DOCUMENT_STUDIO");
+                    case "DOCUMENT_STUDIO" -> expanded.add("PRINT_EXPORT");
+                    case "DATA_IMPORTER" -> expanded.add("IMPORT");
+                    case "IMPORT" -> expanded.add("DATA_IMPORTER");
+                    case "WHATSAPP_ROUTING" -> expanded.add("COMMUNICATION");
+                    case "COMMUNICATION" -> expanded.add("WHATSAPP_ROUTING");
+                    case "BANK_RECON" -> {
+                        expanded.add("PURCHASE_RECON");
+                        expanded.add("RECON_SUPPLIER");
+                    }
+                    case "PURCHASE_RECON", "RECON_SUPPLIER" -> expanded.add("BANK_RECON");
+                    case "TALLY_SYNC" -> {
+                        expanded.add("TALLY");
+                        expanded.add("AUTOMATION");
+                    }
+                    case "TALLY" -> expanded.add("TALLY_SYNC");
+                    case "CLOUD_BACKUP" -> expanded.add("BACKUP");
+                    case "BACKUP" -> expanded.add("CLOUD_BACKUP");
+                    case "EWAYBILL", "EWAY" -> expanded.add("EWAY_BILL");
+                    default -> {}
+                }
+            }
+        }
+        expanded.addAll(ALWAYS_ACCESSIBLE_MODULES);
+        return Set.copyOf(expanded);
     }
 
     public static boolean isCommonAction(String action) {

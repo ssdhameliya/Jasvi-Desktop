@@ -162,73 +162,36 @@
 
             <!-- TAB 3: Subscription Plans & Commercial Settings -->
             <Tab fx:id="tabPlans" text="Subscription Plans &amp; Commercial Settings">
-                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="approved-page-scroll">
-                    <VBox spacing="14">
-                        <padding><Insets top="10" right="4" bottom="16" left="4"/></padding>
+                <VBox spacing="10" VBox.vgrow="ALWAYS">
+                    <padding><Insets top="10" right="2" bottom="4" left="2"/></padding>
 
-                        <!-- Section A: Commercial Plans Catalog -->
-                        <VBox spacing="8" styleClass="approved-card">
-                            <HBox alignment="CENTER_LEFT" spacing="10">
-                                <Label text="Commercial Subscription Plans Catalog" styleClass="section-title"/>
-                                <Region HBox.hgrow="ALWAYS"/>
-                                <Button fx:id="btnAddPlan" text="+ Add New Plan" onAction="#handleAddPlan"
-                                        styleClass="approved-button,approved-primary-button"/>
-                            </HBox>
-                            <TableView fx:id="tablePlans" minHeight="180" prefHeight="220" styleClass="approved-table">
-                                <placeholder>
-                                    <Label text="No commercial plans found in catalog." styleClass="muted-label"/>
-                                </placeholder>
-                                <columns>
-                                    <TableColumn fx:id="colPlanCode" text="Tier Code"/>
-                                    <TableColumn fx:id="colPlanName" text="Plan Name"/>
-                                    <TableColumn fx:id="colPlanFee" text="Annual Price (₹)"/>
-                                    <TableColumn fx:id="colPlanUsers" text="Max Users"/>
-                                    <TableColumn fx:id="colPlanDays" text="Validity (Days)"/>
-                                    <TableColumn fx:id="colPlanFeatures" text="Features"/>
-                                    <TableColumn fx:id="colPlanStatus" text="Status"/>
-                                    <TableColumn fx:id="colPlanActions" text="Actions"/>
-                                </columns>
-                            </TableView>
-                        </VBox>
-
-                        <!-- Section B: Payment, Billing & Communication Settings -->
-                        <VBox spacing="10" styleClass="approved-card">
-                            <Label text="Cloud Commercial &amp; UPI Billing Configuration" styleClass="section-title"/>
-                            <Label text="Configure payment VPA ID, support WhatsApp hotline, and automated message templates sent to clients"
-                                   styleClass="muted-label"/>
-
-                            <GridPane hgap="16" vgap="12">
-                                <columnConstraints>
-                                    <ColumnConstraints percentWidth="30"/>
-                                    <ColumnConstraints percentWidth="70"/>
-                                </columnConstraints>
-
-                                <Label text="Primary Support WhatsApp *:" styleClass="field-label" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
-                                <TextField fx:id="txtCommPhone" promptText="e.g. 9537544008" styleClass="approved-input" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
-
-                                <Label text="Merchant UPI VPA (ID) *:" styleClass="field-label" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
-                                <TextField fx:id="txtCommVpa" promptText="e.g. jasviindustries@icici" styleClass="approved-input" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
-
-                                <Label text="Payee Business Name:" styleClass="field-label" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
-                                <TextField fx:id="txtCommPayee" promptText="e.g. Jasvi Industries" styleClass="approved-input" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
-
-                                <Label text="GST Taxation Rate (%):" styleClass="field-label" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
-                                <TextField fx:id="txtCommGst" promptText="e.g. 18.00" styleClass="approved-input" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
-
-                                <Label text="WhatsApp Lead Response Template:" styleClass="field-label" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
-                                <TextArea fx:id="txtCommLeadTpl" prefRowCount="2" minHeight="74" prefHeight="84" wrapText="true" styleClass="approved-input" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
-
-                                <Label text="WhatsApp License Issued Template:" styleClass="field-label" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
-                                <TextArea fx:id="txtCommIssuedTpl" prefRowCount="2" minHeight="74" prefHeight="84" wrapText="true" styleClass="approved-input" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
-                            </GridPane>
-
-                            <HBox alignment="CENTER_RIGHT" spacing="10">
-                                <Button fx:id="btnSaveCommercialSettings" text="Save Commercial Settings" onAction="#handleSaveCommercialSettings"
-                                        styleClass="approved-button,approved-primary-button"/>
-                            </HBox>
-                        </VBox>
+                    <!-- Section A: Commercial Plans Catalog -->
+                    <VBox VBox.vgrow="ALWAYS" spacing="8" styleClass="approved-card,table-container-card">
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Commercial Subscription Plans Catalog" styleClass="section-title"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="btnPlanPaidDetails" text="Plan Paid Details" onAction="#handleOpenPlanPaidDetails"
+                                    styleClass="approved-button,approved-secondary-button"/>
+                            <Button fx:id="btnAddPlan" text="+ Add New Plan" onAction="#handleAddPlan"
+                                    styleClass="approved-button,approved-primary-button"/>
+                        </HBox>
+                        <TableView fx:id="tablePlans" VBox.vgrow="ALWAYS" styleClass="approved-table,clients-directory-table">
+                            <placeholder>
+                                <Label text="No commercial plans found in catalog." styleClass="muted-label"/>
+                            </placeholder>
+                            <columns>
+                                <TableColumn fx:id="colPlanCode" text="Tier Code"/>
+                                <TableColumn fx:id="colPlanName" text="Plan Name"/>
+                                <TableColumn fx:id="colPlanFee" text="Annual Price (₹)"/>
+                                <TableColumn fx:id="colPlanUsers" text="Max Users"/>
+                                <TableColumn fx:id="colPlanDays" text="Validity (Days)"/>
+                                <TableColumn fx:id="colPlanFeatures" text="Features"/>
+                                <TableColumn fx:id="colPlanStatus" text="Status"/>
+                                <TableColumn fx:id="colPlanActions" text="Actions"/>
+                            </columns>
+                        </TableView>
                     </VBox>
-                </ScrollPane>
+                </VBox>
             </Tab>
         </tabs>
     </TabPane>

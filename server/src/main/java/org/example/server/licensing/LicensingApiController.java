@@ -1,5 +1,6 @@
 package org.example.server.licensing;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.itextpdf.barcodes.BarcodeQRCode;
 import org.example.server.security.CurrentUser;
 import org.example.shared.licensing.Ed25519CryptoUtil;
@@ -130,7 +131,18 @@ public class LicensingApiController {
         }
 
         String companyName = payloadMap.get("companyName") != null ? String.valueOf(payloadMap.get("companyName")) : "Jasvi Client";
-        String machineHash = payloadMap.get("machineHash") != null ? String.valueOf(payloadMap.get("machineHash")) : HardwareFingerprintUtil.getMachineHash();
+        String machineHash = null;
+        if (payloadMap.get("machineHash") != null && !String.valueOf(payloadMap.get("machineHash")).isBlank()) {
+            machineHash = String.valueOf(payloadMap.get("machineHash")).trim();
+        } else if (payloadMap.get("machineId") != null && !String.valueOf(payloadMap.get("machineId")).isBlank()) {
+            machineHash = String.valueOf(payloadMap.get("machineId")).trim();
+        } else if (body.get("machineHash") != null && !String.valueOf(body.get("machineHash")).isBlank()) {
+            machineHash = String.valueOf(body.get("machineHash")).trim();
+        } else if (body.get("machineId") != null && !String.valueOf(body.get("machineId")).isBlank()) {
+            machineHash = String.valueOf(body.get("machineId")).trim();
+        } else {
+            machineHash = HardwareFingerprintUtil.getMachineHash();
+        }
         String tier = payloadMap.get("tier") != null ? String.valueOf(payloadMap.get("tier")) : "GOLD";
         Instant validFrom = parseInstant(payloadMap.get("validFrom"), Instant.now());
         Instant validUntil = parseInstant(payloadMap.get("validUntil"), Instant.now().plus(365, ChronoUnit.DAYS));
@@ -275,12 +287,19 @@ public class LicensingApiController {
     }
 
     public record GenerateClientLicenseRequest(
-            String companyName,
-            String machineId,
-            int days,
-            String tier,
-            int maxUsers
-    ) {}
+            @JsonProperty("companyName") String companyName,
+            @JsonProperty("machineId") String machineId,
+            @JsonProperty("machineHash") String machineHash,
+            @JsonProperty("days") int days,
+            @JsonProperty("tier") String tier,
+            @JsonProperty("maxUsers") int maxUsers
+    ) {
+        public String effectiveMachineId() {
+            if (machineId != null && !machineId.isBlank()) return machineId.trim();
+            if (machineHash != null && !machineHash.isBlank()) return machineHash.trim();
+            return null;
+        }
+    }
 
     @PostMapping("/super/issue")
     public ResponseEntity<?> issueClientLicense(@RequestBody GenerateClientLicenseRequest req) {
@@ -291,7 +310,8 @@ public class LicensingApiController {
 
         try {
             String company = (req.companyName() == null || req.companyName().isBlank()) ? "JASVI INDUSTRIES" : req.companyName().trim();
-            String machine = (req.machineId() == null || req.machineId().isBlank()) ? HardwareFingerprintUtil.getMachineHash() : req.machineId().trim();
+            String targetMachine = req.effectiveMachineId();
+            String machine = (targetMachine == null || targetMachine.isBlank()) ? HardwareFingerprintUtil.getMachineHash() : targetMachine;
             int days = req.days() <= 0 ? 365 : req.days();
             String tier = (req.tier() == null || req.tier().isBlank()) ? "GOLD" : req.tier().trim().toUpperCase(java.util.Locale.ROOT);
             int users = req.maxUsers() <= 0 ? ("GOLD".equalsIgnoreCase(tier) ? 5 : 1) : req.maxUsers();

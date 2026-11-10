@@ -117,6 +117,12 @@ public class ClientRegistryController {
         return registryService.savePlan(plan);
     }
 
+    @DeleteMapping("/plans/{id}")
+    public Map<String, Object> deletePlan(@PathVariable Long id) {
+        requireSuperAdmin();
+        return registryService.deletePlan(id);
+    }
+
     @GetMapping("/leads")
     public List<Map<String, Object>> getLeads() {
         requireSuperAdmin();

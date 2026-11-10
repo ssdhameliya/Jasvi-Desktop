@@ -100,6 +100,7 @@ public class ClientRegistryController implements ScreenLifecycle {
     @FXML private TableColumn<Map<String, Object>, String> colPlanFeatures;
     @FXML private TableColumn<Map<String, Object>, String> colPlanStatus;
     @FXML private TableColumn<Map<String, Object>, Void> colPlanActions;
+    @FXML private Button btnPlanPaidDetails;
 
     @FXML private TextField txtCommPhone;
     @FXML private TextField txtCommVpa;
@@ -108,6 +109,8 @@ public class ClientRegistryController implements ScreenLifecycle {
     @FXML private TextArea txtCommLeadTpl;
     @FXML private TextArea txtCommIssuedTpl;
     @FXML private Button btnSaveCommercialSettings;
+
+    private Map<String, Object> currentCommercialSettings = new java.util.HashMap<>();
 
     private final ClientRegistryApiClient api = new ClientRegistryApiClient();
 
@@ -366,6 +369,13 @@ public class ClientRegistryController implements ScreenLifecycle {
                 actionsBtn.setContentDisplay(ContentDisplay.LEFT);
                 actionsBtn.setGraphicTextGap(6);
 
+                MenuItem miEditAccess = new MenuItem("Edit Plan & Module Access");
+                miEditAccess.setGraphic(IconFactory.compactIcon("edit", 13));
+                miEditAccess.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) showClientLicenseDialog(item);
+                });
+
                 MenuItem miRenew = new MenuItem("Renew (+1 Year)");
                 miRenew.setGraphic(IconFactory.compactIcon("refresh", 13));
                 miRenew.setOnAction(e -> {
@@ -429,7 +439,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) handleRevokeClient(item);
                 });
 
-                actionsBtn.getItems().addAll(miRenew, miRenewCustom, miCopyToken, miExport, miEmail, miWhatsApp, miDispatchAll, miTestUrl, new SeparatorMenuItem(), miRevoke);
+                actionsBtn.getItems().addAll(miEditAccess, miRenew, miRenewCustom, miCopyToken, miExport, miEmail, miWhatsApp, miDispatchAll, miTestUrl, new SeparatorMenuItem(), miRevoke);
                 IconFactory.decorateActionMenu(actionsBtn);
             }
 
@@ -634,8 +644,8 @@ public class ClientRegistryController implements ScreenLifecycle {
         grid.setVgap(10);
         grid.setPadding(new Insets(20, 24, 20, 24));
 
-        ComboBox<String> cmbTier = new ComboBox<>(FXCollections.observableArrayList("SILVER", "GOLD", "PLATINUM"));
-        cmbTier.setValue(defaultTier);
+        ComboBox<String> cmbTier = new ComboBox<>(activePlanTierCodes());
+        cmbTier.setValue(cmbTier.getItems().contains(defaultTier) ? defaultTier : (cmbTier.getItems().isEmpty() ? defaultTier : cmbTier.getItems().getFirst()));
         TextField txtDays = new TextField("365");
 
         grid.add(new Label("Company:"), 0, 0);
@@ -751,9 +761,19 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         colPlanUsers.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("max_users", "5")) + " Users"));
         colPlanDays.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("validity_days", "365")) + " Days"));
-        colPlanFeatures.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("features", "-"))));
+        colPlanFeatures.setCellValueFactory(cell -> {
+            String raw = String.valueOf(cell.getValue().getOrDefault("features", ""));
+            var allMods = org.example.shared.PermissionCatalog.subscriptionModules();
+            java.util.Set<String> expanded = org.example.shared.PermissionCatalog.expandFeatureTokens(List.of(raw));
+            long activeCount = allMods.stream().filter(m -> expanded.contains(m.key())).count();
+            return new SimpleStringProperty(activeCount + " / " + allMods.size() + " Modules Active");
+        });
 
-        colPlanStatus.setCellValueFactory(cell -> new SimpleStringProperty(Boolean.TRUE.equals(cell.getValue().get("is_active")) ? "Active" : "Inactive"));
+        colPlanStatus.setCellValueFactory(cell -> {
+            Object act = cell.getValue().get("is_active");
+            boolean isActive = act == null || Boolean.TRUE.equals(act) || "1".equals(String.valueOf(act));
+            return new SimpleStringProperty(isActive ? "Active" : "Inactive");
+        });
         colPlanStatus.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String status, boolean empty) {
@@ -771,19 +791,67 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
 
         colPlanActions.setCellFactory(col -> new TableCell<>() {
-            private final Button btnEdit = new Button("Edit Plan");
+            private final MenuButton actionsBtn = new MenuButton("Actions");
+            private final MenuItem miView = new MenuItem("View Plan & Modules");
+            private final MenuItem miEdit = new MenuItem("Edit Plan & Modules");
+            private final MenuItem miDuplicate = new MenuItem("Duplicate / Clone Plan");
+            private final MenuItem miAdd = new MenuItem("Add New Plan");
+            private final MenuItem miToggleStatus = new MenuItem("Activate / Deactivate Plan");
+            private final MenuItem miDelete = new MenuItem("Delete Plan");
+
             {
-                btnEdit.getStyleClass().addAll("approved-button", "approved-secondary-button", "btn-table-action");
-                btnEdit.setGraphic(IconFactory.compactIcon("edit", 12));
-                btnEdit.setOnAction(e -> {
+                actionsBtn.getStyleClass().addAll("table-action-menu", "approved-row-action");
+                actionsBtn.setGraphic(IconFactory.compactIcon("actions", 14));
+                actionsBtn.setContentDisplay(ContentDisplay.LEFT);
+                actionsBtn.setGraphicTextGap(6);
+
+                miView.setGraphic(IconFactory.compactIcon("view", 13));
+                miView.setOnAction(e -> {
+                    Map<String, Object> plan = getTableView().getItems().get(getIndex());
+                    if (plan != null) showPlanEditDialog(plan, true);
+                });
+
+                miEdit.setGraphic(IconFactory.compactIcon("edit", 13));
+                miEdit.setOnAction(e -> {
                     Map<String, Object> plan = getTableView().getItems().get(getIndex());
                     if (plan != null) handleEditPlan(plan);
                 });
+
+                miDuplicate.setGraphic(IconFactory.compactIcon("copy", 13));
+                miDuplicate.setOnAction(e -> {
+                    Map<String, Object> plan = getTableView().getItems().get(getIndex());
+                    if (plan != null) handleDuplicatePlan(plan);
+                });
+
+                miAdd.setGraphic(IconFactory.compactIcon("add", 13));
+                miAdd.setOnAction(e -> handleAddPlan());
+
+                miToggleStatus.setGraphic(IconFactory.compactIcon("refresh", 13));
+                miToggleStatus.setOnAction(e -> {
+                    Map<String, Object> plan = getTableView().getItems().get(getIndex());
+                    if (plan != null) handleTogglePlanActive(plan);
+                });
+
+                miDelete.setGraphic(IconFactory.compactIcon("delete", 13));
+                miDelete.setOnAction(e -> {
+                    Map<String, Object> plan = getTableView().getItems().get(getIndex());
+                    if (plan != null) handleDeletePlan(plan);
+                });
+
+                actionsBtn.getItems().addAll(
+                        miView,
+                        miEdit,
+                        miDuplicate,
+                        miAdd,
+                        new SeparatorMenuItem(),
+                        miToggleStatus,
+                        miDelete
+                );
             }
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                setGraphic(empty ? null : btnEdit);
+                setGraphic(empty ? null : actionsBtn);
                 setAlignment(Pos.CENTER);
             }
         });
@@ -791,49 +859,183 @@ public class ClientRegistryController implements ScreenLifecycle {
 
     @FXML
     private void handleAddPlan() {
-        showPlanEditDialog(null);
+        showPlanEditDialog(null, false);
     }
 
     private void handleEditPlan(Map<String, Object> plan) {
-        showPlanEditDialog(plan);
+        showPlanEditDialog(plan, false);
+    }
+
+    private void handleDuplicatePlan(Map<String, Object> sourcePlan) {
+        if (sourcePlan == null) return;
+        Map<String, Object> copy = new java.util.LinkedHashMap<>(sourcePlan);
+        copy.remove("id");
+        copy.put("tier_code", String.valueOf(sourcePlan.getOrDefault("tier_code", "CUSTOM")) + "_PLUS");
+        copy.put("plan_name", String.valueOf(sourcePlan.getOrDefault("plan_name", "Custom Plan")) + " (Copy)");
+        showPlanEditDialog(copy, false);
+    }
+
+    private void handleTogglePlanActive(Map<String, Object> plan) {
+        if (plan == null) return;
+        Object act = plan.get("is_active");
+        boolean currentlyActive = act == null || Boolean.TRUE.equals(act) || "1".equals(String.valueOf(act));
+        boolean nextActive = !currentlyActive;
+        Map<String, Object> req = new java.util.HashMap<>();
+        if (plan.get("id") != null) req.put("id", plan.get("id"));
+        req.put("tierCode", String.valueOf(plan.getOrDefault("tier_code", "")).trim().toUpperCase(Locale.ROOT));
+        req.put("planName", String.valueOf(plan.getOrDefault("plan_name", "")).trim());
+        req.put("annualFee", plan.getOrDefault("annual_fee", new BigDecimal("3500.00")));
+        req.put("maxUsers", plan.getOrDefault("max_users", 5));
+        req.put("validityDays", plan.getOrDefault("validity_days", 365));
+        req.put("features", String.valueOf(plan.getOrDefault("features", "")));
+        req.put("isActive", nextActive);
+
+        UiTaskExecutor.submitActionWithOverlay(
+                tablePlans,
+                (nextActive ? "Activating " : "Deactivating ") + req.get("tierCode") + " Plan...",
+                "toggle-plan-status",
+                () -> api.savePlan(req),
+                res -> {
+                    org.example.service.PermissionService.refresh();
+                    AppDialogService.success(tablePlans, "Plan Status Updated",
+                            "Plan '" + req.get("tierCode") + "' is now " + (nextActive ? "Active" : "Inactive") + ".");
+                    loadDataAsync();
+                },
+                err -> AppDialogService.error(tablePlans, "Status Error", "Could not update plan status", err.getMessage())
+        );
+    }
+
+    private void handleDeletePlan(Map<String, Object> plan) {
+        if (plan == null || plan.get("id") == null) return;
+        Long id = ((Number) plan.get("id")).longValue();
+        String tierCode = String.valueOf(plan.getOrDefault("tier_code", "PLAN"));
+        String planName = String.valueOf(plan.getOrDefault("plan_name", tierCode));
+        boolean confirmed = AppDialogService.destructive(
+                tablePlans,
+                "Delete Subscription Plan",
+                "Delete plan '" + planName + "' (" + tierCode + ")?",
+                "This removes the subscription tier from the commercial catalog. Active client licenses cannot be deleted.",
+                "Delete Plan"
+        );
+        if (!confirmed) return;
+
+        UiTaskExecutor.submitActionWithOverlay(
+                tablePlans,
+                "Deleting Subscription Plan " + tierCode + "...",
+                "delete-plan-" + id,
+                () -> api.deletePlan(id),
+                res -> {
+                    org.example.service.PermissionService.refresh();
+                    AppDialogService.success(tablePlans, "Plan Deleted", "Deleted subscription plan '" + planName + "' (" + tierCode + ").");
+                    loadDataAsync();
+                },
+                err -> AppDialogService.error(tablePlans, "Delete Blocked", "Could not delete subscription plan", err.getMessage())
+        );
     }
 
     private void showPlanEditDialog(Map<String, Object> plan) {
-        boolean isEdit = plan != null;
+        showPlanEditDialog(plan, false);
+    }
+
+    private void showPlanEditDialog(Map<String, Object> plan, boolean readOnly) {
+        boolean isEdit = plan != null && plan.get("id") != null;
+        boolean hasSeed = plan != null;
         Dialog<Map<String, Object>> dialog = new OwnedDialog<>(tablePlans);
-        dialog.setTitle(isEdit ? "Edit Subscription Plan" : "Add New Subscription Plan");
-        dialog.setHeaderText(isEdit ? "Modify commercial pricing and user quota for " + plan.get("plan_name") : "Create a new commercial subscription tier");
+        dialog.setTitle(readOnly
+                ? "View Subscription Plan & Modules (Super Admin)"
+                : (isEdit ? "Edit Subscription Plan (Super Admin)" : "Create New Subscription Plan (Super Admin)"));
+        dialog.setHeaderText(readOnly
+                ? "Inspect commercial pricing, user quota, and included ERP modules for " + plan.getOrDefault("plan_name", "")
+                : (isEdit
+                        ? "Configure commercial pricing, user quota, and turn ERP modules ON or OFF for " + plan.get("plan_name")
+                        : "Create a dynamic subscription tier and turn ERP modules ON or OFF"));
 
         ButtonType btnSave = new ButtonType("Save Plan", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(btnSave, ButtonType.CANCEL);
+        if (readOnly) {
+            dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        } else {
+            dialog.getDialogPane().getButtonTypes().addAll(btnSave, ButtonType.CANCEL);
+        }
+
+        VBox rootBox = new VBox(8);
+        rootBox.setPadding(new Insets(4, 6, 4, 6));
+        rootBox.setMinHeight(Region.USE_PREF_SIZE);
 
         GridPane grid = new GridPane();
         grid.setHgap(12);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(20, 24, 20, 24));
+        grid.setVgap(8);
+        grid.setMinHeight(Region.USE_PREF_SIZE);
 
-        TextField txtCode = new TextField(isEdit ? String.valueOf(plan.getOrDefault("tier_code", "")) : "");
-        TextField txtName = new TextField(isEdit ? String.valueOf(plan.getOrDefault("plan_name", "")) : "");
-        TextField txtFee = new TextField(isEdit && plan.get("annual_fee") != null ? String.valueOf(plan.get("annual_fee")) : "15000.00");
-        TextField txtUsers = new TextField(isEdit && plan.get("max_users") != null ? String.valueOf(plan.get("max_users")) : "5");
-        TextField txtDays = new TextField(isEdit && plan.get("validity_days") != null ? String.valueOf(plan.get("validity_days")) : "365");
-        TextField txtFeatures = new TextField(isEdit ? String.valueOf(plan.getOrDefault("features", "")) : "");
+        TextField txtCode = new TextField(hasSeed ? String.valueOf(plan.getOrDefault("tier_code", "")) : "");
+        txtCode.setPromptText("e.g. GOLD, PLATINUM, DIAMOND");
+        txtCode.setPrefWidth(220);
+        TextField txtName = new TextField(hasSeed ? String.valueOf(plan.getOrDefault("plan_name", "")) : "");
+        txtName.setPromptText("e.g. Gold Standard");
+        txtName.setPrefWidth(220);
+        TextField txtFee = new TextField(hasSeed && plan.get("annual_fee") != null ? String.valueOf(plan.get("annual_fee")) : "3500.00");
+        TextField txtUsers = new TextField(hasSeed && plan.get("max_users") != null ? String.valueOf(plan.get("max_users")) : "5");
+        TextField txtDays = new TextField(hasSeed && plan.get("validity_days") != null ? String.valueOf(plan.get("validity_days")) : "365");
 
-        grid.add(new Label("Tier Code *:"), 0, 0);
+        Object actObj = hasSeed ? plan.get("is_active") : Boolean.TRUE;
+        boolean initialActive = actObj == null || Boolean.TRUE.equals(actObj) || "1".equals(String.valueOf(actObj));
+        CheckBox chkActivePlan = new CheckBox("Active Plan");
+        chkActivePlan.getStyleClass().add("ios-toggle-switch");
+        chkActivePlan.setSelected(initialActive);
+        chkActivePlan.setMinWidth(Region.USE_PREF_SIZE);
+
+        Label lblCode = new Label("Tier Code *:");
+        lblCode.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblName = new Label("Plan Name *:");
+        lblName.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblStatus = new Label("Plan Status:");
+        lblStatus.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblFee = new Label("Annual Price (₹) *:");
+        lblFee.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblUsers = new Label("Max Concurrent Users *:");
+        lblUsers.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblDays = new Label("Validity (Days) *:");
+        lblDays.setMinWidth(Region.USE_PREF_SIZE);
+
+        grid.add(lblCode, 0, 0);
         grid.add(txtCode, 1, 0);
-        grid.add(new Label("Plan Name *:"), 0, 1);
-        grid.add(txtName, 1, 1);
-        grid.add(new Label("Annual Price (₹) *:"), 0, 2);
-        grid.add(txtFee, 1, 2);
-        grid.add(new Label("Max Concurrent Users *:"), 0, 3);
-        grid.add(txtUsers, 1, 3);
-        grid.add(new Label("Validity (Days) *:"), 0, 4);
-        grid.add(txtDays, 1, 4);
-        grid.add(new Label("Features Description:"), 0, 5);
-        grid.add(txtFeatures, 1, 5);
+        grid.add(lblName, 2, 0);
+        grid.add(txtName, 3, 0);
+        grid.add(lblStatus, 4, 0);
+        grid.add(chkActivePlan, 5, 0);
 
-        dialog.getDialogPane().setContent(grid);
-        PopupTableWorkspace.prepareDialog(dialog, 600);
+        grid.add(lblFee, 0, 1);
+        grid.add(txtFee, 1, 1);
+        grid.add(lblUsers, 2, 1);
+        grid.add(txtUsers, 3, 1);
+        grid.add(lblDays, 4, 1);
+        grid.add(txtDays, 5, 1);
+
+        GridPane.setHgrow(txtCode, Priority.ALWAYS);
+        GridPane.setHgrow(txtName, Priority.ALWAYS);
+        GridPane.setHgrow(txtFee, Priority.ALWAYS);
+        GridPane.setHgrow(txtUsers, Priority.ALWAYS);
+        GridPane.setHgrow(txtDays, Priority.ALWAYS);
+
+        java.util.Map<String, CheckBox> moduleToggles = new java.util.LinkedHashMap<>();
+        List<String> initialModules = hasSeed
+                ? resolvePlanFeatures(String.valueOf(plan.getOrDefault("tier_code", "GOLD")), plan)
+                : org.example.service.PermissionService.defaultAllFeatures();
+
+        VBox moduleSection = buildIosModuleTogglePanel(moduleToggles, initialModules);
+        if (readOnly) {
+            txtCode.setEditable(false);
+            txtName.setEditable(false);
+            txtFee.setEditable(false);
+            txtUsers.setEditable(false);
+            txtDays.setEditable(false);
+            chkActivePlan.setDisable(true);
+            moduleSection.setDisable(true);
+        }
+        rootBox.getChildren().addAll(grid, new Separator(), moduleSection);
+
+        dialog.getDialogPane().setContent(rootBox);
+        dialog.getDialogPane().getStyleClass().add("dse-dialog-auto-height");
+        PopupTableWorkspace.prepareDialog(dialog, 1240);
         dialog.setResultConverter(b -> {
             if (b == btnSave) {
                 java.util.Map<String, Object> req = new java.util.HashMap<>();
@@ -843,24 +1045,172 @@ public class ClientRegistryController implements ScreenLifecycle {
                 try { req.put("annualFee", new BigDecimal(txtFee.getText().trim())); } catch (Exception e) { req.put("annualFee", BigDecimal.ZERO); }
                 try { req.put("maxUsers", Integer.parseInt(txtUsers.getText().trim())); } catch (Exception e) { req.put("maxUsers", 5); }
                 try { req.put("validityDays", Integer.parseInt(txtDays.getText().trim())); } catch (Exception e) { req.put("validityDays", 365); }
-                req.put("features", txtFeatures.getText().trim());
-                req.put("isActive", true);
+                List<String> selected = new java.util.ArrayList<>();
+                moduleToggles.forEach((key, toggle) -> {
+                    if (toggle.isSelected()) selected.add(key);
+                });
+                req.put("features", String.join(",", selected));
+                req.put("isActive", chkActivePlan.isSelected());
                 return req;
             }
             return null;
         });
 
         dialog.showAndWait().ifPresent(req -> {
+            if (String.valueOf(req.getOrDefault("tierCode", "")).isBlank()) {
+                AppDialogService.warning(tablePlans, "Validation", "Tier Code is required (e.g. GOLD, PLATINUM, CUSTOM).");
+                return;
+            }
             UiTaskExecutor.submitActionWithOverlay(
                     tablePlans,
                     "Saving Commercial Subscription Plan...",
                     "save-plan",
                     () -> api.savePlan(req),
                     res -> {
-                        AppDialogService.success(tablePlans, "Plan Saved", "Commercial subscription plan saved!");
+                        org.example.service.PermissionService.refresh();
+                        AppDialogService.success(tablePlans, "Plan Saved", "Subscription plan and module access updated!");
                         loadDataAsync();
                     },
                     err -> AppDialogService.error(tablePlans, "Save Error", "Could not save plan", err.getMessage())
+            );
+        });
+    }
+
+    @FXML
+    private void handleOpenPlanPaidDetails() {
+        Dialog<Map<String, Object>> dialog = new OwnedDialog<>(tablePlans);
+        dialog.setTitle("Plan Paid Details & Commercial Configuration");
+        dialog.setHeaderText("Configure UPI payment VPA, support WhatsApp hotline, and automated message templates");
+        dialog.setResizable(true);
+
+        DialogPane pane = dialog.getDialogPane();
+        pane.setMinWidth(840);
+        pane.setPrefWidth(880);
+
+        ButtonType btnSave = new ButtonType("Save Commercial Details", ButtonBar.ButtonData.OK_DONE);
+        pane.getButtonTypes().addAll(btnSave, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(18, 24, 18, 24));
+
+        ColumnConstraints colLabel = new ColumnConstraints();
+        colLabel.setMinWidth(260);
+        colLabel.setPrefWidth(280);
+
+        ColumnConstraints colInput = new ColumnConstraints();
+        colInput.setHgrow(Priority.ALWAYS);
+        colInput.setMinWidth(480);
+        colInput.setFillWidth(true);
+
+        grid.getColumnConstraints().addAll(colLabel, colInput);
+
+        Map<String, Object> comm = currentCommercialSettings != null ? currentCommercialSettings : Map.of();
+
+        TextField phoneField = new TextField(String.valueOf(comm.getOrDefault("supportPhone", "9537544008")));
+        phoneField.setPromptText("e.g. 9537544008");
+        phoneField.getStyleClass().add("approved-input");
+
+        TextField vpaField = new TextField(String.valueOf(comm.getOrDefault("upiVpa", "jasviindustries@icici")));
+        vpaField.setPromptText("e.g. jasviindustries@icici");
+        vpaField.getStyleClass().add("approved-input");
+
+        TextField payeeField = new TextField(String.valueOf(comm.getOrDefault("payeeName", "Jasvi Industries")));
+        payeeField.setPromptText("e.g. Jasvi Industries");
+        payeeField.getStyleClass().add("approved-input");
+
+        TextField gstField = new TextField(String.valueOf(comm.getOrDefault("gstRate", "18.00")));
+        gstField.setPromptText("e.g. 18.00");
+        gstField.getStyleClass().add("approved-input");
+
+        TextArea leadTplArea = new TextArea(String.valueOf(comm.getOrDefault("whatsappTemplateLead", "")));
+        leadTplArea.setPromptText("Template for new inbound client lead notification...");
+        leadTplArea.setPrefRowCount(3);
+        leadTplArea.setMinHeight(84);
+        leadTplArea.setWrapText(true);
+        leadTplArea.getStyleClass().add("approved-input");
+
+        TextArea issuedTplArea = new TextArea(String.valueOf(comm.getOrDefault("whatsappTemplateIssued", "")));
+        issuedTplArea.setPromptText("Template for license issuance message sent to client...");
+        issuedTplArea.setPrefRowCount(3);
+        issuedTplArea.setMinHeight(84);
+        issuedTplArea.setWrapText(true);
+        issuedTplArea.getStyleClass().add("approved-input");
+
+        Label lblPhone = new Label("Primary Support WhatsApp *:");
+        lblPhone.getStyleClass().add("field-label");
+
+        Label lblVpa = new Label("Merchant UPI VPA (ID) *:");
+        lblVpa.getStyleClass().add("field-label");
+
+        Label lblPayee = new Label("Payee Business Name:");
+        lblPayee.getStyleClass().add("field-label");
+
+        Label lblGst = new Label("GST Taxation Rate (%):");
+        lblGst.getStyleClass().add("field-label");
+
+        Label lblLeadTpl = new Label("WhatsApp Lead Response Template:");
+        lblLeadTpl.getStyleClass().add("field-label");
+
+        Label lblIssuedTpl = new Label("WhatsApp License Issued Template:");
+        lblIssuedTpl.getStyleClass().add("field-label");
+
+        grid.add(lblPhone, 0, 0);
+        grid.add(phoneField, 1, 0);
+
+        grid.add(lblVpa, 0, 1);
+        grid.add(vpaField, 1, 1);
+
+        grid.add(lblPayee, 0, 2);
+        grid.add(payeeField, 1, 2);
+
+        grid.add(lblGst, 0, 3);
+        grid.add(gstField, 1, 3);
+
+        grid.add(lblLeadTpl, 0, 4);
+        grid.add(leadTplArea, 1, 4);
+
+        grid.add(lblIssuedTpl, 0, 5);
+        grid.add(issuedTplArea, 1, 5);
+
+        pane.setContent(grid);
+
+        dialog.setResultConverter(clicked -> {
+            if (clicked == btnSave) {
+                return Map.of(
+                        "supportPhone", phoneField.getText() != null ? phoneField.getText().trim() : "",
+                        "upiVpa", vpaField.getText() != null ? vpaField.getText().trim() : "",
+                        "payeeName", payeeField.getText() != null ? payeeField.getText().trim() : "",
+                        "gstRate", gstField.getText() != null ? gstField.getText().trim() : "18.00",
+                        "whatsappTemplateLead", leadTplArea.getText() != null ? leadTplArea.getText().trim() : "",
+                        "whatsappTemplateIssued", issuedTplArea.getText() != null ? issuedTplArea.getText().trim() : ""
+                );
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(req -> {
+            if (String.valueOf(req.get("supportPhone")).isBlank()) {
+                AppDialogService.warning(tablePlans, "Validation", "Primary Support WhatsApp hotline is required.");
+                return;
+            }
+            if (String.valueOf(req.get("upiVpa")).isBlank()) {
+                AppDialogService.warning(tablePlans, "Validation", "Merchant UPI VPA is required.");
+                return;
+            }
+
+            UiTaskExecutor.submitActionWithOverlay(
+                    registryTabPane != null ? registryTabPane : tablePlans,
+                    "Saving Settings & Updating Cloud Catalog...",
+                    "save-comm-settings",
+                    () -> api.saveCommercialSettings(req),
+                    res -> {
+                        currentCommercialSettings = new java.util.HashMap<>(req);
+                        populateCommercialSettings(req);
+                        AppDialogService.success(tablePlans, "Settings Saved", "Commercial settings updated and synced with cloud catalog!");
+                    },
+                    err -> AppDialogService.error(tablePlans, "Save Error", "Could not save settings", err.getMessage())
             );
         });
     }
@@ -953,6 +1303,7 @@ public class ClientRegistryController implements ScreenLifecycle {
 
     private void populateCommercialSettings(Map<String, Object> comm) {
         if (comm == null) return;
+        this.currentCommercialSettings = new java.util.HashMap<>(comm);
         if (txtCommPhone != null) txtCommPhone.setText(String.valueOf(comm.getOrDefault("supportPhone", "9537544008")));
         if (txtCommVpa != null) txtCommVpa.setText(String.valueOf(comm.getOrDefault("upiVpa", "jasviindustries@icici")));
         if (txtCommPayee != null) txtCommPayee.setText(String.valueOf(comm.getOrDefault("payeeName", "Jasvi Industries")));
@@ -984,82 +1335,159 @@ public class ClientRegistryController implements ScreenLifecycle {
 
     @FXML
     private void handleRegisterClient() {
-        Dialog<Map<String, Object>> dialog = new OwnedDialog<>(tableClients);
-        dialog.setTitle("Register New Client Company");
-        dialog.setHeaderText("Issue cryptographically signed license bound to client computer");
+        showClientLicenseDialog(null);
+    }
 
-        ButtonType btnSave = new ButtonType("Issue License", ButtonBar.ButtonData.OK_DONE);
+    private void showClientLicenseDialog(Map<String, Object> existingClient) {
+        boolean isEdit = existingClient != null;
+        Dialog<Map<String, Object>> dialog = new OwnedDialog<>(tableClients);
+        dialog.setTitle(isEdit ? "Edit Client Plan & Module Access" : "Register New Client Company");
+        dialog.setHeaderText(isEdit
+                ? "Modify subscription tier and turn ERP modules ON or OFF for " + existingClient.getOrDefault("company_name", "Client")
+                : "Issue cryptographically signed license bound to client computer");
+
+        ButtonType btnSave = new ButtonType(isEdit ? "Update & Re-Sign License" : "Issue License", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(btnSave, ButtonType.CANCEL);
+
+        VBox rootBox = new VBox(8);
+        rootBox.setPadding(new Insets(4, 6, 4, 6));
+        rootBox.setMinHeight(Region.USE_PREF_SIZE);
 
         GridPane grid = new GridPane();
         grid.setHgap(12);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(20, 24, 20, 24));
+        grid.setVgap(8);
+        grid.setMinHeight(Region.USE_PREF_SIZE);
 
-        TextField txtComp = new TextField();
+        TextField txtComp = new TextField(isEdit ? String.valueOf(existingClient.getOrDefault("company_name", "")) : "");
         txtComp.setPromptText("e.g. Surat Silk Mills Pvt Ltd");
 
-        TextField txtMachine = new TextField();
+        TextField txtMachine = new TextField(isEdit ? String.valueOf(existingClient.getOrDefault("machine_id", "")) : "");
         txtMachine.setPromptText("e.g. 16-hex Machine ID or click Use Current");
 
         Button btnUseCurrentMachine = new Button("Use Current Machine ID");
         btnUseCurrentMachine.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnUseCurrentMachine.setMinWidth(Region.USE_PREF_SIZE);
         btnUseCurrentMachine.setOnAction(e -> txtMachine.setText(HardwareFingerprintUtil.getDisplayMachineId()));
 
         HBox machineRow = new HBox(8, txtMachine, btnUseCurrentMachine);
         HBox.setHgrow(txtMachine, Priority.ALWAYS);
 
-        TextField txtContact = new TextField();
+        TextField txtContact = new TextField(isEdit && existingClient.get("contact_person") != null ? String.valueOf(existingClient.get("contact_person")) : "");
         txtContact.setPromptText("e.g. Ramesh Patel");
 
-        TextField txtPhone = new TextField();
+        TextField txtPhone = new TextField(isEdit && existingClient.get("phone") != null ? String.valueOf(existingClient.get("phone")) : "");
         txtPhone.setPromptText("e.g. 9825012345");
 
-        TextField txtEmail = new TextField();
+        TextField txtEmail = new TextField(isEdit && existingClient.get("email") != null ? String.valueOf(existingClient.get("email")) : "");
         txtEmail.setPromptText("e.g. accounts@suratsilk.com");
 
-        ComboBox<String> cmbTier = new ComboBox<>(FXCollections.observableArrayList("SILVER", "GOLD", "PLATINUM"));
-        cmbTier.setValue("GOLD");
+        ComboBox<String> cmbTier = new ComboBox<>(activePlanTierCodes());
+        cmbTier.setMaxWidth(Double.MAX_VALUE);
+        String currentTier = isEdit && existingClient.get("tier") != null
+                ? String.valueOf(existingClient.get("tier")).trim().toUpperCase(Locale.ROOT)
+                : (cmbTier.getItems().contains("GOLD") ? "GOLD" : (cmbTier.getItems().isEmpty() ? "GOLD" : cmbTier.getItems().getFirst()));
+        if (!cmbTier.getItems().contains(currentTier)) {
+            cmbTier.getItems().add(currentTier);
+        }
+        cmbTier.setValue(currentTier);
 
-        TextField txtUsers = new TextField("5");
-        TextField txtFee = new TextField("25000.00");
+        TextField txtUsers = new TextField(isEdit && existingClient.get("max_users") != null ? String.valueOf(existingClient.get("max_users")) : "5");
+        TextField txtFee = new TextField(isEdit && existingClient.get("annual_fee") != null ? String.valueOf(existingClient.get("annual_fee")) : "3500.00");
         TextField txtDays = new TextField("365");
 
-        TextField txtRemoteUrl = new TextField();
+        TextField txtRemoteUrl = new TextField(isEdit && existingClient.get("remote_url") != null ? String.valueOf(existingClient.get("remote_url")) : "");
         txtRemoteUrl.setPromptText("e.g. https://client-a.jasviindustries.in or https://...trycloudflare.com");
 
-        grid.add(new Label("Company Name *:"), 0, 0);
+        java.util.Map<String, CheckBox> moduleToggles = new java.util.LinkedHashMap<>();
+        List<String> initialModules;
+        if (isEdit && existingClient.get("features") != null && !String.valueOf(existingClient.get("features")).isBlank()) {
+            initialModules = List.copyOf(org.example.shared.PermissionCatalog.expandFeatureTokens(
+                    List.of(String.valueOf(existingClient.get("features")))));
+        } else {
+            initialModules = resolvePlanFeatures(currentTier, findPlanByTierCode(currentTier));
+        }
+
+        VBox moduleSection = buildIosModuleTogglePanel(moduleToggles, initialModules);
+
+        java.util.function.Consumer<String> applyTierDefaults = tier -> {
+            Map<String, Object> matchedPlan = findPlanByTierCode(tier);
+            if (matchedPlan != null) {
+                if (matchedPlan.get("max_users") != null) txtUsers.setText(String.valueOf(matchedPlan.get("max_users")));
+                if (matchedPlan.get("annual_fee") != null) txtFee.setText(String.valueOf(matchedPlan.get("annual_fee")));
+                if (matchedPlan.get("validity_days") != null) txtDays.setText(String.valueOf(matchedPlan.get("validity_days")));
+            }
+            java.util.Set<String> defaults = new java.util.HashSet<>(resolvePlanFeatures(tier, matchedPlan));
+            moduleToggles.forEach((tag, chk) -> chk.setSelected(defaults.contains(tag)));
+        };
+
+        if (!isEdit) {
+            applyTierDefaults.accept(currentTier);
+        }
+
+        cmbTier.valueProperty().addListener((obs, oldV, newV) -> {
+            if (newV != null) applyTierDefaults.accept(newV);
+        });
+
+        Label lblComp = new Label("Company Name *:");
+        lblComp.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblMachine = new Label("Machine Hardware ID *:");
+        lblMachine.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblContact = new Label("Contact Person:");
+        lblContact.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblPhone = new Label("Phone / WhatsApp:");
+        lblPhone.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblEmail = new Label("Email:");
+        lblEmail.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblTier = new Label("Subscription Plan *:");
+        lblTier.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblUsers = new Label("Max Concurrent Users *:");
+        lblUsers.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblFee = new Label("Annual Fee (₹) *:");
+        lblFee.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblDays = new Label("Validity (Days) *:");
+        lblDays.setMinWidth(Region.USE_PREF_SIZE);
+        Label lblRemote = new Label("Remote Support URL:");
+        lblRemote.setMinWidth(Region.USE_PREF_SIZE);
+
+        grid.add(lblComp, 0, 0);
         grid.add(txtComp, 1, 0);
+        grid.add(lblMachine, 2, 0);
+        grid.add(machineRow, 3, 0, 3, 1);
 
-        grid.add(new Label("Machine Hardware ID *:"), 0, 1);
-        grid.add(machineRow, 1, 1);
+        grid.add(lblContact, 0, 1);
+        grid.add(txtContact, 1, 1);
+        grid.add(lblPhone, 2, 1);
+        grid.add(txtPhone, 3, 1);
+        grid.add(lblEmail, 4, 1);
+        grid.add(txtEmail, 5, 1);
 
-        grid.add(new Label("Contact Person:"), 0, 2);
-        grid.add(txtContact, 1, 2);
+        grid.add(lblTier, 0, 2);
+        grid.add(cmbTier, 1, 2);
+        grid.add(lblUsers, 2, 2);
+        grid.add(txtUsers, 3, 2);
+        grid.add(lblFee, 4, 2);
+        grid.add(txtFee, 5, 2);
 
-        grid.add(new Label("Phone / WhatsApp:"), 0, 3);
-        grid.add(txtPhone, 1, 3);
+        grid.add(lblDays, 0, 3);
+        grid.add(txtDays, 1, 3);
+        grid.add(lblRemote, 2, 3);
+        grid.add(txtRemoteUrl, 3, 3, 3, 1);
 
-        grid.add(new Label("Email:"), 0, 4);
-        grid.add(txtEmail, 1, 4);
+        GridPane.setHgrow(txtComp, Priority.ALWAYS);
+        GridPane.setHgrow(machineRow, Priority.ALWAYS);
+        GridPane.setHgrow(txtContact, Priority.ALWAYS);
+        GridPane.setHgrow(txtPhone, Priority.ALWAYS);
+        GridPane.setHgrow(txtEmail, Priority.ALWAYS);
+        GridPane.setHgrow(cmbTier, Priority.ALWAYS);
+        GridPane.setHgrow(txtUsers, Priority.ALWAYS);
+        GridPane.setHgrow(txtFee, Priority.ALWAYS);
+        GridPane.setHgrow(txtDays, Priority.ALWAYS);
+        GridPane.setHgrow(txtRemoteUrl, Priority.ALWAYS);
 
-        grid.add(new Label("License Tier *:"), 0, 5);
-        grid.add(cmbTier, 1, 5);
-
-        grid.add(new Label("Max Users *:"), 0, 6);
-        grid.add(txtUsers, 1, 6);
-
-        grid.add(new Label("Annual Fee (₹) *:"), 0, 7);
-        grid.add(txtFee, 1, 7);
-
-        grid.add(new Label("Validity (Days) *:"), 0, 8);
-        grid.add(txtDays, 1, 8);
-
-        grid.add(new Label("Remote Support URL:"), 0, 9);
-        grid.add(txtRemoteUrl, 1, 9);
-
-        dialog.getDialogPane().setContent(grid);
-        PopupTableWorkspace.prepareDialog(dialog, 680);
+        rootBox.getChildren().addAll(grid, new Separator(), moduleSection);
+        dialog.getDialogPane().setContent(rootBox);
+        dialog.getDialogPane().getStyleClass().add("dse-dialog-auto-height");
+        PopupTableWorkspace.prepareDialog(dialog, 1240);
         dialog.setResultConverter(btn -> {
             if (btn == btnSave) {
                 java.util.Map<String, Object> reqMap = new java.util.HashMap<>();
@@ -1069,11 +1497,17 @@ public class ClientRegistryController implements ScreenLifecycle {
                 reqMap.put("phone", txtPhone.getText().trim());
                 reqMap.put("email", txtEmail.getText().trim());
                 reqMap.put("tier", cmbTier.getValue());
-                reqMap.put("maxUsers", Integer.parseInt(txtUsers.getText().trim()));
-                reqMap.put("annualFee", new BigDecimal(txtFee.getText().trim()));
-                reqMap.put("days", Integer.parseInt(txtDays.getText().trim()));
+                try { reqMap.put("maxUsers", Integer.parseInt(txtUsers.getText().trim())); } catch (Exception e) { reqMap.put("maxUsers", 5); }
+                try { reqMap.put("annualFee", new BigDecimal(txtFee.getText().trim())); } catch (Exception e) { reqMap.put("annualFee", BigDecimal.ZERO); }
+                try { reqMap.put("days", Integer.parseInt(txtDays.getText().trim())); } catch (Exception e) { reqMap.put("days", 365); }
                 reqMap.put("remoteUrl", txtRemoteUrl.getText().trim());
-                reqMap.put("notes", "Direct SuperAdmin issuance");
+                reqMap.put("notes", isEdit ? "Updated via SuperAdmin Plan & Access Editor" : "Direct SuperAdmin issuance");
+
+                List<String> selectedFeatures = new java.util.ArrayList<>();
+                moduleToggles.forEach((tag, chk) -> {
+                    if (chk.isSelected()) selectedFeatures.add(tag);
+                });
+                reqMap.put("features", selectedFeatures);
                 return reqMap;
             }
             return null;
@@ -1087,16 +1521,133 @@ public class ClientRegistryController implements ScreenLifecycle {
 
             UiTaskExecutor.submitActionWithOverlay(
                     tableClients,
-                    "Issuing License & Registering Client...",
+                    isEdit ? "Updating Client Plan & Re-Signing License..." : "Issuing License & Registering Client...",
                     "register-client",
                     () -> api.registerClient(req),
                     client -> {
-                        AppDialogService.success(tableClients, "License Issued", "Registered " + req.get("companyName") + "!");
+                        org.example.service.PermissionService.refresh();
+                        AppDialogService.success(tableClients, isEdit ? "License Updated" : "License Issued",
+                                (isEdit ? "Updated plan and module access for " : "Registered ") + req.get("companyName") + "!");
                         loadDataAsync();
                     },
-                    err -> AppDialogService.error(tableClients, "Issuance Failed", "Could not register client", err.getMessage())
+                    err -> AppDialogService.error(tableClients, "Issuance Failed", "Could not save client license", err.getMessage())
             );
         });
+    }
+
+    private VBox buildIosModuleTogglePanel(java.util.Map<String, CheckBox> moduleToggles, java.util.Collection<String> initialSelected) {
+        var allModules = org.example.shared.PermissionCatalog.subscriptionModules();
+        java.util.Set<String> activeInitial = org.example.shared.PermissionCatalog.expandFeatureTokens(initialSelected);
+
+        Label lblSummary = new Label();
+        lblSummary.getStyleClass().add("section-title");
+
+        Label lblAll = new Label("Turn All Modules ON / OFF:");
+        CheckBox masterToggle = new CheckBox();
+        masterToggle.getStyleClass().add("ios-toggle-switch");
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+        HBox headerRow = new HBox(10, IconFactory.compactIcon("permission", 16), lblSummary, headerSpacer, lblAll, masterToggle);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        boolean[] syncing = {false};
+        Runnable updateCounts = () -> {
+            if (syncing[0]) return;
+            syncing[0] = true;
+            try {
+                long onCount = moduleToggles.values().stream().filter(CheckBox::isSelected).count();
+                lblSummary.setText("Included ERP Modules & Capabilities (" + onCount + " / " + allModules.size() + " Active)");
+                masterToggle.setSelected(onCount == allModules.size() && !allModules.isEmpty());
+            } finally {
+                syncing[0] = false;
+            }
+        };
+
+        masterToggle.setOnAction(e -> {
+            if (syncing[0]) return;
+            boolean target = masterToggle.isSelected();
+            syncing[0] = true;
+            try {
+                moduleToggles.values().forEach(chk -> chk.setSelected(target));
+            } finally {
+                syncing[0] = false;
+            }
+            updateCounts.run();
+        });
+
+        java.util.Map<String, List<org.example.shared.PermissionCatalog.ModuleMeta>> grouped = new java.util.LinkedHashMap<>();
+        grouped.put("Sales, Billing & CRM", new java.util.ArrayList<>());
+        grouped.put("Purchase, Inventory & Operations", new java.util.ArrayList<>());
+        grouped.put("Finance, GST Compliance & Enterprise Add-Ons", new java.util.ArrayList<>());
+
+        for (var meta : allModules) {
+            String cat = meta.category() == null ? "" : meta.category().toLowerCase(Locale.ROOT);
+            if (cat.contains("sale") || cat.contains("dashboard")) {
+                grouped.get("Sales, Billing & CRM").add(meta);
+            } else if (cat.contains("purchase") || cat.contains("inventory") || cat.contains("master")) {
+                grouped.get("Purchase, Inventory & Operations").add(meta);
+            } else {
+                grouped.get("Finance, GST Compliance & Enterprise Add-Ons").add(meta);
+            }
+        }
+
+        VBox categoriesBox = new VBox(6);
+        categoriesBox.setPadding(new Insets(2, 0, 2, 0));
+        categoriesBox.setMinHeight(Region.USE_PREF_SIZE);
+
+        final int columns = 4;
+        for (var entry : grouped.entrySet()) {
+            if (entry.getValue().isEmpty()) continue;
+            Label groupTitle = new Label(entry.getKey());
+            groupTitle.getStyleClass().add("module-category-header");
+            groupTitle.setMinHeight(Region.USE_PREF_SIZE);
+
+            GridPane groupGrid = new GridPane();
+            groupGrid.setHgap(10);
+            groupGrid.setVgap(5);
+            groupGrid.setMinHeight(Region.USE_PREF_SIZE);
+
+            int idx = 0;
+            for (var meta : entry.getValue()) {
+                CheckBox toggle = new CheckBox();
+                toggle.getStyleClass().add("ios-toggle-switch");
+                toggle.setSelected(activeInitial.contains(meta.key()));
+                toggle.setMinWidth(Region.USE_PREF_SIZE);
+                toggle.selectedProperty().addListener((obs, o, n) -> updateCounts.run());
+                moduleToggles.put(meta.key(), toggle);
+
+                Label nameLbl = new Label(meta.label());
+                nameLbl.setMinWidth(Region.USE_PREF_SIZE);
+                Region sp = new Region();
+                HBox.setHgrow(sp, Priority.ALWAYS);
+
+                HBox cellBox = new HBox(6, IconFactory.compactIcon(meta.iconKey(), 13), nameLbl, sp, toggle);
+                cellBox.setAlignment(Pos.CENTER_LEFT);
+                cellBox.setMinHeight(Region.USE_PREF_SIZE);
+                cellBox.getStyleClass().add("module-toggle-pill");
+                GridPane.setHgrow(cellBox, Priority.ALWAYS);
+
+                groupGrid.add(cellBox, idx % columns, idx / columns);
+                idx++;
+            }
+
+            for (int col = 0; col < columns; col++) {
+                ColumnConstraints cc = new ColumnConstraints();
+                cc.setPercentWidth(100.0 / columns);
+                cc.setHgrow(Priority.ALWAYS);
+                groupGrid.getColumnConstraints().add(cc);
+            }
+
+            categoriesBox.getChildren().addAll(groupTitle, groupGrid);
+        }
+
+        updateCounts.run();
+
+        headerRow.setMinHeight(Region.USE_PREF_SIZE);
+        VBox wrapper = new VBox(6, headerRow, categoriesBox);
+        wrapper.setMinHeight(Region.USE_PREF_SIZE);
+        return wrapper;
     }
 
     private void handleRenewClient(Map<String, Object> item, int days) {
@@ -1323,6 +1874,46 @@ public class ClientRegistryController implements ScreenLifecycle {
                 },
                 err -> AppDialogService.error(tableClients, "Revoke Error", "Could not revoke client", err.getMessage())
         );
+    }
+
+    private ObservableList<String> activePlanTierCodes() {
+        List<String> codes = new java.util.ArrayList<>();
+        for (Map<String, Object> plan : plansList) {
+            if (plan == null) continue;
+            Object activeObj = plan.get("is_active");
+            boolean active = activeObj == null || "1".equals(String.valueOf(activeObj)) || Boolean.TRUE.equals(activeObj);
+            if (!active) continue;
+            String code = String.valueOf(plan.getOrDefault("tier_code", "")).trim().toUpperCase(Locale.ROOT);
+            if (!code.isEmpty() && !"NULL".equals(code) && !codes.contains(code)) {
+                codes.add(code);
+            }
+        }
+        if (codes.isEmpty()) {
+            codes.addAll(List.of("SILVER", "GOLD", "PLATINUM"));
+        }
+        return FXCollections.observableArrayList(codes);
+    }
+
+    private Map<String, Object> findPlanByTierCode(String tierCode) {
+        if (tierCode == null || tierCode.isBlank()) return null;
+        String target = tierCode.trim().toUpperCase(Locale.ROOT);
+        for (Map<String, Object> plan : plansList) {
+            if (plan == null) continue;
+            String code = String.valueOf(plan.getOrDefault("tier_code", "")).trim().toUpperCase(Locale.ROOT);
+            if (target.equals(code)) return plan;
+        }
+        return null;
+    }
+
+    private List<String> resolvePlanFeatures(String tier, Map<String, Object> plan) {
+        if (plan != null && plan.get("features") != null) {
+            String raw = String.valueOf(plan.get("features")).trim();
+            if (!raw.isEmpty() && !"null".equalsIgnoreCase(raw)) {
+                java.util.Set<String> expanded = org.example.shared.PermissionCatalog.expandFeatureTokens(List.of(raw));
+                if (!expanded.isEmpty()) return List.copyOf(expanded);
+            }
+        }
+        return org.example.service.PermissionService.fallbackFeaturesForTier(tier);
     }
 
     @Override

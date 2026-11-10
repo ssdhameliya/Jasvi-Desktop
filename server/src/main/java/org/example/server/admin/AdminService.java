@@ -81,16 +81,38 @@ public class AdminService {
                 ('EWAY_BILL.GENERATE', 'EWAY_BILL', 'GENERATE', 'Generate and export NIC E-Way Bill JSON'),
                 ('EWAY_BILL.UPDATE_VEHICLE', 'EWAY_BILL', 'UPDATE_VEHICLE', 'Update transporter, vehicle number, and distance'),
                 ('BARCODE.VIEW', 'BARCODE', 'VIEW', 'Open Barcode Label Studio'),
-                ('BARCODE.PRINT', 'BARCODE', 'PRINT', 'Generate and print thermal barcode / QR labels')
+                ('BARCODE.PRINT', 'BARCODE', 'PRINT', 'Generate and print thermal barcode / QR labels'),
+                ('TALLY.VIEW', 'TALLY', 'VIEW', 'Open Bill to Tally Automation workspace and review batches'),
+                ('TALLY.IMPORT', 'TALLY', 'IMPORT', 'Upload bills (Images/PDFs/Excel) and process OCR batches'),
+                ('TALLY.EDIT', 'TALLY', 'EDIT', 'Edit extracted bill data and Tally ledger/item mappings'),
+                ('TALLY.EXPORT', 'TALLY', 'EXPORT', 'Export Tally JSON and Excel voucher files'),
+                ('TALLY.PUSH', 'TALLY', 'PUSH', 'Direct sync to TallyPrime (Port 9000)'),
+                ('MULTI_BRANCH.VIEW', 'MULTI_BRANCH', 'VIEW', 'View and switch across multiple company branches'),
+                ('OFFLINE_SYNC.VIEW', 'OFFLINE_SYNC', 'VIEW', 'View and synchronize offline peer-to-peer workstation data')
                 ON CONFLICT (permission_key) DO UPDATE SET description = EXCLUDED.description, active = 1
             """);
+
+            for (var mod : org.example.shared.PermissionCatalog.subscriptionModules()) {
+                jdbc.update("""
+                    INSERT INTO permissions(permission_key, module_name, action_name, description, active)
+                    VALUES (?, ?, 'VIEW', ?, 1)
+                    ON CONFLICT (permission_key) DO NOTHING
+                """, mod.key() + ".VIEW", mod.key(), "Open and view " + mod.label());
+            }
 
             jdbc.update("""
                 INSERT INTO role_permission(role_code, permission_id, allowed)
                 SELECT 'ADMIN', p.id, 1
                 FROM permissions p
-                WHERE p.module_name IN ('GST_COMPLIANCE', 'GENERAL_LEDGER', 'AUTOMATION', 'PURCHASE_RECON', 'RECON_SUPPLIER', 'AUDIT',
-                                        'CREDIT_NOTE', 'DEBIT_NOTE', 'FINANCIAL_STATEMENTS', 'AGING_ANALYSIS', 'EWAY_BILL', 'BARCODE')
+                WHERE p.active = 1
+                ON CONFLICT (UPPER(TRIM(role_code)), permission_id) WHERE TRIM(COALESCE(role_code, '')) <> ''
+                DO NOTHING
+            """);
+            jdbc.update("""
+                INSERT INTO role_permission(role_code, permission_id, allowed)
+                SELECT 'SUPER_ADMIN', p.id, 1
+                FROM permissions p
+                WHERE p.active = 1
                 ON CONFLICT (UPPER(TRIM(role_code)), permission_id) WHERE TRIM(COALESCE(role_code, '')) <> ''
                 DO UPDATE SET allowed = 1
             """);
@@ -143,12 +165,28 @@ public class AdminService {
     @Transactional(readOnly = true)
     public List<AdminDtos.PermissionDto> permissions(String role) {
         String code = role(role);
-        boolean admin = "ADMIN".equals(code) || "SUPER_ADMIN".equals(code);
+        boolean superAdmin = "SUPER_ADMIN".equals(code);
+        boolean adminTarget = "ADMIN".equals(code);
+        if (superAdmin) {
+            return jdbc.query("SELECT p.id,p.module_name,p.action_name,p.description,1 " +
+                            "FROM permissions p WHERE p.active=1 ORDER BY p.module_name,p.action_name",
+                    (row, index) -> new AdminDtos.PermissionDto(row.getLong(1), row.getString(2), row.getString(3),
+                            row.getString(4), true));
+        }
+        if (adminTarget) {
+            return jdbc.query("SELECT p.id,p.module_name,p.action_name,p.description,COALESCE(rp.allowed,1) " +
+                            "FROM permissions p LEFT JOIN role_permission rp ON rp.permission_id=p.id " +
+                            "AND UPPER(TRIM(COALESCE(rp.role_code,'')))='ADMIN' WHERE p.active=1 ORDER BY p.module_name,p.action_name",
+                    (row, index) -> new AdminDtos.PermissionDto(row.getLong(1), row.getString(2), row.getString(3),
+                            row.getString(4), flag(row.getObject(5))));
+        }
         return jdbc.query("SELECT p.id,p.module_name,p.action_name,p.description,COALESCE(rp.allowed,0) " +
                         "FROM permissions p LEFT JOIN role_permission rp ON rp.permission_id=p.id " +
-                        "AND UPPER(TRIM(COALESCE(rp.role_code,'')))=? WHERE p.active=1 ORDER BY p.module_name,p.action_name",
+                        "AND UPPER(TRIM(COALESCE(rp.role_code,'')))=? " +
+                        "LEFT JOIN role_permission arp ON arp.permission_id=p.id AND UPPER(TRIM(COALESCE(arp.role_code,'')))='ADMIN' " +
+                        "WHERE p.active=1 AND COALESCE(arp.allowed,1)=1 ORDER BY p.module_name,p.action_name",
                 (row, index) -> new AdminDtos.PermissionDto(row.getLong(1), row.getString(2), row.getString(3),
-                        row.getString(4), admin || flag(row.getObject(5))), code);
+                        row.getString(4), flag(row.getObject(5))), code);
     }
 
     @Transactional
@@ -162,7 +200,8 @@ public class AdminService {
     @Transactional
     public void savePermissions(AdminDtos.PermissionSaveRequest request) {
         String code = role(request == null ? null : request.role());
-        if ("ADMIN".equals(code) || "SUPER_ADMIN".equals(code)) return;
+        if ("SUPER_ADMIN".equals(code)) return;
+        if ("ADMIN".equals(code) && !isSuperAdminCaller()) return;
         jdbc.update("INSERT INTO role_permission_revision(role_code,row_version) VALUES(?,0) ON CONFLICT(role_code) DO NOTHING", code);
         Long currentRevision = jdbc.queryForObject("SELECT row_version FROM role_permission_revision WHERE role_code=? FOR UPDATE", Long.class, code);
         long actualRevision = currentRevision == null ? 0L : currentRevision;
@@ -185,6 +224,10 @@ public class AdminService {
         for (var permission : requested.entrySet()) {
             jdbc.update("INSERT INTO role_permission(role_code,permission_id,allowed) VALUES(?,?,?)",
                     code, permission.getKey(), permission.getValue() ? 1 : 0);
+            if ("ADMIN".equals(code) && !Boolean.TRUE.equals(permission.getValue())) {
+                jdbc.update("UPDATE role_permission SET allowed=0 WHERE permission_id=? AND UPPER(TRIM(COALESCE(role_code,'')))<>'ADMIN'",
+                        permission.getKey());
+            }
         }
         jdbc.update("UPDATE role_permission_revision SET row_version=row_version+1,updated_at=CURRENT_TIMESTAMP::text WHERE role_code=?", code);
     }

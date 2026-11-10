@@ -59,7 +59,7 @@ public final class UiDesignSystem {
             add(link, LINK);
         }
 
-        if (node instanceof ButtonBase button && !isSidebarControl(button)) {
+        if (node instanceof ButtonBase button && !(node instanceof CheckBox) && !(node instanceof RadioButton) && !isSidebarControl(button)) {
             add(button, BUTTON);
             add(button, "approved-button");
             applyButtonRole(button);

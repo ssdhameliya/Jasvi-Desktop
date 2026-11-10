@@ -88,6 +88,10 @@ public class ClientRegistryApiClient {
         return post("/api/license/registry/plans", plan, new TypeReference<>() {});
     }
 
+    public Map<String, Object> deletePlan(Long id) {
+        return req("DELETE", "/api/license/registry/plans/" + id, null, new TypeReference<>() {});
+    }
+
     public List<Map<String, Object>> getLeads() {
         return get("/api/license/registry/leads", new TypeReference<>() {});
     }

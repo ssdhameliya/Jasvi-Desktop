@@ -10,7 +10,8 @@ import java.util.Map;
 public final class NotificationPreferenceService {
     public static final List<String> CATEGORY_KEYS = List.of(
             "sales", "purchases", "quotations", "returns", "payments", "inventory", "banking", "reports",
-            "reminders", "communication", "approval", "imports", "backup", "update", "security", "system"
+            "reminders", "communication", "approval", "imports", "backup", "update", "security", "system",
+            "gst", "eway", "tally", "ledger", "crm", "barcode", "licensing", "sync"
     );
 
     public record Preferences(boolean enabled, boolean toasts, Map<String, Boolean> categories) {

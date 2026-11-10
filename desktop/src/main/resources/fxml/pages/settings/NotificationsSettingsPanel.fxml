@@ -8,31 +8,73 @@
     </VBox>
 
     <VBox spacing="14" styleClass="settings-information-card">
-        <CheckBox fx:id="chkNotifications" text="Show application notifications" selected="true" wrapText="true" styleClass="settings-notification-check"/>
-        <CheckBox fx:id="chkNotificationToasts" text="Show desktop toast messages" selected="true" wrapText="true" styleClass="settings-notification-check"/>
-        <Label text="Choose which activity categories appear for your user. Critical errors and Security &amp; User Access records always remain in Notification Center." wrapText="true" styleClass="settings-information-text"/>
+        <VBox spacing="10">
+            <Label text="Master Delivery Channels" styleClass="settings-field-label"/>
+            <HBox spacing="24" alignment="CENTER_LEFT">
+                <CheckBox fx:id="chkNotifications" text="Show application notifications" selected="true" wrapText="true" styleClass="settings-notification-check,ios-toggle-switch"/>
+                <CheckBox fx:id="chkNotificationToasts" text="Show desktop toast messages" selected="true" wrapText="true" styleClass="settings-notification-check,ios-toggle-switch"/>
+            </HBox>
+        </VBox>
+
+        <Separator/>
+
+        <VBox spacing="4">
+            <Label text="Activity Categories" styleClass="settings-field-label"/>
+            <Label text="Choose which activity categories appear for your user. Critical errors and Security &amp; User Access records always remain in Notification Center." wrapText="true" styleClass="settings-information-text"/>
+        </VBox>
 
         <GridPane hgap="16" vgap="10" styleClass="settings-notification-grid">
             <columnConstraints>
                 <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
                 <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
             </columnConstraints>
-            <CheckBox fx:id="chkNotifySales" text="Sales and invoices" selected="true" styleClass="settings-notification-category,notification-category-sales"/>
-            <CheckBox fx:id="chkNotifyPurchases" text="Purchases and supplier invoices" selected="true" GridPane.columnIndex="1" styleClass="settings-notification-category,notification-category-purchases"/>
-            <CheckBox fx:id="chkNotifyQuotations" text="Quotations and follow-ups" selected="true" GridPane.rowIndex="1" styleClass="settings-notification-category,notification-category-quotations"/>
-            <CheckBox fx:id="chkNotifyReturns" text="Sales and purchase returns" selected="true" GridPane.columnIndex="1" GridPane.rowIndex="1" styleClass="settings-notification-category,notification-category-returns"/>
-            <CheckBox fx:id="chkNotifyPayments" text="Payments and refunds" selected="true" GridPane.rowIndex="2" styleClass="settings-notification-category,notification-category-payments"/>
-            <CheckBox fx:id="chkNotifyInventory" text="Inventory and low stock" selected="true" GridPane.columnIndex="1" GridPane.rowIndex="2" styleClass="settings-notification-category,notification-category-inventory"/>
-            <CheckBox fx:id="chkNotifyBanking" text="Bank, expenses and reconciliation" selected="true" GridPane.rowIndex="3" styleClass="settings-notification-category,notification-category-banking"/>
-            <CheckBox fx:id="chkNotifyReports" text="Reports and scheduled reports" selected="true" GridPane.columnIndex="1" GridPane.rowIndex="3" styleClass="settings-notification-category,notification-category-reports"/>
-            <CheckBox fx:id="chkNotifyReminders" text="Reminders" selected="true" GridPane.rowIndex="4" styleClass="settings-notification-category,notification-category-reminders"/>
-            <CheckBox fx:id="chkNotifyCommunication" text="Email &amp; WhatsApp activity" selected="true" GridPane.columnIndex="1" GridPane.rowIndex="4" styleClass="settings-notification-category,notification-category-communication"/>
-            <CheckBox fx:id="chkNotifyApproval" text="Approvals" selected="true" GridPane.rowIndex="5" styleClass="settings-notification-category,notification-category-approval"/>
-            <CheckBox fx:id="chkNotifyImports" text="Data imports" selected="true" GridPane.columnIndex="1" GridPane.rowIndex="5" styleClass="settings-notification-category,notification-category-imports"/>
-            <CheckBox fx:id="chkNotifyBackup" text="Backup, restore &amp; safe rollback" selected="true" GridPane.rowIndex="6" styleClass="settings-notification-category,notification-category-backup"/>
-            <CheckBox fx:id="chkNotifyUpdate" text="Application updates" selected="true" GridPane.columnIndex="1" GridPane.rowIndex="6" styleClass="settings-notification-category,notification-category-update"/>
-            <CheckBox fx:id="chkNotifySystem" text="Other system activity" selected="true" GridPane.rowIndex="7" styleClass="settings-notification-category,notification-category-system"/>
-            <CheckBox fx:id="chkNotifySecurity" text="Security &amp; User Access (mandatory)" selected="true" disable="true" GridPane.columnIndex="1" GridPane.rowIndex="7" styleClass="settings-notification-category,notification-category-security"/>
+            <!-- Row 0: Sales & Purchases -->
+            <CheckBox fx:id="chkNotifySales" text="Sales and invoices" selected="true" maxWidth="Infinity" styleClass="settings-notification-category,notification-category-sales,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyPurchases" text="Purchases and supplier invoices" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" styleClass="settings-notification-category,notification-category-purchases,ios-toggle-switch"/>
+
+            <!-- Row 1: Quotations & Returns -->
+            <CheckBox fx:id="chkNotifyQuotations" text="Quotations and follow-ups" selected="true" maxWidth="Infinity" GridPane.rowIndex="1" styleClass="settings-notification-category,notification-category-quotations,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyReturns" text="Sales and purchase returns" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="1" styleClass="settings-notification-category,notification-category-returns,ios-toggle-switch"/>
+
+            <!-- Row 2: Payments & Inventory -->
+            <CheckBox fx:id="chkNotifyPayments" text="Payments and refunds" selected="true" maxWidth="Infinity" GridPane.rowIndex="2" styleClass="settings-notification-category,notification-category-payments,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyInventory" text="Inventory and low stock" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="2" styleClass="settings-notification-category,notification-category-inventory,ios-toggle-switch"/>
+
+            <!-- Row 3: Banking & Reports -->
+            <CheckBox fx:id="chkNotifyBanking" text="Bank, expenses and reconciliation" selected="true" maxWidth="Infinity" GridPane.rowIndex="3" styleClass="settings-notification-category,notification-category-banking,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyReports" text="Reports and scheduled reports" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="3" styleClass="settings-notification-category,notification-category-reports,ios-toggle-switch"/>
+
+            <!-- Row 4: GST & E-Way Bill -->
+            <CheckBox fx:id="chkNotifyGst" text="GST &amp; Statutory Compliance" selected="true" maxWidth="Infinity" GridPane.rowIndex="4" styleClass="settings-notification-category,notification-category-gst,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyEway" text="E-Way Bill &amp; Logistics" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="4" styleClass="settings-notification-category,notification-category-eway,ios-toggle-switch"/>
+
+            <!-- Row 5: Tally Sync & General Ledger -->
+            <CheckBox fx:id="chkNotifyTally" text="Tally Prime &amp; Accounting Sync" selected="true" maxWidth="Infinity" GridPane.rowIndex="5" styleClass="settings-notification-category,notification-category-tally,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyLedger" text="General Ledger &amp; Financial Books" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="5" styleClass="settings-notification-category,notification-category-ledger,ios-toggle-switch"/>
+
+            <!-- Row 6: CRM 360 & Barcode -->
+            <CheckBox fx:id="chkNotifyCrm" text="Customer &amp; Supplier 360 Insights" selected="true" maxWidth="Infinity" GridPane.rowIndex="6" styleClass="settings-notification-category,notification-category-crm,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyBarcode" text="Barcode &amp; Label Studio" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="6" styleClass="settings-notification-category,notification-category-barcode,ios-toggle-switch"/>
+
+            <!-- Row 7: Reminders & Communication -->
+            <CheckBox fx:id="chkNotifyReminders" text="Reminders" selected="true" maxWidth="Infinity" GridPane.rowIndex="7" styleClass="settings-notification-category,notification-category-reminders,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyCommunication" text="Email &amp; WhatsApp activity" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="7" styleClass="settings-notification-category,notification-category-communication,ios-toggle-switch"/>
+
+            <!-- Row 8: Approvals & Imports -->
+            <CheckBox fx:id="chkNotifyApproval" text="Approvals" selected="true" maxWidth="Infinity" GridPane.rowIndex="8" styleClass="settings-notification-category,notification-category-approval,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyImports" text="Data imports" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="8" styleClass="settings-notification-category,notification-category-imports,ios-toggle-switch"/>
+
+            <!-- Row 9: Licensing & Workstation Sync -->
+            <CheckBox fx:id="chkNotifyLicensing" text="Licensing &amp; Terminal Registry" selected="true" maxWidth="Infinity" GridPane.rowIndex="9" styleClass="settings-notification-category,notification-category-licensing,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifySync" text="Workstation Telemetry &amp; Offline Sync" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="9" styleClass="settings-notification-category,notification-category-sync,ios-toggle-switch"/>
+
+            <!-- Row 10: Backup & Update -->
+            <CheckBox fx:id="chkNotifyBackup" text="Backup, restore &amp; safe rollback" selected="true" maxWidth="Infinity" GridPane.rowIndex="10" styleClass="settings-notification-category,notification-category-backup,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifyUpdate" text="Application updates" selected="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="10" styleClass="settings-notification-category,notification-category-update,ios-toggle-switch"/>
+
+            <!-- Row 11: System & Security (mandatory) -->
+            <CheckBox fx:id="chkNotifySystem" text="Other system activity" selected="true" maxWidth="Infinity" GridPane.rowIndex="11" styleClass="settings-notification-category,notification-category-system,ios-toggle-switch"/>
+            <CheckBox fx:id="chkNotifySecurity" text="Security &amp; User Access (mandatory)" selected="true" disable="true" maxWidth="Infinity" GridPane.columnIndex="1" GridPane.rowIndex="11" styleClass="settings-notification-category,notification-category-security,ios-toggle-switch"/>
         </GridPane>
     </VBox>
 </VBox>
