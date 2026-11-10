@@ -73,6 +73,10 @@ public final class SyncApiClient {
         }
 
         HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 401) {
+            ApiSession.clear();
+            throw new IOException("Sync session expired (HTTP 401)");
+        }
         if (response.statusCode() != 200) {
             throw new IOException("Sync batch rejected with HTTP " + response.statusCode() + ": " + response.body());
         }

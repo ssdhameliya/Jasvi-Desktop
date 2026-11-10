@@ -14,6 +14,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import org.example.api.tally.TallyAutomationApiClient;
 import org.example.navigation.ScreenLifecycle;
+import org.example.service.NotificationService;
 import org.example.service.SessionService;
 import org.example.tally.TallyDocumentInspectionDialog;
 import org.example.tally.TallyDocumentParser;
@@ -1051,6 +1052,9 @@ public class BillToTallyController implements ScreenLifecycle {
                 resp -> {
                     if (resp.success()) {
                         AppDialogService.success(tblBills, "Pushed to Tally", "Vouchers created successfully in TallyPrime!");
+                        NotificationService.createNotification(NotificationService.Category.TALLY, "Tally Vouchers Pushed",
+                                "Vouchers from batch #" + activeBatchId + " created successfully in TallyPrime", "INFO",
+                                "/fxml/pages/BillToTally.fxml", String.valueOf(activeBatchId));
                         reloadActiveBatch();
                     } else {
                         AppDialogService.error(tblBills, "Tally Response", resp.message());

@@ -900,7 +900,7 @@ public final class SalesDocumentInspectionDialog {
         btnEdit.setOnAction(e -> {
             dialog.close();
             SalesScreenContext.select(sale.getInvoiceNo());
-            NavigationManager.navigateOrReport("/fxml/pages/Sales.fxml");
+            NavigationManager.navigateOrReport("/fxml/pages/Sale.fxml");
         });
 
         // 2. Duplicate Sale

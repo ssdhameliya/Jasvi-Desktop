@@ -63,11 +63,13 @@ public final class IconFactory {
         "erp-button-sky", "erp-button-purple", "erp-button-cyan",
         "erp-button-violet", "erp-button-coral", "erp-button-slate",
         "erp-button-danger-ghost", "erp-button-next", "erp-button-back", "erp-button-teal",
+        "erp-button-pink", "erp-button-orange",
         "approved-amber-button", "approved-indigo-button",
         "approved-emerald-button", "approved-sky-button", "approved-purple-button",
         "approved-cyan-button", "approved-violet-button", "approved-coral-button",
         "approved-slate-button", "approved-danger-ghost-button",
-        "approved-next-button", "approved-back-button", "approved-teal-button"
+        "approved-next-button", "approved-back-button", "approved-teal-button",
+        "approved-pink-button", "approved-orange-button"
     };
 
     private IconFactory() {
@@ -897,6 +899,27 @@ public final class IconFactory {
         } else if ("reset".equals(semantic)) {
             variant = "erp-button-amber";
             if (!button.getStyleClass().contains("approved-amber-button")) button.getStyleClass().add("approved-amber-button");
+        } else if ("notification".equals(semantic)) {
+            variant = "erp-button-amber";
+            if (!button.getStyleClass().contains("approved-amber-button")) button.getStyleClass().add("approved-amber-button");
+        } else if ("security-session".equals(semantic)) {
+            variant = "erp-button-coral";
+            if (!button.getStyleClass().contains("approved-coral-button")) button.getStyleClass().add("approved-coral-button");
+        } else if ("workspace".equals(semantic)) {
+            variant = "erp-button-teal";
+            if (!button.getStyleClass().contains("approved-teal-button")) button.getStyleClass().add("approved-teal-button");
+        } else if ("module".equals(semantic)) {
+            variant = "erp-button-pink";
+            if (!button.getStyleClass().contains("approved-pink-button")) button.getStyleClass().add("approved-pink-button");
+        } else if ("update".equals(semantic)) {
+            variant = "erp-button-indigo";
+            if (!button.getStyleClass().contains("approved-indigo-button")) button.getStyleClass().add("approved-indigo-button");
+        } else if ("showcase".equals(semantic)) {
+            variant = "erp-button-cyan";
+            if (!button.getStyleClass().contains("approved-cyan-button")) button.getStyleClass().add("approved-cyan-button");
+        } else if ("shortcut".equals(semantic)) {
+            variant = "erp-button-purple";
+            if (!button.getStyleClass().contains("approved-purple-button")) button.getStyleClass().add("approved-purple-button");
         } else {
             variant = "erp-button-secondary";
         }
@@ -1110,6 +1133,8 @@ public final class IconFactory {
             case "wallet", "finance" -> "fas-wallet";
             case "automation" -> "fas-cogs";
             case "module" -> "fas-cubes";
+            case "showcase" -> "fas-cube";
+            case "security-session" -> "fas-shield-alt";
             case "template" -> "fas-file-alt";
             default -> "fas-question-circle";
         };
@@ -1135,6 +1160,9 @@ public final class IconFactory {
             case "installer" -> "orange";
             case "login", "test" -> "blue";
             case "security", "shield", "access" -> "indigo";
+            case "security-session" -> "coral";
+            case "notification" -> "amber";
+            case "showcase" -> "teal";
             case "ledger" -> "blue";
             case "automation" -> "teal";
             case "module" -> "purple";
@@ -1241,7 +1269,8 @@ public final class IconFactory {
         if (value.contains("use my company") || value.contains("my company")) return "business";
         if (value.contains("current machine") || value.contains("machine id")) return "application";
         if (value.contains("license") || value.contains("licensing") || value.contains("subscription") || value.contains("activate")) return "security";
-        if (value.contains("showcase") || value.contains("studio")) return "view";
+        if (value.contains("3d showcase") || value.contains("showcase")) return "showcase";
+        if (value.contains("studio")) return "view";
         if (value.contains("system diagnostics") || value.contains("diagnostics") || value.contains("diagnostic")) return "diagnostic";
         if (value.contains("audit trail")) return "audit";
         if (value.contains("mark all read")) return "mark-all-read";
@@ -1317,7 +1346,7 @@ public final class IconFactory {
         if (value.contains("registration approvals")) return "approve";
         if (value.contains("company & billing")) return "business";
         if (value.contains("security & session")) return "security-session";
-        if (value.contains("keyboard shortcuts")) return "shortcut";
+        if (value.contains("keyboard shortcuts") || value.contains("shortcut")) return "shortcut";
         if (value.equals("administrator")) return "administrator";
         if (value.equals("communication")) return "communication";
         if (value.contains("setting") || value.contains("commercial")) return "settings";
@@ -1349,7 +1378,7 @@ public final class IconFactory {
         // wording changes deterministic across cached screens.
         if (value.contains("edit") || value.contains("rename")) return "edit";
         if (value.contains("delete") || value.contains("remove")) return "delete";
-        if (value.contains("record payment") || value.contains("save payment")) return "payment";
+        if (value.contains("record payment") || value.contains("save payment") || value.contains("plan paid") || value.contains("paid details")) return "payment";
         if (value.startsWith("send email")) return "email";
         if (value.equals("+ text")) return "add";
         if (value.equals("required") || value.equals("mapped") || value.equals("all")) return "filter";
@@ -1388,7 +1417,7 @@ public final class IconFactory {
         if (value.contains("save") && value.contains("draft")) return "draft";
         if (value.contains("send") && value.contains("receipt")) return "email";
         if (value.contains("continue")) return "next";
-        if (value.contains("guide") || value.contains("help")) return "document";
+        if (value.contains("guide") || value.contains("help") || value.contains("how it works")) return "document";
         if (value.contains("configure") || value.contains("manage")) return "settings";
         if (value.contains("follow up")) return "reminder";
         if (value.contains("expense")) return "payment";

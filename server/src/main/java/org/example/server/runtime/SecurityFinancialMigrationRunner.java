@@ -223,7 +223,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_50__whatsapp_department_routing_schema",
                     "db/migration/V11_0_50__whatsapp_department_routing_schema.sql"),
             new Migration("V11_0_50_1__offline_postgresql_sync_schema",
-                    "db/migration/V11_0_50_1__offline_postgresql_sync_schema.sql")
+                    "db/migration/V11_0_50_1__offline_postgresql_sync_schema.sql"),
+            new Migration("V11_0_55__agreement_based_licensing_entitlements",
+                    "db/migration/V11_0_55__agreement_based_licensing_entitlements.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

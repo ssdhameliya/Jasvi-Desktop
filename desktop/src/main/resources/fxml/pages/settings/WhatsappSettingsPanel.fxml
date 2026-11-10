@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.SVGPath?>
+<VBox xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:id="panelWhatsapp" visible="false" managed="false" maxWidth="Infinity" spacing="16" styleClass="settings-card,settings-card-tall-compact,whatsapp-settings-panel">
+
+    <!-- Header Section -->
+    <VBox spacing="3">
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <StackPane minWidth="36" prefWidth="36" maxWidth="36" minHeight="36" prefHeight="36" maxHeight="36" styleClass="settings-page-icon-box">
+                <SVGPath content="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2ZM12.05 20.15C10.57 20.15 9.12 19.76 7.85 19L7.55 18.82L4.43 19.64L5.26 16.6L5.06 16.29C4.24 14.98 3.8 13.47 3.8 11.91C3.8 7.37 7.5 3.67 12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.59 20.15 12.05 20.15Z" styleClass="settings-button-icon"/>
+            </StackPane>
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <Label text="WhatsApp Business Integration (WAHA)" styleClass="settings-section-title"/>
+                <Label text="Automated document dispatch, multi-number WAHA engine, department channel routing, and instant client notifications." wrapText="true" styleClass="settings-section-description"/>
+            </VBox>
+        </HBox>
+    </VBox>
+
+    <Separator/>
+
+    <!-- WAHA Server Engine Control & Connection Card -->
+    <VBox spacing="12" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="8">
+            <Label text="WAHA Docker Engine &amp; Server Connection" styleClass="section-title"/>
+            <Button fx:id="btnWhatsappInfo" text="Information &amp; Guidance" onAction="#showWhatsappGuidance" styleClass="secondary-button,help-button"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnStartWaha" text="Start WAHA Engine" onAction="#startWahaEngine" styleClass="secondary-button"/>
+            <Button fx:id="btnWhatsappTest" text="Check Status" onAction="#testWhatsappConnection" styleClass="secondary-button"/>
+        </HBox>
+        <GridPane hgap="18" vgap="14">
+            <columnConstraints>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+            </columnConstraints>
+            <VBox spacing="7" GridPane.columnIndex="0">
+                <Label text="WAHA Docker Endpoint" styleClass="settings-form-label"/>
+                <TextField fx:id="txtWahaEndpoint" promptText="http://localhost:3000" styleClass="approved-input"/>
+                <Label text="Default local endpoint is http://localhost:3000 or your remote company server URL." styleClass="settings-help-text"/>
+            </VBox>
+            <VBox spacing="7" GridPane.columnIndex="1">
+                <Label text="Active WhatsApp Sender Number (from Master Lookup)" styleClass="settings-form-label"/>
+                <ComboBox fx:id="cmbActiveWhatsappSender" maxWidth="Infinity" promptText="Select sender number from Master Lookup (WhatsApp Senders)" styleClass="approved-combobox"/>
+                <Label text="Primary phone number used for outgoing system alerts and default messages." styleClass="settings-help-text"/>
+            </VBox>
+        </GridPane>
+        <HBox spacing="16" alignment="CENTER_LEFT" styleClass="settings-asset-card">
+            <CheckBox fx:id="chkWahaEnabled" text="Enable Server Automated WhatsApp Dispatch" styleClass="approved-checkbox"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnManageWhatsappChannels" text="Manage Channels &amp; Scan QR" onAction="#openWhatsappChannelDialog" styleClass="approved-button,approved-primary-button"/>
+        </HBox>
+    </VBox>
+
+    <Separator/>
+
+    <!-- Department Channel Routing Card -->
+    <VBox spacing="12" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="8">
+            <Label text="Department Channel Routing" styleClass="section-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label text="Route different business document types through specialized WhatsApp sender numbers" styleClass="page-subtitle"/>
+        </HBox>
+        <GridPane hgap="18" vgap="12">
+            <columnConstraints>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+            </columnConstraints>
+            <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="0">
+                <Label text="Sales Invoices &amp; Challans" styleClass="settings-form-label"/>
+                <ComboBox fx:id="cmbWhatsappSalesChannel" maxWidth="Infinity" promptText="Default (Same as Primary Company)" styleClass="approved-combobox"/>
+            </VBox>
+            <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="0">
+                <Label text="Purchase Orders &amp; RFQs" styleClass="settings-form-label"/>
+                <ComboBox fx:id="cmbWhatsappPurchaseChannel" maxWidth="Infinity" promptText="Default (Same as Primary Company)" styleClass="approved-combobox"/>
+            </VBox>
+            <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="1">
+                <Label text="Quotations &amp; Estimates" styleClass="settings-form-label"/>
+                <ComboBox fx:id="cmbWhatsappQuotationChannel" maxWidth="Infinity" promptText="Default (Same as Sales Channel)" styleClass="approved-combobox"/>
+            </VBox>
+            <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="1" alignment="CENTER_LEFT">
+                <Label text="Generic Dispatches &amp; Fallback:" styleClass="settings-form-label"/>
+                <Label text="Payment receipts, briefing &amp; direct chat route via Active Primary Sender." styleClass="page-subtitle"/>
+            </VBox>
+        </GridPane>
+    </VBox>
+
+    <Separator/>
+
+    <!-- Footer Action Bar -->
+    <HBox alignment="CENTER_RIGHT" spacing="12" styleClass="settings-panel-footer">
+        <Button text="Check Engine Status" onAction="#testWhatsappConnection" styleClass="settings-action-button,settings-secondary-button"/>
+        <Button text="Save WhatsApp Settings" onAction="#save" styleClass="settings-action-button,settings-primary-button"/>
+    </HBox>
+
+</VBox>

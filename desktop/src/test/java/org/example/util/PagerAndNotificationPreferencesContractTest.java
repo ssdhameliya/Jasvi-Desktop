@@ -33,7 +33,9 @@ class PagerAndNotificationPreferencesContractTest {
         DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(fxml.toFile());
         String text = Files.readString(fxml);
         for (String id : List.of("chkNotifyBanking", "chkNotifyReports", "chkNotifyApproval", "chkNotifyImports",
-                "chkNotifyBackup", "chkNotifyUpdate", "chkNotifySecurity", "chkNotificationToasts")) {
+                "chkNotifyBackup", "chkNotifyUpdate", "chkNotifySecurity", "chkNotificationToasts",
+                "chkNotifyGst", "chkNotifyEway", "chkNotifyTally", "chkNotifyLedger", "chkNotifyCrm",
+                "chkNotifyBarcode", "chkNotifyLicensing", "chkNotifySync")) {
             assertTrue(text.contains("fx:id=\"" + id + "\""), id + " must be present");
         }
         assertTrue(text.contains("Security &amp; User Access (mandatory)"));

@@ -130,8 +130,8 @@ public final class PopupTableWorkspace {
                         ? Screen.getPrimary()
                         : Screen.getScreensForRectangle(owner.getX(), owner.getY(), Math.max(1, owner.getWidth()), Math.max(1, owner.getHeight()))
                                 .stream().findFirst().orElse(Screen.getPrimary());
-                double usableW = Math.max(640, screen.getVisualBounds().getWidth() - 64);
-                double usableH = Math.max(480, screen.getVisualBounds().getHeight() - 64);
+                double usableW = Math.max(640, screen.getVisualBounds().getWidth() - 32);
+                double usableH = Math.max(480, screen.getVisualBounds().getHeight() - 24);
                 double target = prefWidth > 0 ? Math.min(prefWidth, usableW) : usableW;
                 dialog.getDialogPane().setPrefWidth(target);
                 dialog.getDialogPane().setMaxWidth(usableW);

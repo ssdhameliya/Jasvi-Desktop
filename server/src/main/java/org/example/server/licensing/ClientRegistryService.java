@@ -67,7 +67,7 @@ public class ClientRegistryService {
     public List<Map<String, Object>> getClients(String query, String status) {
         StringBuilder sql = new StringBuilder("SELECT id, company_name, machine_id, contact_person, phone, email, " +
                 "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, " +
-                "remote_url, last_heartbeat_at, client_version, active_users_count " +
+                "remote_url, last_heartbeat_at, client_version, active_users_count, features " +
                 "FROM licensed_client_registry WHERE 1=1 ");
         List<Object> params = new ArrayList<>();
 
@@ -94,7 +94,7 @@ public class ClientRegistryService {
         List<Map<String, Object>> list = jdbc.queryForList(
                 "SELECT id, company_name, machine_id, contact_person, phone, email, " +
                         "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, " +
-                        "remote_url, last_heartbeat_at, client_version, active_users_count " +
+                        "remote_url, last_heartbeat_at, client_version, active_users_count, features " +
                         "FROM licensed_client_registry WHERE id = ?", id
         );
         if (list.isEmpty()) {
@@ -123,6 +123,9 @@ public class ClientRegistryService {
         Instant now = Instant.now();
         Instant validUntil = now.plus(days, ChronoUnit.DAYS);
 
+        List<String> features = extractFeatures(req, tier);
+        String featuresStr = String.join(",", features);
+
         // Generate signed license payload
         String licenseKey = "JASVI-" + tier + "-" + (System.currentTimeMillis() % 1000000);
         LicensePayload payload = new LicensePayload(
@@ -134,7 +137,7 @@ public class ClientRegistryService {
                 validUntil,
                 14,
                 maxUsers,
-                List.of("GST_INVOICE", "EWAY_BILL", "CLOUD_BACKUP")
+                features
         );
 
         String signature = signPayload(payload);
@@ -159,8 +162,8 @@ public class ClientRegistryService {
 
         jdbc.update(
                 "INSERT INTO licensed_client_registry (company_name, machine_id, contact_person, phone, email, " +
-                        "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, remote_url) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, 'ACTIVE', ?, ?, 1, ?) " +
+                        "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, remote_url, features) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, 'ACTIVE', ?, ?, 1, ?, ?) " +
                         "ON CONFLICT (machine_id) DO UPDATE SET " +
                         "company_name = EXCLUDED.company_name, " +
                         "contact_person = EXCLUDED.contact_person, " +
@@ -174,6 +177,7 @@ public class ClientRegistryService {
                         "license_payload_enc = EXCLUDED.license_payload_enc, " +
                         "notes = EXCLUDED.notes, " +
                         "remote_url = COALESCE(EXCLUDED.remote_url, licensed_client_registry.remote_url), " +
+                        "features = EXCLUDED.features, " +
                         "row_version = licensed_client_registry.row_version + 1",
                 companyName,
                 machineId,
@@ -186,8 +190,21 @@ public class ClientRegistryService {
                 java.util.Date.from(validUntil),
                 payloadJson,
                 notes,
-                remoteUrl
+                remoteUrl,
+                featuresStr
         );
+
+        try {
+            String hostClean = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").toUpperCase(Locale.ROOT);
+            if (machineId.equalsIgnoreCase(hostClean) || "JASVI INDUSTRIES".equalsIgnoreCase(companyName)) {
+                jdbc.update(
+                        "UPDATE app_license SET tier = ?, max_users = ?, valid_until = ?, features = ?, signature = ?, canonical_payload = ?, " +
+                                "last_verified_at = CURRENT_TIMESTAMP, status = 'ACTIVE' WHERE UPPER(TRIM(company_name)) = ?",
+                        tier, maxUsers, java.util.Date.from(validUntil), featuresStr, signature, payload.toCanonicalString(),
+                        companyName.toUpperCase(Locale.ROOT)
+                );
+            }
+        } catch (Exception ignored) {}
 
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT * FROM licensed_client_registry WHERE machine_id = ?", machineId
@@ -212,6 +229,8 @@ public class ClientRegistryService {
         int maxUsers = client.get("max_users") instanceof Number n ? n.intValue() : 5;
 
         String licenseKey = "JASVI-" + tier + "-" + (System.currentTimeMillis() % 1000000);
+        List<String> features = extractFeatures(client, tier);
+        String featuresStr = String.join(",", features);
         LicensePayload payload = new LicensePayload(
                 licenseKey,
                 companyName,
@@ -221,7 +240,7 @@ public class ClientRegistryService {
                 newExpiry,
                 14,
                 maxUsers,
-                List.of("GST_INVOICE", "EWAY_BILL", "CLOUD_BACKUP")
+                features
         );
 
         String signature = signPayload(payload);
@@ -250,14 +269,64 @@ public class ClientRegistryService {
                         "issued_at = CURRENT_TIMESTAMP, " +
                         "status = 'ACTIVE', " +
                         "license_payload_enc = ?, " +
+                        "features = ?, " +
                         "row_version = row_version + 1 " +
                         "WHERE id = ?",
                 java.util.Date.from(newExpiry),
                 payloadJson,
+                featuresStr,
                 id
         );
 
         return getClientById(id);
+    }
+
+    private List<String> extractFeatures(Map<String, Object> req, String tier) {
+        if (req != null) {
+            Object featObj = req.get("features");
+            if (featObj instanceof List<?> list) {
+                List<String> result = new ArrayList<>();
+                for (Object item : list) {
+                    if (item != null && !String.valueOf(item).isBlank()) {
+                        result.add(String.valueOf(item).trim().toUpperCase(Locale.ROOT));
+                    }
+                }
+                if (!result.isEmpty()) return Collections.unmodifiableList(result);
+            } else if (featObj instanceof String str && !str.isBlank()) {
+                String[] parts = str.split("[,;\\s]+");
+                List<String> result = new ArrayList<>();
+                for (String p : parts) {
+                    String c = p.replace("\"", "").replace("'", "").trim().toUpperCase(Locale.ROOT);
+                    if (!c.isEmpty()) result.add(c);
+                }
+                if (!result.isEmpty()) return Collections.unmodifiableList(result);
+            }
+        }
+        return resolveFeaturesForTier(tier);
+    }
+
+    public List<String> resolveFeaturesForTier(String tier) {
+        String t = tier == null ? "GOLD" : tier.trim().toUpperCase(Locale.ROOT);
+        try {
+            List<String> dbFeatures = jdbc.query(
+                    "SELECT features FROM licensing_plan WHERE UPPER(TRIM(tier_code)) = ? AND is_active = 1 LIMIT 1",
+                    (rs, rowNum) -> rs.getString("features"),
+                    t
+            );
+            if (!dbFeatures.isEmpty() && dbFeatures.getFirst() != null && !dbFeatures.getFirst().isBlank()) {
+                List<String> parsed = LicenseVerifierService.parseFeatures(dbFeatures.getFirst());
+                if (!parsed.isEmpty()) return List.copyOf(org.example.shared.PermissionCatalog.expandFeatureTokens(parsed));
+            }
+        } catch (Exception ignored) {}
+        return defaultFeaturesForTier(t);
+    }
+
+    public static List<String> defaultFeaturesForTier(String tier) {
+        List<String> all = new ArrayList<>();
+        for (var m : org.example.shared.PermissionCatalog.subscriptionModules()) {
+            all.add(m.key());
+        }
+        return List.copyOf(org.example.shared.PermissionCatalog.expandFeatureTokens(all));
     }
 
     private static Instant toInstant(Object obj) {
@@ -353,7 +422,21 @@ public class ClientRegistryService {
         int maxUsers = req.get("maxUsers") instanceof Number n ? n.intValue() : 5;
         BigDecimal fee = req.get("annualFee") instanceof Number n ? BigDecimal.valueOf(n.doubleValue()) : new BigDecimal("3500.00");
         int days = req.get("validityDays") instanceof Number n ? n.intValue() : 365;
-        String features = req.get("features") != null ? String.valueOf(req.get("features")) : "GST_INVOICE,PRINT_EXPORT";
+        Object featObj = req.get("features");
+        String features;
+        if (featObj instanceof Collection<?> col) {
+            List<String> list = new ArrayList<>();
+            for (Object item : col) {
+                if (item != null && !String.valueOf(item).isBlank()) {
+                    list.add(String.valueOf(item).trim().toUpperCase(Locale.ROOT));
+                }
+            }
+            features = String.join(",", list);
+        } else if (featObj != null) {
+            features = String.valueOf(featObj).trim().toUpperCase(Locale.ROOT);
+        } else {
+            features = String.join(",", defaultFeaturesForTier(tierCode));
+        }
         int order = req.get("displayOrder") instanceof Number n ? n.intValue() : 1;
         int active = Boolean.FALSE.equals(req.get("isActive")) || Integer.valueOf(0).equals(req.get("isActive")) ? 0 : 1;
 
@@ -373,6 +456,27 @@ public class ClientRegistryService {
 
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM licensing_plan WHERE tier_code = ?", tierCode);
         return rows.isEmpty() ? Map.of() : rows.getFirst();
+    }
+
+    @Transactional
+    public Map<String, Object> deletePlan(Long id) {
+        if (id == null) throw new IllegalArgumentException("Plan ID is required");
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM licensing_plan WHERE id = ?", id);
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("Subscription plan not found");
+        }
+        Map<String, Object> plan = rows.getFirst();
+        String tierCode = String.valueOf(plan.getOrDefault("tier_code", "")).trim().toUpperCase(Locale.ROOT);
+        Integer activeClients = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM licensed_client WHERE UPPER(tier) = ? AND UPPER(status) = 'ACTIVE'",
+                Integer.class,
+                tierCode
+        );
+        if (activeClients != null && activeClients > 0) {
+            throw new IllegalStateException("Cannot delete plan '" + tierCode + "' while " + activeClients + " active client(s) are assigned to it.");
+        }
+        jdbc.update("DELETE FROM licensing_plan WHERE id = ?", id);
+        return Map.of("deleted", true, "id", id, "tierCode", tierCode);
     }
 
     @Transactional

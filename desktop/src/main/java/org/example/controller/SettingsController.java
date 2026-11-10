@@ -118,7 +118,7 @@ import java.util.Properties;
  */
 public class SettingsController implements ScreenLifecycle {
     public enum Section {
-        COMPANY, PAYMENT, INVOICE, NOTIFICATIONS, EMAIL, SECURITY, WORKSPACE, SHORTCUTS, UPDATES, MODULES, SHOWCASE
+        COMPANY, PAYMENT, INVOICE, NOTIFICATIONS, EMAIL, WHATSAPP, SECURITY, WORKSPACE, SHORTCUTS, UPDATES, MODULES, SHOWCASE
     }
 
     private static volatile Section requestedSection = Section.COMPANY;
@@ -151,6 +151,8 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private ScrollPane panelScroll;
 
     @FXML private Button btnCheckUpdates,btnTestEmail,btnSaveSettings,btnSectionGuide;
+    @FXML private Button btnTabCompany, btnTabPayment, btnTabInvoice, btnTabEmail, btnTabWhatsapp, btnTabNotifications,
+            btnTabSecurity, btnTabWorkspace, btnTabShortcuts, btnTabUpdates, btnTabModules, btnTabShowcase;
     @FXML private VBox panelSecurity;
     @FXML private TextField txtSessionTimeoutMinutes, txtSessionWarningMinutes;
     @FXML private ComboBox<String> cmbMfaPolicy;
@@ -328,6 +330,14 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private CheckBox chkNotifyUpdate;
     @FXML private CheckBox chkNotifySecurity;
     @FXML private CheckBox chkNotifySystem;
+    @FXML private CheckBox chkNotifyGst;
+    @FXML private CheckBox chkNotifyEway;
+    @FXML private CheckBox chkNotifyTally;
+    @FXML private CheckBox chkNotifyLedger;
+    @FXML private CheckBox chkNotifyCrm;
+    @FXML private CheckBox chkNotifyBarcode;
+    @FXML private CheckBox chkNotifyLicensing;
+    @FXML private CheckBox chkNotifySync;
 
     /* =========================================================
        IMAGE PREVIEWS
@@ -579,6 +589,7 @@ public class SettingsController implements ScreenLifecycle {
             case INVOICE -> "InvoiceSettingsPanel.fxml";
             case NOTIFICATIONS -> "NotificationsSettingsPanel.fxml";
             case EMAIL -> "EmailSettingsPanel.fxml";
+            case WHATSAPP -> "WhatsappSettingsPanel.fxml";
             case SECURITY -> "SecuritySettingsPanel.fxml";
             case WORKSPACE -> "WorkspaceSettingsPanel.fxml";
             case SHORTCUTS -> "ShortcutsSettingsPanel.fxml";
@@ -644,11 +655,14 @@ public class SettingsController implements ScreenLifecycle {
                 initEmailTemplatesAndSignature();
                 loadSectionDataAsync(section);
             }
+            case WHATSAPP -> {
+                populateWhatsappSendersDropdown();
+                loadSectionDataAsync(section);
+            }
             case SECURITY -> {
                 if (cmbMfaPolicy != null) cmbMfaPolicy.getItems().setAll("Required", "Admin Controlled", "Disabled");
                 if (chkUiDiagnostics != null) chkUiDiagnostics.setSelected(UiDiagnostics.isEnabled());
                 if (securityHeaderIcon != null) securityHeaderIcon.getChildren().setAll(IconFactory.icon("security", 22));
-                populateWhatsappSendersDropdown();
                 refreshCloudTelemetry();
                 loadSectionDataAsync(section);
             }
@@ -705,7 +719,7 @@ public class SettingsController implements ScreenLifecycle {
 
     private boolean needsAsyncSectionData(Section section) {
         return switch (section) {
-            case COMPANY, PAYMENT, INVOICE, EMAIL, SECURITY, WORKSPACE -> true;
+            case COMPANY, PAYMENT, INVOICE, EMAIL, WHATSAPP, SECURITY, WORKSPACE -> true;
             default -> false;
         };
     }
@@ -800,6 +814,13 @@ public class SettingsController implements ScreenLifecycle {
                         support.setting("storage.temp.retentionDays", "7"),
                         Boolean.parseBoolean(support.setting("storage.logs.compress", "true")));
             }
+            case WHATSAPP -> new WhatsappSettingsSnapshot(
+                    ConfigManager.get("whatsapp.waha.endpoint", "http://localhost:3000"),
+                    Boolean.parseBoolean(ConfigManager.get("whatsapp.waha.enabled", "false")),
+                    ConfigManager.get("whatsapp.active_sender_number", ""),
+                    ConfigManager.get("whatsapp.channel.sales_name", ""),
+                    ConfigManager.get("whatsapp.channel.purchase_name", ""),
+                    ConfigManager.get("whatsapp.channel.quotation_name", ""));
             default -> null;
         };
     }
@@ -914,6 +935,15 @@ public class SettingsController implements ScreenLifecycle {
                     chkCompressOldLogs.setSelected(value.compressOldLogs());
                 }
             }
+            case WHATSAPP -> {
+                WhatsappSettingsSnapshot value = (WhatsappSettingsSnapshot) snapshot;
+                if (txtWahaEndpoint != null) txtWahaEndpoint.setText(value.wahaEndpoint());
+                if (chkWahaEnabled != null) chkWahaEnabled.setSelected(value.wahaEnabled());
+                if (cmbActiveWhatsappSender != null) selectComboValue(cmbActiveWhatsappSender, value.activeSender());
+                if (cmbWhatsappSalesChannel != null) selectComboValue(cmbWhatsappSalesChannel, value.salesChannel());
+                if (cmbWhatsappPurchaseChannel != null) selectComboValue(cmbWhatsappPurchaseChannel, value.purchaseChannel());
+                if (cmbWhatsappQuotationChannel != null) selectComboValue(cmbWhatsappQuotationChannel, value.quotationChannel());
+            }
             default -> { }
         }
     }
@@ -931,6 +961,8 @@ public class SettingsController implements ScreenLifecycle {
     private record InvoiceSettingsSnapshot(String address, String state, String website, String tagline, String shipAddress,
                                            String terms, String currency, String timeZone, String dateFormat, String timeFormat) { }
     private record EmailSettingsSnapshot(String email, String password, String host, String port, boolean passwordConfigured, boolean editable, String wahaEndpoint, boolean wahaEnabled) { }
+    private record WhatsappSettingsSnapshot(String wahaEndpoint, boolean wahaEnabled, String activeSender,
+                                            String salesChannel, String purchaseChannel, String quotationChannel) { }
     private record SecuritySettingsSnapshot(String timeout, String warning, String mfaPolicy, String wahaEndpoint, boolean wahaEnabled, String activeSender) { }
     private record StorageRetentionSnapshot(String logs, String reports, String exports, String diagnostics, String importResults,
                                             String temp, boolean compressOldLogs) { }
@@ -946,6 +978,7 @@ public class SettingsController implements ScreenLifecycle {
             case INVOICE -> showInvoice();
             case NOTIFICATIONS -> showNotifications();
             case EMAIL -> showEmail();
+            case WHATSAPP -> showWhatsapp();
             case SECURITY -> showSecurity();
             case WORKSPACE -> showWorkspace();
             case SHORTCUTS -> showShortcuts();
@@ -1588,6 +1621,7 @@ private record AssetPreviewRequest(
             btnTestEmail.setVisible(emailSection);
             btnTestEmail.setManaged(emailSection);
         }
+        updateCategoryTabStyles();
         updateSectionReadyState();
         HBox[] navigationItems = {navCompany, navPayment, navInvoice, navNotifications, navEmail, navWorkspace, navUpdates, navModules};
         for (HBox item : navigationItems) if (item != null) item.getStyleClass().remove("settings-navigation-item-selected");
@@ -1605,6 +1639,26 @@ private record AssetPreviewRequest(
         }
         if (readySections.contains(activeSection) || !needsAsyncSectionData(activeSection)) {
             Platform.runLater(() -> installSettingsTracker(selectedPanel));
+        }
+    }
+
+    private void updateCategoryTabStyles() {
+        Button[] tabButtons = {btnTabCompany, btnTabPayment, btnTabInvoice, btnTabEmail, btnTabWhatsapp,
+                btnTabNotifications, btnTabSecurity, btnTabWorkspace, btnTabShortcuts, btnTabUpdates,
+                btnTabModules, btnTabShowcase};
+        Section[] sections = {Section.COMPANY, Section.PAYMENT, Section.INVOICE, Section.EMAIL, Section.WHATSAPP,
+                Section.NOTIFICATIONS, Section.SECURITY, Section.WORKSPACE, Section.SHORTCUTS, Section.UPDATES,
+                Section.MODULES, Section.SHOWCASE};
+        for (int i = 0; i < tabButtons.length; i++) {
+            Button btn = tabButtons[i];
+            if (btn == null) continue;
+            boolean selected = activeSection == sections[i];
+            btn.getStyleClass().remove("settings-tab-selected");
+            btn.getStyleClass().remove("approved-primary-button");
+            if (selected) {
+                btn.getStyleClass().add("settings-tab-selected");
+                btn.getStyleClass().add("approved-primary-button");
+            }
         }
     }
 
@@ -1628,6 +1682,7 @@ private record AssetPreviewRequest(
             case INVOICE -> "Save Invoice";
             case NOTIFICATIONS -> "Save Notifications";
             case EMAIL -> "Save Email";
+            case WHATSAPP -> "Save WhatsApp";
             case SECURITY -> "Save Security";
             case WORKSPACE -> "Save Workspace";
             case SHORTCUTS -> "Save Shortcuts";
@@ -1649,10 +1704,13 @@ private record AssetPreviewRequest(
     @FXML private void showInvoice() { selectSection(Section.INVOICE, navInvoice, ensureSectionLoaded(Section.INVOICE)); }
     @FXML private void showNotifications() { selectSection(Section.NOTIFICATIONS, navNotifications, ensureSectionLoaded(Section.NOTIFICATIONS)); }
     @FXML private void showEmail() { selectSection(Section.EMAIL, navEmail, ensureSectionLoaded(Section.EMAIL)); }
+    @FXML private void showWhatsapp() {
+        selectSection(Section.WHATSAPP, null, ensureSectionLoaded(Section.WHATSAPP));
+        populateWhatsappSendersDropdown();
+    }
     @FXML private void showSecurity() {
         selectSection(Section.SECURITY, null, ensureSectionLoaded(Section.SECURITY));
         refreshCloudTelemetry();
-        populateWhatsappSendersDropdown();
     }
     @FXML private void showModules() { selectSection(Section.MODULES, navModules, ensureSectionLoaded(Section.MODULES)); }
     @FXML private void showShowcase() { selectSection(Section.SHOWCASE, null, ensureSectionLoaded(Section.SHOWCASE)); }
@@ -2799,6 +2857,7 @@ private record AssetPreviewRequest(
             case INVOICE -> "Invoice settings";
             case NOTIFICATIONS -> "Notification settings";
             case EMAIL -> "Email settings";
+            case WHATSAPP -> "WhatsApp settings";
             case SECURITY -> "Security settings";
             case WORKSPACE -> "Workspace settings";
             case SHORTCUTS -> "Shortcut settings";
@@ -2830,6 +2889,7 @@ private record AssetPreviewRequest(
                 case INVOICE -> { saveInvoiceIdentity(); commitPendingAssets(Section.INVOICE); }
                 case NOTIFICATIONS -> saveNotificationSettings();
                 case EMAIL -> saveEmailSettings();
+                case WHATSAPP -> saveWhatsappSettings();
                 case SECURITY -> saveSecuritySettings();
                 case WORKSPACE -> { saveDeploymentSettings(); saveStorageRetentionSettings(); }
                 case SHORTCUTS -> saveShortcutSettings();
@@ -2873,7 +2933,6 @@ private record AssetPreviewRequest(
 
     private void saveSecuritySettings() {
         if (chkUiDiagnostics != null) UiDiagnostics.setEnabled(chkUiDiagnostics.isSelected());
-        saveWhatsappSettings();
         if (txtSessionTimeoutMinutes == null || txtSessionWarningMinutes == null || !SessionService.isAdmin()) return;
         int timeout; int warning;
         try { timeout = Integer.parseInt(txtSessionTimeoutMinutes.getText().trim()); warning = Integer.parseInt(txtSessionWarningMinutes.getText().trim()); }
@@ -4143,6 +4202,14 @@ private record AssetPreviewRequest(
         categories.put("update", selected(chkNotifyUpdate));
         categories.put("security", true);
         categories.put("system", selected(chkNotifySystem));
+        categories.put("gst", selected(chkNotifyGst));
+        categories.put("eway", selected(chkNotifyEway));
+        categories.put("tally", selected(chkNotifyTally));
+        categories.put("ledger", selected(chkNotifyLedger));
+        categories.put("crm", selected(chkNotifyCrm));
+        categories.put("barcode", selected(chkNotifyBarcode));
+        categories.put("licensing", selected(chkNotifyLicensing));
+        categories.put("sync", selected(chkNotifySync));
         NotificationPreferenceService.save(new NotificationPreferenceService.Preferences(
                 selected(chkNotifications), selected(chkNotificationToasts), categories));
     }
@@ -4166,6 +4233,14 @@ private record AssetPreviewRequest(
         setNotificationCategory(chkNotifyBackup, preferences, "backup");
         setNotificationCategory(chkNotifyUpdate, preferences, "update");
         setNotificationCategory(chkNotifySystem, preferences, "system");
+        setNotificationCategory(chkNotifyGst, preferences, "gst");
+        setNotificationCategory(chkNotifyEway, preferences, "eway");
+        setNotificationCategory(chkNotifyTally, preferences, "tally");
+        setNotificationCategory(chkNotifyLedger, preferences, "ledger");
+        setNotificationCategory(chkNotifyCrm, preferences, "crm");
+        setNotificationCategory(chkNotifyBarcode, preferences, "barcode");
+        setNotificationCategory(chkNotifyLicensing, preferences, "licensing");
+        setNotificationCategory(chkNotifySync, preferences, "sync");
         if (chkNotifySecurity != null) { chkNotifySecurity.setSelected(true); chkNotifySecurity.setDisable(true); }
         setNotificationCategoriesDisabled(!preferences.enabled());
     }
@@ -4179,7 +4254,9 @@ private record AssetPreviewRequest(
     private void setNotificationCategoriesDisabled(boolean disabled) {
         CheckBox[] boxes = {chkNotifySales, chkNotifyPurchases, chkNotifyQuotations, chkNotifyReturns, chkNotifyPayments,
                 chkNotifyInventory, chkNotifyBanking, chkNotifyReports, chkNotifyReminders, chkNotifyCommunication,
-                chkNotifyApproval, chkNotifyImports, chkNotifyBackup, chkNotifyUpdate, chkNotifySystem};
+                chkNotifyApproval, chkNotifyImports, chkNotifyBackup, chkNotifyUpdate, chkNotifySystem,
+                chkNotifyGst, chkNotifyEway, chkNotifyTally, chkNotifyLedger, chkNotifyCrm, chkNotifyBarcode,
+                chkNotifyLicensing, chkNotifySync};
         for (CheckBox box : boxes) if (box != null) box.setDisable(disabled);
         if (chkNotifySecurity != null) chkNotifySecurity.setDisable(true);
     }
@@ -4215,6 +4292,7 @@ private record AssetPreviewRequest(
             case INVOICE -> "SETTINGS_INVOICE";
             case NOTIFICATIONS -> "SETTINGS_NOTIFICATIONS";
             case EMAIL -> "SETTINGS_EMAIL";
+            case WHATSAPP -> "SETTINGS_WHATSAPP";
             case SECURITY -> "SETTINGS_SECURITY";
             case WORKSPACE -> "SETTINGS_WORKSPACE";
             case SHORTCUTS -> "SETTINGS_SHORTCUTS";

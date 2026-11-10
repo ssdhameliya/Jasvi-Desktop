@@ -17,8 +17,7 @@
                 <VBox fx:id="salesSubmenu" spacing="1" visible="false" managed="false" styleClass="nav-children">
                     <Button fx:id="btnSalesRegister" text="Sales Register" onAction="#openSales" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnCreateSale" text="Create Sale" onAction="#createSale" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSalesReturn" text="Sales Return" onAction="#openReturns" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnCreditNote" text="Credit Notes" onAction="#openCreditNotes" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnCreditNote" text="Sales Return / Credit Note" onAction="#openCreditNotes" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnQuotation" text="Quotations" onAction="#openQuotations" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                 </VBox>
             </VBox>
@@ -32,8 +31,7 @@
                 <VBox fx:id="purchaseSubmenu" spacing="1" visible="false" managed="false" styleClass="nav-children">
                     <Button fx:id="btnPurchaseRegister" text="Purchase Register" onAction="#openPurchase" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnCreatePurchase" text="Create Purchase" onAction="#createPurchase" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnPurchaseReturn" text="Purchase Return" onAction="#openPurchaseReturns" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnDebitNote" text="Debit Notes" onAction="#openDebitNotes" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnDebitNote" text="Purchase Return / Debit Note" onAction="#openDebitNotes" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                 </VBox>
             </VBox>
             <Button fx:id="btnItem" text="Item Master" onAction="#openItemMaster" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
@@ -115,27 +113,9 @@
                     <Button fx:id="btnExcelStudio" text="Excel Studio" onAction="#openExcelStudio" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                 </VBox>
             </VBox>
-            <VBox styleClass="nav-group">
-                <StackPane maxWidth="Infinity" styleClass="nav-parent-row">
-                    <Button fx:id="btnSettings" text="Settings" onAction="#toggleSettingsMenu" maxWidth="Infinity" styleClass="nav-parent,approved-button,approved-secondary-button">
-                        <tooltip><Tooltip text="Show or hide Settings menu"/></tooltip>
-                    </Button>
-                    <Label fx:id="lblSettingsChevron" mouseTransparent="true" styleClass="nav-chevron" StackPane.alignment="CENTER_RIGHT"/>
-                </StackPane>
-                <VBox fx:id="settingsSubmenu" spacing="1" visible="false" managed="false" styleClass="nav-children">
-                    <Button fx:id="btnSettingsCompany" text="Company &amp; Billing" onAction="#openSettingsCompany" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsPayment" text="Payment &amp; Bank" onAction="#openSettingsPayment" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsInvoice" text="Invoice &amp; Delivery" onAction="#openSettingsInvoice" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsNotifications" text="Notifications" onAction="#openSettingsNotifications" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsEmail" text="Email Settings" onAction="#openSettingsEmail" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsSecurity" text="Security &amp; Session" onAction="#openSettingsSecurity" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsWorkspace" text="Workspace &amp; Storage" onAction="#openSettingsWorkspace" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsShortcuts" text="Keyboard Shortcuts" onAction="#openSettingsShortcuts" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsUpdates" text="Application Updates" onAction="#openSettingsUpdates" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsModules" text="Module Activation" onAction="#openSettingsModules" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnSettingsShowcase" text="Website &amp; 3D Showcase" onAction="#openSettingsShowcase" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                </VBox>
-            </VBox>
+            <Button fx:id="btnSettings" text="Settings" onAction="#openSettings" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button">
+                <tooltip><Tooltip text="Open Application Settings"/></tooltip>
+            </Button>
             <Button fx:id="btnSafeRollback" text="Safe Rollback" onAction="#openSafeRollback" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button,safe-rollback-nav-button"/>
             <Button fx:id="btnBackup" text="Backup &amp; Restore" onAction="#openBackup" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
               </VBox></content>
@@ -156,6 +136,12 @@
                 <SVGPath content="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm1 4v4.2l2.8 1.7-.8 1.3L9.5 11V6H11z" styleClass="shell-clock-icon"/>
                 <Label fx:id="lblClock" styleClass="shell-clock-text"/>
                 <Circle radius="4" styleClass="shell-clock-live"/>
+            </HBox>
+            <!-- Live Workstation Connectivity & Cloud Sync Status Badge -->
+            <HBox fx:id="shellSyncStatusCard" alignment="CENTER_LEFT" spacing="6" styleClass="shell-sync-card" onMouseClicked="#handleSyncCardClick">
+                <Circle fx:id="syncStatusIndicator" radius="4" styleClass="sync-indicator-online"/>
+                <Label fx:id="lblSyncStatus" text="Cloud Synced" styleClass="shell-sync-text"/>
+                <Label fx:id="lblSyncPendingPill" text="0" visible="false" managed="false" styleClass="sync-pending-pill"/>
             </HBox>
             <!-- Ambient Background Activity Spinner Card -->
             <HBox fx:id="shellActivityCard" alignment="CENTER_LEFT" spacing="6" styleClass="shell-activity-card" visible="false" managed="false">

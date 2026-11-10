@@ -7,63 +7,70 @@
     <!-- =====================================================
          HEADER
          ===================================================== -->
-
     <top>
-        <HBox fx:id="settingsPageHeader" alignment="CENTER_LEFT" spacing="12" styleClass="page-heading,erp-page-identity-header">
+        <VBox spacing="0">
+            <HBox fx:id="settingsPageHeader" alignment="CENTER_LEFT" spacing="12" styleClass="page-heading,erp-page-identity-header">
 
+                <StackPane minWidth="42" prefWidth="42" maxWidth="42" minHeight="42" prefHeight="42" maxHeight="42" styleClass="settings-page-icon-box">
+                    <SVGPath content="M8.8 2h2.4l.5 2a6.8 6.8 0 0 1 1.5.9l2-.6 1.2 2.1-1.5 1.4c.1.5.1 1 0 1.5l1.5 1.4-1.2 2.1-2-.6c-.5.4-1 .7-1.5.9l-.5 2H8.8l-.5-2a6.8 6.8 0 0 1-1.5-.9l-2 .6-1.2-2.1 1.5-1.4a6 6 0 0 1 0-1.5L3.6 6.4l1.2-2.1 2 .6c.5-.4 1-.7 1.5-.9l.5-2zM10 7a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" styleClass="settings-page-icon-svg"/>
+                </StackPane>
 
-            <StackPane minWidth="42" prefWidth="42" maxWidth="42" minHeight="42" prefHeight="42" maxHeight="42" styleClass="settings-page-icon-box">
-                <SVGPath content="M8.8 2h2.4l.5 2a6.8 6.8 0 0 1 1.5.9l2-.6 1.2 2.1-1.5 1.4c.1.5.1 1 0 1.5l1.5 1.4-1.2 2.1-2-.6c-.5.4-1 .7-1.5.9l-.5 2H8.8l-.5-2a6.8 6.8 0 0 1-1.5-.9l-2 .6-1.2-2.1 1.5-1.4a6 6 0 0 1 0-1.5L3.6 6.4l1.2-2.1 2 .6c.5-.4 1-.7 1.5-.9l.5-2zM10 7a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" styleClass="settings-page-icon-svg"/>
-            </StackPane>
+                <VBox spacing="4" HBox.hgrow="ALWAYS">
+                    <Label text="Settings" styleClass="settings-page-title"/>
+                    <Label text="Company configuration, payments, invoices, communication delivery and system administration" wrapText="true" styleClass="settings-page-description"/>
+                </VBox>
 
-            <VBox spacing="4" HBox.hgrow="ALWAYS">
+                <Button fx:id="btnSectionGuide" text="Section Guide" onAction="#showSectionGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
+                    <graphic>
+                        <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                    </graphic>
+                </Button>
 
-                <Label text="Settings" styleClass="settings-page-title"/>
+                <Button fx:id="btnTestEmail" text="Test Email" onAction="#testEmail" styleClass="settings-action-button,settings-secondary-button">
+                    <graphic>
+                        <SVGPath content="M2 4h16v12H2V4zm2 2v.3l6 4.2 6-4.2V6H4zm12 8V8.7l-5.4 3.8a1 1 0 0 1-1.2 0L4 8.7V14h12z" styleClass="settings-button-icon"/>
+                    </graphic>
+                </Button>
 
-                <Label text="Company configuration, payments, invoices, notifications and email delivery" wrapText="true" styleClass="settings-page-description"/>
+                <Button fx:id="btnSaveSettings" text="Save Settings" onAction="#save" defaultButton="true" styleClass="settings-action-button,settings-primary-button">
+                    <graphic>
+                        <SVGPath content="M3 2h11l3 3v12H3V2zm2 2v4h8V4H5zm1 8v3h8v-3H6z" styleClass="settings-button-icon"/>
+                    </graphic>
+                </Button>
 
-            </VBox>
+            </HBox>
 
-            <Button fx:id="btnSectionGuide" text="Section Guide" onAction="#showSectionGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
-                <graphic>
-                    <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
-                </graphic>
-            </Button>
-
-            <Button fx:id="btnTestEmail" text="Test Email" onAction="#testEmail" styleClass="settings-action-button,settings-secondary-button">
-
-                <graphic>
-                    <SVGPath content="M2 4h16v12H2V4zm2 2v.3l6 4.2 6-4.2V6H4zm12 8V8.7l-5.4 3.8a1 1 0 0 1-1.2 0L4 8.7V14h12z" styleClass="settings-button-icon"/>
-                </graphic>
-
-            </Button>
-
-            <Button fx:id="btnSaveSettings" text="Save Settings" onAction="#save" defaultButton="true" styleClass="settings-action-button,settings-primary-button">
-
-                <graphic>
-                    <SVGPath content="M3 2h11l3 3v12H3V2zm2 2v4h8V4H5zm1 8v3h8v-3H6z" styleClass="settings-button-icon"/>
-                </graphic>
-
-            </Button>
-
-        </HBox>
+            <!-- Top Category Navigation Bar (Reporting Dashboard pattern) -->
+            <ScrollPane fitToHeight="true" fitToWidth="true" vbarPolicy="NEVER" hbarPolicy="AS_NEEDED" styleClass="clean-scroll,settings-category-strip-scroll">
+                <content>
+                    <HBox fx:id="settingsCategoryBar" alignment="CENTER_LEFT" spacing="6" styleClass="settings-category-strip,approved-card,approved-surface">
+                        <Button fx:id="btnTabCompany" text="Company &amp; Profile" onAction="#showCompany" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabPayment" text="Payment &amp; Bank" onAction="#showPayment" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabInvoice" text="Invoice &amp; Delivery" onAction="#showInvoice" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabEmail" text="Email Configuration" onAction="#showEmail" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabWhatsapp" text="WhatsApp &amp; WAHA" onAction="#showWhatsapp" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabNotifications" text="Notifications" onAction="#showNotifications" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabSecurity" text="Security &amp; Session" onAction="#showSecurity" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabWorkspace" text="Workspace &amp; Storage" onAction="#showWorkspace" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabShortcuts" text="Shortcuts" onAction="#showShortcuts" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabUpdates" text="Application Updates" onAction="#showUpdates" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabModules" text="Module Activation" onAction="#showModules" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                        <Button fx:id="btnTabShowcase" text="3D Showcase" onAction="#showShowcase" styleClass="settings-tab-btn,approved-button,approved-secondary-button"/>
+                    </HBox>
+                </content>
+            </ScrollPane>
+        </VBox>
     </top>
 
     <!-- =====================================================
          MAIN CONTENT
          ===================================================== -->
-
     <center>
         <VBox spacing="8" styleClass="settings-content,settings-workspace-layout">
-
-            <!-- 7.3.8: Settings categories are selected from the main sidebar accordion. -->
-
-            <!-- Active category gets the full application width below the navigator. -->
             <ScrollPane fx:id="panelScroll" fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" VBox.vgrow="ALWAYS" styleClass="clean-scroll,settings-panel-scroll,settings-workspace-panel-scroll">
                 <content>
-<StackPane fx:id="panelHost" maxWidth="Infinity" styleClass="settings-panel-host">
-
-                        </StackPane>
+                    <StackPane fx:id="panelHost" maxWidth="Infinity" styleClass="settings-panel-host">
+                    </StackPane>
                 </content>
             </ScrollPane>
         </VBox>

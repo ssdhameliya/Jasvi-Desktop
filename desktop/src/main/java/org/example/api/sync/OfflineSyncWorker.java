@@ -5,6 +5,7 @@ import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import org.example.shared.sync.SyncBatchRequest;
 import org.example.shared.sync.SyncBatchResult;
+import org.example.service.NotificationService;
 import org.example.util.DesktopLog;
 
 import java.time.Instant;
@@ -36,7 +37,11 @@ public final class OfflineSyncWorker {
     private OfflineSyncWorker() {
         netService.addListener(state -> {
             if (state == NetworkConnectivityService.ConnectionState.ONLINE) {
-                triggerSyncNow();
+                if (org.example.api.ApiSession.isEstablished()) {
+                    triggerSyncNow();
+                } else {
+                    updateStatusOnFx("Awaiting Sign-in");
+                }
             } else {
                 updateStatusOnFx("Offline Mode");
             }
@@ -80,6 +85,10 @@ public final class OfflineSyncWorker {
             updateStatusOnFx("Offline Mode");
             return;
         }
+        if (!org.example.api.ApiSession.isEstablished()) {
+            updateStatusOnFx("Awaiting Sign-in");
+            return;
+        }
 
         try {
             syncing = true;
@@ -104,6 +113,11 @@ public final class OfflineSyncWorker {
             SyncBatchResult result = syncApiClient.pushBatch(samplePingBatch);
 
             updateStatusOnFx("Cloud Synced");
+            if (result != null && result.successCount() > 0) {
+                NotificationService.createNotification(NotificationService.Category.SYNC, "Sync Complete",
+                        result.successCount() + " records synchronized with cloud", "INFO",
+                        "/fxml/pages/Dashboard.fxml", result.batchId());
+            }
             notifyResultListeners(result);
         } catch (Exception e) {
             DesktopLog.warn("OfflineSyncWorker", "SYNC_CYCLE_FAILED", "Sync cycle encountered error: " + e.getMessage());

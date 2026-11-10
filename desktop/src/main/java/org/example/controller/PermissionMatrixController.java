@@ -10,11 +10,11 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.util.StringConverter;
 import org.example.api.admin.AdminApiClient;
 import org.example.service.PermissionService;
+import org.example.service.SessionService;
 import org.example.shared.PermissionCatalog;
 import org.example.util.IconFactory;
 import org.example.util.AppDialogService;
@@ -22,24 +22,22 @@ import org.example.util.UiTaskExecutor;
 import org.example.navigation.ScreenLifecycle;
 
 import java.util.*;
-import java.util.function.Consumer;
 
 /**
- * Dense, metadata-driven permission editor. Server permission records remain the
- * authority; this controller only reshapes them into a compact module x capability
- * matrix so new catalog rows do not require new FXML checkboxes.
+ * Full-width, iOS toggle-driven permission matrix.
+ * Super Admin governs Company Administrator (ADMIN) access;
+ * Company Administrator governs operational staff roles within their permitted ceiling.
  */
 public class PermissionMatrixController implements ScreenLifecycle {
     private static String requestedRole;
     public static void requestRole(String role) { requestedRole = role; }
 
-    @FXML private VBox root;
+    @FXML private VBox root, boxCopyRole;
     @FXML private ComboBox<String> cmbRole, cmbCopyRole;
     @FXML private ComboBox<PermissionCatalog.Template> cmbTemplate;
     @FXML private TextField txtSearch;
     @FXML private CheckBox chkGrantedOnly;
-    @FXML private Label lblGrantedSummary, lblRoleUsers, lblHint, lblLegend, lblPreviewTitle;
-    @FXML private VBox previewContent;
+    @FXML private Label lblGrantedSummary, lblRoleUsers, lblHint, lblLegend;
     @FXML private TableView<MatrixRow> table;
     @FXML private TableColumn<MatrixRow, MatrixRow> colModule, colAll, colView, colCreate, colEdit, colDelete, colExport, colApprove, colSpecial;
     @FXML private Button btnBack, btnApplyTemplate, btnCopyRole, btnReset, btnSave;
@@ -98,6 +96,9 @@ public class PermissionMatrixController implements ScreenLifecycle {
     }
 
     private void configureFilters() {
+        if (chkGrantedOnly != null && !chkGrantedOnly.getStyleClass().contains("ios-toggle-switch")) {
+            chkGrantedOnly.getStyleClass().add("ios-toggle-switch");
+        }
         txtSearch.textProperty().addListener((obs, oldValue, newValue) -> rebuildVisibleRows());
         chkGrantedOnly.selectedProperty().addListener((obs, oldValue, newValue) -> rebuildVisibleRows());
     }
@@ -145,19 +146,20 @@ public class PermissionMatrixController implements ScreenLifecycle {
         text.getStyleClass().add("permission-column-title");
         CheckBox toggle = new CheckBox();
         toggle.setAllowIndeterminate(false);
-        toggle.getStyleClass().add("permission-header-check");
-        toggle.setTooltip(new Tooltip(action == null ? "Grant or revoke every visible capability" : "Grant or revoke " + label + " for visible modules"));
+        toggle.getStyleClass().addAll("permission-header-check", "ios-toggle-switch");
+        toggle.setTooltip(new Tooltip(action == null ? "Turn ON or OFF every visible capability" : "Turn ON or OFF " + label + " for visible modules"));
         toggle.setOnAction(event -> {
             if (!canEdit()) return;
             boolean selected = toggle.isSelected();
             toggle.setIndeterminate(false);
             for (ModuleRow row : visibleModules()) {
+                if (!row.isSubscribed()) continue;
                 Collection<PermissionEntry> targets = action == null ? row.permissions() : entryList(row.permission(action));
                 targets.forEach(p -> p.allowed().set(selected));
             }
             permissionsChanged();
         });
-        HBox header = new HBox(5, text, toggle);
+        HBox header = new HBox(6, text, toggle);
         header.setAlignment(Pos.CENTER);
         column.setText(null);
         column.setGraphic(header);
@@ -170,7 +172,8 @@ public class PermissionMatrixController implements ScreenLifecycle {
             @Override protected void updateItem(MatrixRow row, boolean empty) {
                 super.updateItem(row, empty);
                 if (empty || row == null || row.group()) { setGraphic(null); return; }
-                List<PermissionEntry> special = ((ModuleRow) row).permissions().stream()
+                ModuleRow moduleRow = (ModuleRow) row;
+                List<PermissionEntry> special = moduleRow.permissions().stream()
                         .filter(p -> !PermissionCatalog.isCommonAction(p.action()))
                         .sorted(Comparator.comparing(PermissionEntry::action))
                         .toList();
@@ -184,12 +187,13 @@ public class PermissionMatrixController implements ScreenLifecycle {
                 if (special.size() == 1) {
                     PermissionEntry entry = special.getFirst();
                     CheckBox toggle = new CheckBox();
-                    toggle.getStyleClass().add("permission-special-check");
-                    toggle.setSelected(entry.allowed().get());
-                    toggle.setDisable(!canEdit());
+                    toggle.getStyleClass().addAll("permission-special-check", "ios-toggle-switch");
+                    toggle.setSelected(moduleRow.isSubscribed() && entry.allowed().get());
+                    toggle.setDisable(!canEdit() || !moduleRow.isSubscribed());
                     toggle.setTooltip(new Tooltip(PermissionCatalog.actionLabel(entry.action())
                         + (entry.description() == null || entry.description().isBlank() ? "" : "\n" + entry.description())));
                     toggle.setOnAction(event -> {
+                        if (!canEdit() || !moduleRow.isSubscribed()) return;
                         entry.allowed().set(toggle.isSelected());
                         permissionsChanged();
                     });
@@ -206,13 +210,13 @@ public class PermissionMatrixController implements ScreenLifecycle {
                 menu.getProperties().put("erp-icon-preserve", true);
                 menu.setGraphic(null);
                 menu.setContentDisplay(ContentDisplay.TEXT_ONLY);
-                menu.setDisable(!canEdit());
+                menu.setDisable(!canEdit() || !moduleRow.isSubscribed());
                 int granted = 0;
                 for (PermissionEntry entry : special) {
                     if (entry.allowed().get()) granted++;
                     CheckMenuItem item = new CheckMenuItem(PermissionCatalog.actionLabel(entry.action()));
                     item.setSelected(entry.allowed().get());
-                    item.setDisable(!canEdit());
+                    item.setDisable(!canEdit() || !moduleRow.isSubscribed());
                     if (entry.description() != null && !entry.description().isBlank()) item.setGraphic(IconFactory.compactIcon("permission", 13));
                     item.setOnAction(event -> {
                         entry.allowed().set(item.isSelected());
@@ -228,18 +232,20 @@ public class PermissionMatrixController implements ScreenLifecycle {
                 setAlignment(Pos.CENTER);
             }
         });
-        Label label = new Label("Special");
+        Label label = new Label("Special Capabilities");
         label.getStyleClass().add("permission-column-title");
         colSpecial.setText(null);
         colSpecial.setGraphic(label);
     }
 
     private void loadRoles() {
+        boolean superAdmin = SessionService.isSuperAdmin();
         UiTaskExecutor.submitLatest(
                 "permission-matrix-roles",
                 () -> api.roles().stream()
                         .filter(AdminApiClient.RoleDto::active)
                         .filter(r -> !"SUPER_ADMIN".equalsIgnoreCase(r.code()))
+                        .filter(r -> superAdmin == "ADMIN".equalsIgnoreCase(r.code()))
                         .toList(),
                 this::applyRoles,
                 failure -> { loading = false; showError("Roles could not be loaded", asException(failure)); }
@@ -248,16 +254,31 @@ public class PermissionMatrixController implements ScreenLifecycle {
 
     private void applyRoles(List<AdminApiClient.RoleDto> roles) {
         loading = true;
+        boolean superAdmin = SessionService.isSuperAdmin();
         try {
             roleDisplayNames.clear();
             roleUserCounts.clear();
             for (var role : roles == null ? List.<AdminApiClient.RoleDto>of() : roles) {
                 String code = role.code() == null ? "" : role.code().trim().toUpperCase(Locale.ROOT);
                 if (code.isBlank()) continue;
-                roleDisplayNames.put(code, role.displayName() == null || role.displayName().isBlank() ? code : role.displayName().trim());
+                String display = "ADMIN".equals(code) ? "Company Administrator (ADMIN)"
+                        : (role.displayName() == null || role.displayName().isBlank() ? code : role.displayName().trim());
+                roleDisplayNames.put(code, display);
                 roleUserCounts.put(code, role.userCount());
             }
+            if (superAdmin && !roleDisplayNames.containsKey("ADMIN")) {
+                roleDisplayNames.put("ADMIN", "Company Administrator (ADMIN)");
+                roleUserCounts.put("ADMIN", 1L);
+            }
             cmbRole.getItems().setAll(roleDisplayNames.keySet().stream().toList());
+            if (boxCopyRole != null) {
+                boxCopyRole.setVisible(!superAdmin);
+                boxCopyRole.setManaged(!superAdmin);
+            }
+            if (btnCopyRole != null) {
+                btnCopyRole.setVisible(!superAdmin);
+                btnCopyRole.setManaged(!superAdmin);
+            }
             String requested = requestedRole == null ? null : requestedRole.trim().toUpperCase(Locale.ROOT);
             String target = requested != null && cmbRole.getItems().contains(requested)
                     ? requested : (cmbRole.getItems().isEmpty() ? null : cmbRole.getItems().getFirst());
@@ -296,14 +317,16 @@ public class PermissionMatrixController implements ScreenLifecycle {
         modules.addAll(byModule.values().stream()
                 .sorted(Comparator.comparingInt((ModuleRow row) -> row.meta().order()).thenComparing(row -> row.meta().label()))
                 .toList());
-        boolean admin = "ADMIN".equalsIgnoreCase(role);
-        setEditingEnabled(!admin);
+        boolean editable = canEditRole(role);
+        setEditingEnabled(editable);
         long users = roleUserCounts.getOrDefault(role.toUpperCase(Locale.ROOT), 0L);
         lblRoleUsers.setText(users + (users == 1 ? " user" : " users") + " use this role");
         String displayRole = roleDisplayNames.getOrDefault(role.toUpperCase(Locale.ROOT), role);
-        lblHint.setText(admin
-                ? "Administrator is protected full access. Review is available, but the matrix cannot be changed."
-                : "Changes apply to every user assigned to " + displayRole + " in both LOCAL and company-server deployments.");
+        if (SessionService.isSuperAdmin()) {
+            lblHint.setText("Super Admin Scope: Governing " + displayRole + ". Any module or capability turned OFF here is immediately hidden from Company Admin and all company staff.");
+        } else {
+            lblHint.setText("Company Admin Scope: Governing " + displayRole + ". Generic personal screens (such as My Profile) remain available by default to all signed-in users.");
+        }
         rebuildCopyRoles();
         cmbTemplate.getSelectionModel().clearSelection();
         rebuildVisibleRows();
@@ -322,18 +345,24 @@ public class PermissionMatrixController implements ScreenLifecycle {
 
     private void setEditingEnabled(boolean enabled) {
         btnApplyTemplate.setDisable(!enabled);
-        btnCopyRole.setDisable(!enabled);
+        if (btnCopyRole != null) btnCopyRole.setDisable(!enabled || cmbCopyRole.getItems().isEmpty());
         btnReset.setDisable(!enabled);
         btnSave.setDisable(!enabled);
         cmbTemplate.setDisable(!enabled);
-        cmbCopyRole.setDisable(!enabled);
+        if (cmbCopyRole != null) cmbCopyRole.setDisable(!enabled || cmbCopyRole.getItems().isEmpty());
         headerToggles.values().forEach(cb -> cb.setDisable(!enabled));
         table.refresh();
     }
 
     private boolean canEdit() {
-        String role = cmbRole.getValue();
-        return role != null && !"ADMIN".equalsIgnoreCase(role);
+        return canEditRole(cmbRole.getValue());
+    }
+
+    private boolean canEditRole(String role) {
+        if (role == null || role.isBlank()) return false;
+        if ("SUPER_ADMIN".equalsIgnoreCase(role)) return false;
+        if ("ADMIN".equalsIgnoreCase(role)) return SessionService.isSuperAdmin();
+        return !SessionService.isSuperAdmin() && SessionService.isAdmin();
     }
 
     private void rebuildVisibleRows() {
@@ -378,15 +407,14 @@ public class PermissionMatrixController implements ScreenLifecycle {
         long total = modules.stream().mapToLong(row -> row.permissions().size()).sum();
         long granted = modules.stream().flatMap(row -> row.permissions().stream()).filter(p -> p.allowed().get()).count();
         lblGrantedSummary.setText(granted + " of " + total + " granted");
-        lblLegend.setText(visibleModules().size() + " modules shown  •  ✓ granted   ◩ partial   — not supported");
+        lblLegend.setText(visibleModules().size() + " modules shown   •   iOS Switch ON = Granted   •   OFF = Revoked   •   — = Not Supported");
         updateHeaderStates();
-        rebuildPreview();
     }
 
     private void updateHeaderStates() {
-        updateHeader("*", visibleModules().stream().flatMap(row -> row.permissions().stream()).toList());
+        updateHeader("*", visibleModules().stream().filter(ModuleRow::isSubscribed).flatMap(row -> row.permissions().stream()).toList());
         for (String action : PermissionCatalog.COMMON_ACTIONS) {
-            updateHeader(action, visibleModules().stream().map(row -> row.permission(action)).filter(Objects::nonNull).toList());
+            updateHeader(action, visibleModules().stream().filter(ModuleRow::isSubscribed).map(row -> row.permission(action)).filter(Objects::nonNull).toList());
         }
     }
 
@@ -402,47 +430,6 @@ public class PermissionMatrixController implements ScreenLifecycle {
         cb.setSelected(allowed == entries.size());
     }
 
-    private void rebuildPreview() {
-        previewContent.getChildren().clear();
-        Map<String, List<ModuleRow>> byCategory = new LinkedHashMap<>();
-        for (ModuleRow row : modules) {
-            if (row.permissions().stream().anyMatch(p -> p.allowed().get())) byCategory.computeIfAbsent(row.meta().category(), key -> new ArrayList<>()).add(row);
-        }
-        if (byCategory.isEmpty()) {
-            Label none = new Label("No permissions are currently granted.");
-            none.getStyleClass().add("muted-label");
-            previewContent.getChildren().add(none);
-            lblPreviewTitle.setText("Effective Access Preview");
-            return;
-        }
-        long grantedModules = byCategory.values().stream().mapToLong(List::size).sum();
-        lblPreviewTitle.setText("Effective Access Preview • " + grantedModules + " modules");
-        byCategory.forEach((category, rows) -> previewContent.getChildren().add(previewCategory(category, rows)));
-    }
-
-    private Node previewCategory(String category, List<ModuleRow> rows) {
-        VBox box = new VBox(3);
-        box.getStyleClass().add("permission-preview-group");
-        Label title = new Label(category);
-        title.getStyleClass().add("permission-preview-category");
-        Set<String> actions = new LinkedHashSet<>();
-        int granted = 0;
-        int total = 0;
-        for (ModuleRow row : rows) {
-            for (PermissionEntry p : row.permissions()) {
-                total++;
-                if (p.allowed().get()) { granted++; actions.add(PermissionCatalog.actionLabel(p.action())); }
-            }
-        }
-        String actionText = actions.stream().limit(5).reduce((a,b) -> a + ", " + b).orElse("View");
-        if (actions.size() > 5) actionText += " +" + (actions.size() - 5);
-        Label detail = new Label(actionText + "  •  " + granted + "/" + total);
-        detail.setWrapText(true);
-        detail.getStyleClass().add("permission-preview-detail");
-        box.getChildren().addAll(title, detail);
-        return box;
-    }
-
     @FXML private void applyTemplate() {
         if (!canEdit()) return;
         PermissionCatalog.Template template = cmbTemplate.getValue();
@@ -452,13 +439,16 @@ public class PermissionMatrixController implements ScreenLifecycle {
         }
         loading = true;
         try {
-            for (ModuleRow row : modules) for (PermissionEntry permission : row.permissions()) {
-                permission.allowed().set(PermissionCatalog.templateAllows(template, row.meta().key(), permission.action()));
+            for (ModuleRow row : modules) {
+                if (!row.isSubscribed()) continue;
+                for (PermissionEntry permission : row.permissions()) {
+                    permission.allowed().set(PermissionCatalog.templateAllows(template, row.meta().key(), permission.action()));
+                }
             }
         } finally {
             loading = false;
         }
-        lblHint.setText(template.label() + " applied as unsaved changes. Review the matrix, then Save Permissions.");
+        lblHint.setText(template.label() + " applied as unsaved changes. Review the toggles, then click Save Permissions.");
         permissionsChanged();
     }
 
@@ -474,8 +464,11 @@ public class PermissionMatrixController implements ScreenLifecycle {
                     for (var p : permissions) source.put(permissionKey(p.module(), p.action()), p.allowed());
                     loading = true;
                     try {
-                        for (ModuleRow row : modules) for (PermissionEntry p : row.permissions())
-                            p.allowed().set(source.getOrDefault(permissionKey(row.meta().key(), p.action()), false));
+                        for (ModuleRow row : modules) {
+                            if (!row.isSubscribed()) continue;
+                            for (PermissionEntry p : row.permissions())
+                                p.allowed().set(source.getOrDefault(permissionKey(row.meta().key(), p.action()), false));
+                        }
                     } finally { loading = false; }
                     lblHint.setText("Copied " + sourceRole + " permissions as unsaved changes. Review before saving.");
                     permissionsChanged();
@@ -488,8 +481,9 @@ public class PermissionMatrixController implements ScreenLifecycle {
         String role = cmbRole.getValue();
         if (!canEdit() || role == null) return;
         long users = roleUserCounts.getOrDefault(role.toUpperCase(Locale.ROOT), 0L);
-        if (!AppDialogService.confirm(root, "Save Permissions", "Apply permission changes to " + role + "?",
-                "This updates access for " + users + (users == 1 ? " user" : " users") + " assigned to this role. The same server-owned matrix is used in LOCAL and company-server modes.")) return;
+        String displayRole = roleDisplayNames.getOrDefault(role.toUpperCase(Locale.ROOT), role);
+        if (!AppDialogService.confirm(root, "Save Permissions", "Apply permission changes to " + displayRole + "?",
+                "This updates access for " + users + (users == 1 ? " user" : " users") + " assigned to this role across both LOCAL and company-server deployments.")) return;
         List<AdminApiClient.PermissionSave> changes = modules.stream().flatMap(row -> row.permissions().stream())
                 .map(p -> new AdminApiClient.PermissionSave(p.id(), p.allowed().get())).toList();
         btnSave.setDisable(true);
@@ -501,8 +495,8 @@ public class PermissionMatrixController implements ScreenLifecycle {
                     btnSave.setDisable(!canEdit());
                     permissionsDirty = false;
                     org.example.navigation.UnsavedChangesManager.markClean(root);
-                    AppDialogService.success(root, "Permissions saved", role + " access has been updated.");
-                    lblHint.setText("Permissions saved for " + role + ".");
+                    AppDialogService.success(root, "Permissions saved", displayRole + " access has been updated.");
+                    lblHint.setText("Permissions saved for " + displayRole + ".");
                 },
                 failure -> { btnSave.setDisable(!canEdit()); showError("Permissions could not be saved", asException(failure)); }
         );
@@ -546,11 +540,11 @@ public class PermissionMatrixController implements ScreenLifecycle {
             this.targets = resolver::apply;
             this.tooltipPrefix = tooltipPrefix;
             check.setAllowIndeterminate(false);
-            check.getStyleClass().add("permission-matrix-check");
+            check.getStyleClass().addAll("permission-matrix-check", "ios-toggle-switch");
             setAlignment(Pos.CENTER);
             check.setOnAction(event -> {
                 MatrixRow item = getItem();
-                if (!(item instanceof ModuleRow row) || !canEdit()) return;
+                if (!(item instanceof ModuleRow row) || !canEdit() || !row.isSubscribed()) return;
                 Collection<PermissionEntry> entries = targets.resolve(row);
                 if (entries.isEmpty()) return;
                 boolean selected = check.isSelected();
@@ -566,6 +560,14 @@ public class PermissionMatrixController implements ScreenLifecycle {
             super.updateItem(item, empty);
             if (empty || item == null || item.group()) { setGraphic(null); return; }
             ModuleRow row = (ModuleRow) item;
+            if (!row.isSubscribed()) {
+                check.setSelected(false);
+                check.setIndeterminate(false);
+                check.setDisable(true);
+                check.setTooltip(new Tooltip("Not Subscribed in Agreement: " + row.meta().label()));
+                setGraphic(check);
+                return;
+            }
             Collection<PermissionEntry> entries = targets.resolve(row);
             if (entries.isEmpty()) {
                 Label dash = new Label("—");
@@ -599,6 +601,11 @@ public class PermissionMatrixController implements ScreenLifecycle {
             Node icon = IconFactory.compactIcon(row.meta().iconKey(), 15);
             HBox box = new HBox(8, icon, label);
             box.setAlignment(Pos.CENTER_LEFT);
+            if (!row.isSubscribed()) {
+                Label lockBadge = new Label("🔒 Not Subscribed in Agreement");
+                lockBadge.getStyleClass().addAll("badge-warning", "badge-compact");
+                box.getChildren().add(lockBadge);
+            }
             setGraphic(box);
         }
     }
@@ -623,7 +630,8 @@ public class PermissionMatrixController implements ScreenLifecycle {
         PermissionEntry permission(String action) { return permissions.get(PermissionCatalog.normalize(action)); }
         Collection<PermissionEntry> permissions() { return permissions.values(); }
         PermissionCatalog.ModuleMeta meta() { return meta; }
-        @Override public boolean group() { return false; }
+        public boolean isSubscribed() { return PermissionService.isModuleSubscribed(meta.key()); }
+        @Override public boolean group() { return true == false; }
         @Override public String label() { return meta.label(); }
     }
 

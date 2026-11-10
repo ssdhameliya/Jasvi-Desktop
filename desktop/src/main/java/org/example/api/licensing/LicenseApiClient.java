@@ -18,6 +18,7 @@ import java.util.Map;
 
 public class LicenseApiClient {
 
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     public record LicenseStatusDto(
             String status,
             String licenseKey,
@@ -28,8 +29,15 @@ public class LicenseApiClient {
             Instant validUntil,
             long daysRemaining,
             boolean isWriteAllowed,
-            String message
-    ) {}
+            String message,
+            java.util.List<String> features
+    ) {
+        public LicenseStatusDto(String status, String licenseKey, String companyName, String machineId,
+                                String currentMachineId, String tier, Instant validUntil, long daysRemaining,
+                                boolean isWriteAllowed, String message) {
+            this(status, licenseKey, companyName, machineId, currentMachineId, tier, validUntil, daysRemaining, isWriteAllowed, message, java.util.List.of());
+        }
+    }
 
     private final HttpClient http = ApiRuntime.HTTP;
     private final ObjectMapper json = ApiRuntime.JSON;

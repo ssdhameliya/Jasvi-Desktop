@@ -71,4 +71,39 @@ class PermissionArchitectureTest {
             PermissionService.removeChangeListener(listener);
         }
     }
+
+    @Test
+    void everyDashboardProtectedModuleIsRegisteredInCatalogAndGrantedToSuperAdminByDefault() throws Exception {
+        AppUser superAdmin = new AppUser();
+        superAdmin.setUsername("superadmin");
+        superAdmin.setRole("SUPER_ADMIN");
+        SessionService.signIn(superAdmin);
+
+        String dashboardSource = Files.readString(Path.of("src/main/java/org/example/controller/DashboardController.java"));
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?:protect\\([^,]+,\\s*|PermissionService\\.allowed\\(|return\\s+)\"([A-Z0-9_]+)\\.([A-Z0-9_]+)\"")
+                .matcher(dashboardSource);
+
+        List<String> unregisteredModules = new ArrayList<>();
+        List<String> deniedForSuperAdmin = new ArrayList<>();
+
+        while (m.find()) {
+            String module = m.group(1);
+            String permKey = module + "." + m.group(2);
+            var meta = org.example.shared.PermissionCatalog.module(module);
+            if ("Other".equals(meta.category())) {
+                unregisteredModules.add(module);
+            }
+            if (!PermissionService.allowed(permKey) || !PermissionService.isModuleSubscribed(module)) {
+                deniedForSuperAdmin.add(permKey);
+            }
+        }
+
+        assertTrue(unregisteredModules.isEmpty(),
+                "Rule 22 violation: Every Dashboard module must be registered in PermissionCatalog so it appears in Permission Matrix & Subscription Plans: "
+                        + String.join(", ", unregisteredModules));
+        assertTrue(deniedForSuperAdmin.isEmpty(),
+                "Rule 22 violation: SUPER_ADMIN must have default unconditional access to all modules: "
+                        + String.join(", ", deniedForSuperAdmin));
+    }
 }

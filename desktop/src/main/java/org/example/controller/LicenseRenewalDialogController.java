@@ -67,6 +67,7 @@ public class LicenseRenewalDialogController {
 
     private final LicenseApiClient api = new LicenseApiClient();
     private final ObjectMapper json = ApiRuntime.JSON;
+    private volatile LicenseApiClient.LicenseStatusDto currentStatusDto;
     private Dialog<?> hostDialog;
     private String currentUpiUri = "";
     private String supportPhone = "9537544008";
@@ -178,6 +179,7 @@ public class LicenseRenewalDialogController {
 
     private void applyStatus(LicenseApiClient.LicenseStatusDto dto) {
         if (dto == null) return;
+        this.currentStatusDto = dto;
 
         if (lblCompany != null) lblCompany.setText(dto.companyName() != null ? dto.companyName() : "-");
         if (lblTier != null) lblTier.setText(dto.tier() != null ? dto.tier() : "GOLD");
@@ -352,17 +354,30 @@ public class LicenseRenewalDialogController {
 
     @FXML
     private void handleSelfActivateNow() {
+        LicenseApiClient.LicenseStatusDto cur = currentStatusDto;
+        String machineId = HardwareFingerprintUtil.getDisplayMachineId();
+
         String company = (lblCompany != null && !lblCompany.getText().isBlank() && !"-".equals(lblCompany.getText()))
                 ? lblCompany.getText().trim()
-                : "JASVI INDUSTRIES";
-        String machineId = HardwareFingerprintUtil.getDisplayMachineId();
+                : (cur != null && cur.companyName() != null && !cur.companyName().isBlank() ? cur.companyName() : "JASVI INDUSTRIES");
+
+        String tier = (lblTier != null && !lblTier.getText().isBlank() && !"-".equals(lblTier.getText()))
+                ? lblTier.getText().trim().toUpperCase(java.util.Locale.ROOT)
+                : (cur != null && cur.tier() != null && !cur.tier().isBlank() ? cur.tier().toUpperCase(java.util.Locale.ROOT) : "PLATINUM");
+
+        int days = (cur != null && cur.daysRemaining() > 365)
+                ? (int) cur.daysRemaining()
+                : 365;
+
+        int maxUsers = "PLATINUM".equalsIgnoreCase(tier) ? 20 : ("GOLD".equalsIgnoreCase(tier) ? 5 : 1);
 
         Map<String, Object> req = Map.of(
                 "companyName", company,
                 "machineId", machineId,
-                "days", 365,
-                "tier", "GOLD",
-                "maxUsers", 5
+                "machineHash", machineId,
+                "days", days,
+                "tier", tier,
+                "maxUsers", maxUsers
         );
 
         UiTaskExecutor.submitAction(
@@ -376,7 +391,8 @@ public class LicenseRenewalDialogController {
                         }
                         api.activate(licJsonObj);
                         refreshStatus();
-                        AppDialogService.success(btnClose, "Computer Activated", "License activated and locked to this computer successfully!");
+                        AppDialogService.success(btnClose, "Computer Activated",
+                                "License activated and locked to this computer (" + machineId + ") successfully!");
                     } catch (Exception ex) {
                         AppDialogService.error(btnClose, "Activation Error", "Could not activate generated license", ex.getMessage());
                     }

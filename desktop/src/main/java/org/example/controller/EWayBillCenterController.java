@@ -16,6 +16,7 @@ import org.example.api.ApiRuntime;
 import org.example.api.ApiSession;
 import org.example.config.ConfigManager;
 import org.example.navigation.ScreenLifecycle;
+import org.example.service.NotificationService;
 import org.example.util.*;
 
 import java.io.File;
@@ -422,6 +423,9 @@ public class EWayBillCenterController implements ScreenLifecycle {
                 },
                 success -> {
                     AppDialogService.success(tabPane, "E-Way Bill Generated", "E-Way Bill registered and assigned to invoice " + sale.invoiceNumber);
+                    NotificationService.createNotification(NotificationService.Category.EWAY, "E-Way Bill Generated",
+                            "E-Way Bill registered and assigned to invoice " + sale.invoiceNumber, "INFO",
+                            "/fxml/pages/EWayBillCenter.fxml", sale.invoiceNumber);
                     refreshData();
                     tabPane.getSelectionModel().select(tabActiveBills);
                 },

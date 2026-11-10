@@ -9,11 +9,12 @@
       <HBox alignment="CENTER_LEFT" spacing="12" styleClass="approved-page-header,erp-page-identity-header,approved-card">
         <StackPane fx:id="pageIcon" styleClass="erp-page-header-icon"/>
         <VBox spacing="2">
-          <Label text="Purchase Debit Notes Register" styleClass="screen-title"/>
+          <Label text="Purchase Return &amp; Debit Notes" styleClass="screen-title"/>
           <Label text="Manage purchase returns, supplier rate adjustments, and GST input tax credit reversals" wrapText="true" styleClass="screen-subtitle"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button fx:id="btnNewDebitNote" text="New Debit Note" onAction="#createDebitNote" styleClass="primary-action,approved-button,approved-primary-button"/>
+        <Button fx:id="btnScreenGuidance" text="How It Works" onAction="#showHowItWorks" styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnNewDebitNote" text="New Return / Debit Note" onAction="#createDebitNote" styleClass="primary-action,approved-button,approved-primary-button"/>
         <Button fx:id="btnRefresh" text="Refresh" onAction="#refreshData" styleClass="approved-button,approved-secondary-button"/>
       </HBox>
 
@@ -85,6 +86,7 @@
             <TableColumn fx:id="colParty" text="Supplier Name"/>
             <TableColumn fx:id="colInvoiceRef" text="Original Purchase Bill"/>
             <TableColumn fx:id="colReason" text="Reason"/>
+            <TableColumn fx:id="colStock" text="Stock Impact"/>
             <TableColumn fx:id="colTaxable" text="Taxable (₹)"/>
             <TableColumn fx:id="colTax" text="ITC Reversal (₹)"/>
             <TableColumn fx:id="colTotal" text="Total Amount (₹)"/>

@@ -132,6 +132,19 @@
 .dse-dialog-pane.dse-dialog-workspace .dse-dialog-body {
     -fx-padding: 0 20 18 20;
 }
+.dse-dialog-pane.dse-dialog-workspace.dse-dialog-auto-height .dse-dialog-shell {
+    -fx-min-width: 980;
+    -fx-pref-width: -1;
+    -fx-min-height: -1;
+    -fx-pref-height: -1;
+}
+.dse-dialog-pane.dse-dialog-workspace.dse-dialog-auto-height .dse-dialog-header {
+    -fx-padding: 12 20 10 20;
+}
+.dse-dialog-pane.dse-dialog-workspace.dse-dialog-auto-height .dse-dialog-body {
+    -fx-padding: 0 20 12 20;
+    -fx-spacing: 8;
+}
 
 /* Light presentation */
 .dse-theme-light.dse-dialog-pane .dse-dialog-shell,

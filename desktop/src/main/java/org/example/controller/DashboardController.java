@@ -46,6 +46,9 @@ import javafx.stage.StageStyle;
 import javafx.stage.Screen;
 import javafx.scene.Node;
 import javafx.scene.Cursor;
+import javafx.scene.shape.Circle;
+import org.example.api.sync.OfflineSyncWorker;
+import org.example.api.sync.NetworkConnectivityService;
 import javafx.application.Platform;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -208,6 +211,10 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML
     private Label lblClock;
+    @FXML private HBox shellSyncStatusCard;
+    @FXML private Circle syncStatusIndicator;
+    @FXML private Label lblSyncStatus;
+    @FXML private Label lblSyncPendingPill;
     @FXML private HBox shellActivityCard;
     @FXML private ProgressIndicator shellActivitySpinner;
     @FXML private Label lblActivityStatus;
@@ -258,6 +265,8 @@ public class DashboardController implements ScreenLifecycle {
 
         ClockService.start(lblClock);
         initializeActivityIndicator();
+        initializeSyncStatusIndicator();
+        OfflineSyncWorker.getInstance().triggerSyncNow();
         // Company details do not change every second. Refreshing the complete
         // footer from the clock listener caused repeated ConfigManager reads and
         // layout pulses, especially on macOS Retina displays.
@@ -342,7 +351,7 @@ public class DashboardController implements ScreenLifecycle {
                 NavigationManager.prewarmPage("/fxml/pages/Quotations.fxml");
                 NavigationManager.prewarmPage("/fxml/pages/QuotationEditor.fxml");
                 NavigationManager.prewarmPage("/fxml/pages/Inventory.fxml");
-                NavigationManager.prewarmPage("/fxml/pages/DeliveryChallan.fxml");
+                NavigationManager.prewarmPage("/fxml/pages/CreditNoteRegister.fxml");
                 java.util.concurrent.CompletableFuture.runAsync(() -> {
                     try {
                         new org.example.api.master.MasterApiClient().items();
@@ -563,6 +572,63 @@ public class DashboardController implements ScreenLifecycle {
         });
     }
 
+    private void initializeSyncStatusIndicator() {
+        if (shellSyncStatusCard == null || lblSyncStatus == null) return;
+        Tooltip.install(shellSyncStatusCard, new Tooltip("Workstation Network & Cloud Sync Status (Click to re-check)"));
+
+        OfflineSyncWorker worker = OfflineSyncWorker.getInstance();
+        lblSyncStatus.textProperty().bind(worker.syncStatusMessageProperty());
+
+        worker.syncStatusMessageProperty().addListener((obs, oldVal, newVal) -> {
+            Platform.runLater(() -> updateSyncBadgeStyle(newVal));
+        });
+        updateSyncBadgeStyle(worker.syncStatusMessageProperty().get());
+
+        worker.pendingCountProperty().addListener((obs, oldVal, newVal) -> {
+            Platform.runLater(() -> {
+                int count = newVal == null ? 0 : newVal.intValue();
+                if (lblSyncPendingPill != null) {
+                    if (count > 0) {
+                        lblSyncPendingPill.setText(String.valueOf(count));
+                        lblSyncPendingPill.setVisible(true);
+                        lblSyncPendingPill.setManaged(true);
+                    } else {
+                        lblSyncPendingPill.setVisible(false);
+                        lblSyncPendingPill.setManaged(false);
+                    }
+                }
+            });
+        });
+    }
+
+    private void updateSyncBadgeStyle(String status) {
+        if (shellSyncStatusCard == null || syncStatusIndicator == null) return;
+        shellSyncStatusCard.getStyleClass().removeAll("sync-card-online", "sync-card-offline", "sync-card-syncing", "sync-card-awaiting");
+        syncStatusIndicator.getStyleClass().removeAll("sync-indicator-online", "sync-indicator-offline", "sync-indicator-syncing", "sync-indicator-awaiting");
+
+        if (status == null || status.isBlank() || status.contains("Synced") || status.contains("Online")) {
+            shellSyncStatusCard.getStyleClass().add("sync-card-online");
+            syncStatusIndicator.getStyleClass().add("sync-indicator-online");
+        } else if (status.contains("Offline") || status.contains("Pending")) {
+            shellSyncStatusCard.getStyleClass().add("sync-card-offline");
+            syncStatusIndicator.getStyleClass().add("sync-indicator-offline");
+        } else if (status.contains("Sync") || status.contains("Synchronizing")) {
+            shellSyncStatusCard.getStyleClass().add("sync-card-syncing");
+            syncStatusIndicator.getStyleClass().add("sync-indicator-syncing");
+        } else {
+            shellSyncStatusCard.getStyleClass().add("sync-card-awaiting");
+            syncStatusIndicator.getStyleClass().add("sync-indicator-awaiting");
+        }
+    }
+
+    @FXML
+    private void handleSyncCardClick() {
+        Thread.startVirtualThread(() -> {
+            NetworkConnectivityService.getInstance().checkNowAsync();
+            OfflineSyncWorker.getInstance().triggerSyncNow();
+        });
+    }
+
     private void refreshCompanyFooter() {
         if (lblCompanyFooter == null) return;
         UiTaskExecutor.submitLatest("dashboard-company-footer",
@@ -610,9 +676,11 @@ public class DashboardController implements ScreenLifecycle {
         protect(btnCustomer, "CUSTOMERS.VIEW"); protect(btnSupplier, "SUPPLIERS.VIEW");
         protect(btnMasters, "MASTERS.VIEW"); protect(btnReports, "REPORTS.VIEW");
         protect(btnReminders, "REMINDERS.VIEW"); protect(btnUserAccess, "USERS.VIEW");
-        protect(btnAuditTrail, "AUDIT.GLOBAL"); protect(btnBackup, "BACKUP.VIEW");
+        if (btnAuditTrail != null) btnAuditTrail.setDisable(!(PermissionService.allowed("AUDIT.VIEW") || PermissionService.allowed("AUDIT.GLOBAL")));
+        protect(btnBackup, "BACKUP.VIEW");
         protect(btnSettings, "SETTINGS.VIEW"); protect(btnSafeRollback, "SAFE_ROLLBACK.VIEW");
         protect(btnDocumentStudio, "DOCUMENT_STUDIO.VIEW"); protect(btnImport, "IMPORT.VIEW");
+        protect(btnCommunication, "COMMUNICATION.VIEW");
         protect(btnGeneralLedger, "GENERAL_LEDGER.VIEW");
         protect(btnFinancialStatements, "FINANCIAL_STATEMENTS.VIEW");
         protect(btnAgingAnalysis, "AGING_ANALYSIS.VIEW");
@@ -626,9 +694,10 @@ public class DashboardController implements ScreenLifecycle {
         boolean quotationAllowed = PermissionService.allowed("QUOTATION.VIEW");
         boolean creditAllowed = PermissionService.allowed("CREDIT_NOTE.VIEW");
         if (btnSales != null) btnSales.setDisable(!(salesAllowed || quotationAllowed || creditAllowed));
-        for (Button child : new Button[]{btnSalesRegister, btnCreateSale, btnSalesReturn}) {
+        for (Button child : new Button[]{btnSalesRegister, btnCreateSale}) {
             if (child != null) child.setDisable(!salesAllowed);
         }
+        if (btnSalesReturn != null) btnSalesReturn.setDisable(!creditAllowed);
         if (btnQuotation != null) btnQuotation.setDisable(!quotationAllowed);
         if (btnCreditNote != null) btnCreditNote.setDisable(!creditAllowed);
 
@@ -636,9 +705,10 @@ public class DashboardController implements ScreenLifecycle {
         boolean purchaseAllowed = PermissionService.allowed("PURCHASE.VIEW");
         boolean debitAllowed = PermissionService.allowed("DEBIT_NOTE.VIEW");
         if (btnPurchase != null) btnPurchase.setDisable(!(purchaseAllowed || debitAllowed));
-        for (Button child : new Button[]{btnPurchaseRegister, btnCreatePurchase, btnPurchaseReturn}) {
+        for (Button child : new Button[]{btnPurchaseRegister, btnCreatePurchase}) {
             if (child != null) child.setDisable(!purchaseAllowed);
         }
+        if (btnPurchaseReturn != null) btnPurchaseReturn.setDisable(!debitAllowed);
         if (btnDebitNote != null) btnDebitNote.setDisable(!debitAllowed);
 
         // Purchase Recon is a server-backed reconciliation domain with its own permissions.
@@ -658,28 +728,27 @@ public class DashboardController implements ScreenLifecycle {
         if (btnClientsDirectory != null) btnClientsDirectory.setDisable(!tallyAllowed);
         if (btnClientTemplate != null) btnClientTemplate.setDisable(!tallyAllowed);
 
-        // Finance & Accounts accordion: Admin has full access. For other roles, keep available if GL, Financial Statements, or Aging Analysis is permitted.
-        boolean isAdmin = SessionService.isAdmin();
-        boolean glEnabled = isAdmin || ConfigManager.getBoolean("module.gl.enabled", ConfigManager.getBoolean("accounting.gl.enabled", true));
-        boolean glAllowed = isAdmin || (PermissionService.allowed("GENERAL_LEDGER.VIEW") && glEnabled);
-        boolean finAllowed = isAdmin || PermissionService.allowed("FINANCIAL_STATEMENTS.VIEW");
-        boolean agingAllowed = isAdmin || PermissionService.allowed("AGING_ANALYSIS.VIEW");
+        // Finance & Accounts accordion: Super Admin has full access. Admin and other roles obey Permission Matrix.
+        boolean isSuperAdmin = SessionService.isSuperAdmin();
+        boolean glEnabled = isSuperAdmin || ConfigManager.getBoolean("module.gl.enabled", ConfigManager.getBoolean("accounting.gl.enabled", true));
+        boolean glAllowed = isSuperAdmin || (PermissionService.allowed("GENERAL_LEDGER.VIEW") && glEnabled);
+        boolean finAllowed = isSuperAdmin || PermissionService.allowed("FINANCIAL_STATEMENTS.VIEW");
+        boolean agingAllowed = isSuperAdmin || PermissionService.allowed("AGING_ANALYSIS.VIEW");
         if (btnFinance != null) btnFinance.setDisable(!(glAllowed || finAllowed || agingAllowed));
         if (btnGeneralLedger != null) btnGeneralLedger.setDisable(!glAllowed);
         if (btnFinancialStatements != null) btnFinancialStatements.setDisable(!finAllowed);
         if (btnAgingAnalysis != null) btnAgingAnalysis.setDisable(!agingAllowed);
 
-        // GST & Compliance accordion: Admin has full access. For other roles, keep available if GST or E-Way Bill is permitted.
-        boolean gstEnabled = isAdmin || ConfigManager.getBoolean("module.gst.enabled", ConfigManager.getBoolean("compliance.gst.enabled", true));
-        boolean gstAllowed = isAdmin || (PermissionService.allowed("GST_COMPLIANCE.VIEW") && gstEnabled);
-        boolean ewayAllowed = isAdmin || PermissionService.allowed("EWAY_BILL.VIEW");
+        // GST & Compliance accordion: Super Admin has full access. Admin and other roles obey Permission Matrix.
+        boolean gstEnabled = isSuperAdmin || ConfigManager.getBoolean("module.gst.enabled", ConfigManager.getBoolean("compliance.gst.enabled", true));
+        boolean gstAllowed = isSuperAdmin || (PermissionService.allowed("GST_COMPLIANCE.VIEW") && gstEnabled);
+        boolean ewayAllowed = isSuperAdmin || PermissionService.allowed("EWAY_BILL.VIEW");
         if (btnGst != null) btnGst.setDisable(!(gstAllowed || ewayAllowed));
         if (btnGstCompliance != null) btnGstCompliance.setDisable(!gstAllowed);
         if (btnEWayBill != null) btnEWayBill.setDisable(!ewayAllowed);
 
         inheritGroupPermission(btnDocumentStudio, btnPdfStudio, btnExcelStudio);
-        inheritGroupPermission(btnSettings, btnSettingsCompany, btnSettingsPayment, btnSettingsInvoice,
-                btnSettingsNotifications, btnSettingsEmail, btnSettingsSecurity, btnSettingsWorkspace, btnSettingsShortcuts, btnSettingsUpdates, btnSettingsModules, btnSettingsShowcase, btnSettingsShowcase);
+        // Settings permissions are managed directly by btnSettings; sub-menu buttons removed from side panel.
     }
 
     private void protect(Button button, String permission) {
@@ -1223,7 +1292,7 @@ public class DashboardController implements ScreenLifecycle {
             case FINANCE -> financeSubmenu;
             case GST -> gstSubmenu;
             case DOCUMENT_STUDIO -> documentStudioSubmenu;
-            case SETTINGS -> settingsSubmenu;
+            case SETTINGS -> null;
             default -> null;
         };
     }
@@ -1237,7 +1306,7 @@ public class DashboardController implements ScreenLifecycle {
             case FINANCE -> lblFinanceChevron;
             case GST -> lblGstChevron;
             case DOCUMENT_STUDIO -> lblDocumentStudioChevron;
-            case SETTINGS -> lblSettingsChevron;
+            case SETTINGS -> null;
             default -> null;
         };
     }
@@ -1251,7 +1320,7 @@ public class DashboardController implements ScreenLifecycle {
             case FINANCE -> btnFinance;
             case GST -> btnGst;
             case DOCUMENT_STUDIO -> btnDocumentStudio;
-            case SETTINGS -> btnSettings;
+            case SETTINGS -> null;
             default -> null;
         };
     }
@@ -1271,10 +1340,8 @@ public class DashboardController implements ScreenLifecycle {
             return NavGroup.GST;
         if (button == btnDocumentStudio || button == btnPdfStudio || button == btnExcelStudio)
             return NavGroup.DOCUMENT_STUDIO;
-        if (button == btnSettings || button == btnSettingsCompany || button == btnSettingsPayment
-                || button == btnSettingsInvoice || button == btnSettingsNotifications || button == btnSettingsEmail || button == btnSettingsSecurity
-                || button == btnSettingsWorkspace || button == btnSettingsShortcuts || button == btnSettingsUpdates || button == btnSettingsModules || button == btnSettingsShowcase)
-            return NavGroup.SETTINGS;
+        if (button == btnSettings)
+            return NavGroup.NONE;
         String path = fxmlPath == null ? "" : fxmlPath.toLowerCase(Locale.ROOT);
         if (path.contains("quotation") || path.contains("saleslist") || path.contains("salesreturns") || path.contains("creditnoteregister") || path.endsWith("/sale.fxml")) return NavGroup.SALES;
         if (path.contains("purchaselist") || path.contains("purchasereturns") || path.contains("debitnoteregister") || path.endsWith("/purchase.fxml")) return NavGroup.PURCHASE;
@@ -1283,7 +1350,7 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("generalledger") || path.contains("financialstatements") || path.contains("aginganalysis")) return NavGroup.FINANCE;
         if (path.contains("gstcompliance") || path.contains("ewaybill")) return NavGroup.GST;
         if (path.contains("documentstudio") || path.contains("pdfdesigner") || path.contains("exceldesigner")) return NavGroup.DOCUMENT_STUDIO;
-        if (path.contains("settings")) return NavGroup.SETTINGS;
+        if (path.contains("settings")) return NavGroup.NONE;
         return NavGroup.NONE;
     }
 
@@ -1399,6 +1466,11 @@ public class DashboardController implements ScreenLifecycle {
             hideHoverPeekSidebar();
         }
 
+        if (fxmlPath != null && fxmlPath.toLowerCase(Locale.ROOT).contains("clientregistry") && !SessionService.isSuperAdmin()) {
+            new OwnedAlert(Alert.AlertType.WARNING, "Access denied: Master Client Registry is restricted to Super Admin.").showAndWait();
+            return;
+        }
+
         String requiredPermission = permissionForPage(fxmlPath);
         if (requiredPermission != null && !PermissionService.allowed(requiredPermission)) {
             new OwnedAlert(Alert.AlertType.WARNING, "You do not have permission to open " + pageTitle + ". Required: " + requiredPermission).showAndWait();
@@ -1416,18 +1488,22 @@ public class DashboardController implements ScreenLifecycle {
 
     private String permissionForPage(String fxmlPath) {
         String path = fxmlPath == null ? "" : fxmlPath.toLowerCase(Locale.ROOT);
+        if (path.contains("profile.fxml") || path.contains("notificationcenter") || path.contains("globalsearch")) return null;
         if (path.contains("dashboardhome")) return "DASHBOARD.VIEW";
         if (path.contains("quotation")) return "QUOTATION.VIEW";
         if (path.contains("saleslist") || path.contains("salesreturns") || path.endsWith("/sale.fxml")) return "SALES.VIEW";
-        if (path.contains("purchaselist") || path.contains("purchasereturns") || path.endsWith("/purchase.fxml")) return "PURCHASE.VIEW";
+        if (path.contains("purchaselist") || path.contains("purchaserurns") || path.contains("purchasereturns") || path.endsWith("/purchase.fxml")) return "PURCHASE.VIEW";
         if (path.contains("itemmaster") || path.contains("inventory")) return "INVENTORY.VIEW";
         if (path.contains("customer.fxml")) return "CUSTOMERS.VIEW";
         if (path.contains("suppliers.fxml")) return "SUPPLIERS.VIEW";
         if (path.contains("masterdata")) return "MASTERS.VIEW";
-        if (path.contains("reports")) return "REPORTS.VIEW";
+        if (path.contains("reports") || path.contains("reportviewer")) return "REPORTS.VIEW";
         if (path.contains("reminder")) return "REMINDERS.VIEW";
-        if (path.contains("useraccess")) return "USERS.VIEW";
+        if (path.contains("rolemanagement")) return PermissionService.allowed("USERS.MANAGE_ROLES") ? "USERS.MANAGE_ROLES" : "USERS.VIEW";
+        if (path.contains("permissionmatrix")) return PermissionService.allowed("USERS.MANAGE_PERMISSIONS") ? "USERS.MANAGE_PERMISSIONS" : "USERS.VIEW";
+        if (path.contains("registrationapprovals") || path.contains("useraccess")) return "USERS.VIEW";
         if (path.contains("backuprestore")) return "BACKUP.VIEW";
+        if (path.contains("emailsettings")) return PermissionService.allowed("COMMUNICATION.VIEW") ? "COMMUNICATION.VIEW" : "SETTINGS.VIEW";
         if (path.contains("settings")) return "SETTINGS.VIEW";
         if (path.contains("saferollback")) return "SAFE_ROLLBACK.VIEW";
         if (path.contains("documentstudio") || path.contains("pdfdesigner") || path.contains("exceldesigner")) return "DOCUMENT_STUDIO.VIEW";
@@ -1436,7 +1512,7 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("bankexpense") || path.contains("bankstatement")) return "BANK_EXPENSE.VIEW";
         if (path.contains("purchaserecon")) return "PURCHASE_RECON.VIEW";
         if (path.contains("reconsupplier")) return "RECON_SUPPLIER.VIEW";
-        if (path.contains("billtotally")) return "TALLY.VIEW";
+        if (path.contains("billtotally") || path.contains("clientsdirectory") || path.contains("clienttemplate")) return "TALLY.VIEW";
         if (path.contains("generalledger")) return "GENERAL_LEDGER.VIEW";
         if (path.contains("financialstatements")) return "FINANCIAL_STATEMENTS.VIEW";
         if (path.contains("aginganalysis")) return "AGING_ANALYSIS.VIEW";
@@ -1445,7 +1521,7 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("gstcompliance")) return "GST_COMPLIANCE.VIEW";
         if (path.contains("ewaybillcenter") || path.contains("ewaybill")) return "EWAY_BILL.VIEW";
         if (path.contains("barcodestudio")) return "BARCODE.VIEW";
-        if (path.contains("globalaudit")) return "AUDIT.GLOBAL";
+        if (path.contains("globalaudit")) return PermissionService.allowed("AUDIT.VIEW") ? "AUDIT.VIEW" : "AUDIT.GLOBAL";
         if (path.contains("customer360")) return "CUSTOMERS.VIEW";
         if (path.contains("supplier360")) return "SUPPLIERS.VIEW";
         if (path.contains("automationcenter")) return "AUTOMATION.VIEW";
@@ -1653,8 +1729,8 @@ public class DashboardController implements ScreenLifecycle {
         javafx.application.Platform.runLater(c::createQuotationFromShortcut);
     }
     @FXML private void createPurchase() { openPage(btnCreatePurchase, "Create Purchase", "/fxml/pages/Purchase.fxml"); }
-    @FXML private void openReturns() { openPage(btnSalesReturn, "Sales Return Register", "/fxml/pages/SalesReturns.fxml"); }
-    @FXML private void openPurchaseReturns() { openPage(btnPurchaseReturn, "Purchase Return", "/fxml/pages/PurchaseReturns.fxml"); }
+    @FXML private void openReturns() { openCreditNotes(); }
+    @FXML private void openPurchaseReturns() { openDebitNotes(); }
     @FXML private void openReminderCenter() {
         openPage(btnReminders, "Reminder Center", "/fxml/pages/ReminderCenter.fxml");
         refreshReminderBadge();
@@ -1720,7 +1796,7 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML
     private void openSettings() {
-        openSettingsSection(btnSettingsCompany, SettingsController.Section.COMPANY, "Company & Billing");
+        openPage(btnSettings, "Settings", "/fxml/pages/Settings.fxml");
     }
 
     @FXML private void openSettingsCompany() {
@@ -1780,11 +1856,11 @@ public class DashboardController implements ScreenLifecycle {
     }
 
     @FXML private void openCreditNotes() {
-        openPage(btnCreditNote, "Sales Credit Notes", "/fxml/pages/CreditNoteRegister.fxml");
+        openPage(btnCreditNote, "Sales Return & Credit Notes", "/fxml/pages/CreditNoteRegister.fxml");
     }
 
     @FXML private void openDebitNotes() {
-        openPage(btnDebitNote, "Purchase Debit Notes", "/fxml/pages/DebitNoteRegister.fxml");
+        openPage(btnDebitNote, "Purchase Return & Debit Notes", "/fxml/pages/DebitNoteRegister.fxml");
     }
 
     @FXML private void openGstCompliance() {

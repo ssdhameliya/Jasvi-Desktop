@@ -1,6 +1,68 @@
+# What's New in DSE ERP v11.0.55
+
+### Agreement-Based Dynamic Licensing, Super Admin Custom Entitlements & Two-Tier Authority Engine
+- **Super Admin Custom Agreement Feature Matrix (`ClientRegistryController`, `ClientRegistry.fxml`) (Rule 4, Rule 5, Rule 8, Rule 9 & Rule 17)**:
+  - Upgraded Client Registration and Renewal in Super Admin Client Registry with an interactive dynamic Feature Entitlement Matrix.
+  - Allows Super Admin to choose a starting plan template (`TRIAL`, `SILVER`, `GOLD`, `PLATINUM`, `CUSTOM`), customize user seats quota and validity duration, and independently toggle individual capabilities (`CORE_FINANCE`, `PRINT_EXPORT`, `DATA_IMPORTER`, `EWAY_BILL`, `CLOUD_BACKUP`, `WHATSAPP_ROUTING`, `BANK_RECON`, `TALLY_SYNC`, `MULTI_BRANCH`, `OFFLINE_SYNC`).
+- **Cryptographic Ed25519 Custom Feature Array Tokenization (`ClientRegistryService`, `LicenseVerifierService`, `LicensePayload`) (Rule 4, Rule 10 & Rule 17)**:
+  - Embedded contract-negotiated feature tags into cryptographic `LicensePayload`, signed with Ed25519 private keys.
+  - Exposes `features` in `LicenseStatus` and validates feature authorization before allowing module execution.
+- **Two-Tier Access Enforcement & Permission Matrix Protection (`PermissionService`, `PermissionMatrixController`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Re-architected `PermissionService.allowed(permissionKey)` to enforce the Two-Key rule: Company Subscription Entitlement ∩ User Role RBAC.
+  - In `PermissionMatrixController`, unsubscribed modules are locked and badged (`[🔒 Not Subscribed in Agreement]`), preventing local company admins from assigning unpurchased features to employees.
+- **Content-Adaptive Agreement Upgrade Shield Dialog (`AgreementUpgradeShieldDialog`) (Rule 5, Rule 11 & Rule 12)**:
+  - Non-intrusive modal shield providing clear feature explanation and direct 1-click WhatsApp upgrade request targeting Jasvi Support (`+91 95375 44008`).
+- **Full-Width iOS Toggle Permission Matrix & Hierarchical Role Governance (`PermissionMatrix.fxml`, `PermissionMatrixController`, `AdminService`, `PermissionAuthorityService`, `PermissionService`, `DashboardController`, `light-theme.css`, `dark-theme.css`) (Rule 4, Rule 5, Rule 7, Rule 11 & Rule 12)**:
+  - Removed the redundant right-side `Effective Access Preview` panel and `SplitPane`, expanding the Permission Matrix table to 100% full viewport width and relocating `Back to Roles`, `Reset Changes`, and `Save Permissions` into the top header bar.
+  - Replaced all cell checkboxes, column header batch toggles, and filter checkboxes with iPhone/iOS-style sliding toggle switches (`.ios-toggle-switch` — Emerald Green ON, Slate OFF, Muted Locked when not in plan) across both Light and Dark themes.
+  - Enforced strict 3-tier role governance: `SUPER_ADMIN` has 100% unrestricted access and governs only `Company Administrator (ADMIN)`; `ADMIN` obeys the ceiling granted by `SUPER_ADMIN`, has zero visibility into `SUPER_ADMIN` screens (`ClientRegistry.fxml`), and governs operational staff roles (`MANAGER`, `SALES`, `PURCHASE`, etc.).
+  - Closed all 4 screen navigation coverage gaps (`ClientsDirectory.fxml`, `ClientTemplate.fxml`, `RoleManagement.fxml`, `PermissionMatrix.fxml`, `RegistrationApprovals.fxml`, `EmailSettings.fxml`, `GlobalAudit.fxml`) while keeping `Profile.fxml` (`My Profile`) and personal notifications universally accessible by default to all signed-in users.
+  - Upgraded plan feature resolution across `ClientRegistryController`, `PermissionService`, `ClientRegistryService`, and `LicenseVerifierService` to query user-defined plans dynamically from `licensing_plan` in PostgreSQL.
+
+- **Autonomous Deep Defect Remediation & Screen Navigation Hardening (`SalesDocumentInspectionDialog`, `DashboardController`, `app.js`) (Rule 4, Rule 5, Rule 10 & Rule 12)**:
+  - Corrected broken sales editor navigation in `SalesDocumentInspectionDialog.java`: aligned target FXML from non-existent `/fxml/pages/Sales.fxml` to authentic `/fxml/pages/Sale.fxml`, eliminating `IllegalStateException` crashes on invoice inspection.
+  - Eliminated stale prewarm reference in `DashboardController.java`: replaced non-existent `/fxml/pages/DeliveryChallan.fxml` with high-frequency `/fxml/pages/CreditNoteRegister.fxml`.
+  - Optimized Web Admin boot performance in `Jasvi-Admin/js/app.js`: removed speculative 404 request to `/api/settings/company` by directly fetching `/api/support/settings?prefix=company.`.
+
+- **Side Panel Streamlining, Distinct Semantic Category Styling & Zero-Scroll Payment QR Architecture (`Dashboard.fxml`, `DashboardController`, `PaymentSettingsPanel.fxml`, `IconFactory`, `UiSemanticRegistry`, `light-theme.css`, `dark-theme.css`) (Rule 4, Rule 5, Rule 7, Rule 8, Rule 9 & Rule 12)**:
+  - Removed the redundant 11-button collapsible sub-menu under `Settings` on the side panel, eliminating vertical sidebar clutter and making Settings a clean, direct single-click navigation.
+  - Modernized the Settings category navigation strip with distinct, vibrant semantic colors across all 12 tabs: Company & Profile (Blue), Payment & Bank (Cyan), Invoice & Delivery (Orange), Email Configuration (Sky), WhatsApp & WAHA (Emerald Green), Notifications (Amber), Security & Session (Coral), Workspace & Storage (Teal), Keyboard Shortcuts (Purple), Application Updates (Indigo), Module Activation (Pink), and 3D Showcase (Mint), with 100% Light/Dark theme symmetry and zero controller color leaks.
+  - Re-architected `UPI Payment QR Code` in `PaymentSettingsPanel.fxml` into a fluid horizontal layout (135×135 QR box on left, status, wrapping actions, and guidance card on right) and integrated Bank Reconciliation round-off tolerance into Row 2 of the primary bank details grid, shrinking total panel height from ~620px to ~360px and completely eliminating unnecessary vertical scrolling.
+
+- **Unified Sales/Purchase Return & Credit/Debit Note Architecture, Live Statutory Impact Cards & Operational Guidance (`Dashboard.fxml`, `DashboardController`, `CreditNoteRegister.fxml`, `CreditNoteRegisterController`, `DebitNoteRegister.fxml`, `DebitNoteRegisterController`, `ScreenGuidanceRegistry`) (Rule 4, Rule 5, Rule 7, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - Eliminated navigation redundancy and operational double entry by consolidating separate Return and Note menus into single, unified enterprise registers: **`Sales Return / Credit Note`** and **`Purchase Return / Debit Note`**.
+  - Enhanced Note creation dialogs with a clear operational category selector: **`Physical Goods Return (Restock items into Inventory)`** vs. **`Price / Rate / Discount Adjustment (Financial Only — No Stock Movement)`**.
+  - Added dedicated semantic **`Stock Impact`** column and badges (📦 `Restocked` / `Deducted` vs. 🚫 `Financial Only`), maintaining 100% General Ledger journal automation, GST tax reversals, and 1-click invoice offset capabilities.
+  - **Live Dynamic Reason Guidance Callout Box (`lblReasonHelp`)**: Displays instant statutory and warehouse explanations whenever an operator selects a reason (e.g. damaged goods vs. rate difference vs. post-sale discount vs. clerical correction).
+  - **Live Statutory & Ledger Impact Summary Card (`impactCard`)**: Calculates and previews real-time stock movement, customer/supplier ledger balance adjustments, and exact statutory GST reversals (GSTR-1 Table 9B Output Tax reversal for Credit Notes; GSTR-3B Table 4B(2) Input Tax Credit reversal for Debit Notes).
+  - **Pre-Dispatch Error-Prevention Confirmation Modal**: Prompts the user with a comprehensive itemized summary of Party, Amounts, Stock Movement, and GST Reversal before creating any note, ensuring zero operator errors.
+  - **Comprehensive Screen Guidance Integration**: Registered `"CREDIT_NOTE"` and `"DEBIT_NOTE"` operational blueprints in `ScreenGuidanceRegistry` and surfaced them via dedicated `[ How It Works ]` header buttons in both registers.
+
+- **Super Admin Dynamic Subscription Plans with iOS Module Toggles, Unconditional Super Admin Access & Rule 22 Screen Registration Safeguard (`PermissionCatalog`, `PermissionService`, `AdminService`, `ClientRegistryController`, `ClientRegistryService`, `LicenseVerifierService`, `DashboardController`, `PermissionArchitectureTest`) (Rule 4, Rule 5, Rule 8, Rule 9, Rule 10, Rule 12 & Rule 17)**:
+  - Replaced the free-text `Features` field and legacy checkboxes in Add/Edit Plan and Register/Edit Client with categorized iPhone/iOS ON/OFF module toggles and a master `Turn All Modules ON / OFF` switch, driven entirely by `PermissionCatalog.subscriptionModules()` with zero hardcoded module lists.
+  - `SUPER_ADMIN` is now never blocked by client subscription tiers (fixes `Bill to Tally`, `Data Import`, `Communication` and `Document Studio` access denials for the platform creator).
+  - `AdminService.ensurePermissions()` automatically seeds every catalog module into the Permission Matrix and grants it to `SUPER_ADMIN`; the new `PermissionArchitectureTest` contract fails the build if any protected screen is missing from the catalog.
+- **Zero-Scroll, Zero-Overlap Plan & Client Access Dialogs (`ClientRegistryController`, `PopupTableWorkspace`, `WindowUtilsFx`, `UiDesignSystem`, `app-dialog.css`, `light-theme.css`, `dark-theme.css`) (Rule 5, Rule 10 & Rule 12)**:
+  - Removed the inner scroll area and laid all modules out in a 4-column compact pill grid inside a wider content-adaptive dialog, so every module is visible at once.
+  - Fixed iOS toggle switches overflowing card edges by excluding `CheckBox`/`RadioButton` from the global icon-button sizing rule.
+- **Standard Actions Menu for Subscription Plans (`ClientRegistryController`, `ClientRegistryApiClient`, server `ClientRegistryController`, `ClientRegistryService`) (Rule 8, Rule 9 & Rule 17)**:
+  - Replaced the single `Edit Plan` button with the standard `Actions` menu: View, Edit, Duplicate / Clone, Add New Plan, Activate / Deactivate and Delete Plan.
+  - Added `DELETE /api/license/registry/plans/{id}` (Super Admin only), which refuses deletion while active clients are assigned to the plan.
+
 # What's New in DSE ERP v11.0.54
 
 ### Ambient Activity Spinner Debounce, Real-Time Bulk Loader Progress, Large-Dataset Pagination & Review Toolbar Modernization
+- **Live Workstation Connectivity & Cloud Sync Status Badge (`DashboardController`, `Dashboard.fxml`, `OfflineSyncWorker`, `SyncApiClient`, `light-theme.css`, `dark-theme.css`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Installed a live network reachability and cloud synchronization status card (`shellSyncStatusCard`) in the top navigation bar header right beside the live business clock.
+  - Features real-time semantic states: 🟢 **`Cloud Synced`** (online with cloud server), 🔴 **`Offline Mode`** (disconnected or unreachable), 🔄 **`Synchronizing…`** (active outbox push), and ⚪ **`Awaiting Sign-in`** (pre-login state).
+  - Displays a dynamic amber queue pill badge (`lblSyncPendingPill`) whenever offline transactions are queued in the outbox awaiting connection restoration.
+  - Interactive click-to-refresh: Clicking the sync badge instantly triggers an asynchronous network reachability probe and sync outbox flush via `NetworkConnectivityService.checkNowAsync()` and `OfflineSyncWorker.triggerSyncNow()`.
+  - Added pre-login session guard in `OfflineSyncWorker.runSyncCycle()`: skips unauthenticated batch push attempts when no user is signed in, eliminating spurious HTTP 401 `AUTH_TOKEN_MISSING` warning events.
+  - Full Light and Dark theme styling parity with semantic status indicator colors and zero controller color leaks.
+- **Plan Paid Details Pop-Up Modal & Full-Height Catalog Expansion (`ClientRegistryController`, `ClientRegistry.fxml`, `IconFactory`) (Rule 5, Rule 11 & Rule 12)**:
+  - Relocated embedded Cloud Commercial & UPI Billing Configuration from Tab 3 into a spacious, resizable 880px pop-up modal dialog launched via the dedicated 'Plan Paid Details' button just before '+ Add New Plan'.
+  - The Commercial Subscription Plans catalog table now expands 100% vertically without requiring any page scrolling on Tab 3.
+  - The modal provides generous 580px+ width and multi-row height for automated WhatsApp response and license issuance templates, ensuring dynamic placeholders (`{CompanyName}`, `{ContactPerson}`, `{MachineId}`, `{ValidUntil}`) and UPI details are completely legible with zero clipping.
 - **Active Loader Breadcrumb & Dynamic Wizard Identity (`ImportController`, `Import.fxml`) (Rule 5, Rule 11 & Rule 12)**:
   - Installed a prominent, colorized active loader badge (`lblActiveLoaderBadge`) in the header next to the page title (e.g. `[🛒 Purchases Loader]`), guaranteeing users always know which loader is selected across Steps 2, 3, and 4.
   - Dynamically updated Step 1 subtitle in the wizard bar (*"Selected: Purchases"*) and step subtitles across mapping and review stages.

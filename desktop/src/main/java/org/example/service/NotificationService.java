@@ -15,7 +15,8 @@ import java.util.regex.Pattern;
 public final class NotificationService {
     public enum Category {
         SALES, PURCHASES, QUOTATIONS, RETURNS, PAYMENTS, INVENTORY, BANKING, REPORTS,
-        REMINDERS, COMMUNICATION, APPROVAL, IMPORTS, BACKUP, UPDATE, SECURITY, SYSTEM
+        REMINDERS, COMMUNICATION, APPROVAL, IMPORTS, BACKUP, UPDATE, SECURITY, SYSTEM,
+        GST, EWAY, TALLY, LEDGER, CRM, BARCODE, LICENSING, SYNC
     }
 
     public record NotificationItem(long id, String title, String message, String severity, String category,
@@ -76,6 +77,14 @@ public final class NotificationService {
         if (text.contains("sale") || text.contains("sales") || text.contains("invoice") || text.contains("customer")) return Category.SALES;
         if (text.contains("application update") || text.contains("software update") || text.contains("update available")
                 || text.contains("new version") || text.contains("updatessettingspanel")) return Category.UPDATE;
+        if (text.contains("gst") || text.contains("gstr") || text.contains("hsn") || text.contains("tax")) return Category.GST;
+        if (text.contains("eway") || text.contains("e-way") || text.contains("transporter") || text.contains("vehicle")) return Category.EWAY;
+        if (text.contains("tally") || text.contains("bill to tally") || text.contains("billtotally")) return Category.TALLY;
+        if (text.contains("ledger") || text.contains("journal") || text.contains("financial statement") || text.contains("balance sheet")) return Category.LEDGER;
+        if (text.contains("customer360") || text.contains("supplier360") || text.contains("credit limit") || text.contains("customer 360")) return Category.CRM;
+        if (text.contains("barcode") || text.contains("label print") || text.contains("qr code")) return Category.BARCODE;
+        if (text.contains("license") || text.contains("licensing") || text.contains("terminal") || text.contains("subscription") || text.contains("client registry")) return Category.LICENSING;
+        if (text.contains("offline sync") || text.contains("sync cycle") || text.contains("telemetry") || text.contains("connectivity")) return Category.SYNC;
         return Category.SYSTEM;
     }
 
@@ -113,6 +122,14 @@ public final class NotificationService {
                 case UPDATE -> "/fxml/pages/Settings.fxml";
                 case SECURITY -> lower.contains("profile") || lower.contains("your account")
                         ? "/fxml/pages/Profile.fxml" : "/fxml/pages/UserAccess.fxml";
+                case GST -> "/fxml/pages/GstComplianceCenter.fxml";
+                case EWAY -> "/fxml/pages/EWayBillCenter.fxml";
+                case TALLY -> "/fxml/pages/BillToTally.fxml";
+                case LEDGER -> "/fxml/pages/GeneralLedger.fxml";
+                case CRM -> "/fxml/pages/Customer360.fxml";
+                case BARCODE -> "/fxml/pages/BarcodeStudio.fxml";
+                case LICENSING -> "/fxml/pages/ClientRegistry.fxml";
+                case SYNC -> "/fxml/pages/Dashboard.fxml";
                 case SYSTEM -> "";
             };
         }
@@ -136,6 +153,14 @@ public final class NotificationService {
         if(target.contains("backup")||target.contains("rollback")) return "BACKUP";
         if(target.contains("reminder")) return "REMINDERS";
         if(target.contains("communication")) return "COMMUNICATION";
+        if(target.contains("gst")) return "GST";
+        if(target.contains("eway")) return "EWAY";
+        if(target.contains("tally")) return "TALLY";
+        if(target.contains("ledger")||target.contains("financialstatement")) return "LEDGER";
+        if(target.contains("customer360")||target.contains("supplier360")) return "CRM";
+        if(target.contains("barcode")) return "BARCODE";
+        if(target.contains("clientregistry")||target.contains("license")) return "LICENSING";
+        if(target.contains("sync")) return "SYNC";
         return category==null?"SYSTEM":category.name();
     }
 

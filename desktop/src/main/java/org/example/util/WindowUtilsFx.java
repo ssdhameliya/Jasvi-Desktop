@@ -104,7 +104,7 @@ public final class WindowUtilsFx {
     public static void fitDialogToOwnerScreen(Stage stage, Window owner) {
         if (stage == null) return;
         Rectangle2D screen = visualBoundsFor(owner);
-        double margin = screen.getWidth() < 1100 || screen.getHeight() < 700 ? 16 : 36;
+        double margin = screen.getWidth() < 1100 || screen.getHeight() < 900 ? 12 : 28;
         double maxW = Math.max(320, screen.getWidth() - margin * 2);
         double maxH = Math.max(260, screen.getHeight() - margin * 2);
         stage.setMaxWidth(maxW);
