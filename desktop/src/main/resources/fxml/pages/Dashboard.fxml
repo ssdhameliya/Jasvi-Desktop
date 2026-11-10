@@ -17,7 +17,7 @@
                 <VBox fx:id="salesSubmenu" spacing="1" visible="false" managed="false" styleClass="nav-children">
                     <Button fx:id="btnSalesRegister" text="Sales Register" onAction="#openSales" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnCreateSale" text="Create Sale" onAction="#createSale" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnCreditNote" text="Sales Return / Credit Note" onAction="#openCreditNotes" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnCreditNote" text="Returns &amp; Credit Notes" onAction="#openCreditNotes" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnQuotation" text="Quotations" onAction="#openQuotations" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                 </VBox>
             </VBox>
@@ -31,7 +31,7 @@
                 <VBox fx:id="purchaseSubmenu" spacing="1" visible="false" managed="false" styleClass="nav-children">
                     <Button fx:id="btnPurchaseRegister" text="Purchase Register" onAction="#openPurchase" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnCreatePurchase" text="Create Purchase" onAction="#createPurchase" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
-                    <Button fx:id="btnDebitNote" text="Purchase Return / Debit Note" onAction="#openDebitNotes" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnDebitNote" text="Returns &amp; Debit Notes" onAction="#openDebitNotes" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                 </VBox>
             </VBox>
             <Button fx:id="btnItem" text="Item Master" onAction="#openItemMaster" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>

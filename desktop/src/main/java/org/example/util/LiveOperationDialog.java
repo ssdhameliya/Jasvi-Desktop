@@ -183,9 +183,18 @@ public final class LiveOperationDialog {
                     progressBar.setProgress(1.0);
                     lblStatus.setText("Completed");
                     lblStage.setText("Operation completed successfully");
-                    dialog.close();
-                    if (onSuccess != null) {
-                        onSuccess.accept(result);
+                    if (dialog.isShowing()) {
+                        dialog.setOnHidden(e -> {
+                            if (onSuccess != null) {
+                                onSuccess.accept(result);
+                            }
+                        });
+                        dialog.close();
+                    } else {
+                        dialog.close();
+                        if (onSuccess != null) {
+                            onSuccess.accept(result);
+                        }
                     }
                 });
             } catch (Throwable error) {
@@ -194,12 +203,24 @@ public final class LiveOperationDialog {
                     timer.stop();
                     progressBar.setProgress(0.0);
                     lblStatus.setText("Failed");
-                    dialog.close();
-                    if (onFailure != null) {
-                        onFailure.accept(error);
+                    if (dialog.isShowing()) {
+                        dialog.setOnHidden(e -> {
+                            if (onFailure != null) {
+                                onFailure.accept(error);
+                            } else {
+                                new OwnedAlert(javafx.scene.control.Alert.AlertType.ERROR,
+                                        "Operation failed:\n\n" + error.getMessage()).showAndWait();
+                            }
+                        });
+                        dialog.close();
                     } else {
-                        new OwnedAlert(javafx.scene.control.Alert.AlertType.ERROR,
-                                "Operation failed:\n\n" + error.getMessage()).showAndWait();
+                        dialog.close();
+                        if (onFailure != null) {
+                            onFailure.accept(error);
+                        } else {
+                            new OwnedAlert(javafx.scene.control.Alert.AlertType.ERROR,
+                                    "Operation failed:\n\n" + error.getMessage()).showAndWait();
+                        }
                     }
                 });
             }

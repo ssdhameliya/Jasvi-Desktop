@@ -813,6 +813,13 @@ public final class IconFactory {
         if (button.getStyleClass().contains("square-action")
                 || button.getStyleClass().contains("approved-quick-action")
                 || button.getStyleClass().contains("shortcut-group-button")) return;
+        if (button.getStyleClass().contains("settings-tab-btn")) {
+            button.getStyleClass().removeAll(BUTTON_VARIANTS);
+            button.getStyleClass().remove("erp-action-button");
+            button.getStyleClass().removeIf(style -> style != null && style.startsWith("erp-semantic-"));
+            button.getStyleClass().add("erp-semantic-" + colour(semantic));
+            return;
+        }
 
         button.getStyleClass().removeAll(BUTTON_VARIANTS);
         button.getStyleClass().removeIf(style -> style.startsWith("erp-semantic-"));

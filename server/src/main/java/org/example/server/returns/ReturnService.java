@@ -494,8 +494,6 @@ public class ReturnService {
     private void requireNoOpenReturn(String type, String invoice) {
         Long waiting = jdbc.queryForObject("SELECT COUNT(DISTINCT return_no) FROM return_register WHERE return_type=? AND invoice_no=? AND UPPER(COALESCE(status,''))='PENDING APPROVAL'", Long.class, type, invoice);
         if (waiting != null && waiting > 0) throw new IllegalStateException("A Return for this document is already waiting for Admin approval.");
-        Long unsettled = jdbc.queryForObject("SELECT COUNT(*) FROM (SELECT r.return_no,SUM(COALESCE(r.amount,0)) total,COALESCE((SELECT SUM(rr.amount+COALESCE(rr.rounding_adjustment,0)) FROM return_refund rr WHERE rr.return_no=r.return_no),0) refunded FROM return_register r WHERE r.return_type=? AND r.invoice_no=? AND UPPER(COALESCE(r.status,''))='APPROVED' GROUP BY r.return_no) x WHERE GREATEST(total-refunded,0)>0.01", Long.class, type, invoice);
-        if (unsettled != null && unsettled > 0) throw new IllegalStateException("An approved Return for this document still has a refund/settlement balance. Complete that Return before creating another one.");
     }
 
     private void postReturnStock(String no, boolean sales) {
@@ -756,8 +754,14 @@ public class ReturnService {
 
     private String normalizeType(String type) {
         String normalized = type == null ? "" : type.trim().toUpperCase(Locale.ROOT);
-        if ("SALE RETURN".equals(normalized)) normalized="SALES RETURN";
-        if (!Set.of("SALES RETURN", "PURCHASE RETURN").contains(normalized)) throw new IllegalArgumentException("Return type must be SALES RETURN or PURCHASE RETURN.");
+        if ("SALE".equals(normalized) || "SALES".equals(normalized) || "SALE RETURN".equals(normalized)) {
+            normalized = "SALES RETURN";
+        } else if ("PURCHASE".equals(normalized) || "PURCHASES".equals(normalized)) {
+            normalized = "PURCHASE RETURN";
+        }
+        if (!Set.of("SALES RETURN", "PURCHASE RETURN").contains(normalized)) {
+            throw new IllegalArgumentException("Return type must be SALES RETURN or PURCHASE RETURN.");
+        }
         return normalized;
     }
 

@@ -74,6 +74,13 @@ public final class BusinessClock {
     public static LocalDateTime now() { return LocalDateTime.now(zone()); }
     public static ZonedDateTime zonedNow() { return ZonedDateTime.now(zone()); }
 
+    /** Returns April 1st of the current Indian financial year. */
+    public static LocalDate startOfCurrentFinancialYear() {
+        LocalDate today = today();
+        int startYear = today.getMonthValue() >= 4 ? today.getYear() : today.getYear() - 1;
+        return LocalDate.of(startYear, 4, 1);
+    }
+
     /** Short display label for the saved business timezone, e.g. IST, UTC or GST. */
     public static String zoneAbbreviation() {
         try {

@@ -48,6 +48,11 @@ public class ItemMasterController implements ScreenLifecycle {
     @FXML private TextField txtSearch;
     @FXML private TableView<Item> tableItems;
     @FXML private Label lblRecordCount,lblKpiTotal,lblKpiCategories,lblKpiLowStock,lblKpiValue,lblSelectedCount;
+    @FXML private ComboBox<Integer> cmbPageSize;
+    @FXML private Button btnPrevPage, btnNextPage;
+    @FXML private Label lblPage;
+    private final List<Item> filteredItems = new ArrayList<>();
+    private int currentPage = 0;
     @FXML private Button btnReset,btnRefresh,btnDeleteSelected,btnImportExcel,btnExportExcel;
     @FXML private StackPane itemPageIcon,itemTotalIcon,itemCategoryIcon,itemLowIcon,itemValueIcon;
 
@@ -257,6 +262,17 @@ public class ItemMasterController implements ScreenLifecycle {
         });
         installDetailDrawer();
 
+        if (cmbPageSize != null) {
+            cmbPageSize.getItems().setAll(25, 50, 100, 200);
+            cmbPageSize.setValue(50);
+            cmbPageSize.valueProperty().addListener((o, oldV, newV) -> {
+                currentPage = 0;
+                renderPagedItems();
+            });
+        }
+        if (btnPrevPage != null) btnPrevPage.setGraphic(IconFactory.compactIcon("previous", 14));
+        if (btnNextPage != null) btnNextPage.setGraphic(IconFactory.compactIcon("next", 14));
+
         // initial load
         org.example.util.OperationalUiSupport.focusWorkArea(tableItems);
         loadItems();
@@ -421,19 +437,70 @@ public class ItemMasterController implements ScreenLifecycle {
 
     @Override public void onScreenHidden() { UiTaskExecutor.cancelPrefix("item-master-"); }
 
+    private int getPageSize() {
+        return cmbPageSize != null && cmbPageSize.getValue() != null ? cmbPageSize.getValue() : 50;
+    }
+
+    private void renderPagedItems() {
+        int total = filteredItems.size();
+        int pageSize = getPageSize();
+        int totalPages = (int) Math.ceil((double) total / pageSize);
+        if (totalPages <= 0) totalPages = 1;
+        if (currentPage >= totalPages) currentPage = Math.max(0, totalPages - 1);
+        if (currentPage < 0) currentPage = 0;
+
+        int fromIndex = total == 0 ? 0 : currentPage * pageSize;
+        int toIndex = Math.min(fromIndex + pageSize, total);
+        items.setAll(total == 0 ? List.of() : filteredItems.subList(fromIndex, toIndex));
+
+        clearBulkSelection();
+        if (total == 0) {
+            org.example.util.OperationalUiSupport.showEmpty(tableItems, "No items found", "Create a new item or adjust the current search.");
+        }
+
+        if (lblRecordCount != null) {
+            lblRecordCount.setText(total == 0 ? "Showing 0 items"
+                : "Showing " + (fromIndex + 1) + " to " + toIndex + " of " + total + " items");
+        }
+        if (lblPage != null) {
+            lblPage.setText("Page " + (total == 0 ? 0 : (currentPage + 1)) + " of " + (total == 0 ? 0 : totalPages));
+        }
+        if (btnPrevPage != null) {
+            btnPrevPage.setDisable(currentPage <= 0);
+        }
+        if (btnNextPage != null) {
+            btnNextPage.setDisable(currentPage >= totalPages - 1 || total == 0);
+        }
+    }
+
+    @FXML private void previousPage() {
+        if (currentPage > 0) {
+            currentPage--;
+            renderPagedItems();
+        }
+    }
+
+    @FXML private void nextPage() {
+        int totalPages = (int) Math.ceil((double) filteredItems.size() / getPageSize());
+        if (currentPage < totalPages - 1) {
+            currentPage++;
+            renderPagedItems();
+        }
+    }
+
     /** Filters the already loaded master list without an API call per keystroke. */
     private void applyLocalFilter() {
         String query = txtSearch.getText() == null ? "" : txtSearch.getText().trim().toLowerCase(Locale.ROOT);
-        items.setAll(allItems.stream()
+        filteredItems.clear();
+        filteredItems.addAll(allItems.stream()
             .filter(item -> query.isEmpty()
                 || (item.getItemCode() != null && item.getItemCode().toLowerCase(Locale.ROOT).contains(query))
                 || (item.getDescription() != null && item.getDescription().toLowerCase(Locale.ROOT).contains(query))
                 || (item.getCategory() != null && item.getCategory().toLowerCase(Locale.ROOT).contains(query))
                 || (item.getBrand() != null && item.getBrand().toLowerCase(Locale.ROOT).contains(query)))
             .toList());
-        clearBulkSelection();
-        if(items.isEmpty())org.example.util.OperationalUiSupport.showEmpty(tableItems,"No items found","Create a new item or adjust the current search.");
-        lblRecordCount.setText("Showing " + items.size() + " Record" + (items.size() == 1 ? "" : "s"));
+        currentPage = 0;
+        renderPagedItems();
     }
 
     private void configureBulkSelection() {

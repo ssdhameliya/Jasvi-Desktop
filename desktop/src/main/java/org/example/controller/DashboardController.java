@@ -1856,11 +1856,11 @@ public class DashboardController implements ScreenLifecycle {
     }
 
     @FXML private void openCreditNotes() {
-        openPage(btnCreditNote, "Sales Return & Credit Notes", "/fxml/pages/CreditNoteRegister.fxml");
+        openPage(btnCreditNote, "Returns & Credit Notes", "/fxml/pages/CreditNoteRegister.fxml");
     }
 
     @FXML private void openDebitNotes() {
-        openPage(btnDebitNote, "Purchase Return & Debit Notes", "/fxml/pages/DebitNoteRegister.fxml");
+        openPage(btnDebitNote, "Returns & Debit Notes", "/fxml/pages/DebitNoteRegister.fxml");
     }
 
     @FXML private void openGstCompliance() {

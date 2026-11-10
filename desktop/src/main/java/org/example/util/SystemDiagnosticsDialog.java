@@ -29,7 +29,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -132,12 +134,13 @@ public final class SystemDiagnosticsDialog {
 
         // ================= KPI METRIC STRIP =================
         Label lblTotalVal = new Label("0");
+        Label lblTotalSub = new Label("Loaded from disk & server");
         Label lblErrorsVal = new Label("0");
         Label lblWarningsVal = new Label("0");
         Label lblDesktopVal = new Label("0");
         Label lblServerVal = new Label("0");
 
-        HBox cardTotal = createStandardKpiCard("Total Diagnostic Events", lblTotalVal, "Loaded from disk & server", "kpi-blue", "diagnostic");
+        HBox cardTotal = createStandardKpiCard("Total Diagnostic Events", lblTotalVal, lblTotalSub, "kpi-blue", "diagnostic");
         HBox cardErrors = createStandardKpiCard("Critical & Errors", lblErrorsVal, "Require action / inspection", "kpi-red", "error");
         HBox cardWarnings = createStandardKpiCard("System Warnings", lblWarningsVal, "Non-fatal alerts & retries", "kpi-orange", "warning");
         HBox cardDesktop = createStandardKpiCard("Desktop Client", lblDesktopVal, "UI thread & task executor", "kpi-teal", "application");
@@ -160,10 +163,10 @@ public final class SystemDiagnosticsDialog {
         HBox.setHgrow(txtSearch, Priority.ALWAYS);
 
         ComboBox<String> cmbLevel = new ComboBox<>();
-        cmbLevel.getItems().addAll("All Levels", "ERROR Only", "WARN Only", "INFO Only");
-        cmbLevel.setValue("All Levels");
+        cmbLevel.getItems().addAll("All Levels (Errors & Warnings)", "ERROR Only", "WARN Only");
+        cmbLevel.setValue("All Levels (Errors & Warnings)");
         cmbLevel.getStyleClass().addAll("approved-combo-box", "audit-category-combo");
-        cmbLevel.setPrefWidth(140);
+        cmbLevel.setPrefWidth(210);
         SearchableComboBoxHelper.makeSearchable(cmbLevel);
 
         ComboBox<String> cmbSource = new ComboBox<>();
@@ -172,6 +175,56 @@ public final class SystemDiagnosticsDialog {
         cmbSource.getStyleClass().addAll("approved-combo-box", "audit-category-combo");
         cmbSource.setPrefWidth(130);
         SearchableComboBoxHelper.makeSearchable(cmbSource);
+
+        DatePicker dpFrom = DatePickerFormatter.attach(new DatePicker(LocalDate.now().minusWeeks(1)));
+        dpFrom.getStyleClass().addAll("approved-date-picker", "audit-category-combo");
+        dpFrom.setPrefWidth(125);
+
+        Label lblTo = new Label("to");
+        lblTo.getStyleClass().add("settings-page-description");
+
+        DatePicker dpTo = DatePickerFormatter.attach(new DatePicker(LocalDate.now()));
+        dpTo.getStyleClass().addAll("approved-date-picker", "audit-category-combo");
+        dpTo.setPrefWidth(125);
+
+        Button btnResetDates = new Button();
+        btnResetDates.setGraphic(IconFactory.compactIcon("reset", 12));
+        btnResetDates.getStyleClass().addAll("approved-button", "approved-secondary-button", "top-icon");
+        btnResetDates.setTooltip(new Tooltip("Reset date filter to Last 7 Days"));
+        btnResetDates.setOnAction(e -> {
+            dpFrom.setValue(LocalDate.now().minusWeeks(1));
+            dpTo.setValue(LocalDate.now());
+        });
+
+        HBox dateFilterBox = new HBox(4, dpFrom, lblTo, dpTo, btnResetDates);
+        dateFilterBox.setAlignment(Pos.CENTER_LEFT);
+
+        cardTotal.setCursor(javafx.scene.Cursor.HAND);
+        cardTotal.setOnMouseClicked(e -> {
+            cmbLevel.setValue("All Levels (Errors & Warnings)");
+            cmbSource.setValue("All Sources");
+            dpFrom.setValue(LocalDate.now().minusWeeks(1));
+            dpTo.setValue(LocalDate.now());
+            txtSearch.clear();
+        });
+        cardErrors.setCursor(javafx.scene.Cursor.HAND);
+        cardErrors.setOnMouseClicked(e -> {
+            cmbLevel.setValue("ERROR Only");
+            cmbSource.setValue("All Sources");
+        });
+        cardWarnings.setCursor(javafx.scene.Cursor.HAND);
+        cardWarnings.setOnMouseClicked(e -> {
+            cmbLevel.setValue("WARN Only");
+            cmbSource.setValue("All Sources");
+        });
+        cardDesktop.setCursor(javafx.scene.Cursor.HAND);
+        cardDesktop.setOnMouseClicked(e -> {
+            cmbSource.setValue("DESKTOP");
+        });
+        cardServer.setCursor(javafx.scene.Cursor.HAND);
+        cardServer.setOnMouseClicked(e -> {
+            cmbSource.setValue("SERVER");
+        });
 
         Label lblEntriesCount = new Label("Loading logs…");
         lblEntriesCount.getStyleClass().addAll("status-pill", "pill-neutral");
@@ -203,7 +256,7 @@ public final class SystemDiagnosticsDialog {
         btnRefresh.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnRefresh.setTooltip(new Tooltip("Reload latest events from active log files"));
 
-        HBox toolbar = new HBox(8, txtSearch, cmbLevel, cmbSource, lblEntriesCount, btnExportCsv, btnOpenFolder, btnRefresh);
+        HBox toolbar = new HBox(8, txtSearch, cmbLevel, cmbSource, dateFilterBox, lblEntriesCount);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setPadding(new Insets(4, 2, 6, 2));
 
@@ -469,7 +522,7 @@ public final class SystemDiagnosticsDialog {
         Button btnNext = new Button("Next ▶");
         btnNext.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
-        HBox paginationBar = new HBox(10, lblPageInfo, pageSpacer, btnPrev, btnNext);
+        HBox paginationBar = new HBox(8, lblPageInfo, pageSpacer, btnExportCsv, btnOpenFolder, btnRefresh, btnPrev, btnNext);
         paginationBar.setAlignment(Pos.CENTER_LEFT);
         paginationBar.setPadding(new Insets(6, 4, 2, 4));
 
@@ -510,25 +563,58 @@ public final class SystemDiagnosticsDialog {
             }
         });
 
+        Runnable updateKpis = () -> {
+            int total = filteredList.size();
+            long errors = filteredList.stream().filter(r -> "ERROR".equalsIgnoreCase(r.level()) || "FATAL".equalsIgnoreCase(r.level())).count();
+            long warnings = filteredList.stream().filter(r -> "WARN".equalsIgnoreCase(r.level())).count();
+            long desktop = filteredList.stream().filter(r -> "DESKTOP".equalsIgnoreCase(r.source())).count();
+            long server = filteredList.stream().filter(r -> "SERVER".equalsIgnoreCase(r.source())).count();
+
+            lblTotalVal.setText(String.valueOf(total));
+            lblErrorsVal.setText(String.valueOf(errors));
+            lblWarningsVal.setText(String.valueOf(warnings));
+            lblDesktopVal.setText(String.valueOf(desktop));
+            lblServerVal.setText(String.valueOf(server));
+
+            if (masterList.isEmpty()) {
+                lblTotalSub.setText("No logs loaded");
+            } else if (total < masterList.size()) {
+                lblTotalSub.setText(total + " of " + masterList.size() + " in active view");
+            } else {
+                lblTotalSub.setText("Loaded from disk & server");
+            }
+        };
+
         Runnable applyFilter = () -> {
             String q = safe(txtSearch.getText()).trim().toLowerCase(Locale.ROOT);
             String lvl = cmbLevel.getValue();
             String src = cmbSource.getValue();
+            LocalDate fromDate = dpFrom.getValue();
+            LocalDate toDate = dpTo.getValue();
 
             filteredList.setPredicate(row -> {
                 if (row == null) return false;
-                if ("ERROR Only".equalsIgnoreCase(lvl) && !"ERROR".equalsIgnoreCase(row.level())) return false;
+                if ("ERROR Only".equalsIgnoreCase(lvl) && !"ERROR".equalsIgnoreCase(row.level()) && !"FATAL".equalsIgnoreCase(row.level())) return false;
                 if ("WARN Only".equalsIgnoreCase(lvl) && !"WARN".equalsIgnoreCase(row.level())) return false;
-                if ("INFO Only".equalsIgnoreCase(lvl) && !"INFO".equalsIgnoreCase(row.level())) return false;
 
                 if ("DESKTOP".equalsIgnoreCase(src) && !"DESKTOP".equalsIgnoreCase(row.source())) return false;
                 if ("SERVER".equalsIgnoreCase(src) && !"SERVER".equalsIgnoreCase(row.source())) return false;
+
+                if (fromDate != null || toDate != null) {
+                    Instant rowInstant = parseInstant(row.timeRaw());
+                    if (!rowInstant.equals(Instant.EPOCH)) {
+                        LocalDate rowDate = rowInstant.atZone(ZoneId.systemDefault()).toLocalDate();
+                        if (fromDate != null && rowDate.isBefore(fromDate)) return false;
+                        if (toDate != null && rowDate.isAfter(toDate)) return false;
+                    }
+                }
 
                 if (q.isBlank()) return true;
                 return row.searchIndex().contains(q);
             });
 
             currentPage[0] = 0;
+            updateKpis.run();
             renderPage.run();
         };
 
@@ -538,23 +624,13 @@ public final class SystemDiagnosticsDialog {
         txtSearch.textProperty().addListener((obs, o, n) -> filterDebounce.playFromStart());
         cmbLevel.valueProperty().addListener((obs, o, n) -> filterDebounce.playFromStart());
         cmbSource.valueProperty().addListener((obs, o, n) -> filterDebounce.playFromStart());
+        dpFrom.valueProperty().addListener((obs, o, n) -> filterDebounce.playFromStart());
+        dpTo.valueProperty().addListener((obs, o, n) -> filterDebounce.playFromStart());
 
         Runnable loadData = () -> {
             table.setPlaceholder(Classy3DLoadingView.createTableSkeleton("Loading System Diagnostic Ledger…", "Fetching real-time error logs, stack traces, and background events…"));
             UiTaskExecutor.submitAction("load-system-diagnostics", () -> fetchCombinedLogs(500), rows -> {
                 masterList.setAll(rows);
-                long total = rows.size();
-                long errors = rows.stream().filter(r -> "ERROR".equalsIgnoreCase(r.level())).count();
-                long warnings = rows.stream().filter(r -> "WARN".equalsIgnoreCase(r.level())).count();
-                long desktop = rows.stream().filter(r -> "DESKTOP".equalsIgnoreCase(r.source())).count();
-                long server = rows.stream().filter(r -> "SERVER".equalsIgnoreCase(r.source())).count();
-
-                lblTotalVal.setText(String.valueOf(total));
-                lblErrorsVal.setText(String.valueOf(errors));
-                lblWarningsVal.setText(String.valueOf(warnings));
-                lblDesktopVal.setText(String.valueOf(desktop));
-                lblServerVal.setText(String.valueOf(server));
-
                 applyFilter.run();
                 if (rows.isEmpty()) {
                     table.setPlaceholder(new Label("No system logs or diagnostic events found."));
@@ -626,7 +702,7 @@ public final class SystemDiagnosticsDialog {
         return hero;
     }
 
-    private static HBox createStandardKpiCard(String title, Label valueLabel, String subtitle, String kpiColorClass, String iconSemantic) {
+    private static HBox createStandardKpiCard(String title, Label valueLabel, Label subtitleLabel, String kpiColorClass, String iconSemantic) {
         StackPane iconHolder = new StackPane();
         iconHolder.getStyleClass().add("standard-kpi-icon");
         iconHolder.getChildren().setAll(IconFactory.compactIcon(iconSemantic, 18));
@@ -636,10 +712,9 @@ public final class SystemDiagnosticsDialog {
 
         valueLabel.getStyleClass().addAll("metric-value", "kpi-value-" + kpiColorClass.replace("kpi-", ""), "diagnostic-kpi-value");
 
-        Label lblSub = new Label(subtitle);
-        lblSub.getStyleClass().add("metric-note");
+        subtitleLabel.getStyleClass().add("metric-note");
 
-        VBox textBox = new VBox(3, lblTitle, valueLabel, lblSub);
+        VBox textBox = new VBox(3, lblTitle, valueLabel, subtitleLabel);
         HBox.setHgrow(textBox, Priority.ALWAYS);
 
         HBox card = new HBox(12, iconHolder, textBox);
@@ -648,6 +723,10 @@ public final class SystemDiagnosticsDialog {
         card.setPadding(new Insets(10, 14, 10, 14));
         HBox.setHgrow(card, Priority.ALWAYS);
         return card;
+    }
+
+    private static HBox createStandardKpiCard(String title, Label valueLabel, String subtitle, String kpiColorClass, String iconSemantic) {
+        return createStandardKpiCard(title, valueLabel, new Label(subtitle), kpiColorClass, iconSemantic);
     }
 
     private static void showTechnicalInspectionModal(Node owner, DiagnosticRow row) {
@@ -795,19 +874,28 @@ public final class SystemDiagnosticsDialog {
 
         // 1. Fetch Desktop Logs
         try {
-            Path desktopLogFile = WorkspaceManager.isConfigured()
-                    ? WorkspaceManager.getDesktopLogsFolder().resolve("desktop.log")
-                    : Path.of(System.getProperty("user.home", "."), ".dse-erp", "Logs", "Desktop", "desktop.log");
+            Path desktopLogFile = DesktopLog.path();
+            if (desktopLogFile == null || !Files.exists(desktopLogFile)) {
+                desktopLogFile = WorkspaceManager.isConfigured()
+                        ? WorkspaceManager.getDesktopLogsFolder().resolve("desktop.log")
+                        : Path.of("D:", "DSE Production", "Logs", "Desktop", "desktop.log");
+            }
+            if (!Files.exists(desktopLogFile)) {
+                desktopLogFile = Path.of(System.getProperty("user.home", "."), ".dse-erp", "Logs", "Desktop", "desktop.log");
+            }
 
             if (Files.exists(desktopLogFile)) {
                 List<String> lines = Files.readAllLines(desktopLogFile, StandardCharsets.UTF_8);
-                int start = Math.max(0, lines.size() - maxLimit);
-                for (int i = lines.size() - 1; i >= start; i--) {
+                int start = Math.max(0, lines.size() - Math.max(maxLimit * 10, 5000));
+                for (int i = lines.size() - 1; i >= start && rows.size() < maxLimit; i--) {
                     String line = lines.get(i).trim();
                     if (line.isBlank() || !line.startsWith("{")) continue;
                     try {
                         String time = extractJson(line, "time");
                         String level = extractJson(line, "level");
+                        if (!"ERROR".equalsIgnoreCase(level) && !"WARN".equalsIgnoreCase(level) && !"FATAL".equalsIgnoreCase(level)) {
+                            continue;
+                        }
                         String comp = extractJson(line, "component");
                         String event = extractJson(line, "event");
                         String user = extractJson(line, "user");
@@ -851,6 +939,9 @@ public final class SystemDiagnosticsDialog {
                 for (org.example.api.admin.AdminApiClient.ServerLogEntry entry : remoteEntries) {
                     String sTime = entry.time();
                     String sLevel = entry.level() != null ? entry.level().toUpperCase(Locale.ROOT) : "INFO";
+                    if (!"ERROR".equalsIgnoreCase(sLevel) && !"WARN".equalsIgnoreCase(sLevel) && !"FATAL".equalsIgnoreCase(sLevel)) {
+                        continue;
+                    }
                     String sThread = entry.thread() != null ? entry.thread() : "";
                     String sLogger = entry.logger() != null ? entry.logger() : "Server";
                     String sMsg = entry.message() != null ? entry.message() : "";
@@ -900,7 +991,7 @@ public final class SystemDiagnosticsDialog {
 
                 if (Files.exists(serverLogFile)) {
                     List<String> sLines = Files.readAllLines(serverLogFile, StandardCharsets.UTF_8);
-                    int sStart = Math.max(0, sLines.size() - Math.max(maxLimit * 4, 3000));
+                    int sStart = Math.max(0, sLines.size() - Math.max(maxLimit * 10, 10000));
                     List<String> traceBuffer = new ArrayList<>();
                     for (int i = sLines.size() - 1; i >= sStart; i--) {
                         String sLine = sLines.get(i).trim();
@@ -936,6 +1027,10 @@ public final class SystemDiagnosticsDialog {
                             }
                             String rawFailure = traceBuilder.toString().trim();
                             traceBuffer.clear();
+
+                            if (!"ERROR".equalsIgnoreCase(sLevel) && !"WARN".equalsIgnoreCase(sLevel) && !"FATAL".equalsIgnoreCase(sLevel)) {
+                                continue;
+                            }
 
                             String simpleLogger = sLogger;
                             if (simpleLogger.contains(".")) {
@@ -978,9 +1073,26 @@ public final class SystemDiagnosticsDialog {
             }
         }
 
-        // Sort newest first by timeRaw
-        rows.sort((a, b) -> safe(b.timeRaw()).compareTo(safe(a.timeRaw())));
+        // Sort newest first chronologically by epoch timestamp (handles UTC 'Z' vs local offset '+05:30' correctly)
+        rows.sort((a, b) -> parseInstant(b.timeRaw()).compareTo(parseInstant(a.timeRaw())));
         return rows;
+    }
+
+    private static Instant parseInstant(String raw) {
+        if (raw == null || raw.isBlank()) return Instant.EPOCH;
+        try {
+            return Instant.parse(raw);
+        } catch (Exception e1) {
+            try {
+                return OffsetDateTime.parse(raw.replace(' ', 'T')).toInstant();
+            } catch (Exception e2) {
+                try {
+                    return LocalDateTime.parse(raw.replace(' ', 'T')).atZone(ZoneId.systemDefault()).toInstant();
+                } catch (Exception e3) {
+                    return Instant.EPOCH;
+                }
+            }
+        }
     }
 
     private static String extractJson(String json, String key) {
@@ -1012,7 +1124,8 @@ public final class SystemDiagnosticsDialog {
     private static String formatTimestamp(String raw) {
         if (raw == null || raw.isBlank()) return "—";
         try {
-            Instant instant = Instant.parse(raw);
+            Instant instant = parseInstant(raw);
+            if (instant.equals(Instant.EPOCH)) return raw;
             return DISPLAY_FORMATTER.format(instant.atZone(ZoneId.systemDefault()));
         } catch (Exception ignored) {
             return raw;

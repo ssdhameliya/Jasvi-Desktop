@@ -4,19 +4,27 @@ import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.Label;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
+import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import org.example.api.ApiRuntime;
+import org.example.api.ApiSession;
 import org.example.api.bank.BankStatementApiClient;
+import org.example.api.returns.ReturnApiClient;
 import org.example.api.support.SupportApiClient;
+import org.example.config.ConfigManager;
+import org.example.controller.CreditNoteRegisterController;
+import org.example.controller.DebitNoteRegisterController;
 
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.text.NumberFormat;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -191,8 +199,118 @@ public final class InvoicePaymentDetailsDialog {
         dialog.showAndWait();
     }
 
+    public record LinkedReturnNoteRow(
+            Long id,
+            String docType,
+            String docNo,
+            String date,
+            String party,
+            String reason,
+            double amount,
+            String status,
+            String refundStatus
+    ) {}
+
     public static Node buildDocumentLinkagesNode(javafx.scene.control.Dialog<?> parentDialog,
                                                  String documentType, long documentId, String invoiceNo) {
+        boolean isSales = "SALE".equalsIgnoreCase(documentType) || "SALES".equalsIgnoreCase(documentType);
+
+        // Sub-Tab 1: Returns & Financial Notes
+        TableView<LinkedReturnNoteRow> tableReturns = new TableView<>();
+        tableReturns.getStyleClass().addAll("professional-table", "approved-table", "invoice-payment-table", "erp-table-standard");
+        tableReturns.setPlaceholder(new Label("Loading linked Returns and Financial Notes for " + safe(invoiceNo) + "…"));
+        tableReturns.setFixedCellSize(36.0);
+
+        TableColumn<LinkedReturnNoteRow, String> colRetDocType = new TableColumn<>("Document Type");
+        colRetDocType.setPrefWidth(140);
+        colRetDocType.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().docType())));
+        IconFactory.applyTableHeaderIcon(colRetDocType, "document");
+
+        TableColumn<LinkedReturnNoteRow, String> colRetDocNo = new TableColumn<>("Document No.");
+        colRetDocNo.setPrefWidth(160);
+        colRetDocNo.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().docNo())));
+        IconFactory.applyTableHeaderIcon(colRetDocNo, "link");
+        colRetDocNo.setCellFactory(ignored -> new javafx.scene.control.TableCell<>() {
+            private final javafx.scene.control.Hyperlink link = new javafx.scene.control.Hyperlink();
+            {
+                link.getStyleClass().add("table-link");
+                link.setOnAction(e -> {
+                    int idx = getIndex();
+                    if (idx >= 0 && idx < getTableView().getItems().size()) {
+                        openLinkedReturnNote(parentDialog, getTableView().getItems().get(idx), documentType);
+                    }
+                });
+            }
+            @Override protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null || val.isBlank()) {
+                    setGraphic(null); setText(null);
+                } else {
+                    link.setText(val); setText(null); setGraphic(link);
+                }
+            }
+        });
+
+        TableColumn<LinkedReturnNoteRow, String> colRetDate = new TableColumn<>("Date");
+        colRetDate.setPrefWidth(110);
+        colRetDate.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().date())));
+        IconFactory.applyTableHeaderIcon(colRetDate, "calendar");
+
+        TableColumn<LinkedReturnNoteRow, String> colRetParty = new TableColumn<>(isSales ? "Customer" : "Supplier");
+        colRetParty.setPrefWidth(180);
+        colRetParty.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().party())));
+        IconFactory.applyTableHeaderIcon(colRetParty, isSales ? "customer" : "supplier");
+
+        TableColumn<LinkedReturnNoteRow, String> colRetReason = new TableColumn<>("Reason / Notes");
+        colRetReason.setPrefWidth(180);
+        colRetReason.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().reason())));
+        IconFactory.applyTableHeaderIcon(colRetReason, "notes");
+
+        TableColumn<LinkedReturnNoteRow, String> colRetAmount = new TableColumn<>("Amount");
+        colRetAmount.setPrefWidth(130);
+        colRetAmount.setCellValueFactory(v -> new ReadOnlyStringWrapper(money(v.getValue().amount())));
+        colRetAmount.setCellFactory(c -> SemanticTableCells.moneyString("green"));
+        IconFactory.applyTableHeaderIcon(colRetAmount, "currency");
+
+        TableColumn<LinkedReturnNoteRow, String> colRetStatus = new TableColumn<>("Status");
+        colRetStatus.setPrefWidth(130);
+        colRetStatus.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().status())));
+        colRetStatus.setCellFactory(x -> SemanticTableCells.status("return"));
+        IconFactory.applyTableHeaderIcon(colRetStatus, "status");
+
+        TableColumn<LinkedReturnNoteRow, String> colRetRefund = new TableColumn<>("Refund / Settlement");
+        colRetRefund.setPrefWidth(135);
+        colRetRefund.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().refundStatus())));
+        colRetRefund.setCellFactory(x -> SemanticTableCells.status("refund"));
+        IconFactory.applyTableHeaderIcon(colRetRefund, "payment");
+
+        TableColumn<LinkedReturnNoteRow, Void> colRetAction = new TableColumn<>("Action");
+        colRetAction.setPrefWidth(85);
+        IconFactory.applyTableHeaderIcon(colRetAction, "actions");
+        colRetAction.setCellFactory(ignored -> new javafx.scene.control.TableCell<>() {
+            private final Button btnOpen = new Button("Open");
+            {
+                btnOpen.getStyleClass().addAll("approved-button", "approved-secondary-button");
+                btnOpen.setGraphic(IconFactory.compactIcon("view", 12));
+                btnOpen.setOnAction(e -> {
+                    int idx = getIndex();
+                    if (idx >= 0 && idx < getTableView().getItems().size()) {
+                        openLinkedReturnNote(parentDialog, getTableView().getItems().get(idx), documentType);
+                    }
+                });
+            }
+            @Override protected void updateItem(Void val, boolean empty) {
+                super.updateItem(val, empty);
+                setGraphic(empty ? null : btnOpen);
+                setAlignment(Pos.CENTER);
+            }
+        });
+
+        tableReturns.getColumns().addAll(colRetDocType, colRetDocNo, colRetDate, colRetParty, colRetReason, colRetAmount, colRetStatus, colRetRefund, colRetAction);
+        DynamicTableLayoutManager.install(tableReturns);
+        VBox.setVgrow(tableReturns, Priority.ALWAYS);
+
+        // Sub-Tab 2: Bank & Statement Reconciliations
         TableView<BankStatementApiClient.LinkageItemDto> table = new TableView<>();
         table.getStyleClass().addAll("professional-table", "approved-table", "invoice-payment-table", "erp-table-standard");
         table.setPlaceholder(new Label("Loading linked Bank Statement, Payment Ref (PRF), Bank Entry & Expense records…"));
@@ -325,32 +443,136 @@ public final class InvoicePaymentDetailsDialog {
         DynamicTableLayoutManager.install(table);
         VBox.setVgrow(table, Priority.ALWAYS);
 
-        Label countLabel = new Label("Loading linked records…");
-        countLabel.getStyleClass().add("muted-label");
-        countLabel.setWrapText(true);
-        HBox footer = new HBox(10, countLabel);
-        footer.setAlignment(Pos.CENTER_LEFT);
-        footer.setPadding(new javafx.geometry.Insets(4, 0, 8, 0));
+        Tab tabReturns = new Tab("Returns & Financial Notes");
+        tabReturns.setGraphic(IconFactory.compactIcon("return", 14));
+        tabReturns.setContent(tableReturns);
 
-        VBox box = new VBox(8, table, footer);
-        VBox.setVgrow(box, Priority.ALWAYS);
+        Tab tabBank = new Tab("Bank & Statement Reconciliations");
+        tabBank.setGraphic(IconFactory.compactIcon("bank", 14));
+        tabBank.setContent(table);
 
+        TabPane linkagesTabPane = new TabPane(tabReturns, tabBank);
+        linkagesTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        linkagesTabPane.getStyleClass().addAll("erp-inspection-tabs", "approved-tab-pane");
+        VBox.setVgrow(linkagesTabPane, Priority.ALWAYS);
+
+        // Async Load: Returns and Notes
+        UiTaskExecutor.submitLatest("doc-linkages-returns-" + documentType + "-" + invoiceNo,
+                () -> {
+                    String returnType = isSales ? "SALES RETURN" : "PURCHASE RETURN";
+                    List<LinkedReturnNoteRow> linkedRows = new ArrayList<>();
+                    try {
+                        List<ReturnApiClient.Summary> returns = new ReturnApiClient().allFiltered(returnType, invoiceNo, "", "", "", "");
+                        if (returns != null) {
+                            for (var r : returns) {
+                                if (r.invoice() != null && r.invoice().equalsIgnoreCase(invoiceNo)) {
+                                    linkedRows.add(new LinkedReturnNoteRow(
+                                            null,
+                                            isSales ? "Sales Return" : "Purchase Return",
+                                            r.no(),
+                                            safe(r.date()),
+                                            r.party(),
+                                            r.reason(),
+                                            r.total(),
+                                            r.status(),
+                                            r.refundStatus()
+                                    ));
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+
+                    try {
+                        String notesEndpoint = isSales ? "/api/credit-notes" : "/api/debit-notes";
+                        HttpRequest.Builder req = HttpRequest.newBuilder(URI.create(ConfigManager.getDataApiBaseUrl() + notesEndpoint))
+                                .timeout(Duration.ofSeconds(10))
+                                .header("Accept", "application/json")
+                                .GET();
+                        ApiSession.authorize(req);
+                        HttpResponse<String> resp = ApiRuntime.HTTP.send(req.build(), HttpResponse.BodyHandlers.ofString());
+                        if (resp.statusCode() == 200) {
+                            if (isSales) {
+                                List<CreditNoteRegisterController.CreditNoteRow> notes = ApiRuntime.JSON.readValue(resp.body(), new com.fasterxml.jackson.core.type.TypeReference<List<CreditNoteRegisterController.CreditNoteRow>>() {});
+                                if (notes != null) {
+                                    for (var n : notes) {
+                                        if (n.originalInvoiceNo != null && n.originalInvoiceNo.equalsIgnoreCase(invoiceNo)) {
+                                            linkedRows.add(new LinkedReturnNoteRow(
+                                                    n.id,
+                                                    "Credit Note",
+                                                    n.creditNoteNo,
+                                                    safe(n.noteDate),
+                                                    n.partyName,
+                                                    n.reasonCode,
+                                                    n.totalAmount != null ? n.totalAmount.doubleValue() : 0.0,
+                                                    n.status,
+                                                    "—"
+                                            ));
+                                        }
+                                    }
+                                }
+                            } else {
+                                List<DebitNoteRegisterController.DebitNoteRow> notes = ApiRuntime.JSON.readValue(resp.body(), new com.fasterxml.jackson.core.type.TypeReference<List<DebitNoteRegisterController.DebitNoteRow>>() {});
+                                if (notes != null) {
+                                    for (var n : notes) {
+                                        if (n.originalPurchaseNo != null && n.originalPurchaseNo.equalsIgnoreCase(invoiceNo)) {
+                                            linkedRows.add(new LinkedReturnNoteRow(
+                                                    n.id,
+                                                    "Debit Note",
+                                                    n.debitNoteNo,
+                                                    safe(n.noteDate),
+                                                    n.partyName,
+                                                    n.reasonCode,
+                                                    n.totalAmount != null ? n.totalAmount.doubleValue() : 0.0,
+                                                    n.status,
+                                                    "—"
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                    return linkedRows;
+                },
+                rows -> {
+                    tableReturns.getItems().setAll(rows);
+                    tabReturns.setText("Returns & Financial Notes (" + rows.size() + ")");
+                    if (rows.isEmpty()) {
+                        tableReturns.setPlaceholder(new Label("No Returns or Financial Notes issued against " + safe(invoiceNo) + "."));
+                    } else {
+                        linkagesTabPane.getSelectionModel().select(tabReturns);
+                    }
+                },
+                err -> tableReturns.setPlaceholder(new Label("Failed to load linked returns: " + err.getMessage()))
+        );
+
+        // Async Load: Bank Statement Linkages
         Integer docIdInt = documentId > 0 ? (int) documentId : null;
-        UiTaskExecutor.submitLatest("doc-linkages-" + documentType + "-" + documentId + "-" + invoiceNo,
+        UiTaskExecutor.submitLatest("doc-linkages-bank-" + documentType + "-" + documentId + "-" + invoiceNo,
                 () -> new BankStatementApiClient().linkage(documentType, docIdInt, invoiceNo, null, null),
                 view -> {
                     List<BankStatementApiClient.LinkageItemDto> items = view != null && view.linkages() != null ? view.linkages() : List.of();
                     table.getItems().setAll(items);
+                    tabBank.setText("Bank & Statement Reconciliations (" + items.size() + ")");
                     if (items.isEmpty()) {
                         table.setPlaceholder(new Label("No linked Bank Statement, Bank Entry, Expense Entry, or Payment records found for " + safe(invoiceNo) + "."));
                     }
-                    countLabel.setText(items.size() + " linked record(s) found • Click Payment Ref, Statement Ref, or Finance Voucher to navigate");
                 },
-                err -> {
-                    table.setPlaceholder(new Label("Unable to load linked records: " + err.getMessage()));
-                    countLabel.setText("Error loading linked records");
-                });
-        return box;
+                err -> table.setPlaceholder(new Label("Unable to load linked records: " + err.getMessage()))
+        );
+
+        return linkagesTabPane;
+    }
+
+    private static void openLinkedReturnNote(javafx.scene.control.Dialog<?> parentDialog, LinkedReturnNoteRow item, String documentType) {
+        if (item == null) return;
+        boolean isSales = "SALE".equalsIgnoreCase(documentType) || "SALES".equalsIgnoreCase(documentType);
+        Node ownerNode = parentDialog != null ? parentDialog.getDialogPane() : null;
+        if ("Debit Note".equalsIgnoreCase(item.docType()) || "Credit Note".equalsIgnoreCase(item.docType())) {
+            CreditDebitNoteInspectionDialog.show(ownerNode, item.id(), item.docNo(), isSales, null, null, null);
+        } else {
+            ReturnDocumentInspectionDialog.show(ownerNode, item.docNo(), isSales, new ReturnApiClient(), new SupportApiClient(), null);
+        }
     }
 
     private static void closeDialogHierarchy(javafx.scene.control.Dialog<?> dialog) {

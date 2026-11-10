@@ -21,6 +21,14 @@
             <placeholder><VBox alignment="CENTER" spacing="8" styleClass="premium-empty-state"><Label text="No customers found" styleClass="empty-state-title"/><Label text="Add a customer or update the current search." styleClass="muted-text"/></VBox></placeholder>
             <columns><TableColumn fx:id="colCode" text="Customer Code" styleClass="approved-table-column"/><TableColumn fx:id="colName" text="Customer Name" styleClass="approved-table-column"/><TableColumn fx:id="colContact" text="Contact Person" styleClass="approved-table-column"/><TableColumn fx:id="colPhone" text="Mobile" styleClass="approved-table-column"/><TableColumn fx:id="colEmail" text="Email" styleClass="approved-table-column"/><TableColumn fx:id="colGstin" text="GSTIN" styleClass="approved-table-column"/><TableColumn fx:id="colAddress" text="Address" styleClass="approved-table-column"/><TableColumn fx:id="colOpeningBalance" text="Opening Balance" styleClass="approved-table-column"/><TableColumn fx:id="colActive" text="Status" styleClass="approved-table-column"/><TableColumn fx:id="colActions" text="Actions" styleClass="approved-table-column" sortable="false" resizable="false"/></columns>
         </TableView>
-        <HBox alignment="CENTER_RIGHT" styleClass="table-footer,entity-table-footer"><Region HBox.hgrow="ALWAYS"/><Label fx:id="lblRecordCount" styleClass="record-count-pill"/></HBox>
+        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="table-footer,entity-table-footer">
+            <Label fx:id="lblRecordCount" styleClass="record-count-pill"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label text="Rows" styleClass="finance-showing-label"/>
+            <ComboBox fx:id="cmbPageSize" prefWidth="92"/>
+            <Button fx:id="btnPrevPage" text="Previous" onAction="#previousPage" styleClass="approved-button,approved-secondary-button"/>
+            <Label fx:id="lblPage" text="Page 0 of 0" styleClass="finance-showing-label"/>
+            <Button fx:id="btnNextPage" text="Next" onAction="#nextPage" styleClass="approved-button,approved-secondary-button"/>
+        </HBox>
     </VBox>
 </VBox>

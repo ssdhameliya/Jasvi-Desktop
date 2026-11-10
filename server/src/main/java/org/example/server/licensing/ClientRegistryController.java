@@ -170,4 +170,10 @@ public class ClientRegistryController {
         requireSuperAdmin();
         return registryService.rejectLead(id);
     }
+
+    @DeleteMapping("/leads/{id}")
+    public Map<String, Object> deleteLead(@PathVariable Long id) {
+        requireSuperAdmin();
+        return registryService.deleteLead(id);
+    }
 }

@@ -449,6 +449,11 @@ public final class UiTaskExecutor {
             Consumer<Throwable> onFailure) {
         try {
             PerformanceMonitor.event("background-action-failed", key + " | " + safeMessage(error));
+            if (!org.example.api.ApiSession.isEstablished() || isAuthenticationFailure(error)) {
+                DesktopLog.info("UiTaskExecutor", "ACTION_SUPPRESSED_UNAUTHENTICATED",
+                        key + " | Session not established or expired: " + safeMessage(error));
+                return;
+            }
             DesktopLog.error("UiTaskExecutor", "ACTION_FAILED", key + " | " + safeMessage(error), error);
             invokeFailureHandler(key, onFailure, error);
         } finally {

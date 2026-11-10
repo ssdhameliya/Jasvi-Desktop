@@ -54,6 +54,9 @@ public abstract class PartyMasterController implements ScreenLifecycle {
     protected TableColumn<Party, Void> colActions;
     @FXML
     protected Label lblRecordCount;
+    @FXML protected ComboBox<Integer> cmbPageSize;
+    @FXML protected Button btnPrevPage, btnNextPage;
+    @FXML protected Label lblPage;
     @FXML protected Button btnRefresh;
     @FXML protected Label lblKpiTotal,lblKpiActive,lblKpiGst,lblKpiBalance;
     @FXML protected StackPane kpiTotalIcon,kpiActiveIcon,kpiGstIcon,kpiBalanceIcon;
@@ -61,6 +64,8 @@ public abstract class PartyMasterController implements ScreenLifecycle {
     private final PartyService service = new PartyService();
 
     private final List<Party> cachedParties = new java.util.ArrayList<>();
+    private final List<Party> filteredParties = new java.util.ArrayList<>();
+    private int currentPage = 0;
     private RegisterDetailDrawer detailDrawer;
     private Party detailParty;
     private Runnable partyRefreshFinish;
@@ -105,6 +110,17 @@ public abstract class PartyMasterController implements ScreenLifecycle {
         IconFactory.applyTableHeaderIcon(colOpeningBalance, "balance");
         IconFactory.applyTableHeaderIcon(colActive, "complete");
         if (colActions != null) IconFactory.applyTableHeaderIcon(colActions, "actions");
+
+        if (cmbPageSize != null) {
+            cmbPageSize.getItems().setAll(25, 50, 100, 200);
+            cmbPageSize.setValue(50);
+            cmbPageSize.valueProperty().addListener((o, oldV, newV) -> {
+                currentPage = 0;
+                renderPagedParties();
+            });
+        }
+        if (btnPrevPage != null) btnPrevPage.setGraphic(IconFactory.compactIcon("previous", 14));
+        if (btnNextPage != null) btnNextPage.setGraphic(IconFactory.compactIcon("next", 14));
 
         DynamicTableLayoutManager.install(tableParties);
         ProfessionalUiEnhancer.refreshTableDecorations(tableParties);
@@ -376,44 +392,98 @@ public abstract class PartyMasterController implements ScreenLifecycle {
         );
     }
 
+    private int getPageSize() {
+        return cmbPageSize != null && cmbPageSize.getValue() != null ? cmbPageSize.getValue() : 50;
+    }
+
+    private void renderPagedParties() {
+        int total = filteredParties.size();
+        int pageSize = getPageSize();
+        int totalPages = (int) Math.ceil((double) total / pageSize);
+        if (totalPages <= 0) totalPages = 1;
+        if (currentPage >= totalPages) currentPage = Math.max(0, totalPages - 1);
+        if (currentPage < 0) currentPage = 0;
+
+        int fromIndex = total == 0 ? 0 : currentPage * pageSize;
+        int toIndex = Math.min(fromIndex + pageSize, total);
+        tableParties.getItems().setAll(total == 0 ? List.of() : filteredParties.subList(fromIndex, toIndex));
+
+        if (total == 0) {
+            org.example.util.OperationalUiSupport.showEmpty(tableParties,
+                "No " + displayName().toLowerCase(Locale.ROOT) + "s found",
+                "Add a " + displayName().toLowerCase(Locale.ROOT) + " or update the current search.");
+        }
+
+        if (lblRecordCount != null) {
+            lblRecordCount.setText(total == 0 ? "Showing 0 " + displayName().toLowerCase(Locale.ROOT) + "s"
+                : "Showing " + (fromIndex + 1) + " to " + toIndex + " of " + total + " " + displayName().toLowerCase(Locale.ROOT) + "s");
+        }
+        if (lblPage != null) {
+            lblPage.setText("Page " + (total == 0 ? 0 : (currentPage + 1)) + " of " + (total == 0 ? 0 : totalPages));
+        }
+        if (btnPrevPage != null) {
+            btnPrevPage.setDisable(currentPage <= 0);
+        }
+        if (btnNextPage != null) {
+            btnNextPage.setDisable(currentPage >= totalPages - 1 || total == 0);
+        }
+    }
+
+    @FXML protected void previousPage() {
+        if (currentPage > 0) {
+            currentPage--;
+            renderPagedParties();
+        }
+    }
+
+    @FXML protected void nextPage() {
+        int totalPages = (int) Math.ceil((double) filteredParties.size() / getPageSize());
+        if (currentPage < totalPages - 1) {
+            currentPage++;
+            renderPagedParties();
+        }
+    }
+
     private void selectSavedParty(String partyCode) {
         if (partyCode == null || partyCode.isBlank()) return;
-        Party match = tableParties.getItems().stream()
-            .filter(p -> partyCode.equalsIgnoreCase(p.getPartyCode()))
-            .findFirst().orElse(null);
-        if (match == null) {
-            // A newly created record must be visible immediately even when the previous
-            // search text would otherwise hide it. Preserve the query whenever it matches.
-            Party inCache = cachedParties.stream()
-                .filter(p -> partyCode.equalsIgnoreCase(p.getPartyCode()))
-                .findFirst().orElse(null);
-            if (inCache != null) {
-                txtSearch.clear();
-                applyLocalFilter();
-                match = tableParties.getItems().stream()
-                    .filter(p -> partyCode.equalsIgnoreCase(p.getPartyCode()))
-                    .findFirst().orElse(null);
+        int index = -1;
+        for (int i = 0; i < filteredParties.size(); i++) {
+            if (partyCode.equalsIgnoreCase(filteredParties.get(i).getPartyCode())) {
+                index = i;
+                break;
             }
         }
-        if (match != null) {
+        if (index < 0) {
+            txtSearch.clear();
+            applyLocalFilter();
+            for (int i = 0; i < filteredParties.size(); i++) {
+                if (partyCode.equalsIgnoreCase(filteredParties.get(i).getPartyCode())) {
+                    index = i;
+                    break;
+                }
+            }
+        }
+        if (index >= 0) {
+            currentPage = index / getPageSize();
+            renderPagedParties();
+            Party match = filteredParties.get(index);
             tableParties.getSelectionModel().select(match);
             tableParties.scrollTo(match);
-
         }
     }
 
     /** Filters the cached customer/supplier master without a network request per key press. */
     private void applyLocalFilter() {
         String query = txtSearch.getText() == null ? "" : txtSearch.getText().trim().toLowerCase(Locale.ROOT);
-        tableParties.getItems().setAll(cachedParties.stream().filter(p -> query.isEmpty()
+        filteredParties.clear();
+        filteredParties.addAll(cachedParties.stream().filter(p -> query.isEmpty()
             || (p.getPartyCode()!=null && p.getPartyCode().toLowerCase(Locale.ROOT).contains(query))
             || (p.getName()!=null && p.getName().toLowerCase(Locale.ROOT).contains(query))
             || (p.getPhone() != null && p.getPhone().toLowerCase(Locale.ROOT).contains(query))
             || (p.getEmail()!=null && p.getEmail().toLowerCase(Locale.ROOT).contains(query))
             || (p.getGstin()!=null && p.getGstin().toLowerCase(Locale.ROOT).contains(query))).toList());
-        int count = tableParties.getItems().size();
-        if(count==0)org.example.util.OperationalUiSupport.showEmpty(tableParties,"No "+displayName().toLowerCase(Locale.ROOT)+"s found","Add a "+displayName().toLowerCase(Locale.ROOT)+" or update the current search.");
-        lblRecordCount.setText("Showing " + count + " Record" + (count == 1 ? "" : "s"));
+        currentPage = 0;
+        renderPagedParties();
     }
 
     private String message(Throwable failure) { return failure == null ? "Unknown error" : (failure.getMessage() == null || failure.getMessage().isBlank() ? failure.toString() : failure.getMessage()); }

@@ -1657,7 +1657,6 @@ private record AssetPreviewRequest(
             btn.getStyleClass().remove("approved-primary-button");
             if (selected) {
                 btn.getStyleClass().add("settings-tab-selected");
-                btn.getStyleClass().add("approved-primary-button");
             }
         }
     }

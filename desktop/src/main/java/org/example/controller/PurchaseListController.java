@@ -40,7 +40,7 @@ public class PurchaseListController implements ScreenLifecycle{
  @FXML public void initialize(){
         DatePickerFormatter.attachAll(dpFrom, dpTo);
         org.example.shortcut.ShortcutRegistry.bindLabel(btnNewPurchase,org.example.shortcut.ShortcutRegistry.Action.NEW_PURCHASE,"Create Purchase");
-        if(purchasePageIcon!=null)purchasePageIcon.getChildren().setAll(IconFactory.icon("purchase",24));RegisterUiSupport.configureHeaderSearch(txtSearch,purchaseHeaderSearchIcon,"Search invoice, supplier, mobile or GSTIN...");installKpiIcons();applyRangeButtonIcons();configureExplicitButtonIcons();configureDetailsCloseButton();decorateDetailDrawer();colInvoice.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getInvoiceNo()));colDate.setCellValueFactory(v->new SimpleStringProperty(BusinessClock.formatDate(v.getValue().getInvoiceDate())));colSupplier.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getSupplier().getName()));colMobile.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getSupplier().getPhone())));colAmount.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getTotalAmount()).asObject());colPaid.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getPaidAmount()).asObject());colBalance.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getBalanceAmount()).asObject());colDue.setCellValueFactory(v->new SimpleStringProperty(due(v.getValue())));colStatus.setCellValueFactory(v->new SimpleStringProperty(documentStatus(v.getValue())));colPaymentStatus.setCellValueFactory(v->new SimpleStringProperty(paymentStatusDisplay(v.getValue())));if(colReturnStatus!=null)colReturnStatus.setCellValueFactory(v->new SimpleStringProperty(v.getValue()==null?"N/A":v.getValue().getReturnStatus()));colMail.setCellValueFactory(v->new SimpleStringProperty(v.getValue().isEmailSent()?"Sent":"Not Sent"));colAmount.setCellFactory(x->totalMoneyCell());colPaid.setCellFactory(x->paidMoneyCell());colBalance.setCellFactory(x->balanceMoneyCell());colStatus.setCellFactory(x->SemanticTableCells.status("document"));colPaymentStatus.setCellFactory(x->SemanticTableCells.status("payment"));if(colReturnStatus!=null)colReturnStatus.setCellFactory(x->SemanticTableCells.status("return"));colMail.setCellFactory(x->pill());setupActions();cmbPaymentStatus.getItems().setAll("All","PENDING","PARTIAL","PAID","OVERDUE");cmbPaymentStatus.setValue("All");cmbMailStatus.getItems().setAll("All","Sent","Not Sent");cmbMailStatus.setValue("All");cmbDocumentStatus.getItems().setAll("All","DRAFT","PENDING APPROVAL","APPROVED","REJECTED","CANCELLED");cmbDocumentStatus.setValue("All");cmbReturnStatus.getItems().setAll("All","N/A","PENDING APPROVAL","PARTIALLY RETURNED","FULLY RETURNED");cmbReturnStatus.setValue("All");org.example.util.PartySearchUi.install(cmbSupplier,"SUPPLIER","All Suppliers","purchase-register-supplier-search");cmbPageSize.getItems().setAll(10,25,50,100);cmbPageSize.setValue(25);cmbPageSize.valueProperty().addListener((o,a,b)->{pageState.reset();reloadPage(false);});dpFrom.setValue(BusinessClock.today().minusMonths(6));dpTo.setValue(BusinessClock.today());if(advancedFilters!=null){advancedFilters.setVisible(false);advancedFilters.setManaged(false);}if(btnAdvanced!=null){btnAdvanced.setVisible(false);btnAdvanced.setManaged(false);}if(btnCustomRange!=null){btnCustomRange.setVisible(false);btnCustomRange.setManaged(false);}txtSearch.textProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())searchDebouncer.submit(this::filter);});cmbSupplier.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed()&&!org.example.util.PartySearchUi.isInternalUpdate(cmbSupplier))filter();});cmbPaymentStatus.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});dpFrom.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});dpTo.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});cmbMailStatus.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});cmbDocumentStatus.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});cmbReturnStatus.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});if(detailDrawer!=null)RegisterUiSupport.hideDrawer(detailDrawer,mainSplit,tablePurchase);org.example.util.OperationalUiSupport.installEscapeClose(mainSplit,()->detailDrawer!=null&&detailDrawer.isVisible(),this::closeDetails);org.example.util.OperationalUiSupport.focusWorkArea(tablePurchase);refresh();configureModernTable();installRegisterTools();org.example.util.RegisterColumnPreferences.install(tablePurchase,"PURCHASE_REGISTER");}
+        if(purchasePageIcon!=null)purchasePageIcon.getChildren().setAll(IconFactory.icon("purchase",24));RegisterUiSupport.configureHeaderSearch(txtSearch,purchaseHeaderSearchIcon,"Search invoice, supplier, mobile or GSTIN...");installKpiIcons();applyRangeButtonIcons();configureExplicitButtonIcons();configureDetailsCloseButton();decorateDetailDrawer();colInvoice.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getInvoiceNo()));colDate.setCellValueFactory(v->new SimpleStringProperty(BusinessClock.formatDate(v.getValue().getInvoiceDate())));colSupplier.setCellValueFactory(v->new SimpleStringProperty(v.getValue().getSupplier().getName()));colMobile.setCellValueFactory(v->new SimpleStringProperty(s(v.getValue().getSupplier().getPhone())));colAmount.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getTotalAmount()).asObject());colPaid.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getPaidAmount()).asObject());colBalance.setCellValueFactory(v->new SimpleDoubleProperty(v.getValue().getBalanceAmount()).asObject());colDue.setCellValueFactory(v->new SimpleStringProperty(due(v.getValue())));colStatus.setCellValueFactory(v->new SimpleStringProperty(documentStatus(v.getValue())));colPaymentStatus.setCellValueFactory(v->new SimpleStringProperty(paymentStatusDisplay(v.getValue())));if(colReturnStatus!=null)colReturnStatus.setCellValueFactory(v->new SimpleStringProperty(v.getValue()==null?"N/A":v.getValue().getReturnStatus()));colMail.setCellValueFactory(v->new SimpleStringProperty(v.getValue().isEmailSent()?"Sent":"Not Sent"));colAmount.setCellFactory(x->totalMoneyCell());colPaid.setCellFactory(x->paidMoneyCell());colBalance.setCellFactory(x->balanceMoneyCell());colStatus.setCellFactory(x->SemanticTableCells.status("document"));colPaymentStatus.setCellFactory(x->SemanticTableCells.status("payment"));if(colReturnStatus!=null)colReturnStatus.setCellFactory(x->createClickableReturnStatusCell());colMail.setCellFactory(x->pill());setupActions();cmbPaymentStatus.getItems().setAll("All","PENDING","PARTIAL","PAID","OVERDUE");cmbPaymentStatus.setValue("All");cmbMailStatus.getItems().setAll("All","Sent","Not Sent");cmbMailStatus.setValue("All");cmbDocumentStatus.getItems().setAll("All","DRAFT","PENDING APPROVAL","APPROVED","REJECTED","CANCELLED");cmbDocumentStatus.setValue("All");cmbReturnStatus.getItems().setAll("All","N/A","PENDING APPROVAL","PARTIALLY RETURNED","FULLY RETURNED");cmbReturnStatus.setValue("All");org.example.util.PartySearchUi.install(cmbSupplier,"SUPPLIER","All Suppliers","purchase-register-supplier-search");cmbPageSize.getItems().setAll(10,25,50,100);cmbPageSize.setValue(25);cmbPageSize.valueProperty().addListener((o,a,b)->{pageState.reset();reloadPage(false);});dpFrom.setValue(BusinessClock.startOfCurrentFinancialYear());dpTo.setValue(BusinessClock.today());if(advancedFilters!=null){advancedFilters.setVisible(false);advancedFilters.setManaged(false);}if(btnAdvanced!=null){btnAdvanced.setVisible(false);btnAdvanced.setManaged(false);}if(btnCustomRange!=null){btnCustomRange.setVisible(false);btnCustomRange.setManaged(false);}txtSearch.textProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())searchDebouncer.submit(this::filter);});cmbSupplier.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed()&&!org.example.util.PartySearchUi.isInternalUpdate(cmbSupplier))filter();});cmbPaymentStatus.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});dpFrom.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});dpTo.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});cmbMailStatus.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});cmbDocumentStatus.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});cmbReturnStatus.valueProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filter();});if(detailDrawer!=null)RegisterUiSupport.hideDrawer(detailDrawer,mainSplit,tablePurchase);org.example.util.OperationalUiSupport.installEscapeClose(mainSplit,()->detailDrawer!=null&&detailDrawer.isVisible(),this::closeDetails);org.example.util.OperationalUiSupport.focusWorkArea(tablePurchase);refresh();configureModernTable();installRegisterTools();org.example.util.RegisterColumnPreferences.install(tablePurchase,"PURCHASE_REGISTER");}
 
 
  private void decorateDetailDrawer(){
@@ -61,6 +61,19 @@ public class PurchaseListController implements ScreenLifecycle{
  }
  private void setKpiIcon(StackPane pane,String semantic){if(pane!=null)pane.getChildren().setAll(IconFactory.compactIcon(semantic,22));}
 
+ private TableCell<Purchase,String> createClickableReturnStatusCell(){
+  TableCell<Purchase,String> cell=SemanticTableCells.status("return");
+  cell.setOnMouseClicked(event->{
+   if(event.getClickCount()==1&&!cell.isEmpty()){
+    Purchase p=cell.getTableRow()!=null?cell.getTableRow().getItem():null;
+    if(p!=null){
+     LinkedRecordContext.open("DEBIT_NOTE",null,p.getInvoiceNo(),"APPROVE_RETURN","PURCHASE_REGISTER");
+     NavigationManager.navigateOrReport("/fxml/pages/DebitNoteRegister.fxml");
+    }
+   }
+  });
+  return cell;
+ }
  private TableCell<Purchase,Double> moneyCell(){return new TableCell<>(){protected void updateItem(Double v,boolean e){super.updateItem(v,e);setText(e||v==null?null:fmt(v));setAlignment(Pos.CENTER_RIGHT);}};}
  private TableCell<Purchase,Double> totalMoneyCell(){return coloredMoneyCell("erp-table-value-colour-pink","erp-table-value-colour-pink");}
  private TableCell<Purchase,Double> balanceMoneyCell(){return coloredMoneyCell("erp-table-value-colour-blue","erp-table-value-colour-green");}
@@ -118,7 +131,7 @@ public class PurchaseListController implements ScreenLifecycle{
   colSupplier.setCellFactory(x->styledTextCell("erp-table-value-colour-indigo"));
   colMobile.setCellFactory(x->styledTextCell("erp-table-value-colour-teal"));
   colStatus.setText("Doc Status");colStatus.setCellValueFactory(v->new SimpleStringProperty(documentStatus(v.getValue())));
-  colStatus.setCellFactory(x->SemanticTableCells.status("document"));colPaymentStatus.setCellFactory(x->SemanticTableCells.status("payment"));if(colReturnStatus!=null)colReturnStatus.setCellFactory(x->SemanticTableCells.status("return"));colMail.setCellFactory(x->SemanticTableCells.status("email"));colDue.setCellFactory(x->SemanticTableCells.dueDate());
+  colStatus.setCellFactory(x->SemanticTableCells.status("document"));colPaymentStatus.setCellFactory(x->SemanticTableCells.status("payment"));if(colReturnStatus!=null)colReturnStatus.setCellFactory(x->createClickableReturnStatusCell());colMail.setCellFactory(x->SemanticTableCells.status("email"));colDue.setCellFactory(x->SemanticTableCells.dueDate());
 
   IconFactory.applyTableHeaderIcon(colInvoice, "reference");
   IconFactory.applyTableHeaderIcon(colDate, "calendar");
@@ -187,7 +200,27 @@ public class PurchaseListController implements ScreenLifecycle{
            tablePurchase, "PURCHASE", row.getId(), row.getInvoiceNo(), "Supplier",
            row.getSupplier() != null ? row.getSupplier().getName() : "");
   });
-  sharedMenu.getItems().setAll(view, linkages, audit, editActionItem, duplicate, pdf, barcode, excel, email, whatsapp, paymentActionItem, returnActionItem, notes, cancelActionItem, deleteActionItem);
+  MenuItem attach = purchaseActionItem("Attach Document...", "attachment", () -> {
+   Purchase row = requirePurchaseActionTarget(target);
+   FileChooser chooser = new FileChooser();
+   chooser.setTitle("Upload Attachment to Purchase #" + row.getInvoiceNo());
+   chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documents", "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.csv", "*.txt", "*.*"));
+   File file = chooser.showOpenDialog(tablePurchase.getScene().getWindow());
+   if (file == null) return;
+   UiTaskExecutor.submitActionWithOverlay(tablePurchase, "Uploading attachment…", "upload-purchase-row-attachment-" + row.getId(), () -> {
+       support.addDocumentAttachment("PURCHASE", row.getId(), file.toPath(), row.getRowVersion());
+       return true;
+   }, ok -> {
+       AppDialogService.success(tablePurchase, "Uploaded", "Document '" + file.getName() + "' attached successfully to Purchase #" + row.getInvoiceNo() + ".");
+       reloadPage(false);
+   }, this::error);
+  });
+  MenuItem viewReturns = purchaseActionItem("View Returns & Approvals", "return", () -> {
+   Purchase row = requirePurchaseActionTarget(target);
+   LinkedRecordContext.open("DEBIT_NOTE", null, row.getInvoiceNo(), "APPROVE_RETURN", "PURCHASE_REGISTER");
+   NavigationManager.navigateOrReport("/fxml/pages/DebitNoteRegister.fxml");
+  });
+  sharedMenu.getItems().setAll(view, linkages, attach, audit, editActionItem, duplicate, pdf, barcode, excel, email, whatsapp, paymentActionItem, returnActionItem, viewReturns, notes, cancelActionItem, deleteActionItem);
   IconFactory.decorateActionMenu(sharedMenu);
 
   java.util.function.Consumer<Purchase> updateAvailability = current -> {
@@ -308,7 +341,7 @@ public class PurchaseListController implements ScreenLifecycle{
  private LocalDate parseDate(String d){try{return d==null||d.isBlank()?null:LocalDate.parse(d);}catch(Exception ignored){return null;}}
  @FXML private void toggleAdvanced(){advancedFilters.setManaged(btnAdvanced.isSelected());advancedFilters.setVisible(btnAdvanced.isSelected());}    @FXML private void resetFilters(){
         org.example.util.OperationalUiSupport.animateReset(btnReset, advancedFilters, () -> {
-            batchFilterUpdate(()->{txtSearch.clear();cmbSupplier.setValue("All Suppliers");cmbPaymentStatus.setValue("All");cmbMailStatus.setValue("All");cmbDocumentStatus.setValue("All");cmbReturnStatus.setValue("All");dpFrom.setValue(BusinessClock.today().minusMonths(6));dpTo.setValue(BusinessClock.today());});
+            batchFilterUpdate(()->{txtSearch.clear();cmbSupplier.setValue("All Suppliers");cmbPaymentStatus.setValue("All");cmbMailStatus.setValue("All");cmbDocumentStatus.setValue("All");cmbReturnStatus.setValue("All");dpFrom.setValue(BusinessClock.startOfCurrentFinancialYear());dpTo.setValue(BusinessClock.today());});
             searchDebouncer.cancel();
             filter();
         });

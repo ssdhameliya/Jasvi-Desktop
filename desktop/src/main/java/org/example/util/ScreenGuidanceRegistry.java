@@ -365,6 +365,7 @@ public final class ScreenGuidanceRegistry {
             List.of(
                 "Click 'Import Statement' to parse statement files (.xlsx, .xls, .csv) with automatic header detection.",
                 "System auto-detects known bank formats (Kotak, HDFC, ICICI, SBI, Axis) and maps dates, narration, debits, and credits.",
+                "How Matching Works: Match Transaction → The application searches automatically → Review the suggestion → Confirm or find another → Linked Bank / Expense Entry is stored in ledger.",
                 "Review matched transactions, confirm paired invoice payments, and identify un-reconciled bank charges."
             ),
             List.of(

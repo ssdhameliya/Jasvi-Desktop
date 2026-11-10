@@ -39,7 +39,9 @@ public final class DesktopLog {
     }
 
     public static Path path() { return file; }
-    public static void info(String component, String event, String detail) { write("INFO", component, event, detail, null); }
+    public static void info(String component, String event, String detail) {
+        // INFO events suppressed to keep diagnostic ledger focused strictly on WARN and ERROR
+    }
     public static void warn(String component, String event, String detail) { write("WARN", component, event, detail, null); }
     public static void error(String component, String event, String detail, Throwable failure) {
         write("ERROR", component, event, detail, failure);

@@ -99,7 +99,11 @@ public class LicenseApiClient {
             HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(base + path))
                     .timeout(Duration.ofSeconds(15))
                     .header("Accept", "application/json");
-            ApiSession.authorize(b);
+            if (ApiSession.isEstablished()) {
+                ApiSession.authorize(b);
+            } else if (path != null && path.startsWith("/api/license/super/")) {
+                throw new IllegalStateException("Authentication required for super admin licensing operations");
+            }
 
             if (body != null) {
                 b.header("Content-Type", "application/json")

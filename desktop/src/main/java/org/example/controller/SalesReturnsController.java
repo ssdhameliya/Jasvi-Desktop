@@ -97,7 +97,7 @@ public class SalesReturnsController implements ScreenLifecycle {
         installActions();
         installRows();
         configureDrawer();
-        dpFrom.setValue(BusinessClock.today().minusMonths(6));
+        dpFrom.setValue(BusinessClock.startOfCurrentFinancialYear());
         dpTo.setValue(BusinessClock.today());
         org.example.util.PartySearchUi.install(customerFilter,"CUSTOMER","All Customers","sales-returns-customer-search");
         statusFilter.getItems().setAll("All Status", "PENDING APPROVAL", "APPROVED", "REJECTED", "CANCELLED");
@@ -127,6 +127,7 @@ public class SalesReturnsController implements ScreenLifecycle {
                 add("Approve Return", "approve", e -> approveReturn(row()));
                 add("Reject Return", "reject", e -> rejectReturn(row()));
                 add("Record Refund", "payment", e -> recordRefund(row()));
+                add("Quick Apply (Offset Invoices)", "apply", e -> quickApply(row()));
                 add("Cancel Return", "cancel", e -> cancel(row()));
                 add("Delete Return", "delete", e -> delete(row()));
                 menu.getStyleClass().add("row-actions");menu.setGraphic(IconFactory.compactIcon("actions",16));menu.setText("Actions");menu.setContentDisplay(ContentDisplay.LEFT);menu.setGraphicTextGap(6);menu.setTooltip(new Tooltip("Actions"));IconFactory.decorateActionMenu(menu);
@@ -145,6 +146,7 @@ public class SalesReturnsController implements ScreenLifecycle {
                         if(mi.getText().startsWith("Approve Return"))mi.setDisable(!waiting||!PermissionService.allowed("SALES.APPROVE"));
                         else if(mi.getText().startsWith("Reject Return"))mi.setDisable(!waiting||!PermissionService.allowed("SALES.APPROVE"));
                         else if(mi.getText().startsWith("Record Refund")){mi.setDisable(!approved);mi.setText(approved?"Record Refund":"Record Refund (Approval Required)");}
+                        else if(mi.getText().startsWith("Quick Apply")){mi.setDisable(!approved||current.refund()>=current.amount()-0.009);}
                         else if(mi.getText().startsWith("Cancel Return")||mi.getText().startsWith("Delete Return"))mi.setDisable(!canCancelOrDelete(current));
                     }
                 }
@@ -198,7 +200,7 @@ public class SalesReturnsController implements ScreenLifecycle {
     @FXML private void filter(){if(suppressAutoFilter)return;pageState.runWhenIdle(()->{if(suppressAutoFilter)return;pageState.reset();load();});}
     @FXML private void previousPage(){if(pageState.previous())load();}
     @FXML private void nextPage(){if(pageState.next())load();}
-    @FXML private void reset(){suppressAutoFilter=true;try{search.clear();customerFilter.setValue("All Customers");statusFilter.setValue("All Status");dpFrom.setValue(BusinessClock.today().minusMonths(6));dpTo.setValue(BusinessClock.today());}finally{suppressAutoFilter=false;}pageState.reset();load();}
+    @FXML private void reset(){suppressAutoFilter=true;try{search.clear();customerFilter.setValue("All Customers");statusFilter.setValue("All Status");dpFrom.setValue(BusinessClock.startOfCurrentFinancialYear());dpTo.setValue(BusinessClock.today());}finally{suppressAutoFilter=false;}pageState.reset();load();}
     @FXML private void refreshWithFeedback(){explicitRefreshPending=true;if(btnRefreshReturns!=null){btnRefreshReturns.setDisable(true);btnRefreshReturns.setText("Refreshing...");}load();}
     private void finishExplicitRefresh(boolean success){if(!explicitRefreshPending)return;explicitRefreshPending=false;if(btnRefreshReturns!=null){btnRefreshReturns.setDisable(false);btnRefreshReturns.setText("Refresh");}if(success)org.example.util.AppDialogService.info(table,"Refreshed","Sales Returns is up to date.");}
     @Override public void onScreenShown(boolean reusedFromCache){
@@ -287,6 +289,21 @@ public class SalesReturnsController implements ScreenLifecycle {
         if(row==null)return;
         if(!isApproved(row)){org.example.util.AppDialogService.warning(table,"Refund blocked","Return approval required","Refund/settlement can be recorded only after Admin approves the Return.");return;}
         ReturnRefundContext.select(row.no()); NavigationManager.getInstance().loadPage("/fxml/pages/ReturnRefund.fxml");
+    }
+    private void quickApply(Row row) {
+        if (row == null) return;
+        if (!isApproved(row)) {
+            org.example.util.AppDialogService.warning(table, "Quick apply blocked", "Return approval required", "Quick apply can be performed only after Admin approves the Return.");
+            return;
+        }
+        if (!confirm("Apply Credit Note / Return " + row.no() + " to outstanding unpaid invoices for " + row.customer() + "?\n\nThis will automatically allocate available return credit to open sales invoices in FIFO order.")) return;
+        UiTaskExecutor.submitSerial("sales-return-quick-apply-" + row.no(), () -> {
+            return returnApi.quickApply(row.no());
+        }, msg -> {
+            NotificationService.add(msg);
+            org.example.util.AppDialogService.success(table, "Applied Successfully", msg);
+            load();
+        }, ex -> org.example.util.AppDialogService.error(table, "Quick Apply Failed", ex.getMessage()));
     }
     private void approveReturn(Row row){
         if(row==null||!isPendingApproval(row))return;

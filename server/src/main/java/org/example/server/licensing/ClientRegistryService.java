@@ -494,6 +494,27 @@ public class ClientRegistryService {
         String remoteUrl = req.get("remoteUrl") != null ? String.valueOf(req.get("remoteUrl")).trim() : null;
         if (remoteUrl != null && remoteUrl.isBlank()) remoteUrl = null;
 
+        List<Map<String, Object>> existingPending = jdbc.queryForList(
+                "SELECT id FROM licensing_registration_lead WHERE machine_id = ? AND UPPER(status) = 'PENDING' ORDER BY id DESC LIMIT 1",
+                machineId);
+        if (!existingPending.isEmpty()) {
+            Long existingId = ((Number) existingPending.getFirst().get("id")).longValue();
+            jdbc.update("""
+                    UPDATE licensing_registration_lead SET
+                        company_name = ?,
+                        contact_person = ?,
+                        phone = ?,
+                        email = ?,
+                        requested_tier = ?,
+                        notes = ?,
+                        updated_at = CURRENT_TIMESTAMP,
+                        remote_url = COALESCE(?, remote_url)
+                    WHERE id = ?
+                    """, company, contact, phone, email, tier, notes, remoteUrl, existingId);
+            List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM licensing_registration_lead WHERE id = ?", existingId);
+            return rows.isEmpty() ? Map.of() : rows.getFirst();
+        }
+
         jdbc.update("""
                 INSERT INTO licensing_registration_lead (company_name, machine_id, contact_person, phone, email, requested_tier, status, notes, updated_at, remote_url)
                 VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, CURRENT_TIMESTAMP, ?)
@@ -553,6 +574,13 @@ public class ClientRegistryService {
         if (leadId == null) throw new IllegalArgumentException("Lead ID is required");
         jdbc.update("UPDATE licensing_registration_lead SET status = 'REJECTED', updated_at = CURRENT_TIMESTAMP WHERE id = ?", leadId);
         return Map.of("success", true, "leadId", leadId, "status", "REJECTED");
+    }
+
+    @Transactional
+    public Map<String, Object> deleteLead(Long leadId) {
+        if (leadId == null) throw new IllegalArgumentException("Lead ID is required");
+        jdbc.update("DELETE FROM licensing_registration_lead WHERE id = ?", leadId);
+        return Map.of("success", true, "leadId", leadId, "deleted", true);
     }
 
     @Transactional
