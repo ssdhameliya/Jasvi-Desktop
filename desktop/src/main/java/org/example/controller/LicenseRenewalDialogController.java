@@ -16,6 +16,7 @@ import javafx.scene.layout.StackPane;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.example.api.ApiRuntime;
+import org.example.api.ApiSession;
 import org.example.api.licensing.LicenseApiClient;
 import org.example.shared.licensing.HardwareFingerprintUtil;
 import org.example.util.AppDialogRenderer;
@@ -357,6 +358,16 @@ public class LicenseRenewalDialogController {
         LicenseApiClient.LicenseStatusDto cur = currentStatusDto;
         String machineId = HardwareFingerprintUtil.getDisplayMachineId();
 
+        if (cur != null && "ACTIVE".equalsIgnoreCase(cur.status()) && cur.daysRemaining() > 0) {
+            String expDate = (lblValidUntil != null && !lblValidUntil.getText().isBlank() && !"-".equals(lblValidUntil.getText()))
+                    ? lblValidUntil.getText()
+                    : (cur.validUntil() != null ? cur.validUntil().atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy")) : "N/A");
+            AppDialogService.info(btnClose, "Terminal Already Activated",
+                    "This computer is already activated with an active " + cur.tier() +
+                    " subscription valid until " + expDate + " (" + cur.daysRemaining() + " days remaining).\n\nNo further activation is required.");
+            return;
+        }
+
         String company = (lblCompany != null && !lblCompany.getText().isBlank() && !"-".equals(lblCompany.getText()))
                 ? lblCompany.getText().trim()
                 : (cur != null && cur.companyName() != null && !cur.companyName().isBlank() ? cur.companyName() : "JASVI INDUSTRIES");
@@ -379,6 +390,43 @@ public class LicenseRenewalDialogController {
                 "tier", tier,
                 "maxUsers", maxUsers
         );
+
+        if (!ApiSession.isEstablished()) {
+            UiTaskExecutor.submitAction(
+                    "check-lead-activation",
+                    () -> api.checkLead(machineId),
+                    leadStatus -> {
+                        String payload = leadStatus != null ? String.valueOf(leadStatus.getOrDefault("licensePayload", "")) : "";
+                        if (!payload.isBlank() && !"null".equalsIgnoreCase(payload)) {
+                            try {
+                                Object activationTarget;
+                                if (payload.trim().startsWith("{")) {
+                                    activationTarget = json.readValue(payload, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                                } else {
+                                    activationTarget = Map.of("licensePayload", payload);
+                                }
+                                api.activate(activationTarget);
+                                refreshStatus();
+                                AppDialogService.success(btnClose, "Computer Activated",
+                                        "Approved license downloaded and activated successfully for Terminal " + machineId + "!");
+                            } catch (Exception ex) {
+                                AppDialogService.error(btnClose, "Activation Error", "Could not apply approved license", ex.getMessage());
+                            }
+                        } else {
+                            String leadState = leadStatus != null ? String.valueOf(leadStatus.getOrDefault("status", "NONE")) : "NONE";
+                            if ("PENDING".equalsIgnoreCase(leadState)) {
+                                AppDialogService.info(btnClose, "Registration Pending",
+                                        "Your registration request has been submitted and is awaiting Super Admin approval.");
+                            } else {
+                                AppDialogService.info(btnClose, "Activation Required",
+                                        "No approved license found for this terminal. Please click 'Register Online' to submit an activation request.");
+                            }
+                        }
+                    },
+                    err -> AppDialogService.error(btnClose, "Check Status Error", "Could not check registration status", err.getMessage())
+            );
+            return;
+        }
 
         UiTaskExecutor.submitAction(
                 "self-activate-now",

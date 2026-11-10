@@ -769,16 +769,21 @@ public class ImportController implements ScreenLifecycle {
             lblReadyStatus.setText(
                 "Choose an import file (.xlsx, .xls, .csv) to begin"
             );
+            lblReadyStatus.getStyleClass().setAll("badge", "badge-pill", "status-warning");
         } else if (!mappingsComplete) {
             lblReadyStatus.setText(
                 "Map all required fields before importing"
             );
+            lblReadyStatus.getStyleClass().setAll("badge", "badge-pill", "status-warning");
         } else if (dry) {
             lblReadyStatus.setText("Dry-run test mode • Ready to validate without saving");
+            lblReadyStatus.getStyleClass().setAll("badge", "badge-pill", "status-info");
         } else if (!preflightPassed) {
             lblReadyStatus.setText("Run validation before importing");
+            lblReadyStatus.getStyleClass().setAll("badge", "badge-pill", "status-info");
         } else {
             lblReadyStatus.setText("All validations passed • Ready to import " + selectedFile.getName());
+            lblReadyStatus.getStyleClass().setAll("badge", "badge-pill", "status-positive");
         }
     }
 
@@ -1233,6 +1238,7 @@ public class ImportController implements ScreenLifecycle {
                 + sizeInKb
                 + " KB"
         );
+        lblChosenFile.getStyleClass().setAll("selected-file", "badge", "badge-pill", "status-positive");
 
         buildMappingGrid(
             currentHeaders,
@@ -1952,7 +1958,9 @@ public class ImportController implements ScreenLifecycle {
     @FXML private void startAnotherImport() {
         importCompleted = false; completedModule = null; selectedFile = null; selectedLayout = null; currentHeaders = List.of();
         preflightPassed = false; lastPreflightResult = null; mappingControls.clear(); mappingStatusLabels.clear(); requiredStatusLabels.clear();
-        lblChosenFile.setText("No file selected"); tblPreview.getItems().clear(); tblPreview.getColumns().clear();
+        lblChosenFile.setText("No file selected");
+        lblChosenFile.getStyleClass().setAll("selected-file", "badge", "badge-pill", "status-warning");
+        tblPreview.getItems().clear(); tblPreview.getColumns().clear();
         if (importCompletedPanel != null) { importCompletedPanel.setVisible(false); importCompletedPanel.setManaged(false); }
         UnsavedChangesManager.installGuard(btnRunImport, this::allowNavigationAway);
         showWizardStep(1); updateMappingSummary();

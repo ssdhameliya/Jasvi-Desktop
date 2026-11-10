@@ -70,6 +70,7 @@ public class BankExpenseController implements ScreenLifecycle {
     @FXML private StackPane financeSearchIcon;
     @FXML private TextArea description;
     @FXML private Label billName, showingLabel, pageLabel;
+    @FXML private ComboBox<Integer> cmbPageSize;
     @FXML private TableView<EntryRow> table;
     @FXML private TableColumn<EntryRow,String> colDate,colType,colDescription,colAccount,colMode,colReference,colMatch;
     @FXML private TableColumn<EntryRow,Number> colAmount;
@@ -89,7 +90,11 @@ public class BankExpenseController implements ScreenLifecycle {
     private int currentPage = 0;
     private int totalPages = 0;
     private long totalRows = 0;
-    private static final int PAGE_SIZE = 8;
+    private static final int DEFAULT_PAGE_SIZE = 25;
+
+    private int getPageSize() {
+        return cmbPageSize != null && cmbPageSize.getValue() != null ? cmbPageSize.getValue() : DEFAULT_PAGE_SIZE;
+    }
     private Dialog<ButtonType> entryDialog;
     private RegisterDetailDrawer detailDrawer;
     private EntryRow detailRow;
@@ -117,6 +122,14 @@ public class BankExpenseController implements ScreenLifecycle {
         bankAccount.setOnShowing(e -> loadAccounts());
         expenseAccount.setOnShowing(e -> loadAccounts());
         configureTable();
+        if (cmbPageSize != null) {
+            cmbPageSize.getItems().setAll(10, 25, 50, 100);
+            cmbPageSize.setValue(25);
+            cmbPageSize.valueProperty().addListener((o, a, b) -> {
+                currentPage = 0;
+                reloadRows();
+            });
+        }
         if (workspaceRow != null && entryFormPanel != null) { workspaceRow.getChildren().remove(entryFormPanel); entryFormPanel.setManaged(true); entryFormPanel.setVisible(true); }
         installDetailDrawer();
         if(btnBankMode!=null)btnBankMode.setGraphic(IconFactory.compactIcon("bank",15));
@@ -773,7 +786,7 @@ public class BankExpenseController implements ScreenLifecycle {
         if(activeDeepLinkEntryId!=null)return;
         org.example.util.OperationalUiSupport.showLoading(table, mode==Mode.EXPENSE?"Loading expenses…":"Loading bank entries…");
         String q=searchField==null?"":searchField.getText().trim();String filter=typeFilter==null?"":safe(typeFilter.getValue(),"");Mode requestedMode=mode;int requestedPage=currentPage;LocalDate from=filterFrom==null?null:filterFrom.getValue();LocalDate to=filterTo==null?null:filterTo.getValue();
-        UiTaskExecutor.submitLatest("finance-register-page",()->financeService.page(requestedPage,PAGE_SIZE,requestedMode==null?"":requestedMode.name(),"",filter,q,from,to),this::applyFinancePage,failure->{
+        UiTaskExecutor.submitLatest("finance-register-page",()->financeService.page(requestedPage,getPageSize(),requestedMode==null?"":requestedMode.name(),"",filter,q,from,to),this::applyFinancePage,failure->{
             finishExplicitRefresh(false);
             org.example.util.OperationalUiSupport.showError(table,"Finance register could not load",new IllegalStateException(userMessage(failure)));
             System.err.println("Finance register load failed: " + userMessage(failure));
@@ -784,7 +797,7 @@ public class BankExpenseController implements ScreenLifecycle {
         filtered.clear();if(page!=null&&page.rows()!=null)for(var e:page.rows())filtered.add(toRow(e));currentPage=page==null?0:page.page();totalPages=page==null?0:page.totalPages();totalRows=page==null?0:page.totalRows();renderPage();if(pendingSelectEntryId!=null){EntryRow row=filtered.stream().filter(x->x.id==pendingSelectEntryId).findFirst().orElse(null);if(row!=null){table.getSelectionModel().select(row);table.scrollTo(row);showEntryDetails(row);pendingSelectEntryId=null;}}if(filtered.isEmpty())org.example.util.OperationalUiSupport.showEmpty(table,mode==Mode.EXPENSE?"No expenses found":"No bank entries found","Adjust the filters or add a new entry.");finishExplicitRefresh(true);
     }
     private EntryRow toRow(OperationsApiClient.FinanceEntry e){String raw=safe(e.voucherType(),"");String type=raw.toUpperCase(Locale.ROOT).contains("DEPOSIT")?"Deposit":raw.toUpperCase(Locale.ROOT).contains("WITHDRAW")?"Withdrawal":safe(e.category(),"Other");return new EntryRow(e.id()==null?0:e.id(),safe(e.voucherNo(),""),e.voucherDate(),type,safe(e.notes(),""),safe(e.accountName(),""),safe(e.paymentMode(),""),safe(e.referenceNo(),""),e.amount(),raw,e.reconciled(),e.statementTransactionId(),safe(e.linkedTargetType(),""),e.linkedTargetId(),safe(e.linkedDocumentNo(),""),e.rowVersion());}
-    private void renderPage(){table.getItems().setAll(filtered);long from=totalRows==0?0:(long)currentPage*PAGE_SIZE+1,to=totalRows==0?0:Math.min(totalRows,from+filtered.size()-1);showingLabel.setText(totalRows==0?"Showing 0 to 0 of 0 entries":"Showing "+from+" to "+to+" of "+totalRows+" entries");pageLabel.setText(totalPages<=0?"0 / 0":(currentPage+1)+" / "+totalPages);}
+    private void renderPage(){table.getItems().setAll(filtered);long from=totalRows==0?0:(long)currentPage*getPageSize()+1,to=totalRows==0?0:Math.min(totalRows,from+filtered.size()-1);showingLabel.setText(totalRows==0?"Showing 0 to 0 of 0 entries":"Showing "+from+" to "+to+" of "+totalRows+" entries");pageLabel.setText(totalPages<=0?"0 / 0":(currentPage+1)+" / "+totalPages);}
     @FXML private void previousPage(){if(currentPage>0){currentPage--;reloadRows();}} @FXML private void nextPage(){if(currentPage+1<totalPages){currentPage++;reloadRows();}}
 
     private void installDetailDrawer(){

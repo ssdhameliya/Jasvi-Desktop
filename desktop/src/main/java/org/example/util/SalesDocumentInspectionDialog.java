@@ -543,8 +543,24 @@ public final class SalesDocumentInspectionDialog {
         IconFactory.applyTableHeaderIcon(colParty, "customer");
 
         TableColumn<SupportApiClient.PaymentRow, String> colMode = new TableColumn<>("Payment Mode");
-        colMode.setPrefWidth(120);
+        colMode.setPrefWidth(135);
         colMode.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().mode())));
+        colMode.setCellFactory(ignored -> new TableCell<>() {
+            @Override protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null || val.isBlank()) {
+                    setGraphic(null); setText(null);
+                } else if (val.equalsIgnoreCase("Debit Note") || val.equalsIgnoreCase("Credit Note")) {
+                    Label pill = new Label(val + " Offset");
+                    pill.getStyleClass().addAll("badge-pill", "status-warning");
+                    pill.setGraphic(IconFactory.compactIcon("return", 12));
+                    setGraphic(pill);
+                    setText(null);
+                } else {
+                    setGraphic(null); setText(val);
+                }
+            }
+        });
         IconFactory.applyTableHeaderIcon(colMode, "payment");
 
         table.setFixedCellSize(36.0);

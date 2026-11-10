@@ -29,6 +29,7 @@ public class LicensingApiController {
 
     private final LicenseVerifierService verifier;
     private final ClientRegistryService registryService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
     public LicensingApiController(LicenseVerifierService verifier, ClientRegistryService registryService) {
         this.verifier = verifier;
@@ -112,6 +113,17 @@ public class LicensingApiController {
                 ? (Map<String, Object>) m
                 : body;
 
+        if (payloadMap == body && body.get("licensePayload") != null) {
+            Object lp = body.get("licensePayload");
+            if (lp instanceof Map<?, ?> m) {
+                payloadMap = (Map<String, Object>) m;
+            } else if (lp instanceof String s && s.trim().startsWith("{")) {
+                try {
+                    payloadMap = objectMapper.readValue(s, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                } catch (Exception ignored) {}
+            }
+        }
+
         String signature = (String) body.get("signature");
         if (signature == null && body.get("header") instanceof Map<?, ?> h) {
             signature = (String) h.get("signature");
@@ -124,6 +136,9 @@ public class LicensingApiController {
         if (licenseKey == null) licenseKey = (String) payloadMap.get("key");
         if (licenseKey == null && body.get("header") instanceof Map<?, ?> h) {
             licenseKey = (String) h.get("key");
+        }
+        if (licenseKey == null && body.get("licenseKey") != null) {
+            licenseKey = String.valueOf(body.get("licenseKey"));
         }
 
         if (licenseKey == null || signature == null) {

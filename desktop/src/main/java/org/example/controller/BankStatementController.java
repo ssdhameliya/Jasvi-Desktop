@@ -51,7 +51,7 @@ import java.time.LocalDate;
 import java.util.*;
 
 public class BankStatementController implements ScreenLifecycle {
-    @FXML private StackPane pageIcon,kpiTotalIcon,kpiUnmatchedIcon,kpiSuggestedIcon,kpiMatchedIcon,kpiExpenseIcon,kpiCreditsIcon,kpiDebitsIcon,kpiReconciledIcon,howIcon,historyIcon;
+    @FXML private StackPane pageIcon,kpiTotalIcon,kpiUnmatchedIcon,kpiSuggestedIcon,kpiMatchedIcon,kpiExpenseIcon,kpiCreditsIcon,kpiDebitsIcon,kpiReconciledIcon,historyIcon;
     @FXML private VBox cardKpiTotal,cardKpiUnmatched,cardKpiSuggested,cardKpiMatched,cardKpiExpense;
     @FXML private Button btnImport,btnScreenGuide,btnSearch,btnReset,btnRefresh,btnPrevPage,btnNextPage,btnBrowseStatements,btnDeleteStatement,btnCloseHistory,btnHistoryPrev,btnHistoryNext,btnOpenStatement,btnHistoryDelete,btnAutoMatch;
     @FXML private CheckBox chkSelectAll;
@@ -100,6 +100,8 @@ public class BankStatementController implements ScreenLifecycle {
         DatePickerFormatter.attach(toDate);
         DatePickerFormatter.attach(historyFrom);
         DatePickerFormatter.attach(historyTo);
+        if (historyFrom != null) historyFrom.setValue(BusinessClock.startOfCurrentFinancialYear());
+        if (historyTo != null) historyTo.setValue(BusinessClock.today());
         installIcons();
         cmbStatus.setItems(FXCollections.observableArrayList("All Status","UNMATCHED","SUGGESTED","MATCHED","EXPENSE","REVIEW","IGNORED"));
         cmbStatus.setValue("All Status");
@@ -191,7 +193,7 @@ public class BankStatementController implements ScreenLifecycle {
         setIcon(kpiSuggestedIcon,"link",18); setIcon(kpiMatchedIcon,"status",18); setIcon(kpiExpenseIcon,"payment",18);
         setIcon(kpiCreditsIcon,"payment",18); setIcon(kpiDebitsIcon,"payment",18);
         if(kpiReconciledIcon!=null) setIcon(kpiReconciledIcon,"status",18);
-        setIcon(howIcon,"info",16); setIcon(historyIcon,"history",18);
+        setIcon(historyIcon,"history",18);
         if(btnAutoMatch!=null) btnAutoMatch.setGraphic(IconFactory.compactIcon("link",15));
         if(btnImport!=null) btnImport.setGraphic(IconFactory.compactIcon("import",16));
         if(btnBrowseStatements!=null) btnBrowseStatements.setGraphic(IconFactory.compactIcon("history",15));
@@ -413,7 +415,29 @@ public class BankStatementController implements ScreenLifecycle {
         colHistoryBank.setCellFactory(c->historyTextCell());
         colHistoryPeriod.setCellFactory(c->historyTextCell());
         colHistoryStatus.setCellFactory(c->SemanticTableCells.status("reconcile"));
-        tableHistory.getSelectionModel().selectedItemProperty().addListener((o,a,b)->{btnOpenStatement.setDisable(b==null);updateDeleteButtons();});
+        tableHistory.getSelectionModel().selectedItemProperty().addListener((o,a,b)->{
+            if (btnOpenStatement != null) btnOpenStatement.setDisable(b == null);
+            updateDeleteButtons();
+        });
+        tableHistory.setRowFactory(tv -> {
+            TableRow<BankStatementApiClient.BatchDto> row = new TableRow<>();
+            ContextMenu menu = new ContextMenu();
+            MenuItem openItem = new MenuItem("Open Statement");
+            openItem.setGraphic(IconFactory.compactIcon("view", 14));
+            openItem.setOnAction(e -> openSelectedHistory());
+
+            MenuItem deleteItem = new MenuItem("Delete Statement");
+            deleteItem.setGraphic(IconFactory.compactIcon("delete", 14));
+            deleteItem.setOnAction(e -> deleteSelectedHistory());
+
+            menu.getItems().addAll(openItem, deleteItem);
+            row.contextMenuProperty().bind(
+                javafx.beans.binding.Bindings.when(row.emptyProperty())
+                    .then((ContextMenu) null)
+                    .otherwise(menu)
+            );
+            return row;
+        });
     }
     private TableCell<BankStatementApiClient.BatchDto,String> historyTextCell(){return new TableCell<>(){@Override protected void updateItem(String value,boolean empty){super.updateItem(value,empty);String text=empty?null:safe(value);setText(text);setTooltip(text==null||text.isBlank()?null:new Tooltip(text));}};}
     private boolean isStatementHistoryOpen(){return statementHistoryDialog!=null&&statementHistoryDialog.isShowing();}
@@ -454,6 +478,8 @@ public class BankStatementController implements ScreenLifecycle {
         });
         statementHistoryDialog.setOnCloseRequest(e->restoreStatementHistoryDrawer());
         statementHistoryDialog.setResultConverter(button->null);
+        if (historyFrom != null && historyFrom.getValue() == null) historyFrom.setValue(BusinessClock.startOfCurrentFinancialYear());
+        if (historyTo != null && historyTo.getValue() == null) historyTo.setValue(BusinessClock.today());
         historyPage=0;
         loadStatementHistory();
         statementHistoryDialog.show();
@@ -472,7 +498,18 @@ public class BankStatementController implements ScreenLifecycle {
         historyPage=0;
     }
     @FXML private void searchStatementHistory(){historyPage=0;loadStatementHistory();}
-    @FXML private void resetStatementHistory(){txtHistorySearch.clear();if(cmbHistoryAccount!=null){cmbHistoryAccount.setValue(null);cmbHistoryAccount.getEditor().clear();}cmbHistoryStatus.setValue("All Status");historyFrom.setValue(null);historyTo.setValue(null);historyPage=0;loadStatementHistory();}
+    @FXML private void resetStatementHistory(){
+        txtHistorySearch.clear();
+        if(cmbHistoryAccount!=null){
+            cmbHistoryAccount.setValue(null);
+            cmbHistoryAccount.getEditor().clear();
+        }
+        cmbHistoryStatus.setValue("All Status");
+        if(historyFrom!=null) historyFrom.setValue(BusinessClock.startOfCurrentFinancialYear());
+        if(historyTo!=null) historyTo.setValue(BusinessClock.today());
+        historyPage=0;
+        loadStatementHistory();
+    }
     @FXML private void previousStatementHistoryPage(){if(historyPage>0){historyPage--;loadStatementHistory();}}
     @FXML private void nextStatementHistoryPage(){if(historyPage+1<historyTotalPages){historyPage++;loadStatementHistory();}}
     @FXML private void openSelectedHistory(){BankStatementApiClient.BatchDto selected=tableHistory==null?null:tableHistory.getSelectionModel().getSelectedItem();if(selected==null)return;closeStatementHistory();loadBatches(selected.id());}
@@ -529,7 +566,23 @@ public class BankStatementController implements ScreenLifecycle {
         String status=cmbHistoryStatus==null||cmbHistoryStatus.getValue()==null||cmbHistoryStatus.getValue().startsWith("All")?"":cmbHistoryStatus.getValue();
         String account=historyAccountFilter(),q=txtHistorySearch==null?"":safe(txtHistorySearch.getText()).trim();
         String from=dateText(historyFrom==null?null:historyFrom.getValue()),to=dateText(historyTo==null?null:historyTo.getValue());int requested=historyPage;
-        UiTaskExecutor.submitLatest("bank-statement-history",()->api.batchPage(requested,50,account,status,from,to,q),page->{historyPage=page.page();historyTotalPages=page.totalPages();historyTotalRows=page.totalRows();tableHistory.getItems().setAll(page.rows()==null?List.of():page.rows());if(tableHistory.getItems().isEmpty())org.example.util.OperationalUiSupport.showEmpty(tableHistory,"No statement imports found","Adjust the history filters or import a new statement.");updateHistoryFooter();},failure->{org.example.util.OperationalUiSupport.showError(tableHistory,"Statement history could not load",failure);error(failure);});
+        UiTaskExecutor.submitLatest("bank-statement-history",()->api.batchPage(requested,50,account,status,from,to,q),page->{
+            historyPage=page.page();
+            historyTotalPages=page.totalPages();
+            historyTotalRows=page.totalRows();
+            tableHistory.getItems().setAll(page.rows()==null?List.of():page.rows());
+            if(tableHistory.getItems().isEmpty()){
+                org.example.util.OperationalUiSupport.showEmpty(tableHistory,"No statement imports found","Adjust the history filters or import a new statement.");
+            } else {
+                tableHistory.getSelectionModel().select(0);
+            }
+            updateDeleteButtons();
+            if(btnOpenStatement!=null)btnOpenStatement.setDisable(tableHistory.getSelectionModel().getSelectedItem()==null);
+            updateHistoryFooter();
+        },failure->{
+            org.example.util.OperationalUiSupport.showError(tableHistory,"Statement history could not load",failure);
+            error(failure);
+        });
     }
     private String historyAccountFilter(){if(cmbHistoryAccount==null)return "";String text=cmbHistoryAccount.isEditable()?safe(cmbHistoryAccount.getEditor().getText()).trim():safe(cmbHistoryAccount.getValue()).trim();if(text.isBlank())return "";return historyAccountTokens.getOrDefault(text,text);}
     private void updateHistoryFooter(){int shown=tableHistory==null?0:tableHistory.getItems().size();long start=shown==0?0:(long)historyPage*50+1,end=shown==0?0:start+shown-1;if(lblHistoryShowing!=null)lblHistoryShowing.setText(shown==0?"Showing 0 statements":"Showing "+start+"–"+end+" of "+historyTotalRows);if(lblHistoryPage!=null)lblHistoryPage.setText(historyTotalPages<=0?"Page 0 of 0":"Page "+(historyPage+1)+" of "+historyTotalPages);if(btnHistoryPrev!=null)btnHistoryPrev.setDisable(historyPage<=0);if(btnHistoryNext!=null)btnHistoryNext.setDisable(historyTotalPages<=0||historyPage+1>=historyTotalPages);}
@@ -577,10 +630,10 @@ public class BankStatementController implements ScreenLifecycle {
 
     @FXML private void importStatement(){
         configureBankAccountMaster();
-        UniversalBankStatementImportDialog.show(table != null && table.getScene() != null ? table.getScene().getWindow() : null, api, new org.example.api.master.MasterApiClient(), () -> {
+        UniversalBankStatementImportDialog.show(table != null && table.getScene() != null ? table.getScene().getWindow() : null, api, new org.example.api.master.MasterApiClient(), newBatchId -> {
             javafx.scene.layout.StackPane host = LoadingOverlayHelper.findHost(table);
             if (host != null) LoadingOverlayHelper.show(host, "Synchronizing imported statement…");
-            loadBatches(null);
+            loadBatches(newBatchId);
         });
     }
 
@@ -854,17 +907,43 @@ public class BankStatementController implements ScreenLifecycle {
             () -> {List<BankStatementApiClient.BatchDto> list=new ArrayList<>(api.batches());if(preferredBatchId!=null&&list.stream().noneMatch(b->Objects.equals(b.id(),preferredBatchId)))list.add(0,api.batch(preferredBatchId));return list;},
             list -> {
                 cmbBatch.getItems().setAll(list);
-                if(selected!=null)selectBatch(selected);
-                else if(!list.isEmpty())cmbBatch.setValue(list.getFirst());
-                else {
+                BankStatementApiClient.BatchDto target = null;
+                if (selected != null) {
+                    for (var b : list) {
+                        if (Objects.equals(b.id(), selected)) {
+                            target = b;
+                            break;
+                        }
+                    }
+                }
+                if (target == null && !list.isEmpty()) {
+                    target = list.getFirst();
+                }
+                if (target != null) {
+                    boolean valueChanged = !Objects.equals(cmbBatch.getValue(), target);
+                    cmbBatch.setValue(target);
+                    if (!valueChanged) {
+                        applyBatchPeriod();
+                        currentPage = 0;
+                        loadBatch(target.id());
+                    }
+                } else {
                     table.getItems().clear();
                     totalPages=0;totalRows=0;updatePageFooter();
                     clearMetrics();
+                    javafx.scene.layout.StackPane host = LoadingOverlayHelper.findHost(table);
+                    if (host != null) LoadingOverlayHelper.hide(host);
                     org.example.util.OperationalUiSupport.showEmpty(table,"No bank statements imported","Import a bank statement to start reconciliation.");
                     finishExplicitRefresh(true);
                 }
             },
-            failure->{finishExplicitRefresh(false);org.example.util.OperationalUiSupport.showError(table,"Bank statements could not load",failure);error(failure);}
+            failure->{
+                javafx.scene.layout.StackPane host = LoadingOverlayHelper.findHost(table);
+                if (host != null) LoadingOverlayHelper.hide(host);
+                finishExplicitRefresh(false);
+                org.example.util.OperationalUiSupport.showError(table,"Bank statements could not load",failure);
+                error(failure);
+            }
         );
     }
 
@@ -881,7 +960,10 @@ public class BankStatementController implements ScreenLifecycle {
             () -> api.page(id,requestedPage,pageSize,status,direction,from,to,query),
             loaded -> {
                 if (host != null) LoadingOverlayHelper.hide(host);
-                if(cmbBatch.getValue()==null || !Objects.equals(cmbBatch.getValue().id(), id)) return;
+                if(cmbBatch.getValue()==null || !Objects.equals(cmbBatch.getValue().id(), id)) {
+                    finishExplicitRefresh(false);
+                    return;
+                }
                 currentPage=loaded.page(); totalPages=loaded.totalPages(); totalRows=loaded.totalRows();
                 List<Row> rows=loaded.rows()==null?List.of():loaded.rows().stream().map(Row::new).toList();
                 rows.forEach(row->row.selected.addListener((o,a,b)->updateSelectionState()));

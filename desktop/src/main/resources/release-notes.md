@@ -1,4 +1,105 @@
+# What's New in DSE ERP v11.0.56
+
+### Financial Year Date Standardization & Statement History Workflow Enhancements
+- **Centralized Fiscal Year Calculation & Automatic Range Defaulting (`BusinessClock.java`) (Rule 4 & Rule 13)**:
+  - Added `BusinessClock.startOfCurrentFinancialYear()` computing April 1st of the active Indian fiscal year.
+  - Standardized date filters across **Bank Statement History** (`BankStatementController.java`), **Sales Returns** (`SalesReturnsController.java`), **Purchase Returns** (`PurchaseReturnsController.java`), **Sales Register** (`SalesListController.java`), and **Purchase Register** (`PurchaseListController.java`) to default from April 1st to as of today (`BusinessClock.today()`), both on initial load and upon filter reset.
+- **Statement History Table Selection & Action Activation (`BankStatementController.java`) (Rule 8, Rule 9 & Rule 11)**:
+  - Configured `loadStatementHistory()` to auto-select the first statement import batch upon loading, immediately activating **"Delete Statement"** and **"Open Statement"** buttons with full theme styling.
+  - Added double-click row handler and right-click context menu (`Open Statement`, `Delete Statement`) with standardized icons.
+- **Import Wizard Modal Confirmation Layering (`UniversalBankStatementImportDialog.java`) (Rule 12)**:
+  - Eliminated the window layering trap where the success alert rendered behind the closing import wizard modal by unblocking the dialog stage via `close()` and scheduling `AppDialogService.success(...)` on the main workspace scene root via `Platform.runLater`.
+
+### Universal Statement Ingestion Wizard Space Optimization & Screen Guide Reclaim
+- **High-Efficiency Wizard Redesign & 75%+ Table Workspace (`UniversalBankStatementImportDialog.java`) (Rule 5, Rule 7 & Rule 12)**:
+  - Consolidated the target bank account selection and template download/file ingestion controls into a single, compact configuration toolbar.
+  - Eliminated the standalone 70px dashed dropzone box in favor of an integrated compact drop-strip, and added direct drag-and-drop capability across the entire `TableView` workspace.
+  - Sized the preflight validation table to occupy over 75% of the dialog height, expanding visible rows from ~3 rows to 15–20+ transaction records.
+- **Dynamic File Status Semantic Badges (`UniversalBankStatementImportDialog.java`, `ImportController.java`) (Rule 5, Rule 9 & Rule 11)**:
+  - Upgraded file selection status labels from plain monochrome text into dynamic semantic theme badges:
+    - Initial state: Warning badge (`status-warning`, `badge-pill`) with `alert-circle` icon (`No statement file selected`).
+    - File selected: Vibrant success badge (`status-positive`, `badge-pill`) with `check` icon (`<filename> (<size> KB)`).
+    - Parse exception: Negative badge (`status-negative`, `badge-pill`) with `alert-triangle` icon.
+- **Bank Statement Table Space Reclaim (`BankStatement.fxml`, `BankStatementController.java`, `ScreenGuidanceRegistry.java`) (Rule 7, Rule 9 & Rule 12)**:
+  - Relocated the static bottom `"How Matching Works"` panel from the main `BankStatement.fxml` layout into the rich modal Screen Guide registry (`BANK_STATEMENT`).
+  - Gained ~45px of vertical screen height for the main transaction table, allowing more bank statement transactions to be visible simultaneously without scrolling.
+
+### Universal Table Pagination Rollout Across Master Registers
+- **Customer & Supplier Master Live Pagination (`PartyMasterController.java`, `Customer.fxml`, `Suppliers.fxml`) (Rule 4, Rule 7 & Rule 10)**:
+  - Added full pagination controls (`Rows [25, 50, 100, 200]`, `[< Previous]`, `Page X of Y`, `[Next >]`, and `Showing X to Y of Z records`) to both Customer Directory and Suppliers Directory.
+  - Slices cached/filtered party records in memory with zero network delay on page traversal and dynamic page calculation.
+- **Item Master Live Pagination (`ItemMasterController.java`, `ItemMaster.fxml`) (Rule 4, Rule 7 & Rule 10)**:
+  - Equipped Item Master with standardized pagination toolbar (`Rows` selector, page counter, prev/next buttons), providing clean chunking for extensive parts catalogs.
+- **Bank & Expense Dynamic Page Sizing (`BankExpenseController.java`, `BankExpense.fxml`) (Rule 7 & Rule 10)**:
+  - Added `Rows` page-size dropdown selector (`10, 25, 50, 100`) to Bank Entry and Expense registers, dynamically binding to server-side paginated queries.
+
+### Chronological System Diagnostics Ledger & Interactive KPI Triage Engine
+- **Timezone-Aware Instant Sorting Engine (`SystemDiagnosticsDialog.java`) (Rule 4, Rule 11 & Rule 12)**:
+  - Fixed the timestamp inversion bug where UTC desktop log timestamps (`...Z`) sorted behind local offset server logs (`...+05:30`) due to lexicographical string comparison.
+  - Implemented resilient `parseInstant(raw)` helper parsing UTC ISO-8601, offset timestamps, and space-separated local timestamps into epoch milliseconds, guaranteeing that the newest diagnostic events and errors always appear as **Row #1 at the top of Page 1**.
+  - Upgraded display formatting so all timestamps render consistently in clean, localized `dd MMM yyyy hh:mm:ss a` format.
+- **Authoritative Live Log Path Resolution (`SystemDiagnosticsDialog.java`, `DesktopLog.java`) (Rule 4 & Rule 17)**:
+  - Aligned desktop log file discovery to check `DesktopLog.path()` directly from the running JVM, ensuring live desktop logs from `D:\DSE Production\Logs\Desktop\desktop.log` are inspected with zero risk of reading stale cache logs.
+- **Interactive 1-Click Diagnostic KPI Filtering (`SystemDiagnosticsDialog.java`) (Rule 5, Rule 6, Rule 8 & Rule 12)**:
+  - Transformed the System Diagnostics KPI cards into interactive quick-filters:
+    - Clicking **`Critical & Errors`** (`kpi-red`) filters immediately to `ERROR Only`.
+    - Clicking **`System Warnings`** (`kpi-orange`) filters immediately to `WARN Only`.
+    - Clicking **`Desktop Client`** (`kpi-teal`) isolates `DESKTOP` logs.
+    - Clicking **`Server Platform`** (`kpi-purple`) isolates `SERVER` logs.
+    - Clicking **`Total Events`** resets filters to `All Levels` and `All Sources`.
+
+### Resilient Partial Return Engine, Shorthand Type Normalization & Context-Aware Reasons
+- **Shorthand Type Normalization & Defensive Endpoint Protection (`ReturnService.java`) (Rule 4 & Rule 17)**:
+  - Enhanced `ReturnService.normalizeType()` so Spring Boot gracefully accepts both shorthand (`"PURCHASE"`, `"SALE"`, `"SALES"`) and canonical (`"PURCHASE RETURN"`, `"SALES RETURN"`) type tokens without throwing `IllegalArgumentException`.
+  - Relaxed the sequential return lock in `requireNoOpenReturn` so operators can create successive partial returns for remaining invoice stock without being blocked by open refund settlement balances, while maintaining strict protection against concurrent unapproved returns.
+- **Dual-Tab Return Fetch Query Alignment (`DebitNoteRegisterController.java`, `CreditNoteRegisterController.java`) (Rule 4, Rule 8 & Rule 10)**:
+  - Aligned `DebitNoteRegisterController` and `CreditNoteRegisterController` to query `"PURCHASE RETURN"` and `"SALES RETURN"` explicitly, eliminating background fetch exceptions and preventing autonomous `DiagnosticAutoScanner` error popups.
+- **Type-Aware Return Reasons & Zero Cross-Leakage (`ReturnEditorService.java`) (Rule 4, Rule 11 & Rule 12)**:
+  - Refactored `ReturnEditorService` to pass transaction `Type` into the table and reason editors.
+  - Purchase returns now load supplier-specific reasons (`"Defective Material"`, `"Goods returned to supplier"`, `"Transit Damage"`, etc.), completely eliminating the defect where purchase bills defaulted to `"Sales Return"`.
+- **Reason Code Humanization & Filter Alignment in Note Registers (`DebitNoteRegisterController.java`, `CreditNoteRegisterController.java`) (Rule 5, Rule 7 & Rule 11)**:
+  - Added `formatReason()` in both Note registers so database codes (`PURCHASE_RETURN`, `SALES_RETURN`) display as clean, professional text (`Purchase Return`, `Sales Return`).
+  - Normalized filter comparison in `applyFilters()` so selecting `"Purchase Return"` or `"Sales Return"` in the reason dropdown matches and displays auto-generated notes seamlessly.
+
+### Return Approvals Action Modernization & 1-Click Settlement Integration
+- **Context-Aware Return Action Lifecycle (`DebitNoteRegisterController.java`, `CreditNoteRegisterController.java`) (Rule 5, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - Eliminated the redundant and unpopulated `Create Debit Note` / `Create Credit Note` action dialog from Tab 2 (`Return Approvals`), recognizing that financial notes are already generated and posted to GL upon Admin return approval.
+  - Equipped Tab 2 action menus with dynamic, status-sensitive workflows:
+    - **Pending Approval (`PENDING APPROVAL`)**: Surfaces `Approve Return`, `Reject Return` (with cancellation reason prompt), and `Inspect Details`.
+    - **Approved & Unsettled (`APPROVED` & `PENDING` / `PARTIAL` Refund)**: Surfaces `Record Refund Payment` (navigating to the dedicated `ReturnRefund.fxml` workspace with auto-selected return context), `Quick Apply (Offset Bills / Invoices)` (1-click automated allocation to outstanding open documents in FIFO order), `View Linked Note` (switching to Tab 1 with automatic invoice filtering), and `Inspect Details`.
+    - **Fully Settled (`REFUNDED`)**: Surfaces `View Linked Note` and `Inspect Details`, cleanly disabling payment/offset triggers.
+- **Universal 1-Click Quick Apply Settlement Engine (`ReturnApiClient.java`, `ReturnService.java`, `PurchaseReturnsController.java`, `SalesReturnsController.java`) (Rule 4, Rule 8 & Rule 17)**:
+  - Exposed `/api/returns/{no}/quick-apply` in `ReturnApiClient`, allowing operators to automatically offset return credit balances against outstanding purchase bills or sales invoices in 1 click without manual journal entries.
+  - Rolled out `Quick Apply (Offset Bills)` and `Quick Apply (Offset Invoices)` to the action menus of both `PurchaseReturnsController` and `SalesReturnsController`.
+
+### Closed-Loop Bidirectional Document Linkages (Purchases <===> Returns <===> Debit Notes)
+- **Comprehensive Document Linkages Tab Architecture (`InvoicePaymentDetailsDialog.java`, `PurchaseDocumentInspectionDialog.java`, `SalesDocumentInspectionDialog.java`) (Rule 4, Rule 5, Rule 7, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - Transformed Tab 3 (*Linked Records*) in both Purchase and Sales inspection modals into an enterprise two-tab linkage suite:
+    - **Sub-Tab 1 (`Returns & Financial Notes`)**: Asynchronously queries and displays all linked Purchase Returns and Debit Notes (or Sales Returns and Credit Notes) matching that invoice, featuring Document Type, Document No (hyperlink), Date, Party, Reason, Amount, Document Status, Refund Status, and an **`[ Open ]`** action button that launches the rich inspection modal directly.
+    - **Sub-Tab 2 (`Bank & Statement Reconciliations`)**: Preserves all existing bank statement allocations, PRF payment references, bank entries, and expense vouchers with 1-click ledger drill-down.
+  - In Tab 2 (*Payments & Allocations*), payment rows settled via debit or credit notes now display a prominent semantic pill (`[ Debit Note Offset ]` / `[ Credit Note Offset ]`) with a return icon.
+- **Header Hero Clickable Original Document Badge (`ReturnDocumentInspectionDialog.java`) (Rule 5, Rule 8, Rule 9 & Rule 12)**:
+  - Elevated the original bill reference into a prominent, clickable hyperlink badge (`[ Purchase: PUR/... ]` / `[ Sale: ... ]`) directly inside the top Header Hero of the Return inspection modal.
+  - Clicking this badge closes the return popup and navigates directly to that purchase bill or sales invoice in the register.
+- **Return Approvals Action Expansion & Direct Inspection Wiring (`DebitNoteRegisterController.java`, `CreditNoteRegisterController.java`) (Rule 5, Rule 8 & Rule 9)**:
+  - Replaced the outdated plain-text alert in `Inspect Details` with `ReturnDocumentInspectionDialog.show()`, granting operators access to the complete 3D modal with itemized lines, refund ledger, and original document cards.
+  - Added **`View Original Purchase`** / **`View Original Sale`** to the row actions in Tab 2 (*Return Approvals*) for 1-click return-to-invoice navigation.
+  - Added **`View Payments & Refunds`** to inspect existing refund dispatches and payment receipts.
+
 # What's New in DSE ERP v11.0.55
+
+### Dual-Tab Return Approvals & Registers, Paid Transaction Document Attachments & Deep Navigation
+- **Dual-Tab Return & Note Architecture (`DebitNoteRegister.fxml`, `DebitNoteRegisterController`, `CreditNoteRegister.fxml`, `CreditNoteRegisterController`) (Rule 4, Rule 5, Rule 7, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - Upgraded both Note registers into a high-efficiency Dual-Tab workspace:
+    - **Tab 1: Issued Notes & Vouchers** (`Issued Debit Notes` / `Issued Credit Notes`): Complete note listings, reasons, stock impact, ITC/GST reversal cards, and filters.
+    - **Tab 2: Return Approvals** (`Return Approvals`): Surfaces pending and processed physical goods returns directly from `ReturnApiClient.list()` with a live pending badge count (e.g. `Return Approvals (1)`).
+  - Itemized return records display Return No, Date, Purchase/Sales Invoice No, Supplier/Customer, Total Amount, Refund Amount, Return Status, Refund Status, and standard contextual `Actions` (`Approve Return`, `Reject Return` with reason dialog, `Inspect Details`, and `Create Debit/Credit Note`).
+  - Directly bound to `ReturnWorkflowService.approve()` and `ReturnWorkflowService.reject()`, ensuring seamless stock re-entry and supplier/customer ledger synchronization.
+- **Paid Transaction Attachment Management & Row Action Attachment Engine (`PurchaseDocumentInspectionDialog`, `SalesDocumentInspectionDialog`, `PurchaseListController`, `SalesListController`) (Rule 4, Rule 5, Rule 8, Rule 9 & Rule 17)**:
+  - Solved the operational challenge where financially locked `PAID` transactions disabled the editor `Save` button, leaving operators unable to attach late vendor bills or receipts.
+  - Added dedicated **`[ Upload Document ]`** button to the top toolbar of the `Attachments` tab in both Purchase and Sales inspection modals, saving attachments directly to `supportApi.addDocumentAttachment()` without needing to edit or re-save the invoice.
+  - Added **`Attach Document...`** directly into the table row `Actions` menu on both `Purchase Register` and `Sales Register`.
+  - Added direct deep-linking on the `Return Status` table column and row menu (`View Returns & Approvals`): 1-click navigation directly to Tab 2 (`Return Approvals`) of the corresponding Note Register with the invoice searched and highlighted.
 
 ### Agreement-Based Dynamic Licensing, Super Admin Custom Entitlements & Two-Tier Authority Engine
 - **Super Admin Custom Agreement Feature Matrix (`ClientRegistryController`, `ClientRegistry.fxml`) (Rule 4, Rule 5, Rule 8, Rule 9 & Rule 17)**:

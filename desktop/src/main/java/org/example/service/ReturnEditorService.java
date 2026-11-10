@@ -106,7 +106,7 @@ public final class ReturnEditorService {
         returnDate.setMaxWidth(Double.MAX_VALUE);
         Label total = PopupTableWorkspace.metricValue(money(0), "warning");
 
-        TableView<ReturnLine> table = buildTable();
+        TableView<ReturnLine> table = buildTable(type);
         table.getItems().setAll(rows);
         table.setPrefSize(1080, 430);
         table.setEditable(true);
@@ -182,7 +182,7 @@ public final class ReturnEditorService {
         }
     }
 
-    private static TableView<ReturnLine> buildTable() {
+    private static TableView<ReturnLine> buildTable(Type type) {
         TableView<ReturnLine> table = new TableView<>();
         table.getStyleClass().addAll("approved-table", "erp-table-profile-dialog");
         // Deliberate exception to numbered register rows: a return transaction
@@ -226,7 +226,7 @@ public final class ReturnEditorService {
 
         TableColumn<ReturnLine, ReturnLine> reason = new TableColumn<>("Reason");
         reason.setCellValueFactory(value -> new javafx.beans.property.ReadOnlyObjectWrapper<>(value.getValue()));
-        List<String> reasonOptions = loadLookupReasons();
+        List<String> reasonOptions = loadLookupReasons(type);
         reason.setCellFactory(column -> new ReasonEditorCell(reasonOptions));
 
         IconFactory.applyTableHeaderIcon(selected, "select");
@@ -299,7 +299,18 @@ public final class ReturnEditorService {
         }
     }
 
-    private static final List<String> DEFAULT_REASONS = List.of(
+    private static final List<String> DEFAULT_PURCHASE_REASONS = List.of(
+            "Defective Material",
+            "Goods returned to supplier",
+            "Wrong Item Delivered",
+            "Transit Damage",
+            "Excess Quantity",
+            "Quality Rejection",
+            "Rate Difference",
+            "Supplier Return"
+    );
+
+    private static final List<String> DEFAULT_SALES_REASONS = List.of(
             "Goods returned by customer",
             "Defective Material",
             "Wrong Item Delivered",
@@ -307,19 +318,31 @@ public final class ReturnEditorService {
             "Excess Quantity",
             "Quality Rejection",
             "Rate Difference",
-            "Return requested"
+            "Customer Return"
     );
 
     private static List<String> loadLookupReasons() {
+        return loadLookupReasons(Type.PURCHASE);
+    }
+
+    private static List<String> loadLookupReasons(Type type) {
         try {
             LookupService lookup = new LookupService();
-            List<String> list = lookup.getValuesByCategoryCode("RETURN_REASON");
-            if (list == null || list.isEmpty()) list = lookup.getValues("RETURN_REASON");
-            if (list == null || list.isEmpty()) list = lookup.getValuesByCategoryCode("CREDIT_NOTE_REASON");
-            if (list != null && !list.isEmpty()) return list;
+            if (type == Type.PURCHASE) {
+                List<String> list = lookup.getValuesByCategoryCode("PURCHASE_RETURN_REASON");
+                if (list == null || list.isEmpty()) list = lookup.getValuesByCategoryCode("DEBIT_NOTE_REASON");
+                if (list != null && !list.isEmpty()) return list;
+                return DEFAULT_PURCHASE_REASONS;
+            } else {
+                List<String> list = lookup.getValuesByCategoryCode("SALES_RETURN_REASON");
+                if (list == null || list.isEmpty()) list = lookup.getValuesByCategoryCode("CREDIT_NOTE_REASON");
+                if (list == null || list.isEmpty()) list = lookup.getValuesByCategoryCode("RETURN_REASON");
+                if (list != null && !list.isEmpty()) return list;
+                return DEFAULT_SALES_REASONS;
+            }
         } catch (Exception ignored) {
         }
-        return DEFAULT_REASONS;
+        return type == Type.PURCHASE ? DEFAULT_PURCHASE_REASONS : DEFAULT_SALES_REASONS;
     }
 
     /** Always-visible reason editor powered by Master Lookups for sales and purchase returns. */

@@ -280,7 +280,22 @@ public class SalesListController implements ScreenLifecycle {
         colBalance.setCellFactory(x->balanceMoneyCell());
         colStatus.setCellFactory(x->SemanticTableCells.status("document"));
         colPaymentStatus.setCellFactory(x->SemanticTableCells.status("payment"));
-        if(colReturnStatus!=null){colReturnStatus.setCellValueFactory(v->new SimpleStringProperty(v.getValue()==null?"N/A":v.getValue().getReturnStatus()));colReturnStatus.setCellFactory(x->SemanticTableCells.status("return"));}
+        if(colReturnStatus!=null){
+            colReturnStatus.setCellValueFactory(v->new SimpleStringProperty(v.getValue()==null?"N/A":v.getValue().getReturnStatus()));
+            colReturnStatus.setCellFactory(col -> {
+                TableCell<Sales, String> cell = SemanticTableCells.status("return");
+                cell.setOnMouseClicked(event -> {
+                    if (event.getClickCount() == 1 && !cell.isEmpty()) {
+                        Sales s = cell.getTableRow() != null ? cell.getTableRow().getItem() : null;
+                        if (s != null) {
+                            LinkedRecordContext.open("CREDIT_NOTE", null, s.getInvoiceNo(), "APPROVE_RETURN", "SALES_REGISTER");
+                            NavigationManager.navigateOrReport("/fxml/pages/CreditNoteRegister.fxml");
+                        }
+                    }
+                });
+                return cell;
+            });
+        }
         colMail.setCellFactory(x->SemanticTableCells.status("email"));
         colDue.setCellFactory(x->SemanticTableCells.dueDate());
 
@@ -411,7 +426,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
         cmbDocumentStatus.getItems().setAll("All","DRAFT","PENDING APPROVAL","APPROVED","REJECTED","CANCELLED");cmbDocumentStatus.setValue("All");
         cmbReturnStatus.getItems().setAll("All","N/A","PENDING APPROVAL","PARTIALLY RETURNED","FULLY RETURNED");cmbReturnStatus.setValue("All");
         org.example.util.PartySearchUi.install(cmbCustomer,"CUSTOMER","All customers","sales-register-customer-search");
-        dpFrom.setValue(BusinessClock.today().minusMonths(6));
+        dpFrom.setValue(BusinessClock.startOfCurrentFinancialYear());
         dpTo.setValue(BusinessClock.today());
         dpFrom.setPromptText("From date");
         dpTo.setPromptText("To date");
@@ -456,7 +471,27 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
                     tableSales, "SALE", row.getId(), row.getInvoiceNo(), "Customer",
                     row.getCustomer() != null ? row.getCustomer().getName() : "");
         });
-        sharedMenu.getItems().setAll(view,linkages,audit,edit,duplicate,print,barcode,excel,email,whatsapp,payment,createReturn,cancel,delete);
+        MenuItem attach = salesActionItem("Attach Document...", "attachment", () -> {
+            Sales row = requireSalesActionTarget(target);
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Upload Attachment to Sale #" + row.getInvoiceNo());
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documents", "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.csv", "*.txt", "*.*"));
+            File file = chooser.showOpenDialog(tableSales.getScene().getWindow());
+            if (file == null) return;
+            UiTaskExecutor.submitActionWithOverlay(tableSales, "Uploading attachment…", "upload-sale-row-attachment-" + row.getId(), () -> {
+                support.addDocumentAttachment("SALE", row.getId(), file.toPath(), row.getRowVersion());
+                return true;
+            }, ok -> {
+                AppDialogService.success(tableSales, "Uploaded", "Document '" + file.getName() + "' attached successfully to Sale #" + row.getInvoiceNo() + ".");
+                reloadPage(false);
+            }, this::error);
+        });
+        MenuItem viewReturns = salesActionItem("View Returns & Approvals", "return", () -> {
+            Sales row = requireSalesActionTarget(target);
+            LinkedRecordContext.open("CREDIT_NOTE", null, row.getInvoiceNo(), "APPROVE_RETURN", "SALES_REGISTER");
+            NavigationManager.navigateOrReport("/fxml/pages/CreditNoteRegister.fxml");
+        });
+        sharedMenu.getItems().setAll(view,linkages,attach,audit,edit,duplicate,print,barcode,excel,email,whatsapp,payment,createReturn,viewReturns,cancel,delete);
         IconFactory.decorateActionMenu(sharedMenu);
 
         java.util.function.Consumer<Sales> updateAvailability = current -> {
@@ -682,7 +717,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
     @FXML private void toggleAdvanced(){advancedFilters.setManaged(btnAdvanced.isSelected());advancedFilters.setVisible(btnAdvanced.isSelected());}
     @FXML private void resetFilters(){
         org.example.util.OperationalUiSupport.animateReset(btnResetFilters, advancedFilters != null ? advancedFilters : activeFilterChips, () -> {
-            batchFilterUpdate(()->{txtSearch.clear();txtInvoice.clear();txtAmountFrom.clear();txtAmountTo.clear();dpFrom.setValue(BusinessClock.today().minusMonths(6));dpTo.setValue(BusinessClock.today());cmbCustomer.setValue("All customers");cmbPaymentStatus.setValue("All");cmbMailStatus.setValue("All");cmbWhatsappStatus.setValue("All");cmbInvoiceType.setValue("All");cmbDocumentStatus.setValue("All");cmbReturnStatus.setValue("All");});
+            batchFilterUpdate(()->{txtSearch.clear();txtInvoice.clear();txtAmountFrom.clear();txtAmountTo.clear();dpFrom.setValue(BusinessClock.startOfCurrentFinancialYear());dpTo.setValue(BusinessClock.today());cmbCustomer.setValue("All customers");cmbPaymentStatus.setValue("All");cmbMailStatus.setValue("All");cmbWhatsappStatus.setValue("All");cmbInvoiceType.setValue("All");cmbDocumentStatus.setValue("All");cmbReturnStatus.setValue("All");});
             filterDebouncer.cancel();
             applyFilters();
         });

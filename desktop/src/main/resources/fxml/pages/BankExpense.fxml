@@ -142,9 +142,11 @@
           <TableColumn fx:id="colAction" text="Actions" sortable="false" resizable="false"/>
         </columns>
       </TableView>
-      <HBox alignment="CENTER_LEFT">
+      <HBox alignment="CENTER_LEFT" spacing="10">
         <Label fx:id="showingLabel" text="Showing 0 to 0 of 0 entries" styleClass="finance-showing-label"/>
         <Region HBox.hgrow="ALWAYS"/>
+        <Label text="Rows" styleClass="finance-showing-label"/>
+        <ComboBox fx:id="cmbPageSize" prefWidth="92"/>
         <Button text="‹" onAction="#previousPage" styleClass="approved-button,approved-secondary-button,finance-page-button"/>
         <Label fx:id="pageLabel" text="1 / 1" styleClass="finance-page-label"/>
         <Button text="›" onAction="#nextPage" styleClass="approved-button,approved-secondary-button,finance-page-button"/>

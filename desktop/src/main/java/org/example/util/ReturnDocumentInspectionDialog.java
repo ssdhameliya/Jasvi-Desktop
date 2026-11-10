@@ -163,7 +163,26 @@ public final class ReturnDocumentInspectionDialog {
                 refundStatus.equals("REFUNDED") || refundStatus.equals("SETTLED") ? "pill-success" : refundStatus.equals("PARTIAL") ? "pill-warning" : "pill-danger",
                 refundStatus.equals("REFUNDED") || refundStatus.equals("SETTLED") ? "payment" : "balance");
 
-        List<Node> pills = List.of(statusPill, refundPill);
+        Label originalDocPill = DocumentInspectionScaffold.createPill(
+                (isSales ? "Sale: " : "Purchase: ") + safe(details.invoice()),
+                "pill-info",
+                isSales ? "sale" : "purchase"
+        );
+        originalDocPill.getStyleClass().add("table-link");
+        originalDocPill.setCursor(javafx.scene.Cursor.HAND);
+        originalDocPill.setTooltip(new Tooltip("Open original " + (isSales ? "Sales Invoice" : "Purchase Bill") + " (" + safe(details.invoice()) + ")"));
+        originalDocPill.setOnMouseClicked(e -> {
+            dialog.close();
+            if (isSales) {
+                LinkedRecordContext.open("SALE", null, details.invoice(), "VIEW", "Sales Return " + details.no());
+                NavigationManager.getInstance().loadPage("/fxml/pages/SalesList.fxml");
+            } else {
+                LinkedRecordContext.open("PURCHASE", null, details.invoice(), "VIEW", "Purchase Return " + details.no());
+                NavigationManager.getInstance().loadPage("/fxml/pages/PurchaseList.fxml");
+            }
+        });
+
+        List<Node> pills = List.of(statusPill, refundPill, originalDocPill);
 
         String kicker = isSales ? "SALES RETURN DOCUMENT" : "PURCHASE RETURN DOCUMENT";
         return DocumentInspectionScaffold.buildHeaderHero(dialog, "return", kicker, details.no(), meta, pills);

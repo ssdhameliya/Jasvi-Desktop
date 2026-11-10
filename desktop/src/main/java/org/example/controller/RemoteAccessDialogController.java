@@ -16,6 +16,7 @@ import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.util.Duration;
+import org.example.api.ApiSession;
 import org.example.api.licensing.RemoteAccessApiClient;
 import org.example.config.ConfigManager;
 import org.example.util.AppDialogService;
@@ -48,8 +49,15 @@ public class RemoteAccessDialogController {
 
     public void setHostDialog(Dialog<?> dialog) {
         this.hostDialog = dialog;
-        if (heroHeader != null && dialog != null) {
-            DocumentInspectionScaffold.installDragPhysics(heroHeader, dialog);
+        if (dialog != null) {
+            dialog.setOnHidden(e -> {
+                if (pollingTimeline != null) {
+                    pollingTimeline.stop();
+                }
+            });
+            if (heroHeader != null) {
+                DocumentInspectionScaffold.installDragPhysics(heroHeader, dialog);
+            }
         }
     }
 
@@ -86,6 +94,9 @@ public class RemoteAccessDialogController {
     }
 
     private void refreshStatus() {
+        if (!ApiSession.isEstablished()) {
+            return;
+        }
         UiTaskExecutor.submitAction(
                 "get-tunnel-status",
                 api::getStatus,

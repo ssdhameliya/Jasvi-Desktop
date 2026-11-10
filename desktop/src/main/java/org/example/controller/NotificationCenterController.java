@@ -24,7 +24,12 @@ import java.util.concurrent.CompletableFuture;
 /** Premium Notification Center with exact-record actions and stable category filtering. */
 public final class NotificationCenterController implements ScreenLifecycle {
     private static final String ALL = "All Notifications";
-    private static final List<String> BASE_FILTERS = List.of(ALL,"Unread","Action Needed","Approval","Sales","Purchases","Quotations","Returns","Payments","Inventory","Reminders","Communication","Security","System","Update","Backup");
+    private static final List<String> BASE_FILTERS = List.of(
+            ALL, "Unread", "Action Needed", "Approval", "Sales", "Purchases", "Quotations",
+            "Returns", "Payments", "Inventory", "Reminders", "Communication", "GST",
+            "EWay", "Tally", "Ledger", "CRM", "Barcode", "Licensing", "Sync",
+            "Security", "System", "Update", "Backup"
+    );
 
     @FXML private StackPane notificationHeaderIcon,allSummaryIcon,unreadSummaryIcon,actionSummaryIcon,detailIcon;
     @FXML private TextField txtNotificationSearch;
@@ -34,12 +39,20 @@ public final class NotificationCenterController implements ScreenLifecycle {
     @FXML private Button btnOpenRecord,btnToggleRead,btnDeleteNotification,btnMarkAllRead,btnRefresh,btnClearHistory,btnClose,btnBottomClose;
     private List<NotificationItem> all = List.of();
     private long refreshSerial;
+    private boolean updatingSummary;
+
+    private static volatile String cachedPattern = "";
+    private static volatile java.time.ZoneId cachedZone = null;
+    private static volatile DateTimeFormatter cachedRowFormatter = null;
+    private static volatile DateTimeFormatter cachedDetailFormatter = null;
 
     private record CategoryOption(String name,long count) { @Override public String toString(){return name;} }
 
     @FXML public void initialize() {
         installIcons();
-        listNotificationCategories.getSelectionModel().selectedItemProperty().addListener((o,a,b)->applyFilter());
+        listNotificationCategories.getSelectionModel().selectedItemProperty().addListener((o,a,b)->{
+            if (!updatingSummary) applyFilter();
+        });
         listNotificationCategories.setCellFactory(v -> new CategoryCell());
         txtNotificationSearch.textProperty().addListener((o,a,b)->applyFilter());
         listNotifications.setCellFactory(v -> new Cell());
@@ -150,16 +163,51 @@ public final class NotificationCenterController implements ScreenLifecycle {
     }
 
     private void updateSummary() {
-        long unread=all.stream().filter(n->!n.read()).count();
-        long actionable=all.stream().filter(this::actionable).count();
-        lblAllCount.setText(String.valueOf(all.size())); lblUnreadCount.setText(String.valueOf(unread)); lblActionCount.setText(String.valueOf(actionable));
-        String selected=Optional.ofNullable(listNotificationCategories.getSelectionModel().getSelectedItem()).map(CategoryOption::name).orElse(ALL);
-        LinkedHashMap<String,Long> counts=new LinkedHashMap<>();
-        for(String name:BASE_FILTERS)counts.put(name,countFor(name));
-        for(NotificationItem n:all){String d=displayCategory(n.category());counts.putIfAbsent(d,countFor(d));}
-        List<CategoryOption> options=counts.entrySet().stream().filter(e->BASE_FILTERS.contains(e.getKey())||e.getValue()>0).map(e->new CategoryOption(e.getKey(),e.getValue())).toList();
-        listNotificationCategories.getItems().setAll(options);
-        listNotificationCategories.getSelectionModel().select(options.stream().filter(x->x.name().equals(selected)).findFirst().orElse(options.isEmpty()?null:options.getFirst()));
+        updatingSummary = true;
+        try {
+            long unread = 0;
+            long actionable = 0;
+            Map<String, Long> categoryCounts = new HashMap<>();
+            for (NotificationItem n : all) {
+                if (!n.read()) unread++;
+                if (actionable(n)) actionable++;
+                String cat = displayCategory(n.category());
+                categoryCounts.put(cat, categoryCounts.getOrDefault(cat, 0L) + 1);
+            }
+            lblAllCount.setText(String.valueOf(all.size()));
+            lblUnreadCount.setText(String.valueOf(unread));
+            lblActionCount.setText(String.valueOf(actionable));
+
+            String selected = Optional.ofNullable(listNotificationCategories.getSelectionModel().getSelectedItem())
+                    .map(CategoryOption::name).orElse(ALL);
+
+            LinkedHashMap<String, Long> counts = new LinkedHashMap<>();
+            for (String name : BASE_FILTERS) {
+                long c = switch (name) {
+                    case ALL -> (long) all.size();
+                    case "Unread" -> unread;
+                    case "Action Needed" -> actionable;
+                    default -> categoryCounts.getOrDefault(name, 0L);
+                };
+                counts.put(name, c);
+            }
+            for (Map.Entry<String, Long> e : categoryCounts.entrySet()) {
+                counts.putIfAbsent(e.getKey(), e.getValue());
+            }
+
+            List<CategoryOption> options = counts.entrySet().stream()
+                    .filter(e -> BASE_FILTERS.contains(e.getKey()) || e.getValue() > 0)
+                    .map(e -> new CategoryOption(e.getKey(), e.getValue()))
+                    .toList();
+
+            listNotificationCategories.getItems().setAll(options);
+            listNotificationCategories.getSelectionModel().select(
+                    options.stream().filter(x -> x.name().equals(selected)).findFirst()
+                            .orElse(options.isEmpty() ? null : options.getFirst())
+            );
+        } finally {
+            updatingSummary = false;
+        }
     }
 
     private long countFor(String mode){if(ALL.equals(mode))return all.size();if("Unread".equals(mode))return all.stream().filter(n->!n.read()).count();if("Action Needed".equals(mode))return all.stream().filter(this::actionable).count();return all.stream().filter(n->displayCategory(n.category()).equalsIgnoreCase(mode)).count();}
@@ -250,51 +298,193 @@ public final class NotificationCenterController implements ScreenLifecycle {
         if (!canOpen(n)) return "No Linked Record";
         return "APPROVE".equalsIgnoreCase(safe(n.actionCode())) ? "Review Approval" : "Open Record";
     }
-    private String whenText(long epoch){return DateTimeFormatter.ofPattern(BusinessClock.datePattern()+" • hh:mm a").withZone(BusinessClock.zone()).format(Instant.ofEpochMilli(epoch));}
-    private String rowTimestamp(long epoch){return DateTimeFormatter.ofPattern(BusinessClock.datePattern()+"  •  hh:mm a").withZone(BusinessClock.zone()).format(Instant.ofEpochMilli(epoch));}
+    private static DateTimeFormatter rowFormatter() {
+        String pattern = BusinessClock.datePattern();
+        java.time.ZoneId zone = BusinessClock.zone();
+        if (cachedRowFormatter == null || !pattern.equals(cachedPattern) || !Objects.equals(zone, cachedZone)) {
+            cachedPattern = pattern;
+            cachedZone = zone;
+            cachedRowFormatter = DateTimeFormatter.ofPattern(pattern + "  •  hh:mm a").withZone(zone);
+            cachedDetailFormatter = DateTimeFormatter.ofPattern(pattern + " • hh:mm a").withZone(zone);
+        }
+        return cachedRowFormatter;
+    }
+
+    private static DateTimeFormatter detailFormatter() {
+        rowFormatter();
+        return cachedDetailFormatter;
+    }
+
+    private String whenText(long epoch){return detailFormatter().format(Instant.ofEpochMilli(epoch));}
+    private String rowTimestamp(long epoch){return rowFormatter().format(Instant.ofEpochMilli(epoch));}
     private boolean genericTitle(NotificationItem n){String t=safe(n==null?null:n.title()).trim();return t.isBlank()||"Notification".equalsIgnoreCase(t);}
     private String displayTitle(NotificationItem n){if(n==null)return"";return genericTitle(n)?safe(n.message()).trim():safe(n.title()).trim();}
     private String displayMessage(NotificationItem n){if(n==null)return"";return genericTitle(n)?"":safe(n.message()).trim();}
     private String displayCategory(String c){if(c==null||c.isBlank())return"System";String value=c.trim().replace('_',' ').toLowerCase(Locale.ROOT);return Character.toUpperCase(value.charAt(0))+value.substring(1);}
     private String safe(String s){return s==null?"":s;}
-    private String categorySemantic(String item){String c=safe(item).toLowerCase(Locale.ROOT);if(c.contains("approval"))return"complete";if(c.contains("sale"))return"sale";if(c.contains("purchase"))return"purchase";if(c.contains("quotation"))return"quotation";if(c.contains("return"))return"return";if(c.contains("payment"))return"payment";if(c.contains("inventory"))return"item";if(c.contains("reminder"))return"reminder";if(c.contains("communication"))return"email";if(c.contains("security"))return"security";if(c.contains("backup"))return"backup";if(c.contains("update"))return"refresh";if(c.contains("unread"))return"notification";if(c.contains("action"))return"warning";return"notification";}
+    private String categorySemantic(String item){
+        String c = safe(item).toLowerCase(Locale.ROOT);
+        if (c.contains("approval")) return "complete";
+        if (c.contains("sale")) return "sale";
+        if (c.contains("purchase")) return "purchase";
+        if (c.contains("quotation")) return "quotation";
+        if (c.contains("return")) return "return";
+        if (c.contains("payment")) return "payment";
+        if (c.contains("inventory")) return "item";
+        if (c.contains("reminder")) return "reminder";
+        if (c.contains("communication")) return "email";
+        if (c.contains("gst")) return "gstin";
+        if (c.contains("eway")) return "delivery";
+        if (c.contains("tally")) return "sync";
+        if (c.contains("ledger")) return "ledger";
+        if (c.contains("crm")) return "customer";
+        if (c.contains("barcode")) return "barcode";
+        if (c.contains("licensing")) return "security";
+        if (c.contains("sync")) return "sync";
+        if (c.contains("security")) return "security";
+        if (c.contains("backup")) return "backup";
+        if (c.contains("update")) return "refresh";
+        if (c.contains("unread")) return "notification";
+        if (c.contains("action")) return "warning";
+        return "notification";
+    }
     private String slug(String value){String s=safe(value).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+","-").replaceAll("^-|-$","");return s.isBlank()?"system":s;}
 
     private final class CategoryCell extends ListCell<CategoryOption>{
-        @Override protected void updateItem(CategoryOption option,boolean empty){
-            super.updateItem(option,empty);setText(null);setGraphic(null);if(empty||option==null)return;
-            Node icon=IconFactory.compactIcon(categorySemantic(option.name()),14);
-            Label name=new Label(option.name());name.getStyleClass().add("dse-notification-v3-category-name");HBox.setHgrow(name,Priority.ALWAYS);
-            Label count=new Label(String.valueOf(option.count()));count.getStyleClass().add("dse-notification-v3-category-count");
-            HBox box=new HBox(8,icon,name,count);box.setAlignment(Pos.CENTER_LEFT);box.getStyleClass().add("dse-notification-v3-category-cell");setGraphic(box);
+        private final Label name = new Label();
+        private final Label count = new Label();
+        private final StackPane iconHolder = new StackPane();
+        private final HBox box = new HBox(8, iconHolder, name, count);
+
+        CategoryCell() {
+            name.getStyleClass().add("dse-notification-v3-category-name");
+            HBox.setHgrow(name, Priority.ALWAYS);
+            count.getStyleClass().add("dse-notification-v3-category-count");
+            box.setAlignment(Pos.CENTER_LEFT);
+            box.getStyleClass().add("dse-notification-v3-category-cell");
+        }
+
+        @Override protected void updateItem(CategoryOption option, boolean empty){
+            super.updateItem(option, empty);
+            if(empty || option == null) {
+                setText(null);
+                setGraphic(null);
+                return;
+            }
+            iconHolder.getChildren().setAll(IconFactory.compactIcon(categorySemantic(option.name()), 14));
+            name.setText(option.name());
+            count.setText(String.valueOf(option.count()));
+            setText(null);
+            setGraphic(box);
         }
     }
 
     private final class Cell extends ListCell<NotificationItem> {
-        @Override protected void updateItem(NotificationItem n,boolean empty){
-            super.updateItem(n,empty);setText(null);setGraphic(null);getStyleClass().removeAll("dse-notification-v3-unread-cell","dse-notification-v3-action-cell");
-            if(empty||n==null)return;
-            String category=displayCategory(n.category());
-            StackPane iconWell=new StackPane(IconFactory.compactIcon(categorySemantic(category),19));iconWell.setMinSize(42,42);iconWell.setPrefSize(42,42);iconWell.setMaxSize(42,42);iconWell.getStyleClass().addAll("dse-notification-v3-row-icon","dse-notification-v3-row-icon-"+slug(category));
+        private final StackPane iconWell = new StackPane();
+        private final Label title = new Label();
+        private final Label categoryBadge = new Label();
+        private final HBox state = new HBox(5);
+        private final Label lblNew = new Label("NEW");
+        private final Label lblAction = new Label("ACTION");
+        private final Label message = new Label();
+        private final Label meta = new Label();
+        private final Label time = new Label();
+        private final HBox top = new HBox(8);
+        private final HBox footer = new HBox(10);
+        private final VBox text = new VBox(6);
+        private final HBox row = new HBox(12);
 
-            Label title=new Label(displayTitle(n));title.setWrapText(true);title.setMaxWidth(Double.MAX_VALUE);title.getStyleClass().add("dse-notification-v3-row-title");
-            Label categoryBadge=new Label(category);categoryBadge.getStyleClass().addAll("dse-notification-v3-badge","dse-notification-v3-badge-"+slug(category));
-            HBox state=new HBox(5);state.setAlignment(Pos.CENTER_RIGHT);
-            if(!n.read()){Label badge=new Label("NEW");badge.getStyleClass().add("dse-notification-v3-new");state.getChildren().add(badge);getStyleClass().add("dse-notification-v3-unread-cell");}
-            if(actionable(n)){Label badge=new Label("ACTION");badge.getStyleClass().add("dse-notification-v3-action-badge");state.getChildren().add(badge);getStyleClass().add("dse-notification-v3-action-cell");}
-            Region topSpacer=new Region();HBox.setHgrow(topSpacer,Priority.ALWAYS);
-            HBox top=new HBox(8,title,topSpacer,categoryBadge,state);top.setAlignment(Pos.CENTER_LEFT);
+        Cell() {
+            iconWell.setMinSize(42, 42);
+            iconWell.setPrefSize(42, 42);
+            iconWell.setMaxSize(42, 42);
 
-            VBox text=new VBox(6,top);HBox.setHgrow(text,Priority.ALWAYS);
-            String message=displayMessage(n);
-            if(!message.isBlank()){Label msg=new Label(message);msg.setWrapText(true);msg.setMaxWidth(Double.MAX_VALUE);msg.getStyleClass().add("dse-notification-v3-row-message");text.getChildren().add(msg);}
-            Label meta=new Label(category+(safe(n.referenceNo()).isBlank()?"":"  •  "+safe(n.referenceNo())));meta.setWrapText(true);meta.getStyleClass().add("dse-notification-v3-row-meta");
-            Label time=new Label(rowTimestamp(n.createdAt()));time.setAlignment(Pos.CENTER_RIGHT);time.getStyleClass().add("dse-notification-v3-row-time");
-            Region footerSpacer=new Region();HBox.setHgrow(footerSpacer,Priority.ALWAYS);
-            HBox footer=new HBox(10,meta,footerSpacer,time);footer.setAlignment(Pos.CENTER_LEFT);
-            text.getChildren().add(footer);
+            title.setWrapText(true);
+            title.setMinWidth(120);
+            title.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(title, Priority.ALWAYS);
+            title.getStyleClass().add("dse-notification-v3-row-title");
 
-            HBox row=new HBox(12,iconWell,text);row.setAlignment(Pos.TOP_LEFT);row.getStyleClass().add("dse-notification-v3-row");setGraphic(row);
+            categoryBadge.getStyleClass().add("dse-notification-v3-badge");
+
+            state.setAlignment(Pos.CENTER_RIGHT);
+            lblNew.getStyleClass().add("dse-notification-v3-new");
+            lblAction.getStyleClass().add("dse-notification-v3-action-badge");
+
+            top.setAlignment(Pos.CENTER_LEFT);
+            top.getChildren().setAll(title, categoryBadge, state);
+
+            message.setWrapText(true);
+            message.setMinWidth(120);
+            message.setMaxWidth(Double.MAX_VALUE);
+            message.getStyleClass().add("dse-notification-v3-row-message");
+
+            meta.setWrapText(true);
+            meta.setMinWidth(100);
+            HBox.setHgrow(meta, Priority.ALWAYS);
+            meta.getStyleClass().add("dse-notification-v3-row-meta");
+
+            time.setAlignment(Pos.CENTER_RIGHT);
+            time.getStyleClass().add("dse-notification-v3-row-time");
+
+            footer.setAlignment(Pos.CENTER_LEFT);
+            footer.getChildren().setAll(meta, time);
+
+            text.getChildren().setAll(top, message, footer);
+            HBox.setHgrow(text, Priority.ALWAYS);
+            text.maxWidthProperty().bind(listNotifications.widthProperty().subtract(76));
+
+            row.setAlignment(Pos.TOP_LEFT);
+            row.getStyleClass().add("dse-notification-v3-row");
+            row.getChildren().setAll(iconWell, text);
+        }
+
+        @Override protected void updateItem(NotificationItem n, boolean empty){
+            super.updateItem(n, empty);
+            if (empty || n == null) {
+                setText(null);
+                setGraphic(null);
+                getStyleClass().removeAll("dse-notification-v3-unread-cell", "dse-notification-v3-action-cell");
+                return;
+            }
+            String category = displayCategory(n.category());
+            String catSlug = slug(category);
+
+            iconWell.getStyleClass().removeIf(s -> s != null && s.startsWith("dse-notification-v3-row-icon-"));
+            iconWell.getStyleClass().removeAll("dse-notification-v3-row-icon");
+            iconWell.getStyleClass().addAll("dse-notification-v3-row-icon", "dse-notification-v3-row-icon-" + catSlug);
+            iconWell.getChildren().setAll(IconFactory.compactIcon(categorySemantic(category), 19));
+
+            title.setText(displayTitle(n));
+
+            categoryBadge.setText(category);
+            categoryBadge.getStyleClass().removeIf(s -> s != null && s.startsWith("dse-notification-v3-badge-"));
+            categoryBadge.getStyleClass().removeAll("dse-notification-v3-badge");
+            categoryBadge.getStyleClass().addAll("dse-notification-v3-badge", "dse-notification-v3-badge-" + catSlug);
+
+            state.getChildren().clear();
+            if (!n.read()) state.getChildren().add(lblNew);
+            if (actionable(n)) state.getChildren().add(lblAction);
+
+            String msg = displayMessage(n);
+            if (msg.isBlank()) {
+                message.setVisible(false);
+                message.setManaged(false);
+            } else {
+                message.setVisible(true);
+                message.setManaged(true);
+                message.setText(msg);
+            }
+
+            meta.setText(category + (safe(n.referenceNo()).isBlank() ? "" : "  •  " + safe(n.referenceNo())));
+            time.setText(rowTimestamp(n.createdAt()));
+
+            getStyleClass().removeAll("dse-notification-v3-unread-cell", "dse-notification-v3-action-cell");
+            if (!n.read()) getStyleClass().add("dse-notification-v3-unread-cell");
+            if (actionable(n)) getStyleClass().add("dse-notification-v3-action-cell");
+
+            setText(null);
+            setGraphic(row);
         }
     }
 }

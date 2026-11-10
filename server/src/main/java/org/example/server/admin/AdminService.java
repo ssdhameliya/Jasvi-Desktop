@@ -610,7 +610,7 @@ public class AdminService {
         }
 
         try {
-            int start = Math.max(0, lines.size() - Math.max(maxLines * 4, 3000));
+            int start = Math.max(0, lines.size() - Math.max(maxLines * 10, 10000));
             List<String> traceBuffer = new java.util.ArrayList<>();
 
             for (int i = lines.size() - 1; i >= start && results.size() < maxLines; i--) {
@@ -647,6 +647,10 @@ public class AdminService {
                     }
                     String rawFailure = traceBuilder.toString().trim();
                     traceBuffer.clear();
+
+                    if (!"ERROR".equalsIgnoreCase(level) && !"WARN".equalsIgnoreCase(level) && !"FATAL".equalsIgnoreCase(level)) {
+                        continue;
+                    }
 
                     String simpleLogger = logger;
                     if (simpleLogger.contains(".")) {

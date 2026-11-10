@@ -107,6 +107,10 @@ public class ClientRegistryApiClient {
         return post("/api/license/registry/leads/" + leadId + "/reject", Map.of(), new TypeReference<>() {});
     }
 
+    public Map<String, Object> deleteLead(Long leadId) {
+        return req("DELETE", "/api/license/registry/leads/" + leadId, null, new TypeReference<>() {});
+    }
+
     public Map<String, Object> dispatchChannels(Long clientId) {
         return post("/api/license/registry/clients/" + clientId + "/dispatch", Map.of(), new TypeReference<>() {});
     }

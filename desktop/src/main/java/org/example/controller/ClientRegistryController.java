@@ -543,55 +543,89 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
 
         colLeadActions.setCellFactory(col -> new TableCell<>() {
-            private final HBox box = new HBox(6);
-            private final Button btnApprove = new Button("Approve");
-            private final Button btnReject = new Button("Reject");
-            private final Button btnWhatsApp = new Button("WhatsApp");
+            private final MenuButton actionsBtn = new MenuButton("Actions");
+            private final MenuItem miView = new MenuItem("View Request Details");
+            private final MenuItem miApprove = new MenuItem("Approve & Issue License");
+            private final MenuItem miReject = new MenuItem("Reject Request");
+            private final MenuItem miCopyMachine = new MenuItem("Copy Machine Hardware ID");
+            private final MenuItem miWhatsApp = new MenuItem("Send via WhatsApp");
+            private final MenuItem miEmail = new MenuItem("Send via Email");
+            private final MenuItem miDelete = new MenuItem("Delete Request Lead");
 
             {
-                btnApprove.getStyleClass().addAll("approved-button", "approved-primary-button", "btn-table-action");
-                btnApprove.setGraphic(IconFactory.compactIcon("check", 12));
+                actionsBtn.getStyleClass().addAll("table-action-menu", "approved-row-action");
+                actionsBtn.setGraphic(IconFactory.compactIcon("actions", 14));
+                actionsBtn.setContentDisplay(ContentDisplay.LEFT);
+                actionsBtn.setGraphicTextGap(6);
 
-                btnReject.getStyleClass().addAll("approved-button", "approved-danger-button", "btn-table-action");
-                btnReject.setGraphic(IconFactory.compactIcon("delete", 12));
+                miView.setGraphic(IconFactory.compactIcon("view", 13));
+                miView.setOnAction(e -> {
+                    Map<String, Object> lead = getTableView().getItems().get(getIndex());
+                    if (lead != null) showLeadDetailsDialog(lead);
+                });
 
-                btnWhatsApp.getStyleClass().addAll("approved-button", "approved-secondary-button", "btn-table-action");
-                btnWhatsApp.setGraphic(IconFactory.compactIcon("share", 12));
-
-                box.setAlignment(Pos.CENTER);
-                box.getChildren().addAll(btnApprove, btnReject, btnWhatsApp);
-
-                btnApprove.setOnAction(e -> {
+                miApprove.setGraphic(IconFactory.compactIcon("check", 13));
+                miApprove.setOnAction(e -> {
                     Map<String, Object> lead = getTableView().getItems().get(getIndex());
                     if (lead != null) handleApproveLead(lead);
                 });
 
-                btnReject.setOnAction(e -> {
+                miReject.setGraphic(IconFactory.compactIcon("delete", 13));
+                miReject.setOnAction(e -> {
                     Map<String, Object> lead = getTableView().getItems().get(getIndex());
                     if (lead != null) handleRejectLead(lead);
                 });
 
-                btnWhatsApp.setOnAction(e -> {
+                miCopyMachine.setGraphic(IconFactory.compactIcon("copy", 13));
+                miCopyMachine.setOnAction(e -> {
+                    Map<String, Object> lead = getTableView().getItems().get(getIndex());
+                    if (lead != null) copyMachineId(String.valueOf(lead.get("machine_id")));
+                });
+
+                miWhatsApp.setGraphic(IconFactory.compactIcon("share", 13));
+                miWhatsApp.setOnAction(e -> {
                     Map<String, Object> lead = getTableView().getItems().get(getIndex());
                     if (lead != null) sendWhatsAppLead(lead);
                 });
+
+                miEmail.setGraphic(IconFactory.compactIcon("email", 13));
+                miEmail.setOnAction(e -> {
+                    Map<String, Object> lead = getTableView().getItems().get(getIndex());
+                    if (lead != null) sendEmailLead(lead);
+                });
+
+                miDelete.setGraphic(IconFactory.compactIcon("delete", 13));
+                miDelete.setOnAction(e -> {
+                    Map<String, Object> lead = getTableView().getItems().get(getIndex());
+                    if (lead != null) handleDeleteLead(lead);
+                });
+
+                actionsBtn.getItems().addAll(
+                        miView,
+                        miApprove,
+                        miReject,
+                        miCopyMachine,
+                        miWhatsApp,
+                        miEmail,
+                        new SeparatorMenuItem(),
+                        miDelete
+                );
+                IconFactory.decorateActionMenu(actionsBtn);
             }
 
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty) {
+                if (empty || getIndex() >= getTableView().getItems().size()) {
                     setGraphic(null);
                     return;
                 }
                 Map<String, Object> lead = getTableView().getItems().get(getIndex());
                 String status = String.valueOf(lead.getOrDefault("status", "PENDING"));
                 boolean pending = "PENDING".equalsIgnoreCase(status);
-                btnApprove.setVisible(pending);
-                btnApprove.setManaged(pending);
-                btnReject.setVisible(pending);
-                btnReject.setManaged(pending);
-                setGraphic(box);
+                miApprove.setDisable(!pending);
+                miReject.setDisable(!pending);
+                setGraphic(actionsBtn);
             }
         });
     }
@@ -720,13 +754,149 @@ public class ClientRegistryController implements ScreenLifecycle {
         );
     }
 
+    private void copyMachineId(String machineId) {
+        if (machineId == null || machineId.isBlank()) return;
+        String clean = machineId.replace("-", "").toUpperCase(Locale.ROOT);
+        String formatted = clean.length() == 16
+                ? String.format("%s-%s-%s-%s", clean.substring(0, 4), clean.substring(4, 8), clean.substring(8, 12), clean.substring(12, 16))
+                : clean;
+        ClipboardContent content = new ClipboardContent();
+        content.putString(formatted);
+        Clipboard.getSystemClipboard().setContent(content);
+        AppDialogService.info(tableLeads, "Copied", "Machine Hardware ID copied to clipboard:\n" + formatted);
+    }
+
+    private void showLeadDetailsDialog(Map<String, Object> lead) {
+        String company = String.valueOf(lead.getOrDefault("company_name", "Client"));
+        String contact = String.valueOf(lead.getOrDefault("contact_person", "-"));
+        String phone = String.valueOf(lead.getOrDefault("phone", "-"));
+        String email = String.valueOf(lead.getOrDefault("email", "-"));
+        String machine = String.valueOf(lead.getOrDefault("machine_id", "-"));
+        if (machine.length() == 16) {
+            machine = String.format("%s-%s-%s-%s", machine.substring(0, 4), machine.substring(4, 8), machine.substring(8, 12), machine.substring(12, 16));
+        }
+        String tier = String.valueOf(lead.getOrDefault("requested_tier", "GOLD"));
+        String status = String.valueOf(lead.getOrDefault("status", "PENDING"));
+        String notes = String.valueOf(lead.getOrDefault("notes", "-"));
+        String remoteUrl = String.valueOf(lead.getOrDefault("remote_url", "-"));
+        String createdAt = String.valueOf(lead.getOrDefault("created_at", "-"));
+
+        Dialog<Void> dialog = new OwnedDialog<>(tableLeads);
+        dialog.setTitle("Registration Lead Dossier - " + company);
+        dialog.setHeaderText("Inbound Activation Lead Details for " + company);
+
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(20, 24, 20, 24));
+
+        Label lblStatusBadge = new Label(status);
+        lblStatusBadge.getStyleClass().add("status-badge");
+        if ("APPROVED".equalsIgnoreCase(status)) {
+            lblStatusBadge.getStyleClass().addAll("status-positive", "badge-active");
+        } else if ("REJECTED".equalsIgnoreCase(status)) {
+            lblStatusBadge.getStyleClass().addAll("status-negative", "badge-cancelled");
+        } else {
+            lblStatusBadge.getStyleClass().addAll("status-warning", "badge-warning");
+        }
+
+        int r = 0;
+        grid.add(new Label("Status:"), 0, r);
+        grid.add(lblStatusBadge, 1, r++);
+        grid.add(new Label("Company Name:"), 0, r);
+        grid.add(new Label(company), 1, r++);
+        grid.add(new Label("Contact Person:"), 0, r);
+        grid.add(new Label(contact), 1, r++);
+        grid.add(new Label("Phone / WhatsApp:"), 0, r);
+        grid.add(new Label(phone), 1, r++);
+        grid.add(new Label("Email Address:"), 0, r);
+        grid.add(new Label(email), 1, r++);
+        grid.add(new Label("Machine Hardware ID:"), 0, r);
+        grid.add(new Label(machine), 1, r++);
+        grid.add(new Label("Requested Tier:"), 0, r);
+        grid.add(new Label(tier), 1, r++);
+        grid.add(new Label("Remote Cloud URL:"), 0, r);
+        grid.add(new Label(remoteUrl), 1, r++);
+        grid.add(new Label("Submission Date:"), 0, r);
+        grid.add(new Label(createdAt), 1, r++);
+        grid.add(new Label("Notes / Telemetry:"), 0, r);
+        grid.add(new Label(notes), 1, r++);
+
+        dialog.getDialogPane().setContent(grid);
+        PopupTableWorkspace.prepareDialog(dialog, 620);
+        dialog.showAndWait();
+    }
+
+    private void handleDeleteLead(Map<String, Object> lead) {
+        Long id = ((Number) lead.get("id")).longValue();
+        String company = String.valueOf(lead.getOrDefault("company_name", "Client"));
+
+        boolean confirmed = AppDialogService.confirm(
+                tableLeads,
+                "Delete Request Lead",
+                "Permanently delete inbound registration lead for " + company + "?",
+                "This action cannot be undone."
+        );
+        if (!confirmed) return;
+
+        UiTaskExecutor.submitActionWithOverlay(
+                tableLeads,
+                "Deleting Registration Lead...",
+                "delete-lead-" + id,
+                () -> api.deleteLead(id),
+                res -> {
+                    AppDialogService.info(tableLeads, "Lead Deleted", "Registration lead for " + company + " deleted.");
+                    loadDataAsync();
+                },
+                err -> AppDialogService.error(tableLeads, "Delete Error", "Could not delete lead", err.getMessage())
+        );
+    }
+
+    private void sendEmailLead(Map<String, Object> lead) {
+        String email = String.valueOf(lead.getOrDefault("email", "")).trim();
+        if (email.isBlank()) {
+            AppDialogService.warning(tableLeads, "Email Missing", "No email address registered for this lead.");
+            return;
+        }
+        String company = String.valueOf(lead.getOrDefault("company_name", "Client"));
+        String machine = String.valueOf(lead.getOrDefault("machine_id", ""));
+        String status = String.valueOf(lead.getOrDefault("status", "PENDING"));
+
+        String subject = "Jasvi ERP License Request - " + company;
+        String body = "Dear " + company + " Team,\n\n" +
+                ("APPROVED".equalsIgnoreCase(status)
+                        ? "Your Jasvi ERP activation request for Terminal ID: " + machine + " has been approved! Please restart your Jasvi application to activate."
+                        : "We have received your registration for Terminal ID: " + machine + " and our team is currently processing it.") +
+                "\n\nBest Regards,\nJasvi ERP Support Team";
+
+        try {
+            String mailto = "mailto:" + URLEncoder.encode(email, StandardCharsets.UTF_8) +
+                    "?subject=" + URLEncoder.encode(subject, StandardCharsets.UTF_8) +
+                    "&body=" + URLEncoder.encode(body, StandardCharsets.UTF_8);
+            if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                java.awt.Desktop.getDesktop().browse(URI.create(mailto));
+            }
+        } catch (Exception ex) {
+            AppDialogService.error(tableLeads, "Email Error", "Could not open default mail client", ex.getMessage());
+        }
+    }
+
     private void sendWhatsAppLead(Map<String, Object> lead) {
         String phone = String.valueOf(lead.getOrDefault("phone", "")).replaceAll("[^0-9]", "");
         String company = String.valueOf(lead.getOrDefault("company_name", "Client"));
         String machine = String.valueOf(lead.getOrDefault("machine_id", ""));
+        String status = String.valueOf(lead.getOrDefault("status", "PENDING"));
 
-        String text = "Dear " + company + ",\n\nWe have received your Jasvi ERP activation request for Terminal ID: " +
-                machine + ".\nOur team is reviewing your registration.\n\nThank you for choosing Jasvi ERP!";
+        String text;
+        if ("APPROVED".equalsIgnoreCase(status)) {
+            text = "Dear " + company + ",\n\nYour Jasvi ERP activation request for Terminal ID: " +
+                    machine + " has been APPROVED!\nPlease restart your Jasvi ERP or click 'Check Status' to auto-activate.\n\nThank you for choosing Jasvi ERP!";
+        } else {
+            text = "Dear " + company + ",\n\nWe have received your Jasvi ERP activation request for Terminal ID: " +
+                    machine + ".\nOur team is reviewing your registration.\n\nThank you for choosing Jasvi ERP!";
+        }
 
         try {
             String url = "https://wa.me/" + (phone.isBlank() ? "" : (phone.startsWith("91") ? phone : "91" + phone)) +

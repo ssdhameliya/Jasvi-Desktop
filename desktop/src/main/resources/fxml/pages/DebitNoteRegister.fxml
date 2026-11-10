@@ -72,69 +72,101 @@
   </top>
 
   <center>
-    <VBox spacing="8" styleClass="approved-card">
-      <HBox spacing="8" alignment="CENTER_LEFT">
-        <TextField fx:id="txtSearch" promptText="Search debit notes, supplier, purchase bill number..." HBox.hgrow="ALWAYS"/>
-        <ComboBox fx:id="cmbReasonFilter" promptText="Filter by Reason" prefWidth="180"/>
-      </HBox>
-
-      <SplitPane fx:id="mainSplit" VBox.vgrow="ALWAYS" dividerPositions="1.0" styleClass="register-split-pane">
-        <TableView fx:id="tblDebitNotes" styleClass="approved-table,erp-table-profile-responsive,erp-blue-selection-table">
-          <columns>
-            <TableColumn fx:id="colNoteNo" text="Debit Note No."/>
-            <TableColumn fx:id="colDate" text="Date"/>
-            <TableColumn fx:id="colParty" text="Supplier Name"/>
-            <TableColumn fx:id="colInvoiceRef" text="Original Purchase Bill"/>
-            <TableColumn fx:id="colReason" text="Reason"/>
-            <TableColumn fx:id="colStock" text="Stock Impact"/>
-            <TableColumn fx:id="colTaxable" text="Taxable (₹)"/>
-            <TableColumn fx:id="colTax" text="ITC Reversal (₹)"/>
-            <TableColumn fx:id="colTotal" text="Total Amount (₹)"/>
-            <TableColumn fx:id="colStatus" text="Status"/>
-            <TableColumn fx:id="colActions" text="Actions" sortable="false" styleClass="approved-table-column,erp-icon-table-column"/>
-          </columns>
-          <placeholder>
-            <VBox alignment="CENTER" spacing="8">
-              <Label text="No Debit Notes found" styleClass="empty-title"/>
-              <Label text="Issued debit notes will appear here automatically." wrapText="true" styleClass="empty-note"/>
-            </VBox>
-          </placeholder>
-        </TableView>
-
-        <VBox fx:id="detailDrawer" visible="false" managed="false" spacing="9" prefWidth="390" minWidth="350" maxWidth="440" styleClass="approved-card,detail-drawer">
-          <HBox alignment="CENTER_LEFT" spacing="8">
-            <VBox HBox.hgrow="ALWAYS">
-              <Label fx:id="lblDrawerTitle" text="Debit Note Details" styleClass="section-title"/>
-              <Label fx:id="lblDrawerSubtitle" text="Purchase return breakdown" styleClass="page-subtitle"/>
-            </VBox>
-            <Button fx:id="btnDrawerAudit" text="Audit Trail" onAction="#auditSelected" styleClass="approved-button,approved-secondary-button"/>
-            <Button fx:id="btnDrawerBarcode" text="Barcode Label" onAction="#printBarcodeSelected" styleClass="approved-button,approved-secondary-button"/>
-            <Button fx:id="btnCloseDrawer" text="Close" onAction="#closeDetails" styleClass="secondary-button,drawer-close-button,approved-button,approved-secondary-button"/>
+    <TabPane fx:id="tabPaneRegister" tabClosingPolicy="UNAVAILABLE" styleClass="approved-tab-pane,register-tab-pane">
+      <Tab fx:id="tabDebitNotes" text="Issued Debit Notes">
+        <VBox spacing="8" styleClass="approved-card">
+          <HBox spacing="8" alignment="CENTER_LEFT">
+            <TextField fx:id="txtSearch" promptText="Search debit notes, supplier, purchase bill number..." HBox.hgrow="ALWAYS"/>
+            <ComboBox fx:id="cmbReasonFilter" promptText="Filter by Reason" prefWidth="180"/>
           </HBox>
-          <Separator/>
-          <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="import-inner-scroll">
-            <VBox spacing="10">
-              <Label text="Document Reference" styleClass="settings-subsection-title"/>
-              <HBox spacing="6"><Label text="Debit Note No:" styleClass="field-caption"/><Label fx:id="lblDetailNoteNo" text="-" styleClass="bold-label"/></HBox>
-              <HBox spacing="6"><Label text="Date:" styleClass="field-caption"/><Label fx:id="lblDetailDate" text="-" styleClass="bold-label"/></HBox>
-              <HBox spacing="6"><Label text="Supplier:" styleClass="field-caption"/><Label fx:id="lblDetailParty" text="-" styleClass="bold-label"/></HBox>
-              <HBox spacing="6"><Label text="Original Bill:" styleClass="field-caption"/><Label fx:id="lblDetailInvoice" text="-" styleClass="bold-label"/></HBox>
-              <HBox spacing="6"><Label text="Reason:" styleClass="field-caption"/><Label fx:id="lblDetailReason" text="-" styleClass="bold-label"/></HBox>
+
+          <SplitPane fx:id="mainSplit" VBox.vgrow="ALWAYS" dividerPositions="1.0" styleClass="register-split-pane">
+            <TableView fx:id="tblDebitNotes" styleClass="approved-table,erp-table-profile-responsive,erp-blue-selection-table">
+              <columns>
+                <TableColumn fx:id="colNoteNo" text="Debit Note No."/>
+                <TableColumn fx:id="colDate" text="Date"/>
+                <TableColumn fx:id="colParty" text="Supplier Name"/>
+                <TableColumn fx:id="colInvoiceRef" text="Original Purchase Bill"/>
+                <TableColumn fx:id="colReason" text="Reason"/>
+                <TableColumn fx:id="colStock" text="Stock Impact"/>
+                <TableColumn fx:id="colTaxable" text="Taxable (₹)"/>
+                <TableColumn fx:id="colTax" text="ITC Reversal (₹)"/>
+                <TableColumn fx:id="colTotal" text="Total Amount (₹)"/>
+                <TableColumn fx:id="colStatus" text="Status"/>
+                <TableColumn fx:id="colActions" text="Actions" sortable="false" styleClass="approved-table-column,erp-icon-table-column"/>
+              </columns>
+              <placeholder>
+                <VBox alignment="CENTER" spacing="8">
+                  <Label text="No Debit Notes found" styleClass="empty-title"/>
+                  <Label text="Issued debit notes will appear here automatically." wrapText="true" styleClass="empty-note"/>
+                </VBox>
+              </placeholder>
+            </TableView>
+
+            <VBox fx:id="detailDrawer" visible="false" managed="false" spacing="9" prefWidth="390" minWidth="350" maxWidth="440" styleClass="approved-card,detail-drawer">
+              <HBox alignment="CENTER_LEFT" spacing="8">
+                <VBox HBox.hgrow="ALWAYS">
+                  <Label fx:id="lblDrawerTitle" text="Debit Note Details" styleClass="section-title"/>
+                  <Label fx:id="lblDrawerSubtitle" text="Purchase return breakdown" styleClass="page-subtitle"/>
+                </VBox>
+                <Button fx:id="btnDrawerAudit" text="Audit Trail" onAction="#auditSelected" styleClass="approved-button,approved-secondary-button"/>
+                <Button fx:id="btnDrawerBarcode" text="Barcode Label" onAction="#printBarcodeSelected" styleClass="approved-button,approved-secondary-button"/>
+                <Button fx:id="btnCloseDrawer" text="Close" onAction="#closeDetails" styleClass="secondary-button,drawer-close-button,approved-button,approved-secondary-button"/>
+              </HBox>
               <Separator/>
-              <Label text="Financial &amp; ITC Reversal" styleClass="settings-subsection-title"/>
-              <HBox spacing="6"><Label text="Taxable Amount:" styleClass="field-caption"/><Label fx:id="lblDetailTaxable" text="₹ 0.00" styleClass="bold-label"/></HBox>
-              <HBox spacing="6"><Label text="CGST Reversal:" styleClass="field-caption"/><Label fx:id="lblDetailCgst" text="₹ 0.00" styleClass="bold-label"/></HBox>
-              <HBox spacing="6"><Label text="SGST Reversal:" styleClass="field-caption"/><Label fx:id="lblDetailSgst" text="₹ 0.00" styleClass="bold-label"/></HBox>
-              <HBox spacing="6"><Label text="IGST Reversal:" styleClass="field-caption"/><Label fx:id="lblDetailIgst" text="₹ 0.00" styleClass="bold-label"/></HBox>
-              <HBox spacing="6"><Label text="Total Claim:" styleClass="field-caption"/><Label fx:id="lblDetailTotal" text="₹ 0.00" styleClass="bold-label,metric-value"/></HBox>
-              <Separator/>
-              <Label text="Inventory &amp; Status" styleClass="settings-subsection-title"/>
-              <HBox spacing="6"><Label text="Items Dispatched:" styleClass="field-caption"/><Label fx:id="lblDetailStock" text="No" styleClass="bold-label"/></HBox>
-              <HBox spacing="6"><Label text="Status:" styleClass="field-caption"/><Label fx:id="lblDetailStatus" text="ISSUED" styleClass="status-pill"/></HBox>
+              <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="import-inner-scroll">
+                <VBox spacing="10">
+                  <Label text="Document Reference" styleClass="settings-subsection-title"/>
+                  <HBox spacing="6"><Label text="Debit Note No:" styleClass="field-caption"/><Label fx:id="lblDetailNoteNo" text="-" styleClass="bold-label"/></HBox>
+                  <HBox spacing="6"><Label text="Date:" styleClass="field-caption"/><Label fx:id="lblDetailDate" text="-" styleClass="bold-label"/></HBox>
+                  <HBox spacing="6"><Label text="Supplier:" styleClass="field-caption"/><Label fx:id="lblDetailParty" text="-" styleClass="bold-label"/></HBox>
+                  <HBox spacing="6"><Label text="Original Bill:" styleClass="field-caption"/><Label fx:id="lblDetailInvoice" text="-" styleClass="bold-label"/></HBox>
+                  <HBox spacing="6"><Label text="Reason:" styleClass="field-caption"/><Label fx:id="lblDetailReason" text="-" styleClass="bold-label"/></HBox>
+                  <Separator/>
+                  <Label text="Financial &amp; ITC Reversal" styleClass="settings-subsection-title"/>
+                  <HBox spacing="6"><Label text="Taxable Amount:" styleClass="field-caption"/><Label fx:id="lblDetailTaxable" text="₹ 0.00" styleClass="bold-label"/></HBox>
+                  <HBox spacing="6"><Label text="CGST Reversal:" styleClass="field-caption"/><Label fx:id="lblDetailCgst" text="₹ 0.00" styleClass="bold-label"/></HBox>
+                  <HBox spacing="6"><Label text="SGST Reversal:" styleClass="field-caption"/><Label fx:id="lblDetailSgst" text="₹ 0.00" styleClass="bold-label"/></HBox>
+                  <HBox spacing="6"><Label text="IGST Reversal:" styleClass="field-caption"/><Label fx:id="lblDetailIgst" text="₹ 0.00" styleClass="bold-label"/></HBox>
+                  <HBox spacing="6"><Label text="Total Claim:" styleClass="field-caption"/><Label fx:id="lblDetailTotal" text="₹ 0.00" styleClass="bold-label,metric-value"/></HBox>
+                  <Separator/>
+                  <Label text="Inventory &amp; Status" styleClass="settings-subsection-title"/>
+                  <HBox spacing="6"><Label text="Items Dispatched:" styleClass="field-caption"/><Label fx:id="lblDetailStock" text="No" styleClass="bold-label"/></HBox>
+                  <HBox spacing="6"><Label text="Status:" styleClass="field-caption"/><Label fx:id="lblDetailStatus" text="ISSUED" styleClass="status-pill"/></HBox>
+                </VBox>
+              </ScrollPane>
             </VBox>
-          </ScrollPane>
+          </SplitPane>
         </VBox>
-      </SplitPane>
-    </VBox>
+      </Tab>
+      <Tab fx:id="tabReturnApprovals" text="Return Approvals">
+        <VBox spacing="8" styleClass="approved-card">
+          <HBox spacing="8" alignment="CENTER_LEFT">
+            <TextField fx:id="txtReturnSearch" promptText="Search supplier returns, purchase bill, reason..." HBox.hgrow="ALWAYS"/>
+            <ComboBox fx:id="cmbReturnStatusFilter" promptText="Filter by Status" prefWidth="180"/>
+          </HBox>
+
+          <TableView fx:id="tblReturns" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive,erp-purple-selection-table">
+            <columns>
+              <TableColumn fx:id="colRetNo" text="Return No."/>
+              <TableColumn fx:id="colRetDate" text="Return Date"/>
+              <TableColumn fx:id="colRetInvoice" text="Purchase No."/>
+              <TableColumn fx:id="colRetSupplier" text="Supplier"/>
+              <TableColumn fx:id="colRetTotal" text="Total Amount (₹)"/>
+              <TableColumn fx:id="colRetRefund" text="Refund Amount (₹)"/>
+              <TableColumn fx:id="colRetStatus" text="Return Status"/>
+              <TableColumn fx:id="colRetRefundStatus" text="Refund Status"/>
+              <TableColumn fx:id="colRetActions" text="Actions" sortable="false" styleClass="approved-table-column,erp-icon-table-column"/>
+            </columns>
+            <placeholder>
+              <VBox alignment="CENTER" spacing="8">
+                <Label text="No Return Requests found" styleClass="empty-title"/>
+                <Label text="Supplier returns awaiting approval or settlement will appear here." wrapText="true" styleClass="empty-note"/>
+              </VBox>
+            </placeholder>
+          </TableView>
+        </VBox>
+      </Tab>
+    </TabPane>
   </center>
 </BorderPane>

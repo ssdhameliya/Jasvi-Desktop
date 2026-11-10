@@ -14,8 +14,12 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.example.api.ApiRuntime;
 import org.example.api.ApiSession;
+import org.example.api.returns.ReturnApiClient;
 import org.example.config.ConfigManager;
+import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
+import org.example.service.NotificationService;
+import org.example.service.ReturnWorkflowService;
 import org.example.util.*;
 
 import java.math.BigDecimal;
@@ -37,6 +41,14 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
     @FXML private TextField txtSearch;
     @FXML private ComboBox<String> cmbReasonFilter;
 
+    @FXML private TabPane tabPaneRegister;
+    @FXML private Tab tabDebitNotes, tabReturnApprovals;
+    @FXML private TextField txtReturnSearch;
+    @FXML private ComboBox<String> cmbReturnStatusFilter;
+    @FXML private TableView<ReturnApiClient.Summary> tblReturns;
+    @FXML private TableColumn<ReturnApiClient.Summary, String> colRetNo, colRetDate, colRetInvoice, colRetSupplier;
+    @FXML private TableColumn<ReturnApiClient.Summary, String> colRetTotal, colRetRefund, colRetStatus, colRetRefundStatus, colRetActions;
+
     @FXML private SplitPane mainSplit;
     @FXML private TableView<DebitNoteRow> tblDebitNotes;
     @FXML private TableColumn<DebitNoteRow, String> colNoteNo, colDate, colParty, colInvoiceRef, colReason, colStock;
@@ -51,6 +63,9 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
 
     private final ObservableList<DebitNoteRow> masterList = FXCollections.observableArrayList();
     private final ObservableList<DebitNoteRow> filteredList = FXCollections.observableArrayList();
+    private final ObservableList<ReturnApiClient.Summary> masterReturnsList = FXCollections.observableArrayList();
+    private final ObservableList<ReturnApiClient.Summary> filteredReturnsList = FXCollections.observableArrayList();
+    private final ReturnApiClient returnApi = new ReturnApiClient();
     private final NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.of("en", "IN"));
 
     private DebitNoteRow selectedRow;
@@ -64,6 +79,7 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
         if (btnScreenGuidance != null) btnScreenGuidance.setGraphic(IconFactory.compactIcon("help", 14));
 
         configureTableColumns();
+        configureReturnTableColumns();
         IconFactory.applyTableHeaderIcon(colActions, "actions");
         DynamicTableLayoutManager.install(tblDebitNotes);
         Platform.runLater(() -> {
@@ -79,6 +95,15 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
         cmbReasonFilter.valueProperty().addListener((obs, o, n) -> applyFilters());
 
         RealtimeSearchSupport.installLocal(txtSearch, this::applyFilters);
+
+        if (cmbReturnStatusFilter != null) {
+            cmbReturnStatusFilter.getItems().setAll("All Status", "PENDING APPROVAL", "APPROVED", "REJECTED", "CANCELLED");
+            cmbReturnStatusFilter.setValue("All Status");
+            cmbReturnStatusFilter.valueProperty().addListener((obs, o, n) -> applyReturnFilters());
+        }
+        if (txtReturnSearch != null) {
+            RealtimeSearchSupport.installLocal(txtReturnSearch, this::applyReturnFilters);
+        }
 
         tblDebitNotes.setRowFactory(tv -> {
             TableRow<DebitNoteRow> row = new TableRow<>();
@@ -98,6 +123,15 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
     @Override
     public void onScreenShown(boolean reusedFromCache) {
         refreshData();
+        LinkedRecordContext.Target target = LinkedRecordContext.consume("DEBIT_NOTE");
+        if (target != null) {
+            if (tabPaneRegister != null && tabReturnApprovals != null) {
+                tabPaneRegister.getSelectionModel().select(tabReturnApprovals);
+            }
+            if (txtReturnSearch != null && !target.documentNo().isBlank()) {
+                txtReturnSearch.setText(target.documentNo());
+            }
+        }
     }
 
     private static String apiUrl(String path) {
@@ -111,7 +145,7 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
         colDate.setCellValueFactory(d -> new SimpleStringProperty(BusinessClock.formatDate(d.getValue().noteDate)));
         colParty.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().partyName));
         colInvoiceRef.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().originalPurchaseNo != null ? d.getValue().originalPurchaseNo : "-"));
-        colReason.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().reasonCode));
+        colReason.setCellValueFactory(d -> new SimpleStringProperty(formatReason(d.getValue().reasonCode)));
         if (colStock != null) {
             colStock.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().adjustInventory ? "Deducted" : "Financial Only"));
             colStock.setCellFactory(col -> new TableCell<>() {
@@ -205,6 +239,235 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
         tblDebitNotes.setItems(filteredList);
     }
 
+    private void configureReturnTableColumns() {
+        if (tblReturns == null) return;
+        colRetNo.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null ? "" : v.getValue().no()));
+        colRetDate.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null ? "" : BusinessClock.formatDate(v.getValue().date())));
+        colRetInvoice.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null ? "" : v.getValue().invoice()));
+        colRetSupplier.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null ? "" : v.getValue().party()));
+        colRetTotal.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null ? "₹ 0.00" : currency.format(v.getValue().total())));
+        colRetRefund.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null ? "₹ 0.00" : currency.format(v.getValue().refund())));
+        colRetStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null ? "N/A" : v.getValue().status()));
+        colRetRefundStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null ? "N/A" : v.getValue().refundStatus()));
+
+        colRetTotal.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item);
+                setAlignment(Pos.CENTER_RIGHT);
+            }
+        });
+        colRetRefund.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item);
+                setAlignment(Pos.CENTER_RIGHT);
+            }
+        });
+
+        colRetStatus.setCellFactory(x -> SemanticTableCells.status("return"));
+        colRetRefundStatus.setCellFactory(x -> SemanticTableCells.status("refund"));
+
+        IconFactory.applyTableHeaderIcon(colRetActions, "actions");
+        DynamicTableLayoutManager.install(tblReturns);
+
+        colRetActions.setCellFactory(col -> new TableCell<>() {
+            private final MenuButton actions = new MenuButton("Actions");
+            private final MenuItem miApprove = new MenuItem("Approve Return", IconFactory.compactIcon("approve", 14));
+            private final MenuItem miReject = new MenuItem("Reject Return", IconFactory.compactIcon("reject", 14));
+            private final MenuItem miInspect = new MenuItem("Inspect Details", IconFactory.compactIcon("view", 14));
+            private final MenuItem miRecordRefund = new MenuItem("Record Refund Payment", IconFactory.compactIcon("payment", 14));
+            private final MenuItem miQuickApply = new MenuItem("Quick Apply (Offset Bills)", IconFactory.compactIcon("apply", 14));
+            private final MenuItem miViewDebitNote = new MenuItem("View Linked Debit Note", IconFactory.compactIcon("debit_note", 14));
+            private final MenuItem miViewOriginal = new MenuItem("View Original Purchase", IconFactory.compactIcon("purchase", 14));
+            private final MenuItem miViewPayments = new MenuItem("View Payments & Refunds", IconFactory.compactIcon("payment", 14));
+            {
+                actions.getStyleClass().addAll("table-action-menu", "row-actions");
+                actions.setGraphic(IconFactory.compactIcon("actions", 14));
+                actions.setContentDisplay(ContentDisplay.LEFT);
+                actions.setGraphicTextGap(6);
+                actions.setTooltip(new Tooltip("Actions"));
+                IconFactory.decorateActionMenu(actions);
+                miReject.getStyleClass().add("danger-menu-item");
+
+                miApprove.setOnAction(e -> {
+                    ReturnApiClient.Summary row = getTableRow().getItem();
+                    if (row != null) approvePurchaseReturn(row);
+                });
+                miReject.setOnAction(e -> {
+                    ReturnApiClient.Summary row = getTableRow().getItem();
+                    if (row != null) rejectPurchaseReturn(row);
+                });
+                miInspect.setOnAction(e -> {
+                    ReturnApiClient.Summary row = getTableRow().getItem();
+                    if (row != null) inspectPurchaseReturn(row);
+                });
+                miRecordRefund.setOnAction(e -> {
+                    ReturnApiClient.Summary row = getTableRow().getItem();
+                    if (row != null) {
+                        ReturnRefundContext.select(row.no());
+                        NavigationManager.getInstance().loadPage("/fxml/pages/ReturnRefund.fxml");
+                    }
+                });
+                miQuickApply.setOnAction(e -> {
+                    ReturnApiClient.Summary row = getTableRow().getItem();
+                    if (row != null) quickApplyPurchaseReturn(row);
+                });
+                miViewDebitNote.setOnAction(e -> {
+                    ReturnApiClient.Summary row = getTableRow().getItem();
+                    if (row != null) {
+                        if (tabPaneRegister != null && tabDebitNotes != null) {
+                            tabPaneRegister.getSelectionModel().select(tabDebitNotes);
+                        }
+                        if (txtSearch != null && row.invoice() != null) {
+                            txtSearch.setText(row.invoice());
+                            applyFilters();
+                        }
+                    }
+                });
+                miViewOriginal.setOnAction(e -> {
+                    ReturnApiClient.Summary row = getTableRow().getItem();
+                    if (row != null && row.invoice() != null && !row.invoice().isBlank()) {
+                        LinkedRecordContext.open("PURCHASE", null, row.invoice(), "VIEW", "Return " + row.no());
+                        NavigationManager.getInstance().loadPage("/fxml/pages/PurchaseList.fxml");
+                    }
+                });
+                miViewPayments.setOnAction(e -> {
+                    ReturnApiClient.Summary row = getTableRow().getItem();
+                    if (row != null) {
+                        ReturnRefundContext.select(row.no());
+                        NavigationManager.getInstance().loadPage("/fxml/pages/ReturnRefund.fxml");
+                    }
+                });
+
+                actions.getItems().setAll(miApprove, miReject, miRecordRefund, miQuickApply, miViewDebitNote, miViewOriginal, miViewPayments, miInspect);
+            }
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                } else {
+                    ReturnApiClient.Summary row = getTableRow().getItem();
+                    String st = safe(row.status()).trim().toUpperCase(Locale.ROOT);
+                    String rst = safe(row.refundStatus()).trim().toUpperCase(Locale.ROOT);
+                    boolean isWaiting = "PENDING APPROVAL".equals(st) || "PENDING".equals(st);
+                    boolean isApproved = "APPROVED".equals(st);
+                    boolean isRefundPending = !"REFUNDED".equals(rst) && !"SETTLED".equals(rst);
+
+                    miApprove.setVisible(isWaiting);
+                    miApprove.setDisable(!isWaiting);
+                    miReject.setVisible(isWaiting);
+                    miReject.setDisable(!isWaiting);
+
+                    miRecordRefund.setVisible(isApproved && isRefundPending);
+                    miRecordRefund.setDisable(!isApproved || !isRefundPending);
+                    miQuickApply.setVisible(isApproved && isRefundPending);
+                    miQuickApply.setDisable(!isApproved || !isRefundPending);
+
+                    miViewDebitNote.setVisible(isApproved);
+                    miViewDebitNote.setDisable(!isApproved);
+
+                    miViewOriginal.setVisible(true);
+                    miViewOriginal.setDisable(false);
+
+                    boolean hasRefundActivity = isApproved || (row.refund() > 0.009);
+                    miViewPayments.setVisible(hasRefundActivity);
+                    miViewPayments.setDisable(!hasRefundActivity);
+
+                    miInspect.setVisible(true);
+                    miInspect.setDisable(false);
+
+                    setGraphic(actions);
+                    setAlignment(Pos.CENTER);
+                }
+            }
+        });
+
+        tblReturns.setItems(filteredReturnsList);
+    }
+
+    private void quickApplyPurchaseReturn(ReturnApiClient.Summary row) {
+        if (!AppDialogService.confirm(tblReturns, "Quick Apply Debit Note",
+                "Apply Debit Note / Return " + row.no() + " to outstanding unpaid bills for " + row.party() + "?",
+                "This will automatically allocate available return credit to open purchase bills in FIFO order.")) return;
+        UiTaskExecutor.submitSerial("purchase-return-quick-apply-" + row.no(), () -> {
+            return returnApi.quickApply(row.no());
+        }, msg -> {
+            NotificationService.add(msg);
+            AppDialogService.success(tblReturns, "Applied Successfully", msg);
+            refreshData();
+        }, ex -> AppDialogService.error(tblReturns, "Quick Apply Failed", ex.getMessage()));
+    }
+
+    private void approvePurchaseReturn(ReturnApiClient.Summary row) {
+        if (!AppDialogService.confirm(tblReturns, "Approve Purchase Return", "Approve Purchase Return " + row.no() + " for " + currency.format(row.total()) + "?", "Approving this return confirms physical goods return, posts stock reversal, and authorises supplier settlement.")) return;
+        UiTaskExecutor.submitSerial("purchase-return-approve-" + row.no(), () -> {
+            ReturnWorkflowService.approve(row.no());
+            return true;
+        }, ok -> {
+            NotificationService.add(row.no() + " approved.");
+            AppDialogService.success(tblReturns, "Return Approved", row.no() + " was approved successfully.");
+            refreshData();
+        }, ex -> AppDialogService.error(tblReturns, "Approval Failed", ex.getMessage()));
+    }
+
+    private void rejectPurchaseReturn(ReturnApiClient.Summary row) {
+        var opt = AppDialogService.confirm(tblReturns, "Reject Purchase Return", "Reject Purchase Return " + row.no() + "?", "Rejecting this return marks it as cancelled and stops supplier settlement.");
+        if (!opt) return;
+        var input = new org.example.util.OwnedTextInputDialog("");
+        input.initOwner(tblReturns.getScene() == null ? null : tblReturns.getScene().getWindow());
+        input.setTitle("Reject Purchase Return");
+        input.setHeaderText("Reason for rejecting " + row.no());
+        input.setContentText("Rejection Reason:");
+        input.showAndWait().map(String::trim).filter(r -> !r.isBlank()).ifPresent(reason -> {
+            UiTaskExecutor.submitSerial("purchase-return-reject-" + row.no(), () -> {
+                ReturnWorkflowService.reject(row.no(), reason);
+                return true;
+            }, ok -> {
+                NotificationService.add(row.no() + " rejected.");
+                AppDialogService.success(tblReturns, "Return Rejected", row.no() + " was rejected.");
+                refreshData();
+            }, ex -> AppDialogService.error(tblReturns, "Rejection Failed", ex.getMessage()));
+        });
+    }
+
+    private void inspectPurchaseReturn(ReturnApiClient.Summary row) {
+        if (row == null) return;
+        ReturnDocumentInspectionDialog.show(tblReturns, row.no(), false, returnApi, new org.example.api.support.SupportApiClient(), this::refreshData);
+    }
+
+    private void applyReturnFilters() {
+        String search = txtReturnSearch != null && txtReturnSearch.getText() != null ? txtReturnSearch.getText().trim().toLowerCase(Locale.ROOT) : "";
+        String status = cmbReturnStatusFilter != null ? cmbReturnStatusFilter.getValue() : null;
+
+        List<ReturnApiClient.Summary> matched = masterReturnsList.stream().filter(row -> {
+            boolean matchesSearch = search.isEmpty()
+                || (row.no() != null && row.no().toLowerCase(Locale.ROOT).contains(search))
+                || (row.party() != null && row.party().toLowerCase(Locale.ROOT).contains(search))
+                || (row.invoice() != null && row.invoice().toLowerCase(Locale.ROOT).contains(search))
+                || (row.reason() != null && row.reason().toLowerCase(Locale.ROOT).contains(search));
+            boolean matchesStatus = status == null || "All Status".equals(status)
+                || (row.status() != null && row.status().equalsIgnoreCase(status));
+            return matchesSearch && matchesStatus;
+        }).toList();
+
+        filteredReturnsList.setAll(matched);
+    }
+
+    private void updateReturnTabBadge() {
+        if (tabReturnApprovals == null) return;
+        long pending = masterReturnsList.stream()
+            .filter(r -> "PENDING APPROVAL".equalsIgnoreCase(safe(r.status()).trim()))
+            .count();
+        if (pending > 0) {
+            tabReturnApprovals.setText("Return Approvals (" + pending + ")");
+        } else {
+            tabReturnApprovals.setText("Return Approvals");
+        }
+    }
+
+    private String safe(String v) { return v == null ? "" : v; }
+
     @FXML
     public void refreshData() {
         UiTaskExecutor.submitLatest(
@@ -228,6 +491,28 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
             },
             err -> AppDialogService.error(tblDebitNotes, "Debit Notes", "Failed to Load Debit Notes", err.getMessage())
         );
+
+        UiTaskExecutor.submitLatest(
+            "debit-note-returns-fetch",
+            () -> returnApi.list("PURCHASE RETURN"),
+            returns -> {
+                masterReturnsList.setAll(returns != null ? returns : Collections.emptyList());
+                applyReturnFilters();
+                updateReturnTabBadge();
+            },
+            err -> PerformanceMonitor.event("debit-note-returns-error", err.getMessage())
+        );
+    }
+
+    private static String formatReason(String raw) {
+        if (raw == null || raw.isBlank()) return "-";
+        return switch (raw.trim().toUpperCase(Locale.ROOT)) {
+            case "PURCHASE_RETURN", "PURCHASE RETURN" -> "Purchase Return";
+            case "RATE_DIFFERENCE", "RATE DIFFERENCE" -> "Rate Difference";
+            case "SUPPLIER_DISCOUNT", "SUPPLIER DISCOUNT" -> "Supplier Discount";
+            case "CORRECTION" -> "Correction";
+            default -> raw.replace('_', ' ');
+        };
     }
 
     private void applyFilters() {
@@ -240,6 +525,7 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
                 || (row.partyName != null && row.partyName.toLowerCase(Locale.ROOT).contains(search))
                 || (row.originalPurchaseNo != null && row.originalPurchaseNo.toLowerCase(Locale.ROOT).contains(search));
             boolean matchesReason = reason == null || "All Reasons".equals(reason)
+                || formatReason(row.reasonCode).equalsIgnoreCase(reason)
                 || (row.reasonCode != null && row.reasonCode.equalsIgnoreCase(reason));
             return matchesSearch && matchesReason;
         }).toList();

@@ -534,8 +534,24 @@ public final class PurchaseDocumentInspectionDialog {
         IconFactory.applyTableHeaderIcon(colParty, "supplier");
 
         TableColumn<SupportApiClient.PaymentRow, String> colMode = new TableColumn<>("Payment Mode");
-        colMode.setPrefWidth(120);
+        colMode.setPrefWidth(135);
         colMode.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().mode())));
+        colMode.setCellFactory(ignored -> new TableCell<>() {
+            @Override protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null || val.isBlank()) {
+                    setGraphic(null); setText(null);
+                } else if (val.equalsIgnoreCase("Debit Note") || val.equalsIgnoreCase("Credit Note")) {
+                    Label pill = new Label(val + " Offset");
+                    pill.getStyleClass().addAll("badge-pill", "status-warning");
+                    pill.setGraphic(IconFactory.compactIcon("return", 12));
+                    setGraphic(pill);
+                    setText(null);
+                } else {
+                    setGraphic(null); setText(val);
+                }
+            }
+        });
         IconFactory.applyTableHeaderIcon(colMode, "payment");
 
         table.setFixedCellSize(36.0);
@@ -715,7 +731,16 @@ public final class PurchaseDocumentInspectionDialog {
         Label statusLabel = new Label("Loading attachments and payment proofs…");
         statusLabel.getStyleClass().add("muted-label");
 
-        VBox container = new VBox(8, listView, statusLabel);
+        Button btnUpload = new Button("Upload Document");
+        btnUpload.getStyleClass().addAll("approved-button", "approved-secondary-button", "compact-action-button");
+        btnUpload.setGraphic(IconFactory.compactIcon("attachment", 14));
+
+        Region topSpacer = new Region();
+        HBox.setHgrow(topSpacer, Priority.ALWAYS);
+        HBox topBar = new HBox(10, statusLabel, topSpacer, btnUpload);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        VBox container = new VBox(8, topBar, listView);
         container.setPadding(new Insets(8, 0, 0, 0));
 
         UiTaskExecutor.submitLatest("purchase-inspection-attachments-" + purchase.getId(),
@@ -811,6 +836,20 @@ public final class PurchaseDocumentInspectionDialog {
                     }
                 },
                 err -> statusLabel.setText("Failed to load attachments: " + err.getMessage()));
+
+        btnUpload.setOnAction(e -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Upload Attachment to Purchase #" + purchase.getInvoiceNo());
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Documents", "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.csv", "*.txt", "*.*"));
+            File file = chooser.showOpenDialog(dialog.getDialogPane().getScene().getWindow());
+            if (file == null) return;
+            UiTaskExecutor.submitActionWithOverlay(dialog.getDialogPane(), "Uploading attachment…", "upload-purchase-inspection-attachment-" + purchase.getId(), () -> {
+                support.addDocumentAttachment("PURCHASE", purchase.getId(), file.toPath(), purchase.getRowVersion());
+                return true;
+            }, ok -> {
+                AppDialogService.success(dialog.getDialogPane(), "Uploaded", "Document '" + file.getName() + "' attached successfully to Purchase #" + purchase.getInvoiceNo() + ".");
+            }, err -> AppDialogService.error(dialog.getDialogPane(), "Upload Failed", err.getMessage()));
+        });
 
         return container;
     }

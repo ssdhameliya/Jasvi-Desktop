@@ -26,6 +26,7 @@ import org.example.util.*;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Universal Bank Statement Import & Data Shipping Wizard for Jasvi ERP Desktop.
@@ -37,6 +38,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
     private final BankStatementApiClient api;
     private final MasterApiClient masterClient;
     private final Runnable onSuccessCallback;
+    private final Consumer<Long> onBatchSuccessCallback;
     private final UniversalBankStatementParser parser = new UniversalBankStatementParser();
     private final boolean lightMode;
 
@@ -60,16 +62,22 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         }
     }
 
-    public static void show(Window owner, BankStatementApiClient api, MasterApiClient masterClient, Runnable onSuccess) {
-        UniversalBankStatementImportDialog dialog = new UniversalBankStatementImportDialog(owner, api, masterClient, onSuccess);
+    public static void show(Window owner, BankStatementApiClient api, MasterApiClient masterClient, Consumer<Long> onBatchSuccess) {
+        UniversalBankStatementImportDialog dialog = new UniversalBankStatementImportDialog(owner, api, masterClient, onBatchSuccess);
         dialog.showAndWait();
     }
 
-    public UniversalBankStatementImportDialog(Window owner, BankStatementApiClient api, MasterApiClient masterClient, Runnable onSuccess) {
+    public static void show(Window owner, BankStatementApiClient api, MasterApiClient masterClient, Runnable onSuccess) {
+        UniversalBankStatementImportDialog dialog = new UniversalBankStatementImportDialog(owner, api, masterClient, onSuccess != null ? bId -> onSuccess.run() : null);
+        dialog.showAndWait();
+    }
+
+    public UniversalBankStatementImportDialog(Window owner, BankStatementApiClient api, MasterApiClient masterClient, Consumer<Long> onBatchSuccess) {
         super(owner != null && owner.getScene() != null ? owner.getScene().getRoot() : null);
         this.api = api != null ? api : new BankStatementApiClient();
         this.masterClient = masterClient != null ? masterClient : new MasterApiClient();
-        this.onSuccessCallback = onSuccess;
+        this.onBatchSuccessCallback = onBatchSuccess;
+        this.onSuccessCallback = onBatchSuccess != null ? () -> onBatchSuccess.accept(null) : null;
         this.lightMode = detectLightMode(owner);
 
         setTitle("Data Shipping Wizard - Bank Statement");
@@ -90,21 +98,18 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
             }
         });
 
-        VBox content = new VBox(14);
-        content.setPadding(new Insets(14, 18, 14, 18));
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10, 16, 10, 16));
         content.setFillWidth(true);
         VBox.setVgrow(content, Priority.ALWAYS);
 
         // Header Title Card
         content.getChildren().add(buildHeaderCard());
 
-        // 1. Target Bank Account Section
-        content.getChildren().add(buildBankAccountSection());
+        // 1 & 2. Compact Target Bank Account & File Ingestion Toolbar
+        content.getChildren().add(buildCompactConfigurationCard());
 
-        // 2. Template Download & File Ingestion Section
-        content.getChildren().add(buildFileIngestionSection());
-
-        // 3. Preflight Color-Coded Validation Table
+        // 3. Preflight Color-Coded Validation Table (Expanded Workspace)
         VBox tableSection = buildValidationTableSection();
         VBox.setVgrow(tableSection, Priority.ALWAYS);
         content.getChildren().add(tableSection);
@@ -161,35 +166,29 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         return header;
     }
 
-    private Node buildBankAccountSection() {
-        VBox box = new VBox(6);
-        box.getStyleClass().addAll("approved-card");
-        box.setPadding(new Insets(10, 14, 10, 14));
-
-        Label lbl = new Label("1. TARGET BANK ACCOUNT (Populated from Master: BANK_ACCOUNT)");
-        lbl.getStyleClass().addAll("form-section-title", "section-title");
-
-        cmbBankAccount.setMaxWidth(Double.MAX_VALUE);
-        cmbBankAccount.setPrefHeight(36);
-        cmbBankAccount.setPromptText("Select Target Bank Account from Master...");
-        HBox.setHgrow(cmbBankAccount, Priority.ALWAYS);
-
-        box.getChildren().addAll(lbl, cmbBankAccount);
-        return box;
-    }
-
-    private Node buildFileIngestionSection() {
+    private Node buildCompactConfigurationCard() {
         VBox box = new VBox(8);
         box.getStyleClass().addAll("approved-card");
-        box.setPadding(new Insets(10, 14, 10, 14));
+        box.setPadding(new Insets(8, 12, 8, 12));
 
-        Label lbl = new Label("2. TEMPLATE DOWNLOAD & FILE INGESTION");
-        lbl.getStyleClass().addAll("form-section-title", "section-title");
+        // Row 1: Target Bank Account + Template Download + Browse Button
+        HBox row1 = new HBox(12);
+        row1.setAlignment(Pos.CENTER_LEFT);
 
-        HBox controls = new HBox(12);
-        controls.setAlignment(Pos.CENTER_LEFT);
+        HBox bankBox = new HBox(8);
+        bankBox.setAlignment(Pos.CENTER_LEFT);
+        Label lblBank = new Label("Target Bank:");
+        lblBank.setGraphic(IconFactory.compactIcon("bank", 15));
+        lblBank.getStyleClass().addAll("approved-strong-label", "erp-page-subtitle");
 
-        MenuButton btnDownloadTemplate = new MenuButton("Download Bank Statement Template (.xlsx / .xls / .csv)");
+        cmbBankAccount.setPrefWidth(380);
+        cmbBankAccount.setPrefHeight(34);
+        cmbBankAccount.setPromptText("Select Target Bank Account from Master...");
+        HBox.setHgrow(cmbBankAccount, Priority.ALWAYS);
+        bankBox.getChildren().addAll(lblBank, cmbBankAccount);
+        HBox.setHgrow(bankBox, Priority.ALWAYS);
+
+        MenuButton btnDownloadTemplate = new MenuButton("Download Bank Template (.xlsx / .xls / .csv)");
         btnDownloadTemplate.setGraphic(IconFactory.compactIcon("excel", 15));
         btnDownloadTemplate.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
@@ -219,30 +218,27 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         btnBrowse.getStyleClass().addAll("approved-button", "primary-button");
         btnBrowse.setOnAction(e -> onBrowseFile());
 
-        lblSelectedFile.getStyleClass().addAll("erp-table-value-colour-info");
-        lblSelectedFile.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; -fx-font-weight: 600;");
-        HBox.setHgrow(lblSelectedFile, Priority.ALWAYS);
+        row1.getChildren().addAll(bankBox, btnDownloadTemplate, btnBrowse);
 
-        controls.getChildren().addAll(btnDownloadTemplate, btnBrowse, lblSelectedFile);
+        // Row 2: Compact Drag & Drop Target Strip + Colorized File Status Badge
+        HBox row2 = new HBox(12);
+        row2.setAlignment(Pos.CENTER_LEFT);
 
-        // Drag & drop dropzone (Theme-aware Light & Dark mode)
-        VBox dropZone = new VBox(6);
-        dropZone.setAlignment(Pos.CENTER);
-        dropZone.setPadding(new Insets(12));
-        dropZone.getStyleClass().add("universal-dropzone");
-
-        Label dropText = new Label("Drag & Drop ANY Bank Statement file here (.xlsx, .xls, .csv)");
+        HBox dropStrip = new HBox(8);
+        dropStrip.setAlignment(Pos.CENTER_LEFT);
+        dropStrip.setPadding(new Insets(5, 12, 5, 12));
+        dropStrip.getStyleClass().addAll("universal-dropzone");
+        Label dropText = new Label("Drag & Drop statement file here or on table (.xlsx, .xls, .csv)");
         dropText.getStyleClass().add("universal-dropzone-text");
-        dropZone.getChildren().addAll(IconFactory.icon("import", 22), dropText);
+        dropStrip.getChildren().addAll(IconFactory.compactIcon("import", 15), dropText);
 
-        dropZone.setOnDragOver(event -> {
+        dropStrip.setOnDragOver(event -> {
             if (event.getDragboard().hasFiles()) {
                 event.acceptTransferModes(TransferMode.COPY);
             }
             event.consume();
         });
-
-        dropZone.setOnDragDropped(event -> {
+        dropStrip.setOnDragDropped(event -> {
             Dragboard db = event.getDragboard();
             boolean success = false;
             if (db.hasFiles() && !db.getFiles().isEmpty()) {
@@ -254,7 +250,17 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
             event.consume();
         });
 
-        box.getChildren().addAll(lbl, controls, dropZone);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        lblSelectedFile.getStyleClass().setAll("badge", "badge-pill", "status-warning");
+        lblSelectedFile.setGraphic(IconFactory.compactIcon("alert-circle", 14));
+        lblSelectedFile.setContentDisplay(ContentDisplay.LEFT);
+        lblSelectedFile.setGraphicTextGap(6);
+
+        row2.getChildren().addAll(dropStrip, spacer, lblSelectedFile);
+
+        box.getChildren().addAll(row1, row2);
         return box;
     }
 
@@ -353,6 +359,25 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
 
         table.getColumns().setAll(colIdx, colStatus, colDate, colRef, colDesc, colDr, colCr, colBal, colError);
         DynamicTableLayoutManager.install(table);
+
+        // Allow direct drag & drop onto the entire table area
+        table.setOnDragOver(event -> {
+            if (event.getDragboard().hasFiles()) {
+                event.acceptTransferModes(TransferMode.COPY);
+            }
+            event.consume();
+        });
+        table.setOnDragDropped(event -> {
+            Dragboard db = event.getDragboard();
+            boolean success = false;
+            if (db.hasFiles() && !db.getFiles().isEmpty()) {
+                File f = db.getFiles().getFirst();
+                processSelectedFile(f);
+                success = true;
+            }
+            event.setDropCompleted(success);
+            event.consume();
+        });
     }
 
     private Node buildActionFooter() {
@@ -440,6 +465,8 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
 
     private void processSelectedFile(File file) {
         this.chosenFile = file;
+        lblSelectedFile.getStyleClass().setAll("badge", "badge-pill", "status-positive");
+        lblSelectedFile.setGraphic(IconFactory.compactIcon("check", 14));
         lblSelectedFile.setText(file.getName() + " (" + Math.max(1, file.length() / 1024) + " KB)");
 
         try {
@@ -466,6 +493,9 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
             lblValidRows.setText("Valid: 0");
             lblErrorRows.setText("Errors: 1");
             btnStartShipping.setDisable(true);
+            lblSelectedFile.getStyleClass().setAll("badge", "badge-pill", "status-negative");
+            lblSelectedFile.setGraphic(IconFactory.compactIcon("alert-triangle", 14));
+            lblSelectedFile.setText("Parse Error: " + file.getName());
             AppDialogService.error(table, "Parse Error", "Bank Statement Analysis Failed", "Failed to analyze bank statement: " + ex.getMessage());
         }
     }
@@ -524,25 +554,32 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                 return result;
             },
             result -> {
-                if (result.alreadyImported()) {
-                    AppDialogService.warning(table, "Already Imported", "Duplicate Statement Detected",
-                            "This exact bank statement was already imported previously.\nBatch Reference: "
-                                    + (result.batch() != null ? result.batch().statementReference() : "N/A"));
-                } else {
-                    NotificationService.createNotification(
-                            NotificationService.Category.BANKING,
-                            "Bank Statement Imported",
-                            "Imported " + result.importedRows() + " transactions (Ref: " + (result.batch() != null ? result.batch().statementReference() : "") + ")",
-                            "INFO",
-                            "/fxml/pages/BankStatement.fxml",
-                            result.batch() != null ? result.batch().statementReference() : null
-                    );
-                    AppDialogService.success(table, "Statement Import Complete", "Transactions Ingested Successfully",
-                            "Successfully imported " + result.importedRows() + " bank transactions into the ledger.\nStatement Batch: "
-                                    + (result.batch() != null ? result.batch().statementReference() : ""));
-                }
-                if (onSuccessCallback != null) onSuccessCallback.run();
+                Long batchId = result.batch() != null ? result.batch().id() : null;
+                Window ownerWindow = getDialogPane().getScene() != null ? getDialogPane().getScene().getWindow() : null;
+                Node targetHost = ownerWindow != null && ownerWindow.getScene() != null ? ownerWindow.getScene().getRoot() : null;
                 close();
+                if (onBatchSuccessCallback != null) onBatchSuccessCallback.accept(batchId);
+                else if (onSuccessCallback != null) onSuccessCallback.run();
+
+                javafx.application.Platform.runLater(() -> {
+                    if (result.alreadyImported()) {
+                        AppDialogService.warning(targetHost, "Already Imported", "Duplicate Statement Detected",
+                                "This exact bank statement was already imported previously.\nBatch Reference: "
+                                        + (result.batch() != null ? result.batch().statementReference() : "N/A"));
+                    } else {
+                        NotificationService.createNotification(
+                                NotificationService.Category.BANKING,
+                                "Bank Statement Imported",
+                                "Imported " + result.importedRows() + " transactions (Ref: " + (result.batch() != null ? result.batch().statementReference() : "") + ")",
+                                "INFO",
+                                "/fxml/pages/BankStatement.fxml",
+                                result.batch() != null ? result.batch().statementReference() : null
+                        );
+                        AppDialogService.success(targetHost, "Statement Import Complete", "Transactions Ingested Successfully",
+                                "Successfully imported " + result.importedRows() + " bank transactions into the ledger.\nStatement Batch: "
+                                        + (result.batch() != null ? result.batch().statementReference() : ""));
+                    }
+                });
             },
             ex -> {
                 btnStartShipping.setDisable(false);

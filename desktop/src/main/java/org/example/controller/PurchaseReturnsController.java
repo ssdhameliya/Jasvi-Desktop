@@ -124,6 +124,7 @@ public class PurchaseReturnsController implements ScreenLifecycle {
                 add("Approve Return", "approve", e -> approveReturn(row()));
                 add("Reject Return", "reject", e -> rejectReturn(row()));
                 add("Record Refund", "payment", e -> recordRefund(row()));
+                add("Quick Apply (Offset Bills)", "apply", e -> quickApply(row()));
                 add("Cancel Return", "cancel", e -> cancel(row())); add("Delete Return", "delete", e -> delete(row()));
                 menu.getStyleClass().add("row-actions");menu.setGraphic(IconFactory.compactIcon("actions",16));menu.setText("Actions");menu.setContentDisplay(ContentDisplay.LEFT);menu.setGraphicTextGap(6);menu.setTooltip(new Tooltip("Actions"));IconFactory.decorateActionMenu(menu);
             }
@@ -139,6 +140,7 @@ public class PurchaseReturnsController implements ScreenLifecycle {
                         if(mi.getText().startsWith("Approve Return"))mi.setDisable(!waiting||!PermissionService.allowed("PURCHASE.APPROVE"));
                         else if(mi.getText().startsWith("Reject Return"))mi.setDisable(!waiting||!PermissionService.allowed("PURCHASE.APPROVE"));
                         else if(mi.getText().startsWith("Record Refund")){mi.setDisable(!approved);mi.setText(approved?"Record Refund":"Record Refund (Approval Required)");}
+                        else if(mi.getText().startsWith("Quick Apply")){mi.setDisable(!approved||current.refund()>=current.total()-0.009);}
                         else if(mi.getText().startsWith("Cancel Return")||mi.getText().startsWith("Delete Return"))mi.setDisable(!canCancelOrDelete(current));
                     }
                 }
@@ -284,6 +286,21 @@ public class PurchaseReturnsController implements ScreenLifecycle {
         if(row==null)return;
         if(!isApproved(row)){org.example.util.AppDialogService.warning(table,"Refund blocked","Return approval required","Refund/settlement can be recorded only after Admin approves the Return.");return;}
         ReturnRefundContext.select(row.no()); NavigationManager.getInstance().loadPage("/fxml/pages/ReturnRefund.fxml");
+    }
+    private void quickApply(Row row) {
+        if (row == null) return;
+        if (!isApproved(row)) {
+            org.example.util.AppDialogService.warning(table, "Quick apply blocked", "Return approval required", "Quick apply can be performed only after Admin approves the Return.");
+            return;
+        }
+        if (!confirm("Apply Debit Note / Return " + row.no() + " to outstanding unpaid bills for " + row.supplier() + "?\n\nThis will automatically allocate available return credit to open purchase bills in FIFO order.")) return;
+        UiTaskExecutor.submitSerial("purchase-return-quick-apply-" + row.no(), () -> {
+            return returnApi.quickApply(row.no());
+        }, msg -> {
+            NotificationService.add(msg);
+            org.example.util.AppDialogService.success(table, "Applied Successfully", msg);
+            load();
+        }, ex -> org.example.util.AppDialogService.error(table, "Quick Apply Failed", ex.getMessage()));
     }
     private void approveReturn(Row row){
         if(row==null||!isPendingApproval(row))return;

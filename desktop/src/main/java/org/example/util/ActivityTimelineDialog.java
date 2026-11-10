@@ -95,7 +95,7 @@ public final class ActivityTimelineDialog {
         String windowTitle = "Audit Trail — " + entityLabel + " • " + safeRef;
 
         DocumentInspectionScaffold.InspectionShell shell =
-                DocumentInspectionScaffold.createAdaptiveShell(owner, windowTitle, "audit-dialog", 6);
+                DocumentInspectionScaffold.createAdaptiveShell(owner, windowTitle, "audit-dialog", 12);
         Dialog<ButtonType> dialog = shell.dialog();
         StackPane host = shell.host();
 
@@ -195,8 +195,8 @@ public final class ActivityTimelineDialog {
 
         // Col 3: Action / Event
         TableColumn<AuditTableRow, String> colAction = new TableColumn<>("Event / Action");
-        colAction.setPrefWidth(150);
-        colAction.setMinWidth(125);
+        colAction.setPrefWidth(185);
+        colAction.setMinWidth(150);
         colAction.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().action()));
         colAction.setCellFactory(col -> new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {
@@ -217,8 +217,8 @@ public final class ActivityTimelineDialog {
 
         // Col 4: Category
         TableColumn<AuditTableRow, String> colCategory = new TableColumn<>("Category");
-        colCategory.setPrefWidth(125);
-        colCategory.setMinWidth(105);
+        colCategory.setPrefWidth(130);
+        colCategory.setMinWidth(110);
         colCategory.setCellValueFactory(v -> new ReadOnlyStringWrapper(pretty(v.getValue().category())));
         colCategory.setCellFactory(col -> new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {
@@ -239,8 +239,8 @@ public final class ActivityTimelineDialog {
 
         // Col 5: Field / Property
         TableColumn<AuditTableRow, String> colField = new TableColumn<>("Field / Scope");
-        colField.setPrefWidth(160);
-        colField.setMinWidth(130);
+        colField.setPrefWidth(175);
+        colField.setMinWidth(140);
         colField.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().fieldName()));
         colField.setCellFactory(col -> new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {
@@ -261,8 +261,8 @@ public final class ActivityTimelineDialog {
 
         // Col 6: Old Value (with copy-to-clipboard)
         TableColumn<AuditTableRow, String> colOld = new TableColumn<>("Old Value");
-        colOld.setPrefWidth(170);
-        colOld.setMinWidth(130);
+        colOld.setPrefWidth(195);
+        colOld.setMinWidth(150);
         colOld.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().oldValue()));
         colOld.setCellFactory(col -> new TableCell<>() {
             private final Tooltip copyTooltip = new Tooltip();
@@ -300,8 +300,8 @@ public final class ActivityTimelineDialog {
 
         // Col 7: New Value (with copy-to-clipboard)
         TableColumn<AuditTableRow, String> colNew = new TableColumn<>("New Value");
-        colNew.setPrefWidth(170);
-        colNew.setMinWidth(130);
+        colNew.setPrefWidth(195);
+        colNew.setMinWidth(150);
         colNew.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().newValue()));
         colNew.setCellFactory(col -> new TableCell<>() {
             private final Tooltip copyTooltip = new Tooltip();
@@ -339,8 +339,8 @@ public final class ActivityTimelineDialog {
 
         // Col 8: User / Operator
         TableColumn<AuditTableRow, String> colUser = new TableColumn<>("User");
-        colUser.setPrefWidth(125);
-        colUser.setMinWidth(100);
+        colUser.setPrefWidth(135);
+        colUser.setMinWidth(110);
         colUser.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().user()));
         colUser.setCellFactory(col -> new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {
@@ -361,8 +361,8 @@ public final class ActivityTimelineDialog {
 
         // Col 9: Remarks / Context
         TableColumn<AuditTableRow, String> colRemarks = new TableColumn<>("Remarks / Description");
-        colRemarks.setPrefWidth(240);
-        colRemarks.setMinWidth(180);
+        colRemarks.setPrefWidth(340);
+        colRemarks.setMinWidth(240);
         colRemarks.setCellValueFactory(v -> new ReadOnlyStringWrapper(v.getValue().detail()));
         colRemarks.setCellFactory(col -> new TableCell<>() {
             private final Tooltip textTooltip = new Tooltip();
@@ -413,6 +413,7 @@ public final class ActivityTimelineDialog {
         IconFactory.applyTableHeaderIcon(colSource, "database");
 
         table.getColumns().addAll(List.of(colIndex, colDate, colAction, colCategory, colField, colOld, colNew, colUser, colRemarks, colSource));
+        table.setPrefHeight(12 * 36.0 + 44.0);
         DynamicTableLayoutManager.install(table);
         VBox.setVgrow(table, Priority.ALWAYS);
 
@@ -517,7 +518,7 @@ public final class ActivityTimelineDialog {
                             table.setPlaceholder(new Label("No audit trail events recorded for this record."));
                         }
                         Platform.runLater(() -> {
-                            PopupTableWorkspace.applyAdaptiveInspectionSizing(dialog, owner, masterList.size());
+                            PopupTableWorkspace.applyAdaptiveInspectionSizing(dialog, owner, Math.max(12, masterList.size()));
                             if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
                                 stage.sizeToScene();
                             }
