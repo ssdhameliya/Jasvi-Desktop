@@ -19074,5 +19074,30 @@
     -fx-padding: 2px 0 0 2px;
 }
 
+.ai-copilot-bubble-user {
+    -fx-background-color: rgba(99, 102, 241, 0.16);
+    -fx-border-color: rgba(99, 102, 241, 0.45);
+    -fx-border-width: 1px;
+    -fx-background-radius: 12px 12px 2px 12px;
+    -fx-border-radius: 12px 12px 2px 12px;
+}
+.ai-copilot-bubble-assistant {
+    -fx-background-color: rgba(16, 185, 129, 0.10);
+    -fx-border-color: rgba(16, 185, 129, 0.36);
+    -fx-border-width: 1px;
+    -fx-background-radius: 12px 12px 12px 2px;
+    -fx-border-radius: 12px 12px 12px 2px;
+}
+.ai-copilot-chip {
+    -fx-background-radius: 999px;
+    -fx-border-radius: 999px;
+    -fx-padding: 5px 12px;
+}
+.ai-chat-drawer {
+    -fx-background-color: #0b1628;
+    -fx-border-color: #1e3a5f;
+    -fx-border-width: 0 0 0 1.5px;
+}
+
 
 

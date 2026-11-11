@@ -391,9 +391,18 @@ public final class SearchableComboBoxHelper {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public T fromString(String string) {
                 if (string == null || string.isBlank()) return null;
                 String trimmed = string.trim();
+                ObservableList<T> master = (ObservableList<T>) comboBox.getProperties().get(MASTER_ITEMS_PROP);
+                if (master != null) {
+                    for (T item : master) {
+                        if (item != null && getDisplayString(comboBox, item, extractor).equalsIgnoreCase(trimmed)) {
+                            return item;
+                        }
+                    }
+                }
                 for (T item : comboBox.getItems()) {
                     if (item != null && getDisplayString(comboBox, item, extractor).equalsIgnoreCase(trimmed)) {
                         return item;

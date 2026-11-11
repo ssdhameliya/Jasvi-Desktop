@@ -364,6 +364,9 @@ public final class AppDialogRenderer {
             } else if ("complete".equals(semantic)) {
                 actionSemantic = semanticForLabel(label, "complete");
                 button.getStyleClass().add("dse-dialog-action-success");
+            } else if (label.toLowerCase(Locale.ROOT).contains("diagnos") || label.toLowerCase(Locale.ROOT).contains("ai")) {
+                actionSemantic = "diagnostic";
+                button.getStyleClass().add("dse-dialog-action-primary");
             } else {
                 actionSemantic = semanticForLabel(label, "complete");
                 button.getStyleClass().add("dse-dialog-action-primary");

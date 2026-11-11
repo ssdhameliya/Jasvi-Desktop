@@ -484,7 +484,9 @@ public class LicenseRenewalDialogController {
             return;
         }
 
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitActionWithOverlay(
+                btnApplyActivation != null ? btnApplyActivation : btnClose,
+                "Cryptographically Validating & Activating License...",
                 "apply-license",
                 () -> {
                     JsonNode root;

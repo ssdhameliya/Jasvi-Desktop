@@ -71,8 +71,22 @@ public class GeneralLedgerDtos {
             String referenceNo,
             String narration,
             String postedBy,
+            String status,
             List<CreateLineRequest> lines
-    ) {}
+    ) {
+        public CreateJournalRequest(
+                LocalDate entryDate,
+                String entryType,
+                String referenceType,
+                Long referenceId,
+                String referenceNo,
+                String narration,
+                String postedBy,
+                List<CreateLineRequest> lines
+        ) {
+            this(entryDate, entryType, referenceType, referenceId, referenceNo, narration, postedBy, "POSTED", lines);
+        }
+    }
 
     public record TrialBalanceItemDto(
             String accountCode,

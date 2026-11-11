@@ -46,6 +46,9 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
     private final Label lblSelectedFile = new Label("No statement file selected (drag & drop or browse below)");
     private final TableView<UniversalBankStatementParser.AuditRow> table = new TableView<>();
     private final ObservableList<UniversalBankStatementParser.AuditRow> auditRows = FXCollections.observableArrayList();
+    private final javafx.collections.transformation.FilteredList<UniversalBankStatementParser.AuditRow> filteredAuditRows = new javafx.collections.transformation.FilteredList<>(auditRows, p -> true);
+    private final ComboBox<String> cmbStatusFilter = new ComboBox<>();
+    private final Label lblMismatchWarning = new Label();
     private final Button btnStartShipping = new Button("Start Data Shipping");
     private final Label lblTotalRows = new Label("Total: 0");
     private final Label lblValidRows = new Label("Valid: 0");
@@ -94,7 +97,13 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         PopupTableWorkspace.applyInspectionSizing(this, owner != null && owner.getScene() != null ? owner.getScene().getRoot() : null);
         setOnShown(ev -> {
             if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
-                WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+                javafx.geometry.Rectangle2D screenBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
+                double w = Math.min(screenBounds.getWidth() * 0.98, 1720);
+                double h = Math.min(screenBounds.getHeight() * 0.98, 1050);
+                stage.setWidth(w);
+                stage.setHeight(h);
+                stage.setX(screenBounds.getMinX() + (screenBounds.getWidth() - w) / 2.0);
+                stage.setY(screenBounds.getMinY() + (screenBounds.getHeight() - h) / 2.0);
             }
         });
 
@@ -218,7 +227,12 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         btnBrowse.getStyleClass().addAll("approved-button", "primary-button");
         btnBrowse.setOnAction(e -> onBrowseFile());
 
-        row1.getChildren().addAll(bankBox, btnDownloadTemplate, btnBrowse);
+        lblMismatchWarning.getStyleClass().setAll("badge", "badge-pill", "status-warning");
+        lblMismatchWarning.setGraphic(IconFactory.compactIcon("alert-triangle", 14));
+        lblMismatchWarning.setVisible(false);
+        lblMismatchWarning.setManaged(false);
+
+        row1.getChildren().addAll(bankBox, lblMismatchWarning, btnDownloadTemplate, btnBrowse);
 
         // Row 2: Compact Drag & Drop Target Strip + Colorized File Status Badge
         HBox row2 = new HBox(12);
@@ -281,7 +295,12 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         lblValidRows.getStyleClass().addAll("approved-status", "erp-table-value-colour-green");
         lblErrorRows.getStyleClass().addAll("approved-status", "erp-table-value-colour-red");
 
-        top.getChildren().addAll(lbl, spacer, lblTotalRows, lblValidRows, lblErrorRows);
+        cmbStatusFilter.getItems().setAll("All Records", "Errors Only", "Valid Only");
+        cmbStatusFilter.setValue("All Records");
+                cmbStatusFilter.getStyleClass().addAll("approved-combobox", "erp-table-filter-combo");
+        cmbStatusFilter.valueProperty().addListener((obs, oldVal, newVal) -> applyStatusFilter(newVal));
+
+        top.getChildren().addAll(lbl, spacer, cmbStatusFilter, lblTotalRows, lblValidRows, lblErrorRows);
 
         configureTable();
         VBox.setVgrow(table, Priority.ALWAYS);
@@ -296,7 +315,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
             table.getStyleClass().add("erp-no-row-selection");
         }
         PopupTableWorkspace.prepareTable(table, "erp-table-profile-responsive");
-        table.setItems(auditRows);
+        table.setItems(filteredAuditRows);
 
         // 1. Line / Source Index (#)
         TableColumn<UniversalBankStatementParser.AuditRow, Number> colIdx = new TableColumn<>("#");
@@ -336,6 +355,8 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
 
         // 9. Error Message / Validation Detail
         TableColumn<UniversalBankStatementParser.AuditRow, String> colError = new TableColumn<>("Validation Message");
+        colError.setMinWidth(260);
+        colError.setPrefWidth(340);
         colError.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().error() != null ? v.getValue().error() : "Passed all statutory checks"));
         colError.setCellFactory(tc -> new TableCell<>() {
             @Override
@@ -344,9 +365,11 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                 getStyleClass().removeAll("muted-label", "status-negative");
                 if (empty || val == null) {
                     setText(null);
+                    setGraphic(null);
                     setTooltip(null);
                 } else {
                     setText(val);
+                    setWrapText(true);
                     setTooltip(new Tooltip(val));
                     if (val.contains("Passed")) {
                         getStyleClass().add("muted-label");
@@ -404,6 +427,16 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         return footer;
     }
 
+
+    private void applyStatusFilter(String mode) {
+        if (mode != null && mode.toLowerCase(Locale.ROOT).contains("error")) {
+            filteredAuditRows.setPredicate(r -> r != null && !"PASSED".equalsIgnoreCase(r.status()));
+        } else if (mode != null && mode.toLowerCase(Locale.ROOT).contains("valid")) {
+            filteredAuditRows.setPredicate(r -> r != null && "PASSED".equalsIgnoreCase(r.status()));
+        } else {
+            filteredAuditRows.setPredicate(r -> true);
+        }
+    }
     private void loadBankAccounts() {
         try {
             List<Lookup> bankLookups = masterClient.lookupsByCategoryCode("BANK_ACCOUNT");
@@ -481,13 +514,34 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
             lblValidRows.setText("Valid: " + valid);
             lblErrorRows.setText("Errors: " + errors);
 
-            btnStartShipping.setDisable(errors > 0 || valid == 0);
-            if (errors > 0) {
-                AppDialogService.error(table, "Preflight Errors Detected", "File contains " + errors + " error rows. Please correct highlighted rows in red.");
-            } else {
+            cmbStatusFilter.getItems().setAll("All Records (" + total + ")", "Errors Only (" + errors + ")", "Valid Only (" + valid + ")");
+            cmbStatusFilter.setValue("All Records (" + total + ")");
+
+            if (errors > 0 && valid > 0) {
+                btnStartShipping.setDisable(false);
+                btnStartShipping.setText("Import Valid Rows (" + valid + ")");
+                btnStartShipping.getStyleClass().setAll("approved-button", "approved-secondary-button", "warning-button");
+                AppDialogService.warning(table, "Notice: Error Rows Detected", "Partial Valid Batch Ready (" + valid + " Rows)",
+                        "The statement has " + valid + " valid rows and " + errors + " error rows.\n\n"
+                        + "You can click 'Import Valid Rows (" + valid + ")' to import verified records now.\n"
+                        + "You can select 'Errors Only' from the filter dropdown to inspect the error rows.");
+            } else if (valid > 0) {
+                btnStartShipping.setDisable(false);
+                btnStartShipping.setText("Start Data Shipping (" + valid + " Rows)");
+                btnStartShipping.getStyleClass().setAll("approved-button", "primary-button");
                 AppDialogService.success(table, "Validation Passed", "All " + valid + " rows passed verification and are ready for data shipping.");
+            } else {
+                btnStartShipping.setDisable(true);
+                btnStartShipping.setText("Start Data Shipping");
+                AppDialogService.error(table, "All Rows Invalid", "Verification Failed", "No valid transactions could be found in the statement file.");
             }
+            checkAndAlignBankAccount(lastAuditResult.statement());
         } catch (Exception ex) {
+            boolean isPassword = isEncryptedException(ex);
+            if (isPassword) {
+                promptStatementPassword(file);
+                return;
+            }
             auditRows.clear();
             lblTotalRows.setText("Total: 0");
             lblValidRows.setText("Valid: 0");
@@ -498,6 +552,150 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
             lblSelectedFile.setText("Parse Error: " + file.getName());
             AppDialogService.error(table, "Parse Error", "Bank Statement Analysis Failed", "Failed to analyze bank statement: " + ex.getMessage());
         }
+    }
+
+    private boolean isEncryptedException(Throwable t) {
+        if (t == null) return false;
+        String msg = String.valueOf(t.getMessage()).toLowerCase(Locale.ROOT);
+        String name = t.getClass().getSimpleName().toLowerCase(Locale.ROOT);
+        if (name.contains("encrypted") || msg.contains("password") || msg.contains("protected") || msg.contains("encrypted")) {
+            return true;
+        }
+        return isEncryptedException(t.getCause());
+    }
+
+    private void promptStatementPassword(File file) {
+        TextInputDialog dialog = new OwnedTextInputDialog("");
+        dialog.setTitle("Password-Protected Statement");
+        dialog.setHeaderText("Bank Statement Decryption Required");
+        dialog.setContentText("The bank statement '" + file.getName() + "' is encrypted with a password.\n" +
+                "Please enter the statement password to decrypt and verify:\n" +
+                "(Hint: Bank passwords are often CRN, Date of Birth in DDMMYYYY, Company PAN, or Account Number)");
+        Optional<String> res = dialog.showAndWait();
+        if (res.isPresent() && !res.get().isBlank()) {
+            parseWithPassword(file, res.get().trim());
+        } else {
+            auditRows.clear();
+            lblTotalRows.setText("Total: 0");
+            lblValidRows.setText("Valid: 0");
+            lblErrorRows.setText("Errors: 1");
+            btnStartShipping.setDisable(true);
+            lblSelectedFile.getStyleClass().setAll("badge", "badge-pill", "status-negative");
+            lblSelectedFile.setGraphic(IconFactory.compactIcon("alert-triangle", 14));
+            lblSelectedFile.setText("Encrypted: " + file.getName());
+            AppDialogService.warning(table, "Decryption Skipped", "Password Required",
+                    "Cannot process '" + file.getName() + "' without the statement decryption password.");
+        }
+    }
+
+    private void parseWithPassword(File file, String password) {
+        try {
+            lastAuditResult = parser.parseWithAudit(file.toPath(), password);
+            auditRows.setAll(lastAuditResult.auditRows());
+
+            int total = lastAuditResult.totalRows();
+            int errors = lastAuditResult.errorCount();
+            int valid = total - errors;
+
+            lblTotalRows.setText("Total: " + total);
+            lblValidRows.setText("Valid: " + valid);
+            lblErrorRows.setText("Errors: " + errors);
+
+            cmbStatusFilter.getItems().setAll("All Records (" + total + ")", "Errors Only (" + errors + ")", "Valid Only (" + valid + ")");
+            cmbStatusFilter.setValue("All Records (" + total + ")");
+
+            if (errors > 0 && valid > 0) {
+                btnStartShipping.setDisable(false);
+                btnStartShipping.setText("Import Valid Rows (" + valid + ")");
+                btnStartShipping.getStyleClass().setAll("approved-button", "approved-secondary-button", "warning-button");
+                AppDialogService.warning(table, "Notice: Error Rows Detected", "Partial Valid Batch Ready (" + valid + " Rows)",
+                        "The statement has " + valid + " valid rows and " + errors + " error rows.\n\n"
+                        + "You can click 'Import Valid Rows (" + valid + ")' to import verified records now.\n"
+                        + "You can select 'Errors Only' from the filter dropdown to inspect the error rows.");
+            } else if (valid > 0) {
+                btnStartShipping.setDisable(false);
+                btnStartShipping.setText("Start Data Shipping (" + valid + " Rows)");
+                btnStartShipping.getStyleClass().setAll("approved-button", "primary-button");
+                AppDialogService.success(table, "Decryption & Validation Passed", "Decrypted successfully! All " + valid + " rows passed verification and are ready for data shipping.");
+            } else {
+                btnStartShipping.setDisable(true);
+                btnStartShipping.setText("Start Data Shipping");
+                AppDialogService.error(table, "All Rows Invalid", "Verification Failed", "No valid transactions could be found in the statement file.");
+            }
+            checkAndAlignBankAccount(lastAuditResult.statement());
+        } catch (Exception ex) {
+            boolean isStillPassword = isEncryptedException(ex) || (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("invalid password"));
+            if (isStillPassword) {
+                AppDialogService.warning(table, "Incorrect Password", "Decryption Failed",
+                        "The entered password could not decrypt '" + file.getName() + "'. Please verify and try again.");
+                promptStatementPassword(file);
+                return;
+            }
+            auditRows.clear();
+            lblTotalRows.setText("Total: 0");
+            lblValidRows.setText("Valid: 0");
+            lblErrorRows.setText("Errors: 1");
+            btnStartShipping.setDisable(true);
+            lblSelectedFile.getStyleClass().setAll("badge", "badge-pill", "status-negative");
+            lblSelectedFile.setGraphic(IconFactory.compactIcon("alert-triangle", 14));
+            lblSelectedFile.setText("Parse Error: " + file.getName());
+            AppDialogService.error(table, "Parse Error", "Bank Statement Analysis Failed", "Failed to analyze bank statement: " + ex.getMessage());
+        }
+    }
+
+    private void checkAndAlignBankAccount(UniversalBankStatementParser.ParsedStatement statement) {
+        if (statement == null) return;
+        String fileAccount = statement.accountNumber() != null ? statement.accountNumber().trim() : "";
+        String detectedBank = statement.bankName() != null ? statement.bankName().trim() : "";
+
+        BankAccountChoice targetAccount = cmbBankAccount.getValue();
+        BankAccountChoice matchedChoice = null;
+
+        for (BankAccountChoice choice : cmbBankAccount.getItems()) {
+            if (choice == null || choice.accountNumber() == null) continue;
+            if (!fileAccount.isBlank() && UniversalBankStatementParser.accountsMatch(fileAccount, choice.accountNumber())) {
+                matchedChoice = choice;
+                break;
+            }
+            if (fileAccount.isBlank() && matchedChoice == null && !detectedBank.isBlank() && !detectedBank.equals("Primary Bank")
+                    && choice.bankName() != null && choice.bankName().toLowerCase(Locale.ROOT).contains(detectedBank.toLowerCase(Locale.ROOT))) {
+                matchedChoice = choice;
+            }
+        }
+
+        if (matchedChoice != null && matchedChoice != targetAccount) {
+            final BankAccountChoice candidate = matchedChoice;
+            boolean switchBank = AppDialogService.warningConfirm(
+                    table,
+                    "Target Bank Auto-Alignment",
+                    "Target Bank Mismatch Detected",
+                    "The statement file is for " + (candidate.bankName() != null ? candidate.bankName() : detectedBank)
+                            + " (" + (fileAccount.isBlank() ? candidate.accountNumber() : fileAccount) + "), "
+                            + "but the selected dropdown is " + (targetAccount != null ? targetAccount.bankName() : "different") + ".\n\n"
+                            + "Would you like to automatically switch the target account to '" + candidate.bankName() + " (" + candidate.accountNumber() + ")'?",
+                    "Auto-Switch Bank", "Keep Selected"
+            );
+            if (switchBank) {
+                cmbBankAccount.getSelectionModel().select(candidate);
+                lblMismatchWarning.setVisible(false);
+                lblMismatchWarning.setManaged(false);
+                if (chosenFile != null) {
+                    lblSelectedFile.setText(chosenFile.getName() + " • Auto-aligned to " + candidate.bankName() + " (" + candidate.accountNumber() + ")");
+                }
+                return;
+            }
+        }
+
+        if (!fileAccount.isBlank() && targetAccount != null && targetAccount.accountNumber() != null) {
+            if (!UniversalBankStatementParser.accountsMatch(fileAccount, targetAccount.accountNumber())) {
+                lblMismatchWarning.setText("⚠ Statement A/c (" + fileAccount + ") ≠ Selected (" + targetAccount.accountNumber() + ")");
+                lblMismatchWarning.setVisible(true);
+                lblMismatchWarning.setManaged(true);
+                return;
+            }
+        }
+        lblMismatchWarning.setVisible(false);
+        lblMismatchWarning.setManaged(false);
     }
 
     private void onStartDataShipping() {
@@ -512,6 +710,66 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         String accHolder = targetAccount != null ? targetAccount.holderName() : "Jasvi Industries";
 
         var statement = lastAuditResult.statement();
+        String fileAccount = statement.accountNumber() != null ? statement.accountNumber().trim() : "";
+
+        // Verify Account Number Mismatch Guard
+        if (!fileAccount.isBlank() && targetAccount != null && targetAccount.accountNumber() != null) {
+            if (!UniversalBankStatementParser.accountsMatch(fileAccount, targetAccount.accountNumber())) {
+                boolean proceedMismatch = AppDialogService.warningConfirm(
+                        table,
+                        "Target Bank Account Mismatch Detected",
+                        "Statement Account Does Not Match Selected Account",
+                        "• Statement File Account: " + fileAccount + " (" + (statement.bankName() != null ? statement.bankName() : "Bank") + ")\n" +
+                        "• Selected Target Account: " + targetAccount.accountNumber() + " (" + targetAccount.bankName() + ")\n\n" +
+                        "The statement account number does NOT match the selected target account in the dropdown.\n" +
+                        "Importing transactions into the wrong account will affect reconciliation.\n\n" +
+                        "Are you sure you want to proceed with importing into '" + targetAccount.bankName() + "'?",
+                        "Proceed Despite Mismatch", "Cancel Import"
+                );
+                if (!proceedMismatch) {
+                    return;
+                }
+            }
+        }
+
+        int total = lastAuditResult.totalRows();
+        int errors = lastAuditResult.errorCount();
+        int valid = total - errors;
+
+        if (errors > 0 && valid > 0) {
+            boolean proceed = AppDialogService.warningConfirm(
+                    table,
+                    "Partial Statement Import Confirmation",
+                    "Proceed with " + valid + " Valid Transactions?",
+                    "The statement contains " + errors + " error rows which will be skipped.\n\n"
+                    + "• " + valid + " verified transaction records will be imported into '" + bankName + "'.\n"
+                    + "• The " + errors + " error rows will NOT be imported.\n\n"
+                    + "You can correct and re-upload the remaining rows later without duplicate postings.\n\n"
+                    + "Do you wish to proceed?",
+                    "Import Valid Rows (" + valid + ")", "Cancel"
+            );
+            if (!proceed) return;
+        }
+
+        List<BankStatementApiClient.ImportRow> rowsToImport = new ArrayList<>();
+        if (errors > 0) {
+            Set<Integer> validLineNumbers = new HashSet<>();
+            for (UniversalBankStatementParser.AuditRow ar : lastAuditResult.auditRows()) {
+                if ("PASSED".equalsIgnoreCase(ar.status())) {
+                    validLineNumbers.add(ar.sourceIndex());
+                }
+            }
+            for (var r : statement.rows()) {
+                if (validLineNumbers.contains(r.sourceRowNumber())) {
+                    rowsToImport.add(r);
+                }
+            }
+            if (rowsToImport.isEmpty()) {
+                rowsToImport = statement.rows();
+            }
+        } else {
+            rowsToImport = statement.rows();
+        }
 
         var request = new BankStatementApiClient.ImportRequest(
             bankName,
@@ -527,9 +785,8 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
             statement.sourceCsv(),
             org.example.service.SessionService.current() != null ? org.example.service.SessionService.current().getFullName() : "Admin",
             false,
-            statement.rows()
+            rowsToImport
         );
-
         btnStartShipping.setDisable(true);
         btnStartShipping.setText("Shipping Data to Server…");
 

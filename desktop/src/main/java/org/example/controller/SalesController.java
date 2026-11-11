@@ -1309,6 +1309,32 @@ public class SalesController implements ScreenLifecycle {
         if (sale == null)
             return;
 
+        // Customer Credit Overdue Hard-Stop Check (module.automation.creditHardStop)
+        if (editingSale == null && sale.getCustomer() != null) {
+            boolean creditStop = ConfigManager.getBoolean("module.automation.creditHardStop",
+                    ConfigManager.getBoolean("credit_control.hard_stop", false));
+            if (creditStop) {
+                double creditLimit = 500000.0;
+                try {
+                    creditLimit = Double.parseDouble(ConfigManager.get("credit_control.default_limit", "500000.0"));
+                } catch (Exception ignored) {}
+                double currentOutstanding = sale.getCustomer().getOpeningBalance();
+                double newTotal = currentOutstanding + sale.getBalanceAmount();
+                if (creditLimit > 0 && newTotal > creditLimit) {
+                    boolean proceed = org.example.util.AppDialogService.warningConfirm(tableLines,
+                            "Credit Limit Exceeded",
+                            "Customer Credit Policy Violation",
+                            String.format(java.util.Locale.of("en", "IN"),
+                                    "Customer '%s' has an active Credit Limit of ₹ %,.2f.\nCurrent Outstanding: ₹ %,.2f\nNew Invoice Outstanding: ₹ %,.2f\nTotal Exposure: ₹ %,.2f (Exceeds limit by ₹ %,.2f).\n\nDo you wish to override and save this sale?",
+                                    sale.getCustomer().getName(), creditLimit, currentOutstanding, sale.getBalanceAmount(), newTotal, (newTotal - creditLimit)),
+                            "Override & Save", "Cancel Sale");
+                    if (!proceed) {
+                        return;
+                    }
+                }
+            }
+        }
+
         setSalesSaveBusy(true);
         UiTaskExecutor.submitAction(
                 "sales-save",

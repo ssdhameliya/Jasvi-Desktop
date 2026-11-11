@@ -50,6 +50,12 @@ public final class NotificationService {
     private static void createNotificationInternal(Category category, String title, String message, String severity,
                                                    String targetFxml, String referenceNo, boolean personal) {
         Category resolvedCategory = category == null ? Category.SYSTEM : category;
+        if (!personal && !NotificationPreferenceService.current().categoryEnabled(resolvedCategory.name().toLowerCase(Locale.ROOT))) {
+            return;
+        }
+        if (!org.example.api.ApiSession.isEstablished()) {
+            return;
+        }
         Link link = resolveLink(resolvedCategory, message, targetFxml, referenceNo);
         try {
             API.createNotification(new InsightsApiClient.NotificationCreate(
