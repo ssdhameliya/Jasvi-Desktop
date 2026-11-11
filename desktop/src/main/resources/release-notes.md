@@ -1,4 +1,78 @@
+# What's New in DSE ERP v11.0.57
+
+### UI Cleanliness & AI Copilot Decoupling
+- **Clean Dashboard Top Bar & Login Screen Restoration (`Dashboard.fxml`, `DashboardController.java`, `Login.fxml`, `LoginController.java`) (Rule 4, Rule 5 & Rule 12)**:
+  - Removed top-bar AI Copilot button and `menuUser` copilot menu item from `Dashboard.fxml`, restoring the application header to its standard 6-button layout (Theme, Sync, Notifications, Email, WhatsApp, Diagnostics, Profile Menu).
+  - Removed the `[AI Subscription & Setup Guide]` button from `Login.fxml` and `LoginController.java`, keeping the login interface focused, clean, and uncluttered.
+  - Retained internal self-healing diagnostic helpers and PII masking libraries (`ActiveViewContextService.java`) for background diagnostic integrity without invasive UI controls.
+
+### General Ledger & Indian GST Accounting Core (ICAI & GST Compliance)
+- **Spring Boot General Ledger API Integration (`GeneralLedgerApiClient.java`, `GeneralLedgerController.java`) (Rule 4 & Rule 17)**:
+  - Connected `Jasvi-Desktop` General Ledger to the Spring Boot REST API (`/api/accounting`) via typed client.
+  - Eliminated all mock numbers, in-memory placeholders (`cashOnHand = 25000.0`, `bankBalance = 100000.0`, fallback inventory, hardcoded arrays) in compliance with Rule 17 (Zero Mock Data).
+  - Authentic Trial Balance, Chart of Accounts, and Financial Statements (Assets, Liabilities, Revenue, Expense, Net Profit) are loaded directly from PostgreSQL persistence.
+- **Indian GST Sub-Ledger Double-Entry Splitting (Rule 4, Rule 11 & Rule 17)**:
+  - Aligned double-entry posting with Indian Accounting Standards (ICAI) and GST legal requirements:
+    - Replaced the single lumped `"Domestic Sales Revenue + Output GST"` entry with legally compliant account breakdown:
+      - Intra-State Sales: Dr `1040 Sundry Debtors`, Cr `4010 Domestic Sales Revenue` (taxable value), Cr `2081 Output CGST Payable` (50%), Cr `2082 Output SGST Payable` (50%).
+      - Inter-State Sales: Dr `1040 Sundry Debtors`, Cr `4020 Inter-State Sales Revenue` (taxable value), Cr `2083 Output IGST Payable`.
+      - Inward Purchases: Cr `2010 Sundry Creditors`, Dr `5020 Raw Material Purchases` (taxable value), Dr `1081 Input CGST Pool` (50%), Dr `1082 Input SGST Pool` (50%) or Dr `1083 Input IGST Pool`.
+- **DRAFT vs POSTED General Ledger State Machine & 1-Click Posting Action (Rule 4, Rule 8, Rule 9 & Rule 11)**:
+  - Enhanced `GeneralLedgerService.java` to support `status` (`DRAFT` vs `POSTED`). Draft vouchers do not alter general ledger account balances until explicitly posted.
+  - Added `@PostMapping("/journal-entries/{id}/post")` endpoint on the Spring Boot backend.
+  - Added primary **"Post to Ledger"** button with standardized `check` icon inside the Journal Voucher Detail dialog for all DRAFT records, posting the voucher and updating financial statements in real time.
+
+### System Settings Flags & Operational Automations
+- **Customer Credit Limit Hard-Stop Enforcement (`SalesController.java`) (Rule 4 & Rule 12)**:
+  - Wired `module.automation.creditHardStop` (`credit_control.hard_stop`) in `SalesController.saveSale()`.
+  - When enabled, calculates total customer exposure (current outstanding + new invoice balance). If the customer credit limit is exceeded, presents a clean, theme-styled `warningConfirm` dialog allowing authorized operators to review exposure details and choose to **Override & Save** or **Cancel Sale**.
+- **User Notification Category Preference Gating (`NotificationService.java`) (Rule 4 & Rule 10)**:
+  - Enforced user-selected category preferences via `NotificationPreferenceService.current().categoryEnabled(category)`.
+  - Deselected or disabled notification categories are strictly filtered before system alert creation, respecting user preferences across all 24 operational notification categories while adhering to architecture contract tests.
+- **Automated Daily Executive Briefing (`ExecutiveBriefingScheduler.java`) (Rule 4 & Rule 17)**:
+  - Added Spring scheduled service `@Scheduled(cron = "${dse.briefing.cron:0 0 20 * * *}")` executing daily at 8:00 PM.
+  - Governed by `module.briefing.daily` setting to compile day's sales, collections, purchases, payables, and low stock warnings into an automated executive briefing.
+
+### Universal Protected Bank Statement Automated Decryption, Preamble Extraction & Multi-Bank Ingestion
+- **Automated Bank Footer & Summary Exclusion (`UniversalBankStatementParser.java`) (Rule 4 & Rule 17)**:
+  - Added intelligent bank statement footer and metadata filtering (`Generated On:`, `State account branch`, `GSTIN`, `STATEMENT SUMMARY`, `computer generated statement`, `Contents of this statement`, `Registered Office Address`, `--- End Of Statement ---`, `*Closing balance includes`).
+  - Automatically excludes trailing non-transaction metadata, completely eliminating spurious `INVALID_ERROR` date parsing failures on Indian bank statement exports (such as HDFC Bank NetBanking `.xls`/`.csv` files).
+- **Preamble Bank Identity & Account Mismatch Guard (`UniversalBankStatementParser.java`, `UniversalBankStatementImportDialog.java`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Added multi-cell regex detection for bank account numbers (`Account No :<digits>`) and bank identity detection (`HDFC Bank`, `Kotak Mahindra Bank`, `ICICI Bank`, `Axis Bank`, `State Bank of India`, `Canara Bank`, `Bank of Baroda`, `Punjab National Bank`).
+  - If the selected target account in the wizard does not match the bank account found in the statement file, the dialog flags a warning badge and prompts with 1-click **"Auto-Switch Bank"** alignment.
+- **Partial Batch Ingestion (Import Valid Rows & Skip Error Rows) (`UniversalBankStatementImportDialog.java`) (Rule 4, Rule 8, Rule 11 & Rule 17)**:
+  - Eliminated the all-or-nothing blocking barrier when a batch has both valid and error records.
+  - When valid transactions exist alongside error rows, enables **"Import Valid Rows (X)"** with explicit confirmation, shipping only verified transactions to the server while skipping error records.
+  - Backed by transaction fingerprinting and server-side deduplication so operators can fix and re-upload the remaining rows later without duplicate postings.
+- **98% Full-Screen Workspace, Status Filter & Zero Column Truncation (`UniversalBankStatementImportDialog.java`) (Rule 5, Rule 7, Rule 9 & Rule 12)**:
+  - Sized the wizard dialog dynamically to 98% of the monitor's usable bounds, maximizing table space.
+  - Added a status filter dropdown above the preflight validation table (`All Records`, `Errors Only`, `Valid Only`) allowing operators with large statements (1,000+ records) to jump directly to error rows.
+  - Sized and enabled wrapping on the `Validation Message` column with instant tooltips, enforcing Rule 12 (Zero Truncation Guarantee).
+- **Automated Silent Decryption for Standard Bank Excel Exports (`ImportWorkbookBridge.java`) (Rule 4 & Rule 17)**:
+  - Added transparent two-stage silent decryption fallback in `ImportWorkbookBridge.openWorkbook()`:
+    - Automatically tests empty password (`""`) and Microsoft's default read-only token (`"VelvetSweatshop"`) upon catching `EncryptedDocumentException`.
+    - Allows encrypted compound statement packages (such as Kotak Mahindra Bank NetBanking `.xlsx` exports) to decrypt and load seamlessly with zero user intervention, mirroring Microsoft Excel's native behavior.
+- **Interactive Password Modal & Immediate Re-Try (`UniversalBankStatementImportDialog.java`, `UniversalBankStatementParser.java`) (Rule 4, Rule 5, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - When statements are genuinely protected by custom bank passwords (such as Kotak CRN, Date of Birth in `DDMMYYYY`, Company PAN, or Account Number), the Data Shipping Wizard displays a clean theme-styled `OwnedTextInputDialog` modal with helpful password hint formatting.
+  - Upon password submission, the parser immediately unlocks and populates the preflight validation table, turning the status badge green (`status-positive`) and enabling the **Start Data Shipping** button.
+  - If an incorrect password is typed, provides an immediate non-destructive warning and re-prompts without requiring the operator to re-browse or re-drag the file.
+
+### Super Admin Commercial Catalog & Subscription Plan Deletion Alignment
+- **PostgreSQL Table Relation Alignment (`ClientRegistryService.java`) (Rule 4 & Rule 17)**:
+  - Corrected table reference in `deletePlan()` from `licensed_client` to `licensed_client_registry`.
+  - Resolves `ERROR: relation "licensed_client" does not exist` when Super Admin removes obsolete or inactive subscription plans (e.g. `BILL_TO_TALLY`), while maintaining strict protection preventing deletion of plans with active client licenses assigned.
+
 # What's New in DSE ERP v11.0.56
+
+### Universal Statement 2-Digit Year Parsing, Asterisk Divider Filtering, Password Decryption & Real-Time AI Error Diagnostics
+- **Resilient 2-Digit Year (`yy`) & Bank Divider Normalization (`UniversalBankStatementParser.java`) (Rule 4, Rule 7 & Rule 17)**:
+  - Added support for 2-digit year formats (`dd/MM/yy`, `d/M/yy`, `dd-MM-yy`, `d-M-yy`, `MM/dd/yy`, `M/d/yy`, `yy-MM-dd`) with dynamic century conversion (e.g. `03/04/26` to `2026-04-03`).
+  - Added automatic detection and skipping for bank privacy divider lines and asterisk rows (e.g. `********` in HDFC Bank statements), eliminating spurious preflight validation errors.
+- **Interactive Password Decryption for Protected Statements (`ImportWorkbookBridge.java`, `UniversalBankStatementImportDialog.java`) (Rule 4, Rule 11 & Rule 12)**:
+  - Added encrypted workbook detection and interactive statement password dialog prompting the operator for statement decryption password/DOB/PAN/account, seamlessly decrypting and loading transactions without manual Excel unprotecting.
+- **Contextual Antigravity AI Error Diagnostics Assistant (`AiDiagnosisDialog.java`, `ErpAgentService.java`, `AppDialogService.java`) (Rule 4, Rule 5, Rule 8, Rule 9 & Rule 12)**:
+  - Transformed the `[ AI Diagnose ]` error popup button into a dedicated, rich AI Diagnostic Assistant Modal.
+  - Contextually analyzes error messages, calling components, and root causes via Google Antigravity Agent (Gemini) or offline deterministic expert heuristics, presenting clear root causes, recommended fixes, and 1-click clipboard export.
 
 ### Financial Year Date Standardization & Statement History Workflow Enhancements
 - **Centralized Fiscal Year Calculation & Automatic Range Defaulting (`BusinessClock.java`) (Rule 4 & Rule 13)**:

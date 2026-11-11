@@ -33,6 +33,11 @@ public class GeneralLedgerController {
         return service.postJournalEntry(req);
     }
 
+    @PostMapping("/journal-entries/{id}/post")
+    public GeneralLedgerDtos.JournalEntryDto postDraft(@PathVariable("id") Long id, @RequestParam(value = "postedBy", required = false) String postedBy) {
+        return service.postDraft(id, postedBy);
+    }
+
     @GetMapping("/trial-balance")
     public List<GeneralLedgerDtos.TrialBalanceItemDto> trialBalance() {
         return service.getTrialBalance();

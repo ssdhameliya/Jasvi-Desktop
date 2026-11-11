@@ -468,7 +468,7 @@ public class ClientRegistryService {
         Map<String, Object> plan = rows.getFirst();
         String tierCode = String.valueOf(plan.getOrDefault("tier_code", "")).trim().toUpperCase(Locale.ROOT);
         Integer activeClients = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM licensed_client WHERE UPPER(tier) = ? AND UPPER(status) = 'ACTIVE'",
+                "SELECT COUNT(*) FROM licensed_client_registry WHERE UPPER(tier) = ? AND UPPER(status) = 'ACTIVE'",
                 Integer.class,
                 tierCode
         );

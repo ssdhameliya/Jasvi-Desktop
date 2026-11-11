@@ -20,13 +20,35 @@ public final class ImportWorkbookBridge {
     private ImportWorkbookBridge() {}
 
     public static Workbook openWorkbook(Path path) throws Exception {
+        return openWorkbook(path, null);
+    }
+
+    public static Workbook openWorkbook(Path path, String password) throws Exception {
         if (path == null) throw new IllegalArgumentException("File path cannot be null");
         String name = path.getFileName().toString().toLowerCase();
 
         if (name.endsWith(".csv") || name.endsWith(".txt")) {
             return csvToWorkbook(path);
         }
-        return WorkbookFactory.create(path.toFile());
+        if (password != null && !password.isBlank()) {
+            return WorkbookFactory.create(path.toFile(), password);
+        }
+        try {
+            return WorkbookFactory.create(path.toFile());
+        } catch (org.apache.poi.EncryptedDocumentException ex) {
+            // Auto-attempt empty password (standard for some bank exports)
+            try {
+                return WorkbookFactory.create(path.toFile(), "");
+            } catch (Exception ignored1) {
+                // Auto-attempt VelvetSweatshop (default Office read-only package token used by Kotak, Excel, etc.)
+                try {
+                    return WorkbookFactory.create(path.toFile(), "VelvetSweatshop");
+                } catch (Exception ignored2) {
+                    // Protected by customer-specific password (e.g. CRN, DOB, PAN)
+                    throw ex;
+                }
+            }
+        }
     }
 
     private static Workbook csvToWorkbook(Path path) throws IOException {

@@ -22,6 +22,9 @@ public class BankStatementCsvParserSmoke {
         if (parsed.rows().getFirst().credit() != 10000d) throw new AssertionError("Credit normalization failed");
         if (parsed.rows().getLast().debit() != 100d) throw new AssertionError("Debit normalization failed");
         if (!"0123456789".equals(parsed.accountNumber())) throw new AssertionError("Account parsing failed");
+        if (!UniversalBankStatementParser.accountsMatch("0123456789", "0123456789")) throw new AssertionError("Exact match failed");
+        if (!UniversalBankStatementParser.accountsMatch("XXXX6789", "0123456789")) throw new AssertionError("Masked suffix match failed");
+        if (UniversalBankStatementParser.accountsMatch("9999999999", "0123456789")) throw new AssertionError("Mismatch failed");
         Files.deleteIfExists(file);
         System.out.println("BankStatementCsvParserSmoke OK");
     }

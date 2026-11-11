@@ -82,6 +82,7 @@ public class GeneralLedgerService {
                     ") must equal Credits (" + sumCredit + ")");
         }
 
+        String status = (req.status() != null && !req.status().isBlank()) ? req.status().toUpperCase(Locale.ROOT) : "POSTED";
         JournalEntryEntity entry = new JournalEntryEntity();
         entry.setEntryNumber(nextJournalVoucherNumber(req.entryDate()));
         entry.setEntryDate(req.entryDate() != null ? req.entryDate() : LocalDate.now());
@@ -92,9 +93,11 @@ public class GeneralLedgerService {
         entry.setNarration(req.narration());
         entry.setTotalDebit(sumDebit);
         entry.setTotalCredit(sumCredit);
-        entry.setStatus("POSTED");
-        entry.setPostedBy(req.postedBy() != null ? req.postedBy() : "SYSTEM");
-        entry.setPostedAt(LocalDateTime.now());
+        entry.setStatus(status);
+        if ("POSTED".equals(status)) {
+            entry.setPostedBy(req.postedBy() != null ? req.postedBy() : "SYSTEM");
+            entry.setPostedAt(LocalDateTime.now());
+        }
 
         JournalEntryEntity savedEntry = journalEntryRepository.save(entry);
 
@@ -125,17 +128,42 @@ public class GeneralLedgerService {
             line.setCostCenter(lineReq.costCenter());
             journalLineRepository.save(line);
 
-            // Update Account Balance according to normal accounting nature
-            BigDecimal current = account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO;
-            if ("ASSET".equalsIgnoreCase(account.getAccountType()) || "EXPENSE".equalsIgnoreCase(account.getAccountType())) {
-                account.setCurrentBalance(current.add(debit).subtract(credit));
-            } else {
-                account.setCurrentBalance(current.add(credit).subtract(debit));
+            // Update Account Balance if POSTED
+            if ("POSTED".equals(status)) {
+                BigDecimal current = account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO;
+                if ("ASSET".equalsIgnoreCase(account.getAccountType()) || "EXPENSE".equalsIgnoreCase(account.getAccountType())) {
+                    account.setCurrentBalance(current.add(debit).subtract(credit));
+                } else {
+                    account.setCurrentBalance(current.add(credit).subtract(debit));
+                }
+                coaRepository.save(account);
             }
-            coaRepository.save(account);
         }
 
         return toJournalEntryDto(savedEntry);
+    }
+
+    public GeneralLedgerDtos.JournalEntryDto postDraft(Long journalEntryId, String postedBy) {
+        JournalEntryEntity entry = journalEntryRepository.findById(journalEntryId)
+                .orElseThrow(() -> new IllegalArgumentException("Journal Entry not found: " + journalEntryId));
+        if ("POSTED".equals(entry.getStatus())) {
+            return toJournalEntryDto(entry);
+        }
+        entry.setStatus("POSTED");
+        entry.setPostedBy(postedBy != null ? postedBy : "SYSTEM");
+        entry.setPostedAt(LocalDateTime.now());
+        for (JournalLineEntity line : entry.getLines()) {
+            ChartOfAccountsEntity account = coaRepository.findById(line.getAccountId())
+                    .orElseThrow(() -> new IllegalArgumentException("Account not found: " + line.getAccountId()));
+            BigDecimal current = account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO;
+            if ("ASSET".equalsIgnoreCase(account.getAccountType()) || "EXPENSE".equalsIgnoreCase(account.getAccountType())) {
+                account.setCurrentBalance(current.add(line.getDebitAmount()).subtract(line.getCreditAmount()));
+            } else {
+                account.setCurrentBalance(current.add(line.getCreditAmount()).subtract(line.getDebitAmount()));
+            }
+            coaRepository.save(account);
+        }
+        return toJournalEntryDto(journalEntryRepository.save(entry));
     }
 
     @Transactional(readOnly = true)
@@ -300,4 +328,3 @@ public class GeneralLedgerService {
         return out.toString();
     }
 }
-

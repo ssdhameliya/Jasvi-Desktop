@@ -106,9 +106,7 @@ public final class AppDialogService {
         Optional<ButtonType> res = show(owner, "error", title, heading, visible, detail, btnDiagnose, btnClose);
         if (res.isPresent() && res.get() == btnDiagnose) {
             Node nodeOwner = owner instanceof Node n ? n : null;
-            if (nodeOwner != null) {
-                SystemDiagnosticsDialog.show(nodeOwner);
-            }
+            AiDiagnosisDialog.show(nodeOwner, title, heading, visible, detail);
         }
     }
 

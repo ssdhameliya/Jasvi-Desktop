@@ -378,6 +378,7 @@ public class BankStatementController implements ScreenLifecycle {
             @Override protected void updateItem(BankStatementApiClient.BatchDto item,boolean empty){super.updateItem(item,empty);if(empty||item==null){setText(null);setGraphic(null);return;}setText(formatBatchLabel(item));setGraphic(IconFactory.compactIcon(batchStatusSemantic(item.status()),15));}
         };
         cmbBatch.setCellFactory(factory);cmbBatch.setButtonCell(factory.call(null));
+        org.example.util.SearchableComboBoxHelper.makeSearchable(cmbBatch, BankStatementController::formatBatchLabel);
     }
     private List<BankAccountOption> readBankAccountMaster(){
         List<BankAccountOption> options=new ArrayList<>();

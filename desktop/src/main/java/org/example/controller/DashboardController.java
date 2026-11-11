@@ -1483,6 +1483,7 @@ public class DashboardController implements ScreenLifecycle {
             selectMenu(selectedButton);
             markGroupActive(group);
             applyScreenIdentity(pageTitle);
+            org.example.ai.ActiveViewContextService.getInstance().updateActiveView(pageTitle, fxmlPath, contentPane);
         }
     }
 

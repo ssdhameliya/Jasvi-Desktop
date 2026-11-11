@@ -2,6 +2,9 @@ package org.example.controller;
 
 import org.example.util.AppDialogService;
 
+import java.math.BigDecimal;
+import org.example.api.accounting.GeneralLedgerApiClient;
+import org.example.config.ConfigManager;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -77,6 +80,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
     private final SalesService salesService = new SalesService();
     private final PurchaseService purchaseService = new PurchaseService();
     private final ItemService itemService = new ItemService();
+    private final GeneralLedgerApiClient glClient = new GeneralLedgerApiClient();
 
     private final NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.of("en", "IN"));
 
@@ -349,6 +353,17 @@ public class GeneralLedgerController implements ScreenLifecycle {
         dock.setAlignment(Pos.CENTER_LEFT);
         dock.setPadding(new Insets(10, 0, 0, 0));
 
+        if (row.id() != null && "DRAFT".equalsIgnoreCase(row.status())) {
+            Button btnPost = new Button("Post to Ledger");
+            btnPost.setGraphic(IconFactory.compactIcon("check", 14));
+            btnPost.getStyleClass().addAll("approved-button", "approved-primary-button");
+            btnPost.setOnAction(e -> {
+                dialog.close();
+                postDraftJournal(row);
+            });
+            dock.getChildren().add(btnPost);
+        }
+
         Button btnOpenDoc = new Button("Open Linked Document");
         btnOpenDoc.setGraphic(IconFactory.compactIcon("open", 14));
         btnOpenDoc.getStyleClass().addAll("approved-button", "approved-secondary-button");
@@ -459,185 +474,363 @@ public class GeneralLedgerController implements ScreenLifecycle {
         AppDialogService.info(tblJournals, "Copied", "Voucher number copied to clipboard: " + row.entryNumber());
     }
 
+    private static boolean isInterStateParty(org.example.model.Party party) {
+        if (party == null) return false;
+        String gstin = party.getGstin();
+        if (gstin != null && gstin.trim().length() >= 2) {
+            return !gstin.trim().startsWith("24");
+        }
+        String addr = party.getAddress();
+        if (addr != null && !addr.isBlank()) {
+            String lower = addr.toLowerCase(Locale.ROOT);
+            return !lower.contains("gujarat") && (lower.contains("maharashtra") || lower.contains("rajasthan") || lower.contains("delhi") || lower.contains("mp") || lower.contains("madhya pradesh") || lower.contains("karnataka") || lower.contains("tamil nadu"));
+        }
+        return false;
+    }
+
+    private void postDraftJournal(JournalRow row) {
+        if (row == null || row.id() == null) return;
+        UiTaskExecutor.submitLatest(
+                "gl-post-draft-" + row.id(),
+                () -> {
+                    org.example.model.AppUser u = org.example.service.SessionService.current();
+                    String username = u != null && u.getUsername() != null ? u.getUsername() : "admin";
+                    glClient.postDraft(row.id(), username);
+                    return true;
+                },
+                success -> {
+                    AppDialogService.info(tblJournals, "Voucher Posted", "Journal voucher " + row.entryNumber() + " has been successfully posted to the General Ledger.");
+                    loadLedgerDataAsync();
+                },
+                ex -> AppDialogService.error(tblJournals, "Posting Failed", "Failed to post draft journal: " + ex.getMessage())
+        );
+    }
+
     private void loadLedgerDataAsync() {
         UiTaskExecutor.submitLatest(
                 "general-ledger-load",
                 () -> {
-                    List<Sales> sales = salesService.getAll();
-                    List<Purchase> purchases = purchaseService.getAll();
-                    List<Item> items = itemService.getAll();
-
-                    double totalSales = 0.0;
-                    double totalSalesReceived = 0.0;
-                    double totalSalesReceivable = 0.0;
-                    double totalOutputGst = 0.0;
-
-                    if (sales != null) {
-                        for (Sales s : sales) {
-                            if (s == null) continue;
-                            totalSales += s.getTotalAmount();
-                            totalSalesReceived += s.getPaidAmount();
-                            totalSalesReceivable += s.getBalanceAmount();
-                            totalOutputGst += s.getGstAmount();
-                        }
-                    }
-
-                    double totalPurchases = 0.0;
-                    double totalPurchasesPaid = 0.0;
-                    double totalPurchasesPayable = 0.0;
-                    double totalInputGst = 0.0;
-
-                    if (purchases != null) {
-                        for (Purchase p : purchases) {
-                            if (p == null) continue;
-                            totalPurchases += p.getTotalAmount();
-                            totalPurchasesPaid += p.getPaidAmount();
-                            totalPurchasesPayable += p.getBalanceAmount();
-                            totalInputGst += p.getGstAmount();
-                        }
-                    }
-
-                    double inventoryValuation = 0.0;
-                    if (items != null) {
-                        for (Item i : items) {
-                            if (i == null) continue;
-                            double qty = i.getOpeningStock();
-                            double price = i.getPurchasePrice() > 0 ? i.getPurchasePrice() : (i.getSellingPrice() * 0.7);
-                            if (qty > 0 && price > 0) {
-                                inventoryValuation += (qty * price);
-                            }
-                        }
-                    }
-                    if (inventoryValuation < 1.0) {
-                        inventoryValuation = 185000.0;
-                    }
-
-                    double cashOnHand = 25000.0;
-                    double bankBalance = 100000.0 + totalSalesReceived - totalPurchasesPaid;
-                    if (bankBalance < 10000.0) bankBalance = 50000.0;
-
-                    double totalAssets = cashOnHand + bankBalance + totalSalesReceivable + inventoryValuation;
-                    double netGstDue = Math.max(0.0, totalOutputGst - totalInputGst);
-                    double totalLiabilities = totalPurchasesPayable + netGstDue;
-                    double netProfit = totalSales - totalPurchases;
-
+                    List<AccountRow> aRows = new ArrayList<>();
+                    List<TbRow> tRows = new ArrayList<>();
                     List<JournalRow> jRows = new ArrayList<>();
-                    if (sales != null) {
-                        for (Sales s : sales) {
-                            if (s == null) continue;
-                            String inv = s.getInvoiceNo() != null ? s.getInvoiceNo() : "INV-" + s.getId();
-                            String safeNum = inv.replace("INV-", "").replace("SALE-", "");
-                            String partyName = s.getCustomer() != null && s.getCustomer().getName() != null ? s.getCustomer().getName() : "Customer";
-                            String dt = s.getInvoiceDate() != null ? BusinessClock.formatDate(s.getInvoiceDate()) : BusinessClock.formatDate(BusinessClock.today());
+                    String assetsStr = null;
+                    String liabStr = null;
+                    String revStr = null;
+                    String expStr = null;
+                    String profitStr = null;
 
-                            jRows.add(new JournalRow(
-                                    "JV-S-" + safeNum,
-                                    dt,
-                                    "SALES",
-                                    inv,
-                                    "Tax Invoice Sale to " + partyName,
-                                    currency.format(s.getTotalAmount()),
-                                    currency.format(s.getTotalAmount()),
-                                    "POSTED",
-                                    "Sundry Debtors (" + partyName + ")",
-                                    "Domestic Sales Revenue + Output GST",
-                                    currency.format(s.getTotalAmount()),
-                                    currency.format(s.getTotalAmount()),
-                                    s.getTotalAmount()
-                            ));
+                    boolean glEnabled = ConfigManager.getBoolean("module.gl.enabled", true);
+                    boolean autoPost = ConfigManager.getBoolean("module.gl.autoPost", true);
 
-                            if (s.getPaidAmount() > 0.01) {
+                    // 1. Try fetching authentic data from Spring Boot General Ledger API
+                    if (glEnabled) {
+                        try {
+                            List<GeneralLedgerApiClient.AccountDto> accDtos = glClient.accounts();
+                            if (accDtos != null && !accDtos.isEmpty()) {
+                                for (GeneralLedgerApiClient.AccountDto a : accDtos) {
+                                    aRows.add(new AccountRow(
+                                            a.accountCode(),
+                                            a.accountName(),
+                                            a.accountType(),
+                                            a.accountSubtype() != null ? a.accountSubtype() : "",
+                                            currency.format(a.openingBalance() != null ? a.openingBalance() : BigDecimal.ZERO),
+                                            currency.format(a.currentBalance() != null ? a.currentBalance() : BigDecimal.ZERO),
+                                            Boolean.TRUE.equals(a.isActive()) ? "Active" : "Inactive"
+                                    ));
+                                }
+                            }
+
+                            List<GeneralLedgerApiClient.TrialBalanceItemDto> tbDtos = glClient.trialBalance();
+                            if (tbDtos != null && !tbDtos.isEmpty()) {
+                                for (GeneralLedgerApiClient.TrialBalanceItemDto tb : tbDtos) {
+                                    tRows.add(new TbRow(
+                                            tb.accountCode(),
+                                            tb.accountName(),
+                                            tb.accountType(),
+                                            currency.format(tb.openingBalance() != null ? tb.openingBalance() : BigDecimal.ZERO),
+                                            currency.format(tb.debitAmount() != null ? tb.debitAmount() : BigDecimal.ZERO),
+                                            currency.format(tb.creditAmount() != null ? tb.creditAmount() : BigDecimal.ZERO),
+                                            currency.format(tb.closingBalance() != null ? tb.closingBalance() : BigDecimal.ZERO)
+                                    ));
+                                }
+                            }
+
+                            GeneralLedgerApiClient.FinancialStatementDto fs = glClient.financialStatements();
+                            if (fs != null) {
+                                if (fs.totalAssets() != null) assetsStr = currency.format(fs.totalAssets());
+                                if (fs.totalLiabilities() != null) liabStr = currency.format(fs.totalLiabilities());
+                                if (fs.totalRevenue() != null) revStr = currency.format(fs.totalRevenue());
+                                if (fs.totalExpense() != null) expStr = currency.format(fs.totalExpense());
+                                if (fs.netProfit() != null) profitStr = currency.format(fs.netProfit());
+                            }
+
+                            List<GeneralLedgerApiClient.JournalEntryDto> jeDtos = glClient.journalEntries();
+                            if (jeDtos != null && !jeDtos.isEmpty()) {
+                                for (GeneralLedgerApiClient.JournalEntryDto je : jeDtos) {
+                                    String drHead = "";
+                                    String crHead = "";
+                                    if (je.lines() != null) {
+                                        for (GeneralLedgerApiClient.JournalLineDto l : je.lines()) {
+                                            if (l.debitAmount() != null && l.debitAmount().compareTo(BigDecimal.ZERO) > 0 && drHead.isBlank()) {
+                                                drHead = l.accountName() != null ? l.accountName() : l.accountCode();
+                                            }
+                                            if (l.creditAmount() != null && l.creditAmount().compareTo(BigDecimal.ZERO) > 0 && crHead.isBlank()) {
+                                                crHead = l.accountName() != null ? l.accountName() : l.accountCode();
+                                            }
+                                        }
+                                    }
+                                    String dtStr = je.entryDate() != null ? BusinessClock.formatDate(je.entryDate()) : "";
+                                    double raw = je.totalDebit() != null ? je.totalDebit().doubleValue() : 0.0;
+                                    jRows.add(new JournalRow(
+                                            je.id(),
+                                            je.entryNumber(),
+                                            dtStr,
+                                            je.entryType(),
+                                            je.referenceNo(),
+                                            je.narration(),
+                                            currency.format(je.totalDebit() != null ? je.totalDebit() : BigDecimal.ZERO),
+                                            currency.format(je.totalCredit() != null ? je.totalCredit() : BigDecimal.ZERO),
+                                            je.status() != null ? je.status() : "POSTED",
+                                            drHead,
+                                            crHead,
+                                            currency.format(je.totalDebit() != null ? je.totalDebit() : BigDecimal.ZERO),
+                                            currency.format(je.totalCredit() != null ? je.totalCredit() : BigDecimal.ZERO),
+                                            raw
+                                    ));
+                                }
+                            }
+                        } catch (Exception ignored) {
+                            // Local transaction compilation fallback
+                        }
+                    }
+
+                    // 2. If no journals from API, compile from live sales, purchases, and items with authentic Indian GST accounts
+                    if (jRows.isEmpty()) {
+                        List<Sales> sales = salesService.getAll();
+                        List<Purchase> purchases = purchaseService.getAll();
+                        List<Item> items = itemService.getAll();
+
+                        double totalSales = 0.0;
+                        double totalSalesReceived = 0.0;
+                        double totalSalesReceivable = 0.0;
+                        double totalOutputCgst = 0.0;
+                        double totalOutputSgst = 0.0;
+                        double totalOutputIgst = 0.0;
+
+                        String defaultStatus = autoPost ? "POSTED" : "DRAFT";
+
+                        if (sales != null) {
+                            for (Sales s : sales) {
+                                if (s == null) continue;
+                                totalSales += s.getTotalAmount();
+                                totalSalesReceived += s.getPaidAmount();
+                                totalSalesReceivable += s.getBalanceAmount();
+
+                                double gst = s.getGstAmount();
+                                double baseRevenue = Math.max(0.0, s.getTotalAmount() - gst);
+                                boolean isInterState = isInterStateParty(s.getCustomer());
+
+                                if (isInterState) {
+                                    totalOutputIgst += gst;
+                                } else {
+                                    totalOutputCgst += (gst / 2.0);
+                                    totalOutputSgst += (gst / 2.0);
+                                }
+
+                                String inv = s.getInvoiceNo() != null ? s.getInvoiceNo() : "INV-" + s.getId();
+                                String safeNum = inv.replace("INV-", "").replace("SALE-", "");
+                                String partyName = s.getCustomer() != null && s.getCustomer().getName() != null ? s.getCustomer().getName() : "Customer";
+                                String dt = s.getInvoiceDate() != null ? BusinessClock.formatDate(s.getInvoiceDate()) : BusinessClock.formatDate(BusinessClock.today());
+
+                                String crDescription = isInterState
+                                        ? "4020 Inter-State Sales [₹" + String.format(Locale.ROOT, "%.2f", baseRevenue) + "] + 2083 IGST [₹" + String.format(Locale.ROOT, "%.2f", gst) + "]"
+                                        : "4010 Domestic Sales [₹" + String.format(Locale.ROOT, "%.2f", baseRevenue) + "] + 2081 CGST/2082 SGST [₹" + String.format(Locale.ROOT, "%.2f", gst) + "]";
+
                                 jRows.add(new JournalRow(
-                                        "JV-REC-" + safeNum,
+                                        "JV-S-" + safeNum,
                                         dt,
-                                        "RECEIPT",
+                                        "SALES",
                                         inv,
-                                        "Customer Receipt Settlement from " + partyName,
-                                        currency.format(s.getPaidAmount()),
-                                        currency.format(s.getPaidAmount()),
-                                        "POSTED",
-                                        "Bank Current Account",
-                                        "Sundry Debtors (" + partyName + ")",
-                                        currency.format(s.getPaidAmount()),
-                                        currency.format(s.getPaidAmount()),
-                                        s.getPaidAmount()
+                                        "Tax Invoice Supply to " + partyName,
+                                        currency.format(s.getTotalAmount()),
+                                        currency.format(s.getTotalAmount()),
+                                        defaultStatus,
+                                        "1040 Sundry Debtors (" + partyName + ")",
+                                        crDescription,
+                                        currency.format(s.getTotalAmount()),
+                                        currency.format(s.getTotalAmount()),
+                                        s.getTotalAmount()
                                 ));
+
+                                if (s.getPaidAmount() > 0.01) {
+                                    jRows.add(new JournalRow(
+                                            "JV-REC-" + safeNum,
+                                            dt,
+                                            "RECEIPT",
+                                            inv,
+                                            "Customer Receipt Settlement from " + partyName,
+                                            currency.format(s.getPaidAmount()),
+                                            currency.format(s.getPaidAmount()),
+                                            "POSTED",
+                                            "1020 Bank Current Account",
+                                            "1040 Sundry Debtors (" + partyName + ")",
+                                            currency.format(s.getPaidAmount()),
+                                            currency.format(s.getPaidAmount()),
+                                            s.getPaidAmount()
+                                    ));
+                                }
                             }
                         }
-                    }
 
-                    if (purchases != null) {
-                        for (Purchase p : purchases) {
-                            if (p == null) continue;
-                            String bill = p.getInvoiceNo() != null ? p.getInvoiceNo() : "BILL-" + p.getId();
-                            String safeNum = bill.replace("BILL-", "").replace("PUR-", "");
-                            String suppName = p.getSupplier() != null && p.getSupplier().getName() != null ? p.getSupplier().getName() : "Supplier";
-                            String dt = p.getInvoiceDate() != null ? BusinessClock.formatDate(p.getInvoiceDate()) : BusinessClock.formatDate(BusinessClock.today());
+                        double totalPurchases = 0.0;
+                        double totalPurchasesPaid = 0.0;
+                        double totalPurchasesPayable = 0.0;
+                        double totalInputCgst = 0.0;
+                        double totalInputSgst = 0.0;
+                        double totalInputIgst = 0.0;
 
-                            jRows.add(new JournalRow(
-                                    "JV-P-" + safeNum,
-                                    dt,
-                                    "PURCHASE",
-                                    bill,
-                                    "Raw Material Inward Supply from " + suppName,
-                                    currency.format(p.getTotalAmount()),
-                                    currency.format(p.getTotalAmount()),
-                                    "POSTED",
-                                    "Direct Purchase Cost + Input GST",
-                                    "Sundry Creditors (" + suppName + ")",
-                                    currency.format(p.getTotalAmount()),
-                                    currency.format(p.getTotalAmount()),
-                                    p.getTotalAmount()
-                            ));
+                        if (purchases != null) {
+                            for (Purchase p : purchases) {
+                                if (p == null) continue;
+                                totalPurchases += p.getTotalAmount();
+                                totalPurchasesPaid += p.getPaidAmount();
+                                totalPurchasesPayable += p.getBalanceAmount();
 
-                            if (p.getPaidAmount() > 0.01) {
+                                double gst = p.getGstAmount();
+                                double baseCost = Math.max(0.0, p.getTotalAmount() - gst);
+                                boolean isInterState = isInterStateParty(p.getSupplier());
+
+                                if (isInterState) {
+                                    totalInputIgst += gst;
+                                } else {
+                                    totalInputCgst += (gst / 2.0);
+                                    totalInputSgst += (gst / 2.0);
+                                }
+
+                                String bill = p.getInvoiceNo() != null ? p.getInvoiceNo() : "BILL-" + p.getId();
+                                String safeNum = bill.replace("BILL-", "").replace("PUR-", "");
+                                String suppName = p.getSupplier() != null && p.getSupplier().getName() != null ? p.getSupplier().getName() : "Supplier";
+                                String dt = p.getInvoiceDate() != null ? BusinessClock.formatDate(p.getInvoiceDate()) : BusinessClock.formatDate(BusinessClock.today());
+
+                                String drDescription = isInterState
+                                        ? "5020 Raw Material Purchases [₹" + String.format(Locale.ROOT, "%.2f", baseCost) + "] + 1083 Input IGST [₹" + String.format(Locale.ROOT, "%.2f", gst) + "]"
+                                        : "5020 Raw Material Purchases [₹" + String.format(Locale.ROOT, "%.2f", baseCost) + "] + 1081 Input CGST/1082 Input SGST [₹" + String.format(Locale.ROOT, "%.2f", gst) + "]";
+
                                 jRows.add(new JournalRow(
-                                        "JV-PAY-" + safeNum,
+                                        "JV-P-" + safeNum,
                                         dt,
-                                        "PAYMENT",
+                                        "PURCHASE",
                                         bill,
-                                        "Vendor Disbursal Payment to " + suppName,
-                                        currency.format(p.getPaidAmount()),
-                                        currency.format(p.getPaidAmount()),
-                                        "POSTED",
-                                        "Sundry Creditors (" + suppName + ")",
-                                        "Bank Current Account",
-                                        currency.format(p.getPaidAmount()),
-                                        currency.format(p.getPaidAmount()),
-                                        p.getPaidAmount()
+                                        "Inward Supply from " + suppName,
+                                        currency.format(p.getTotalAmount()),
+                                        currency.format(p.getTotalAmount()),
+                                        defaultStatus,
+                                        drDescription,
+                                        "2010 Sundry Creditors (" + suppName + ")",
+                                        currency.format(p.getTotalAmount()),
+                                        currency.format(p.getTotalAmount()),
+                                        p.getTotalAmount()
                                 ));
+
+                                if (p.getPaidAmount() > 0.01) {
+                                    jRows.add(new JournalRow(
+                                            "JV-PAY-" + safeNum,
+                                            dt,
+                                            "PAYMENT",
+                                            bill,
+                                            "Vendor Disbursal Payment to " + suppName,
+                                            currency.format(p.getPaidAmount()),
+                                            currency.format(p.getPaidAmount()),
+                                            "POSTED",
+                                            "2010 Sundry Creditors (" + suppName + ")",
+                                            "1020 Bank Current Account",
+                                            currency.format(p.getPaidAmount()),
+                                            currency.format(p.getPaidAmount()),
+                                            p.getPaidAmount()
+                                    ));
+                                }
                             }
+                        }
+
+                        double inventoryValuation = 0.0;
+                        if (items != null) {
+                            for (Item i : items) {
+                                if (i == null) continue;
+                                double qty = i.getOpeningStock();
+                                double price = i.getPurchasePrice() > 0 ? i.getPurchasePrice() : (i.getSellingPrice() * 0.7);
+                                if (qty > 0 && price > 0) {
+                                    inventoryValuation += (qty * price);
+                                }
+                            }
+                        }
+
+                        // Zero Mock Data: Authentic balances derived from transaction history
+                        double cashOnHand = 0.0;
+                        double bankBalance = Math.max(0.0, totalSalesReceived - totalPurchasesPaid);
+
+                        double totalInputGst = totalInputCgst + totalInputSgst + totalInputIgst;
+                        double totalOutputGst = totalOutputCgst + totalOutputSgst + totalOutputIgst;
+                        double netGstDue = Math.max(0.0, totalOutputGst - totalInputGst);
+
+                        double totalAssets = cashOnHand + bankBalance + totalSalesReceivable + inventoryValuation + Math.max(0.0, totalInputGst - totalOutputGst);
+                        double totalLiabilities = totalPurchasesPayable + netGstDue;
+                        double netProfit = totalSales - totalPurchases;
+
+                        if (assetsStr == null) assetsStr = currency.format(totalAssets);
+                        if (liabStr == null) liabStr = currency.format(totalLiabilities);
+                        if (revStr == null) revStr = currency.format(totalSales);
+                        if (expStr == null) expStr = currency.format(totalPurchases);
+                        if (profitStr == null) profitStr = currency.format(netProfit);
+
+                        if (aRows.isEmpty()) {
+                            aRows = List.of(
+                                    new AccountRow("1010", "Cash on Hand", "ASSET", "CURRENT_ASSET", "₹ 0.00", currency.format(cashOnHand), "Active"),
+                                    new AccountRow("1020", "Bank Current Account", "ASSET", "BANK_ACCOUNT", "₹ 0.00", currency.format(bankBalance), "Active"),
+                                    new AccountRow("1040", "Sundry Debtors (Receivables)", "ASSET", "CURRENT_ASSET", "₹ 0.00", currency.format(totalSalesReceivable), "Active"),
+                                    new AccountRow("1060", "Stock-in-Trade (Inventory)", "ASSET", "STOCK_IN_HAND", "₹ 0.00", currency.format(inventoryValuation), "Active"),
+                                    new AccountRow("1081", "Input CGST Pool", "ASSET", "TAX_CREDIT", "₹ 0.00", currency.format(totalInputCgst), "Active"),
+                                    new AccountRow("1082", "Input SGST Pool", "ASSET", "TAX_CREDIT", "₹ 0.00", currency.format(totalInputSgst), "Active"),
+                                    new AccountRow("1083", "Input IGST Pool", "ASSET", "TAX_CREDIT", "₹ 0.00", currency.format(totalInputIgst), "Active"),
+                                    new AccountRow("2010", "Sundry Creditors (Payables)", "LIABILITY", "CURRENT_LIABILITY", "₹ 0.00", currency.format(totalPurchasesPayable), "Active"),
+                                    new AccountRow("2081", "Output CGST Payable", "LIABILITY", "DUTIES_AND_TAXES", "₹ 0.00", currency.format(totalOutputCgst), "Active"),
+                                    new AccountRow("2082", "Output SGST Payable", "LIABILITY", "DUTIES_AND_TAXES", "₹ 0.00", currency.format(totalOutputSgst), "Active"),
+                                    new AccountRow("2083", "Output IGST Payable", "LIABILITY", "DUTIES_AND_TAXES", "₹ 0.00", currency.format(totalOutputIgst), "Active"),
+                                    new AccountRow("4010", "Domestic Sales Revenue", "REVENUE", "OPERATING_REVENUE", "₹ 0.00", currency.format(totalSales - (totalOutputCgst + totalOutputSgst + totalOutputIgst)), "Active"),
+                                    new AccountRow("5020", "Raw Material Purchases", "EXPENSE", "DIRECT_EXPENSE", "₹ 0.00", currency.format(totalPurchases - (totalInputCgst + totalInputSgst + totalInputIgst)), "Active")
+                            );
+                        }
+
+                        if (tRows.isEmpty()) {
+                            tRows = List.of(
+                                    new TbRow("1010", "Cash on Hand", "ASSET", "₹ 0.00", "₹ 0.00", "₹ 0.00", currency.format(cashOnHand)),
+                                    new TbRow("1020", "Bank Current Account", "ASSET", "₹ 0.00", currency.format(totalSalesReceived), currency.format(totalPurchasesPaid), currency.format(bankBalance)),
+                                    new TbRow("1040", "Sundry Debtors", "ASSET", "₹ 0.00", currency.format(totalSales), currency.format(totalSalesReceived), currency.format(totalSalesReceivable)),
+                                    new TbRow("1060", "Stock-in-Trade", "ASSET", "₹ 0.00", currency.format(inventoryValuation), "₹ 0.00", currency.format(inventoryValuation)),
+                                    new TbRow("1081", "Input CGST Pool", "ASSET", "₹ 0.00", currency.format(totalInputCgst), "₹ 0.00", currency.format(totalInputCgst)),
+                                    new TbRow("1082", "Input SGST Pool", "ASSET", "₹ 0.00", currency.format(totalInputSgst), "₹ 0.00", currency.format(totalInputSgst)),
+                                    new TbRow("1083", "Input IGST Pool", "ASSET", "₹ 0.00", currency.format(totalInputIgst), "₹ 0.00", currency.format(totalInputIgst)),
+                                    new TbRow("2010", "Sundry Creditors", "LIABILITY", "₹ 0.00", currency.format(totalPurchasesPaid), currency.format(totalPurchases), currency.format(totalPurchasesPayable)),
+                                    new TbRow("2081", "Output CGST Payable", "LIABILITY", "₹ 0.00", "₹ 0.00", currency.format(totalOutputCgst), currency.format(totalOutputCgst)),
+                                    new TbRow("2082", "Output SGST Payable", "LIABILITY", "₹ 0.00", "₹ 0.00", currency.format(totalOutputSgst), currency.format(totalOutputSgst)),
+                                    new TbRow("2083", "Output IGST Payable", "LIABILITY", "₹ 0.00", "₹ 0.00", currency.format(totalOutputIgst), currency.format(totalOutputIgst)),
+                                    new TbRow("4010", "Domestic Sales Revenue", "REVENUE", "₹ 0.00", "₹ 0.00", currency.format(totalSales - (totalOutputCgst + totalOutputSgst + totalOutputIgst)), currency.format(totalSales - (totalOutputCgst + totalOutputSgst + totalOutputIgst))),
+                                    new TbRow("5020", "Raw Material Purchases", "EXPENSE", "₹ 0.00", currency.format(totalPurchases - (totalInputCgst + totalInputSgst + totalInputIgst)), "₹ 0.00", currency.format(totalPurchases - (totalInputCgst + totalInputSgst + totalInputIgst)))
+                            );
                         }
                     }
 
-                    List<AccountRow> aRows = List.of(
-                            new AccountRow("1010", "Cash on Hand", "ASSET", "CURRENT_ASSET", "₹ 25,000.00", currency.format(cashOnHand), "Active"),
-                            new AccountRow("1020", "Bank Current Account", "ASSET", "BANK_ACCOUNT", "₹ 1,00,000.00", currency.format(bankBalance), "Active"),
-                            new AccountRow("1040", "Sundry Debtors (Receivables)", "ASSET", "CURRENT_ASSET", "₹ 0.00", currency.format(totalSalesReceivable), "Active"),
-                            new AccountRow("1060", "Stock-in-Trade (Inventory)", "ASSET", "STOCK_IN_HAND", "₹ 0.00", currency.format(inventoryValuation), "Active"),
-                            new AccountRow("1080", "Input GST Credit Available", "ASSET", "DUTIES_AND_TAXES", "₹ 0.00", currency.format(totalInputGst), "Active"),
-                            new AccountRow("2010", "Sundry Creditors (Payables)", "LIABILITY", "CURRENT_LIABILITY", "₹ 0.00", currency.format(totalPurchasesPayable), "Active"),
-                            new AccountRow("2080", "Output GST Payable", "LIABILITY", "DUTIES_AND_TAXES", "₹ 0.00", currency.format(totalOutputGst), "Active"),
-                            new AccountRow("4010", "Domestic Sales Revenue", "REVENUE", "OPERATING_REVENUE", "₹ 0.00", currency.format(totalSales), "Active"),
-                            new AccountRow("5010", "Cost of Goods Sold (Purchases)", "EXPENSE", "DIRECT_EXPENSE", "₹ 0.00", currency.format(totalPurchases), "Active")
-                    );
-
-                    List<TbRow> tRows = List.of(
-                            new TbRow("1010", "Cash on Hand", "ASSET", "₹ 25,000.00", "₹ 0.00", "₹ 0.00", currency.format(cashOnHand)),
-                            new TbRow("1020", "Bank Current Account", "ASSET", "₹ 1,00,000.00", currency.format(totalSalesReceived), currency.format(totalPurchasesPaid), currency.format(bankBalance)),
-                            new TbRow("1040", "Sundry Debtors", "ASSET", "₹ 0.00", currency.format(totalSales), currency.format(totalSalesReceived), currency.format(totalSalesReceivable)),
-                            new TbRow("1060", "Stock-in-Trade", "ASSET", "₹ 0.00", currency.format(inventoryValuation), "₹ 0.00", currency.format(inventoryValuation)),
-                            new TbRow("2010", "Sundry Creditors", "LIABILITY", "₹ 0.00", currency.format(totalPurchasesPaid), currency.format(totalPurchases), currency.format(totalPurchasesPayable)),
-                            new TbRow("4010", "Sales Revenue", "REVENUE", "₹ 0.00", "₹ 0.00", currency.format(totalSales), currency.format(totalSales)),
-                            new TbRow("5010", "Purchase Expenses", "EXPENSE", "₹ 0.00", currency.format(totalPurchases), "₹ 0.00", currency.format(totalPurchases))
-                    );
+                    if (assetsStr == null) assetsStr = "₹ 0.00";
+                    if (liabStr == null) liabStr = "₹ 0.00";
+                    if (revStr == null) revStr = "₹ 0.00";
+                    if (expStr == null) expStr = "₹ 0.00";
+                    if (profitStr == null) profitStr = "₹ 0.00";
 
                     return new LedgerResult(
-                            currency.format(totalAssets),
-                            currency.format(totalLiabilities),
-                            currency.format(totalSales),
-                            currency.format(totalPurchases),
-                            currency.format(netProfit),
+                            assetsStr,
+                            liabStr,
+                            revStr,
+                            expStr,
+                            profitStr,
                             jRows,
                             aRows,
                             tRows
@@ -780,6 +973,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
     }
 
     public record JournalRow(
+            Long id,
             String entryNumber,
             String entryDate,
             String entryType,
@@ -793,7 +987,25 @@ public class GeneralLedgerController implements ScreenLifecycle {
             String drAmount,
             String crAmount,
             double rawAmount
-    ) {}
+    ) {
+        public JournalRow(
+                String entryNumber,
+                String entryDate,
+                String entryType,
+                String referenceNo,
+                String narration,
+                String totalDebit,
+                String totalCredit,
+                String status,
+                String drHead,
+                String crHead,
+                String drAmount,
+                String crAmount,
+                double rawAmount
+        ) {
+            this(null, entryNumber, entryDate, entryType, referenceNo, narration, totalDebit, totalCredit, status, drHead, crHead, drAmount, crAmount, rawAmount);
+        }
+    }
 
     public record AccountRow(
             String code,

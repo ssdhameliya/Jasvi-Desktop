@@ -166,7 +166,7 @@ public final class SystemDiagnosticsDialog {
         cmbLevel.getItems().addAll("All Levels (Errors & Warnings)", "ERROR Only", "WARN Only");
         cmbLevel.setValue("All Levels (Errors & Warnings)");
         cmbLevel.getStyleClass().addAll("approved-combo-box", "audit-category-combo");
-        cmbLevel.setPrefWidth(210);
+        cmbLevel.setPrefWidth(230);
         SearchableComboBoxHelper.makeSearchable(cmbLevel);
 
         ComboBox<String> cmbSource = new ComboBox<>();
@@ -256,7 +256,7 @@ public final class SystemDiagnosticsDialog {
         btnRefresh.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnRefresh.setTooltip(new Tooltip("Reload latest events from active log files"));
 
-        HBox toolbar = new HBox(8, txtSearch, cmbLevel, cmbSource, dateFilterBox, lblEntriesCount);
+        HBox toolbar = new HBox(8, txtSearch, cmbLevel, cmbSource, dateFilterBox);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setPadding(new Insets(4, 2, 6, 2));
 
@@ -522,7 +522,7 @@ public final class SystemDiagnosticsDialog {
         Button btnNext = new Button("Next ▶");
         btnNext.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
-        HBox paginationBar = new HBox(8, lblPageInfo, pageSpacer, btnExportCsv, btnOpenFolder, btnRefresh, btnPrev, btnNext);
+        HBox paginationBar = new HBox(8, lblPageInfo, pageSpacer, lblEntriesCount, btnExportCsv, btnOpenFolder, btnRefresh, btnPrev, btnNext);
         paginationBar.setAlignment(Pos.CENTER_LEFT);
         paginationBar.setPadding(new Insets(6, 4, 2, 4));
 

@@ -575,7 +575,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
         String payment=cmbPaymentStatus.getValue(),due="All",mail=cmbMailStatus.getValue(),whatsapp=cmbWhatsappStatus.getValue(),invoiceType=cmbInvoiceType.getValue(),documentStatus=cmbDocumentStatus.getValue(),returnStatus=cmbReturnStatus.getValue();
         Double min=parseOptionalAmount(txtAmountFrom.getText()),max=parseOptionalAmount(txtAmountTo.getText());
         String selectedCustomer=customer;
-        org.example.util.OperationalUiSupport.showLoading(tableSales,"Loading sales invoices…");
+        tableSales.setPlaceholder(org.example.util.Classy3DLoadingView.createTableSkeleton("Loading Sales Invoices…", "Fetching real-time tax invoices, customer ledgers, and payment statuses…"));
         UiTaskExecutor.submitLatestWithOverlay(tableSales, "Loading sales invoices…", "sales-register-load",()->service.page(requestedPage,size,txtSearch.getText(),txtInvoice.getText(),selectedCustomer,dpFrom.getValue(),dpTo.getValue(),payment,due,mail,whatsapp,invoiceType,documentStatus,returnStatus,min,max,includeSummary),this::applyPage,failure->{pendingSavedViewName=null;finishExplicitRefresh(false);org.example.util.OperationalUiSupport.showError(tableSales,"Sales register could not load",failure);error(failure);});
     }
     private void applyPage(org.example.api.operations.OperationsApiClient.SalesPage loaded){

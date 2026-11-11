@@ -42,7 +42,25 @@ public final class BankStatementImportCoordinator {
         String bankName = parsed.bankName();
         String accHolder = parsed.accountHolder();
 
-        if (bankAccount == null || bankAccount.isBlank()) {
+        if (bankAccount != null && !bankAccount.isBlank()) {
+            final String targetAcc = bankAccount;
+            try {
+                var lookups = new org.example.api.master.MasterApiClient().lookupsByCategoryCode("BANK_ACCOUNT");
+                if (lookups != null && !lookups.isEmpty()) {
+                    var matched = lookups.stream().filter(l -> {
+                        String v = l.getLookupValue();
+                        return v != null && UniversalBankStatementParser.accountsMatch(targetAcc, v);
+                    }).findFirst();
+                    if (matched.isPresent()) {
+                        var m = matched.get();
+                        bankAccount = m.getLookupValue() != null ? m.getLookupValue().trim() : bankAccount;
+                        if (m.getDescription() != null && !m.getDescription().isBlank()) {
+                            bankName = m.getDescription().trim();
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        } else {
             try {
                 var lookups = new org.example.api.master.MasterApiClient().lookupsByCategoryCode("BANK_ACCOUNT");
                 if (lookups != null && !lookups.isEmpty()) {

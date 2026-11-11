@@ -47,7 +47,7 @@ public final class LoadingOverlayHelper {
     private static final String PROPERTY_SHOWN_AT = "DSE_LOADING_SHOWN_AT";
     private static final Duration FADE_IN_DURATION = Duration.millis(140);
     private static final Duration FADE_OUT_DURATION = Duration.millis(110);
-    private static final long MIN_DISPLAY_MILLIS = 300L;
+    private static final long MIN_DISPLAY_MILLIS = 450L;
 
     private LoadingOverlayHelper() { }
 
@@ -107,6 +107,9 @@ public final class LoadingOverlayHelper {
             host.getChildren().add(overlay);
         } else {
             lblText.setText(message != null && !message.isBlank() ? message : "Refreshing records…");
+            if (!host.getChildren().contains(overlay)) {
+                host.getChildren().add(overlay);
+            }
         }
 
         host.getProperties().put(PROPERTY_SHOWN_AT, System.currentTimeMillis());
