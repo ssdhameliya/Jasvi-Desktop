@@ -6262,7 +6262,7 @@ iled.page-header, .screen-header {
 -fx-background-color: #fee2e2;
 }
 .settings-button-icon {
--fx-fill: currentColor;
+-fx-fill: -dse-text;
 }
 .settings-information-text, .settings-notification-check {
 -fx-text-fill: #334155;
@@ -18967,114 +18967,233 @@ iled.page-header, .screen-header {
     -fx-background-color: transparent;
     -fx-border-color: #cbd5e1;
     -fx-border-width: 1px;
+    -fx-graphic-text-gap: 7px;
+    -fx-translate-y: 0px;
 }
 .settings-tab-btn:hover {
     -fx-background-color: #f1f5f9;
+    -fx-translate-y: 0px;
 }
-.settings-tab-btn.settings-tab-selected {
+.settings-tab-btn:pressed {
+    -fx-translate-y: 0px;
+    -fx-scale-x: 1.0;
+    -fx-scale-y: 1.0;
+}
+.settings-tab-btn.settings-tab-selected,
+.settings-tab-btn.settings-tab-selected:hover,
+.settings-tab-btn.settings-tab-selected:focused {
     -fx-background-color: #2563eb;
     -fx-border-color: #1d4ed8;
     -fx-text-fill: white;
     -fx-font-weight: 700;
+    -fx-translate-y: 0px;
 }
-.settings-tab-btn.settings-tab-selected .erp-action-glyph {
+.settings-tab-btn .settings-button-icon {
+    -fx-fill: -dse-text;
+}
+.settings-tab-btn.settings-tab-selected .settings-button-icon,
+.settings-tab-btn.settings-tab-selected:hover .settings-button-icon,
+.settings-tab-btn.settings-tab-selected:focused .settings-button-icon,
+.settings-tab-btn.settings-tab-selected .erp-action-glyph,
+.settings-tab-btn.settings-tab-selected:hover .erp-action-glyph,
+.settings-tab-btn.settings-tab-selected:focused .erp-action-glyph {
+    -fx-fill: #ffffff;
     -fx-icon-color: #ffffff;
 }
 .settings-tab-btn.erp-semantic-blue {
     -fx-text-fill: #1d4ed8;
     -fx-border-color: #bfdbfe;
 }
+.settings-tab-btn.erp-semantic-blue .settings-button-icon {
+    -fx-fill: #1d4ed8;
+}
+.settings-tab-btn.erp-semantic-blue:hover {
+    -fx-background-color: rgba(37, 99, 235, 0.08);
+    -fx-border-color: #2563eb;
+}
 .settings-tab-btn.erp-semantic-cyan {
     -fx-text-fill: #0e7490;
     -fx-border-color: #a5f3fc;
+}
+.settings-tab-btn.erp-semantic-cyan .settings-button-icon {
+    -fx-fill: #0e7490;
+}
+.settings-tab-btn.erp-semantic-cyan:hover {
+    -fx-background-color: rgba(8, 145, 178, 0.08);
+    -fx-border-color: #0891b2;
 }
 .settings-tab-btn.erp-semantic-orange {
     -fx-text-fill: #b45309;
     -fx-border-color: #fed7aa;
 }
+.settings-tab-btn.erp-semantic-orange .settings-button-icon {
+    -fx-fill: #b45309;
+}
+.settings-tab-btn.erp-semantic-orange:hover {
+    -fx-background-color: rgba(217, 119, 6, 0.08);
+    -fx-border-color: #d97706;
+}
 .settings-tab-btn.erp-semantic-sky {
     -fx-text-fill: #0369a1;
     -fx-border-color: #bae6fd;
+}
+.settings-tab-btn.erp-semantic-sky .settings-button-icon {
+    -fx-fill: #0369a1;
+}
+.settings-tab-btn.erp-semantic-sky:hover {
+    -fx-background-color: rgba(2, 132, 199, 0.08);
+    -fx-border-color: #0284c7;
 }
 .settings-tab-btn.erp-semantic-green {
     -fx-text-fill: #15803d;
     -fx-border-color: #bbf7d0;
 }
+.settings-tab-btn.erp-semantic-green .settings-button-icon {
+    -fx-fill: #15803d;
+}
+.settings-tab-btn.erp-semantic-green:hover {
+    -fx-background-color: rgba(22, 163, 74, 0.08);
+    -fx-border-color: #16a34a;
+}
 .settings-tab-btn.erp-semantic-amber {
     -fx-text-fill: #b45309;
     -fx-border-color: #fde68a;
+}
+.settings-tab-btn.erp-semantic-amber .settings-button-icon {
+    -fx-fill: #b45309;
+}
+.settings-tab-btn.erp-semantic-amber:hover {
+    -fx-background-color: rgba(217, 119, 6, 0.08);
+    -fx-border-color: #d97706;
 }
 .settings-tab-btn.erp-semantic-coral {
     -fx-text-fill: #be123c;
     -fx-border-color: #fecdd3;
 }
+.settings-tab-btn.erp-semantic-coral .settings-button-icon {
+    -fx-fill: #be123c;
+}
+.settings-tab-btn.erp-semantic-coral:hover {
+    -fx-background-color: rgba(225, 29, 72, 0.08);
+    -fx-border-color: #e11d48;
+}
 .settings-tab-btn.erp-semantic-teal {
     -fx-text-fill: #0f766e;
     -fx-border-color: #99f6e4;
+}
+.settings-tab-btn.erp-semantic-teal .settings-button-icon {
+    -fx-fill: #0f766e;
+}
+.settings-tab-btn.erp-semantic-teal:hover {
+    -fx-background-color: rgba(13, 148, 136, 0.08);
+    -fx-border-color: #0d9488;
 }
 .settings-tab-btn.erp-semantic-purple {
     -fx-text-fill: #6d28d9;
     -fx-border-color: #ddd6fe;
 }
+.settings-tab-btn.erp-semantic-purple .settings-button-icon {
+    -fx-fill: #6d28d9;
+}
+.settings-tab-btn.erp-semantic-purple:hover {
+    -fx-background-color: rgba(124, 58, 237, 0.08);
+    -fx-border-color: #7c3aed;
+}
 .settings-tab-btn.erp-semantic-indigo {
     -fx-text-fill: #4338ca;
     -fx-border-color: #c7d2fe;
+}
+.settings-tab-btn.erp-semantic-indigo .settings-button-icon {
+    -fx-fill: #4338ca;
+}
+.settings-tab-btn.erp-semantic-indigo:hover {
+    -fx-background-color: rgba(79, 70, 229, 0.08);
+    -fx-border-color: #4f46e5;
 }
 .settings-tab-btn.erp-semantic-pink {
     -fx-text-fill: #be185d;
     -fx-border-color: #fbcfe8;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-blue {
+.settings-tab-btn.erp-semantic-pink .settings-button-icon {
+    -fx-fill: #be185d;
+}
+.settings-tab-btn.erp-semantic-pink:hover {
+    -fx-background-color: rgba(219, 39, 119, 0.08);
+    -fx-border-color: #db2777;
+}
+.settings-tab-btn.settings-tab-selected.erp-semantic-blue,
+.settings-tab-btn.settings-tab-selected.erp-semantic-blue:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-blue:focused {
     -fx-background-color: #2563eb;
     -fx-border-color: #1d4ed8;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-cyan {
+.settings-tab-btn.settings-tab-selected.erp-semantic-cyan,
+.settings-tab-btn.settings-tab-selected.erp-semantic-cyan:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-cyan:focused {
     -fx-background-color: #0891b2;
     -fx-border-color: #0e7490;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-orange {
+.settings-tab-btn.settings-tab-selected.erp-semantic-orange,
+.settings-tab-btn.settings-tab-selected.erp-semantic-orange:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-orange:focused {
     -fx-background-color: #d97706;
     -fx-border-color: #b45309;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-sky {
+.settings-tab-btn.settings-tab-selected.erp-semantic-sky,
+.settings-tab-btn.settings-tab-selected.erp-semantic-sky:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-sky:focused {
     -fx-background-color: #0284c7;
     -fx-border-color: #0369a1;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-green {
+.settings-tab-btn.settings-tab-selected.erp-semantic-green,
+.settings-tab-btn.settings-tab-selected.erp-semantic-green:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-green:focused {
     -fx-background-color: #16a34a;
     -fx-border-color: #15803d;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-amber {
+.settings-tab-btn.settings-tab-selected.erp-semantic-amber,
+.settings-tab-btn.settings-tab-selected.erp-semantic-amber:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-amber:focused {
     -fx-background-color: #d97706;
     -fx-border-color: #b45309;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-coral {
+.settings-tab-btn.settings-tab-selected.erp-semantic-coral,
+.settings-tab-btn.settings-tab-selected.erp-semantic-coral:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-coral:focused {
     -fx-background-color: #e11d48;
     -fx-border-color: #be123c;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-teal {
+.settings-tab-btn.settings-tab-selected.erp-semantic-teal,
+.settings-tab-btn.settings-tab-selected.erp-semantic-teal:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-teal:focused {
     -fx-background-color: #0d9488;
     -fx-border-color: #0f766e;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-purple {
+.settings-tab-btn.settings-tab-selected.erp-semantic-purple,
+.settings-tab-btn.settings-tab-selected.erp-semantic-purple:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-purple:focused {
     -fx-background-color: #7c3aed;
     -fx-border-color: #6d28d9;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-indigo {
+.settings-tab-btn.settings-tab-selected.erp-semantic-indigo,
+.settings-tab-btn.settings-tab-selected.erp-semantic-indigo:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-indigo:focused {
     -fx-background-color: #4f46e5;
     -fx-border-color: #4338ca;
     -fx-text-fill: white;
 }
-.settings-tab-btn.settings-tab-selected.erp-semantic-pink {
+.settings-tab-btn.settings-tab-selected.erp-semantic-pink,
+.settings-tab-btn.settings-tab-selected.erp-semantic-pink:hover,
+.settings-tab-btn.settings-tab-selected.erp-semantic-pink:focused {
     -fx-background-color: #db2777;
     -fx-border-color: #be185d;
     -fx-text-fill: white;

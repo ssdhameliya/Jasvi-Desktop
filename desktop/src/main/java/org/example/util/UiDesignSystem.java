@@ -59,7 +59,8 @@ public final class UiDesignSystem {
             add(link, LINK);
         }
 
-        if (node instanceof ButtonBase button && !(node instanceof CheckBox) && !(node instanceof RadioButton) && !isSidebarControl(button)) {
+        if (node instanceof ButtonBase button && !(node instanceof CheckBox) && !(node instanceof RadioButton)
+                && !isSidebarControl(button) && !button.getStyleClass().contains("settings-tab-btn")) {
             add(button, BUTTON);
             add(button, "approved-button");
             applyButtonRole(button);
@@ -125,7 +126,8 @@ public final class UiDesignSystem {
         }
 
         // Navigation, tabs and pagers must remain neutral
-        if (containsAny(styles, "report-nav-button", "workspace-tab", "tab-button", "nav-button", "nav-parent", "pager-button")) {
+        if (containsAny(styles, "settings-tab-btn", "report-nav-button", "workspace-tab", "tab-button", "nav-button", "nav-parent", "pager-button")) {
+            if (containsAny(styles, "settings-tab-btn")) return;
             role(button, "secondary"); return;
         }
 

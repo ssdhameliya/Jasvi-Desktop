@@ -1654,7 +1654,6 @@ private record AssetPreviewRequest(
             if (btn == null) continue;
             boolean selected = activeSection == sections[i];
             btn.getStyleClass().remove("settings-tab-selected");
-            btn.getStyleClass().remove("approved-primary-button");
             if (selected) {
                 btn.getStyleClass().add("settings-tab-selected");
             }
