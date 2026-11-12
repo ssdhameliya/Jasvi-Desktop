@@ -1,3 +1,31 @@
+# What's New in DSE ERP v11.0.58
+
+### Settings Category Navigation Modernization & Visual Symmetry
+- **Colorized SVG Icons for All 12 Settings Category Tabs (`Settings.fxml`) (Rule 8, Rule 9 & Rule 11)**:
+  - Upgraded all 12 primary settings category tabs with dedicated, modern SVG vector icons:
+    - `Company & Profile` (`erp-semantic-blue`)
+    - `Payment & Bank` (`erp-semantic-cyan`)
+    - `Invoice & Delivery` (`erp-semantic-orange`)
+    - `Email Configuration` (`erp-semantic-sky`)
+    - `WhatsApp & WAHA` (`erp-semantic-green`)
+    - `Notifications` (`erp-semantic-amber`)
+    - `Security & Session` (`erp-semantic-coral`)
+    - `Workspace & Storage` (`erp-semantic-teal`)
+    - `Shortcuts` (`erp-semantic-purple`)
+    - `Application Updates` (`erp-semantic-indigo`)
+    - `Module Activation` (`erp-semantic-pink`)
+    - `3D Showcase` (`erp-semantic-cyan`)
+  - Each tab pairs its semantic icon with vibrant theme-driven color classes, maintaining distinct visual hierarchy and zero monochromatic grey styling.
+
+### Universal Theme Parity & Zero Button Jump
+- **Complete Light & Dark Theme Parity (`dark-theme.css`, `light-theme.css`) (Rule 5 & Rule 12)**:
+  - Added dedicated styling rules for `.settings-tab-btn` across both dark and light theme stylesheets.
+  - Implemented crisp SVG fill rules (`-fx-fill: -dse-text` default, semantic accent on hover, and pure `#ffffff` on active selection).
+  - Enforced zero button jump (`-fx-translate-y: 0px`) across default, hover, focused, and pressed states, eliminating jitter or layout shift during navigation.
+- **Button Role Isolation & Protection (`UiDesignSystem.java`, `IconFactory.java`, `SettingsController.java`) (Rule 4, Rule 8 & Rule 10)**:
+  - Protected `.settings-tab-btn` from generic design system transformations and unwanted button role cascades.
+  - Preserved active section selection states seamlessly without stylesheet thrashing.
+
 # What's New in DSE ERP v11.0.57
 
 ### UI Cleanliness & AI Copilot Decoupling

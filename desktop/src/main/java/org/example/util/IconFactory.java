@@ -816,8 +816,13 @@ public final class IconFactory {
         if (button.getStyleClass().contains("settings-tab-btn")) {
             button.getStyleClass().removeAll(BUTTON_VARIANTS);
             button.getStyleClass().remove("erp-action-button");
-            button.getStyleClass().removeIf(style -> style != null && style.startsWith("erp-semantic-"));
-            button.getStyleClass().add("erp-semantic-" + colour(semantic));
+            button.getStyleClass().remove("approved-button");
+            button.getStyleClass().remove("approved-secondary-button");
+            button.getStyleClass().removeIf(style -> style != null && style.startsWith("erp-button-role-"));
+            boolean hasSemantic = button.getStyleClass().stream().anyMatch(style -> style != null && style.startsWith("erp-semantic-"));
+            if (!hasSemantic) {
+                button.getStyleClass().add("erp-semantic-" + colour(semantic));
+            }
             return;
         }
 
