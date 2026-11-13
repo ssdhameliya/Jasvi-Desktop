@@ -156,7 +156,13 @@ public class ClientTemplateController implements ScreenLifecycle {
     public void initialize() {
         if (pageIcon != null) pageIcon.getChildren().setAll(IconFactory.icon("document", 22));
         if (btnLockTemplate != null) btnLockTemplate.setGraphic(IconFactory.compactIcon("lock", 14));
-        if (btnScreenGuide != null) btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 14));
+        if (btnScreenGuide != null) {
+            btnScreenGuide.setText("");
+            btnScreenGuide.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 16));
+            btnScreenGuide.setTooltip(new javafx.scene.control.Tooltip("Client Template Mapping Guide"));
+            btnScreenGuide.setAccessibleText("Client Template Mapping Guide");
+        }
         if (btnBackToDirectory != null) btnBackToDirectory.setGraphic(IconFactory.compactIcon("previous", 14));
         if (btnUploadSample != null) btnUploadSample.setGraphic(IconFactory.compactIcon("upload", 14));
         if (btnViewTemplateDoc != null) btnViewTemplateDoc.setGraphic(IconFactory.compactIcon("view", 14));

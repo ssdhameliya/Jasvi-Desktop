@@ -100,7 +100,13 @@ public class BillToTallyController implements ScreenLifecycle {
         }
 
         if (btnUploadBills != null) btnUploadBills.setGraphic(IconFactory.compactIcon("add", 14));
-        if (btnScreenGuide != null) btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 14));
+        if (btnScreenGuide != null) {
+            btnScreenGuide.setText("");
+            btnScreenGuide.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 16));
+            btnScreenGuide.setTooltip(new javafx.scene.control.Tooltip("Bill to Tally Automation Guide"));
+            btnScreenGuide.setAccessibleText("Bill to Tally Automation Guide");
+        }
         if (btnDeleteBill != null) btnDeleteBill.setGraphic(IconFactory.compactIcon("delete", 14));
         if (btnRecalculate != null) btnRecalculate.setGraphic(IconFactory.compactIcon("refresh", 14));
         if (btnExportJson != null) btnExportJson.setGraphic(IconFactory.compactIcon("file", 14));

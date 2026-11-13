@@ -1692,8 +1692,10 @@ private record AssetPreviewRequest(
         btnSaveSettings.setAccessibleText(label);
         btnSaveSettings.setTooltip(new Tooltip(label + " only"));
         if (btnSectionGuide != null) {
-            btnSectionGuide.setText("Guide");
+            btnSectionGuide.setText("");
+            btnSectionGuide.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
             btnSectionGuide.setTooltip(new Tooltip("Operational guidance for " + saveLabel(activeSection)));
+            btnSectionGuide.setAccessibleText("Section Guide");
         }
     }
 

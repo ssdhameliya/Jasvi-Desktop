@@ -284,26 +284,32 @@ public class BusinessWhatsappService {
     }
 
     public WahaDtos.HealthResponse startDockerEngine() {
-        try {
-            log.info("Attempting to start WAHA Docker container on server...");
-            ProcessBuilder pb = new ProcessBuilder("docker", "start", "waha");
-            Process p = pb.start();
-            boolean finished = p.waitFor(6, java.util.concurrent.TimeUnit.SECONDS);
-            if (!finished || p.exitValue() != 0) {
-                String osArch = System.getProperty("os.arch", "").toLowerCase();
-                String img = (osArch.contains("arm") || osArch.contains("aarch64")) ? "devlikeapro/waha:arm" : "devlikeapro/waha";
-                ProcessBuilder runPb = new ProcessBuilder(
-                        "docker", "run", "-d", "--name", "waha", "-p", "3000:3000", "--restart", "always",
-                        "-e", "WAHA_NO_API_KEY=true",
-                        "-e", "WAHA_DASHBOARD_NO_PASSWORD=true",
-                        "-e", "WHATSAPP_SWAGGER_NO_PASSWORD=true",
-                        img);
-                Process runP = runPb.start();
-                runP.waitFor(12, java.util.concurrent.TimeUnit.SECONDS);
+        Thread.ofVirtual().name("waha-docker-starter").start(() -> {
+            try {
+                log.info("Attempting to start WAHA Docker container on server in background...");
+                ProcessBuilder pb = new ProcessBuilder("docker", "start", "waha");
+                Process p = pb.start();
+                boolean finished = p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+                if (!finished || p.exitValue() != 0) {
+                    String osArch = System.getProperty("os.arch", "").toLowerCase();
+                    String img = (osArch.contains("arm") || osArch.contains("aarch64")) ? "devlikeapro/waha:arm" : "devlikeapro/waha";
+                    ProcessBuilder runPb = new ProcessBuilder(
+                            "docker", "run", "-d", "--name", "waha", "-p", "3000:3000", "--restart", "always",
+                            "-e", "WAHA_NO_API_KEY=true",
+                            "-e", "WAHA_DASHBOARD_NO_PASSWORD=true",
+                            "-e", "WHATSAPP_SWAGGER_NO_PASSWORD=true",
+                            img);
+                    Process runP = runPb.start();
+                    runP.waitFor(8, java.util.concurrent.TimeUnit.SECONDS);
+                }
+            } catch (Exception e) {
+                log.warn("Docker auto-start attempt finished with: {}", e.getMessage());
             }
-            Thread.sleep(2500);
-        } catch (Exception e) {
-            log.warn("Docker auto-start attempt finished with: {}", e.getMessage());
+        });
+        try {
+            Thread.sleep(600);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
         }
         return testConnection();
     }

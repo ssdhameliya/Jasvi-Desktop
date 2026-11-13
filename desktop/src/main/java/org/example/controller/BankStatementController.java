@@ -208,7 +208,13 @@ public class BankStatementController implements ScreenLifecycle {
         if(btnBulkIgnore!=null) btnBulkIgnore.setGraphic(IconFactory.compactIcon("cancel",15));
         if(btnMoveExpense!=null) btnMoveExpense.setGraphic(IconFactory.compactIcon("payment",15));
         if(btnMoveBankEntry!=null) btnMoveBankEntry.setGraphic(IconFactory.compactIcon("bank",15));
-        if(btnScreenGuide!=null) btnScreenGuide.setGraphic(IconFactory.compactIcon("info",15));
+        if(btnScreenGuide!=null) {
+            btnScreenGuide.setText("");
+            btnScreenGuide.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            btnScreenGuide.setGraphic(IconFactory.compactIcon("info",16));
+            btnScreenGuide.setTooltip(new javafx.scene.control.Tooltip("Bank Statement Reconciliation Guide"));
+            btnScreenGuide.setAccessibleText("Bank Statement Reconciliation Guide");
+        }
     }
     private void setIcon(StackPane pane,String name,int size){ if(pane!=null)pane.getChildren().setAll(IconFactory.icon(name,size)); }
 

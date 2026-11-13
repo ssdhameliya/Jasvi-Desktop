@@ -33,7 +33,7 @@ public class AgingAnalysisService {
             FROM sales_header s
             LEFT JOIN party_master p ON p.id = s.customer_id
             WHERE (s.total_amount - COALESCE(s.paid_amount, 0)) > 0
-              AND UPPER(COALESCE(s.document_status, '')) <> 'DELETED'
+              AND UPPER(COALESCE(s.document_status, '')) NOT IN ('DELETED', 'CANCELLED', 'REJECTED', 'VOID')
             """, (rs, idx) -> {
                 Map<String, Object> map = new HashMap<>();
                 map.put("partyId", rs.getLong(1));
@@ -57,7 +57,7 @@ public class AgingAnalysisService {
             FROM purchase_header p
             LEFT JOIN party_master party ON party.id = p.supplier_id
             WHERE (p.total_amount - COALESCE(p.paid_amount, 0)) > 0
-              AND UPPER(COALESCE(p.document_status, '')) <> 'DELETED'
+              AND UPPER(COALESCE(p.document_status, '')) NOT IN ('DELETED', 'CANCELLED', 'REJECTED', 'VOID')
             """, (rs, idx) -> {
                 Map<String, Object> map = new HashMap<>();
                 map.put("partyId", rs.getLong(1));

@@ -119,7 +119,13 @@ public class PurchaseListController implements ScreenLifecycle{
  }
  private void configureExplicitButtonIcons(){
   setButtonIcon(btnNewPurchase,"purchase");
-  if (btnScreenGuide != null) btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 14));
+  if (btnScreenGuide != null) {
+      btnScreenGuide.setText("");
+      btnScreenGuide.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+      btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 16));
+      btnScreenGuide.setTooltip(new javafx.scene.control.Tooltip("Purchase Register Guide"));
+      btnScreenGuide.setAccessibleText("Purchase Register Guide");
+  }
   setButtonIcon(btnReset,"reset");setButtonIcon(btnRefresh,"refresh");
   setButtonIcon(btnFirstPage,"first");setButtonIcon(btnPreviousPage,"previous");setButtonIcon(btnNextPage,"next");setButtonIcon(btnLastPage,"last");
   setButtonIcon(btnExportExcel,"excel");setButtonIcon(btnExportPdf,"pdf");setButtonIcon(btnPrint,"print");

@@ -76,7 +76,16 @@ public class CreditNoteRegisterController implements ScreenLifecycle {
         if (kpiAmountIcon != null) kpiAmountIcon.getChildren().setAll(IconFactory.compactIcon("wallet", 16));
         if (kpiTaxIcon != null) kpiTaxIcon.getChildren().setAll(IconFactory.compactIcon("tax", 16));
         if (kpiStockIcon != null) kpiStockIcon.getChildren().setAll(IconFactory.compactIcon("inventory", 16));
-        if (btnScreenGuidance != null) btnScreenGuidance.setGraphic(IconFactory.compactIcon("help", 14));
+        if (btnScreenGuidance != null) {
+            btnScreenGuidance.setText("");
+            btnScreenGuidance.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            btnScreenGuidance.setGraphic(IconFactory.compactIcon("info", 16));
+            btnScreenGuidance.setTooltip(new javafx.scene.control.Tooltip("Credit Notes & Sales Returns Guide"));
+            btnScreenGuidance.setAccessibleText("Credit Notes Guide");
+            if (!btnScreenGuidance.getStyleClass().contains("erp-screen-guide-button")) {
+                btnScreenGuidance.getStyleClass().add("erp-screen-guide-button");
+            }
+        }
 
         configureTableColumns();
         configureReturnTableColumns();
@@ -738,8 +747,9 @@ public class CreditNoteRegisterController implements ScreenLifecycle {
                     org.example.service.SalesService salesService = new org.example.service.SalesService();
                     return salesService.getByInvoice(newVal.trim());
                 }, sale -> {
-                    if (sale != null && sale.getTotalAmount() > 0) {
-                        txtTaxable.setText(String.format(Locale.ROOT, "%.2f", sale.getTotalAmount()));
+                    if (sale != null && (sale.getSubtotal() > 0 || sale.getTotalAmount() > 0)) {
+                        double baseTaxable = sale.getSubtotal() > 0 ? sale.getSubtotal() : sale.getTotalAmount();
+                        txtTaxable.setText(String.format(Locale.ROOT, "%.2f", baseTaxable));
                         updateImpact.run();
                     }
                 }, err -> {});
@@ -814,16 +824,15 @@ public class CreditNoteRegisterController implements ScreenLifecycle {
                 req.put("gstRate", rate);
                 req.put("adjustInventory", chkAdjustInventory.isSelected());
 
-                // Synthesize 1 line item for accurate tax split and GL journal calculation
-                BigDecimal halfTax = taxTotal.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
+                // Synthesize 1 line item; server automatically computes accurate tax split (IGST vs CGST/SGST)
                 Map<String, Object> line = new HashMap<>();
                 line.put("itemDescription", "Credit Note Adjustment: " + cmbReason.getValue());
                 line.put("quantity", BigDecimal.ONE);
                 line.put("unitPrice", taxableAmt);
                 line.put("gstRate", rate);
                 line.put("taxableValue", taxableAmt);
-                line.put("cgstAmount", halfTax);
-                line.put("sgstAmount", taxTotal.subtract(halfTax));
+                line.put("cgstAmount", BigDecimal.ZERO);
+                line.put("sgstAmount", BigDecimal.ZERO);
                 line.put("igstAmount", BigDecimal.ZERO);
                 line.put("totalLineAmount", taxableAmt.add(taxTotal));
                 req.put("lines", List.of(line));

@@ -16,8 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
-import java.time.Instant;
+import java.time.*;
+import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAccessor;
 import java.util.*;
 
 @Service
@@ -278,6 +280,20 @@ public class ClientRegistryService {
                 id
         );
 
+        try {
+            String hostClean = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").toUpperCase(Locale.ROOT);
+            if (machineId.equalsIgnoreCase(hostClean) || "JASVI INDUSTRIES".equalsIgnoreCase(companyName)) {
+                jdbc.update(
+                        "UPDATE app_license SET tier = ?, max_users = ?, valid_until = ?, features = ?, signature = ?, canonical_payload = ?, " +
+                                "last_verified_at = CURRENT_TIMESTAMP, status = 'ACTIVE' WHERE UPPER(TRIM(company_name)) = ?",
+                        tier, maxUsers, java.util.Date.from(newExpiry), featuresStr, signature, payload.toCanonicalString(),
+                        companyName.toUpperCase(Locale.ROOT)
+                );
+            }
+        } catch (Exception ignored) {
+            log.warn("Could not sync app_license on renewal for host: {}", ignored.getMessage());
+        }
+
         return getClientById(id);
     }
 
@@ -329,11 +345,31 @@ public class ClientRegistryService {
         return List.copyOf(org.example.shared.PermissionCatalog.expandFeatureTokens(all));
     }
 
-    private static Instant toInstant(Object obj) {
+    static Instant toInstant(Object obj) {
+        if (obj == null) return null;
         if (obj instanceof Instant i) return i;
         if (obj instanceof java.util.Date d) return d.toInstant();
+        if (obj instanceof ZonedDateTime zdt) return zdt.toInstant();
+        if (obj instanceof OffsetDateTime odt) return odt.toInstant();
+        if (obj instanceof LocalDateTime ldt) return ldt.atZone(ZoneId.systemDefault()).toInstant();
+        if (obj instanceof LocalDate ld) return ld.atStartOfDay(ZoneId.systemDefault()).toInstant();
         if (obj instanceof Number num) return Instant.ofEpochMilli(num.longValue());
-        if (obj instanceof java.time.temporal.TemporalAccessor ta) return Instant.from(ta);
+        if (obj instanceof String str) {
+            String s = str.trim();
+            if (s.isEmpty()) return null;
+            try { return Instant.parse(s); } catch (Exception ignored) {}
+            try { return OffsetDateTime.parse(s).toInstant(); } catch (Exception ignored) {}
+            try { return LocalDateTime.parse(s.replace(' ', 'T')).atZone(ZoneId.systemDefault()).toInstant(); } catch (Exception ignored) {}
+            try { return LocalDate.parse(s.substring(0, Math.min(10, s.length()))).atStartOfDay(ZoneId.systemDefault()).toInstant(); } catch (Exception ignored) {}
+        }
+        if (obj instanceof TemporalAccessor ta) {
+            if (ta.isSupported(ChronoField.INSTANT_SECONDS)) {
+                return Instant.from(ta);
+            }
+            if (ta.isSupported(ChronoField.EPOCH_DAY)) {
+                return LocalDate.from(ta).atStartOfDay(ZoneId.systemDefault()).toInstant();
+            }
+        }
         return null;
     }
 

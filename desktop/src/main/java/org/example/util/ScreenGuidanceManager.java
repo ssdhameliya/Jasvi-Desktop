@@ -31,9 +31,13 @@ public final class ScreenGuidanceManager {
      * Creates a standardized Guide button with custom label text.
      */
     public static Button createGuideButton(Object ownerTarget, String screenKey, String label) {
-        Button btn = new Button(label != null && !label.isBlank() ? label : "Screen Guide");
-        btn.setGraphic(IconFactory.compactIcon("info", 15));
-        btn.getStyleClass().addAll("approved-button", "approved-secondary-button", "erp-screen-guide-button");
+        Button btn = new Button();
+        btn.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+        btn.setGraphic(IconFactory.compactIcon("info", 16));
+        String tip = label != null && !label.isBlank() ? label : "Screen Guide";
+        btn.setTooltip(new javafx.scene.control.Tooltip(tip));
+        btn.setAccessibleText(tip);
+        btn.getStyleClass().addAll("approved-button", "approved-secondary-button", "icon-button", "erp-screen-guide-button");
         btn.setOnAction(e -> showGuidance(ownerTarget != null ? ownerTarget : btn, screenKey));
         return btn;
     }

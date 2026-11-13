@@ -318,6 +318,13 @@
 }
 .dse-dialog-pane .dse-dialog-action-success:hover { -fx-background-color: #15803d; -fx-border-color: #15803d; }
 
+.dse-dialog-pane .dse-dialog-action-primary .erp-action-glyph,
+.dse-dialog-pane .dse-dialog-action-danger .erp-action-glyph,
+.dse-dialog-pane .dse-dialog-action-warning .erp-action-glyph,
+.dse-dialog-pane .dse-dialog-action-success .erp-action-glyph {
+    -fx-icon-color: #ffffff !important;
+}
+
 .small-display .dse-dialog-pane .dse-dialog-shell,
 .ultra-compact-shell .dse-dialog-pane .dse-dialog-shell {
     -fx-min-width: 430;
@@ -1684,8 +1691,18 @@
     -fx-font-size: 12px;
 }
 .erp-screen-guide-button {
-    -fx-font-weight: 600;
+    -fx-min-width: 34px;
+    -fx-pref-width: 34px;
+    -fx-max-width: 34px;
+    -fx-min-height: 34px;
+    -fx-pref-height: 34px;
+    -fx-max-height: 34px;
+    -fx-padding: 0;
+    -fx-alignment: CENTER;
+    -fx-content-display: GRAPHIC_ONLY;
     -fx-cursor: hand;
+    -fx-background-radius: 9;
+    -fx-border-radius: 9;
 }
 
 /* ==========================================================================

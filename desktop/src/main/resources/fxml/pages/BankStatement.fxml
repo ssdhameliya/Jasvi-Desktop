@@ -19,7 +19,7 @@
         <Button fx:id="btnBrowseStatements" text="Browse Statements" onAction="#toggleStatementHistory" styleClass="approved-button,approved-secondary-button"/>
         <Button fx:id="btnDeleteStatement" text="Delete Statement" onAction="#deleteCurrentStatement" disable="true" styleClass="approved-button,approved-danger-button"/>
         <Button fx:id="btnImport" text="Import Statement" onAction="#importStatement" styleClass="approved-button,approved-primary-button,bank-recon-import-button"/>
-        <Button fx:id="btnScreenGuide" text="Guide" onAction="#showScreenGuide" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button"/>
+        <Button fx:id="btnScreenGuide" contentDisplay="GRAPHIC_ONLY" onAction="#showScreenGuide" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button"/>
       </HBox>
 
       <GridPane hgap="10" vgap="0" styleClass="bank-recon-kpi-panel,erp-kpi-section,erp-kpi-single-row">

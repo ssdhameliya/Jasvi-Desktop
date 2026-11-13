@@ -30,7 +30,7 @@ public class FinancialStatementsService {
 
         List<FinancialStatementsDtos.StatementLineDto> allLines = jdbc.query("""
             SELECT c.id, c.account_code, c.account_name, c.account_type, COALESCE(c.account_subtype, 'GENERAL'),
-                   COALESCE(SUM(l.credit_amount - l.debit_amount), 0) as balance
+                   COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN (l.credit_amount - l.debit_amount) ELSE 0 END), 0) as balance
             FROM chart_of_accounts c
             LEFT JOIN journal_line l ON l.account_id = c.id
             LEFT JOIN journal_entry e ON e.id = l.journal_entry_id AND e.entry_date BETWEEN ? AND ? AND e.status = 'POSTED'
@@ -94,8 +94,13 @@ public class FinancialStatementsService {
             SELECT c.id, c.account_code, c.account_name, c.account_type, COALESCE(c.account_subtype, 'GENERAL'),
                    COALESCE(c.opening_balance, 0) + COALESCE(SUM(
                        CASE
-                           WHEN c.account_type IN ('ASSET', 'EXPENSE') THEN l.debit_amount - l.credit_amount
-                           ELSE l.credit_amount - l.debit_amount
+                           WHEN e.id IS NOT NULL THEN (
+                               CASE
+                                   WHEN c.account_type IN ('ASSET', 'EXPENSE') THEN l.debit_amount - l.credit_amount
+                                   ELSE l.credit_amount - l.debit_amount
+                               END
+                           )
+                           ELSE 0
                        END
                    ), 0) as balance
             FROM chart_of_accounts c
@@ -256,12 +261,21 @@ public class FinancialStatementsService {
                 """, BigDecimal.class);
         } catch (Exception ignored) {}
 
-        BigDecimal openingStock = BigDecimal.ZERO; // baseline opening inventory
+        BigDecimal openingStock = BigDecimal.ZERO;
+        try {
+            openingStock = jdbc.queryForObject("""
+                SELECT COALESCE(SUM(COALESCE(i.opening_stock, 0) * COALESCE(i.purchase_price, 0)), 0)
+                FROM item_master i
+                WHERE COALESCE(i.is_active::text, '1') IN ('1', 'true', 't')
+                  AND COALESCE(i.opening_stock, 0) > 0
+                """, BigDecimal.class);
+        } catch (Exception ignored) {}
+        if (openingStock == null) openingStock = BigDecimal.ZERO;
 
         // 5. Cost of Goods Sold (COGS)
         BigDecimal cogs = openingStock.add(netPurchases).add(directExpenses).subtract(closingStock);
         if (cogs.compareTo(BigDecimal.ZERO) < 0) {
-            cogs = netPurchases.multiply(new BigDecimal("0.75")).setScale(2, RoundingMode.HALF_UP);
+            cogs = BigDecimal.ZERO;
         }
         BigDecimal grossProfit = netSales.subtract(cogs);
         BigDecimal grossMarginPct = netSales.compareTo(BigDecimal.ZERO) > 0
