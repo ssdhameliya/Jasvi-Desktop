@@ -419,7 +419,7 @@ public final class UniversalBankStatementParser {
                 if (dirCol >= 0 && !dir.isBlank() && !dir.startsWith("DR") && !dir.startsWith("CR")
                         && !dir.contains("DEBIT") && !dir.contains("CREDIT")) {
                     dirError = "Direction must be DR or CR, got '" + dir + "'";
-                } else if (dir.startsWith("CR") || dir.contains("CREDIT") || rawAmt < 0) {
+                } else if (dir.startsWith("CR") || dir.contains("CREDIT") || (dir.isBlank() && rawAmt > 0)) {
                     credit = Math.abs(rawAmt);
                 } else {
                     debit = Math.abs(rawAmt);

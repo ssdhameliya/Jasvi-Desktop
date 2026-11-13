@@ -117,8 +117,15 @@ public class CreditDebitNoteService {
 
                 if (lineCgst.compareTo(BigDecimal.ZERO) == 0 && lineSgst.compareTo(BigDecimal.ZERO) == 0 && lineIgst.compareTo(BigDecimal.ZERO) == 0 && rate.compareTo(BigDecimal.ZERO) > 0) {
                     BigDecimal taxTotal = lineTaxable.multiply(rate).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                    lineCgst = taxTotal.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
-                    lineSgst = taxTotal.subtract(lineCgst);
+                    if (isInterState(dto.partyGstin())) {
+                        lineIgst = taxTotal;
+                        lineCgst = BigDecimal.ZERO;
+                        lineSgst = BigDecimal.ZERO;
+                    } else {
+                        lineCgst = taxTotal.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+                        lineSgst = taxTotal.subtract(lineCgst);
+                        lineIgst = BigDecimal.ZERO;
+                    }
                 }
 
                 taxable = taxable.add(lineTaxable);
@@ -177,7 +184,7 @@ public class CreditDebitNoteService {
             }
         }
         if (partyId == null || partyId <= 0) {
-            partyId = 1L;
+            throw new IllegalArgumentException("A valid customer party is required for creating a Credit Note");
         }
         if (partyName == null || partyName.isBlank()) {
             try {
@@ -214,10 +221,24 @@ public class CreditDebitNoteService {
                     line.cgstAmount(), line.sgstAmount(), line.igstAmount(), line.totalLineAmount()
             );
 
-            if (Boolean.TRUE.equals(dto.stockReturned()) && line.itemId() != null && line.itemId() > 0) {
+            if (Boolean.TRUE.equals(dto.stockReturned())) {
                 try {
-                    jdbc.update("UPDATE item_master SET opening_stock = COALESCE(opening_stock, 0) + ? WHERE id = ?",
-                            line.quantity(), line.itemId());
+                    Long targetItemId = line.itemId();
+                    if (targetItemId == null && line.itemCode() != null && !line.itemCode().isBlank()) {
+                        targetItemId = jdbc.queryForObject("SELECT id FROM item_master WHERE item_code = ? LIMIT 1", Long.class, line.itemCode().trim());
+                    }
+                    if (targetItemId != null && targetItemId > 0) {
+                        jdbc.update("UPDATE item_master SET opening_stock = COALESCE(opening_stock, 0) + ? WHERE id = ?",
+                                line.quantity(), targetItemId);
+                        String itmCode = line.itemCode();
+                        if (itmCode == null || itmCode.isBlank()) {
+                            itmCode = jdbc.queryForObject("SELECT item_code FROM item_master WHERE id = ?", String.class, targetItemId);
+                        }
+                        if (itmCode != null && !itmCode.isBlank()) {
+                            jdbc.update("UPDATE inventory_cost_state SET quantity = COALESCE(quantity, 0) + ?, last_updated_at = NOW() WHERE item_code = ?",
+                                    line.quantity(), itmCode);
+                        }
+                    }
                 } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
             }
         }
@@ -323,8 +344,15 @@ public class CreditDebitNoteService {
 
                 if (lineCgst.compareTo(BigDecimal.ZERO) == 0 && lineSgst.compareTo(BigDecimal.ZERO) == 0 && lineIgst.compareTo(BigDecimal.ZERO) == 0 && rate.compareTo(BigDecimal.ZERO) > 0) {
                     BigDecimal taxTotal = lineTaxable.multiply(rate).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                    lineCgst = taxTotal.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
-                    lineSgst = taxTotal.subtract(lineCgst);
+                    if (isInterState(dto.supplierGstin())) {
+                        lineIgst = taxTotal;
+                        lineCgst = BigDecimal.ZERO;
+                        lineSgst = BigDecimal.ZERO;
+                    } else {
+                        lineCgst = taxTotal.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+                        lineSgst = taxTotal.subtract(lineCgst);
+                        lineIgst = BigDecimal.ZERO;
+                    }
                 }
 
                 taxable = taxable.add(lineTaxable);
@@ -383,7 +411,7 @@ public class CreditDebitNoteService {
             }
         }
         if (supplierId == null || supplierId <= 0) {
-            supplierId = 1L;
+            throw new IllegalArgumentException("A valid supplier party is required for creating a Debit Note");
         }
         if (supplierName == null || supplierName.isBlank()) {
             try {
@@ -420,10 +448,24 @@ public class CreditDebitNoteService {
                     line.cgstAmount(), line.sgstAmount(), line.igstAmount(), line.totalLineAmount()
             );
 
-            if (Boolean.TRUE.equals(dto.stockReturned()) && line.itemId() != null && line.itemId() > 0) {
+            if (Boolean.TRUE.equals(dto.stockReturned())) {
                 try {
-                    jdbc.update("UPDATE item_master SET opening_stock = GREATEST(0, COALESCE(opening_stock, 0) - ?) WHERE id = ?",
-                            line.quantity(), line.itemId());
+                    Long targetItemId = line.itemId();
+                    if (targetItemId == null && line.itemCode() != null && !line.itemCode().isBlank()) {
+                        targetItemId = jdbc.queryForObject("SELECT id FROM item_master WHERE item_code = ? LIMIT 1", Long.class, line.itemCode().trim());
+                    }
+                    if (targetItemId != null && targetItemId > 0) {
+                        jdbc.update("UPDATE item_master SET opening_stock = GREATEST(0, COALESCE(opening_stock, 0) - ?) WHERE id = ?",
+                                line.quantity(), targetItemId);
+                        String itmCode = line.itemCode();
+                        if (itmCode == null || itmCode.isBlank()) {
+                            itmCode = jdbc.queryForObject("SELECT item_code FROM item_master WHERE id = ?", String.class, targetItemId);
+                        }
+                        if (itmCode != null && !itmCode.isBlank()) {
+                            jdbc.update("UPDATE inventory_cost_state SET quantity = GREATEST(0, COALESCE(quantity, 0) - ?), last_updated_at = NOW() WHERE item_code = ?",
+                                    line.quantity(), itmCode);
+                        }
+                    }
                 } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
             }
         }
@@ -459,17 +501,40 @@ public class CreditDebitNoteService {
         return org.example.shared.ReferenceFormatRules.format(fmt, (int) val, org.example.server.util.BusinessClock.today());
     }
 
+    private boolean isInterState(String partyGstin) {
+        if (partyGstin == null || partyGstin.trim().length() < 2) return false;
+        try {
+            String companyGstin = jdbc.queryForObject(
+                    "SELECT setting_value FROM application_setting WHERE setting_key = 'company.gstin' LIMIT 1",
+                    String.class
+            );
+            if (companyGstin != null && companyGstin.trim().length() >= 2) {
+                return !companyGstin.trim().substring(0, 2).equalsIgnoreCase(partyGstin.trim().substring(0, 2));
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     private Long postCreditNoteJournal(String noteNo, LocalDate date, String party, BigDecimal taxable, BigDecimal tax, BigDecimal total, String user) {
         try {
             Long salesReturnAcc = getAccountIdOrDefault("4100", "Sales Returns", "REVENUE");
             Long gstOutputAcc = getAccountIdOrDefault("2200", "Output GST Reversal", "LIABILITY");
             Long arAcc = getAccountIdOrDefault("1100", "Accounts Receivable", "ASSET");
+            Long roundoffAcc = getAccountIdOrDefault("8100", "Round Off Adjustment", "EXPENSE");
 
-            List<GeneralLedgerDtos.CreateLineRequest> lines = List.of(
-                    new GeneralLedgerDtos.CreateLineRequest(salesReturnAcc, "4100", taxable, BigDecimal.ZERO, null, "Credit Note: " + noteNo, null),
-                    new GeneralLedgerDtos.CreateLineRequest(gstOutputAcc, "2200", tax, BigDecimal.ZERO, null, "Tax adjustment: " + noteNo, null),
-                    new GeneralLedgerDtos.CreateLineRequest(arAcc, "1100", BigDecimal.ZERO, total, null, "Party adjustment: " + party, null)
-            );
+            List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(salesReturnAcc, "4100", taxable, BigDecimal.ZERO, null, "Credit Note: " + noteNo, null));
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(gstOutputAcc, "2200", tax, BigDecimal.ZERO, null, "Tax adjustment: " + noteNo, null));
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(arAcc, "1100", BigDecimal.ZERO, total, null, "Party adjustment: " + party, null));
+
+            BigDecimal debits = taxable.add(tax).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal credits = total.setScale(2, RoundingMode.HALF_UP);
+            BigDecimal diff = debits.subtract(credits);
+            if (diff.compareTo(BigDecimal.ZERO) > 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "8100", BigDecimal.ZERO, diff, null, "Round off: " + noteNo, null));
+            } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "8100", diff.abs(), BigDecimal.ZERO, null, "Round off: " + noteNo, null));
+            }
 
             GeneralLedgerDtos.CreateJournalRequest req = new GeneralLedgerDtos.CreateJournalRequest(
                     date, "CREDIT_NOTE", "CREDIT_NOTE", null, noteNo,
@@ -478,6 +543,7 @@ public class CreditDebitNoteService {
             GeneralLedgerDtos.JournalEntryDto created = glService.postJournalEntry(req);
             return created != null ? created.id() : null;
         } catch (Exception e) {
+            java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Failed to post credit note journal for " + noteNo + ": " + e.getMessage(), e);
             return null;
         }
     }
@@ -487,12 +553,21 @@ public class CreditDebitNoteService {
             Long apAcc = getAccountIdOrDefault("2100", "Accounts Payable", "LIABILITY");
             Long purchaseReturnAcc = getAccountIdOrDefault("5100", "Purchase Returns", "EXPENSE");
             Long gstInputAcc = getAccountIdOrDefault("1200", "Input GST Reversal", "ASSET");
+            Long roundoffAcc = getAccountIdOrDefault("8100", "Round Off Adjustment", "EXPENSE");
 
-            List<GeneralLedgerDtos.CreateLineRequest> lines = List.of(
-                    new GeneralLedgerDtos.CreateLineRequest(apAcc, "2100", total, BigDecimal.ZERO, null, "Supplier adjustment: " + supplier, null),
-                    new GeneralLedgerDtos.CreateLineRequest(purchaseReturnAcc, "5100", BigDecimal.ZERO, taxable, null, "Debit Note: " + noteNo, null),
-                    new GeneralLedgerDtos.CreateLineRequest(gstInputAcc, "1200", BigDecimal.ZERO, tax, null, "Tax reversal: " + noteNo, null)
-            );
+            List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(apAcc, "2100", total, BigDecimal.ZERO, null, "Supplier adjustment: " + supplier, null));
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(purchaseReturnAcc, "5100", BigDecimal.ZERO, taxable, null, "Debit Note: " + noteNo, null));
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(gstInputAcc, "1200", BigDecimal.ZERO, tax, null, "Tax reversal: " + noteNo, null));
+
+            BigDecimal debits = total.setScale(2, RoundingMode.HALF_UP);
+            BigDecimal credits = taxable.add(tax).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal diff = debits.subtract(credits);
+            if (diff.compareTo(BigDecimal.ZERO) > 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "8100", BigDecimal.ZERO, diff, null, "Round off: " + noteNo, null));
+            } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "8100", diff.abs(), BigDecimal.ZERO, null, "Round off: " + noteNo, null));
+            }
 
             GeneralLedgerDtos.CreateJournalRequest req = new GeneralLedgerDtos.CreateJournalRequest(
                     date, "DEBIT_NOTE", "DEBIT_NOTE", null, noteNo,
@@ -501,6 +576,7 @@ public class CreditDebitNoteService {
             GeneralLedgerDtos.JournalEntryDto created = glService.postJournalEntry(req);
             return created != null ? created.id() : null;
         } catch (Exception e) {
+            java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Failed to post debit note journal for " + noteNo + ": " + e.getMessage(), e);
             return null;
         }
     }

@@ -50,7 +50,7 @@ public class EWayBillService {
             FROM sales_header s
             LEFT JOIN party_master p ON p.id = s.customer_id
             WHERE (s.eway_bill_no IS NULL OR TRIM(s.eway_bill_no) = '')
-              AND UPPER(COALESCE(s.document_status, '')) <> 'DELETED'
+              AND UPPER(COALESCE(s.document_status, '')) NOT IN ('DELETED', 'CANCELLED', 'REJECTED')
             ORDER BY s.id DESC
             LIMIT 300
             """, (rs, idx) -> new EWayBillDtos.EligibleSaleDto(

@@ -20,7 +20,7 @@
                     <Label text="Company configuration, payments, invoices, communication delivery and system administration" wrapText="true" styleClass="settings-page-description"/>
                 </VBox>
 
-                <Button fx:id="btnSectionGuide" text="Section Guide" onAction="#showSectionGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
+                <Button fx:id="btnSectionGuide" contentDisplay="GRAPHIC_ONLY" onAction="#showSectionGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
                     <graphic>
                         <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
                     </graphic>

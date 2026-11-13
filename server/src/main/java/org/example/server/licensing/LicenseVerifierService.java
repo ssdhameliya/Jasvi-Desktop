@@ -10,8 +10,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.time.*;
+import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -447,11 +449,31 @@ public class LicenseVerifierService {
         return false;
     }
 
-    private static Instant toInstant(Object obj) {
+    static Instant toInstant(Object obj) {
+        if (obj == null) return Instant.now();
         if (obj instanceof Instant i) return i;
         if (obj instanceof java.util.Date d) return d.toInstant();
+        if (obj instanceof ZonedDateTime zdt) return zdt.toInstant();
+        if (obj instanceof OffsetDateTime odt) return odt.toInstant();
+        if (obj instanceof LocalDateTime ldt) return ldt.atZone(ZoneId.systemDefault()).toInstant();
+        if (obj instanceof LocalDate ld) return ld.atStartOfDay(ZoneId.systemDefault()).toInstant();
         if (obj instanceof Number num) return Instant.ofEpochMilli(num.longValue());
-        if (obj instanceof java.time.temporal.TemporalAccessor ta) return Instant.from(ta);
+        if (obj instanceof String str) {
+            String s = str.trim();
+            if (s.isEmpty()) return Instant.now();
+            try { return Instant.parse(s); } catch (Exception ignored) {}
+            try { return OffsetDateTime.parse(s).toInstant(); } catch (Exception ignored) {}
+            try { return LocalDateTime.parse(s.replace(' ', 'T')).atZone(ZoneId.systemDefault()).toInstant(); } catch (Exception ignored) {}
+            try { return LocalDate.parse(s.substring(0, Math.min(10, s.length()))).atStartOfDay(ZoneId.systemDefault()).toInstant(); } catch (Exception ignored) {}
+        }
+        if (obj instanceof TemporalAccessor ta) {
+            if (ta.isSupported(ChronoField.INSTANT_SECONDS)) {
+                return Instant.from(ta);
+            }
+            if (ta.isSupported(ChronoField.EPOCH_DAY)) {
+                return LocalDate.from(ta).atStartOfDay(ZoneId.systemDefault()).toInstant();
+            }
+        }
         return Instant.now();
     }
 

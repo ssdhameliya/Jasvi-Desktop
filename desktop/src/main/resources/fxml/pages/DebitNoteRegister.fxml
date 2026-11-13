@@ -13,7 +13,7 @@
           <Label text="Manage purchase returns, supplier rate adjustments, and GST input tax credit reversals" wrapText="true" styleClass="screen-subtitle"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button fx:id="btnScreenGuidance" text="How It Works" onAction="#showHowItWorks" styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnScreenGuidance" contentDisplay="GRAPHIC_ONLY" onAction="#showHowItWorks" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button"/>
         <Button fx:id="btnNewDebitNote" text="New Return / Debit Note" onAction="#createDebitNote" styleClass="primary-action,approved-button,approved-primary-button"/>
         <Button fx:id="btnRefresh" text="Refresh" onAction="#refreshData" styleClass="approved-button,approved-secondary-button"/>
       </HBox>

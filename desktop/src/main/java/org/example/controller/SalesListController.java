@@ -172,7 +172,13 @@ public class SalesListController implements ScreenLifecycle {
         setIcon(dueSoonIcon,"calendar",24);
         setIcon(emailRateIcon,"email",24);
         setButtonIcon(btnNewSale,"sale");
-        if (btnScreenGuide != null) btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 14));
+        if (btnScreenGuide != null) {
+            btnScreenGuide.setText("");
+            btnScreenGuide.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            btnScreenGuide.setGraphic(IconFactory.compactIcon("info", 16));
+            btnScreenGuide.setTooltip(new javafx.scene.control.Tooltip("Sales Register Guide"));
+            btnScreenGuide.setAccessibleText("Sales Register Guide");
+        }
         setButtonIcon(btnResetFilters,"reset");
         setButtonIcon(btnRefreshSales,"refresh");
         setButtonIcon(btnExportExcel,"excel");

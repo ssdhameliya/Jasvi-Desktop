@@ -63,13 +63,14 @@ public final class IconFactory {
         "erp-button-sky", "erp-button-purple", "erp-button-cyan",
         "erp-button-violet", "erp-button-coral", "erp-button-slate",
         "erp-button-danger-ghost", "erp-button-next", "erp-button-back", "erp-button-teal",
-        "erp-button-pink", "erp-button-orange",
+        "erp-button-pink", "erp-button-orange", "erp-button-forest", "erp-button-ghost",
         "approved-amber-button", "approved-indigo-button",
         "approved-emerald-button", "approved-sky-button", "approved-purple-button",
         "approved-cyan-button", "approved-violet-button", "approved-coral-button",
         "approved-slate-button", "approved-danger-ghost-button",
         "approved-next-button", "approved-back-button", "approved-teal-button",
-        "approved-pink-button", "approved-orange-button"
+        "approved-pink-button", "approved-orange-button", "approved-forest-button",
+        "approved-ghost-button"
     };
 
     private IconFactory() {
@@ -836,19 +837,22 @@ public final class IconFactory {
             variant = "erp-button-icon";
         } else if ("delete".equals(semantic) || "error".equals(semantic)) {
             variant = "erp-button-danger";
+            if (!button.getStyleClass().contains("approved-danger-button")) button.getStyleClass().add("approved-danger-button");
         } else if ("restore".equals(semantic) || "warning".equals(semantic)) {
             variant = "erp-button-warning";
+            if (!button.getStyleClass().contains("approved-amber-button")) button.getStyleClass().add("approved-amber-button");
         } else if ("complete".equals(semantic)) {
             variant = "erp-button-success";
+            if (!button.getStyleClass().contains("approved-emerald-button")) button.getStyleClass().add("approved-emerald-button");
         } else if ("edit".equals(semantic)) {
             variant = "erp-button-amber";
             if (!button.getStyleClass().contains("approved-amber-button")) button.getStyleClass().add("approved-amber-button");
         } else if ("duplicate".equals(semantic)) {
-            variant = "erp-button-secondary";
-            if (!button.getStyleClass().contains("approved-secondary-button")) button.getStyleClass().add("approved-secondary-button");
+            variant = "erp-button-indigo";
+            if (!button.getStyleClass().contains("approved-indigo-button")) button.getStyleClass().add("approved-indigo-button");
         } else if ("excel".equals(semantic) || "export".equals(semantic)) {
-            variant = "erp-button-emerald";
-            if (!button.getStyleClass().contains("approved-emerald-button")) button.getStyleClass().add("approved-emerald-button");
+            variant = "erp-button-forest";
+            if (!button.getStyleClass().contains("approved-forest-button")) button.getStyleClass().add("approved-forest-button");
         } else if ("email".equals(semantic) || "sent".equals(semantic)) {
             variant = "erp-button-sky";
             if (!button.getStyleClass().contains("approved-sky-button")) button.getStyleClass().add("approved-sky-button");
@@ -857,15 +861,15 @@ public final class IconFactory {
             if (!button.getStyleClass().contains("approved-danger-button")) button.getStyleClass().add("approved-danger-button");
             if (!button.getStyleClass().contains("export-pdf-button")) button.getStyleClass().add("export-pdf-button");
         } else if ("print".equals(semantic)) {
-            variant = "erp-button-primary";
-            if (!button.getStyleClass().contains("approved-primary-button")) button.getStyleClass().add("approved-primary-button");
+            variant = "erp-button-purple";
+            if (!button.getStyleClass().contains("approved-purple-button")) button.getStyleClass().add("approved-purple-button");
             if (!button.getStyleClass().contains("print-button")) button.getStyleClass().add("print-button");
-        } else if ("purchase".equals(semantic)) {
-            variant = "erp-button-primary";
-            if (!button.getStyleClass().contains("approved-primary-button")) button.getStyleClass().add("approved-primary-button");
-        } else if ("bank".equals(semantic)) {
-            variant = "erp-button-cyan";
-            if (!button.getStyleClass().contains("approved-cyan-button")) button.getStyleClass().add("approved-cyan-button");
+        } else if ("purchase".equals(semantic) || "purchase-order".equals(semantic) || "goods-receipt".equals(semantic)) {
+            variant = "erp-button-orange";
+            if (!button.getStyleClass().contains("approved-orange-button")) button.getStyleClass().add("approved-orange-button");
+        } else if ("bank".equals(semantic) || "reconcile".equals(semantic) || "statement".equals(semantic)) {
+            variant = "erp-button-purple";
+            if (!button.getStyleClass().contains("approved-purple-button")) button.getStyleClass().add("approved-purple-button");
         } else if ("expense".equals(semantic)) {
             variant = "erp-button-orange";
             if (!button.getStyleClass().contains("approved-orange-button")) button.getStyleClass().add("approved-orange-button");
@@ -879,15 +883,15 @@ public final class IconFactory {
             variant = "erp-button-emerald";
             if (!button.getStyleClass().contains("approved-emerald-button")) button.getStyleClass().add("approved-emerald-button");
         } else if ("barcode".equals(semantic)) {
-            variant = "erp-button-cyan";
-            if (!button.getStyleClass().contains("approved-cyan-button")) button.getStyleClass().add("approved-cyan-button");
+            variant = "erp-button-violet";
+            if (!button.getStyleClass().contains("approved-violet-button")) button.getStyleClass().add("approved-violet-button");
         } else if ("payment".equals(semantic)) {
             variant = "erp-button-emerald";
             if (!button.getStyleClass().contains("approved-emerald-button")) button.getStyleClass().add("approved-emerald-button");
-        } else if ("return".equals(semantic)) {
+        } else if ("return".equals(semantic) || "refund".equals(semantic)) {
             variant = "erp-button-coral";
             if (!button.getStyleClass().contains("approved-coral-button")) button.getStyleClass().add("approved-coral-button");
-        } else if ("audit".equals(semantic) || "history".equals(semantic)) {
+        } else if ("audit".equals(semantic) || "history".equals(semantic) || "ledger".equals(semantic)) {
             variant = "erp-button-slate";
             if (!button.getStyleClass().contains("approved-slate-button")) button.getStyleClass().add("approved-slate-button");
         } else if ("cancel".equals(semantic) || "close".equals(semantic)) {
@@ -896,6 +900,7 @@ public final class IconFactory {
         } else if ("add".equals(semantic) || "save".equals(semantic) || "backup".equals(semantic)
             || "import".equals(semantic)) {
             variant = "erp-button-primary";
+            if (!button.getStyleClass().contains("approved-primary-button")) button.getStyleClass().add("approved-primary-button");
         } else if ("next".equals(semantic) || "forward".equals(semantic) || "continue".equals(semantic) || text.contains("next") || text.contains("continue") || text.contains("proceed")) {
             variant = "erp-button-next";
             if (!button.getStyleClass().contains("approved-next-button")) button.getStyleClass().add("approved-next-button");
@@ -914,13 +919,13 @@ public final class IconFactory {
         } else if ("notification".equals(semantic)) {
             variant = "erp-button-amber";
             if (!button.getStyleClass().contains("approved-amber-button")) button.getStyleClass().add("approved-amber-button");
-        } else if ("security-session".equals(semantic)) {
-            variant = "erp-button-coral";
-            if (!button.getStyleClass().contains("approved-coral-button")) button.getStyleClass().add("approved-coral-button");
+        } else if ("security-session".equals(semantic) || "security".equals(semantic)) {
+            variant = "erp-button-indigo";
+            if (!button.getStyleClass().contains("approved-indigo-button")) button.getStyleClass().add("approved-indigo-button");
         } else if ("workspace".equals(semantic)) {
             variant = "erp-button-teal";
             if (!button.getStyleClass().contains("approved-teal-button")) button.getStyleClass().add("approved-teal-button");
-        } else if ("module".equals(semantic)) {
+        } else if ("module".equals(semantic) || "template".equals(semantic)) {
             variant = "erp-button-pink";
             if (!button.getStyleClass().contains("approved-pink-button")) button.getStyleClass().add("approved-pink-button");
         } else if ("update".equals(semantic)) {
@@ -934,6 +939,11 @@ public final class IconFactory {
             if (!button.getStyleClass().contains("approved-purple-button")) button.getStyleClass().add("approved-purple-button");
         } else {
             variant = "erp-button-secondary";
+        }
+        if (!"erp-button-secondary".equals(variant)) {
+            button.getStyleClass().remove("approved-secondary-button");
+        } else if (!button.getStyleClass().contains("approved-secondary-button")) {
+            button.getStyleClass().add("approved-secondary-button");
         }
         button.getStyleClass().add(variant);
     }
@@ -1190,6 +1200,7 @@ public final class IconFactory {
             case "sky" -> dark ? "#7dd3fc" : "#0284c7";
             case "green" -> dark ? "#4ade80" : "#16a34a";
             case "emerald" -> dark ? "#4ade80" : "#10b981";
+            case "forest" -> dark ? "#4ade80" : "#15803d";
             case "orange" -> dark ? "#fbbf24" : "#d97706";
             case "amber" -> dark ? "#fcd34d" : "#f59e0b";
             case "purple" -> dark ? "#c4b5fd" : "#7c3aed";

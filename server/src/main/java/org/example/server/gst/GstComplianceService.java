@@ -117,8 +117,17 @@ public class GstComplianceService {
 
             String ctin = item.getSupplierGstin() != null ? item.getSupplierGstin().trim().toUpperCase() : "";
             PurchaseHeaderEntity matchedErp = erpGstinAndNormMap.get(ctin + "::" + norm);
-            if (matchedErp == null) {
+            if (matchedErp == null && ctin.isBlank()) {
                 matchedErp = erpNormMap.get(norm);
+            } else if (matchedErp == null && !ctin.isBlank()) {
+                PurchaseHeaderEntity candidate = erpNormMap.get(norm);
+                if (candidate != null) {
+                    String candGstin = candidate.getSupplierGstinSnapshot() != null ? candidate.getSupplierGstinSnapshot().trim().toUpperCase()
+                            : (candidate.getSupplier() != null && candidate.getSupplier().getGstin() != null ? candidate.getSupplier().getGstin().trim().toUpperCase() : "");
+                    if (candGstin.isBlank() || candGstin.equalsIgnoreCase(ctin)) {
+                        matchedErp = candidate;
+                    }
+                }
             }
 
             if (matchedErp != null) {
@@ -379,7 +388,10 @@ public class GstComplianceService {
             if (s.getTotalAmount() != null) {
                 BigDecimal gross = BigDecimal.valueOf(s.getTotalAmount());
                 BigDecimal tax = s.getGstAmount() != null ? BigDecimal.valueOf(s.getGstAmount()) : BigDecimal.ZERO;
-                outwardTaxable = outwardTaxable.add(gross.subtract(tax));
+                BigDecimal lineTaxable = (s.getSubtotal() != null && s.getSubtotal() > 0)
+                        ? BigDecimal.valueOf(s.getSubtotal())
+                        : gross.subtract(tax);
+                outwardTaxable = outwardTaxable.add(lineTaxable);
 
                 if ("IGST".equalsIgnoreCase(s.getGstType()) || "INTER_STATE".equalsIgnoreCase(s.getGstType())) {
                     outwardIgst = outwardIgst.add(tax);

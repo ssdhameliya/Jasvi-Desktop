@@ -34,7 +34,7 @@
             <ComboBox fx:id="cmbTemplateVersion" prefWidth="180" promptText="Select Version..." styleClass="approved-input"/>
             <Separator orientation="VERTICAL"/>
             <Button fx:id="btnUploadBills" text="Upload Bills (.pdf, .jpg, .xlsx)" styleClass="approved-button,primary-button" onAction="#handleUploadBills"/>
-            <Button fx:id="btnScreenGuide" text="Guide" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button" onAction="#handleShowGuide"/>
+            <Button fx:id="btnScreenGuide" contentDisplay="GRAPHIC_ONLY" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button" onAction="#handleShowGuide"/>
         </HBox>
     </HBox>
 

@@ -1,3 +1,31 @@
+# What's New in DSE ERP v11.0.59
+
+### 15-Tier Universal Button Semantic Colorization & Theme Parity
+- **15 Semantic Color Tiers across All Screens & Dialogs (`IconFactory.java`, `dark-theme.css`, `light-theme.css`, `app-dialog.css`) (Rule 5, Rule 8, Rule 9 & Rule 11)**:
+  - Systematically colorized buttons across all 74+ FXML screens, modal dialogs, and popups.
+  - Implemented 15 distinct semantic button color tiers:
+    - Primary Action (`erp-primary-action-btn`, `#2563eb`)
+    - Secondary Action (`erp-secondary-action-btn`, `#475569`)
+    - Success / Positive Action (`erp-success-action-btn`, `#16a34a`)
+    - Warning Action (`erp-warning-action-btn`, `#d97706`)
+    - Destructive / Danger Action (`erp-danger-action-btn`, `#dc2626`)
+    - Information Action (`erp-info-action-btn`, `#0284c7`)
+    - Ghost / Subtle Outline Action (`erp-ghost-action-btn`)
+    - AI Diagnostics / Neural Action (`erp-ai-action-btn`, `#7c3aed`)
+    - Custom Action Tiers 9 through 15 (Cyan, Emerald, Amber, Indigo, Rose, Teal, Slate).
+  - Ensured complete Light and Dark theme parity: buttons maintain high contrast, vivid SVG icons, and zero invisible text or muted monochrome greys.
+
+### Master Client Companies Registry & Licensor Studio Temporal Safety
+- **Resilient Temporal Type Conversion (`ClientRegistryService.java`, `LicenseVerifierService.java`) (Rule 4 & Rule 17)**:
+  - Fixed `Unsupported field: InstantSeconds` exception during License Renewal (+1 Year).
+  - Standardized date-time conversion to handle `LocalDateTime` via `ldt.atZone(ZoneId.systemDefault()).toInstant()`, along with `LocalDate`, `Instant`, `ZonedDateTime`, and `OffsetDateTime`.
+  - Added unit test suite `ClientRegistryTemporalSafetyTest` to permanently prevent regression.
+
+### Debit Note Interstate Tax Calculation & Compiler Stability
+- **Debit Note Interstate IGST Calculation Fix (`CreditDebitNoteService.java`) (Rule 4 & Rule 17)**:
+  - Fixed interstate tax classification in `createDebitNote()` to inspect `dto.supplierGstin()` instead of `dto.partyGstin()`.
+  - Eliminated Maven compilation failure in server module during desktop application bootstrap.
+
 # What's New in DSE ERP v11.0.58
 
 ### Settings Category Navigation Modernization & Visual Symmetry
