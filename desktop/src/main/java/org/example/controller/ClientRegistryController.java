@@ -43,6 +43,7 @@ public class ClientRegistryController implements ScreenLifecycle {
     @FXML private StackPane pageIcon;
     @FXML private Button btnRegisterClient;
     @FXML private Button btnRefresh;
+    @FXML private Button btnTestAlert;
 
     @FXML private StackPane kpiTotalIcon;
     @FXML private StackPane kpiActiveIcon;
@@ -66,6 +67,7 @@ public class ClientRegistryController implements ScreenLifecycle {
     @FXML private TableView<Map<String, Object>> tableClients;
     @FXML private TableColumn<Map<String, Object>, String> colStatus;
     @FXML private TableColumn<Map<String, Object>, String> colCompany;
+    @FXML private TableColumn<Map<String, Object>, String> colPurchased;
     @FXML private TableColumn<Map<String, Object>, String> colMachineId;
     @FXML private TableColumn<Map<String, Object>, String> colRemoteUrl;
     @FXML private TableColumn<Map<String, Object>, String> colLiveStatus;
@@ -131,6 +133,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         if (kpiArrIcon != null) kpiArrIcon.getChildren().setAll(IconFactory.icon("dollar", 18));
 
         if (btnRegisterClient != null) btnRegisterClient.setGraphic(IconFactory.compactIcon("add", 14));
+        if (btnTestAlert != null) btnTestAlert.setGraphic(IconFactory.compactIcon("alert", 14));
         if (btnRefresh != null) btnRefresh.setGraphic(IconFactory.compactIcon("refresh", 14));
         if (btnResetFilter != null) btnResetFilter.setGraphic(IconFactory.compactIcon("reset", 14));
         if (btnResetLeadFilter != null) btnResetLeadFilter.setGraphic(IconFactory.compactIcon("reset", 14));
@@ -193,6 +196,34 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
 
         colCompany.setCellValueFactory(cell -> new SimpleStringProperty(String.valueOf(cell.getValue().getOrDefault("company_name", "-"))));
+
+        if (colPurchased != null) {
+            colPurchased.setCellValueFactory(cell -> {
+                Object p = cell.getValue().get("is_purchased");
+                boolean isPurchased = (p == null || Boolean.TRUE.equals(p) || "true".equalsIgnoreCase(p.toString()));
+                String tier = String.valueOf(cell.getValue().getOrDefault("tier", "GOLD"));
+                return new SimpleStringProperty(isPurchased ? "PURCHASED|" + tier : "TRIAL|" + tier);
+            });
+            colPurchased.setCellFactory(col -> new TableCell<>() {
+                @Override
+                protected void updateItem(String val, boolean empty) {
+                    super.updateItem(val, empty);
+                    if (empty || val == null) {
+                        setGraphic(null);
+                        setText(null);
+                        return;
+                    }
+                    String[] parts = val.split("\\|", 2);
+                    boolean isPurchased = "PURCHASED".equalsIgnoreCase(parts[0]);
+                    String tier = parts.length > 1 ? parts[1] : "GOLD";
+                    Label badge = new Label(isPurchased ? "✅ " + tier + " • Purchased" : "🟡 " + tier + " • Unpaid/Trial");
+                    badge.getStyleClass().addAll("status-badge", isPurchased ? "status-positive" : "status-warning");
+                    setGraphic(badge);
+                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                    setAlignment(Pos.CENTER);
+                }
+            });
+        }
 
         colMachineId.setCellValueFactory(cell -> {
             String m = String.valueOf(cell.getValue().getOrDefault("machine_id", ""));
@@ -314,9 +345,17 @@ public class ClientRegistryController implements ScreenLifecycle {
                     badge.getStyleClass().addAll("status-badge", "status-neutral");
                 }
 
+                badge.setCursor(javafx.scene.Cursor.HAND);
+                badge.setOnMouseClicked(event -> {
+                    if (getTableRow() != null && getTableRow().getItem() != null) {
+                        showUserTelemetryDialog(getTableRow().getItem());
+                    }
+                });
+
                 String tooltipText = "Active Connected Users: " + activeCount + " of " + maxUsers +
                         (ver.isBlank() ? "" : "\nERP Client Version: " + ver) +
-                        (hbStr.isBlank() ? "" : "\nLast Live Heartbeat: " + hbStr);
+                        (hbStr.isBlank() ? "" : "\nLast Live Heartbeat: " + hbStr) +
+                        "\n\n👉 Click to inspect live active sessions & user work-hours";
                 Tooltip tooltip = new Tooltip(tooltipText);
                 Tooltip.install(badge, tooltip);
 
@@ -368,6 +407,20 @@ public class ClientRegistryController implements ScreenLifecycle {
                 actionsBtn.setGraphic(IconFactory.compactIcon("actions", 14));
                 actionsBtn.setContentDisplay(ContentDisplay.LEFT);
                 actionsBtn.setGraphicTextGap(6);
+
+                MenuItem miLiveUsers = new MenuItem("Inspect Live Users & Work Hours");
+                miLiveUsers.setGraphic(IconFactory.compactIcon("users", 13));
+                miLiveUsers.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) showUserTelemetryDialog(item);
+                });
+
+                MenuItem miKickUsers = new MenuItem("Kick Active User Sessions");
+                miKickUsers.setGraphic(IconFactory.compactIcon("delete", 13));
+                miKickUsers.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) handleKickAllClientSessions(item);
+                });
 
                 MenuItem miEditAccess = new MenuItem("Edit Plan & Module Access");
                 miEditAccess.setGraphic(IconFactory.compactIcon("edit", 13));
@@ -439,7 +492,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) handleRevokeClient(item);
                 });
 
-                actionsBtn.getItems().addAll(miEditAccess, miRenew, miRenewCustom, miCopyToken, miExport, miEmail, miWhatsApp, miDispatchAll, miTestUrl, new SeparatorMenuItem(), miRevoke);
+                actionsBtn.getItems().addAll(miLiveUsers, miKickUsers, miEditAccess, miRenew, miRenewCustom, miCopyToken, miExport, miEmail, miWhatsApp, miDispatchAll, miTestUrl, new SeparatorMenuItem(), miRevoke);
                 IconFactory.decorateActionMenu(actionsBtn);
             }
 
@@ -937,6 +990,32 @@ public class ClientRegistryController implements ScreenLifecycle {
             java.util.Set<String> expanded = org.example.shared.PermissionCatalog.expandFeatureTokens(List.of(raw));
             long activeCount = allMods.stream().filter(m -> expanded.contains(m.key())).count();
             return new SimpleStringProperty(activeCount + " / " + allMods.size() + " Modules Active");
+        });
+        colPlanFeatures.setCellFactory(col -> new TableCell<>() {
+            private final Hyperlink link = new Hyperlink();
+            {
+                link.setGraphic(IconFactory.compactIcon("permission", 12));
+                link.getStyleClass().addAll("feature-hyperlink", "metric-hyperlink");
+                link.setCursor(javafx.scene.Cursor.HAND);
+                link.setOnAction(e -> {
+                    if (getTableRow() != null && getTableRow().getItem() != null) {
+                        showPlanEditDialog(getTableRow().getItem(), true);
+                    }
+                });
+            }
+            @Override
+            protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                if (empty || val == null) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    link.setText(val);
+                    setGraphic(link);
+                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                    setAlignment(Pos.CENTER_LEFT);
+                }
+            }
         });
 
         colPlanStatus.setCellValueFactory(cell -> {
@@ -2084,6 +2163,337 @@ public class ClientRegistryController implements ScreenLifecycle {
             }
         }
         return org.example.service.PermissionService.fallbackFeaturesForTier(tier);
+    }
+
+    private void handleKickAllClientSessions(Map<String, Object> client) {
+        if (client == null) return;
+        String rawMachine = String.valueOf(client.getOrDefault("machine_id", ""));
+        String company = String.valueOf(client.getOrDefault("company_name", "Client"));
+        boolean confirm = AppDialogService.confirm(
+                tableClients,
+                "Kick Active Sessions",
+                "Terminate active sessions for " + company + "?",
+                "This will immediately invalidate all active sessions for terminal ID: " + rawMachine + " and force all logged-in users to disconnect."
+        );
+        if (!confirm) return;
+        Thread.ofVirtual().name("kick-client-sessions-worker").start(() -> {
+            try {
+                api.kickClientUser(rawMachine, "ALL");
+                Platform.runLater(() -> {
+                    AppDialogService.success(
+                            tableClients,
+                            "Sessions Terminated",
+                            "All active user sessions on workstation '" + company + "' have been terminated successfully."
+                    );
+                    loadDataAsync();
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> AppDialogService.error(
+                        tableClients,
+                        "Action Failed",
+                        "Could Not Kick Sessions",
+                        ex.getMessage()
+                ));
+            }
+        });
+    }
+
+    @FXML
+    private void handleTestRogueAlert() {
+        boolean confirm = AppDialogService.confirm(
+                tableClients,
+                "Test Rogue Security Alert",
+                "Dispatch Simulated Rogue Alert?",
+                "This will trigger an authentic security alert (Email + WhatsApp) with a live 1-click Kick URL to Super Admin."
+        );
+        if (!confirm) return;
+        Thread.ofVirtual().name("test-rogue-alert-worker").start(() -> {
+            try {
+                api.triggerTestRogueAlert();
+                Platform.runLater(() -> AppDialogService.success(
+                        tableClients,
+                        "Security Alert Dispatched",
+                        "A simulated unauthorized workstation alert with a 1-click Remote Kill link has been sent to Super Admin's Email and WhatsApp."
+                ));
+            } catch (Exception ex) {
+                Platform.runLater(() -> AppDialogService.error(
+                        tableClients,
+                        "Alert Dispatch Failed",
+                        "Could Not Dispatch Test Alert",
+                        ex.getMessage()
+                ));
+            }
+        });
+    }
+
+    private void showUserTelemetryDialog(Map<String, Object> client) {
+        if (client == null) return;
+        String rawMachine = String.valueOf(client.getOrDefault("machine_id", ""));
+        String company = String.valueOf(client.getOrDefault("company_name", "Client"));
+        String tier = String.valueOf(client.getOrDefault("tier", "GOLD"));
+        boolean isPurchased = !"false".equalsIgnoreCase(String.valueOf(client.getOrDefault("is_purchased", "true")));
+
+        Dialog<Void> dialog = new OwnedDialog<>(tableClients);
+        dialog.setTitle("Live Users & Work-Hours Telemetry — " + company);
+        dialog.setHeaderText("Real-time active sessions, daily login/logout timestamps, and work hours for " + company);
+
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox rootBox = new VBox(12);
+        rootBox.setPadding(new Insets(10, 12, 10, 12));
+        rootBox.setMinWidth(1000);
+        rootBox.setPrefWidth(1060);
+        rootBox.setMinHeight(460);
+
+        // Metadata Info Bar
+        HBox infoBar = new HBox(12);
+        infoBar.setAlignment(Pos.CENTER_LEFT);
+        infoBar.getStyleClass().addAll("approved-card", "clients-search-strip");
+        infoBar.setPadding(new Insets(8, 12, 8, 12));
+
+        Label lblComp = new Label("Company: " + company);
+        lblComp.getStyleClass().add("metric-label");
+        Label lblMach = new Label("Terminal ID: " + rawMachine);
+        lblMach.getStyleClass().addAll("metric-label", "code-label");
+        Label lblPlan = new Label("Plan: " + tier + (isPurchased ? " • Purchased" : " • Trial"));
+        lblPlan.getStyleClass().addAll("status-badge", isPurchased ? "status-positive" : "status-warning");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button btnRefreshUsers = new Button("Refresh");
+        btnRefreshUsers.setGraphic(IconFactory.compactIcon("refresh", 13));
+        btnRefreshUsers.getStyleClass().addAll("approved-button", "approved-secondary-button");
+
+        infoBar.getChildren().addAll(lblComp, new Separator(javafx.geometry.Orientation.VERTICAL),
+                lblMach, new Separator(javafx.geometry.Orientation.VERTICAL),
+                lblPlan, spacer, btnRefreshUsers);
+
+        // Telemetry Table
+        TableView<Map<String, Object>> tableUsers = new TableView<>();
+        tableUsers.setPrefHeight(320);
+        tableUsers.getStyleClass().addAll("approved-table", "clients-directory-table");
+        DynamicTableLayoutManager.install(tableUsers);
+
+        TableColumn<Map<String, Object>, String> colUser = new TableColumn<>("Username");
+        colUser.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("username", "-"))));
+        colUser.setMinWidth(120);
+        colUser.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.16));
+
+        TableColumn<Map<String, Object>, String> colRole = new TableColumn<>("Role");
+        colRole.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("role_code", "USER"))));
+        colRole.setMinWidth(130);
+        colRole.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.14));
+
+        TableColumn<Map<String, Object>, String> colFirstLogin = new TableColumn<>("First Login Today");
+        colFirstLogin.setCellValueFactory(c -> {
+            Object fl = c.getValue().get("first_login_today");
+            return new SimpleStringProperty(fl != null ? BusinessClock.formatTimestamp(fl.toString()) : "-");
+        });
+        colFirstLogin.setMinWidth(140);
+        colFirstLogin.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.16));
+
+        TableColumn<Map<String, Object>, String> colLastLogout = new TableColumn<>("Last Logout / Disconnect");
+        colLastLogout.setCellValueFactory(c -> {
+            boolean active = Boolean.TRUE.equals(c.getValue().get("is_active_now"));
+            if (active) return new SimpleStringProperty("🟢 Active Now");
+            Object lo = c.getValue().get("last_logout_today");
+            return new SimpleStringProperty(lo != null ? BusinessClock.formatTimestamp(lo.toString()) : "Disconnected");
+        });
+        colLastLogout.setMinWidth(170);
+        colLastLogout.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.18));
+
+        TableColumn<Map<String, Object>, String> colHours = new TableColumn<>("Total Work Today");
+        colHours.setCellValueFactory(c -> {
+            Object secObj = c.getValue().get("total_seconds_today");
+            long totalSec = 0;
+            if (secObj instanceof Number n) totalSec = n.longValue();
+            long hrs = totalSec / 3600;
+            long mins = (totalSec % 3600) / 60;
+            return new SimpleStringProperty(String.format("%d hrs %d mins", hrs, mins));
+        });
+        colHours.setMinWidth(120);
+        colHours.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.14));
+
+        TableColumn<Map<String, Object>, String> colActiveStatus = new TableColumn<>("Status");
+        colActiveStatus.setCellValueFactory(c -> {
+            boolean active = Boolean.TRUE.equals(c.getValue().get("is_active_now"));
+            return new SimpleStringProperty(active ? "ONLINE" : "OFFLINE");
+        });
+        colActiveStatus.setMinWidth(90);
+        colActiveStatus.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.10));
+        colActiveStatus.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String s, boolean empty) {
+                super.updateItem(s, empty);
+                if (empty || s == null) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+                boolean on = "ONLINE".equalsIgnoreCase(s);
+                Label badge = new Label(on ? "🟢 Online" : "⚪ Offline");
+                badge.getStyleClass().addAll("status-badge", on ? "status-positive" : "status-neutral");
+                setGraphic(badge);
+                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                setAlignment(Pos.CENTER);
+            }
+        });
+
+        TableColumn<Map<String, Object>, Void> colUserActions = new TableColumn<>("Actions");
+        colUserActions.setMinWidth(130);
+        colUserActions.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.12));
+        colUserActions.setCellFactory(col -> new TableCell<>() {
+            private final MenuButton actionsBtn = new MenuButton("Actions");
+            {
+                actionsBtn.getStyleClass().addAll("table-action-menu", "approved-row-action");
+                actionsBtn.setGraphic(IconFactory.compactIcon("actions", 12));
+                actionsBtn.setContentDisplay(ContentDisplay.LEFT);
+                actionsBtn.setGraphicTextGap(4);
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                } else {
+                    Map<String, Object> user = getTableRow().getItem();
+                    String uName = String.valueOf(user.get("username"));
+                    int lockedVal = user.get("is_locked") instanceof Number n ? n.intValue() : 0;
+                    boolean isLocked = lockedVal == 1;
+                    int activeVal = user.get("is_user_active") instanceof Number n ? n.intValue() : 1;
+                    boolean isUserActive = activeVal == 1;
+
+                    MenuItem miKick = new MenuItem("Kick Session");
+                    miKick.setGraphic(IconFactory.compactIcon("delete", 12));
+                    miKick.setOnAction(e -> {
+                        boolean confirm = AppDialogService.confirm(tableClients, "Kick Session", "Kick user " + uName + "?", "This will terminate the active session immediately.");
+                        if (confirm) {
+                            Thread.ofVirtual().start(() -> {
+                                try {
+                                    api.kickClientUser(rawMachine, uName);
+                                    Platform.runLater(() -> {
+                                        AppDialogService.success(tableClients, "User Kicked", "Active session for " + uName + " terminated.");
+                                        loadUserTelemetry(tableUsers, rawMachine);
+                                    });
+                                } catch (Exception ex) {
+                                    Platform.runLater(() -> AppDialogService.error(tableClients, "Kick Failed", ex.getMessage()));
+                                }
+                            });
+                        }
+                    });
+
+                    MenuItem miLockUnlock;
+                    if (isLocked) {
+                        miLockUnlock = new MenuItem("Unlock Account");
+                        miLockUnlock.setGraphic(IconFactory.compactIcon("check", 12));
+                        miLockUnlock.setOnAction(e -> {
+                            boolean confirm = AppDialogService.confirm(tableClients, "Unlock User", "Unlock account " + uName + "?", "This will allow the user to log in again.");
+                            if (confirm) {
+                                Thread.ofVirtual().start(() -> {
+                                    try {
+                                        api.unlockClientUser(rawMachine, uName);
+                                        Platform.runLater(() -> {
+                                            AppDialogService.success(tableClients, "User Unlocked", "Account " + uName + " is now unlocked.");
+                                            loadUserTelemetry(tableUsers, rawMachine);
+                                        });
+                                    } catch (Exception ex) {
+                                        Platform.runLater(() -> AppDialogService.error(tableClients, "Unlock Failed", ex.getMessage()));
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        miLockUnlock = new MenuItem("Lock Account");
+                        miLockUnlock.setGraphic(IconFactory.compactIcon("lock", 12));
+                        miLockUnlock.setOnAction(e -> {
+                            boolean confirm = AppDialogService.confirm(tableClients, "Lock User", "Lock account " + uName + "?", "This will block login access until unlocked.");
+                            if (confirm) {
+                                Thread.ofVirtual().start(() -> {
+                                    try {
+                                        api.lockClientUser(rawMachine, uName);
+                                        Platform.runLater(() -> {
+                                            AppDialogService.success(tableClients, "User Locked", "Account " + uName + " is now locked.");
+                                            loadUserTelemetry(tableUsers, rawMachine);
+                                        });
+                                    } catch (Exception ex) {
+                                        Platform.runLater(() -> AppDialogService.error(tableClients, "Lock Failed", ex.getMessage()));
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    MenuItem miActiveToggle;
+                    if (isUserActive) {
+                        miActiveToggle = new MenuItem("Deactivate User");
+                        miActiveToggle.setGraphic(IconFactory.compactIcon("cancel", 12));
+                        miActiveToggle.setOnAction(e -> {
+                            boolean confirm = AppDialogService.confirm(tableClients, "Deactivate User", "Deactivate user " + uName + "?", "This disables the account and kicks all sessions.");
+                            if (confirm) {
+                                Thread.ofVirtual().start(() -> {
+                                    try {
+                                        api.setUserActiveStatus(rawMachine, uName, false);
+                                        Platform.runLater(() -> {
+                                            AppDialogService.success(tableClients, "User Deactivated", "Account " + uName + " has been deactivated.");
+                                            loadUserTelemetry(tableUsers, rawMachine);
+                                        });
+                                    } catch (Exception ex) {
+                                        Platform.runLater(() -> AppDialogService.error(tableClients, "Deactivation Failed", ex.getMessage()));
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        miActiveToggle = new MenuItem("Activate User");
+                        miActiveToggle.setGraphic(IconFactory.compactIcon("check", 12));
+                        miActiveToggle.setOnAction(e -> {
+                            boolean confirm = AppDialogService.confirm(tableClients, "Activate User", "Activate user " + uName + "?", "This will re-enable the user account.");
+                            if (confirm) {
+                                Thread.ofVirtual().start(() -> {
+                                    try {
+                                        api.setUserActiveStatus(rawMachine, uName, true);
+                                        Platform.runLater(() -> {
+                                            AppDialogService.success(tableClients, "User Activated", "Account " + uName + " is now active.");
+                                            loadUserTelemetry(tableUsers, rawMachine);
+                                        });
+                                    } catch (Exception ex) {
+                                        Platform.runLater(() -> AppDialogService.error(tableClients, "Activation Failed", ex.getMessage()));
+                                    }
+                                });
+                            }
+                        });
+                    }
+
+                    actionsBtn.getItems().setAll(miKick, miLockUnlock, miActiveToggle);
+                    setGraphic(actionsBtn);
+                    setAlignment(Pos.CENTER);
+                }
+            }
+        });
+
+        tableUsers.getColumns().addAll(colUser, colRole, colFirstLogin, colLastLogout, colHours, colActiveStatus, colUserActions);
+
+        btnRefreshUsers.setOnAction(e -> loadUserTelemetry(tableUsers, rawMachine));
+        loadUserTelemetry(tableUsers, rawMachine);
+
+        rootBox.getChildren().addAll(infoBar, tableUsers);
+        dialog.getDialogPane().setContent(rootBox);
+        dialog.showAndWait();
+    }
+
+    private void loadUserTelemetry(TableView<Map<String, Object>> table, String machineId) {
+        Thread.ofVirtual().start(() -> {
+            try {
+                List<Map<String, Object>> users = api.getClientUsers(machineId);
+                Platform.runLater(() -> {
+                    table.setItems(FXCollections.observableArrayList(users != null ? users : List.of()));
+                });
+            } catch (Exception ex) {
+                log.warn("Could not load user telemetry for {}: {}", machineId, ex.getMessage());
+            }
+        });
     }
 
     @Override

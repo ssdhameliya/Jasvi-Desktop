@@ -47,6 +47,24 @@ public class AuthService {
 
     @Transactional
     public AuthDtos.LoginResponse login(AuthDtos.LoginRequest request, String sourceAddress) {
+        return login(request, sourceAddress, null);
+    }
+
+    @Transactional
+    public AuthDtos.LoginResponse login(AuthDtos.LoginRequest request, String sourceAddress, String machineId) {
+        if (machineId != null && !machineId.isBlank()) {
+            String normMachine = machineId.replace("-", "").trim().toUpperCase(java.util.Locale.ROOT);
+            try {
+                var blockedRows = db.queryForList(
+                        "SELECT status, kick_reason FROM licensed_client_registry WHERE machine_id = ? AND status IN ('BLOCKED', 'REVOKED')",
+                        normMachine
+                );
+                if (!blockedRows.isEmpty()) {
+                    String reason = String.valueOf(blockedRows.getFirst().getOrDefault("kick_reason", "Blacklisted by Super Admin"));
+                    return failedLogin("Access Blocked: This workstation (ID: " + machineId + ") has been suspended/blacklisted by Jasvi Platform Authority. Reason: " + reason);
+                }
+            } catch (Exception ignored) {}
+        }
         String identity = request == null || request.identity() == null ? "" : request.identity().trim();
         String raw = request == null || request.password() == null ? "" : request.password();
         String source = normalizeLoginSource(sourceAddress);

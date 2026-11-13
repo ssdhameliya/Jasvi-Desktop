@@ -1423,8 +1423,8 @@
 }
 .table-view .column-header .label {
     -fx-padding: 0 8 0 8;
-    -fx-alignment: CENTER;
-    -fx-graphic-text-gap: 6px;
+    -fx-alignment: CENTER-LEFT;
+    -fx-graphic-text-gap: 4px;
     -fx-content-display: left;
 }
 .check-box-table-cell {
@@ -1470,10 +1470,12 @@
 }
 .table-view .column-header .erp-table-header-content {
 -fx-alignment: CENTER-LEFT;
-    -fx-padding: 0 4px 0 2px;
-    -fx-spacing: 6px;
+    -fx-padding: 0 2px 0 2px;
+    -fx-spacing: 4px;
 }
 .table-view .column-header .erp-table-header-label {
+-fx-alignment: CENTER-LEFT;
+-fx-text-alignment: left;
 -fx-text-overrun: ELLIPSIS;
     -fx-font-weight: 700;
 }

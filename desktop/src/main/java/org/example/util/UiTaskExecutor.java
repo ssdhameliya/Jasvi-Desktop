@@ -398,7 +398,7 @@ public final class UiTaskExecutor {
         try {
             PerformanceMonitor.event("background-work-failed", key + " | " + safeMessage(error));
             DesktopLog.error("UiTaskExecutor", "READ_FAILED", key + " | " + safeMessage(error), error);
-            if (!org.example.api.ApiSession.isEstablished() || isAuthenticationFailure(error)) {
+            if (!isPreAuthKey(key) && (!org.example.api.ApiSession.isEstablished() || isAuthenticationFailure(error))) {
                 logSkipped(key, token, "suppressed-after-logout");
                 return;
             }
@@ -406,6 +406,15 @@ public final class UiTaskExecutor {
         } finally {
             cleanupReadIfCurrent(key, token);
         }
+    }
+
+    private static boolean isPreAuthKey(String key) {
+        if (key == null) return false;
+        String lower = key.toLowerCase(java.util.Locale.ROOT);
+        return lower.startsWith("login-")
+                || lower.startsWith("registration-")
+                || lower.startsWith("register-")
+                || lower.startsWith("password-reset-");
     }
 
     private static boolean isAuthenticationFailure(Throwable error) {
@@ -449,7 +458,7 @@ public final class UiTaskExecutor {
             Consumer<Throwable> onFailure) {
         try {
             PerformanceMonitor.event("background-action-failed", key + " | " + safeMessage(error));
-            if (!org.example.api.ApiSession.isEstablished() || isAuthenticationFailure(error)) {
+            if (!isPreAuthKey(key) && (!org.example.api.ApiSession.isEstablished() || isAuthenticationFailure(error))) {
                 DesktopLog.info("UiTaskExecutor", "ACTION_SUPPRESSED_UNAUTHENTICATED",
                         key + " | Session not established or expired: " + safeMessage(error));
                 return;

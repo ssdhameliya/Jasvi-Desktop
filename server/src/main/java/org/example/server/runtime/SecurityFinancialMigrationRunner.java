@@ -225,7 +225,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_50_1__offline_postgresql_sync_schema",
                     "db/migration/V11_0_50_1__offline_postgresql_sync_schema.sql"),
             new Migration("V11_0_55__agreement_based_licensing_entitlements",
-                    "db/migration/V11_0_55__agreement_based_licensing_entitlements.sql")
+                    "db/migration/V11_0_55__agreement_based_licensing_entitlements.sql"),
+            new Migration("V11_0_60__client_user_work_session_telemetry",
+                    "db/migration/V11_0_60__client_user_work_session_telemetry.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

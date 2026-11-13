@@ -176,4 +176,47 @@ public class ClientRegistryController {
         requireSuperAdmin();
         return registryService.deleteLead(id);
     }
+
+    @GetMapping("/clients/{machineId}/users")
+    public List<Map<String, Object>> getClientUsers(@PathVariable String machineId) {
+        requireSuperAdmin();
+        return registryService.getClientUserTelemetry(machineId);
+    }
+
+    @PostMapping("/clients/{machineId}/users/{username}/kick")
+    public Map<String, Object> kickUser(
+            @PathVariable String machineId,
+            @PathVariable String username
+    ) {
+        requireSuperAdmin();
+        return registryService.kickClientUserSession(machineId, username);
+    }
+
+    @PostMapping("/clients/{machineId}/users/{username}/lock")
+    public Map<String, Object> lockUser(
+            @PathVariable String machineId,
+            @PathVariable String username
+    ) {
+        requireSuperAdmin();
+        return registryService.lockClientUser(machineId, username);
+    }
+
+    @PostMapping("/clients/{machineId}/users/{username}/unlock")
+    public Map<String, Object> unlockUser(
+            @PathVariable String machineId,
+            @PathVariable String username
+    ) {
+        requireSuperAdmin();
+        return registryService.unlockClientUser(machineId, username);
+    }
+
+    @PostMapping("/clients/{machineId}/users/{username}/active")
+    public Map<String, Object> setUserActive(
+            @PathVariable String machineId,
+            @PathVariable String username,
+            @RequestParam(defaultValue = "true") boolean active
+    ) {
+        requireSuperAdmin();
+        return registryService.setUserActiveStatus(machineId, username, active);
+    }
 }

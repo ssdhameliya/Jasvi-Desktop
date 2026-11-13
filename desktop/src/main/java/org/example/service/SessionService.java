@@ -36,6 +36,10 @@ public final class SessionService {
         return current != null && isAdminRole(current.getRole());
     }
 
+    public static String currentRole() {
+        return current != null ? canonicalRole(current.getRole()) : "USER";
+    }
+
     public static boolean isSuperAdmin() {
         return current != null && ("SUPER_ADMIN".equalsIgnoreCase(current.getRole()) || "superadmin".equalsIgnoreCase(current.getUsername()));
     }

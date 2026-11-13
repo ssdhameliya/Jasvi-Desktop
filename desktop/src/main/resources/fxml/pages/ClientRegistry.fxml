@@ -17,6 +17,8 @@
                    styleClass="approved-page-subtitle"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="btnTestAlert" text="Test Rogue Alert" onAction="#handleTestRogueAlert"
+                styleClass="approved-button,approved-secondary-button"/>
         <Button fx:id="btnRegisterClient" text="+ Register New Client" onAction="#handleRegisterClient"
                 styleClass="approved-button,approved-primary-button"/>
         <Button fx:id="btnRefresh" text="Refresh" onAction="#handleRefresh"
@@ -112,6 +114,7 @@
                             <columns>
                                 <TableColumn fx:id="colStatus" text="Status"/>
                                 <TableColumn fx:id="colCompany" text="Client Company"/>
+                                <TableColumn fx:id="colPurchased" text="Plan &amp; License"/>
                                 <TableColumn fx:id="colMachineId" text="Machine Hardware ID"/>
                                 <TableColumn fx:id="colRemoteUrl" text="Remote Support URL"/>
                                 <TableColumn fx:id="colLiveStatus" text="Live Telemetry"/>

@@ -20,7 +20,7 @@ public class OwnedAlert extends Alert {
     }
 
     private void prepare() {
-        initStyle(PlatformUiSupport.isMac() ? StageStyle.UTILITY : StageStyle.TRANSPARENT);
+        initStyle(StageStyle.TRANSPARENT);
         Window owner = DialogOwnerResolver.resolve();
         if (owner != null) {
             initOwner(owner);

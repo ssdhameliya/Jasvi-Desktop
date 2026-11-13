@@ -699,9 +699,11 @@ public final class IconFactory {
         title.getStyleClass().add(multiWord ? "erp-table-header-multi-word" : "erp-table-header-single-word");
         title.getProperties().put("erp.header.semantic", normalized);
         title.setWrapText(multiWord);
+        title.setPadding(javafx.geometry.Insets.EMPTY);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
-        HBox header = new HBox(6, compactIcon(normalized, 14), title);
+        title.setAlignment(Pos.CENTER_LEFT);
+        HBox header = new HBox(4, compactIcon(normalized, 14), title);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setMinWidth(0);
         header.setMaxWidth(Double.MAX_VALUE);
@@ -734,9 +736,11 @@ public final class IconFactory {
         title.getStyleClass().add(multiWord ? "erp-table-header-multi-word" : "erp-table-header-single-word");
         title.getProperties().put("erp.header.semantic", normalize(semantic));
         title.setWrapText(multiWord);
+        title.setPadding(javafx.geometry.Insets.EMPTY);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
-        HBox header = new HBox(6, compactIcon(semantic, 14), title);
+        title.setAlignment(Pos.CENTER_LEFT);
+        HBox header = new HBox(4, compactIcon(semantic, 14), title);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setMinWidth(0);
         header.setMaxWidth(Double.MAX_VALUE);
@@ -1291,7 +1295,7 @@ public final class IconFactory {
         if (value.contains("remote access") || value.contains("remote sharing") || value.contains("tunnel")) return "server";
         if (value.contains("use my company") || value.contains("my company")) return "business";
         if (value.contains("current machine") || value.contains("machine id")) return "application";
-        if (value.contains("license") || value.contains("licensing") || value.contains("subscription") || value.contains("activate")) return "security";
+        if (value.contains("license") || value.contains("licensing") || value.contains("subscription") || value.contains("activate") || value.contains("rogue") || value.contains("alert")) return "security";
         if (value.contains("3d showcase") || value.contains("showcase")) return "showcase";
         if (value.contains("studio")) return "view";
         if (value.contains("system diagnostics") || value.contains("diagnostics") || value.contains("diagnostic")) return "diagnostic";

@@ -44,14 +44,14 @@ public final class AppDialogRenderer {
         pane.getProperties().put(INSTALLED, true);
         pane.sceneProperty().addListener((obs, oldScene, scene) -> {
             if (scene != null) {
-                if (!PlatformUiSupport.isMac()) scene.setFill(Color.TRANSPARENT);
+                scene.setFill(Color.TRANSPARENT);
                 applyTheme(dialog, scene);
             }
         });
         dialog.addEventHandler(DialogEvent.DIALOG_SHOWING, event -> {
             Scene scene = pane.getScene();
             if (scene != null) {
-                if (!PlatformUiSupport.isMac()) scene.setFill(Color.TRANSPARENT);
+                scene.setFill(Color.TRANSPARENT);
                 applyTheme(dialog, scene);
                 PlatformUiSupport.installResponsiveClasses(scene);
             }

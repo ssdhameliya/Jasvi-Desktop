@@ -14,7 +14,7 @@ public class OwnedChoiceDialog<T> extends ChoiceDialog<T> {
 
     private void prepare() {
         Window owner = DialogOwnerResolver.resolve();
-        initStyle(PlatformUiSupport.isMac() ? StageStyle.UTILITY : StageStyle.TRANSPARENT);
+        initStyle(StageStyle.TRANSPARENT);
         if (owner != null) { initOwner(owner); initModality(Modality.WINDOW_MODAL); }
         else initModality(Modality.APPLICATION_MODAL);
         AppDialogRenderer.install(this);

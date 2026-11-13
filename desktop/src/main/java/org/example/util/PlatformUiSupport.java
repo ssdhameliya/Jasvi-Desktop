@@ -95,8 +95,7 @@ public final class PlatformUiSupport {
      */
     public static void configureDialogStage(Stage stage, Node ownerNode, String title, boolean resizable) {
         if (stage == null) return;
-        if (isMac()) stage.initStyle(StageStyle.UTILITY);
-        else stage.initStyle(StageStyle.TRANSPARENT);
+        stage.initStyle(StageStyle.TRANSPARENT);
         Window owner = ownerNode != null && ownerNode.getScene() != null
             ? ownerNode.getScene().getWindow() : DialogOwnerResolver.resolve(ownerNode);
         if (owner != null) {
@@ -123,7 +122,7 @@ public final class PlatformUiSupport {
         Window resolvedOwner = owner != null ? owner : stage.getOwner();
         if (resolvedOwner == null) resolvedOwner = DialogOwnerResolver.resolve();
 
-        if (!isMac()) scene.setFill(Color.TRANSPARENT);
+        scene.setFill(Color.TRANSPARENT);
         ThemeManager.applyTheme(scene, resolvedOwner);
         installResponsiveClasses(scene);
         Parent root = scene.getRoot();

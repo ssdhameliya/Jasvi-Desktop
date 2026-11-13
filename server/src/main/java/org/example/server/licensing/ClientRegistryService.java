@@ -69,7 +69,8 @@ public class ClientRegistryService {
     public List<Map<String, Object>> getClients(String query, String status) {
         StringBuilder sql = new StringBuilder("SELECT id, company_name, machine_id, contact_person, phone, email, " +
                 "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, " +
-                "remote_url, last_heartbeat_at, client_version, active_users_count, features " +
+                "remote_url, last_heartbeat_at, client_version, active_users_count, features, " +
+                "COALESCE(is_purchased, true) AS is_purchased, last_alert_sent_at, kicked_at, kick_reason " +
                 "FROM licensed_client_registry WHERE 1=1 ");
         List<Object> params = new ArrayList<>();
 
@@ -96,7 +97,8 @@ public class ClientRegistryService {
         List<Map<String, Object>> list = jdbc.queryForList(
                 "SELECT id, company_name, machine_id, contact_person, phone, email, " +
                         "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, " +
-                        "remote_url, last_heartbeat_at, client_version, active_users_count, features " +
+                        "remote_url, last_heartbeat_at, client_version, active_users_count, features, " +
+                        "COALESCE(is_purchased, true) AS is_purchased, last_alert_sent_at, kicked_at, kick_reason " +
                         "FROM licensed_client_registry WHERE id = ?", id
         );
         if (list.isEmpty()) {
@@ -621,8 +623,21 @@ public class ClientRegistryService {
 
     @Transactional
     public Map<String, Object> recordHeartbeat(String rawMachine, String clientVersion, Integer activeUsers, String remoteUrl) {
+        return recordHeartbeat(rawMachine, clientVersion, activeUsers, remoteUrl, null, null, null);
+    }
+
+    @Transactional
+    public Map<String, Object> recordHeartbeat(String rawMachine, String clientVersion, Integer activeUsers, String remoteUrl,
+                                               String companyName, String clientIp, List<Map<String, Object>> users) {
         if (rawMachine == null || rawMachine.isBlank()) return Map.of("status", "UNKNOWN_MACHINE");
         String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+
+        // 1. Process multi-user session & work hours telemetry
+        if (users != null && !users.isEmpty()) {
+            for (Map<String, Object> user : users) {
+                recordSingleUserTelemetry(machineId, companyName, user);
+            }
+        }
 
         int resolvedActiveUsers = 1;
         if (activeUsers != null && activeUsers > 1) {
@@ -682,22 +697,387 @@ public class ClientRegistryService {
         }
 
         if (updated == 0) {
-            return Map.of("status", "UNREGISTERED", "machineId", machineId);
+            // Unregistered / Rogue instance detected! Trigger Super Admin security alert
+            sendRogueClientSecurityAlerts(machineId, companyName, clientVersion, clientIp, users);
+            return Map.of("status", "UNREGISTERED", "machineId", machineId, "isPurchased", false);
         }
 
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT id, company_name, tier, status, valid_until, remote_url, last_heartbeat_at, client_version FROM licensed_client_registry WHERE machine_id = ?",
+                "SELECT id, company_name, tier, status, valid_until, remote_url, last_heartbeat_at, client_version, " +
+                        "COALESCE(is_purchased, true) AS is_purchased, kicked_at, kick_reason " +
+                        "FROM licensed_client_registry WHERE machine_id = ?",
                 machineId
         );
         Map<String, Object> client = rows.getFirst();
+        String currentStatus = String.valueOf(client.get("status"));
+
+        // If client is marked BLOCKED or KICKED, immediately alert the client
+        if ("BLOCKED".equalsIgnoreCase(currentStatus) || "KICKED".equalsIgnoreCase(currentStatus) || "REVOKED".equalsIgnoreCase(currentStatus)) {
+            return Map.of(
+                    "status", "BLOCKED",
+                    "machineId", machineId,
+                    "companyName", client.get("company_name"),
+                    "kickReason", client.getOrDefault("kick_reason", "Access revoked by administrator"),
+                    "isPurchased", false
+            );
+        }
+
+        boolean isPurchased = Boolean.TRUE.equals(client.get("is_purchased"));
+        // If not purchased or plan is NONE/TRIAL expired, trigger alert
+        if (!isPurchased || "NONE".equalsIgnoreCase(String.valueOf(client.get("tier")))) {
+            sendRogueClientSecurityAlerts(machineId, companyName, clientVersion, clientIp, users);
+        }
+
         return Map.of(
-                "status", client.get("status"),
+                "status", currentStatus,
                 "companyName", client.get("company_name"),
                 "tier", client.get("tier"),
                 "validUntil", String.valueOf(client.get("valid_until")),
                 "remoteUrl", client.get("remote_url") != null ? client.get("remote_url") : "",
-                "clientVersion", client.get("client_version") != null ? client.get("client_version") : ""
+                "clientVersion", client.get("client_version") != null ? client.get("client_version") : "",
+                "isPurchased", isPurchased
         );
+    }
+
+    private void recordSingleUserTelemetry(String machineId, String companyName, Map<String, Object> user) {
+        if (user == null || user.isEmpty()) return;
+        String username = String.valueOf(user.getOrDefault("username", "")).trim();
+        if (username.isBlank()) return;
+        String roleCode = String.valueOf(user.getOrDefault("roleCode", "USER")).trim();
+        long durationInc = user.get("durationSeconds") instanceof Number n ? n.longValue() : 30L;
+        boolean isLogout = Boolean.TRUE.equals(user.get("isLogout"));
+        boolean isActive = !isLogout && Boolean.TRUE.equals(user.getOrDefault("isActive", true));
+
+        try {
+            jdbc.update("""
+                INSERT INTO client_user_telemetry (
+                    machine_id, company_name, username, role_code, work_date,
+                    first_login_today, last_logout_today, last_heartbeat,
+                    total_seconds_today, is_active_now, updated_at
+                ) VALUES (
+                    ?, ?, ?, ?, CURRENT_DATE,
+                    CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP,
+                    ?, ?, CURRENT_TIMESTAMP
+                ) ON CONFLICT (machine_id, username, work_date) DO UPDATE SET
+                    last_heartbeat = CURRENT_TIMESTAMP,
+                    total_seconds_today = client_user_telemetry.total_seconds_today + EXCLUDED.total_seconds_today,
+                    is_active_now = EXCLUDED.is_active_now,
+                    last_logout_today = CASE WHEN EXCLUDED.is_active_now = false THEN CURRENT_TIMESTAMP ELSE client_user_telemetry.last_logout_today END,
+                    updated_at = CURRENT_TIMESTAMP
+            """, machineId, companyName != null ? companyName : "Client Workspace", username, roleCode,
+                    isLogout ? Instant.now() : null,
+                    durationInc, isActive);
+        } catch (Exception ex) {
+            log.warn("Could not record client user telemetry for {}: {}", username, ex.getMessage());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getClientUserTelemetry(String rawMachine) {
+        if (rawMachine == null || rawMachine.isBlank()) return List.of();
+        String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+        return jdbc.queryForList(
+                "SELECT t.id, t.machine_id, t.company_name, t.username, t.role_code, t.work_date, " +
+                        "t.first_login_today, t.last_logout_today, t.last_heartbeat, t.total_seconds_today, t.is_active_now, " +
+                        "COALESCE(u.locked, 0) AS is_locked, COALESCE(u.active, 1) AS is_user_active " +
+                        "FROM client_user_telemetry t " +
+                        "LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username) " +
+                        "WHERE t.machine_id = ? AND t.work_date = CURRENT_DATE " +
+                        "ORDER BY t.is_active_now DESC, t.last_heartbeat DESC",
+                machineId
+        );
+    }
+
+    @Transactional
+    public Map<String, Object> kickClientUserSession(String rawMachine, String username) {
+        if (rawMachine == null || rawMachine.isBlank() || username == null || username.isBlank()) {
+            return Map.of("success", false, "message", "Invalid machine or username");
+        }
+        String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+        jdbc.update(
+                "UPDATE client_user_telemetry SET is_active_now = false, last_logout_today = CURRENT_TIMESTAMP " +
+                        "WHERE machine_id = ? AND username = ? AND work_date = CURRENT_DATE",
+                machineId, username
+        );
+        try {
+            jdbc.update("DELETE FROM auth_session WHERE username = ?", username);
+        } catch (Exception ignored) {}
+        return Map.of("success", true, "machineId", machineId, "username", username, "status", "KICKED");
+    }
+
+    @Transactional
+    public Map<String, Object> lockClientUser(String rawMachine, String username) {
+        if (username == null || username.isBlank()) {
+            return Map.of("success", false, "message", "Invalid username");
+        }
+        jdbc.update("UPDATE users SET locked = 1, lock_reason = 'LICENSOR_ADMIN', row_version = row_version + 1 WHERE username = ?", username);
+        try {
+            jdbc.update("DELETE FROM auth_session WHERE username = ?", username);
+        } catch (Exception ignored) {}
+        if (rawMachine != null && !rawMachine.isBlank()) {
+            String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+            jdbc.update(
+                    "UPDATE client_user_telemetry SET is_active_now = false, last_logout_today = CURRENT_TIMESTAMP " +
+                            "WHERE machine_id = ? AND username = ? AND work_date = CURRENT_DATE",
+                    machineId, username
+            );
+        }
+        return Map.of("success", true, "username", username, "status", "LOCKED");
+    }
+
+    @Transactional
+    public Map<String, Object> unlockClientUser(String rawMachine, String username) {
+        if (username == null || username.isBlank()) {
+            return Map.of("success", false, "message", "Invalid username");
+        }
+        jdbc.update("UPDATE users SET locked = 0, lock_reason = 'NONE', failed_attempts = 0, mfa_failed_attempts = 0, row_version = row_version + 1 WHERE username = ?", username);
+        return Map.of("success", true, "username", username, "status", "UNLOCKED");
+    }
+
+    @Transactional
+    public Map<String, Object> setUserActiveStatus(String rawMachine, String username, boolean active) {
+        if (username == null || username.isBlank()) {
+            return Map.of("success", false, "message", "Invalid username");
+        }
+        jdbc.update("UPDATE users SET active = ?, row_version = row_version + 1 WHERE username = ?", active ? 1 : 0, username);
+        if (!active) {
+            try {
+                jdbc.update("DELETE FROM auth_session WHERE username = ?", username);
+            } catch (Exception ignored) {}
+            if (rawMachine != null && !rawMachine.isBlank()) {
+                String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+                jdbc.update(
+                        "UPDATE client_user_telemetry SET is_active_now = false, last_logout_today = CURRENT_TIMESTAMP " +
+                                "WHERE machine_id = ? AND username = ? AND work_date = CURRENT_DATE",
+                        machineId, username
+                );
+            }
+        }
+        return Map.of("success", true, "username", username, "status", active ? "ACTIVE" : "INACTIVE");
+    }
+
+    public void sendRogueClientSecurityAlerts(String machineId, String companyName, String clientVersion, String clientIp, List<Map<String, Object>> users) {
+        // Debounce check: only send 1 alert per machine per 24 hours
+        try {
+            List<Map<String, Object>> existing = jdbc.queryForList(
+                    "SELECT last_alert_sent_at FROM licensed_client_registry WHERE machine_id = ?", machineId
+            );
+            if (!existing.isEmpty() && existing.getFirst().get("last_alert_sent_at") != null) {
+                Instant lastAlert = toInstant(existing.getFirst().get("last_alert_sent_at"));
+                if (lastAlert != null && lastAlert.isAfter(Instant.now().minus(24, ChronoUnit.HOURS))) {
+                    return; // debounced within 24h
+                }
+            }
+        } catch (Exception ignored) {}
+
+        String token = java.util.UUID.randomUUID().toString().replace("-", "") + Long.toHexString(System.currentTimeMillis());
+        Instant expiresAt = Instant.now().plus(72, ChronoUnit.HOURS);
+
+        try {
+            jdbc.update(
+                    "INSERT INTO license_revocation_token (token, machine_id, company_name, client_ip, expires_at) VALUES (?, ?, ?, ?, ?)",
+                    token, machineId, (companyName != null && !companyName.isBlank()) ? companyName : "Unregistered Client",
+                    clientIp != null ? clientIp : "Unknown IP", expiresAt
+            );
+            jdbc.update("UPDATE licensed_client_registry SET last_alert_sent_at = CURRENT_TIMESTAMP WHERE machine_id = ?", machineId);
+        } catch (Exception ex) {
+            log.warn("Could not record revocation token: {}", ex.getMessage());
+        }
+
+        String baseUrl = getSetting("licensing.server_public_url", "https://erp.jasviindustries.in");
+        if (baseUrl.endsWith("/")) baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        String kickUrl = baseUrl + "/api/license/super/kick-client?token=" + token + "&machineId=" + machineId;
+
+        String safeCompany = (companyName != null && !companyName.isBlank()) ? companyName : "Unlicensed Local Instance";
+        String safeIp = (clientIp != null && !clientIp.isBlank()) ? clientIp : "Unknown Remote IP";
+        String safeVer = (clientVersion != null && !clientVersion.isBlank()) ? clientVersion : org.example.shared.RuntimeContract.appVersion();
+
+        StringBuilder userNames = new StringBuilder();
+        if (users != null && !users.isEmpty()) {
+            for (Map<String, Object> u : users) {
+                if (!userNames.isEmpty()) userNames.append(", ");
+                userNames.append(u.getOrDefault("username", "user"));
+            }
+        } else {
+            userNames.append("admin (offline local admin)");
+        }
+
+        final String finalUsers = userNames.toString();
+        // Virtual thread async execution (Rule 10: Outbound HTTP / SMTP decoupled from DB transactions)
+        Thread.ofVirtual().name("rogue-client-alert-dispatcher").start(() -> {
+            dispatchSuperAdminWhatsAppAlert(machineId, safeCompany, safeIp, safeVer, finalUsers, kickUrl);
+            dispatchSuperAdminEmailAlert(machineId, safeCompany, safeIp, safeVer, finalUsers, kickUrl);
+        });
+    }
+
+    private void dispatchSuperAdminWhatsAppAlert(String machineId, String company, String ip, String version, String users, String kickUrl) {
+        if (whatsappService == null) return;
+        String superAdminPhone = getSetting("licensing.superadmin_whatsapp", "");
+        if (superAdminPhone.isBlank()) {
+            try {
+                superAdminPhone = jdbc.queryForObject(
+                        "SELECT phone FROM users WHERE UPPER(COALESCE(role,'')) IN ('SUPER_ADMIN','ADMIN') AND phone IS NOT NULL AND BTRIM(phone) <> '' ORDER BY id ASC LIMIT 1",
+                        String.class
+                );
+            } catch (Exception ignored) {}
+        }
+        if (superAdminPhone == null || superAdminPhone.isBlank()) {
+            superAdminPhone = getSetting("licensing.support_phone", "9537544008");
+        }
+        if (superAdminPhone.isBlank()) return;
+
+        String text = "🚨 *JASVI SECURITY ALERT: UNLICENSED INSTANCE*\n\n" +
+                "An unauthorized local workstation has connected to the system without an active plan:\n\n" +
+                "🏢 *Company:* " + company + "\n" +
+                "💻 *Machine ID:* " + machineId + "\n" +
+                "🌐 *IP Address:* " + ip + "\n" +
+                "👤 *Reported Users:* " + users + "\n" +
+                "📦 *Version:* Jasvi-Desktop " + version + "\n" +
+                "⚠️ *Plan Status:* NO PLAN / UNLICENSED\n\n" +
+                "🛑 *INSTANT 1-CLICK KICK & BLOCK:*\n" +
+                "Tap below to immediately terminate sessions and permanently lock this workstation:\n" +
+                kickUrl;
+
+        try {
+            whatsappService.sendText(new org.example.server.whatsapp.WahaDtos.TextSendRequest(superAdminPhone, text, null));
+            log.info("Rogue instance security alert dispatched to Super Admin WhatsApp ({}) for machine {}", superAdminPhone, machineId);
+        } catch (Exception e) {
+            log.warn("Failed to dispatch rogue instance WhatsApp alert: {}", e.getMessage());
+        }
+    }
+
+    private void dispatchSuperAdminEmailAlert(String machineId, String company, String ip, String version, String users, String kickUrl) {
+        if (mailService == null || !mailService.isConfigured()) return;
+        String superAdminEmail = getSetting("licensing.superadmin_email", "");
+        if (superAdminEmail.isBlank()) {
+            try {
+                superAdminEmail = jdbc.queryForObject(
+                        "SELECT email FROM users WHERE UPPER(COALESCE(role,'')) IN ('SUPER_ADMIN','ADMIN') AND email IS NOT NULL AND BTRIM(email) <> '' ORDER BY id ASC LIMIT 1",
+                        String.class
+                );
+            } catch (Exception ignored) {}
+        }
+        if (superAdminEmail == null || superAdminEmail.isBlank()) return;
+
+        String subject = "🚨 Security Alert: Unlicensed Local Instance Detected - " + company;
+        String html = """
+                <!DOCTYPE html>
+                <html>
+                <body style="font-family: Arial, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 24px;">
+                  <div style="max-width: 600px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 24px;">
+                    <div style="background: #dc2626; color: #ffffff; padding: 12px 18px; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                      🚨 SECURITY ALERT: UNLICENSED LOCAL WORKSTATION DETECTED
+                    </div>
+                    <p style="color: #cbd5e1; font-size: 14px; margin-top: 16px;">
+                      An unauthorized or unlicensed local workstation has connected to the Jasvi ecosystem without an active plan or purchase.
+                    </p>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px;">
+                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Organization / Company:</td><td style="padding: 8px; font-weight: bold; color: #f8fafc;">%s</td></tr>
+                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Terminal / Machine ID:</td><td style="padding: 8px; font-family: monospace; color: #38bdf8;">%s</td></tr>
+                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Public IP Address:</td><td style="padding: 8px; font-family: monospace; color: #cbd5e1;">%s</td></tr>
+                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Reported Active Users:</td><td style="padding: 8px; color: #f8fafc;">%s</td></tr>
+                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Client Software Version:</td><td style="padding: 8px; color: #cbd5e1;">Jasvi-Desktop %s</td></tr>
+                      <tr><td style="padding: 8px; color: #94a3b8;">Plan Status:</td><td style="padding: 8px; font-weight: bold; color: #ef4444;">UNLICENSED / NO PLAN</td></tr>
+                    </table>
+                    <div style="text-align: center; margin-top: 28px; margin-bottom: 20px;">
+                      <a href="%s" style="background-color: #dc2626; color: #ffffff; text-decoration: none; padding: 14px 28px; font-size: 15px; font-weight: bold; border-radius: 8px; display: inline-block;">
+                        🛑 INSTANT KICK & BLOCK THIS INSTANCE
+                      </a>
+                    </div>
+                    <p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 16px;">
+                      Clicking this button will immediately terminate all active sessions and suspend access on the target workstation without requiring login.
+                    </p>
+                  </div>
+                </body>
+                </html>
+                """.formatted(company, machineId, ip, users, version, kickUrl);
+
+        try {
+            mailService.sendBusiness(superAdminEmail, subject, html);
+            log.info("Rogue instance security alert emailed to Super Admin ({}) for machine {}", superAdminEmail, machineId);
+        } catch (Exception e) {
+            log.warn("Failed to dispatch rogue instance email alert: {}", e.getMessage());
+        }
+    }
+
+    public String executeOneClickKick(String token, String rawMachine, String clientIp) {
+        if (token == null || token.isBlank()) {
+            return renderKickHtmlResponse(false, "Invalid Token", "Revocation token is missing.", null);
+        }
+        String machineId = rawMachine != null ? rawMachine.replace("-", "").toUpperCase(Locale.ROOT) : "";
+
+        List<Map<String, Object>> tokenRows = jdbc.queryForList(
+                "SELECT * FROM license_revocation_token WHERE token = ?", token
+        );
+        if (tokenRows.isEmpty()) {
+            return renderKickHtmlResponse(false, "Invalid Token", "This revocation token does not exist or has expired.", null);
+        }
+
+        Map<String, Object> tok = tokenRows.getFirst();
+        if (tok.get("used_at") != null) {
+            return renderKickHtmlResponse(false, "Already Executed", "This instance was already kicked on " + tok.get("used_at"), null);
+        }
+
+        Instant expiresAt = toInstant(tok.get("expires_at"));
+        if (expiresAt != null && expiresAt.isBefore(Instant.now())) {
+            return renderKickHtmlResponse(false, "Token Expired", "This revocation token has expired.", null);
+        }
+
+        String targetMachine = String.valueOf(tok.get("machine_id"));
+        if (machineId.isBlank()) machineId = targetMachine;
+
+        // Mark token used
+        jdbc.update("UPDATE license_revocation_token SET used_at = CURRENT_TIMESTAMP, used_by_ip = ? WHERE token = ?", clientIp, token);
+
+        // Update or insert client registry record as BLOCKED
+        int updated = jdbc.update(
+                "UPDATE licensed_client_registry SET status = 'BLOCKED', is_purchased = false, kicked_at = CURRENT_TIMESTAMP, " +
+                        "kick_reason = 'Terminated by Super Admin via Email/WhatsApp 1-click alert' WHERE machine_id = ?",
+                targetMachine
+        );
+        if (updated == 0) {
+            jdbc.update(
+                    "INSERT INTO licensed_client_registry (company_name, machine_id, tier, max_users, annual_fee, valid_until, status, license_payload_enc, notes, is_purchased, kicked_at, kick_reason) " +
+                            "VALUES (?, ?, 'NONE', 0, 0, CURRENT_TIMESTAMP, 'BLOCKED', 'BLOCKED', 'Blocked via Rogue Alert', false, CURRENT_TIMESTAMP, 'Terminated by Super Admin via 1-click alert')",
+                    tok.getOrDefault("company_name", "Unlicensed Client"), targetMachine
+            );
+        }
+
+        // Invalidate active auth sessions
+        try {
+            jdbc.update("DELETE FROM auth_session WHERE user_id IN (SELECT id FROM users WHERE role <> 'SUPER_ADMIN')");
+        } catch (Exception ignored) {}
+
+        return renderKickHtmlResponse(true, "Workstation Successfully Kicked & Blacklisted",
+                "The target workstation has been remotely terminated and blacklisted. Any further attempt to run or connect will be rejected with an administrative lock.",
+                targetMachine);
+    }
+
+    private String renderKickHtmlResponse(boolean success, String title, String message, String machineId) {
+        String badgeColor = success ? "#10b981" : "#ef4444";
+        String icon = success ? "✅" : "⚠️";
+        return """
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Jasvi ERP - Remote Revocation Authority</title>
+                </head>
+                <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b1120; color: #f8fafc; margin: 0; padding: 32px 16px; display: flex; justify-content: center; align-items: center; min-height: 80vh;">
+                  <div style="max-width: 540px; width: 100%%; background: #1e293b; border-radius: 16px; border: 1px solid #334155; padding: 36px 28px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">%s</div>
+                    <h2 style="color: %s; margin: 0 0 12px 0; font-size: 22px;">%s</h2>
+                    <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">%s</p>
+                    %s
+                    <div style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #334155; font-size: 12px; color: #64748b;">
+                      Jasvi Industries • Master Licensor Security Node • Antigravity Ecosystem
+                    </div>
+                  </div>
+                </body>
+                </html>
+                """.formatted(icon, badgeColor, title, message,
+                machineId != null ? "<div style=\"background: #0f172a; padding: 12px; border-radius: 8px; font-family: monospace; color: #38bdf8; font-size: 14px;\">Terminal ID: " + machineId + "</div>" : "");
     }
 
     /**

@@ -2,6 +2,7 @@ package org.example.server.licensing;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.itextpdf.barcodes.BarcodeQRCode;
+import jakarta.servlet.http.HttpServletRequest;
 import org.example.server.security.CurrentUser;
 import org.example.shared.licensing.Ed25519CryptoUtil;
 import org.example.shared.licensing.HardwareFingerprintUtil;
@@ -77,7 +78,7 @@ public class LicensingApiController {
     }
 
     @PostMapping("/heartbeat")
-    public ResponseEntity<?> heartbeat(@RequestBody(required = false) Map<String, Object> body) {
+    public ResponseEntity<?> heartbeat(@RequestBody(required = false) Map<String, Object> body, HttpServletRequest request) {
         if (body == null || body.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Empty heartbeat request"));
         }
@@ -85,8 +86,51 @@ public class LicensingApiController {
         String clientVersion = body.get("clientVersion") != null ? String.valueOf(body.get("clientVersion")) : null;
         Integer activeUsers = body.get("activeUsers") instanceof Number n ? n.intValue() : 1;
         String remoteUrl = body.get("remoteUrl") != null ? String.valueOf(body.get("remoteUrl")) : null;
-        Map<String, Object> result = registryService.recordHeartbeat(machineId, clientVersion, activeUsers, remoteUrl);
+        String companyName = body.get("companyName") != null ? String.valueOf(body.get("companyName")) : null;
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> users = (body.get("users") instanceof List<?>) ? (List<Map<String, Object>>) body.get("users") : null;
+
+        String clientIp = request != null ? request.getHeader("X-Forwarded-For") : null;
+        if (clientIp == null || clientIp.isBlank()) {
+            clientIp = request != null ? request.getRemoteAddr() : "127.0.0.1";
+        }
+
+        Map<String, Object> result = registryService.recordHeartbeat(machineId, clientVersion, activeUsers, remoteUrl, companyName, clientIp, users);
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping(value = "/super/kick-client", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> kickClientOneClick(
+            @RequestParam(required = false) String token,
+            @RequestParam(required = false) String machineId,
+            HttpServletRequest request
+    ) {
+        String clientIp = request != null ? request.getHeader("X-Forwarded-For") : null;
+        if (clientIp == null || clientIp.isBlank()) {
+            clientIp = request != null ? request.getRemoteAddr() : "127.0.0.1";
+        }
+        String html = registryService.executeOneClickKick(token, machineId, clientIp);
+        return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(html);
+    }
+
+    @PostMapping("/super/test-rogue-alert")
+    public ResponseEntity<Map<String, Object>> testRogueAlert(HttpServletRequest request) {
+        String clientIp = request != null ? request.getHeader("X-Forwarded-For") : null;
+        if (clientIp == null || clientIp.isBlank()) {
+            clientIp = request != null ? request.getRemoteAddr() : "127.0.0.1";
+        }
+        registryService.sendRogueClientSecurityAlerts(
+                "TEST-ROGUE-" + (System.currentTimeMillis() % 100000),
+                "Unauthorized Test Workstation",
+                org.example.shared.RuntimeContract.appVersion(),
+                clientIp,
+                List.of(Map.of("username", "test_unauthorized_user", "roleCode", "OPERATOR"))
+        );
+        return ResponseEntity.ok(Map.of(
+                "status", "SUCCESS",
+                "message", "Test rogue security alert dispatched to Super Admin Email & WhatsApp."
+        ));
     }
 
     public record ActivateRequest(
