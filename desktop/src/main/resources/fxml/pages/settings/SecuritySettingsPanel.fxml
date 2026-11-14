@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.SVGPath?>
 <VBox xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:id="panelSecurity" spacing="16" maxWidth="Infinity" styleClass="settings-card,security-settings-panel">
     <!-- Header -->
     <HBox alignment="CENTER_LEFT" spacing="10">

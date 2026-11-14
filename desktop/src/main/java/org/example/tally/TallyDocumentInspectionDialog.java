@@ -17,6 +17,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.poi.ss.usermodel.*;
 import org.example.api.tally.TallyAutomationApiClient;
+import org.example.util.BusinessClock;
 import org.example.util.DynamicTableLayoutManager;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
@@ -52,7 +53,7 @@ public final class TallyDocumentInspectionDialog {
         if (bill == null) return;
         String title = "Invoice: " + (bill.invoiceNumber() != null ? bill.invoiceNumber() : "Voucher");
         String meta = "Vendor: " + (bill.vendorNamePrinted() != null ? bill.vendorNamePrinted() : "N/A")
-                + " | Date: " + (bill.invoiceDate() != null ? bill.invoiceDate().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : "N/A")
+                + " | Date: " + (bill.invoiceDate() != null ? BusinessClock.formatDate(bill.invoiceDate()) : "N/A")
                 + (bill.vendorGstin() != null && !bill.vendorGstin().isBlank() ? " | GSTIN: " + bill.vendorGstin() : "");
         String financial = String.format(Locale.ROOT, "Taxable: ₹%.2f   GST: ₹%.2f   Total: ₹%.2f",
                 bill.taxableAmount() != null ? bill.taxableAmount().doubleValue() : 0.0,

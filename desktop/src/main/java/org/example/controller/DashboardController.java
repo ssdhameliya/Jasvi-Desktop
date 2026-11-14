@@ -494,6 +494,7 @@ public class DashboardController implements ScreenLifecycle {
                             "username", SessionService.current().getUsername(),
                             "roleCode", SessionService.currentRole(),
                             "durationSeconds", 30L,
+                            "workDate", java.time.LocalDate.now().toString(),
                             "isActive", true,
                             "isLogout", false
                     ));

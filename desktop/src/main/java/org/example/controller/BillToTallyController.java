@@ -20,6 +20,7 @@ import org.example.tally.TallyDocumentInspectionDialog;
 import org.example.tally.TallyDocumentParser;
 import org.example.tally.TallyExportPreviewDialog;
 import org.example.util.AppDialogService;
+import org.example.util.BusinessClock;
 import org.example.util.DynamicTableLayoutManager;
 import org.example.util.IconFactory;
 import org.example.util.UiActionIcons;
@@ -155,7 +156,7 @@ public class BillToTallyController implements ScreenLifecycle {
                 c.getValue().accuracyPercentage() != null ? c.getValue().accuracyPercentage().toPlainString() + "%" : "0%"));
         colInvoiceNo.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().invoiceNumber()));
         colInvoiceDate.setCellValueFactory(c -> new SimpleStringProperty(
-                c.getValue().invoiceDate() != null ? c.getValue().invoiceDate().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : ""));
+                c.getValue().invoiceDate() != null ? BusinessClock.formatDate(c.getValue().invoiceDate()) : ""));
         colVendorName.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().vendorNamePrinted()));
         colVendorGstin.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().vendorGstin() != null ? c.getValue().vendorGstin() : ""));
         colPartyLedger.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().tallyPartyLedger()));
@@ -447,7 +448,7 @@ public class BillToTallyController implements ScreenLifecycle {
         } else if (lower.contains("invoice date") || lower.contains("bill date") || (lower.contains("date") && !lower.contains("due"))) {
             semantic = "date";
             col.setCellValueFactory(r -> new SimpleStringProperty(
-                    r.getValue().invoiceDate() != null ? r.getValue().invoiceDate().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")) : ""));
+                    r.getValue().invoiceDate() != null ? BusinessClock.formatDate(r.getValue().invoiceDate()) : ""));
         } else if (lower.contains("gstin") || lower.contains("vendor gstin") || lower.contains("gstin/uin") || lower.contains("party gst")) {
             semantic = "gstin";
             col.setCellValueFactory(r -> new SimpleStringProperty(r.getValue().vendorGstin() != null ? r.getValue().vendorGstin() : ""));
@@ -812,7 +813,7 @@ public class BillToTallyController implements ScreenLifecycle {
                     if (batchId == null) {
                         var batch = api.createBatch(
                                 profileId,
-                                "Batch " + DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm").format(java.time.LocalDateTime.now()),
+                                "Batch " + BusinessClock.formatDate(BusinessClock.today()) + " " + BusinessClock.formatTime(BusinessClock.now().toLocalTime()),
                                 files.size(),
                                 username
                         );

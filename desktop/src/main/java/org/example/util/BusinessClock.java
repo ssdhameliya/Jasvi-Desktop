@@ -191,6 +191,16 @@ public final class BusinessClock {
         return DateTimeFormatter.ofPattern(timePattern(), Locale.getDefault()).withZone(zone()).format(value);
     }
 
+    public static String formatTime(LocalTime value) {
+        if (value == null) return "";
+        return DateTimeFormatter.ofPattern(timePattern(), Locale.getDefault()).format(value);
+    }
+
+    public static String formatTime(LocalDateTime value) {
+        if (value == null) return "";
+        return DateTimeFormatter.ofPattern(timePattern(), Locale.getDefault()).format(value);
+    }
+
     /** Returns the configured business-local date represented by a canonical or legacy timestamp. */
     public static LocalDate localDateOfTimestamp(String value) {
         if (value == null || value.isBlank()) return null;

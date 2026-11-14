@@ -2294,9 +2294,9 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         // Telemetry Table
         TableView<Map<String, Object>> tableUsers = new TableView<>();
-        tableUsers.setPrefHeight(320);
+        tableUsers.setPrefHeight(340);
         tableUsers.getStyleClass().addAll("approved-table", "clients-directory-table");
-        DynamicTableLayoutManager.install(tableUsers);
+        tableUsers.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         // Row 1: Enterprise Identity & Session Metrics Strip
         HBox heroBar = new HBox(12);
@@ -2330,67 +2330,120 @@ public class ClientRegistryController implements ScreenLifecycle {
         filterBar.getStyleClass().addAll("approved-card", "clients-search-strip");
         filterBar.setPadding(new Insets(8, 14, 8, 14));
 
-        Label lblDatePrompt = new Label("Query Date:");
-        lblDatePrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
-        lblDatePrompt.getProperties().put("erp.label.icon.skip", true);
+        Label lblFromPrompt = new Label("From Date:");
+        lblFromPrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
+        lblFromPrompt.getProperties().put("erp.label.icon.skip", true);
+        lblFromPrompt.setMinWidth(Region.USE_PREF_SIZE);
 
-        DatePicker dpDate = new DatePicker(LocalDate.now());
-        dpDate.getStyleClass().add("approved-datepicker");
-        dpDate.setMinWidth(150);
-        dpDate.setPrefWidth(150);
+        DatePicker dpFrom = DatePickerFormatter.attach(new DatePicker(LocalDate.now()));
+        dpFrom.getStyleClass().add("approved-datepicker");
+        dpFrom.setMinWidth(140);
+        dpFrom.setPrefWidth(140);
+
+        Label lblToPrompt = new Label("To Date:");
+        lblToPrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
+        lblToPrompt.getProperties().put("erp.label.icon.skip", true);
+        lblToPrompt.setMinWidth(Region.USE_PREF_SIZE);
+
+        DatePicker dpTo = DatePickerFormatter.attach(new DatePicker(LocalDate.now()));
+        dpTo.getStyleClass().add("approved-datepicker");
+        dpTo.setMinWidth(140);
+        dpTo.setPrefWidth(140);
+
+        DatePickerFormatter.attachAll(dpFrom, dpTo);
 
         Button btnToday = new Button("Today");
         btnToday.setGraphic(IconFactory.compactIcon("calendar", 13));
-        btnToday.setMinWidth(85);
+        btnToday.setMinWidth(Region.USE_PREF_SIZE);
         btnToday.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnToday.setOnAction(e -> dpDate.setValue(LocalDate.now()));
+        btnToday.setOnAction(e -> {
+            dpFrom.setValue(LocalDate.now());
+            dpTo.setValue(LocalDate.now());
+        });
 
         Button btnYesterday = new Button("Yesterday");
         btnYesterday.setGraphic(IconFactory.compactIcon("calendar", 13));
-        btnYesterday.setMinWidth(95);
+        btnYesterday.setMinWidth(Region.USE_PREF_SIZE);
         btnYesterday.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnYesterday.setOnAction(e -> dpDate.setValue(LocalDate.now().minusDays(1)));
+        btnYesterday.setOnAction(e -> {
+            dpFrom.setValue(LocalDate.now().minusDays(1));
+            dpTo.setValue(LocalDate.now().minusDays(1));
+        });
+
+        Button btnThisWeek = new Button("This Week");
+        btnThisWeek.setGraphic(IconFactory.compactIcon("calendar", 13));
+        btnThisWeek.setMinWidth(Region.USE_PREF_SIZE);
+        btnThisWeek.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnThisWeek.setOnAction(e -> {
+            dpFrom.setValue(LocalDate.now().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)));
+            dpTo.setValue(LocalDate.now());
+        });
+
+        Button btnThisMonth = new Button("This Month");
+        btnThisMonth.setGraphic(IconFactory.compactIcon("calendar", 13));
+        btnThisMonth.setMinWidth(Region.USE_PREF_SIZE);
+        btnThisMonth.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnThisMonth.setOnAction(e -> {
+            dpFrom.setValue(LocalDate.now().withDayOfMonth(1));
+            dpTo.setValue(LocalDate.now());
+        });
 
         Region filterSpacer = new Region();
         HBox.setHgrow(filterSpacer, Priority.ALWAYS);
 
         Button btnRefreshUsers = new Button("Refresh Telemetry");
         btnRefreshUsers.setGraphic(IconFactory.compactIcon("refresh", 13));
-        btnRefreshUsers.setMinWidth(130);
+        btnRefreshUsers.setMinWidth(Region.USE_PREF_SIZE);
         btnRefreshUsers.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
-        dpDate.valueProperty().addListener((obs, oldV, newV) -> loadUserTelemetry(tableUsers, rawMachine, newV));
-        btnRefreshUsers.setOnAction(e -> loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue()));
-
-        filterBar.getChildren().addAll(lblDatePrompt, dpDate, btnToday, btnYesterday, filterSpacer, btnRefreshUsers);
+        filterBar.getChildren().addAll(lblFromPrompt, dpFrom, lblToPrompt, dpTo, btnToday, btnYesterday, btnThisWeek, btnThisMonth, filterSpacer, btnRefreshUsers);
 
         TableColumn<Map<String, Object>, String> colUser = new TableColumn<>("Username");
         colUser.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("username", "-"))));
         colUser.setMinWidth(120);
-        colUser.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.16));
+        colUser.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.14));
 
         TableColumn<Map<String, Object>, String> colRole = new TableColumn<>("Role");
         colRole.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("role_code", "USER"))));
-        colRole.setMinWidth(130);
-        colRole.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.14));
+        colRole.setMinWidth(100);
+        colRole.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.11));
 
         TableColumn<Map<String, Object>, String> colFirstLogin = new TableColumn<>("First Login Today");
         colFirstLogin.setCellValueFactory(c -> {
             Object fl = c.getValue().get("first_login_today");
             return new SimpleStringProperty(fl != null ? BusinessClock.formatTimestamp(fl.toString()) : "-");
         });
-        colFirstLogin.setMinWidth(140);
-        colFirstLogin.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.16));
+        colFirstLogin.setMinWidth(165);
+        colFirstLogin.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.18));
 
-        TableColumn<Map<String, Object>, String> colLastLogout = new TableColumn<>("Last Logout / Disconnect");
-        colLastLogout.setCellValueFactory(c -> {
-            boolean active = Boolean.TRUE.equals(c.getValue().get("is_active_now"));
-            if (active) return new SimpleStringProperty("🟢 Active Now");
-            Object lo = c.getValue().get("last_logout_today");
-            return new SimpleStringProperty(lo != null ? BusinessClock.formatTimestamp(lo.toString()) : "Disconnected");
+        TableColumn<Map<String, Object>, Object> colLastLogout = new TableColumn<>("Last Logout / Disconnect");
+        colLastLogout.setCellValueFactory(c -> new javafx.beans.property.SimpleObjectProperty<>(c.getValue()));
+        colLastLogout.setMinWidth(175);
+        colLastLogout.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.19));
+        colLastLogout.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(Object item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || !(item instanceof Map<?, ?> map)) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+                boolean active = Boolean.TRUE.equals(map.get("is_active_now"));
+                if (active) {
+                    Label badge = new Label("Active Now");
+                    badge.setGraphic(IconFactory.compactIcon("circle", 8));
+                    badge.getStyleClass().addAll("status-badge", "status-positive");
+                    setGraphic(badge);
+                    setText(null);
+                } else {
+                    Object lo = map.get("last_logout_today");
+                    setGraphic(null);
+                    setText(lo != null ? BusinessClock.formatTimestamp(lo.toString()) : "Disconnected");
+                }
+                setAlignment(Pos.CENTER_LEFT);
+            }
         });
-        colLastLogout.setMinWidth(170);
-        colLastLogout.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.18));
 
         TableColumn<Map<String, Object>, String> colHours = new TableColumn<>("Total Work Today");
         colHours.setCellValueFactory(c -> {
@@ -2399,10 +2452,22 @@ public class ClientRegistryController implements ScreenLifecycle {
             if (secObj instanceof Number n) totalSec = n.longValue();
             long hrs = totalSec / 3600;
             long mins = (totalSec % 3600) / 60;
-            return new SimpleStringProperty(String.format("%d hrs %d mins", hrs, mins));
+            String timeText;
+            if (hrs == 0 && mins == 0) {
+                timeText = totalSec > 0 ? "< 1 min" : "0 mins";
+            } else if (hrs == 0) {
+                timeText = mins + " mins";
+            } else {
+                timeText = String.format("%d hrs %d mins", hrs, mins);
+            }
+            Object daysActive = c.getValue().get("days_active");
+            if (daysActive instanceof Number nd && nd.intValue() > 1) {
+                return new SimpleStringProperty(timeText + " (" + nd.intValue() + " days)");
+            }
+            return new SimpleStringProperty(timeText);
         });
-        colHours.setMinWidth(120);
-        colHours.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.14));
+        colHours.setMinWidth(140);
+        colHours.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.16));
 
         TableColumn<Map<String, Object>, String> colActiveStatus = new TableColumn<>("Status");
         colActiveStatus.setCellValueFactory(c -> {
@@ -2421,13 +2486,19 @@ public class ClientRegistryController implements ScreenLifecycle {
                     return;
                 }
                 boolean on = "ONLINE".equalsIgnoreCase(s);
-                Label badge = new Label(on ? "🟢 Online" : "⚪ Offline");
+                Label badge = new Label(on ? "Online" : "Offline");
+                badge.setGraphic(IconFactory.compactIcon(on ? "check" : "cancel", 11));
                 badge.getStyleClass().addAll("status-badge", on ? "status-positive" : "status-neutral");
                 setGraphic(badge);
                 setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
                 setAlignment(Pos.CENTER);
             }
         });
+
+        Runnable reloadUsers = () -> loadUserTelemetry(tableUsers, colFirstLogin, colLastLogout, colHours, rawMachine, dpFrom.getValue(), dpTo.getValue());
+        dpFrom.valueProperty().addListener((obs, oldV, newV) -> reloadUsers.run());
+        dpTo.valueProperty().addListener((obs, oldV, newV) -> reloadUsers.run());
+        btnRefreshUsers.setOnAction(e -> reloadUsers.run());
 
         TableColumn<Map<String, Object>, Void> colUserActions = new TableColumn<>("Actions");
         colUserActions.setMinWidth(130);
@@ -2464,7 +2535,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                     api.kickClientUser(rawMachine, uName);
                                     Platform.runLater(() -> {
                                         AppDialogService.success(tableClients, "User Kicked", "Active session for " + uName + " terminated.");
-                                        loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
+                                        reloadUsers.run();
                                     });
                                 } catch (Exception ex) {
                                     Platform.runLater(() -> AppDialogService.error(tableClients, "Kick Failed", ex.getMessage()));
@@ -2485,7 +2556,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                         api.unlockClientUser(rawMachine, uName);
                                         Platform.runLater(() -> {
                                             AppDialogService.success(tableClients, "User Unlocked", "Account " + uName + " is now unlocked.");
-                                            loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
+                                            reloadUsers.run();
                                         });
                                     } catch (Exception ex) {
                                         Platform.runLater(() -> AppDialogService.error(tableClients, "Unlock Failed", ex.getMessage()));
@@ -2504,7 +2575,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                         api.lockClientUser(rawMachine, uName);
                                         Platform.runLater(() -> {
                                             AppDialogService.success(tableClients, "User Locked", "Account " + uName + " is now locked.");
-                                            loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
+                                            reloadUsers.run();
                                         });
                                     } catch (Exception ex) {
                                         Platform.runLater(() -> AppDialogService.error(tableClients, "Lock Failed", ex.getMessage()));
@@ -2526,7 +2597,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                         api.setUserActiveStatus(rawMachine, uName, false);
                                         Platform.runLater(() -> {
                                             AppDialogService.success(tableClients, "User Deactivated", "Account " + uName + " has been deactivated.");
-                                            loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
+                                            reloadUsers.run();
                                         });
                                     } catch (Exception ex) {
                                         Platform.runLater(() -> AppDialogService.error(tableClients, "Deactivation Failed", ex.getMessage()));
@@ -2545,7 +2616,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                         api.setUserActiveStatus(rawMachine, uName, true);
                                         Platform.runLater(() -> {
                                             AppDialogService.success(tableClients, "User Activated", "Account " + uName + " is now active.");
-                                            loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
+                                            reloadUsers.run();
                                         });
                                     } catch (Exception ex) {
                                         Platform.runLater(() -> AppDialogService.error(tableClients, "Activation Failed", ex.getMessage()));
@@ -2564,24 +2635,44 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         tableUsers.getColumns().addAll(colUser, colRole, colFirstLogin, colLastLogout, colHours, colActiveStatus, colUserActions);
 
-        btnRefreshUsers.setOnAction(e -> loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue()));
-        loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
+        DynamicTableLayoutManager.install(tableUsers);
+
+        reloadUsers.run();
 
         rootBox.getChildren().addAll(heroBar, filterBar, tableUsers);
         dialog.getDialogPane().setContent(rootBox);
-        PopupTableWorkspace.prepareDialog(dialog, 1040);
+        PopupTableWorkspace.prepareDialog(dialog, 1260);
         dialog.showAndWait();
     }
 
-    private void loadUserTelemetry(TableView<Map<String, Object>> table, String machineId, LocalDate date) {
+    private void loadUserTelemetry(TableView<Map<String, Object>> table,
+                                   TableColumn<Map<String, Object>, String> colFirstLogin,
+                                   TableColumn<Map<String, Object>, ?> colLastLogout,
+                                   TableColumn<Map<String, Object>, String> colHours,
+                                   String machineId, LocalDate fromDate, LocalDate toDate) {
+        boolean isRange = fromDate != null && toDate != null && fromDate.isBefore(toDate);
+        if (isRange) {
+            colFirstLogin.setText("Earliest Login");
+            colLastLogout.setText("Latest Logout");
+            colHours.setText("Total Work (Range)");
+        } else {
+            colFirstLogin.setText("First Login Today");
+            colLastLogout.setText("Last Logout / Disconnect");
+            colHours.setText("Total Work Today");
+        }
+
         Thread.ofVirtual().start(() -> {
             try {
-                String dateStr = date != null ? date.toString() : null;
-                List<Map<String, Object>> users = api.getClientUsers(machineId, dateStr);
+                String fromStr = fromDate != null ? fromDate.toString() : null;
+                String toStr = toDate != null ? toDate.toString() : fromStr;
+                List<Map<String, Object>> users = api.getClientUsers(machineId, fromStr, toStr);
                 Platform.runLater(() -> {
                     table.setItems(FXCollections.observableArrayList(users != null ? users : List.of()));
                     if (users == null || users.isEmpty()) {
-                        Label emptyLbl = new Label("No active user sessions recorded for this workstation on " + (date != null ? BusinessClock.formatDate(date) : "selected date"));
+                        String rangeText = isRange
+                                ? (BusinessClock.formatDate(fromDate) + " to " + BusinessClock.formatDate(toDate))
+                                : (fromDate != null ? BusinessClock.formatDate(fromDate) : "selected date");
+                        Label emptyLbl = new Label("No active user sessions recorded for this workstation for " + rangeText);
                         emptyLbl.getStyleClass().addAll("metric-label", "status-neutral");
                         table.setPlaceholder(emptyLbl);
                     }
@@ -2723,18 +2814,17 @@ public class ClientRegistryController implements ScreenLifecycle {
         colR.setHgrow(Priority.ALWAYS);
         actionsGrid.getColumnConstraints().addAll(colL, colR);
 
-        Button btnTelemetry = createActionButton("Live Telemetry & Work Hours", "users", () -> { dialog.close(); showUserTelemetryDialog(client); });
-        Button btnRelease = createActionButton("Release Workstation Seat", "refresh", () -> { dialog.close(); handleReleaseWorkstation(client); });
-        Button btnRenew = createActionButton("Renew License (+1 Year)", "refresh", () -> { dialog.close(); handleRenewClient(client, 365); });
-        Button btnCustomRenew = createActionButton("Custom Renewal Days...", "calendar", () -> { dialog.close(); promptCustomRenewal(client); });
-        Button btnEditPlan = createActionButton("Edit Plan & Modules", "edit", () -> { dialog.close(); showClientLicenseDialog(client); });
+        Button btnTelemetry = createActionButton("Live Telemetry & Work Hours", "users", "approved-teal-button", () -> { dialog.close(); showUserTelemetryDialog(client); });
+        Button btnRelease = createActionButton("Release Workstation Seat", "refresh", "approved-amber-button", () -> { dialog.close(); handleReleaseWorkstation(client); });
+        Button btnRenew = createActionButton("Renew License (+1 Year)", "refresh", "approved-indigo-button", () -> { dialog.close(); handleRenewClient(client, 365); });
+        Button btnCustomRenew = createActionButton("Custom Renewal Days...", "calendar", "approved-purple-button", () -> { dialog.close(); promptCustomRenewal(client); });
+        Button btnEditPlan = createActionButton("Edit Plan & Modules", "edit", "approved-orange-button", () -> { dialog.close(); showClientLicenseDialog(client); });
 
-        Button btnKick = createActionButton("Kick Active Sessions", "delete", () -> { dialog.close(); handleKickAllClientSessions(client); });
-        Button btnCopy = createActionButton("Copy Machine Hardware ID", "copy", () -> copyMachineId(rawMachine));
-        Button btnWhatsApp = createActionButton("Send via WhatsApp", "share", () -> sendWhatsApp(client));
-        Button btnEmail = createActionButton("Send via Email", "email", () -> sendEmail(client));
-        Button btnRevoke = createActionButton("Revoke / Suspend License", "delete", () -> { dialog.close(); handleRevokeClient(client); });
-        btnRevoke.getStyleClass().add("button-danger");
+        Button btnKick = createActionButton("Kick Active Sessions", "delete", "approved-coral-button", () -> { dialog.close(); handleKickAllClientSessions(client); });
+        Button btnCopy = createActionButton("Copy Machine Hardware ID", "copy", "approved-slate-button", () -> copyMachineId(rawMachine));
+        Button btnWhatsApp = createActionButton("Send via WhatsApp", "share", "approved-emerald-button", () -> sendWhatsApp(client));
+        Button btnEmail = createActionButton("Send via Email", "email", "approved-sky-button", () -> sendEmail(client));
+        Button btnRevoke = createActionButton("Revoke / Suspend License", "delete", "approved-danger-button", () -> { dialog.close(); handleRevokeClient(client); });
 
         for (Button b : List.of(btnTelemetry, btnRelease, btnRenew, btnCustomRenew, btnEditPlan, btnKick, btnCopy, btnWhatsApp, btnEmail, btnRevoke)) {
             b.setMaxWidth(Double.MAX_VALUE);
@@ -2848,18 +2938,15 @@ public class ClientRegistryController implements ScreenLifecycle {
         cR.setHgrow(Priority.ALWAYS);
         actionsGrid.getColumnConstraints().addAll(cL, cR);
 
-        Button btnApprove = createActionButton("Approve & Issue License", "check", () -> { dialog.close(); handleApproveLead(lead); });
+        Button btnApprove = createActionButton("Approve & Issue License", "check", "approved-emerald-button", () -> { dialog.close(); handleApproveLead(lead); });
         btnApprove.setDisable(!pending);
-        btnApprove.getStyleClass().add("status-positive");
-        Button btnReject = createActionButton("Reject Request", "delete", () -> { dialog.close(); handleRejectLead(lead); });
+        Button btnReject = createActionButton("Reject Request", "delete", "approved-danger-button", () -> { dialog.close(); handleRejectLead(lead); });
         btnReject.setDisable(!pending);
-        btnReject.getStyleClass().add("button-danger");
 
-        Button btnCopy = createActionButton("Copy Machine ID", "copy", () -> copyMachineId(machine));
-        Button btnWhatsApp = createActionButton("Send WhatsApp", "share", () -> sendWhatsAppLead(lead));
-        Button btnEmail = createActionButton("Send Email", "email", () -> sendEmailLead(lead));
-        Button btnDelete = createActionButton("Delete Lead", "delete", () -> { dialog.close(); handleDeleteLead(lead); });
-        btnDelete.getStyleClass().add("button-danger");
+        Button btnCopy = createActionButton("Copy Machine ID", "copy", "approved-slate-button", () -> copyMachineId(machine));
+        Button btnWhatsApp = createActionButton("Send WhatsApp", "share", "approved-emerald-button", () -> sendWhatsAppLead(lead));
+        Button btnEmail = createActionButton("Send Email", "email", "approved-sky-button", () -> sendEmailLead(lead));
+        Button btnDelete = createActionButton("Delete Lead", "delete", "approved-danger-button", () -> { dialog.close(); handleDeleteLead(lead); });
 
         for (Button b : List.of(btnApprove, btnReject, btnCopy, btnWhatsApp, btnEmail, btnDelete)) {
             b.setMaxWidth(Double.MAX_VALUE);
@@ -2961,12 +3048,11 @@ public class ClientRegistryController implements ScreenLifecycle {
             actionsGrid.getColumnConstraints().add(cc);
         }
 
-        Button btnEdit = createActionButton("Edit Plan & Modules", "edit", () -> { dialog.close(); handleEditPlan(plan); });
-        Button btnView = createActionButton("View Full Details", "view", () -> { dialog.close(); showPlanEditDialog(plan, true); });
-        Button btnDuplicate = createActionButton("Clone Plan", "copy", () -> { dialog.close(); handleDuplicatePlan(plan); });
-        Button btnToggle = createActionButton(active ? "Deactivate Plan" : "Activate Plan", "refresh", () -> { dialog.close(); handleTogglePlanActive(plan); });
-        Button btnDelete = createActionButton("Delete Plan", "delete", () -> { dialog.close(); handleDeletePlan(plan); });
-        btnDelete.getStyleClass().add("button-danger");
+        Button btnEdit = createActionButton("Edit Plan & Modules", "edit", "approved-orange-button", () -> { dialog.close(); handleEditPlan(plan); });
+        Button btnView = createActionButton("View Full Details", "view", "approved-sky-button", () -> { dialog.close(); showPlanEditDialog(plan, true); });
+        Button btnDuplicate = createActionButton("Clone Plan", "copy", "approved-indigo-button", () -> { dialog.close(); handleDuplicatePlan(plan); });
+        Button btnToggle = createActionButton(active ? "Deactivate Plan" : "Activate Plan", "refresh", "approved-teal-button", () -> { dialog.close(); handleTogglePlanActive(plan); });
+        Button btnDelete = createActionButton("Delete Plan", "delete", "approved-danger-button", () -> { dialog.close(); handleDeletePlan(plan); });
 
         for (Button b : List.of(btnEdit, btnView, btnDuplicate, btnToggle, btnDelete)) {
             b.setMaxWidth(Double.MAX_VALUE);
@@ -3004,9 +3090,13 @@ public class ClientRegistryController implements ScreenLifecycle {
     }
 
     private Button createActionButton(String text, String iconName, Runnable action) {
+        return createActionButton(text, iconName, null, action);
+    }
+
+    private Button createActionButton(String text, String iconName, String semanticStyle, Runnable action) {
         Button b = new Button(text);
         b.setGraphic(IconFactory.compactIcon(iconName, 13));
-        b.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        b.getStyleClass().addAll("approved-button", semanticStyle != null && !semanticStyle.isBlank() ? semanticStyle : "approved-secondary-button");
         b.setOnAction(e -> {
             if (action != null) action.run();
         });

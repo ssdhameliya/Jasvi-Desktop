@@ -751,6 +751,16 @@ public class ClientRegistryService {
         boolean isLogout = Boolean.TRUE.equals(user.get("isLogout"));
         boolean isActive = !isLogout && Boolean.TRUE.equals(user.getOrDefault("isActive", true));
 
+        String workDateStr = String.valueOf(user.getOrDefault("workDate", "")).trim();
+        java.time.LocalDate workDate;
+        try {
+            workDate = (!workDateStr.isBlank())
+                    ? java.time.LocalDate.parse(workDateStr)
+                    : java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        } catch (Exception ignored) {
+            workDate = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        }
+
         try {
             jdbc.update("""
                 INSERT INTO client_user_telemetry (
@@ -758,7 +768,7 @@ public class ClientRegistryService {
                     first_login_today, last_logout_today, last_heartbeat,
                     total_seconds_today, is_active_now, updated_at
                 ) VALUES (
-                    ?, ?, ?, ?, CURRENT_DATE,
+                    ?, ?, ?, ?, CAST(? AS date),
                     CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP,
                     ?, ?, CURRENT_TIMESTAMP
                 ) ON CONFLICT (machine_id, username, work_date) DO UPDATE SET
@@ -768,6 +778,7 @@ public class ClientRegistryService {
                     last_logout_today = CASE WHEN EXCLUDED.is_active_now = false THEN CURRENT_TIMESTAMP ELSE client_user_telemetry.last_logout_today END,
                     updated_at = CURRENT_TIMESTAMP
             """, machineId, companyName != null ? companyName : "Client Workspace", username, roleCode,
+                    workDate.toString(),
                     isLogout ? Instant.now() : null,
                     durationInc, isActive);
         } catch (Exception ex) {
@@ -785,37 +796,62 @@ public class ClientRegistryService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getClientUserTelemetry(String rawMachine) {
-        return getClientUserTelemetry(rawMachine, null);
+        return getClientUserTelemetry(rawMachine, null, null, null);
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getClientUserTelemetry(String rawMachine, String targetDateStr) {
+        return getClientUserTelemetry(rawMachine, targetDateStr, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getClientUserTelemetry(String rawMachine, String targetDateStr, String fromStr, String toStr) {
         if (rawMachine == null || rawMachine.isBlank()) return List.of();
         String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
 
-        String dateCondition = "t.work_date = CURRENT_DATE";
+        java.time.LocalDate businessToday = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        String from = fromStr != null && !fromStr.isBlank() ? fromStr.trim() : (targetDateStr != null && !targetDateStr.isBlank() && !"TODAY".equalsIgnoreCase(targetDateStr) ? targetDateStr.trim() : businessToday.toString());
+        String to = toStr != null && !toStr.isBlank() ? toStr.trim() : from;
+
+        boolean isRange = from != null && to != null && !from.equalsIgnoreCase(to);
+
         List<Object> params = new ArrayList<>();
         params.add(machineId);
 
-        if (targetDateStr != null && !targetDateStr.isBlank() && !"TODAY".equalsIgnoreCase(targetDateStr)) {
-            dateCondition = "t.work_date = CAST(? AS date)";
-            params.add(targetDateStr.trim());
+        if (isRange) {
+            params.add(from);
+            params.add(to);
+            return jdbc.queryForList(
+                    "SELECT t.username, t.role_code, " +
+                            "MIN(t.first_login_today) AS first_login_today, " +
+                            "MAX(t.last_logout_today) AS last_logout_today, " +
+                            "MAX(t.last_heartbeat) AS last_heartbeat, " +
+                            "SUM(COALESCE(t.total_seconds_today, 0)) AS total_seconds_today, " +
+                            "BOOL_OR(COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now, " +
+                            "COUNT(DISTINCT t.work_date) AS days_active, " +
+                            "COALESCE(u.locked, 0) AS is_locked, COALESCE(u.active, 1) AS is_user_active " +
+                            "FROM client_user_telemetry t " +
+                            "LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username) " +
+                            "WHERE t.machine_id = ? AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date) " +
+                            "GROUP BY t.username, t.role_code, u.locked, u.active " +
+                            "ORDER BY BOOL_OR(COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') DESC, MAX(t.last_heartbeat) DESC",
+                    params.toArray()
+            );
         }
+
+        params.add(from);
 
         return jdbc.queryForList(
                 "SELECT t.id, t.machine_id, t.company_name, t.username, t.role_code, t.work_date, " +
                         "t.first_login_today, t.last_logout_today, t.last_heartbeat, " +
-                        "CASE " +
-                        "  WHEN t.is_active_now = true AND t.first_login_today IS NOT NULL THEN " +
-                        "    GREATEST(COALESCE(t.total_seconds_today, 0), EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - t.first_login_today))::bigint) " +
-                        "  ELSE COALESCE(t.total_seconds_today, 0) " +
-                        "END AS total_seconds_today, " +
-                        "t.is_active_now, " +
+                        "COALESCE(t.total_seconds_today, 0) AS total_seconds_today, " +
+                        "(COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now, " +
+                        "1 AS days_active, " +
                         "COALESCE(u.locked, 0) AS is_locked, COALESCE(u.active, 1) AS is_user_active " +
                         "FROM client_user_telemetry t " +
                         "LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username) " +
-                        "WHERE t.machine_id = ? AND " + dateCondition + " " +
-                        "ORDER BY t.is_active_now DESC, t.last_heartbeat DESC",
+                        "WHERE t.machine_id = ? AND t.work_date = CAST(? AS date) " +
+                        "ORDER BY (COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') DESC, t.last_heartbeat DESC",
                 params.toArray()
         );
     }

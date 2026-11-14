@@ -938,6 +938,30 @@ public final class IconFactory {
         } else if ("showcase".equals(semantic)) {
             variant = "erp-button-cyan";
             if (!button.getStyleClass().contains("approved-cyan-button")) button.getStyleClass().add("approved-cyan-button");
+        } else if ("whatsapp".equals(semantic)) {
+            variant = "erp-button-emerald";
+            if (!button.getStyleClass().contains("approved-emerald-button")) button.getStyleClass().add("approved-emerald-button");
+        } else if ("calendar".equals(semantic) || "schedule".equals(semantic) || "date".equals(semantic)) {
+            variant = "erp-button-purple";
+            if (!button.getStyleClass().contains("approved-purple-button")) button.getStyleClass().add("approved-purple-button");
+        } else if ("copy".equals(semantic) || "paste".equals(semantic)) {
+            variant = "erp-button-slate";
+            if (!button.getStyleClass().contains("approved-slate-button")) button.getStyleClass().add("approved-slate-button");
+        } else if ("telemetry".equals(semantic) || "user".equals(semantic) || "users".equals(semantic)) {
+            variant = "erp-button-teal";
+            if (!button.getStyleClass().contains("approved-teal-button")) button.getStyleClass().add("approved-teal-button");
+        } else if ("kick".equals(semantic) || "disconnect".equals(semantic)) {
+            variant = "erp-button-coral";
+            if (!button.getStyleClass().contains("approved-coral-button")) button.getStyleClass().add("approved-coral-button");
+        } else if ("release".equals(semantic) || "seat".equals(semantic)) {
+            variant = "erp-button-amber";
+            if (!button.getStyleClass().contains("approved-amber-button")) button.getStyleClass().add("approved-amber-button");
+        } else if ("hardware".equals(semantic) || "application".equals(semantic)) {
+            variant = "erp-button-slate";
+            if (!button.getStyleClass().contains("approved-slate-button")) button.getStyleClass().add("approved-slate-button");
+        } else if ("reject".equals(semantic)) {
+            variant = "erp-button-danger";
+            if (!button.getStyleClass().contains("approved-danger-button")) button.getStyleClass().add("approved-danger-button");
         } else if ("shortcut".equals(semantic)) {
             variant = "erp-button-purple";
             if (!button.getStyleClass().contains("approved-purple-button")) button.getStyleClass().add("approved-purple-button");
@@ -1293,6 +1317,10 @@ public final class IconFactory {
         if (value.contains("disabled") || value.contains("inactive")) return "dismiss";
 
         // Specific actions must win before broad business nouns.
+        if (value.contains("telemetry") || value.contains("work hours")) return "telemetry";
+        if (value.contains("kick active") || value.contains("kick")) return "kick";
+        if (value.contains("release workstation") || value.contains("release seat")) return "release";
+        if (value.contains("machine hardware id") || value.contains("hardware id")) return "hardware";
         if (value.contains("remote access") || value.contains("remote sharing") || value.contains("tunnel")) return "server";
         if (value.contains("use my company") || value.contains("my company")) return "business";
         if (value.contains("current machine") || value.contains("machine id")) return "application";

@@ -142,6 +142,8 @@ public final class PopupTableWorkspace {
                 if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof javafx.stage.Stage stage) {
                     WindowUtilsFx.fitDialogToOwnerScreen(stage, dialog.getOwner());
                 }
+                AppDialogRenderer.reconcileButtonBar(dialog.getDialogPane());
+                javafx.application.Platform.runLater(() -> AppDialogRenderer.reconcileButtonBar(dialog.getDialogPane()));
             });
         }
     }
