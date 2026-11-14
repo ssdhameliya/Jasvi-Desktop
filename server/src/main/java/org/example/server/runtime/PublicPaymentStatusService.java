@@ -97,7 +97,7 @@ public class PublicPaymentStatusService {
                 || (verifyDate != null && !verifyDate.isBlank())
                 || (verifyAmount != null && !verifyAmount.isBlank());
 
-        if (!hasVerificationInput) {
+        if (!tokenValid && !hasVerificationInput) {
             return ResponseEntity.ok(renderVerificationChallengePage(invoiceNo, token != null ? token : "", null));
         }
 
@@ -459,13 +459,13 @@ public class PublicPaymentStatusService {
             </div>
         """.formatted(escape(errorMessage));
 
-        return """
+        String template = """
             <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Document Privacy Verification • %s</title>
+                <title>Document Privacy Verification &bull; {{COMPANY}}</title>
                 <style>
                     * { box-sizing: border-box; margin: 0; padding: 0; }
                     body {
@@ -530,7 +530,7 @@ public class PublicPaymentStatusService {
                         margin-bottom: 6px;
                     }
                     .form-group input {
-                        width: 100%;
+                        width: 100%%;
                         padding: 11px 14px;
                         border: 1px solid #cbd5e1;
                         border-radius: 6px;
@@ -559,8 +559,8 @@ public class PublicPaymentStatusService {
                         content: "";
                         position: absolute;
                         left: 0;
-                        top: 50%;
-                        width: 100%;
+                        top: 50%%;
+                        width: 100%%;
                         height: 1px;
                         background: #e2e8f0;
                     }
@@ -574,7 +574,7 @@ public class PublicPaymentStatusService {
                         letter-spacing: 1px;
                     }
                     .btn-submit {
-                        width: 100%;
+                        width: 100%%;
                         background: #1e3a8a;
                         color: #ffffff;
                         border: none;
@@ -603,18 +603,18 @@ public class PublicPaymentStatusService {
             <body>
                 <div class="card">
                     <div class="header">
-                        <h1>%s</h1>
+                        <h1>{{COMPANY}}</h1>
                         <p>Official Cloud Settlement &amp; Invoicing Gateway</p>
                     </div>
                     <div class="content">
-                        %s
+                        {{ERROR_BLOCK}}
                         <div class="title-row">
                             <h2>&#128274; Document Privacy Verification</h2>
                             <p>For your financial security and privacy, please confirm your document details to view the live settlement and payment reconciliation record. Entering <strong>ANY ONE</strong> of the fields below will unlock your live status:</p>
                         </div>
                         <form method="POST" action="">
-                            <input type="hidden" name="inv" value="%s" />
-                            <input type="hidden" name="token" value="%s" />
+                            <input type="hidden" name="inv" value="{{INVOICE_NO}}" />
+                            <input type="hidden" name="token" value="{{TOKEN}}" />
 
                             <div class="form-group">
                                 <label>1. Invoice / Bill Number</label>
@@ -642,12 +642,18 @@ public class PublicPaymentStatusService {
                         </form>
                     </div>
                     <div class="footer">
-                        &#128737; 256-bit Encrypted Verification &bull; Official Portal of %s
+                        &#128737; 256-bit Encrypted Verification &bull; Official Portal of {{COMPANY}}
                     </div>
                 </div>
             </body>
             </html>
-        """.formatted(escape(company), errorBlock, escape(invoiceNo), escape(token), escape(company));
+        """;
+
+        return template
+                .replace("{{COMPANY}}", escape(company))
+                .replace("{{ERROR_BLOCK}}", errorBlock)
+                .replace("{{INVOICE_NO}}", escape(invoiceNo))
+                .replace("{{TOKEN}}", escape(token));
     }
 
     private String renderErrorPage(String message) {

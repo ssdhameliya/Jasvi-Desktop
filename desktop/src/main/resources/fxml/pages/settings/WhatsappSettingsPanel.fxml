@@ -23,7 +23,12 @@
     <VBox spacing="12" styleClass="settings-subcard">
         <HBox alignment="CENTER_LEFT" spacing="8">
             <Label text="WAHA Docker Engine &amp; Server Connection" styleClass="section-title"/>
-            <Button fx:id="btnWhatsappInfo" text="Information &amp; Guidance" onAction="#showWhatsappGuidance" styleClass="secondary-button,help-button"/>
+            <Button fx:id="btnWhatsappInfo" contentDisplay="GRAPHIC_ONLY" onAction="#showWhatsappGuidance" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button">
+                <tooltip><Tooltip text="WAHA Docker Engine &amp; WhatsApp Integration Guidance"/></tooltip>
+                <graphic>
+                    <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                </graphic>
+            </Button>
             <Region HBox.hgrow="ALWAYS"/>
             <Button fx:id="btnStartWaha" text="Start WAHA Engine" onAction="#startWahaEngine" styleClass="secondary-button"/>
             <Button fx:id="btnWhatsappTest" text="Check Status" onAction="#testWhatsappConnection" styleClass="secondary-button"/>
@@ -45,7 +50,7 @@
             </VBox>
         </GridPane>
         <HBox spacing="16" alignment="CENTER_LEFT" styleClass="settings-asset-card">
-            <CheckBox fx:id="chkWahaEnabled" text="Enable Server Automated WhatsApp Dispatch" styleClass="approved-checkbox"/>
+            <CheckBox fx:id="chkWahaEnabled" text="Enable Server Automated WhatsApp Dispatch" styleClass="approved-checkbox,ios-toggle-switch"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Button fx:id="btnOpenWhatsappTemplatesInline" text="💬 WhatsApp Templates Studio" onAction="#openWhatsappTemplateStudio" styleClass="secondary-button"/>
             <Button fx:id="btnManageWhatsappChannels" text="Manage Channels &amp; Scan QR" onAction="#openWhatsappChannelDialog" styleClass="approved-button,approved-primary-button"/>

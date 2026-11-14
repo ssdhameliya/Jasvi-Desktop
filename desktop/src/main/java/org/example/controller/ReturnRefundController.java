@@ -23,6 +23,8 @@ import org.example.util.BusinessClock;
 import org.example.util.DatePickerFormatter;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
+import org.example.util.PaymentConfirmationPromptHelper;
+import org.example.util.PaymentConfirmationPromptHelper;
 import org.example.util.ScreenRefreshPolicy;
 import org.example.util.AttachmentPreviewSupport;
 import org.example.util.UiTaskExecutor;
@@ -92,7 +94,7 @@ public class ReturnRefundController implements ScreenLifecycle {
         cParty.setCellValueFactory(x->new SimpleStringProperty(x.getValue().refundedParty()));
         cStatus.setCellValueFactory(x->new SimpleStringProperty(x.getValue().status()));
         if (cEmailStatus != null) {
-            cEmailStatus.setCellValueFactory(x -> new SimpleStringProperty(x.getValue() != null ? "SENT" : "PENDING"));
+            cEmailStatus.setCellValueFactory(x -> new SimpleStringProperty(x.getValue() == null || x.getValue().emailStatus() == null ? "PENDING" : x.getValue().emailStatus()));
             cEmailStatus.setCellFactory(x -> new TableCell<>() {
                 @Override protected void updateItem(String val, boolean empty) {
                     super.updateItem(val, empty);
@@ -101,7 +103,11 @@ public class ReturnRefundController implements ScreenLifecycle {
                         setGraphic(null);
                     } else {
                         Label badge = new Label(val);
-                        badge.getStyleClass().addAll("status-pill", "status-paid");
+                        if ("SENT".equalsIgnoreCase(val)) {
+                            badge.getStyleClass().addAll("status-pill", "status-paid");
+                        } else {
+                            badge.getStyleClass().addAll("status-pill", "status-pending");
+                        }
                         setGraphic(badge);
                         setText(null);
                     }
@@ -115,13 +121,15 @@ public class ReturnRefundController implements ScreenLifecycle {
             private final MenuButton menu=new MenuButton("Actions");
             private final MenuItem preview=new MenuItem("Preview Proof",IconFactory.compactIcon("view",14));
             private final MenuItem remove=new MenuItem("Remove Proof",IconFactory.compactIcon("delete",14));
+            private final MenuItem sendEmail = new MenuItem("Send Refund Advice Email", IconFactory.compactIcon("email", 14));
             private final MenuItem previewEmail = new MenuItem("Preview Refund Email HTML", IconFactory.compactIcon("view", 14));
             {
                 menu.getStyleClass().add("row-actions");
                 menu.setGraphic(IconFactory.compactIcon("actions",14));
-                menu.getItems().addAll(preview,remove,previewEmail);
+                menu.getItems().addAll(preview,remove,sendEmail,previewEmail);
                 preview.setOnAction(e->previewRow(row()));
                 remove.setOnAction(e->removeRowProof(row()));
+                sendEmail.setOnAction(e->sendRefundEmail(row()));
                 previewEmail.setOnAction(e->previewRefundEmailHtml(row()));
                 IconFactory.decorateActionMenu(menu);
             }
@@ -134,6 +142,11 @@ public class ReturnRefundController implements ScreenLifecycle {
                 boolean bank=r!=null&&"BANK_RECONCILIATION".equalsIgnoreCase(r.refundType());
                 preview.setDisable(none);
                 remove.setDisable(none||bank);
+                if (r != null && "SENT".equalsIgnoreCase(r.emailStatus())) {
+                    sendEmail.setText("Resend Refund Advice Email");
+                } else {
+                    sendEmail.setText("Send Refund Advice Email");
+                }
                 setGraphic(menu);
             }
         });
@@ -210,6 +223,50 @@ public class ReturnRefundController implements ScreenLifecycle {
         }
     }
 
+    private void sendRefundEmail(ReturnApiClient.RefundRow row) {
+        if (row == null || details == null || details.party() == null || details.party().isBlank()) return;
+        try {
+            boolean isSales = "SALES RETURN".equalsIgnoreCase(details.type());
+            var parties = new org.example.service.PartyService().getByType(isSales ? "CUSTOMER" : "SUPPLIER");
+            String pEmail = "";
+            for (var p : parties) {
+                if (p != null && p.getName() != null && p.getName().trim().equalsIgnoreCase(details.party().trim())) {
+                    pEmail = p.getEmail() == null ? "" : p.getEmail().trim();
+                    break;
+                }
+            }
+            if (pEmail.isBlank()) {
+                new OwnedAlert(Alert.AlertType.WARNING, "No email address found for " + details.party() + ". Please update party email in Masters.").showAndWait();
+                return;
+            }
+            LocalDate rDate;
+            try {
+                rDate = LocalDate.parse(row.date());
+            } catch (Exception ex) {
+                rDate = BusinessClock.today();
+            }
+            double remaining = Math.max(0, details.total() - details.refund());
+            PaymentConfirmationPromptHelper.openReturnTransmissionDialog(
+                    amount,
+                    row.id(),
+                    details.no(),
+                    details.party(),
+                    pEmail,
+                    details.invoice(),
+                    details.type(),
+                    row.amount(),
+                    remaining,
+                    row.mode() == null ? "Bank Transfer" : row.mode(),
+                    row.reference() == null ? "-" : row.reference(),
+                    rDate,
+                    row.notes() == null ? "" : row.notes(),
+                    this::load
+            );
+        } catch (Exception ex) {
+            error(ex);
+        }
+    }
+
     private void load(){String no=ReturnRefundContext.value();if(no==null||no.isBlank())return;UiTaskExecutor.submitLatest("return-refund-load",()->{ReturnApiClient.Details loaded=api.details(no);List<ReturnApiClient.RefundRow> rows=api.refunds(no);return new RefundSnapshot(no,loaded,rows==null?List.of():List.copyOf(rows));},snapshot->{if(!Objects.equals(snapshot.returnNo(),ReturnRefundContext.value()))return;details=snapshot.details();boolean sales="SALES RETURN".equalsIgnoreCase(details.type());pageTitle.setText(sales?"Sales Return Refund":"Purchase Return Refund");pageSubtitle.setText("Record refund • review history • manage proof documents");partyFieldLabel.setText(sales?"Refunded To *":"Received From *");amountFieldLabel.setText(sales?"Amount Refunded *":"Refund Received *");returnNo.setText(details.no());party.setText(details.party());originalDocument.setText(details.invoice());returnDate.setText(BusinessClock.formatDate(details.date()));refundedParty.setText(details.party());refreshAmounts();applyHistory(snapshot.rows());resetForm(false);org.example.navigation.UnsavedChangesManager.markClean(amount);},this::error);}
     private void refreshAmounts(){double b=Math.max(0,details.total()-details.refund());total.setText(money(details.total()));refunded.setText(money(details.refund()));balance.setText(money(b));summaryTotal.setText(money(details.total()));summaryRefunded.setText(money(details.refund()));summaryBalance.setText(money(b));double pct=details.total()<=0?0:Math.min(1,details.refund()/details.total());refundProgress.setProgress(pct);refundPercent.setText(String.format(Locale.ROOT,"%.0f%% refunded",pct*100));updateAfter();}
     private void applyHistory(List<ReturnApiClient.RefundRow> rows){historyTable.getItems().setAll(rows);historyCount.setText(rows.size()+ (rows.size()==1?" Refund":" Refunds"));}
@@ -254,8 +311,8 @@ public class ReturnRefundController implements ScreenLifecycle {
                     }
                     if(!pEmail.isBlank()){
                         org.example.util.PaymentConfirmationPromptHelper.promptAndTransmitReturn(
-                                amount,rDetails.no(),rDetails.party(),pEmail,rDetails.invoice(),
-                                rDetails.type(),rVal,rRemaining,rMode,rRef,rDate,rNotes
+                                amount,id,rDetails.no(),rDetails.party(),pEmail,rDetails.invoice(),
+                                rDetails.type(),rVal,rRemaining,rMode,rRef,rDate,rNotes,this::load
                         );
                     }
                 }catch(Exception promptError){

@@ -98,7 +98,12 @@ public class ReportViewerController implements ScreenLifecycle {
     }
 
     private void configureIcons(){
-        if(btnInfo!=null)btnInfo.setGraphic(IconFactory.compactIcon("info",15));
+        if(btnInfo!=null) {
+            btnInfo.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            btnInfo.setText("");
+            btnInfo.setGraphic(IconFactory.compactIcon("info",15));
+            btnInfo.setTooltip(new Tooltip("Report Information & Guidance"));
+        }
         if(btnRefresh!=null)btnRefresh.setGraphic(IconFactory.compactIcon("refresh",15));
         if(btnExport!=null)btnExport.setGraphic(IconFactory.compactIcon("export",15));
         if(miPdf!=null)miPdf.setGraphic(IconFactory.compactIcon("pdf",15));

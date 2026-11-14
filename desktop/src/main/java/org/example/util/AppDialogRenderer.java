@@ -95,6 +95,8 @@ public final class AppDialogRenderer {
                 }
                 SearchableComboBoxHelper.makeAllSearchable(pane);
                 UiDiagnostics.audit(scene.getRoot(), "dialog:" + safe(dialog.getTitle()));
+                reconcileButtonBar(pane);
+                Platform.runLater(() -> reconcileButtonBar(pane));
                 PlatformUiSupport.animateEntrance(scene.getRoot());
             }
         });
@@ -385,9 +387,38 @@ public final class AppDialogRenderer {
 
 
     private static void promoteActionBar(DialogPane pane) {
+        reconcileButtonBar(pane);
+    }
+
+    /**
+     * Centralized action bar management for ERP dialogs.
+     * When a dialog's only button is a dismiss/cancel button (ButtonType.CLOSE or ButtonType.CANCEL),
+     * the bottom button-bar is automatically collapsed and unmanaged to eliminate duplicate close buttons
+     * and recover vertical space, relying on the header's close cross and ESC key.
+     */
+    public static void reconcileButtonBar(DialogPane pane) {
         if (pane == null) return;
+        boolean dismissOnly = pane.getButtonTypes().size() == 1
+                && (pane.getButtonTypes().contains(ButtonType.CLOSE) || pane.getButtonTypes().contains(ButtonType.CANCEL));
         Node buttonBar = pane.lookup(".button-bar");
-        if (buttonBar != null) buttonBar.toFront();
+        if (buttonBar != null) {
+            if (dismissOnly) {
+                buttonBar.setVisible(false);
+                buttonBar.setManaged(false);
+                if (!pane.getStyleClass().contains("dse-dialog-no-button-bar")) {
+                    pane.getStyleClass().add("dse-dialog-no-button-bar");
+                }
+            } else {
+                buttonBar.toFront();
+                buttonBar.setVisible(true);
+                buttonBar.setManaged(true);
+                pane.getStyleClass().remove("dse-dialog-no-button-bar");
+            }
+        } else if (dismissOnly) {
+            if (!pane.getStyleClass().contains("dse-dialog-no-button-bar")) {
+                pane.getStyleClass().add("dse-dialog-no-button-bar");
+            }
+        }
     }
 
     private static void installActionCompletionFallback(Dialog<?> dialog, Button button, ButtonType type) {

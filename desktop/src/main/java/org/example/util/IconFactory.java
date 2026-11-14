@@ -1158,6 +1158,7 @@ public final class IconFactory {
             case "barcode" -> "fas-barcode";
             case "wallet", "finance" -> "fas-wallet";
             case "automation" -> "fas-cogs";
+            case "admin", "administrator" -> "fas-user-cog";
             case "module" -> "fas-cubes";
             case "showcase" -> "fas-cube";
             case "security-session" -> "fas-shield-alt";
@@ -1174,7 +1175,7 @@ public final class IconFactory {
             case "amount", "sale", "sales-order", "complete", "add", "import", "whatsapp", "save", "validate", "approve", "publish" -> "green";
             case "export", "excel", "csv" -> "blue";
             case "balance", "purchase", "purchase-order", "goods-receipt", "item", "reminder", "warning", "snooze", "quantity", "tax", "gstin", "discount", "category", "minimum", "source", "reference", "rollback", "package", "set-default", "transporter", "vehicle", "lock" -> "orange";
-            case "quotation", "document", "master", "return", "settings", "more", "actions", "status", "reopen", "role", "reset", "notes", "print", "application", "calendar", "audit", "archive", "duplicate", "barcode", "template" -> "purple";
+            case "quotation", "document", "master", "return", "settings", "more", "actions", "status", "reopen", "role", "reset", "notes", "print", "application", "calendar", "audit", "archive", "duplicate", "barcode", "template", "admin", "administrator" -> "purple";
             case "report", "delete", "error", "cancel", "pdf", "debit", "reject", "exit" -> "pink";
             case "inventory", "supplier", "attachment", "phone", "location", "communication", "unit", "email", "backup", "filter" -> "teal";
             case "payment", "customer", "user", "dashboard", "view", "hide", "download", "identity", "sent", "currency", "confirmation", "refresh", "restore", "folder", "copy", "database", "first", "previous", "next", "last", "history", "workspace", "select", "business", "chevron", "wallet", "finance" -> "blue";

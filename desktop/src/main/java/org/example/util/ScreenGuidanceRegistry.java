@@ -148,6 +148,30 @@ public final class ScreenGuidanceRegistry {
             List.of("Ctrl + T : Test Email", "Ctrl + S : Save Settings")
         ));
 
+        // 5b. WhatsApp & WAHA Integration Settings
+        register(new ScreenGuidance(
+            "SETTINGS_WHATSAPP",
+            "WhatsApp Business Integration (WAHA)",
+            "message",
+            "Connect automated document dispatch, multi-number WAHA Docker engines, and instant WhatsApp PDF delivery.",
+            List.of(
+                "Configure WAHA Docker endpoint (default http://localhost:3000 or remote cloud server URL).",
+                "Scan the WhatsApp Web QR code using your official company WhatsApp number to establish a persistent session.",
+                "Map specialized WhatsApp sender numbers for Sales Invoices, Purchase Orders, Quotations, and Payment Reminders.",
+                "Enable 'Enable Server Automated WhatsApp Dispatch' to trigger instant customer messages upon invoice creation."
+            ),
+            List.of(
+                "WAHA runs as a secure local Docker sidecar, keeping all company communication direct without third-party message fees.",
+                "Automated PDF document dispatch sends official invoices with dynamic payment status links directly to customer mobile numbers.",
+                "Multi-department channel routing ensures sales queries and purchasing dispatches operate through distinct corporate lines."
+            ),
+            List.of(
+                "Ensure WAHA Docker container remains running; if stopped, outgoing customer notifications will queue until restarted.",
+                "Adhere to WhatsApp Business Anti-Spam Guidelines: only dispatch transactional documents to verified business contacts."
+            ),
+            List.of("Ctrl + S : Save WhatsApp Settings", "Esc : Back")
+        ));
+
         // 6. Security Settings
         register(new ScreenGuidance(
             "SETTINGS_SECURITY",
