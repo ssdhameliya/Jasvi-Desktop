@@ -38,7 +38,7 @@ public class SecurityConfig {
                                 "/api/auth/registration/captcha", "/api/auth/registration/request",
                                 "/api/auth/registration/email/verify", "/api/auth/registration/mfa/complete",
                                 "/api/auth/password-reset/request", "/api/auth/password-reset/complete",
-                                "/api/public/showcase/**", "/api/license/status", "/api/license/upi-payload",
+                                "/api/public/showcase/**", "/public/payment-status/**", "/api/license/status", "/api/license/upi-payload",
                                 "/api/license/upi-qr-image", "/api/license/activate", "/api/license/catalog",
                                 "/api/license/self-register", "/api/license/check-lead")
                         .permitAll()

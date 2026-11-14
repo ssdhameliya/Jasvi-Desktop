@@ -21,12 +21,16 @@ public final class BusinessEmailClient {
     }
 
     public void send(String recipient, String subject, String body, Path attachment, Path signatureImage) {
+        send(recipient, subject, body, attachment, signatureImage, null, null);
+    }
+
+    public void send(String recipient, String subject, String body, Path attachment, Path signatureImage, String senderEmail, String senderDisplayName) {
         try {
             String name = attachment == null ? null : attachment.getFileName().toString();
             String data = attachment == null ? null : Base64.getEncoder().encodeToString(Files.readAllBytes(attachment));
             String sigName = signatureImage == null ? null : signatureImage.getFileName().toString();
             String sigData = signatureImage == null ? null : Base64.getEncoder().encodeToString(Files.readAllBytes(signatureImage));
-            request("POST", base(), new Request(recipient, subject, body, name, data, sigName, sigData), Result.class);
+            request("POST", base(), new Request(recipient, subject, body, name, data, sigName, sigData, senderEmail, senderDisplayName), Result.class);
         } catch (Exception e) {
             throw e instanceof RuntimeException x ? x : new IllegalStateException(e);
         }
@@ -37,12 +41,16 @@ public final class BusinessEmailClient {
     }
 
     public void resend(String recipient, String subject, String body, Path attachment, Path signatureImage) {
+        resend(recipient, subject, body, attachment, signatureImage, null, null);
+    }
+
+    public void resend(String recipient, String subject, String body, Path attachment, Path signatureImage, String senderEmail, String senderDisplayName) {
         try {
             String name = attachment == null ? null : attachment.getFileName().toString();
             String data = attachment == null ? null : Base64.getEncoder().encodeToString(Files.readAllBytes(attachment));
             String sigName = signatureImage == null ? null : signatureImage.getFileName().toString();
             String sigData = signatureImage == null ? null : Base64.getEncoder().encodeToString(Files.readAllBytes(signatureImage));
-            request("POST", base() + "/resend", new Request(recipient, subject, body, name, data, sigName, sigData), Result.class);
+            request("POST", base() + "/resend", new Request(recipient, subject, body, name, data, sigName, sigData, senderEmail, senderDisplayName), Result.class);
         } catch (Exception e) {
             throw e instanceof RuntimeException x ? x : new IllegalStateException(e);
         }
@@ -81,7 +89,11 @@ public final class BusinessEmailClient {
         return "Company-server email request failed (HTTP " + status + ").";
     }
 
-    private record Request(String recipient, String subject, String body, String attachmentName, String attachmentBase64, String signatureImageName, String signatureImageBase64) {}
+    private record Request(String recipient, String subject, String body, String attachmentName, String attachmentBase64, String signatureImageName, String signatureImageBase64, String senderEmail, String senderDisplayName) {
+        public Request(String recipient, String subject, String body, String attachmentName, String attachmentBase64, String signatureImageName, String signatureImageBase64) {
+            this(recipient, subject, body, attachmentName, attachmentBase64, signatureImageName, signatureImageBase64, null, null);
+        }
+    }
     private record TestRequest(String recipient) {}
     public record Settings(String email, String appPassword, String host, Integer port, boolean passwordConfigured) {}
     public record Result(boolean success, String message) {}

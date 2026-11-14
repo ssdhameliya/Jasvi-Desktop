@@ -1022,6 +1022,7 @@ public final class SalesDocumentInspectionDialog {
                 String sigImg = MessageTemplateService.getSignatureImagePath();
                 Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
                 String target = full.getCustomer() == null ? "" : safe(full.getCustomer().getEmail()).trim();
+                String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(full.getInvoiceNo(), full.getTotalAmount());
                 return new EmailTransmissionDialog.EmailDraft(
                         "Transmit Tax Invoice via Email",
                         "Direct SMTP delivery to customer billing contact",
@@ -1031,7 +1032,13 @@ public final class SalesDocumentInspectionDialog {
                         msg.subject(),
                         msg.body(),
                         pdf,
-                        sigPath
+                        sigPath,
+                        "sale",
+                        statusUrl,
+                        full.getTotalAmount(),
+                        full.getPaidAmount(),
+                        full.getBalanceAmount(),
+                        full.getPaymentStatus()
                 );
             }, draft -> {
                 Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(dialog.getDialogPane(), draft);
@@ -1039,7 +1046,7 @@ public final class SalesDocumentInspectionDialog {
                 EmailTransmissionDialog.TransmissionResult result = opt.get();
                 LiveOperationDialog.run(dialog.getDialogPane(), "Sending Sales Invoice Email", "email", "Connecting to SMTP server...", reporter -> {
                     reporter.stage(1, 3, "Connecting to SMTP and transmitting email to " + result.recipientEmail() + "...");
-                    EmailService.send(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage());
+                    EmailService.send(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage(), result.senderProfile());
                     reporter.stage(2, 3, "Recording communication status in audit register...");
                     service.markEmailSent(sale.getId());
                     try {

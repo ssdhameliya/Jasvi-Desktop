@@ -36,20 +36,46 @@ public class EmailTransmissionDialog {
             String subject,
             String body,
             Path attachmentPdf,
-            Path signatureImage
-    ) {}
+            Path signatureImage,
+            String activityKey,
+            String publicStatusUrl,
+            Double totalAmount,
+            Double paidAmount,
+            Double balanceAmount,
+            String statusBadge
+    ) {
+        public EmailDraft(String title, String subtitle, String documentLabel, String documentNo,
+                          String recipientEmail, String subject, String body, Path attachmentPdf, Path signatureImage) {
+            this(title, subtitle, documentLabel, documentNo, recipientEmail, subject, body, attachmentPdf, signatureImage, null, null, null, null, null, null);
+        }
+    }
 
     public record TransmissionResult(
             String recipientEmail,
             String subject,
             String body,
             Path attachmentPdf,
-            Path signatureImage
-    ) {}
+            Path signatureImage,
+            org.example.service.EmailService.SenderProfile senderProfile
+    ) {
+        public TransmissionResult(String recipientEmail, String subject, String body, Path attachmentPdf, Path signatureImage) {
+            this(recipientEmail, subject, body, attachmentPdf, signatureImage, null);
+        }
+    }
+
+    public record SenderProfileOption(String label, org.example.service.EmailService.SenderProfile profile) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
 
     @FXML private StackPane headerIconHolder;
     @FXML private Label lblTitle;
     @FXML private Label lblSubtitle;
+
+    @FXML private VBox boxSenderProfile;
+    @FXML private ComboBox<SenderProfileOption> cmbSenderProfile;
 
     @FXML private TextField txtRecipient;
     @FXML private Label errRecipient;
@@ -57,7 +83,20 @@ public class EmailTransmissionDialog {
     @FXML private TextField txtSubject;
     @FXML private Label errSubject;
 
+    @FXML private Button btnTabEdit;
+    @FXML private Button btnTabPreview;
+
     @FXML private TextArea txtBody;
+    @FXML private VBox boxExecutivePreview;
+    @FXML private Label lblPreviewCompany;
+    @FXML private Label lblPreviewBadge;
+    @FXML private Label lblPreviewDocNo;
+    @FXML private Label lblPreviewRecipient;
+    @FXML private Label lblPreviewAmount;
+    @FXML private Label lblPreviewStatus;
+    @FXML private HBox boxLiveStatusPreview;
+    @FXML private Button btnLiveStatusSample;
+    @FXML private Label lblPreviewBody;
 
     @FXML private HBox boxSignatureImage;
     @FXML private Label lblSignatureImageInfo;
@@ -93,17 +132,40 @@ public class EmailTransmissionDialog {
         if (btnSend != null) {
             org.example.util.UiActionIcons.apply(btnSend, "send", "Send Email");
         }
+        if (btnTabEdit != null) {
+            org.example.util.UiActionIcons.apply(btnTabEdit, "document", "Edit Text");
+        }
+        if (btnTabPreview != null) {
+            org.example.util.UiActionIcons.apply(btnTabPreview, "eye", "Executive Preview");
+        }
+        if (btnLiveStatusSample != null) {
+            btnLiveStatusSample.setOnAction(ev -> {
+                if (draft != null && draft.publicStatusUrl() != null && !draft.publicStatusUrl().isBlank()) {
+                    try {
+                        java.awt.Desktop.getDesktop().browse(java.net.URI.create(draft.publicStatusUrl()));
+                    } catch (Exception ignored) {}
+                }
+            });
+        }
         if (txtRecipient != null) {
             txtRecipient.textProperty().addListener((obs, old, val) -> {
                 if (errRecipient != null) {
                     errRecipient.setVisible(false);
                     errRecipient.setManaged(false);
                 }
+                if (lblPreviewRecipient != null) {
+                    lblPreviewRecipient.setText(val == null || val.isBlank() ? "-" : val.trim());
+                }
             });
         }
         if (txtBody != null) {
-            txtBody.setMinHeight(200);
-            txtBody.setPrefHeight(240);
+            txtBody.setMinHeight(220);
+            txtBody.setPrefHeight(260);
+            txtBody.textProperty().addListener((obs, old, val) -> {
+                if (lblPreviewBody != null) {
+                    lblPreviewBody.setText(val == null ? "" : val);
+                }
+            });
         }
         if (txtSubject != null) {
             txtSubject.textProperty().addListener((obs, old, val) -> {
@@ -112,6 +174,47 @@ public class EmailTransmissionDialog {
                     errSubject.setManaged(false);
                 }
             });
+        }
+    }
+
+    @FXML
+    public void showEditMode() {
+        if (txtBody != null) {
+            txtBody.setVisible(true);
+            txtBody.setManaged(true);
+        }
+        if (boxExecutivePreview != null) {
+            boxExecutivePreview.setVisible(false);
+            boxExecutivePreview.setManaged(false);
+        }
+        if (btnTabEdit != null) {
+            btnTabEdit.getStyleClass().removeAll("active-tab-btn", "approved-primary-button");
+            btnTabEdit.getStyleClass().add("approved-primary-button");
+        }
+        if (btnTabPreview != null) {
+            btnTabPreview.getStyleClass().removeAll("active-tab-btn", "approved-primary-button");
+        }
+    }
+
+    @FXML
+    public void showPreviewMode() {
+        if (txtBody != null) {
+            txtBody.setVisible(false);
+            txtBody.setManaged(false);
+        }
+        if (boxExecutivePreview != null) {
+            boxExecutivePreview.setVisible(true);
+            boxExecutivePreview.setManaged(true);
+            if (lblPreviewBody != null && txtBody != null) {
+                lblPreviewBody.setText(txtBody.getText());
+            }
+        }
+        if (btnTabPreview != null) {
+            btnTabPreview.getStyleClass().removeAll("active-tab-btn", "approved-primary-button");
+            btnTabPreview.getStyleClass().add("approved-primary-button");
+        }
+        if (btnTabEdit != null) {
+            btnTabEdit.getStyleClass().removeAll("active-tab-btn", "approved-primary-button");
         }
     }
 
@@ -125,6 +228,36 @@ public class EmailTransmissionDialog {
         if (lblSubtitle != null && draft.subtitle() != null) {
             lblSubtitle.setText(draft.subtitle());
         }
+
+        // Sender Identity Routing (when enabled in Settings)
+        boolean activityRouting = org.example.config.ConfigManager.getBoolean("email.activityRouting.enabled", false);
+        if (boxSenderProfile != null) {
+            boxSenderProfile.setVisible(activityRouting);
+            boxSenderProfile.setManaged(activityRouting);
+        }
+        if (activityRouting && cmbSenderProfile != null) {
+            cmbSenderProfile.getItems().clear();
+            var defProfile = org.example.service.EmailService.defaultSenderProfile();
+            var defOpt = new SenderProfileOption("Company Master (" + defProfile.email() + ")", defProfile);
+            cmbSenderProfile.getItems().add(defOpt);
+
+            String[] activities = {"sale", "quote", "purchase", "return", "accounts"};
+            String[] activityNames = {"Sales & Billing", "Quotations & RFQ", "Procurement & Purchase", "Customer Support / Returns", "Accounts & Finance"};
+            SenderProfileOption selectedOpt = defOpt;
+            for (int i = 0; i < activities.length; i++) {
+                String actKey = activities[i];
+                var p = org.example.service.EmailService.resolveSenderProfile(actKey);
+                if (p != null && !p.email().isBlank() && !p.email().equalsIgnoreCase(defProfile.email())) {
+                    var opt = new SenderProfileOption(activityNames[i] + " (" + p.email() + ")", p);
+                    cmbSenderProfile.getItems().add(opt);
+                    if (draft.activityKey() != null && draft.activityKey().equalsIgnoreCase(actKey)) {
+                        selectedOpt = opt;
+                    }
+                }
+            }
+            cmbSenderProfile.setValue(selectedOpt);
+        }
+
         if (txtRecipient != null) {
             txtRecipient.setText(draft.recipientEmail() == null ? "" : draft.recipientEmail().trim());
         }
@@ -138,6 +271,28 @@ public class EmailTransmissionDialog {
                 txtBody.deselect();
                 txtBody.requestLayout();
             });
+        }
+
+        // Executive Preview Labels
+        if (lblPreviewCompany != null) lblPreviewCompany.setText(org.example.service.BrandingService.companyName());
+        if (lblPreviewDocNo != null) lblPreviewDocNo.setText(draft.documentNo() == null ? "-" : draft.documentNo());
+        if (lblPreviewRecipient != null) lblPreviewRecipient.setText(draft.recipientEmail() == null || draft.recipientEmail().isBlank() ? "-" : draft.recipientEmail().trim());
+        if (lblPreviewAmount != null) {
+            lblPreviewAmount.setText(draft.totalAmount() != null ? "₹ " + String.format(java.util.Locale.of("en", "IN"), "%,.2f", draft.totalAmount()) : "-");
+        }
+        if (lblPreviewStatus != null) {
+            lblPreviewStatus.setText(draft.statusBadge() == null ? (draft.documentLabel() == null ? "OFFICIAL" : draft.documentLabel().toUpperCase(java.util.Locale.ROOT)) : draft.statusBadge().toUpperCase(java.util.Locale.ROOT));
+        }
+        if (lblPreviewBadge != null) {
+            lblPreviewBadge.setText(draft.statusBadge() == null ? "DOCUMENT" : draft.statusBadge().toUpperCase(java.util.Locale.ROOT));
+        }
+        if (lblPreviewBody != null) {
+            lblPreviewBody.setText(draft.body() == null ? "" : draft.body());
+        }
+        boolean hasStatusUrl = draft.publicStatusUrl() != null && !draft.publicStatusUrl().isBlank();
+        if (boxLiveStatusPreview != null) {
+            boxLiveStatusPreview.setVisible(hasStatusUrl);
+            boxLiveStatusPreview.setManaged(hasStatusUrl);
         }
 
         // Signature image box
@@ -355,7 +510,12 @@ public class EmailTransmissionDialog {
             return;
         }
 
-        this.result = new TransmissionResult(recipient, subject, body, draft.attachmentPdf(), draft.signatureImage());
+        org.example.service.EmailService.SenderProfile profile = null;
+        if (cmbSenderProfile != null && cmbSenderProfile.getValue() != null) {
+            profile = cmbSenderProfile.getValue().profile();
+        }
+
+        this.result = new TransmissionResult(recipient, subject, body, draft.attachmentPdf(), draft.signatureImage(), profile);
         if (hostDialog != null) {
             hostDialog.setResult(this.result);
             hostDialog.close();

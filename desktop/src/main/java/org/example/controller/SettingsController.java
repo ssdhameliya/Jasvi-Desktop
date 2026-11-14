@@ -271,6 +271,19 @@ public class SettingsController implements ScreenLifecycle {
 
     @FXML
     private TextField txtSmtpPort;
+
+    @FXML private ToggleButton tglActivityRouting;
+    @FXML private VBox boxActivityRoutingSection;
+    @FXML private ComboBox<String> cmbActivityProfileSelect;
+    @FXML private CheckBox chkEnableDedicatedProfile;
+    @FXML private TextField txtProfileSenderName;
+    @FXML private TextField txtProfileSenderEmail;
+    @FXML private PasswordField txtProfileSenderPassword;
+    @FXML private TextField txtProfileSenderHost;
+    @FXML private TextField txtProfileSenderPort;
+    @FXML private TextArea txtProfileCustomSignature;
+    @FXML private Button btnTestActivityProfile;
+    @FXML private ToggleButton tglPaymentConfirmationEmail;
     @FXML private TextField txtWahaEndpoint;
     @FXML private PasswordField txtWahaApiKey;
     @FXML private CheckBox chkWahaEnabled;
@@ -3151,6 +3164,19 @@ private record AssetPreviewRequest(
             putSetting("email.signature.attachToWhatsapp", String.valueOf(val));
             ConfigManager.setWithoutSaving("email.signature.attachToWhatsapp", String.valueOf(val));
         }
+        if (cmbActivityProfileSelect != null && cmbActivityProfileSelect.getValue() != null) {
+            saveActivityProfileFromUi(cmbActivityProfileSelect.getValue());
+        }
+        if (tglActivityRouting != null) {
+            boolean routing = tglActivityRouting.isSelected();
+            putSetting("email.activityRouting.enabled", String.valueOf(routing));
+            ConfigManager.setWithoutSaving("email.activityRouting.enabled", String.valueOf(routing));
+        }
+        if (tglPaymentConfirmationEmail != null) {
+            boolean payConf = tglPaymentConfirmationEmail.isSelected();
+            putSetting("bank.paymentConfirmationEmail.enabled", String.valueOf(payConf));
+            ConfigManager.setWithoutSaving("bank.paymentConfirmationEmail.enabled", String.valueOf(payConf));
+        }
         if (ConfigManager.isSharedClient()) {
             if (!SessionService.isAdmin()) return;
             new org.example.api.authority.BusinessEmailClient().saveSettings(
@@ -3662,6 +3688,62 @@ private record AssetPreviewRequest(
                 MessageTemplateService.setAttachSignatureToWhatsapp(newVal);
                 ConfigManager.setBoolean("email.signature.attachToWhatsapp", newVal);
                 ConfigManager.save();
+            });
+        }
+
+        // Feature Flag 1: Activity-Based Email Routing
+        if (tglActivityRouting != null) {
+            boolean routingActive = ConfigManager.getBoolean("email.activityRouting.enabled", false);
+            tglActivityRouting.setSelected(routingActive);
+            tglActivityRouting.setText(routingActive ? "Activity Routing: ON" : "Activity Routing: OFF");
+            if (boxActivityRoutingSection != null) {
+                boxActivityRoutingSection.setVisible(routingActive);
+                boxActivityRoutingSection.setManaged(routingActive);
+            }
+            tglActivityRouting.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                tglActivityRouting.setText(newVal ? "Activity Routing: ON" : "Activity Routing: OFF");
+                if (boxActivityRoutingSection != null) {
+                    boxActivityRoutingSection.setVisible(newVal);
+                    boxActivityRoutingSection.setManaged(newVal);
+                }
+                ConfigManager.setBoolean("email.activityRouting.enabled", newVal);
+                ConfigManager.save();
+            });
+        }
+
+        // Feature Flag 2: Bank Reconciliation Payment Receipts
+        if (tglPaymentConfirmationEmail != null) {
+            boolean paymentEmailActive = ConfigManager.getBoolean("bank.paymentConfirmationEmail.enabled", true);
+            tglPaymentConfirmationEmail.setSelected(paymentEmailActive);
+            tglPaymentConfirmationEmail.setText(paymentEmailActive ? "Payment Receipts: ON" : "Payment Receipts: OFF");
+            tglPaymentConfirmationEmail.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                tglPaymentConfirmationEmail.setText(newVal ? "Payment Receipts: ON" : "Payment Receipts: OFF");
+                ConfigManager.setBoolean("bank.paymentConfirmationEmail.enabled", newVal);
+                ConfigManager.save();
+            });
+        }
+
+        if (cmbActivityProfileSelect != null) {
+            cmbActivityProfileSelect.setItems(FXCollections.observableArrayList(
+                "Sales & Invoices",
+                "Quotations & RFQ",
+                "Procurement & Purchases",
+                "Customer Support & Returns",
+                "Accounts & Payment Receipts"
+            ));
+            cmbActivityProfileSelect.setValue("Sales & Invoices");
+            loadActivityProfileIntoUi("Sales & Invoices");
+            cmbActivityProfileSelect.valueProperty().addListener((obs, o, n) -> {
+                if (o != null) saveActivityProfileFromUi(o);
+                if (n != null) loadActivityProfileIntoUi(n);
+            });
+        }
+
+        if (chkEnableDedicatedProfile != null) {
+            chkEnableDedicatedProfile.selectedProperty().addListener((obs, o, n) -> {
+                if (cmbActivityProfileSelect != null && cmbActivityProfileSelect.getValue() != null) {
+                    saveActivityProfileFromUi(cmbActivityProfileSelect.getValue());
+                }
             });
         }
 
@@ -4345,6 +4427,102 @@ private record AssetPreviewRequest(
             failure -> {
                 showError(EmailFailureMessages.forAdministrator((Exception) failure));
             }
+        );
+    }
+
+    private String activityKeyForOption(String option) {
+        if (option == null) return "sale";
+        if (option.contains("Sales")) return "sale";
+        if (option.contains("Quote") || option.contains("Quotation")) return "quote";
+        if (option.contains("Purchase") || option.contains("Procurement")) return "purchase";
+        if (option.contains("Return")) return "return";
+        if (option.contains("Accounts") || option.contains("Payment")) return "accounts";
+        return "sale";
+    }
+
+    private void loadActivityProfileIntoUi(String option) {
+        String key = activityKeyForOption(option);
+        String name = ConfigManager.get("email.profile." + key + ".name", "");
+        String email = ConfigManager.get("email.profile." + key + ".email", "");
+        String pwd = ConfigManager.get("email.profile." + key + ".password", "");
+        if (org.example.shared.SecretValueCodec.isEncrypted(pwd)) {
+            try { pwd = org.example.shared.SecretValueCodec.decrypt(pwd); } catch (Exception ignored) {}
+        }
+        String host = ConfigManager.get("email.profile." + key + ".host", "");
+        String port = ConfigManager.get("email.profile." + key + ".port", "587");
+        String sig = ConfigManager.get("email.signature." + key, "");
+
+        if (txtProfileSenderName != null) txtProfileSenderName.setText(name);
+        if (txtProfileSenderEmail != null) txtProfileSenderEmail.setText(email);
+        if (txtProfileSenderPassword != null) {
+            txtProfileSenderPassword.setText(pwd);
+            txtProfileSenderPassword.setPromptText(pwd.isBlank() ? "Dedicated app password" : "Configured");
+        }
+        if (txtProfileSenderHost != null) txtProfileSenderHost.setText(host);
+        if (txtProfileSenderPort != null) txtProfileSenderPort.setText(port.isBlank() ? "587" : port);
+        if (txtProfileCustomSignature != null) txtProfileCustomSignature.setText(sig);
+        if (chkEnableDedicatedProfile != null) {
+            chkEnableDedicatedProfile.setSelected(!email.isBlank());
+        }
+    }
+
+    private void saveActivityProfileFromUi(String option) {
+        String key = activityKeyForOption(option);
+        if (txtProfileSenderEmail == null) return;
+        boolean enabled = chkEnableDedicatedProfile != null && chkEnableDedicatedProfile.isSelected();
+        String name = txtProfileSenderName == null ? "" : txtProfileSenderName.getText().trim();
+        String email = enabled ? txtProfileSenderEmail.getText().trim() : "";
+        String pwd = txtProfileSenderPassword == null ? "" : txtProfileSenderPassword.getText().trim();
+        String host = txtProfileSenderHost == null ? "" : txtProfileSenderHost.getText().trim();
+        String port = txtProfileSenderPort == null ? "587" : txtProfileSenderPort.getText().trim();
+        String sig = txtProfileCustomSignature == null ? "" : txtProfileCustomSignature.getText().trim();
+
+        putSetting("email.profile." + key + ".name", name);
+        ConfigManager.setWithoutSaving("email.profile." + key + ".name", name);
+        putSetting("email.profile." + key + ".email", email);
+        ConfigManager.setWithoutSaving("email.profile." + key + ".email", email);
+
+        if (!pwd.isBlank()) {
+            String encrypted = org.example.shared.SecretValueCodec.encrypt(pwd);
+            putSetting("email.profile." + key + ".password", encrypted);
+            ConfigManager.setWithoutSaving("email.profile." + key + ".password", encrypted);
+        }
+        putSetting("email.profile." + key + ".host", host);
+        ConfigManager.setWithoutSaving("email.profile." + key + ".host", host);
+        putSetting("email.profile." + key + ".port", port.isBlank() ? "587" : port);
+        ConfigManager.setWithoutSaving("email.profile." + key + ".port", port.isBlank() ? "587" : port);
+        putSetting("email.signature." + key, sig);
+        ConfigManager.setWithoutSaving("email.signature." + key, sig);
+    }
+
+    @FXML
+    private void testActivityProfileEmail() {
+        String option = cmbActivityProfileSelect == null ? "Sales & Invoices" : cmbActivityProfileSelect.getValue();
+        String actKey = activityKeyForOption(option);
+        saveActivityProfileFromUi(option);
+        var profile = org.example.service.EmailService.resolveSenderProfile(actKey);
+        String recipient = profile.email();
+        if (recipient.isBlank()) {
+            recipient = txtSmtpEmail != null ? txtSmtpEmail.getText().trim() : "";
+        }
+        if (recipient.isBlank()) {
+            warn("Enter an email address for this department first.");
+            return;
+        }
+        final String target = recipient;
+        LiveOperationDialog.run(panelWorkspace, "Testing Department Email", "email",
+            "Connecting to SMTP server for " + profile.displayName() + "...",
+            reporter -> {
+                reporter.stage(1, 2, "Connecting to SMTP server and validating credentials...");
+                org.example.service.EmailService.send(target,
+                    org.example.service.BrandingService.applicationName() + " " + profile.displayName() + " Email Test",
+                    "Your " + profile.displayName() + " email configuration is functioning correctly.",
+                    null, null, profile);
+                reporter.stage(2, 2, "Test email delivered successfully.");
+            },
+            () -> org.example.util.AppDialogService.success(panelWorkspace, "Test Email Sent",
+                    "Department test email was successfully delivered to " + target + "."),
+            failure -> showError(failure.getMessage() == null ? "Department email test failed." : failure.getMessage())
         );
     }
 

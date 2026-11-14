@@ -195,7 +195,13 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
            msg.subject(),
            msg.body(),
            pdf,
-           sigPath
+           sigPath,
+           "quote",
+           null,
+           q.amount.get(),
+           0.0,
+           q.amount.get(),
+           "QUOTATION"
    );
   }, draft -> {
    Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(table, draft);
@@ -203,7 +209,7 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
    EmailTransmissionDialog.TransmissionResult result = opt.get();
    LiveOperationDialog.run(table,"Sending Quotation Email","email","Connecting to SMTP server...",reporter->{
     reporter.stage(1,3,"Connecting to SMTP and transmitting email to "+result.recipientEmail()+"...");
-    EmailService.send(result.recipientEmail(),result.subject(),result.body(),result.attachmentPdf(),result.signatureImage());
+    EmailService.send(result.recipientEmail(),result.subject(),result.body(),result.attachmentPdf(),result.signatureImage(),result.senderProfile());
     reporter.stage(2,3,"Recording communication history in audit register...");
     quotationApi.markSent(q.id,"EMAIL",q.rowVersion);
     comm(q,"EMAIL",result.recipientEmail(),"SENT",null);

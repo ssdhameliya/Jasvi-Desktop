@@ -438,7 +438,13 @@ private void configureDetailsCloseButton(){
            msg.subject(),
            msg.body(),
            pdf,
-           sigPath
+           sigPath,
+           "purchase",
+           null,
+           full.getTotalAmount(),
+           full.getPaidAmount(),
+           full.getBalanceAmount(),
+           full.getPaymentStatus()
    );
   }, draft -> {
    Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(tablePurchase, draft);
@@ -446,7 +452,7 @@ private void configureDetailsCloseButton(){
    EmailTransmissionDialog.TransmissionResult result = opt.get();
    LiveOperationDialog.run(tablePurchase,"Sending Purchase Order Email","email","Connecting to SMTP server...",reporter->{
     reporter.stage(1,3,"Connecting to SMTP and transmitting email to "+result.recipientEmail()+"...");
-    EmailService.send(result.recipientEmail(),result.subject(),result.body(),result.attachmentPdf(),result.signatureImage());
+    EmailService.send(result.recipientEmail(),result.subject(),result.body(),result.attachmentPdf(),result.signatureImage(),result.senderProfile());
     reporter.stage(2,3,"Recording communication status in audit register...");
     service.markEmailSent(p.getId());
     logCommunication(p.getId(),result.recipientEmail(),result.subject(),"SENT",null);

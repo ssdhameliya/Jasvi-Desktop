@@ -1347,7 +1347,11 @@ public class BankStatementController implements ScreenLifecycle {
         UiTaskExecutor.submitSerial(
             "bank-statement-match-"+row.dto.id(),
             () -> api.match(row.dto.id(),new BankStatementApiClient.MatchRequest(performedBy,allocations)),
-            result -> {success("Match Successful",result.message()+"\n\nBank Entry and payment/refund allocations were updated together.");refresh();},
+            result -> {
+                success("Match Successful",result.message()+"\n\nBank Entry and payment/refund allocations were updated together.");
+                refresh();
+                checkAndPromptPaymentConfirmationEmail(row, allocations);
+            },
             this::error
         );
     }
@@ -1357,8 +1361,154 @@ public class BankStatementController implements ScreenLifecycle {
         String performedBy=user();
         UiTaskExecutor.submitSerial("bank-statement-match-"+row.dto.id(),
             () -> api.match(row.dto.id(),new BankStatementApiClient.MatchRequest(performedBy,alloc)),
-            r -> {success("Match Successful",r.message()+"\n\nBank Entry created and payment/refund allocation updated.");refresh();},
+            r -> {
+                success("Match Successful",r.message()+"\n\nBank Entry created and payment/refund allocation updated.");
+                refresh();
+                checkAndPromptPaymentConfirmationEmail(row, alloc);
+            },
             this::error);
+    }
+
+    private void checkAndPromptPaymentConfirmationEmail(Row row, List<BankStatementApiClient.AllocationRequest> allocations) {
+        if (!ConfigManager.getBoolean("bank.paymentConfirmationEmail.enabled", true)) return;
+        if (allocations == null || allocations.isEmpty()) return;
+
+        for (var alloc : allocations) {
+            if ("SALE".equalsIgnoreCase(alloc.targetType())) {
+                try {
+                    var salesService = new org.example.service.SalesService();
+                    var allSales = salesService.getAll();
+                    org.example.model.Sales matchedSale = null;
+                    for (var s : allSales) {
+                        if (s != null && Objects.equals(s.getId(), alloc.targetId())) {
+                            matchedSale = s;
+                            break;
+                        }
+                    }
+                    if (matchedSale == null || matchedSale.getCustomer() == null || matchedSale.getCustomer().getEmail() == null || matchedSale.getCustomer().getEmail().isBlank()) {
+                        continue;
+                    }
+
+                    final org.example.model.Sales sale = matchedSale;
+                    final String customerEmail = sale.getCustomer().getEmail().trim();
+                    final double allocAmount = alloc.amount();
+
+                    javafx.application.Platform.runLater(() -> {
+                        Alert alert = new OwnedAlert(Alert.AlertType.CONFIRMATION);
+                        alert.setTitle("Payment Confirmation Email");
+                        alert.setHeaderText("Reconciliation Payment Receipt");
+                        alert.setContentText("Bank settlement of ₹ " + money(allocAmount) + " was successfully matched to Invoice " + sale.getInvoiceNo() + " (" + safe(sale.getCustomer().getName()) + ").\n\nWould you like to transmit an official Payment Confirmation Email to " + customerEmail + "?");
+                        ButtonType btnSend = new ButtonType("Transmit Receipt", ButtonBar.ButtonData.OK_DONE);
+                        alert.getButtonTypes().setAll(btnSend, ButtonType.CANCEL);
+                        var response = alert.showAndWait();
+                        if (response.isPresent() && response.get() == btnSend) {
+                            openPaymentReceiptTransmissionDialog(row, sale, allocAmount);
+                        }
+                    });
+                    break;
+                } catch (Exception ex) {
+                    System.err.println("[BankStatement] Failed to check for payment receipt prompt: " + ex.getMessage());
+                }
+            } else if ("PURCHASE".equalsIgnoreCase(alloc.targetType())) {
+                try {
+                    var purchaseService = new org.example.service.PurchaseService();
+                    var allPurchases = purchaseService.getAll();
+                    org.example.model.Purchase matchedPurchase = null;
+                    for (var p : allPurchases) {
+                        if (p != null && Objects.equals(p.getId(), alloc.targetId())) {
+                            matchedPurchase = p;
+                            break;
+                        }
+                    }
+                    if (matchedPurchase == null || matchedPurchase.getSupplier() == null || matchedPurchase.getSupplier().getEmail() == null || matchedPurchase.getSupplier().getEmail().isBlank()) {
+                        continue;
+                    }
+
+                    final org.example.model.Purchase purchase = matchedPurchase;
+                    final double allocAmount = alloc.amount();
+                    final String dateText = row.dto.transactionDate() != null ? row.dto.transactionDate() : BusinessClock.formatDate(LocalDate.now());
+                    final String refNo = row.dto.reference() != null && !row.dto.reference().isBlank() ? row.dto.reference() : ("Bank Ref #" + row.dto.id());
+                    final String narration = row.dto.description() != null ? row.dto.description() : ("Bank disbursement for " + purchase.getInvoiceNo());
+
+                    org.example.util.PaymentConfirmationPromptHelper.promptAndTransmitPurchase(
+                            table, purchase, allocAmount, "Bank Transfer", refNo, LocalDate.parse(dateText), narration
+                    );
+                    break;
+                } catch (Exception ex) {
+                    System.err.println("[BankStatement] Failed to check for purchase remittance advice prompt: " + ex.getMessage());
+                }
+            }
+        }
+    }
+
+    private void openPaymentReceiptTransmissionDialog(Row row, org.example.model.Sales sale, double allocAmount) {
+        try {
+            double total = sale.getTotalAmount();
+            double previouslyPaid = sale.getPaidAmount();
+            double balance = Math.max(0.0, total - (previouslyPaid + allocAmount));
+            String dateText = row.dto.transactionDate() != null ? row.dto.transactionDate() : BusinessClock.formatDate(LocalDate.now());
+            String refNo = row.dto.reference() != null && !row.dto.reference().isBlank() ? row.dto.reference() : ("Bank Ref #" + row.dto.id());
+            String narration = row.dto.description() != null ? row.dto.description() : ("Bank deposit for " + sale.getInvoiceNo());
+
+            var msg = org.example.service.MessageTemplateService.formatPaymentReceiptEmail(
+                    sale.getCustomer().getName(),
+                    sale.getInvoiceNo(),
+                    sale.getInvoiceDate() == null ? LocalDate.now() : sale.getInvoiceDate(),
+                    total,
+                    allocAmount,
+                    balance,
+                    refNo,
+                    dateText,
+                    narration
+            );
+
+            String statusUrl = org.example.service.MessageTemplateService.buildPublicPaymentStatusUrl(sale.getInvoiceNo(), total);
+
+            String sigPathStr = org.example.service.MessageTemplateService.isAttachSignatureToEmail() ? org.example.service.MessageTemplateService.getSignatureImagePath() : null;
+            java.nio.file.Path sigPath = (sigPathStr != null && !sigPathStr.isBlank()) ? java.nio.file.Path.of(sigPathStr) : null;
+
+            java.nio.file.Path pdf = null;
+            try {
+                pdf = org.example.service.ManagedInvoicePdfService.sales(sale);
+            } catch (Exception ignored) {}
+
+            String statusBadge = balance <= 0.009 ? "PAID" : "PARTIAL";
+
+            var draft = new EmailTransmissionDialog.EmailDraft(
+                    "Transmit Payment Confirmation Email",
+                    "Direct delivery of reconciled bank receipt to customer",
+                    "Payment Receipt",
+                    sale.getInvoiceNo(),
+                    sale.getCustomer().getEmail().trim(),
+                    msg.subject(),
+                    msg.body(),
+                    pdf,
+                    sigPath,
+                    "accounts",
+                    statusUrl,
+                    total,
+                    allocAmount,
+                    balance,
+                    statusBadge
+            );
+
+            var opt = EmailTransmissionDialog.show(table, draft);
+            if (opt.isPresent()) {
+                var res = opt.get();
+                LiveOperationDialog.run(table, "Sending Payment Confirmation", "email",
+                    "Connecting to SMTP server and transmitting payment receipt...",
+                    reporter -> {
+                        reporter.stage(1, 2, "Transmitting payment confirmation to " + res.recipientEmail() + "...");
+                        org.example.service.EmailService.send(res.recipientEmail(), res.subject(), res.body(), res.attachmentPdf(), res.signatureImage(), res.senderProfile());
+                        reporter.stage(2, 2, "Payment receipt delivered.");
+                    },
+                    () -> AppDialogService.success(table, "Payment Receipt Sent", "Payment confirmation email delivered successfully to " + res.recipientEmail() + "."),
+                    err -> AppDialogService.error(table, "Delivery Failed", err.getMessage() == null ? "Email transmission failed." : err.getMessage())
+                );
+            }
+        } catch (Exception ex) {
+            error(ex);
+        }
     }
 
     private void moveToExpense(Row row){

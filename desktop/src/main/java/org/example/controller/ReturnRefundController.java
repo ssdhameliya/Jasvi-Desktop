@@ -98,7 +98,53 @@ public class ReturnRefundController implements ScreenLifecycle {
     private void selectFull(){if(details!=null)amount.setText(String.format(Locale.ROOT,"%.2f",Math.max(0,details.total()-details.refund())));}
     private void updateAfter(){if(details==null)return;after.setText(money(Math.max(0,details.total()-details.refund()-parse(amount.getText()))));}
 
-    @FXML private void save(){try{validate();double value=parse(amount.getText());String type=fullRefund.isSelected()?"FULL":"PARTIAL";String user=SessionService.current()==null?"User":safe(SessionService.current().getFullName());int id=api.recordRefund(details.no(),new ReturnApiClient.RefundCreateRequest(refundDate.getValue().toString(),value,mode.getValue(),safe(reference.getText()),bankAccount.isDisabled()?"":safe(bankAccount.getValue()),safe(refundedParty.getText()),safe(notes.getText()),type,user));invalidateReturnViews();if(pendingProof!=null){try{support.uploadReturnRefundAttachment(id,pendingProof);}catch(Exception upload){error(new IllegalStateException("Refund was saved, but the proof could not be uploaded. The refund remains recorded. "+message(upload),upload));pendingProof=null;load();return;}}NotificationService.add(details.no()+" refund recorded.");org.example.util.AppDialogService.success(amount,"Refund recorded","Refund transaction saved successfully.");pendingProof=null;org.example.navigation.UnsavedChangesManager.markClean(amount);load();}catch(Exception e){error(e);}}
+    @FXML private void save(){
+        try{
+            validate();
+            double value=parse(amount.getText());
+            String type=fullRefund.isSelected()?"FULL":"PARTIAL";
+            String user=SessionService.current()==null?"User":safe(SessionService.current().getFullName());
+            final ReturnApiClient.Details rDetails=details;
+            final double rVal=value;
+            final String rMode=mode.getValue();
+            final String rRef=safe(reference.getText());
+            final LocalDate rDate=refundDate.getValue();
+            final String rNotes=safe(notes.getText());
+            final double rRemaining=Math.max(0,details.total()-details.refund()-rVal);
+            int id=api.recordRefund(details.no(),new ReturnApiClient.RefundCreateRequest(refundDate.getValue().toString(),value,mode.getValue(),safe(reference.getText()),bankAccount.isDisabled()?"":safe(bankAccount.getValue()),safe(refundedParty.getText()),safe(notes.getText()),type,user));
+            invalidateReturnViews();
+            if(pendingProof!=null){
+                try{support.uploadReturnRefundAttachment(id,pendingProof);}
+                catch(Exception upload){error(new IllegalStateException("Refund was saved, but the proof could not be uploaded. The refund remains recorded. "+message(upload),upload));pendingProof=null;load();return;}
+            }
+            NotificationService.add(details.no()+" refund recorded.");
+            org.example.util.AppDialogService.success(amount,"Refund recorded","Refund transaction saved successfully.");
+            pendingProof=null;
+            org.example.navigation.UnsavedChangesManager.markClean(amount);
+            load();
+            if(rDetails!=null&&rDetails.party()!=null&&!rDetails.party().isBlank()){
+                try{
+                    boolean isSales="SALES RETURN".equalsIgnoreCase(rDetails.type());
+                    var parties=new org.example.service.PartyService().getByType(isSales?"CUSTOMER":"SUPPLIER");
+                    String pEmail="";
+                    for(var p:parties){
+                        if(p!=null&&p.getName()!=null&&p.getName().trim().equalsIgnoreCase(rDetails.party().trim())){
+                            pEmail=p.getEmail()==null?"":p.getEmail().trim();
+                            break;
+                        }
+                    }
+                    if(!pEmail.isBlank()){
+                        org.example.util.PaymentConfirmationPromptHelper.promptAndTransmitReturn(
+                                amount,rDetails.no(),rDetails.party(),pEmail,rDetails.invoice(),
+                                rDetails.type(),rVal,rRemaining,rMode,rRef,rDate,rNotes
+                        );
+                    }
+                }catch(Exception promptError){
+                    System.err.println("[ReturnRefund] Error checking for refund prompt: "+promptError.getMessage());
+                }
+            }
+        }catch(Exception e){error(e);}
+    }
     private void invalidateReturnViews(){boolean sales=details!=null&&"SALES RETURN".equalsIgnoreCase(details.type());if(sales){ScreenRefreshPolicy.invalidate("sales-returns");ScreenRefreshPolicy.invalidate("sales-register");}else{ScreenRefreshPolicy.invalidate("purchase-returns");ScreenRefreshPolicy.invalidate("purchase-register");}}
     private void validate(){if(details==null)throw new IllegalStateException("Return is not loaded.");if(refundDate.getValue()==null)throw new IllegalArgumentException("Refund date is required.");if(mode.getValue()==null||mode.getValue().isBlank())throw new IllegalArgumentException("Payment mode is required.");double v=parse(amount.getText()),remaining=Math.max(0,details.total()-details.refund());if(v<=0)throw new IllegalArgumentException("Refund amount must be greater than zero.");if(v>remaining+.001)throw new IllegalArgumentException("Refund amount exceeds the remaining balance of "+money(remaining)+".");if(!bankAccount.isDisabled()&&(bankAccount.getValue()==null||bankAccount.getValue().isBlank()))throw new IllegalArgumentException("Bank Account is required for bank refunds.");}
     @FXML private void reset(){resetForm(true);}private void resetForm(boolean focus){refundDate.setValue(BusinessClock.today());reference.clear();notes.clear();fullRefund.setSelected(true);selectFull();pendingProof=null;proofName.setText("No file selected");if(details!=null)refundedParty.setText(details.party());if(focus)amount.requestFocus();updateAfter();}

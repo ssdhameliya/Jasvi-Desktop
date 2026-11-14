@@ -1,3 +1,31 @@
+# What's New in DSE ERP v11.0.61
+
+### Activity-Based Multi-Identity Email Dispatch & Executive Communications Architecture
+- **Activity-Based Department Email Routing & Master Feature Toggle (`EmailSettingsPanel.fxml`, `SettingsController.java`, `EmailService.java`, `EmailTransmissionDialog.fxml`, `EmailTransmissionDialog.java`) (Rule 4, Rule 5, Rule 8, Rule 9, Rule 11 & Rule 17)**:
+  - Added user-defined master feature toggle `email.activityRouting.enabled`: When toggled OFF, single company master credentials dispatch all emails; when toggled ON, distinct department sender profiles automatically route outgoing emails based on document activity (Sales Invoices, Quotations, Purchase Orders, Returns, Accounts/Generic).
+  - Fully Configurable Department Profiles: Each profile supports custom Sender Display Name, Sender Email Address, App Password/Passcode, SMTP Host, and SMTP Port with individual `[ 🧪 Test Connection ]` verification and secure credential storage.
+  - Interactive Sender Identity Override in `EmailTransmissionDialog`: Outgoing email modal displays dynamic `Sender Account Profile` dropdown allowing operators to preview and switch between routed department accounts on the fly.
+- **Executive HTML Email Letterhead & Live In-Dialog Dual-View Preview (`EmailTransmissionDialog.fxml`, `EmailTransmissionDialog.java`, `MessageTemplateService.java`, `dark-theme.css`, `light-theme.css`) (Rule 5, Rule 7, Rule 11 & Rule 12)**:
+  - Transformed `EmailTransmissionDialog` with a sleek dual-view segmented tab control: `[ ✍️ Edit Message ]` and `[ 👁️ Executive Preview ]`.
+  - The Executive Preview renders a responsive email letterhead card with real-time company branding, recipient metadata, high-contrast typography, document summary table, dual-banking details, and interactive live status button preview in 100% Light and Dark theme parity without controller color leaks.
+- **Universal Settlement Confirmation, Remittance Advice & Refund Pipeline (`PaymentConfirmationPromptHelper.java`, `RecordPaymentController.java`, `SalesListController.java`, `PurchasePaymentController.java`, `ReturnRefundController.java`, `BankStatementController.java`) (Rule 4, Rule 8, Rule 11 & Rule 17)**:
+  - Unified automated transaction confirmation across all financial workflows in the enterprise:
+    1. **Customer Sales Receipts:** Manual entry in `RecordPayment.fxml`, quick row action in `SalesList.fxml`, and bank credit reconciliation matching. Dispatches Payment Receipt with live status link and dual bank details.
+    2. **Supplier Purchase Remittance Advice:** Manual entry in `PurchasePayment.fxml` and bank debit reconciliation matching. Dispatches official Remittance Advice to the vendor with bill total, amount disbursed, UTR/instrument reference, and remaining balance payable.
+    3. **Customer & Supplier Return Refund Confirmations:** Manual entry in `ReturnRefund.fxml` and bank reconciliation matching. Dispatches refund settlement receipts for both Sales Returns and Purchase Returns.
+  - Governed by master toggle `bank.paymentConfirmationEmail.enabled`: When enabled, any financial settlement triggers the interactive prompt to transmit the official receipt to the party's registered email; when disabled, settlements save silently.
+  - Integrated with `EmailTransmissionDialog` with dual-view `[✍️ Edit Message]` and `[👁️ Executive Preview]` in 100% Light and Dark theme parity.
+- **Dual Bank Details & Clean Corporate Settlement (`MessageTemplateService.java`, `EmailTransmissionDialog.java`) (Rule 11 & Rule 17)**:
+  - Payment confirmation templates feature dual bank details: Beneficiary Bank Account (Company bank name, account number, IFSC code) and Remitter Bank Account (Bank statement narration, UTR/Transaction Reference, matched date).
+  - Permanently removed UPI/QR details as requested, focusing on clean corporate RTGS/NEFT/IMPS settlement transparency.
+- **Live Payment Status Verification Portal with Cryptographic HMAC-SHA256 Token (`PublicPaymentStatusController.java`, `PublicPaymentStatusService.java`, `PaymentStatusTokenService.java`, `SecurityConfig.java`, `PaymentRecordRepository.java`) (Rule 4, Rule 10, Rule 11 & Rule 17)**:
+  - Generated secure public HMAC-SHA256 tokenized link for each invoice (`/public/payment-status?inv={InvoiceNo}&token={HMAC}`).
+  - Embeds prominent `[ 🔍 View Live Payment Status ]` button directly into outgoing invoice and payment confirmation emails.
+  - Spring Boot backend serves a responsive live payment status card showing real-time billed amount, total payments received, remaining balance, complete transaction history table, and beneficiary settlement bank details, protected against parameter tampering.
+  - Architecture gate compliant: All persistence queries use Spring Data JPA `PaymentRecordRepository`, `SalesHeaderRepository`, and `JpaNativeRepository` via `PublicPaymentStatusService` without direct JDBC in controllers.
+- **Record-Type Specific Signatures under Settings (`EmailSettingsPanel.fxml`, `SettingsController.java`, `MessageTemplateService.java`) (Rule 5, Rule 11 & Rule 17)**:
+  - Allowed configuring distinct executive signatures for Sales Invoices, Quotations, Purchase Orders, and Returns, falling back gracefully to Company Master Signature if unset.
+
 # What's New in DSE ERP v11.0.60
 
 ### Pre-Authentication Execution Resilience & Login Button Unfreeze

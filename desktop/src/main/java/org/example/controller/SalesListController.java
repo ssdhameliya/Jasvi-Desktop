@@ -791,6 +791,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             String sigImg = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
             Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
             String target = full.getCustomer() == null ? "" : safe(full.getCustomer().getEmail()).trim();
+            String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(full.getInvoiceNo(), full.getTotalAmount());
             return new EmailTransmissionDialog.EmailDraft(
                     "Transmit Tax Invoice via Email",
                     "Direct SMTP delivery to customer billing contact",
@@ -800,7 +801,13 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
                     msg.subject(),
                     msg.body(),
                     pdf,
-                    sigPath
+                    sigPath,
+                    "sale",
+                    statusUrl,
+                    full.getTotalAmount(),
+                    full.getPaidAmount(),
+                    full.getBalanceAmount(),
+                    full.getPaymentStatus()
             );
         }, draft -> {
             Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(tableSales, draft);
@@ -808,7 +815,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             EmailTransmissionDialog.TransmissionResult result = opt.get();
             LiveOperationDialog.run(tableSales, "Sending Sales Invoice Email", "email", "Connecting to SMTP server...", reporter -> {
                 reporter.stage(1, 3, "Connecting to SMTP and transmitting email to " + result.recipientEmail() + "...");
-                EmailService.send(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage());
+                EmailService.send(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage(), result.senderProfile());
                 reporter.stage(2, 3, "Recording communication status in audit register...");
                 service.markEmailSent(sale.getId());
                 communication("SALE", sale.getId(), "EMAIL", result.recipientEmail(), result.subject(), "SENT", null);
@@ -879,7 +886,17 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
         g.addRow(0,new Label("Date"),date);g.addRow(1,new Label("Amount"),amount);g.addRow(2,new Label("Mode"),mode);g.addRow(3,new Label("Reference"),ref);g.addRow(4,new Label("Notes"),notes);
         d.getDialogPane().setContent(g);
         d.getDialogPane().getButtonTypes().addAll(new ButtonType("Record",ButtonBar.ButtonData.OK_DONE),ButtonType.CANCEL);
-        d.showAndWait().filter(b->b.getButtonData()==ButtonBar.ButtonData.OK_DONE).ifPresent(b->{try{double paid=Double.parseDouble(amount.getText());if(paid<=0||paid>sale.getBalanceAmount()+.01)throw new IllegalArgumentException("Payment must be between 0 and "+sale.getBalanceAmount());support.recordPayment(new SupportApiClient.PaymentRequest("SALE",sale.getId(),date.getValue().toString(),paid,mode.getValue(),ref.getText(),notes.getText(),sale.getCustomer()==null?"":sale.getCustomer().getName(),"RECEIPT",null,user()));log("SALE",sale.getId(),"PAYMENT_RECORDED",money(paid));refresh();info("Payment recorded.");}catch(Exception e){error(e);}});
+        d.showAndWait().filter(b->b.getButtonData()==ButtonBar.ButtonData.OK_DONE).ifPresent(b->{
+            try{
+                double paid=Double.parseDouble(amount.getText());
+                if(paid<=0||paid>sale.getBalanceAmount()+.01)throw new IllegalArgumentException("Payment must be between 0 and "+sale.getBalanceAmount());
+                support.recordPayment(new SupportApiClient.PaymentRequest("SALE",sale.getId(),date.getValue().toString(),paid,mode.getValue(),ref.getText(),notes.getText(),sale.getCustomer()==null?"":sale.getCustomer().getName(),"RECEIPT",null,user()));
+                log("SALE",sale.getId(),"PAYMENT_RECORDED",money(paid));
+                refresh();
+                info("Payment recorded.");
+                org.example.util.PaymentConfirmationPromptHelper.promptAndTransmit(tableSales,sale,paid,mode.getValue(),ref.getText(),date.getValue(),notes.getText());
+            }catch(Exception e){error(e);}
+        });
     }
 
 
