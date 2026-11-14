@@ -53,6 +53,15 @@ erp.jasviindustries.in {
         }
     }
 
+    handle /public/* {
+        reverse_proxy 127.0.0.1:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
     try_files {path} {path}/ /index.html
 }
 """

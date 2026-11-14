@@ -1,3 +1,22 @@
+# What's New in DSE ERP v11.0.62
+
+### Dynamic Stage & Taskbar Icon Personalization from Application Mark
+- **Dynamic Application Stage & Taskbar Logo (`SceneManager.java`, `DashboardController.java`) (Rule 4, Rule 5, Rule 11 & Rule 17)**:
+  - Enabled dynamic application window title bar and taskbar branding driven by the user-configured **Application Mark / Splash Logo** (`application.markImagePath` under **Settings -> Company & Branding**).
+  - Automatically refreshes the live JavaFX stage icon in real time whenever settings are saved or branding is refreshed, without requiring application restart or reinstallation.
+  - Implemented robust multi-tiered fallback: dynamic user mark -> `/installer/logo-1024.png` -> `/logo.png`.
+  - **Statutory Brand Isolation Guaranteed**: Statutory **Invoice Logo** (`company.logoPath`) and **Authorized Signature** (`company.signaturePath`) remain strictly segregated and 100% untouched under Invoices & Billing, ensuring zero impact on official tax invoices and legal documents.
+
+### Real HTML Email Browser Preview & Settlement Audit Logging
+- **Instant Browser HTML Preview (`EmailTransmissionDialog.fxml`, `EmailTransmissionDialog.java`) (Rule 4, Rule 5, Rule 8, Rule 11 & Rule 12)**:
+  - Added `[ 🌐 Preview Real HTML ]` button directly to `EmailTransmissionDialog` tab toolbar.
+  - Generates the exact byte-for-byte responsive HTML email (letterhead, recipient metadata, document table, dual bank details, and HMAC payment status link) using live form values and launches it instantly in the operator's default browser (Chrome, Edge, Safari, Firefox) for 100% pixel-perfect inspection before sending.
+- **Universal Communication Center Audit Logging for All Settlements (`PaymentConfirmationPromptHelper.java`, `SupportService.java`) (Rule 4, Rule 10, Rule 11 & Rule 17)**:
+  - Resolved the communication audit omission: Every payment confirmation email (Customer Sales Receipts, Supplier Purchase Remittance Advice, Return Refund Vouchers) now automatically writes to `communication_log` via `SupportApiClient.communication(...)`.
+  - Both `SENT` (successful delivery) and `FAILED` (SMTP exceptions) are tracked in real-time with timestamp, operator, recipient, subject, and document linkage.
+  - Enhanced `SupportService.communications()` server query to resolve document numbers for `SALES_RETURN` and `PURCHASE_RETURN` in addition to Sales, Purchases, and Quotations.
+  - Fully integrated with `CommunicationCenter.fxml` for central review, KPI metrics, and one-click `[ 🔁 Resend Email ]` workflows.
+
 # What's New in DSE ERP v11.0.61
 
 ### Activity-Based Multi-Identity Email Dispatch & Executive Communications Architecture

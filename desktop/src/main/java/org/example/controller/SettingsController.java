@@ -1,4 +1,5 @@
 package org.example.controller;
+import javafx.scene.Node;
 import javafx.geometry.Pos;
 import javafx.scene.control.TableColumn;
 import javafx.geometry.Insets;
@@ -8,6 +9,7 @@ import org.example.shared.ReferenceFormatRules;
 import org.example.util.AppDialogService;
 import org.example.util.ExportFeedbackManager;
 import javafx.scene.control.Separator;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.control.TextFormatter;
 import javafx.scene.control.TableView;
@@ -45,6 +47,7 @@ import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ListView;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.control.ListCell;
@@ -151,6 +154,9 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private ScrollPane panelScroll;
 
     @FXML private Button btnCheckUpdates,btnTestEmail,btnSaveSettings,btnSectionGuide;
+    @FXML private Button btnOpenEmailTemplates, btnOpenWhatsappTemplates, btnOpenWhatsappTemplatesInline;
+    @FXML private Label lblActiveDepartmentBadge;
+    private boolean isUpdatingActivityUi = false;
     @FXML private Button btnTabCompany, btnTabPayment, btnTabInvoice, btnTabEmail, btnTabWhatsapp, btnTabNotifications,
             btnTabSecurity, btnTabWorkspace, btnTabShortcuts, btnTabUpdates, btnTabModules, btnTabShowcase;
     @FXML private VBox panelSecurity;
@@ -275,6 +281,7 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private ToggleButton tglActivityRouting;
     @FXML private VBox boxActivityRoutingSection;
     @FXML private ComboBox<String> cmbActivityProfileSelect;
+    @FXML private Button btnDeptSales, btnDeptQuotes, btnDeptPurchases, btnDeptReturns, btnDeptAccounts;
     @FXML private CheckBox chkEnableDedicatedProfile;
     @FXML private TextField txtProfileSenderName;
     @FXML private TextField txtProfileSenderEmail;
@@ -307,6 +314,7 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private Button btnEmailSecurityInfo;
     @FXML private Button btnLivePreview;
     @FXML private ComboBox<String> cmbMessageTemplateDoc;
+    @FXML private Button btnOpenTemplateStudio;
     @FXML private VBox boxEmailSubject;
     @FXML private TextField txtMessageTemplateSubject;
     @FXML private TextArea txtMessageTemplateBody;
@@ -1629,10 +1637,19 @@ private record AssetPreviewRequest(
             loadSectionDataAsync(activeSection);
         }
         updateSaveButtonLabel();
+        boolean emailSection = activeSection == Section.EMAIL;
         if (btnTestEmail != null) {
-            boolean emailSection = activeSection == Section.EMAIL;
             btnTestEmail.setVisible(emailSection);
             btnTestEmail.setManaged(emailSection);
+        }
+        if (btnOpenEmailTemplates != null) {
+            btnOpenEmailTemplates.setVisible(emailSection);
+            btnOpenEmailTemplates.setManaged(emailSection);
+        }
+        if (btnOpenWhatsappTemplates != null) {
+            boolean waSection = activeSection == Section.WHATSAPP;
+            btnOpenWhatsappTemplates.setVisible(waSection);
+            btnOpenWhatsappTemplates.setManaged(waSection);
         }
         updateCategoryTabStyles();
         updateSectionReadyState();
@@ -3650,17 +3667,20 @@ private record AssetPreviewRequest(
     }
 
     private void initEmailTemplatesAndSignature() {
-        if (cmbMessageTemplateDoc == null) return;
-        cmbMessageTemplateDoc.setItems(javafx.collections.FXCollections.observableArrayList(
-            "Sales Invoice (Email)",
-            "Quotation (Email)",
-            "Purchase Bill (Email)",
-            "Payment Receipt (Email)",
-            "Sales Return (Email)",
-            "Purchase Return (Email)",
-            "Sales Invoice (WhatsApp)",
-            "Quotation (WhatsApp)"
-        ));
+        if (cmbMessageTemplateDoc != null) {
+            cmbMessageTemplateDoc.setItems(javafx.collections.FXCollections.observableArrayList(
+                "Sales Invoice (Email)",
+                "Quotation (Email)",
+                "Purchase Bill (Email)",
+                "Payment Receipt (Email)",
+                "Supplier Remittance Advice (Email)",
+                "Refund Settlement Confirmation (Email)",
+                "Sales Return (Email)",
+                "Purchase Return (Email)",
+                "Sales Invoice (WhatsApp)",
+                "Quotation (WhatsApp)"
+            ));
+        }
 
         if (txtEmailSignature != null) {
             txtEmailSignature.setText(MessageTemplateService.getSignature());
@@ -3741,23 +3761,25 @@ private record AssetPreviewRequest(
 
         if (chkEnableDedicatedProfile != null) {
             chkEnableDedicatedProfile.selectedProperty().addListener((obs, o, n) -> {
-                if (cmbActivityProfileSelect != null && cmbActivityProfileSelect.getValue() != null) {
+                if (!isUpdatingActivityUi && cmbActivityProfileSelect != null && cmbActivityProfileSelect.getValue() != null) {
                     saveActivityProfileFromUi(cmbActivityProfileSelect.getValue());
                 }
             });
         }
 
-        cmbMessageTemplateDoc.setValue("Sales Invoice (Email)");
-        loadTemplateIntoUi("Sales Invoice (Email)");
+        if (cmbMessageTemplateDoc != null) {
+            cmbMessageTemplateDoc.setValue("Sales Invoice (Email)");
+            loadTemplateIntoUi("Sales Invoice (Email)");
 
-        cmbMessageTemplateDoc.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (oldVal != null) {
-                saveTemplateFromUiToDraft(oldVal);
-            }
-            if (newVal != null) {
-                loadTemplateIntoUi(newVal);
-            }
-        });
+            cmbMessageTemplateDoc.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (oldVal != null) {
+                    saveTemplateFromUiToDraft(oldVal);
+                }
+                if (newVal != null) {
+                    loadTemplateIntoUi(newVal);
+                }
+            });
+        }
 
         if (txtMessageTemplateSubject != null) {
             txtMessageTemplateSubject.textProperty().addListener((obs, o, n) -> updateTemplatePreview());
@@ -3806,16 +3828,23 @@ private record AssetPreviewRequest(
     }
 
     private void saveAllDraftMessageTemplates() {
-        for (String docOption : List.of(
+        java.util.Set<String> allDocs = new java.util.HashSet<>(templateBodyDrafts.keySet());
+        allDocs.addAll(templateSubjectDrafts.keySet());
+        allDocs.addAll(List.of(
             "Sales Invoice (Email)",
             "Quotation (Email)",
             "Purchase Bill (Email)",
             "Payment Receipt (Email)",
+            "Supplier Remittance Advice (Email)",
+            "Refund Settlement Confirmation (Email)",
             "Sales Return (Email)",
             "Purchase Return (Email)",
             "Sales Invoice (WhatsApp)",
-            "Quotation (WhatsApp)"
-        )) {
+            "Quotation (WhatsApp)",
+            "Payment Receipt (WhatsApp)",
+            "Supplier Remittance Advice (WhatsApp)"
+        ));
+        for (String docOption : allDocs) {
             boolean isWhatsapp = docOption.contains("WhatsApp");
             MessageTemplateService.DocumentType docType = resolveDocType(docOption);
             if (!isWhatsapp) {
@@ -3834,6 +3863,8 @@ private record AssetPreviewRequest(
         if (option == null) return MessageTemplateService.DocumentType.SALES_INVOICE;
         if (option.contains("Sales Invoice")) return MessageTemplateService.DocumentType.SALES_INVOICE;
         if (option.contains("Quotation")) return MessageTemplateService.DocumentType.QUOTATION;
+        if (option.contains("Remittance") || option.contains("Supplier Remittance")) return MessageTemplateService.DocumentType.PURCHASE_REMITTANCE;
+        if (option.contains("Refund Settlement") || option.contains("Refund")) return MessageTemplateService.DocumentType.REFUND_CONFIRMATION;
         if (option.contains("Purchase Return")) return MessageTemplateService.DocumentType.PURCHASE_RETURN;
         if (option.contains("Purchase")) return MessageTemplateService.DocumentType.PURCHASE_BILL;
         if (option.contains("Payment")) return MessageTemplateService.DocumentType.PAYMENT_RECEIPT;
@@ -4178,8 +4209,8 @@ private record AssetPreviewRequest(
         return switch (docType) {
             case SALES_INVOICE -> org.example.documentstudio.model.DocumentType.SALES_INVOICE;
             case QUOTATION -> org.example.documentstudio.model.DocumentType.QUOTATION;
-            case PURCHASE_BILL -> org.example.documentstudio.model.DocumentType.PURCHASE_INVOICE;
-            case SALES_RETURN -> org.example.documentstudio.model.DocumentType.SALES_RETURN;
+            case PURCHASE_BILL, PURCHASE_REMITTANCE -> org.example.documentstudio.model.DocumentType.PURCHASE_INVOICE;
+            case SALES_RETURN, REFUND_CONFIRMATION -> org.example.documentstudio.model.DocumentType.SALES_RETURN;
             case PURCHASE_RETURN -> org.example.documentstudio.model.DocumentType.PURCHASE_RETURN;
             case PAYMENT_RECEIPT -> org.example.documentstudio.model.DocumentType.SALES_INVOICE;
         };
@@ -4246,7 +4277,339 @@ private record AssetPreviewRequest(
     @FXML private void insertTokenDate() { insertToken("{DocumentDate}"); }
     @FXML private void insertTokenTotal() { insertToken("{TotalAmount}"); }
     @FXML private void insertTokenBalance() { insertToken("{BalanceAmount}"); }
+    @FXML private void insertTokenPaidAmount() { insertToken("{PaidAmount}"); }
+    @FXML private void insertTokenPaymentMode() { insertToken("{PaymentMode}"); }
+    @FXML private void insertTokenPaymentRef() { insertToken("{PaymentReference}"); }
     @FXML private void insertTokenSignature() { insertToken("{Signature}"); }
+
+    @FXML private void selectDeptSales() { selectActivityDepartment("Sales & Invoices", btnDeptSales); }
+    @FXML private void selectDeptQuotes() { selectActivityDepartment("Quotations & RFQ", btnDeptQuotes); }
+    @FXML private void selectDeptPurchases() { selectActivityDepartment("Procurement & Purchases", btnDeptPurchases); }
+    @FXML private void selectDeptReturns() { selectActivityDepartment("Customer Support & Returns", btnDeptReturns); }
+    @FXML private void selectDeptAccounts() { selectActivityDepartment("Accounts & Payment Receipts", btnDeptAccounts); }
+
+    private void selectActivityDepartment(String deptName, Button activeBtn) {
+        String current = (cmbActivityProfileSelect != null) ? cmbActivityProfileSelect.getValue() : null;
+        if (current != null && !isUpdatingActivityUi) {
+            saveActivityProfileFromUi(current);
+        }
+        if (cmbActivityProfileSelect != null) {
+            cmbActivityProfileSelect.setValue(deptName);
+        }
+        loadActivityProfileIntoUi(deptName);
+        if (lblActiveDepartmentBadge != null) {
+            lblActiveDepartmentBadge.setText("Configuring: " + deptName);
+        }
+        for (Button b : List.of(btnDeptSales, btnDeptQuotes, btnDeptPurchases, btnDeptReturns, btnDeptAccounts)) {
+            if (b != null) {
+                b.getStyleClass().remove("settings-tab-selected");
+                if (b == activeBtn) {
+                    b.getStyleClass().add("settings-tab-selected");
+                }
+            }
+        }
+    }
+
+    @FXML private void openEmailTemplateStudio() { openDedicatedTemplateStudio(false); }
+    @FXML private void openWhatsappTemplateStudio() { openDedicatedTemplateStudio(true); }
+    @FXML private void openTemplateStudio() { openDedicatedTemplateStudio(false); }
+
+    private void openDedicatedTemplateStudio(boolean isWa) {
+        Dialog<ButtonType> dialog = new OwnedDialog<>();
+        dialog.setTitle(isWa ? "WhatsApp Message & Notification Studio" : "Email Message & Template Studio");
+        DialogPane pane = dialog.getDialogPane();
+        pane.getButtonTypes().setAll(ButtonType.CLOSE);
+        AppDialogRenderer.configureWorkspace(dialog, isWa ? "message" : "email",
+                isWa ? "WhatsApp Studio" : "Email Studio",
+                isWa ? "WhatsApp Message & Notification Studio" : "Email Message & Template Studio",
+                isWa ? "Customise standardized WhatsApp messages, tokens, and formatting with real-time live preview"
+                     : "Customise standardized email subjects, bodies, and tokens with real-time live preview", "");
+
+        Window ownerWindow = (panelWorkspace != null && panelWorkspace.getScene() != null)
+                ? panelWorkspace.getScene().getWindow() : null;
+        double studioWidth = ownerWindow != null ? Math.max(1220, ownerWindow.getWidth() * 0.94) : 1240;
+        double studioHeight = ownerWindow != null ? Math.max(760, ownerWindow.getHeight() * 0.94) : 780;
+
+        VBox content = new VBox(14);
+        content.setPrefWidth(studioWidth - 40);
+        content.setPrefHeight(studioHeight - 110);
+        content.getStyleClass().add("settings-preview-dialog");
+        pane.setPrefSize(studioWidth, studioHeight);
+        pane.setMinSize(1100, 680);
+
+        List<String> docs = isWa ? List.of(
+                "Sales Invoice (WhatsApp)",
+                "Quotation (WhatsApp)",
+                "Purchase Bill (WhatsApp)",
+                "Payment Receipt (WhatsApp)",
+                "Supplier Remittance Advice (WhatsApp)",
+                "Refund Settlement Confirmation (WhatsApp)",
+                "Sales Return (WhatsApp)",
+                "Purchase Return (WhatsApp)"
+        ) : List.of(
+                "Sales Invoice (Email)",
+                "Quotation (Email)",
+                "Purchase Bill (Email)",
+                "Payment Receipt (Email)",
+                "Supplier Remittance Advice (Email)",
+                "Refund Settlement Confirmation (Email)",
+                "Sales Return (Email)",
+                "Purchase Return (Email)"
+        );
+
+        // Top Control Row: Document Selector Only (Clean, Spacious)
+        HBox topRow = new HBox(12);
+        topRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        Label lblDoc = new Label("Document Type:");
+        lblDoc.getStyleClass().add("settings-form-label");
+        ComboBox<String> cmbStudioDoc = new ComboBox<>();
+        cmbStudioDoc.setPrefWidth(380);
+        cmbStudioDoc.getStyleClass().add("approved-combo");
+        cmbStudioDoc.setItems(FXCollections.observableArrayList(docs));
+        cmbStudioDoc.setValue(docs.getFirst());
+
+        Region topSpacer = new Region();
+        HBox.setHgrow(topSpacer, Priority.ALWAYS);
+
+        Button btnResetTop = new Button("↺ Reset to Default");
+        btnResetTop.getStyleClass().add("secondary-button");
+
+        topRow.getChildren().addAll(lblDoc, cmbStudioDoc, topSpacer, btnResetTop);
+
+        // Main Dual-Pane Split Area (50% Authoring on Left, 50% Live Preview on Right)
+        HBox splitPane = new HBox(18);
+        VBox.setVgrow(splitPane, Priority.ALWAYS);
+
+        // ================= LEFT COLUMN: Authoring Engine =================
+        VBox leftCol = new VBox(10);
+        leftCol.prefWidthProperty().bind(splitPane.widthProperty().multiply(0.50));
+        HBox.setHgrow(leftCol, Priority.ALWAYS);
+
+        VBox boxSubject = new VBox(6);
+        Label lblSubj = new Label("Email Subject Line:");
+        lblSubj.getStyleClass().add("settings-form-label");
+        TextField txtSubj = new TextField();
+        txtSubj.getStyleClass().add("approved-input");
+        boxSubject.getChildren().addAll(lblSubj, txtSubj);
+        boxSubject.setVisible(!isWa);
+        boxSubject.setManaged(!isWa);
+
+        VBox tokenBox = new VBox(6);
+        Label lblTokens = new Label("Insert Dynamic Tokens (Click token to insert into body):");
+        lblTokens.getStyleClass().add("page-subtitle");
+
+        FlowPane tokenBar = new FlowPane(6, 6);
+        tokenBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        TextArea txtBody = new TextArea();
+        txtBody.setWrapText(true);
+        txtBody.setPrefRowCount(16);
+        txtBody.setMinHeight(300);
+        txtBody.getStyleClass().addAll("approved-input", "settings-template-body");
+        VBox.setVgrow(txtBody, Priority.ALWAYS);
+
+        for (String token : List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{TotalAmount}",
+                "{BalanceAmount}", "{PaidAmount}", "{PaymentMode}", "{PaymentReference}", "{Signature}")) {
+            Button btnTok = new Button(token);
+            btnTok.getStyleClass().add("secondary-button");
+            btnTok.setOnAction(e -> {
+                int pos = txtBody.getCaretPosition();
+                txtBody.insertText(pos, token);
+                txtBody.requestFocus();
+            });
+            tokenBar.getChildren().add(btnTok);
+        }
+        tokenBox.getChildren().addAll(lblTokens, tokenBar);
+
+        Label lblFormattingHint = new Label(isWa
+                ? "WhatsApp Formatting: *bold*, _italic_, ~strikethrough~, ```code```. Documents will be delivered as signed PDF attachments."
+                : "Email Tip: Bullet points (•) in payment remittances automatically format into an executive 3-column colorized summary table.");
+        lblFormattingHint.getStyleClass().add("page-subtitle");
+
+        leftCol.getChildren().addAll(boxSubject, tokenBox, txtBody, lblFormattingHint);
+
+        // ================= RIGHT COLUMN: Executive Live Preview =================
+        VBox rightCol = new VBox(10);
+        rightCol.prefWidthProperty().bind(splitPane.widthProperty().multiply(0.50));
+        rightCol.getStyleClass().add("settings-subcard");
+        HBox.setHgrow(rightCol, Priority.ALWAYS);
+
+        HBox previewHeaderBox = new HBox(8);
+        previewHeaderBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        Label lblPreviewHeader = new Label(isWa ? "WhatsApp Chat Bubble Preview:" : "Executive Live Email Preview:");
+        lblPreviewHeader.getStyleClass().add("section-title");
+        Region previewSpacer = new Region();
+        HBox.setHgrow(previewSpacer, Priority.ALWAYS);
+
+        Button btnPreviewBrowser = new Button("👁️ Preview Live Email in Browser");
+        btnPreviewBrowser.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnPreviewBrowser.setMinWidth(230);
+        btnPreviewBrowser.setVisible(!isWa);
+        btnPreviewBrowser.setManaged(!isWa);
+        previewHeaderBox.getChildren().addAll(lblPreviewHeader, previewSpacer, btnPreviewBrowser);
+
+        Label lblPreviewSubject = new Label();
+        lblPreviewSubject.setWrapText(true);
+        lblPreviewSubject.getStyleClass().add("page-subtitle");
+        lblPreviewSubject.setVisible(!isWa);
+        lblPreviewSubject.setManaged(!isWa);
+
+        Label lblPreviewContent = new Label();
+        lblPreviewContent.setWrapText(true);
+        lblPreviewContent.getStyleClass().add("settings-template-preview-text");
+
+        ScrollPane scrollPreview = new ScrollPane(lblPreviewContent);
+        scrollPreview.setFitToWidth(true);
+        scrollPreview.getStyleClass().add("approved-scroll");
+        VBox.setVgrow(scrollPreview, Priority.ALWAYS);
+
+        btnPreviewBrowser.setOnAction(e -> {
+            try {
+                String cur = cmbStudioDoc.getValue();
+                Map<String, String> tokens = MessageTemplateService.sampleTokens();
+                if (txtEmailSignature != null && !txtEmailSignature.getText().isBlank()) {
+                    tokens.put("Signature", txtEmailSignature.getText().trim());
+                }
+                String body = MessageTemplateService.format(txtBody.getText(), tokens);
+                String sigBase64 = MessageTemplateService.getSignatureImageBase64();
+                String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
+                String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
+                String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+                String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl("PUR/10-11-2026/5146", 38545002.08);
+
+                String html = MessageTemplateService.formatExecutiveHtmlEmail(
+                        cur != null ? cur.replace(" (Email)", "") : "Remittance Advice",
+                        "SETTLED",
+                        "PUR/10-11-2026/5146",
+                        org.example.util.BusinessClock.formatDate(LocalDate.now()),
+                        "Shailesh Dhameliya",
+                        38545002.08,
+                        38545002.08,
+                        0.0,
+                        body,
+                        true,
+                        ourBankName,
+                        ourAccNo,
+                        ourIfsc,
+                        "Live Electronic Settlement Verification",
+                        "0745366171",
+                        statusUrl,
+                        true,
+                        sigBase64
+                );
+                Path tempHtml = Files.createTempFile("dse-email-preview-", ".html");
+                tempHtml.toFile().deleteOnExit();
+                Files.writeString(tempHtml, html, java.nio.charset.StandardCharsets.UTF_8);
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                    Desktop.getDesktop().browse(tempHtml.toUri());
+                } else if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                    Desktop.getDesktop().open(tempHtml.toFile());
+                } else {
+                    new ProcessBuilder("cmd", "/c", "start", '\"' + tempHtml.toFile().getAbsolutePath() + '\"').start();
+                }
+            } catch (Exception ex) {
+                org.example.util.AppDialogService.error(panelHost, "Browser Preview Error", "Failed to open browser preview: " + ex.getMessage());
+            }
+        });
+
+        rightCol.getChildren().addAll(previewHeaderBox, lblPreviewSubject, scrollPreview);
+        splitPane.getChildren().addAll(leftCol, rightCol);
+
+        // Reactive Preview Update Engine
+        Runnable updatePreview = () -> {
+            String selected = cmbStudioDoc.getValue();
+            if (selected == null) return;
+
+            Map<String, String> tokens = MessageTemplateService.sampleTokens();
+            if (txtEmailSignature != null && !txtEmailSignature.getText().isBlank()) {
+                tokens.put("Signature", txtEmailSignature.getText().trim());
+            }
+            if (!isWa) {
+                lblPreviewSubject.setText("SUBJECT: " + MessageTemplateService.format(txtSubj.getText(), tokens));
+            }
+            String rawFormatted = MessageTemplateService.format(txtBody.getText(), tokens);
+            lblPreviewContent.setText(rawFormatted);
+        };
+
+        java.util.function.Consumer<String> loadStudioDoc = doc -> {
+            if (doc == null) return;
+            MessageTemplateService.DocumentType dt = resolveDocType(doc);
+            if (!isWa) {
+                String s = templateSubjectDrafts.computeIfAbsent(doc, k -> MessageTemplateService.getEmailSubject(dt));
+                txtSubj.setText(s);
+            }
+            String b = templateBodyDrafts.computeIfAbsent(doc, k -> isWa ? MessageTemplateService.getWhatsappBody(dt) : MessageTemplateService.getEmailBody(dt));
+            txtBody.setText(b);
+            updatePreview.run();
+        };
+
+        cmbStudioDoc.valueProperty().addListener((obs, o, n) -> {
+            if (o != null) {
+                if (!isWa) templateSubjectDrafts.put(o, txtSubj.getText());
+                templateBodyDrafts.put(o, txtBody.getText());
+            }
+            if (n != null) loadStudioDoc.accept(n);
+        });
+
+        txtSubj.textProperty().addListener((obs, o, n) -> updatePreview.run());
+        txtBody.textProperty().addListener((obs, o, n) -> updatePreview.run());
+
+        loadStudioDoc.accept(cmbStudioDoc.getValue());
+
+        btnResetTop.setOnAction(e -> {
+            String cur = cmbStudioDoc.getValue();
+            if (cur == null) return;
+            MessageTemplateService.DocumentType dt = resolveDocType(cur);
+            if (isWa) {
+                txtBody.setText(MessageTemplateService.defaultWhatsappBody(dt));
+            } else {
+                txtSubj.setText(MessageTemplateService.defaultEmailSubject(dt));
+                txtBody.setText(MessageTemplateService.defaultEmailBody(dt));
+            }
+            updatePreview.run();
+        });
+
+        // Bottom Bar
+        HBox bottomBar = new HBox(12);
+        bottomBar.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button btnClose = new Button("Close");
+        btnClose.getStyleClass().add("secondary-button");
+        btnClose.setOnAction(e -> dialog.close());
+
+        Button btnSaveApply = new Button("💾 Save & Apply Templates");
+        btnSaveApply.getStyleClass().addAll("approved-button", "approved-primary-button");
+        btnSaveApply.setOnAction(e -> {
+            String cur = cmbStudioDoc.getValue();
+            if (cur != null) {
+                if (!isWa) templateSubjectDrafts.put(cur, txtSubj.getText());
+                templateBodyDrafts.put(cur, txtBody.getText());
+            }
+            saveActiveMessageTemplate();
+            saveAllDraftMessageTemplates();
+            if (cmbMessageTemplateDoc != null && cur != null) {
+                cmbMessageTemplateDoc.setValue(cur);
+                loadTemplateIntoUi(cur);
+            }
+            dialog.close();
+            Platform.runLater(() -> {
+                Node ownerNode = panelHost != null ? panelHost : panelScroll;
+                AppDialogService.success(ownerNode, "Templates Saved",
+                        isWa ? "WhatsApp message templates were successfully saved and applied."
+                             : "Email message templates were successfully saved and applied.");
+            });
+        });
+
+        bottomBar.getChildren().addAll(spacer, btnClose, btnSaveApply);
+
+        content.getChildren().addAll(topRow, splitPane, bottomBar);
+        pane.setContent(content);
+        dialog.showAndWait();
+    }
 
     @FXML private void resetCurrentTemplate() {
         if (cmbMessageTemplateDoc == null) return;
@@ -4441,32 +4804,38 @@ private record AssetPreviewRequest(
     }
 
     private void loadActivityProfileIntoUi(String option) {
-        String key = activityKeyForOption(option);
-        String name = ConfigManager.get("email.profile." + key + ".name", "");
-        String email = ConfigManager.get("email.profile." + key + ".email", "");
-        String pwd = ConfigManager.get("email.profile." + key + ".password", "");
-        if (org.example.shared.SecretValueCodec.isEncrypted(pwd)) {
-            try { pwd = org.example.shared.SecretValueCodec.decrypt(pwd); } catch (Exception ignored) {}
-        }
-        String host = ConfigManager.get("email.profile." + key + ".host", "");
-        String port = ConfigManager.get("email.profile." + key + ".port", "587");
-        String sig = ConfigManager.get("email.signature." + key, "");
+        isUpdatingActivityUi = true;
+        try {
+            String key = activityKeyForOption(option);
+            String name = ConfigManager.get("email.profile." + key + ".name", "");
+            String email = ConfigManager.get("email.profile." + key + ".email", "");
+            String pwd = ConfigManager.get("email.profile." + key + ".password", "");
+            if (org.example.shared.SecretValueCodec.isEncrypted(pwd)) {
+                try { pwd = org.example.shared.SecretValueCodec.decrypt(pwd); } catch (Exception ignored) {}
+            }
+            String host = ConfigManager.get("email.profile." + key + ".host", "");
+            String port = ConfigManager.get("email.profile." + key + ".port", "587");
+            String sig = ConfigManager.get("email.signature." + key, "");
 
-        if (txtProfileSenderName != null) txtProfileSenderName.setText(name);
-        if (txtProfileSenderEmail != null) txtProfileSenderEmail.setText(email);
-        if (txtProfileSenderPassword != null) {
-            txtProfileSenderPassword.setText(pwd);
-            txtProfileSenderPassword.setPromptText(pwd.isBlank() ? "Dedicated app password" : "Configured");
-        }
-        if (txtProfileSenderHost != null) txtProfileSenderHost.setText(host);
-        if (txtProfileSenderPort != null) txtProfileSenderPort.setText(port.isBlank() ? "587" : port);
-        if (txtProfileCustomSignature != null) txtProfileCustomSignature.setText(sig);
-        if (chkEnableDedicatedProfile != null) {
-            chkEnableDedicatedProfile.setSelected(!email.isBlank());
+            if (txtProfileSenderName != null) txtProfileSenderName.setText(name);
+            if (txtProfileSenderEmail != null) txtProfileSenderEmail.setText(email);
+            if (txtProfileSenderPassword != null) {
+                txtProfileSenderPassword.setText(pwd);
+                txtProfileSenderPassword.setPromptText(pwd.isBlank() ? "Dedicated app password" : "Configured");
+            }
+            if (txtProfileSenderHost != null) txtProfileSenderHost.setText(host);
+            if (txtProfileSenderPort != null) txtProfileSenderPort.setText(port.isBlank() ? "587" : port);
+            if (txtProfileCustomSignature != null) txtProfileCustomSignature.setText(sig);
+            if (chkEnableDedicatedProfile != null) {
+                chkEnableDedicatedProfile.setSelected(!email.isBlank());
+            }
+        } finally {
+            isUpdatingActivityUi = false;
         }
     }
 
     private void saveActivityProfileFromUi(String option) {
+        if (isUpdatingActivityUi) return;
         String key = activityKeyForOption(option);
         if (txtProfileSenderEmail == null) return;
         boolean enabled = chkEnableDedicatedProfile != null && chkEnableDedicatedProfile.isSelected();

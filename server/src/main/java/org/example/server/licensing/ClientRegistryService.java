@@ -632,6 +632,9 @@ public class ClientRegistryService {
         if (rawMachine == null || rawMachine.isBlank()) return Map.of("status", "UNKNOWN_MACHINE");
         String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
 
+        // 30-day automated telemetry retention purge
+        purgeExpiredTelemetry();
+
         // 1. Process multi-user session & work hours telemetry
         if (users != null && !users.isEmpty()) {
             for (Map<String, Object> user : users) {
@@ -772,20 +775,68 @@ public class ClientRegistryService {
         }
     }
 
+    private void purgeExpiredTelemetry() {
+        try {
+            jdbc.update("DELETE FROM client_user_telemetry WHERE work_date < CURRENT_DATE - INTERVAL '30 days'");
+        } catch (Exception e) {
+            log.warn("Could not purge expired telemetry: {}", e.getMessage());
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getClientUserTelemetry(String rawMachine) {
+        return getClientUserTelemetry(rawMachine, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getClientUserTelemetry(String rawMachine, String targetDateStr) {
         if (rawMachine == null || rawMachine.isBlank()) return List.of();
         String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+
+        String dateCondition = "t.work_date = CURRENT_DATE";
+        List<Object> params = new ArrayList<>();
+        params.add(machineId);
+
+        if (targetDateStr != null && !targetDateStr.isBlank() && !"TODAY".equalsIgnoreCase(targetDateStr)) {
+            dateCondition = "t.work_date = CAST(? AS date)";
+            params.add(targetDateStr.trim());
+        }
+
         return jdbc.queryForList(
                 "SELECT t.id, t.machine_id, t.company_name, t.username, t.role_code, t.work_date, " +
-                        "t.first_login_today, t.last_logout_today, t.last_heartbeat, t.total_seconds_today, t.is_active_now, " +
+                        "t.first_login_today, t.last_logout_today, t.last_heartbeat, " +
+                        "CASE " +
+                        "  WHEN t.is_active_now = true AND t.first_login_today IS NOT NULL THEN " +
+                        "    GREATEST(COALESCE(t.total_seconds_today, 0), EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - t.first_login_today))::bigint) " +
+                        "  ELSE COALESCE(t.total_seconds_today, 0) " +
+                        "END AS total_seconds_today, " +
+                        "t.is_active_now, " +
                         "COALESCE(u.locked, 0) AS is_locked, COALESCE(u.active, 1) AS is_user_active " +
                         "FROM client_user_telemetry t " +
                         "LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username) " +
-                        "WHERE t.machine_id = ? AND t.work_date = CURRENT_DATE " +
+                        "WHERE t.machine_id = ? AND " + dateCondition + " " +
                         "ORDER BY t.is_active_now DESC, t.last_heartbeat DESC",
+                params.toArray()
+        );
+    }
+
+    @Transactional
+    public Map<String, Object> releaseWorkstation(String rawMachine) {
+        if (rawMachine == null || rawMachine.isBlank()) {
+            return Map.of("success", false, "message", "Invalid machine ID");
+        }
+        String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+        int updated = jdbc.update(
+                "UPDATE licensed_client_registry SET status = 'RELEASED', " +
+                        "notes = CONCAT(COALESCE(notes, ''), ' [Workstation released by SuperAdmin on ', CURRENT_TIMESTAMP, ']') " +
+                        "WHERE machine_id = ?",
                 machineId
         );
+        jdbc.update("UPDATE client_user_telemetry SET is_active_now = false, last_logout_today = CURRENT_TIMESTAMP WHERE machine_id = ?", machineId);
+        try {
+            jdbc.update("DELETE FROM auth_session WHERE user_id IN (SELECT DISTINCT u.id FROM users u JOIN client_user_telemetry t ON LOWER(u.username) = LOWER(t.username) WHERE t.machine_id = ?)", machineId);
+        } catch (Exception ignored) {}
+        return Map.of("success", updated > 0, "machineId", machineId, "status", "RELEASED");
     }
 
     @Transactional

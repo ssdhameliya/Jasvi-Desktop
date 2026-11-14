@@ -1,6 +1,7 @@
 package org.example.util;
 
 import javafx.fxml.FXMLLoader;
+import javafx.scene.image.Image;
 import org.example.controller.SetupWizardController;
 import org.example.controller.SplashController;
 import javafx.scene.Parent;
@@ -30,7 +31,44 @@ public class SceneManager {
         primaryStage = stage;
         primaryStage.setTitle(applicationTitle());
         WindowUtilsFx.applyAdaptiveMinimums(primaryStage, javafx.stage.Screen.getPrimary().getVisualBounds());
+        applyStageIcon(primaryStage);
+    }
 
+    /**
+     * Dynamically attaches the application mark to the stage titlebar and taskbar.
+     * Follows the user-configured Application Mark / Splash Logo with fallback to the bundled logo.
+     */
+    public static void applyStageIcon(Stage stage) {
+        if (stage == null) return;
+        Runnable task = () -> {
+            try {
+                Image mark = BrandingService.applicationMarkImage();
+                if (mark == null || mark.isError()) {
+                    try (var is = ResourceLocator.open("/installer/logo-1024.png")) {
+                        if (is != null) {
+                            Image fallback = new Image(is);
+                            if (!fallback.isError()) mark = fallback;
+                        }
+                    }
+                }
+                if (mark == null || mark.isError()) {
+                    try (var is = ResourceLocator.open("/logo.png")) {
+                        if (is != null) {
+                            Image fallback = new Image(is);
+                            if (!fallback.isError()) mark = fallback;
+                        }
+                    }
+                }
+                if (mark != null && !mark.isError()) {
+                    stage.getIcons().setAll(mark);
+                }
+            } catch (Exception ignored) {}
+        };
+        if (javafx.application.Platform.isFxApplicationThread()) {
+            task.run();
+        } else {
+            javafx.application.Platform.runLater(task);
+        }
     }
 
 
@@ -49,6 +87,7 @@ public class SceneManager {
             ThemeManager.applyTheme(scene);
             PlatformUiSupport.installResponsiveClasses(scene);
             primaryStage.setScene(scene);
+            if (primaryStage.getIcons().isEmpty()) applyStageIcon(primaryStage);
             primaryStage.setTitle(applicationTitle());
             if (!primaryStage.isShowing()) primaryStage.centerOnScreen();
             primaryStage.show();
@@ -102,6 +141,7 @@ public class SceneManager {
                 splash.refreshBranding();
                 primaryStage.setTitle(applicationTitle() + " - Starting Up...");
             }
+            applyStageIcon(primaryStage);
         });
     }
 
@@ -161,6 +201,7 @@ public class SceneManager {
 
             PlatformUiSupport.installResponsiveClasses(scene);
             primaryStage.setScene(scene);
+            if (primaryStage.getIcons().isEmpty()) applyStageIcon(primaryStage);
             if ("/fxml/pages/Registration.fxml".equals(fxml)) {
                 var tracker = UnsavedChangesManager.track(root, "Registration");
                 javafx.application.Platform.runLater(tracker::resetBaseline);

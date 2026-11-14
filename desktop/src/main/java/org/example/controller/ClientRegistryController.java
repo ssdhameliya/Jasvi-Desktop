@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.text.DecimalFormat;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -485,6 +486,13 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) testRemoteUrl(item);
                 });
 
+                MenuItem miRelease = new MenuItem("Release Workstation Seat");
+                miRelease.setGraphic(IconFactory.compactIcon("refresh", 13));
+                miRelease.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) handleReleaseWorkstation(item);
+                });
+
                 MenuItem miRevoke = new MenuItem("Revoke License");
                 miRevoke.setGraphic(IconFactory.compactIcon("delete", 13));
                 miRevoke.setOnAction(e -> {
@@ -492,7 +500,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) handleRevokeClient(item);
                 });
 
-                actionsBtn.getItems().addAll(miLiveUsers, miKickUsers, miEditAccess, miRenew, miRenewCustom, miCopyToken, miExport, miEmail, miWhatsApp, miDispatchAll, miTestUrl, new SeparatorMenuItem(), miRevoke);
+                actionsBtn.getItems().addAll(miLiveUsers, miRelease, miKickUsers, miEditAccess, miRenew, miRenewCustom, miCopyToken, miExport, miEmail, miWhatsApp, miDispatchAll, miTestUrl, new SeparatorMenuItem(), miRevoke);
                 IconFactory.decorateActionMenu(actionsBtn);
             }
 
@@ -501,6 +509,19 @@ public class ClientRegistryController implements ScreenLifecycle {
                 super.updateItem(item, empty);
                 setGraphic(empty ? null : actionsBtn);
             }
+        });
+
+        tableClients.setRowFactory(tv -> {
+            TableRow<Map<String, Object>> row = new TableRow<>();
+            row.setOnMouseClicked(e -> {
+                if (row.isEmpty() || e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 1
+                        || org.example.util.RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(), row)) return;
+                Map<String, Object> item = row.getItem();
+                tableClients.getSelectionModel().select(item);
+                openClientInspectionDialog(item);
+                e.consume();
+            });
+            return row;
         });
     }
 
@@ -680,6 +701,19 @@ public class ClientRegistryController implements ScreenLifecycle {
                 miReject.setDisable(!pending);
                 setGraphic(actionsBtn);
             }
+        });
+
+        tableLeads.setRowFactory(tv -> {
+            TableRow<Map<String, Object>> row = new TableRow<>();
+            row.setOnMouseClicked(e -> {
+                if (row.isEmpty() || e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 1
+                        || org.example.util.RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(), row)) return;
+                Map<String, Object> lead = row.getItem();
+                tableLeads.getSelectionModel().select(lead);
+                openLeadInspectionDialog(lead);
+                e.consume();
+            });
+            return row;
         });
     }
 
@@ -1103,6 +1137,19 @@ public class ClientRegistryController implements ScreenLifecycle {
                 setGraphic(empty ? null : actionsBtn);
                 setAlignment(Pos.CENTER);
             }
+        });
+
+        tablePlans.setRowFactory(tv -> {
+            TableRow<Map<String, Object>> row = new TableRow<>();
+            row.setOnMouseClicked(e -> {
+                if (row.isEmpty() || e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 1
+                        || org.example.util.RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(), row)) return;
+                Map<String, Object> plan = row.getItem();
+                tablePlans.getSelectionModel().select(plan);
+                openPlanInspectionDialog(plan);
+                e.consume();
+            });
+            return row;
         });
     }
 
@@ -2245,35 +2292,77 @@ public class ClientRegistryController implements ScreenLifecycle {
         rootBox.setPrefWidth(1060);
         rootBox.setMinHeight(460);
 
-        // Metadata Info Bar
-        HBox infoBar = new HBox(12);
-        infoBar.setAlignment(Pos.CENTER_LEFT);
-        infoBar.getStyleClass().addAll("approved-card", "clients-search-strip");
-        infoBar.setPadding(new Insets(8, 12, 8, 12));
-
-        Label lblComp = new Label("Company: " + company);
-        lblComp.getStyleClass().add("metric-label");
-        Label lblMach = new Label("Terminal ID: " + rawMachine);
-        lblMach.getStyleClass().addAll("metric-label", "code-label");
-        Label lblPlan = new Label("Plan: " + tier + (isPurchased ? " • Purchased" : " • Trial"));
-        lblPlan.getStyleClass().addAll("status-badge", isPurchased ? "status-positive" : "status-warning");
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        Button btnRefreshUsers = new Button("Refresh");
-        btnRefreshUsers.setGraphic(IconFactory.compactIcon("refresh", 13));
-        btnRefreshUsers.getStyleClass().addAll("approved-button", "approved-secondary-button");
-
-        infoBar.getChildren().addAll(lblComp, new Separator(javafx.geometry.Orientation.VERTICAL),
-                lblMach, new Separator(javafx.geometry.Orientation.VERTICAL),
-                lblPlan, spacer, btnRefreshUsers);
-
         // Telemetry Table
         TableView<Map<String, Object>> tableUsers = new TableView<>();
         tableUsers.setPrefHeight(320);
         tableUsers.getStyleClass().addAll("approved-table", "clients-directory-table");
         DynamicTableLayoutManager.install(tableUsers);
+
+        // Row 1: Enterprise Identity & Session Metrics Strip
+        HBox heroBar = new HBox(12);
+        heroBar.setAlignment(Pos.CENTER_LEFT);
+        heroBar.getStyleClass().addAll("approved-card", "clients-search-strip");
+        heroBar.setPadding(new Insets(10, 14, 10, 14));
+
+        Label lblComp = new Label(company);
+        lblComp.getStyleClass().addAll("header-title", "metric-label");
+
+        Label lblMach = new Label("Terminal ID: " + rawMachine);
+        lblMach.getStyleClass().addAll("metric-label", "code-label");
+
+        Label lblPlan = new Label("Plan: " + tier + (isPurchased ? " • Purchased" : " • Trial"));
+        lblPlan.getStyleClass().addAll("status-badge", isPurchased ? "status-positive" : "status-warning");
+
+        Region heroSpacer = new Region();
+        HBox.setHgrow(heroSpacer, Priority.ALWAYS);
+
+        Object maxSeats = client.getOrDefault("max_users", 5);
+        Object activeSeats = client.getOrDefault("active_users_count", 0);
+        Label lblSeats = new Label(activeSeats + " / " + maxSeats + " Workstation Seats Active");
+        lblSeats.getStyleClass().addAll("status-badge", "status-neutral");
+
+        heroBar.getChildren().addAll(lblComp, new Separator(javafx.geometry.Orientation.VERTICAL),
+                lblMach, heroSpacer, lblPlan, lblSeats);
+
+        // Row 2: Dedicated Filter & Action Toolbar
+        HBox filterBar = new HBox(10);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
+        filterBar.getStyleClass().addAll("approved-card", "clients-search-strip");
+        filterBar.setPadding(new Insets(8, 14, 8, 14));
+
+        Label lblDatePrompt = new Label("Query Date:");
+        lblDatePrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
+        lblDatePrompt.getProperties().put("erp.label.icon.skip", true);
+
+        DatePicker dpDate = new DatePicker(LocalDate.now());
+        dpDate.getStyleClass().add("approved-datepicker");
+        dpDate.setMinWidth(150);
+        dpDate.setPrefWidth(150);
+
+        Button btnToday = new Button("Today");
+        btnToday.setGraphic(IconFactory.compactIcon("calendar", 13));
+        btnToday.setMinWidth(85);
+        btnToday.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnToday.setOnAction(e -> dpDate.setValue(LocalDate.now()));
+
+        Button btnYesterday = new Button("Yesterday");
+        btnYesterday.setGraphic(IconFactory.compactIcon("calendar", 13));
+        btnYesterday.setMinWidth(95);
+        btnYesterday.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnYesterday.setOnAction(e -> dpDate.setValue(LocalDate.now().minusDays(1)));
+
+        Region filterSpacer = new Region();
+        HBox.setHgrow(filterSpacer, Priority.ALWAYS);
+
+        Button btnRefreshUsers = new Button("Refresh Telemetry");
+        btnRefreshUsers.setGraphic(IconFactory.compactIcon("refresh", 13));
+        btnRefreshUsers.setMinWidth(130);
+        btnRefreshUsers.getStyleClass().addAll("approved-button", "approved-secondary-button");
+
+        dpDate.valueProperty().addListener((obs, oldV, newV) -> loadUserTelemetry(tableUsers, rawMachine, newV));
+        btnRefreshUsers.setOnAction(e -> loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue()));
+
+        filterBar.getChildren().addAll(lblDatePrompt, dpDate, btnToday, btnYesterday, filterSpacer, btnRefreshUsers);
 
         TableColumn<Map<String, Object>, String> colUser = new TableColumn<>("Username");
         colUser.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("username", "-"))));
@@ -2375,7 +2464,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                     api.kickClientUser(rawMachine, uName);
                                     Platform.runLater(() -> {
                                         AppDialogService.success(tableClients, "User Kicked", "Active session for " + uName + " terminated.");
-                                        loadUserTelemetry(tableUsers, rawMachine);
+                                        loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
                                     });
                                 } catch (Exception ex) {
                                     Platform.runLater(() -> AppDialogService.error(tableClients, "Kick Failed", ex.getMessage()));
@@ -2396,7 +2485,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                         api.unlockClientUser(rawMachine, uName);
                                         Platform.runLater(() -> {
                                             AppDialogService.success(tableClients, "User Unlocked", "Account " + uName + " is now unlocked.");
-                                            loadUserTelemetry(tableUsers, rawMachine);
+                                            loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
                                         });
                                     } catch (Exception ex) {
                                         Platform.runLater(() -> AppDialogService.error(tableClients, "Unlock Failed", ex.getMessage()));
@@ -2415,7 +2504,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                         api.lockClientUser(rawMachine, uName);
                                         Platform.runLater(() -> {
                                             AppDialogService.success(tableClients, "User Locked", "Account " + uName + " is now locked.");
-                                            loadUserTelemetry(tableUsers, rawMachine);
+                                            loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
                                         });
                                     } catch (Exception ex) {
                                         Platform.runLater(() -> AppDialogService.error(tableClients, "Lock Failed", ex.getMessage()));
@@ -2437,7 +2526,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                         api.setUserActiveStatus(rawMachine, uName, false);
                                         Platform.runLater(() -> {
                                             AppDialogService.success(tableClients, "User Deactivated", "Account " + uName + " has been deactivated.");
-                                            loadUserTelemetry(tableUsers, rawMachine);
+                                            loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
                                         });
                                     } catch (Exception ex) {
                                         Platform.runLater(() -> AppDialogService.error(tableClients, "Deactivation Failed", ex.getMessage()));
@@ -2456,7 +2545,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                                         api.setUserActiveStatus(rawMachine, uName, true);
                                         Platform.runLater(() -> {
                                             AppDialogService.success(tableClients, "User Activated", "Account " + uName + " is now active.");
-                                            loadUserTelemetry(tableUsers, rawMachine);
+                                            loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
                                         });
                                     } catch (Exception ex) {
                                         Platform.runLater(() -> AppDialogService.error(tableClients, "Activation Failed", ex.getMessage()));
@@ -2475,25 +2564,453 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         tableUsers.getColumns().addAll(colUser, colRole, colFirstLogin, colLastLogout, colHours, colActiveStatus, colUserActions);
 
-        btnRefreshUsers.setOnAction(e -> loadUserTelemetry(tableUsers, rawMachine));
-        loadUserTelemetry(tableUsers, rawMachine);
+        btnRefreshUsers.setOnAction(e -> loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue()));
+        loadUserTelemetry(tableUsers, rawMachine, dpDate.getValue());
 
-        rootBox.getChildren().addAll(infoBar, tableUsers);
+        rootBox.getChildren().addAll(heroBar, filterBar, tableUsers);
         dialog.getDialogPane().setContent(rootBox);
+        PopupTableWorkspace.prepareDialog(dialog, 1040);
         dialog.showAndWait();
     }
 
-    private void loadUserTelemetry(TableView<Map<String, Object>> table, String machineId) {
+    private void loadUserTelemetry(TableView<Map<String, Object>> table, String machineId, LocalDate date) {
         Thread.ofVirtual().start(() -> {
             try {
-                List<Map<String, Object>> users = api.getClientUsers(machineId);
+                String dateStr = date != null ? date.toString() : null;
+                List<Map<String, Object>> users = api.getClientUsers(machineId, dateStr);
                 Platform.runLater(() -> {
                     table.setItems(FXCollections.observableArrayList(users != null ? users : List.of()));
+                    if (users == null || users.isEmpty()) {
+                        Label emptyLbl = new Label("No active user sessions recorded for this workstation on " + (date != null ? BusinessClock.formatDate(date) : "selected date"));
+                        emptyLbl.getStyleClass().addAll("metric-label", "status-neutral");
+                        table.setPlaceholder(emptyLbl);
+                    }
                 });
             } catch (Exception ex) {
                 log.warn("Could not load user telemetry for {}: {}", machineId, ex.getMessage());
+                Platform.runLater(() -> {
+                    Label errLbl = new Label("Unable to load telemetry: " + ex.getMessage());
+                    errLbl.getStyleClass().addAll("metric-label", "status-warning");
+                    table.setPlaceholder(errLbl);
+                });
             }
         });
+    }
+
+    private void handleReleaseWorkstation(Map<String, Object> client) {
+        if (client == null) return;
+        String rawMachine = String.valueOf(client.getOrDefault("machine_id", ""));
+        String company = String.valueOf(client.getOrDefault("company_name", "Client"));
+
+        boolean confirm = AppDialogService.confirm(
+                tableClients,
+                "Release Workstation Seat",
+                "Release Workstation for " + company + "?",
+                "Workstation Hardware ID: " + rawMachine + "\n\nThis will unbind this physical PC from your active license registry, freeing up 1 workstation seat on your subscription for another computer."
+        );
+        if (!confirm) return;
+
+        UiTaskExecutor.submitActionWithOverlay(
+                tableClients,
+                "Releasing Workstation...",
+                "release-machine-" + rawMachine,
+                () -> api.releaseWorkstation(rawMachine),
+                res -> {
+                    AppDialogService.success(tableClients, "Workstation Released", "Workstation seat has been released successfully. A new computer can now be registered.");
+                    loadDataAsync();
+                },
+                err -> AppDialogService.error(tableClients, "Release Error", "Could not release workstation", err.getMessage())
+        );
+    }
+
+    private void openClientInspectionDialog(Map<String, Object> client) {
+        if (client == null) return;
+        String rawMachine = String.valueOf(client.getOrDefault("machine_id", ""));
+        String company = String.valueOf(client.getOrDefault("company_name", "Client"));
+        String tier = String.valueOf(client.getOrDefault("tier", "GOLD"));
+        String status = String.valueOf(client.getOrDefault("status", "ACTIVE"));
+        boolean isPurchased = !"false".equalsIgnoreCase(String.valueOf(client.getOrDefault("is_purchased", "true")));
+        String remoteUrl = String.valueOf(client.getOrDefault("remote_url", "-"));
+        String contactPerson = String.valueOf(client.getOrDefault("contact_person", "-"));
+        String phone = String.valueOf(client.getOrDefault("phone", "-"));
+        String email = String.valueOf(client.getOrDefault("email", "-"));
+        Object maxUsers = client.getOrDefault("max_users", 5);
+        Object activeUsers = client.getOrDefault("active_users_count", 0);
+        Object fee = client.get("annual_fee");
+        String feeStr = (fee instanceof Number n) ? "₹" + CURRENCY_FMT.format(n.doubleValue()) : "₹3,500.00";
+        Object vu = client.get("valid_until");
+        String validStr = vu != null ? BusinessClock.formatDate(vu.toString()) : "-";
+
+        Dialog<Void> dialog = new OwnedDialog<>(tableClients);
+        dialog.setTitle("Client Record & Action Hub — " + company);
+        dialog.setHeaderText("Workstation Terminal: " + rawMachine + " (" + company + ")");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox root = new VBox(14);
+        root.setPadding(new Insets(16, 20, 16, 20));
+        root.setMinWidth(800);
+        root.setPrefWidth(840);
+
+        HBox hero = new HBox(12);
+        hero.setAlignment(Pos.CENTER_LEFT);
+        hero.getStyleClass().addAll("approved-card", "clients-search-strip");
+        hero.setPadding(new Insets(10, 14, 10, 14));
+
+        Label lblComp = new Label(company);
+        lblComp.getStyleClass().addAll("header-title", "metric-label");
+        Label lblMach = new Label("ID: " + rawMachine);
+        lblMach.getStyleClass().addAll("metric-label", "code-label");
+        Label lblStatus = new Label(status);
+        lblStatus.getStyleClass().addAll("status-badge", "ACTIVE".equalsIgnoreCase(status) ? "status-positive" : "status-negative");
+        Label lblPlan = new Label(tier + (isPurchased ? " • Purchased" : " • Trial"));
+        lblPlan.getStyleClass().addAll("status-badge", isPurchased ? "status-positive" : "status-warning");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        hero.getChildren().addAll(lblComp, new Separator(javafx.geometry.Orientation.VERTICAL), lblMach, spacer, lblPlan, lblStatus);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(8);
+        grid.getStyleClass().add("approved-card");
+        grid.setPadding(new Insets(12, 16, 12, 16));
+
+        ColumnConstraints col0 = new ColumnConstraints();
+        col0.setMinWidth(160);
+        col0.setPrefWidth(175);
+        col0.setHgrow(Priority.NEVER);
+
+        ColumnConstraints col1 = new ColumnConstraints();
+        col1.setHgrow(Priority.ALWAYS);
+
+        ColumnConstraints col2 = new ColumnConstraints();
+        col2.setMinWidth(150);
+        col2.setPrefWidth(165);
+        col2.setHgrow(Priority.NEVER);
+
+        ColumnConstraints col3 = new ColumnConstraints();
+        col3.setHgrow(Priority.ALWAYS);
+
+        grid.getColumnConstraints().addAll(col0, col1, col2, col3);
+
+        int r = 0;
+        grid.add(createFieldLabel("Remote IP / Tunnel:"), 0, r);
+        grid.add(createFieldValue(remoteUrl, "code-label"), 1, r);
+        grid.add(createFieldLabel("Contact Person:"), 2, r);
+        grid.add(createFieldValue(contactPerson + (phone.isBlank() ? "" : " (" + phone + ")"), "metric-label"), 3, r++);
+
+        grid.add(createFieldLabel("Email Address:"), 0, r);
+        grid.add(createFieldValue(email, "code-label"), 1, r);
+        grid.add(createFieldLabel("Connected Seats:"), 2, r);
+        grid.add(createFieldValue(activeUsers + " / " + maxUsers + " Users", "status-badge"), 3, r++);
+
+        grid.add(createFieldLabel("Annual Pricing:"), 0, r);
+        grid.add(createFieldValue(feeStr, "summary-paid"), 1, r);
+        grid.add(createFieldLabel("Valid Until:"), 2, r);
+        grid.add(createFieldValue(validStr, "metric-label"), 3, r++);
+
+        Label lblActionsHeader = new Label("Available Workstation & Licensing Actions");
+        lblActionsHeader.getStyleClass().addAll("metric-label", "header-subtitle");
+
+        GridPane actionsGrid = new GridPane();
+        actionsGrid.setHgap(12);
+        actionsGrid.setVgap(10);
+        ColumnConstraints colL = new ColumnConstraints();
+        colL.setPercentWidth(50);
+        colL.setHgrow(Priority.ALWAYS);
+        ColumnConstraints colR = new ColumnConstraints();
+        colR.setPercentWidth(50);
+        colR.setHgrow(Priority.ALWAYS);
+        actionsGrid.getColumnConstraints().addAll(colL, colR);
+
+        Button btnTelemetry = createActionButton("Live Telemetry & Work Hours", "users", () -> { dialog.close(); showUserTelemetryDialog(client); });
+        Button btnRelease = createActionButton("Release Workstation Seat", "refresh", () -> { dialog.close(); handleReleaseWorkstation(client); });
+        Button btnRenew = createActionButton("Renew License (+1 Year)", "refresh", () -> { dialog.close(); handleRenewClient(client, 365); });
+        Button btnCustomRenew = createActionButton("Custom Renewal Days...", "calendar", () -> { dialog.close(); promptCustomRenewal(client); });
+        Button btnEditPlan = createActionButton("Edit Plan & Modules", "edit", () -> { dialog.close(); showClientLicenseDialog(client); });
+
+        Button btnKick = createActionButton("Kick Active Sessions", "delete", () -> { dialog.close(); handleKickAllClientSessions(client); });
+        Button btnCopy = createActionButton("Copy Machine Hardware ID", "copy", () -> copyMachineId(rawMachine));
+        Button btnWhatsApp = createActionButton("Send via WhatsApp", "share", () -> sendWhatsApp(client));
+        Button btnEmail = createActionButton("Send via Email", "email", () -> sendEmail(client));
+        Button btnRevoke = createActionButton("Revoke / Suspend License", "delete", () -> { dialog.close(); handleRevokeClient(client); });
+        btnRevoke.getStyleClass().add("button-danger");
+
+        for (Button b : List.of(btnTelemetry, btnRelease, btnRenew, btnCustomRenew, btnEditPlan, btnKick, btnCopy, btnWhatsApp, btnEmail, btnRevoke)) {
+            b.setMaxWidth(Double.MAX_VALUE);
+            b.setPrefHeight(34);
+        }
+
+        actionsGrid.add(btnTelemetry, 0, 0);
+        actionsGrid.add(btnKick, 1, 0);
+
+        actionsGrid.add(btnRelease, 0, 1);
+        actionsGrid.add(btnCopy, 1, 1);
+
+        actionsGrid.add(btnRenew, 0, 2);
+        actionsGrid.add(btnWhatsApp, 1, 2);
+
+        actionsGrid.add(btnCustomRenew, 0, 3);
+        actionsGrid.add(btnEmail, 1, 3);
+
+        actionsGrid.add(btnEditPlan, 0, 4);
+        actionsGrid.add(btnRevoke, 1, 4);
+
+        root.getChildren().addAll(hero, grid, lblActionsHeader, actionsGrid);
+        dialog.getDialogPane().setContent(root);
+        PopupTableWorkspace.prepareDialog(dialog, 840);
+        dialog.showAndWait();
+    }
+
+    private void openLeadInspectionDialog(Map<String, Object> lead) {
+        if (lead == null) return;
+        String company = String.valueOf(lead.getOrDefault("company_name", "Client"));
+        String contact = String.valueOf(lead.getOrDefault("contact_person", "-"));
+        String phone = String.valueOf(lead.getOrDefault("phone", "-"));
+        String email = String.valueOf(lead.getOrDefault("email", "-"));
+        String machine = String.valueOf(lead.getOrDefault("machine_id", "-"));
+        String tier = String.valueOf(lead.getOrDefault("requested_tier", "GOLD"));
+        String status = String.valueOf(lead.getOrDefault("status", "PENDING"));
+        String notes = String.valueOf(lead.getOrDefault("notes", "-"));
+        boolean pending = "PENDING".equalsIgnoreCase(status);
+
+        Dialog<Void> dialog = new OwnedDialog<>(tableLeads);
+        dialog.setTitle("Lead Request & Action Hub — " + company);
+        dialog.setHeaderText("Inbound Activation Lead: " + company);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox root = new VBox(14);
+        root.setPadding(new Insets(16, 20, 16, 20));
+        root.setMinWidth(740);
+        root.setPrefWidth(780);
+
+        HBox hero = new HBox(12);
+        hero.setAlignment(Pos.CENTER_LEFT);
+        hero.getStyleClass().addAll("approved-card", "clients-search-strip");
+        hero.setPadding(new Insets(10, 14, 10, 14));
+
+        Label lblComp = new Label(company);
+        lblComp.getStyleClass().addAll("header-title", "metric-label");
+        Label lblTier = new Label("Requested: " + tier);
+        lblTier.getStyleClass().addAll("status-badge", "status-neutral");
+        Label lblStatus = new Label(status);
+        lblStatus.getStyleClass().addAll("status-badge", pending ? "status-warning" : "status-positive");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        hero.getChildren().addAll(lblComp, spacer, lblTier, lblStatus);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(8);
+        grid.getStyleClass().add("approved-card");
+        grid.setPadding(new Insets(12, 16, 12, 16));
+
+        ColumnConstraints c0 = new ColumnConstraints();
+        c0.setMinWidth(150);
+        c0.setPrefWidth(165);
+        c0.setHgrow(Priority.NEVER);
+        ColumnConstraints c1 = new ColumnConstraints();
+        c1.setHgrow(Priority.ALWAYS);
+        ColumnConstraints c2 = new ColumnConstraints();
+        c2.setMinWidth(150);
+        c2.setPrefWidth(165);
+        c2.setHgrow(Priority.NEVER);
+        ColumnConstraints c3 = new ColumnConstraints();
+        c3.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(c0, c1, c2, c3);
+
+        int r = 0;
+        grid.add(createFieldLabel("Contact Person:"), 0, r);
+        grid.add(createFieldValue(contact, "metric-label"), 1, r);
+        grid.add(createFieldLabel("Phone / WhatsApp:"), 2, r);
+        grid.add(createFieldValue(phone, "code-label"), 3, r++);
+
+        grid.add(createFieldLabel("Email Address:"), 0, r);
+        grid.add(createFieldValue(email, "code-label"), 1, r);
+        grid.add(createFieldLabel("Machine Hardware ID:"), 2, r);
+        grid.add(createFieldValue(machine, "code-label"), 3, r++);
+
+        grid.add(createFieldLabel("Notes / Requirement:"), 0, r);
+        grid.add(createFieldValue(notes, "form-field-caption"), 1, r, 3, 1);
+
+        Label lblActionsHeader = new Label("Lead Approval & Communication Actions");
+        lblActionsHeader.getStyleClass().addAll("metric-label", "header-subtitle");
+
+        GridPane actionsGrid = new GridPane();
+        actionsGrid.setHgap(12);
+        actionsGrid.setVgap(10);
+        ColumnConstraints cL = new ColumnConstraints();
+        cL.setPercentWidth(50);
+        cL.setHgrow(Priority.ALWAYS);
+        ColumnConstraints cR = new ColumnConstraints();
+        cR.setPercentWidth(50);
+        cR.setHgrow(Priority.ALWAYS);
+        actionsGrid.getColumnConstraints().addAll(cL, cR);
+
+        Button btnApprove = createActionButton("Approve & Issue License", "check", () -> { dialog.close(); handleApproveLead(lead); });
+        btnApprove.setDisable(!pending);
+        btnApprove.getStyleClass().add("status-positive");
+        Button btnReject = createActionButton("Reject Request", "delete", () -> { dialog.close(); handleRejectLead(lead); });
+        btnReject.setDisable(!pending);
+        btnReject.getStyleClass().add("button-danger");
+
+        Button btnCopy = createActionButton("Copy Machine ID", "copy", () -> copyMachineId(machine));
+        Button btnWhatsApp = createActionButton("Send WhatsApp", "share", () -> sendWhatsAppLead(lead));
+        Button btnEmail = createActionButton("Send Email", "email", () -> sendEmailLead(lead));
+        Button btnDelete = createActionButton("Delete Lead", "delete", () -> { dialog.close(); handleDeleteLead(lead); });
+        btnDelete.getStyleClass().add("button-danger");
+
+        for (Button b : List.of(btnApprove, btnReject, btnCopy, btnWhatsApp, btnEmail, btnDelete)) {
+            b.setMaxWidth(Double.MAX_VALUE);
+            b.setPrefHeight(34);
+        }
+
+        actionsGrid.add(btnApprove, 0, 0);
+        actionsGrid.add(btnReject, 1, 0);
+
+        actionsGrid.add(btnCopy, 0, 1);
+        actionsGrid.add(btnWhatsApp, 1, 1);
+
+        actionsGrid.add(btnEmail, 0, 2);
+        actionsGrid.add(btnDelete, 1, 2);
+
+        root.getChildren().addAll(hero, grid, lblActionsHeader, actionsGrid);
+        dialog.getDialogPane().setContent(root);
+        PopupTableWorkspace.prepareDialog(dialog, 780);
+        dialog.showAndWait();
+    }
+
+    private void openPlanInspectionDialog(Map<String, Object> plan) {
+        if (plan == null) return;
+        String code = String.valueOf(plan.getOrDefault("tier_code", ""));
+        String name = String.valueOf(plan.getOrDefault("plan_name", ""));
+        Object fee = plan.get("annual_fee");
+        String feeStr = (fee instanceof Number n) ? "₹" + CURRENCY_FMT.format(n.doubleValue()) : "₹0.00";
+        Object users = plan.getOrDefault("max_users", 1);
+        Object days = plan.getOrDefault("validity_days", 365);
+        boolean active = !"false".equalsIgnoreCase(String.valueOf(plan.getOrDefault("is_active", "true")));
+
+        Dialog<Void> dialog = new OwnedDialog<>(tablePlans);
+        dialog.setTitle("Subscription Plan & Action Hub — " + name);
+        dialog.setHeaderText("Commercial Tier: " + code + " (" + name + ")");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox root = new VBox(14);
+        root.setPadding(new Insets(16, 20, 16, 20));
+        root.setMinWidth(700);
+        root.setPrefWidth(740);
+
+        HBox hero = new HBox(12);
+        hero.setAlignment(Pos.CENTER_LEFT);
+        hero.getStyleClass().addAll("approved-card", "clients-search-strip");
+        hero.setPadding(new Insets(10, 14, 10, 14));
+
+        Label lblName = new Label(name);
+        lblName.getStyleClass().addAll("header-title", "metric-label");
+        Label lblCode = new Label("Code: " + code);
+        lblCode.getStyleClass().addAll("metric-label", "code-label");
+        Label lblStatus = new Label(active ? "ACTIVE" : "INACTIVE");
+        lblStatus.getStyleClass().addAll("status-badge", active ? "status-positive" : "status-neutral");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        hero.getChildren().addAll(lblName, new Separator(javafx.geometry.Orientation.VERTICAL), lblCode, spacer, lblStatus);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(8);
+        grid.getStyleClass().add("approved-card");
+        grid.setPadding(new Insets(12, 16, 12, 16));
+
+        ColumnConstraints c0 = new ColumnConstraints();
+        c0.setMinWidth(140);
+        c0.setPrefWidth(155);
+        c0.setHgrow(Priority.NEVER);
+        ColumnConstraints c1 = new ColumnConstraints();
+        c1.setHgrow(Priority.ALWAYS);
+        ColumnConstraints c2 = new ColumnConstraints();
+        c2.setMinWidth(140);
+        c2.setPrefWidth(155);
+        c2.setHgrow(Priority.NEVER);
+        ColumnConstraints c3 = new ColumnConstraints();
+        c3.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(c0, c1, c2, c3);
+
+        int r = 0;
+        grid.add(createFieldLabel("Annual Price:"), 0, r);
+        grid.add(createFieldValue(feeStr, "summary-paid"), 1, r);
+        grid.add(createFieldLabel("Workstation Seats:"), 2, r);
+        grid.add(createFieldValue(users + " Users", "metric-value"), 3, r++);
+
+        grid.add(createFieldLabel("Validity Period:"), 0, r);
+        grid.add(createFieldValue(days + " Days", "metric-value"), 1, r);
+        grid.add(createFieldLabel("Catalog Status:"), 2, r);
+        grid.add(createFieldValue(active ? "Available for Purchase" : "Deactivated / Hidden", active ? "status-positive" : "status-neutral"), 3, r++);
+
+        Label lblActionsHeader = new Label("Plan Management Actions");
+        lblActionsHeader.getStyleClass().addAll("metric-label", "header-subtitle");
+
+        GridPane actionsGrid = new GridPane();
+        actionsGrid.setHgap(12);
+        actionsGrid.setVgap(10);
+        for (int i = 0; i < 3; i++) {
+            ColumnConstraints cc = new ColumnConstraints();
+            cc.setPercentWidth(100.0 / 3.0);
+            cc.setHgrow(Priority.ALWAYS);
+            actionsGrid.getColumnConstraints().add(cc);
+        }
+
+        Button btnEdit = createActionButton("Edit Plan & Modules", "edit", () -> { dialog.close(); handleEditPlan(plan); });
+        Button btnView = createActionButton("View Full Details", "view", () -> { dialog.close(); showPlanEditDialog(plan, true); });
+        Button btnDuplicate = createActionButton("Clone Plan", "copy", () -> { dialog.close(); handleDuplicatePlan(plan); });
+        Button btnToggle = createActionButton(active ? "Deactivate Plan" : "Activate Plan", "refresh", () -> { dialog.close(); handleTogglePlanActive(plan); });
+        Button btnDelete = createActionButton("Delete Plan", "delete", () -> { dialog.close(); handleDeletePlan(plan); });
+        btnDelete.getStyleClass().add("button-danger");
+
+        for (Button b : List.of(btnEdit, btnView, btnDuplicate, btnToggle, btnDelete)) {
+            b.setMaxWidth(Double.MAX_VALUE);
+            b.setPrefHeight(34);
+        }
+
+        actionsGrid.add(btnEdit, 0, 0);
+        actionsGrid.add(btnView, 1, 0);
+        actionsGrid.add(btnDuplicate, 2, 0);
+
+        actionsGrid.add(btnToggle, 0, 1, 2, 1);
+        actionsGrid.add(btnDelete, 2, 1);
+
+        root.getChildren().addAll(hero, grid, lblActionsHeader, actionsGrid);
+        dialog.getDialogPane().setContent(root);
+        PopupTableWorkspace.prepareDialog(dialog, 740);
+        dialog.showAndWait();
+    }
+
+    private Label createFieldLabel(String text) {
+        Label l = new Label(text);
+        l.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
+        l.getProperties().put("erp.label.icon.skip", true);
+        return l;
+    }
+
+    private Label createFieldValue(String text, String semanticClass) {
+        Label l = new Label(text != null && !text.isBlank() ? text : "-");
+        l.getStyleClass().addAll("field-value", "inspection-card-value");
+        if (semanticClass != null && !semanticClass.isBlank()) {
+            l.getStyleClass().add(semanticClass);
+        }
+        l.getProperties().put("erp.value.icon.skip", true);
+        return l;
+    }
+
+    private Button createActionButton(String text, String iconName, Runnable action) {
+        Button b = new Button(text);
+        b.setGraphic(IconFactory.compactIcon(iconName, 13));
+        b.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        b.setOnAction(e -> {
+            if (action != null) action.run();
+        });
+        return b;
     }
 
     @Override

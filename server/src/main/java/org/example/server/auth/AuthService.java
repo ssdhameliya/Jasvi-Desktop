@@ -63,6 +63,26 @@ public class AuthService {
                     String reason = String.valueOf(blockedRows.getFirst().getOrDefault("kick_reason", "Blacklisted by Super Admin"));
                     return failedLogin("Access Blocked: This workstation (ID: " + machineId + ") has been suspended/blacklisted by Jasvi Platform Authority. Reason: " + reason);
                 }
+
+                // Pillar 1: Hardware Machine Seat Quota Enforcement
+                // If this machine is not yet registered, verify active workstations count has not reached max_users limit
+                var registered = db.queryForList(
+                        "SELECT id FROM licensed_client_registry WHERE machine_id = ? AND status = 'ACTIVE'",
+                        normMachine
+                );
+                if (registered.isEmpty()) {
+                    Integer maxMachines = db.queryForObject(
+                            "SELECT max_users FROM app_license WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1", Integer.class);
+                    if (maxMachines != null && maxMachines > 0) {
+                        Integer activeMachines = db.queryForObject(
+                                "SELECT COUNT(*) FROM licensed_client_registry WHERE status = 'ACTIVE' AND machine_id <> 'AUTO_BIND_HOST'",
+                                Integer.class
+                        );
+                        if (activeMachines != null && activeMachines >= maxMachines) {
+                            return failedLogin("Workstation Quota Reached: Your license permits " + maxMachines + " registered workstations (" + activeMachines + " currently registered). Please upgrade your tier or release an inactive workstation in Client Registry.");
+                        }
+                    }
+                }
             } catch (Exception ignored) {}
         }
         String identity = request == null || request.identity() == null ? "" : request.identity().trim();

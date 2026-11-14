@@ -178,9 +178,18 @@ public class ClientRegistryController {
     }
 
     @GetMapping("/clients/{machineId}/users")
-    public List<Map<String, Object>> getClientUsers(@PathVariable String machineId) {
+    public List<Map<String, Object>> getClientUsers(
+            @PathVariable String machineId,
+            @RequestParam(required = false) String date
+    ) {
         requireSuperAdmin();
-        return registryService.getClientUserTelemetry(machineId);
+        return registryService.getClientUserTelemetry(machineId, date);
+    }
+
+    @PostMapping("/clients/{machineId}/release")
+    public Map<String, Object> releaseWorkstation(@PathVariable String machineId) {
+        requireSuperAdmin();
+        return registryService.releaseWorkstation(machineId);
     }
 
     @PostMapping("/clients/{machineId}/users/{username}/kick")

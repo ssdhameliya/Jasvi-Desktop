@@ -51,6 +51,7 @@
                         <HBox spacing="4">
                             <Button fx:id="btnTabEdit" text="✍ Edit Text" onAction="#showEditMode" styleClass="secondary-button,approved-secondary-button"/>
                             <Button fx:id="btnTabPreview" text="👁 Executive Preview" onAction="#showPreviewMode" styleClass="secondary-button,approved-secondary-button"/>
+                            <Button fx:id="btnPreviewHtml" text="🌐 Preview Real HTML" onAction="#previewHtmlInBrowser" styleClass="secondary-button,approved-secondary-button"/>
                         </HBox>
                     </HBox>
                     <StackPane VBox.vgrow="ALWAYS" minHeight="240">

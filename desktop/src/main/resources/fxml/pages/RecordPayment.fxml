@@ -102,6 +102,7 @@
       <TableColumn fx:id="historyFrom" text="Received From"/>
       <TableColumn fx:id="historyAmount" text="Amount (₹)"/>
       <TableColumn fx:id="historyStatus" text="Status"/>
+      <TableColumn fx:id="historyEmailStatus" text="Email Status"/>
       <TableColumn fx:id="historyNotes" text="Notes"/>
       <TableColumn fx:id="historyAction" text="Actions"/>
      </columns>

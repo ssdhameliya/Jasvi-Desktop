@@ -5,6 +5,7 @@ import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import org.example.api.support.SupportApiClient;
 import org.example.config.ConfigManager;
 import org.example.controller.EmailTransmissionDialog;
 import org.example.model.Purchase;
@@ -12,6 +13,7 @@ import org.example.model.Sales;
 import org.example.service.EmailService;
 import org.example.service.ManagedInvoicePdfService;
 import org.example.service.MessageTemplateService;
+import org.example.service.SessionService;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -25,6 +27,8 @@ import java.util.Locale;
  * 3. Sales & Purchase Returns (Refund Settlement Confirmations)
  */
 public final class PaymentConfirmationPromptHelper {
+
+    private static final SupportApiClient supportApi = new SupportApiClient();
 
     private PaymentConfirmationPromptHelper() {}
 
@@ -214,7 +218,9 @@ public final class PaymentConfirmationPromptHelper {
                     total,
                     amountPaid,
                     balance,
-                    statusBadge
+                    statusBadge,
+                    "SALE",
+                    sale.getId()
             );
 
             showAndTransmit(ownerNode, draft, "Payment Confirmation");
@@ -252,7 +258,7 @@ public final class PaymentConfirmationPromptHelper {
             );
 
             String sigPathStr = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
-            Path sigPath = (sigPathStr != null && !sigPathStr.isBlank()) ? Path.of(sigPathStr) : null;
+            Path sigPath = (sigPathStr != null && !sigPathStr.isBlank()) ? Path.of(sigPathStr) : MessageTemplateService.getOrCreateSignatureImagePath();
 
             Path pdf = null;
             try {
@@ -260,6 +266,7 @@ public final class PaymentConfirmationPromptHelper {
             } catch (Exception ignored) {}
 
             String statusBadge = balance <= 0.009 ? "SETTLED" : "PARTIAL";
+            String publicStatusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(purchase.getInvoiceNo(), total);
 
             var draft = new EmailTransmissionDialog.EmailDraft(
                     "Transmit Supplier Remittance Advice",
@@ -272,11 +279,13 @@ public final class PaymentConfirmationPromptHelper {
                     pdf,
                     sigPath,
                     "purchases",
-                    null,
+                    publicStatusUrl,
                     total,
                     amountPaid,
                     balance,
-                    statusBadge
+                    statusBadge,
+                    "PURCHASE",
+                    purchase.getId()
             );
 
             showAndTransmit(ownerNode, draft, "Supplier Remittance Advice");
@@ -315,7 +324,7 @@ public final class PaymentConfirmationPromptHelper {
             );
 
             String sigPathStr = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
-            Path sigPath = (sigPathStr != null && !sigPathStr.isBlank()) ? Path.of(sigPathStr) : null;
+            Path sigPath = (sigPathStr != null && !sigPathStr.isBlank()) ? Path.of(sigPathStr) : MessageTemplateService.getOrCreateSignatureImagePath();
 
             boolean isSalesReturn = returnType.toUpperCase(Locale.ROOT).contains("SALE");
             Path pdf = null;
@@ -324,6 +333,15 @@ public final class PaymentConfirmationPromptHelper {
             } catch (Exception ignored) {}
 
             String statusBadge = remainingBalance <= 0.009 ? "REFUNDED" : "PARTIAL";
+            String publicStatusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(returnNo, refundAmount + remainingBalance);
+
+            Integer returnId = 0;
+            try {
+                var resolved = supportApi.resolveRecord(isSalesReturn ? "SALES_RETURN" : "PURCHASE_RETURN", returnNo);
+                if (resolved != null && resolved.found() && resolved.recordId() != null) {
+                    returnId = resolved.recordId().intValue();
+                }
+            } catch (Exception ignored) {}
 
             var draft = new EmailTransmissionDialog.EmailDraft(
                     "Transmit Refund Settlement Confirmation",
@@ -336,11 +354,13 @@ public final class PaymentConfirmationPromptHelper {
                     pdf,
                     sigPath,
                     "returns",
-                    null,
+                    publicStatusUrl,
                     refundAmount + remainingBalance,
                     refundAmount,
                     remainingBalance,
-                    statusBadge
+                    statusBadge,
+                    isSalesReturn ? "SALES_RETURN" : "PURCHASE_RETURN",
+                    returnId
             );
 
             showAndTransmit(ownerNode, draft, "Refund Settlement Confirmation");
@@ -356,12 +376,35 @@ public final class PaymentConfirmationPromptHelper {
             LiveOperationDialog.run(ownerNode, "Transmitting " + operationTitle, "email",
                     "Connecting to SMTP server and transmitting document...",
                     reporter -> {
-                        reporter.stage(1, 2, "Transmitting message to " + res.recipientEmail() + "...");
+                        reporter.stage(1, 3, "Transmitting message to " + res.recipientEmail() + "...");
                         EmailService.send(res.recipientEmail(), res.subject(), res.body(), res.attachmentPdf(), res.signatureImage(), res.senderProfile());
-                        reporter.stage(2, 2, "Message delivered successfully.");
+                        reporter.stage(2, 3, "Recording communication status in audit register...");
+                        try {
+                            String actor = SessionService.current() != null ? SessionService.current().getUsername() : "System";
+                            String eType = (draft != null && draft.entityType() != null) ? draft.entityType() : "COMMUNICATION";
+                            int eId = (draft != null && draft.entityId() != null) ? draft.entityId() : 0;
+                            supportApi.communication(new SupportApiClient.CommunicationRequest(
+                                    eType, eId, "EMAIL", res.recipientEmail(), res.subject(), "SENT", null, actor
+                            ));
+                        } catch (Exception logEx) {
+                            System.err.println("[PaymentConfirmation] Error logging communication: " + logEx.getMessage());
+                        }
+                        reporter.stage(3, 3, "Message delivered successfully.");
                     },
                     () -> AppDialogService.success(ownerNode, "Email Sent", operationTitle + " delivered successfully to " + res.recipientEmail() + "."),
-                    err -> AppDialogService.error(ownerNode, "Delivery Failed", err.getMessage() == null ? "Email transmission failed." : err.getMessage())
+                    err -> {
+                        try {
+                            String actor = SessionService.current() != null ? SessionService.current().getUsername() : "System";
+                            String eType = (draft != null && draft.entityType() != null) ? draft.entityType() : "COMMUNICATION";
+                            int eId = (draft != null && draft.entityId() != null) ? draft.entityId() : 0;
+                            supportApi.communication(new SupportApiClient.CommunicationRequest(
+                                    eType, eId, "EMAIL", res.recipientEmail(), res.subject(), "FAILED", err.getMessage(), actor
+                            ));
+                        } catch (Exception logEx) {
+                            System.err.println("[PaymentConfirmation] Error logging failed communication: " + logEx.getMessage());
+                        }
+                        AppDialogService.error(ownerNode, "Delivery Failed", err.getMessage() == null ? "Email transmission failed." : err.getMessage());
+                    }
             );
         }
     }

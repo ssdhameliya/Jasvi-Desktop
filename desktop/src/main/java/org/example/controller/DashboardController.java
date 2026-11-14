@@ -99,6 +99,7 @@ public class DashboardController implements ScreenLifecycle {
 
     /** Periodically refreshes the unread badge while the main shell is open. */
     private Timeline notificationRefresh;
+    private Timeline clientHeartbeatTimeline;
     private Timeline idlePrewarm;
     private final Runnable shellIndicatorListener = this::refreshShellIndicatorsAsync;
     private final Runnable permissionChangeListener = this::refreshRolePermissionsOnFxThread;
@@ -372,6 +373,11 @@ public class DashboardController implements ScreenLifecycle {
         notificationRefresh.setCycleCount(Timeline.INDEFINITE);
         notificationRefresh.play();
 
+        clientHeartbeatTimeline = new Timeline(
+            new KeyFrame(Duration.seconds(30), event -> sendClientHeartbeatAsync()));
+        clientHeartbeatTimeline.setCycleCount(Timeline.INDEFINITE);
+        clientHeartbeatTimeline.play();
+
     }
 
 
@@ -537,6 +543,10 @@ public class DashboardController implements ScreenLifecycle {
         if (notificationRefresh != null) {
             notificationRefresh.stop();
             notificationRefresh = null;
+        }
+        if (clientHeartbeatTimeline != null) {
+            clientHeartbeatTimeline.stop();
+            clientHeartbeatTimeline = null;
         }
     }
 
@@ -1671,6 +1681,7 @@ public class DashboardController implements ScreenLifecycle {
         javafx.application.Platform.runLater(() -> {
             c.refreshCompanyFooter();
             c.applyScreenIdentity(c.lblPageTitle == null ? "Dashboard" : c.lblPageTitle.getText());
+            org.example.util.SceneManager.applyStageIcon(org.example.util.SceneManager.primaryStage);
         });
     }
 

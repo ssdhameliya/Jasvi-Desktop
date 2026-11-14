@@ -16,7 +16,7 @@ public final class DialogOwnerResolver {
         Window focused = Window.getWindows().stream()
                 .filter(Window::isShowing)
                 .filter(Window::isFocused)
-                .filter(DialogOwnerResolver::isPrimaryCandidate)
+                .filter(DialogOwnerResolver::isShowingStageCandidate)
                 .findFirst().orElse(null);
         if (focused != null) return focused;
         Window primary = Window.getWindows().stream()
@@ -38,10 +38,15 @@ public final class DialogOwnerResolver {
         return resolve((Node) null);
     }
 
-    private static boolean isPrimaryCandidate(Window window) {
+    private static boolean isShowingStageCandidate(Window window) {
         if (!(window instanceof Stage stage)) return false;
-        if (stage.getOwner() != null) return false;
         String title = stage.getTitle() == null ? "" : stage.getTitle().toLowerCase();
         return !title.contains("toast") && !title.contains("notification");
+    }
+
+    private static boolean isPrimaryCandidate(Window window) {
+        if (!isShowingStageCandidate(window)) return false;
+        Stage stage = (Stage) window;
+        return stage.getOwner() == null;
     }
 }

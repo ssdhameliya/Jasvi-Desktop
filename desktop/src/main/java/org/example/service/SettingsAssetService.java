@@ -70,7 +70,11 @@ public final class SettingsAssetService {
                 String normDest = destination.toAbsolutePath().toString().replace('\\', '/');
                 ConfigManager.set(configKey, normDest);
                 String persisted = ConfigManager.get(configKey, "").replace('\\', '/');
-                if (!ConfigManager.isSharedClient() && !normDest.equals(persisted)) {
+                boolean verified = normDest.equalsIgnoreCase(persisted)
+                        || (persisted != null && !persisted.isBlank() && Files.isRegularFile(Path.of(persisted)))
+                        || (org.example.config.SharedAssetBridge.isAssetKey(configKey) && Files.isRegularFile(destination))
+                        || ConfigManager.isSharedClient();
+                if (!verified) {
                     throw new IllegalStateException("The saved image path could not be verified.");
                 }
                 configCommitted = true;

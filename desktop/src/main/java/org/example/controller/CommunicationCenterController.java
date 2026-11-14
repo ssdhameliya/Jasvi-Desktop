@@ -10,8 +10,10 @@ import javafx.scene.layout.StackPane;
 import org.example.api.support.SupportApiClient;
 import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
+import org.example.service.BrandingService;
 import org.example.service.EmailService;
 import org.example.service.ManagedInvoicePdfService;
+import org.example.service.MessageTemplateService;
 import org.example.service.PurchaseService;
 import org.example.service.SalesService;
 import org.example.service.SessionService;
@@ -29,7 +31,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
     @FXML private TextField txtSearch;
     @FXML private ComboBox<String> cmbChannel, cmbStatus;
     @FXML private TableView<Row> table;
-    @FXML private TableColumn<Row, String> colTime, colEntity, colChannel, colRecipient, colSubject, colStatus, colError, colUser;
+    @FXML private TableColumn<Row, String> colTime, colEntity, colChannel, colRecipient, colSubject, colStatus, colAttempts, colError, colUser;
     @FXML private TableColumn<Row, Void> colActions;
 
     private List<Row> all = List.of();
@@ -43,6 +45,9 @@ public class CommunicationCenterController implements ScreenLifecycle {
         colRecipient.setCellValueFactory(v -> v.getValue().recipient);
         colSubject.setCellValueFactory(v -> v.getValue().subject);
         colStatus.setCellValueFactory(v -> v.getValue().status);
+        if (colAttempts != null) {
+            colAttempts.setCellValueFactory(v -> v.getValue().attempts);
+        }
         colError.setCellValueFactory(v -> v.getValue().error);
         colUser.setCellValueFactory(v -> v.getValue().user);
         configureActions();
@@ -76,8 +81,21 @@ public class CommunicationCenterController implements ScreenLifecycle {
 
     private List<Row> readRows() {
         List<Row> x = new ArrayList<>();
-        for (var r : supportApi.communications()) {
-            x.add(new Row(BusinessClock.formatTimestamp(r.createdAt()), r.documentLabel(), r.entityType(), r.entityId(), r.channel(), r.recipient(), r.subject(), r.status(), r.errorMessage(), r.createdBy()));
+        var rawList = supportApi.communications();
+        Map<String, Integer> counts = new HashMap<>();
+        for (var r : rawList) {
+            String key = (r.entityType() + "#" + r.entityId() + "#" + r.channel()).toUpperCase(Locale.ROOT);
+            counts.put(key, counts.getOrDefault(key, 0) + 1);
+        }
+
+        Map<String, Integer> currentIdx = new HashMap<>();
+        for (var r : rawList) {
+            String key = (r.entityType() + "#" + r.entityId() + "#" + r.channel()).toUpperCase(Locale.ROOT);
+            int idx = currentIdx.getOrDefault(key, 0) + 1;
+            currentIdx.put(key, idx);
+            int totalForEntity = counts.getOrDefault(key, 1);
+            String attemptText = (totalForEntity <= 1) ? "Original" : (idx == 1 ? "Original (1/" + totalForEntity + ")" : "Resend #" + (idx - 1) + " (" + idx + "/" + totalForEntity + ")");
+            x.add(new Row(BusinessClock.formatTimestamp(r.createdAt()), r.documentLabel(), r.entityType(), r.entityId(), r.channel(), r.recipient(), r.subject(), r.status(), r.errorMessage(), r.createdBy(), attemptText, totalForEntity));
         }
         return x;
     }
@@ -209,8 +227,32 @@ public class CommunicationCenterController implements ScreenLifecycle {
                 () -> {
                     Path pdf = originalDocumentPdf(row);
                     String to = row.recipient.get().trim();
-                    String subject = row.subject.get().isBlank() ? row.entity.get() : row.subject.get();
-                    String body = "Please find the original document attached.\n\nResent from " + org.example.service.BrandingService.applicationName() + " Communication Center.";
+                    String origSubject = row.subject.get().isBlank() ? row.entity.get() : row.subject.get();
+                    int resendNo = Math.max(1, row.totalAttempts);
+                    String subject = origSubject.contains("[Resend") ? origSubject : origSubject + " [Resend #" + resendNo + "]";
+
+                    String body = "Dear Valued Customer / Partner,\n\nPlease find attached the official copy of " + row.entity.get()
+                            + ".\n\nThis communication is resent from " + BrandingService.applicationName() + " Communication Center.\n\n"
+                            + "{Signature}";
+
+                    String docType = row.entityType == null ? "" : row.entityType.toUpperCase(Locale.ROOT);
+                    try {
+                        if ("SALE".equals(docType)) {
+                            var sale = new SalesService().getByInvoice(row.entity.get());
+                            if (sale != null) {
+                                var formatted = MessageTemplateService.formatSalesEmail(sale);
+                                body = formatted.body();
+                            }
+                        } else if ("PURCHASE".equals(docType)) {
+                            var purchase = new PurchaseService().getByInvoice(row.entity.get());
+                            if (purchase != null) {
+                                var formatted = MessageTemplateService.formatPurchaseEmail(purchase);
+                                body = formatted.body();
+                            }
+                        }
+                    } catch (Exception ignored) {}
+
+                    Path sigPath = MessageTemplateService.getOrCreateSignatureImagePath();
 
                     return new EmailTransmissionDialog.EmailDraft(
                             "Re-send Document Email",
@@ -221,7 +263,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
                             subject,
                             body,
                             pdf,
-                            null
+                            sigPath
                     );
                 },
                 draft -> {
@@ -272,11 +314,12 @@ public class CommunicationCenterController implements ScreenLifecycle {
     }
 
     public static final class Row {
-        final SimpleStringProperty time, entity, channel, recipient, subject, status, error, user;
+        final SimpleStringProperty time, entity, channel, recipient, subject, status, error, user, attempts;
         final String entityType;
         final int entityId;
+        final int totalAttempts;
 
-        Row(String timeValue, String entityValue, String type, int id, String channelValue, String recipientValue, String subjectValue, String statusValue, String errorValue, String userValue) {
+        Row(String timeValue, String entityValue, String type, int id, String channelValue, String recipientValue, String subjectValue, String statusValue, String errorValue, String userValue, String attemptsValue, int totalAttemptsValue) {
             time = new SimpleStringProperty(timeValue);
             entity = new SimpleStringProperty(entityValue);
             entityType = type;
@@ -287,6 +330,12 @@ public class CommunicationCenterController implements ScreenLifecycle {
             status = new SimpleStringProperty(statusValue);
             error = new SimpleStringProperty(errorValue == null ? "" : errorValue);
             user = new SimpleStringProperty(userValue == null ? "" : userValue);
+            attempts = new SimpleStringProperty(attemptsValue == null ? "Original" : attemptsValue);
+            totalAttempts = totalAttemptsValue;
+        }
+
+        Row(String timeValue, String entityValue, String type, int id, String channelValue, String recipientValue, String subjectValue, String statusValue, String errorValue, String userValue) {
+            this(timeValue, entityValue, type, id, channelValue, recipientValue, subjectValue, statusValue, errorValue, userValue, "Original", 1);
         }
     }
 }

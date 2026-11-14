@@ -51,13 +51,43 @@
         </HBox>
 
         <VBox fx:id="boxActivityRoutingSection" spacing="12" visible="false" managed="false">
-            <HBox alignment="CENTER_LEFT" spacing="12">
-                <Label text="Select Department:" styleClass="settings-form-label"/>
-                <ComboBox fx:id="cmbActivityProfileSelect" prefWidth="260" styleClass="approved-combo"/>
-                <CheckBox fx:id="chkEnableDedicatedProfile" text="Use Dedicated Account for this Activity" styleClass="approved-check"/>
-                <Region HBox.hgrow="ALWAYS"/>
-                <Button fx:id="btnTestActivityProfile" text="Test Connection" onAction="#testActivityProfileEmail" styleClass="secondary-button"/>
-            </HBox>
+            <VBox spacing="8">
+                <HBox fx:id="departmentTabStrip" alignment="CENTER_LEFT" spacing="6" styleClass="settings-category-strip,approved-card,approved-surface">
+                    <Button fx:id="btnDeptSales" text="Sales &amp; Invoices" onAction="#selectDeptSales" styleClass="settings-tab-btn,erp-semantic-blue,settings-tab-selected">
+                        <graphic>
+                            <SVGPath content="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" styleClass="settings-button-icon"/>
+                        </graphic>
+                    </Button>
+                    <Button fx:id="btnDeptQuotes" text="Quotations &amp; RFQ" onAction="#selectDeptQuotes" styleClass="settings-tab-btn,erp-semantic-purple">
+                        <graphic>
+                            <SVGPath content="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" styleClass="settings-button-icon"/>
+                        </graphic>
+                    </Button>
+                    <Button fx:id="btnDeptPurchases" text="Purchases" onAction="#selectDeptPurchases" styleClass="settings-tab-btn,erp-semantic-cyan">
+                        <graphic>
+                            <SVGPath content="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z" styleClass="settings-button-icon"/>
+                        </graphic>
+                    </Button>
+                    <Button fx:id="btnDeptReturns" text="Returns" onAction="#selectDeptReturns" styleClass="settings-tab-btn,erp-semantic-orange">
+                        <graphic>
+                            <SVGPath content="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" styleClass="settings-button-icon"/>
+                        </graphic>
+                    </Button>
+                    <Button fx:id="btnDeptAccounts" text="Accounts" onAction="#selectDeptAccounts" styleClass="settings-tab-btn,erp-semantic-green">
+                        <graphic>
+                            <SVGPath content="M4 10v7h3v-7H4zm6 0v7h3v-7h-3zM2 22h19v-3H2v3zm14-12v7h3v-7h-3zm-4.5-9L2 6v2h19V6l-9.5-5z" styleClass="settings-button-icon"/>
+                        </graphic>
+                    </Button>
+                    <ComboBox fx:id="cmbActivityProfileSelect" visible="false" managed="false"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="btnTestActivityProfile" text="Test Connection" onAction="#testActivityProfileEmail" styleClass="secondary-button"/>
+                </HBox>
+                <HBox alignment="CENTER_LEFT" spacing="14" styleClass="settings-asset-card">
+                    <Label fx:id="lblActiveDepartmentBadge" text="Configuring: Sales &amp; Invoices" styleClass="section-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <CheckBox fx:id="chkEnableDedicatedProfile" text="Use Dedicated Account for this Department" styleClass="approved-check"/>
+                </HBox>
+            </VBox>
 
             <GridPane hgap="18" vgap="12">
                 <columnConstraints>
@@ -123,47 +153,6 @@
                 <ToggleButton fx:id="tglAttachSignatureWhatsapp" text="Attach to WhatsApp: OFF" styleClass="apple-toggle-switch,ios-toggle-switch"/>
                 <Label text="Include signature stamp image on WhatsApp dispatch" styleClass="muted-text"/>
             </HBox>
-        </HBox>
-    </VBox>
-
-    <VBox spacing="12" styleClass="settings-subcard">
-        <HBox alignment="CENTER_LEFT" spacing="8">
-            <Label text="Document Message &amp; Email Templates" styleClass="section-title"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Label text="Customise subject line and body text for each business document" styleClass="page-subtitle"/>
-        </HBox>
-        <GridPane hgap="18" vgap="12">
-            <columnConstraints>
-                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
-                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
-            </columnConstraints>
-            <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="0">
-                <Label text="Document / Communication Type" styleClass="settings-form-label"/>
-                <ComboBox fx:id="cmbMessageTemplateDoc" maxWidth="Infinity" styleClass="approved-combo"/>
-            </VBox>
-            <VBox fx:id="boxEmailSubject" spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="0">
-                <Label text="Email Subject Template" styleClass="settings-form-label"/>
-                <TextField fx:id="txtMessageTemplateSubject" promptText="Sales Invoice {DocumentNo} from {CompanyName}" styleClass="approved-input"/>
-            </VBox>
-        </GridPane>
-        <VBox spacing="6">
-            <HBox alignment="CENTER_LEFT" spacing="6">
-                <Label text="Message Body Template" styleClass="settings-form-label"/>
-                <Region HBox.hgrow="ALWAYS"/>
-                <Label text="Insert Token:" styleClass="page-subtitle"/>
-                <Button fx:id="btnTokenCustomer" text="{CustomerName}" onAction="#insertTokenCustomer" styleClass="secondary-button"/>
-                <Button fx:id="btnTokenDocNo" text="{DocumentNo}" onAction="#insertTokenDocNo" styleClass="secondary-button"/>
-                <Button fx:id="btnTokenDate" text="{DocumentDate}" onAction="#insertTokenDate" styleClass="secondary-button"/>
-                <Button fx:id="btnTokenTotal" text="{TotalAmount}" onAction="#insertTokenTotal" styleClass="secondary-button"/>
-                <Button fx:id="btnTokenBalance" text="{BalanceAmount}" onAction="#insertTokenBalance" styleClass="secondary-button"/>
-                <Button fx:id="btnTokenSignature" text="{Signature}" onAction="#insertTokenSignature" styleClass="secondary-button"/>
-            </HBox>
-            <TextArea fx:id="txtMessageTemplateBody" prefRowCount="8" minHeight="140" promptText="Enter message template body..." wrapText="true" styleClass="approved-input,settings-template-body"/>
-        </VBox>
-        <HBox alignment="CENTER_LEFT" spacing="10">
-            <Button fx:id="btnResetTemplate" text="Reset Template to Default" onAction="#resetCurrentTemplate" styleClass="secondary-button"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnLivePreview" text="Preview Live Output" onAction="#showLivePreviewDialog" styleClass="secondary-button"/>
         </HBox>
     </VBox>
 

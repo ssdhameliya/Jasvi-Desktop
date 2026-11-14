@@ -1,5 +1,6 @@
 package org.example.util;
 
+import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
@@ -450,9 +451,11 @@ public final class QuotationDocumentInspectionDialog {
                 api.duplicate(quote.id(), actor);
                 return true;
             }, ignored -> {
-                AppDialogService.success(dialog.getDialogPane(), "Quotation Duplicated", quote.no() + " was duplicated successfully.");
-                if (onUpdated != null) onUpdated.run();
                 dialog.close();
+                Platform.runLater(() -> {
+                    AppDialogService.success(null, "Quotation Duplicated", quote.no() + " was duplicated successfully.");
+                    if (onUpdated != null) onUpdated.run();
+                });
             }, err -> AppDialogService.error(dialog.getDialogPane(), "Duplication failed", err.getMessage()));
         });
 
@@ -581,10 +584,14 @@ public final class QuotationDocumentInspectionDialog {
                 try {
                     String actor = SessionService.current() == null ? "Admin" : SessionService.current().getFullName();
                     String saleInvoice = api.convert(quote.id(), actor, quote.rowVersion());
-                    AppDialogService.success(dialog.getDialogPane(), "Converted", "Quotation converted to " + saleInvoice);
-                    if (onUpdated != null) onUpdated.run();
+                    Platform.runLater(() -> {
+                        AppDialogService.success(null, "Converted", "Quotation converted to " + saleInvoice);
+                        if (onUpdated != null) onUpdated.run();
+                    });
                 } catch (Exception ex) {
-                    AppDialogService.error(dialog.getDialogPane(), "Conversion failed", ex.getMessage());
+                    Platform.runLater(() -> {
+                        AppDialogService.error(null, "Conversion failed", ex.getMessage());
+                    });
                 }
             }
         });

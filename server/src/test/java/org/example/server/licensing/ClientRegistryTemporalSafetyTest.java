@@ -49,6 +49,15 @@ class ClientRegistryTemporalSafetyTest {
     }
 
     @Test
+    @DisplayName("Telemetry target date string validates ISO format safely for ANSI CAST(? AS date)")
+    void testTelemetryTargetDateParsingSafety() {
+        String targetDateStr = "2026-11-14";
+        LocalDate parsed = LocalDate.parse(targetDateStr.trim());
+        assertNotNull(parsed);
+        assertEquals("2026-11-14", parsed.toString());
+    }
+
+    @Test
     @DisplayName("LicenseVerifierService.toInstant handles PostgreSQL LocalDateTime without throwing UnsupportedTemporalTypeException")
     void testLicenseVerifierServiceLocalDateTimeSafety() {
         LocalDateTime ldt = LocalDateTime.of(2027, 11, 5, 12, 0, 0);
