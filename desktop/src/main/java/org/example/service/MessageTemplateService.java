@@ -641,15 +641,41 @@ public final class MessageTemplateService {
         return new FormattedMessage(subject, body);
     }
 
+    public static String resolvePublicStatusBaseUrl() {
+        // Tier 1: Explicit setting configured by administrator/developer in Settings (or public.portal.url)
+        String configured = ConfigManager.get("company.publicPortalUrl", "").trim().replaceAll("/+$", "");
+        if (!configured.isBlank()) {
+            return ensureHttpScheme(configured);
+        }
+        String customPortal = ConfigManager.get("public.portal.url", "").trim().replaceAll("/+$", "");
+        if (!customPortal.isBlank()) {
+            return ensureHttpScheme(customPortal);
+        }
+
+        // Tier 2: Connected Backend Server (Local: http://127.0.0.1:58080, UAT: https://api-uat.jasviindustries.in, PROD: https://api.jasviindustries.in)
+        String apiBase = ConfigManager.getDataApiBaseUrl().trim().replaceAll("/+$", "");
+        return apiBase.isBlank() ? "http://127.0.0.1:58080" : apiBase;
+    }
+
+    private static boolean isLocalhostAddress(String url) {
+        if (url == null) return true;
+        String lower = url.toLowerCase(Locale.ROOT);
+        return lower.contains("localhost") || lower.contains("127.0.0.1");
+    }
+
+    private static String ensureHttpScheme(String url) {
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return "https://" + url;
+        }
+        return url;
+    }
+
     public static String buildPublicPaymentStatusUrl(String invoiceNo, double totalAmount) {
         if (invoiceNo == null || invoiceNo.isBlank()) return "";
         try {
             String token = org.example.shared.PaymentStatusTokenService.generateToken(invoiceNo, totalAmount);
-            String base = ConfigManager.getDataApiBaseUrl().replaceAll("/+$", "");
-            if (base.isBlank() || base.contains("localhost") || base.contains("127.0.0.1")) {
-                base = "https://erp.jasviindustries.in";
-            }
-            return base + "/api/public/payment-status?inv=" + java.net.URLEncoder.encode(invoiceNo.trim(), java.nio.charset.StandardCharsets.UTF_8)
+            String publicDomain = resolvePublicStatusBaseUrl();
+            return publicDomain + "/payment-status?inv=" + java.net.URLEncoder.encode(invoiceNo.trim(), java.nio.charset.StandardCharsets.UTF_8)
                     + "&token=" + token;
         } catch (Exception e) {
             return "";
@@ -694,7 +720,19 @@ public final class MessageTemplateService {
                 return BusinessClock.formatDate(d);
             } catch (Exception ignored) {}
         }
+        java.util.regex.Matcher m2 = java.util.regex.Pattern.compile("^(\\d{1,2})[-/](\\d{1,2})[-/](\\d{4})").matcher(s);
+        if (m2.find()) {
+            try {
+                int day = Integer.parseInt(m2.group(1));
+                int month = Integer.parseInt(m2.group(2));
+                int year = Integer.parseInt(m2.group(3));
+                return BusinessClock.formatDate(LocalDate.of(year, month, day));
+            } catch (Exception ignored) {}
+        }
         s = s.replaceAll("\\s*\\+[0-9]{2}:?[0-9]{2}$", "").trim();
+        if (s.matches("^\\d{1,2}$")) {
+            return BusinessClock.formatDate(LocalDate.now());
+        }
         return s;
     }
 
@@ -912,8 +950,9 @@ public final class MessageTemplateService {
 
         // Live Status CTA Button
         if (publicStatusUrl != null && !publicStatusUrl.isBlank()) {
+            String safeStatusUrl = publicStatusUrl.replace("&", "&amp;");
             html.append("<div style=\"margin:24px 0 16px 0; text-align:center;\">");
-            html.append("<a href=\"").append(publicStatusUrl).append("\" target=\"_blank\" style=\"display:inline-block; background:#1e3a8a; color:#ffffff; font-weight:700; font-size:13px; text-decoration:none; padding:12px 24px; border-radius:6px; letter-spacing:0.3px; box-shadow:0 2px 6px rgba(30,58,138,0.25);\">🔍 VIEW LIVE PAYMENT &amp; INVOICE STATUS</a>");
+            html.append("<a href=\"").append(safeStatusUrl).append("\" target=\"_blank\" style=\"display:inline-block; background:#1e3a8a; color:#ffffff; font-weight:700; font-size:13px; text-decoration:none; padding:12px 24px; border-radius:6px; letter-spacing:0.3px; box-shadow:0 2px 6px rgba(30,58,138,0.25);\">🔍 VIEW LIVE PAYMENT &amp; INVOICE STATUS</a>");
             html.append("<div style=\"font-size:11px; color:#64748b; margin-top:6px;\">Click anytime to view real-time settlement and payment reconciliation in our portal</div>");
             html.append("</div>");
         }

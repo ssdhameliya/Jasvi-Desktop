@@ -78,17 +78,25 @@
 
                                 <VBox spacing="5" GridPane.columnIndex="1" GridPane.rowIndex="3">
 
-                                    <Label text="Website" styleClass="settings-form-label"/>
+                                    <Label text="Company Website" styleClass="settings-form-label"/>
 
                                     <TextField fx:id="txtCompanyWebsite" promptText="www.company.com" styleClass="approved-input"/>
 
                                 </VBox>
 
-                                <VBox spacing="5" GridPane.columnSpan="2" GridPane.rowIndex="4">
+                                <VBox spacing="5" GridPane.columnIndex="0" GridPane.rowIndex="4">
 
                                     <Label text="Business Tagline" styleClass="settings-form-label"/>
 
                                     <TextField fx:id="txtCompanyTagline" promptText="Enter business tagline" styleClass="approved-input"/>
+
+                                </VBox>
+
+                                <VBox spacing="5" GridPane.columnIndex="1" GridPane.rowIndex="4">
+
+                                    <Label text="Public URL for HTML View" styleClass="settings-form-label"/>
+
+                                    <TextField fx:id="txtPublicPortalUrl" promptText="https://api.jasviindustries.in or http://127.0.0.1:58080" styleClass="approved-input"/>
 
                                 </VBox>
 

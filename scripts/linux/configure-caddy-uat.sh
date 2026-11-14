@@ -53,6 +53,51 @@ erp-uat.jasviindustries.in {
         }
     }
 
+    handle /payment-status* {
+        reverse_proxy 127.0.0.1:8081 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /public/* {
+        reverse_proxy 127.0.0.1:8081 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    try_files {path} {path}/ /index.html
+}
+
+# DSE ERP — UAT Public Showcase & Live Verification Gateway
+web-uat.jasviindustries.in {
+    root * /srv/dse-erp/web/public
+    encode gzip zstd
+    file_server
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8081 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /payment-status* {
+        reverse_proxy 127.0.0.1:8081 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
     handle /public/* {
         reverse_proxy 127.0.0.1:8081 {
             header_up Host {host}

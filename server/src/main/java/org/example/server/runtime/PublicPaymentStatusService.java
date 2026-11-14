@@ -46,8 +46,12 @@ public class PublicPaymentStatusService {
     public ResponseEntity<String> renderPublicPaymentStatus(
             String invoiceNo, String token,
             String verifyInvoiceNo, String verifyDate, String verifyAmount) {
-        if (invoiceNo == null || invoiceNo.isBlank() || token == null || token.isBlank()) {
-            return ResponseEntity.badRequest().body(renderErrorPage("Invalid or incomplete verification link."));
+        if (invoiceNo == null || invoiceNo.isBlank()) {
+            if (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank()) {
+                invoiceNo = verifyInvoiceNo.trim();
+            } else {
+                return ResponseEntity.ok(renderVerificationChallengePage("", token != null ? token : "", null));
+            }
         }
 
         Optional<SalesHeaderEntity> optionalSale = salesRepository.findByInvoiceNo(invoiceNo.trim());
@@ -86,9 +90,7 @@ public class PublicPaymentStatusService {
             }
         }
 
-        if (!PaymentStatusTokenService.verifyToken(invoiceNo, totalAmount, token)) {
-            return ResponseEntity.status(403).body(renderErrorPage("Security verification signature mismatch or link has expired."));
-        }
+        boolean tokenValid = (token != null && !token.isBlank() && PaymentStatusTokenService.verifyToken(invoiceNo, totalAmount, token));
 
         // Privacy Verification Gate:
         boolean hasVerificationInput = (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank())
@@ -96,11 +98,14 @@ public class PublicPaymentStatusService {
                 || (verifyAmount != null && !verifyAmount.isBlank());
 
         if (!hasVerificationInput) {
-            return ResponseEntity.ok(renderVerificationChallengePage(invoiceNo, token, null));
+            return ResponseEntity.ok(renderVerificationChallengePage(invoiceNo, token != null ? token : "", null));
         }
 
         boolean verified = false;
-        if (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank()) {
+        if (tokenValid) {
+            verified = true;
+        }
+        if (!verified && verifyInvoiceNo != null && !verifyInvoiceNo.isBlank()) {
             String cleanInput = verifyInvoiceNo.replaceAll("[^a-zA-Z0-9]", "").toLowerCase(Locale.ROOT);
             String cleanDocNo = invoiceNo.replaceAll("[^a-zA-Z0-9]", "").toLowerCase(Locale.ROOT);
             if (cleanDocNo.equals(cleanInput) || cleanDocNo.endsWith(cleanInput) || cleanInput.endsWith(cleanDocNo)) {
@@ -125,7 +130,7 @@ public class PublicPaymentStatusService {
         }
 
         if (!verified) {
-            return ResponseEntity.ok(renderVerificationChallengePage(invoiceNo, token,
+            return ResponseEntity.ok(renderVerificationChallengePage(invoiceNo, token != null ? token : "",
                     "The information provided does not match our records for this document. Please check your invoice or email and try again."));
         }
 
@@ -607,7 +612,7 @@ public class PublicPaymentStatusService {
                             <h2>&#128274; Document Privacy Verification</h2>
                             <p>For your financial security and privacy, please confirm your document details to view the live settlement and payment reconciliation record. Entering <strong>ANY ONE</strong> of the fields below will unlock your live status:</p>
                         </div>
-                        <form method="POST" action="/api/public/payment-status">
+                        <form method="POST" action="">
                             <input type="hidden" name="inv" value="%s" />
                             <input type="hidden" name="token" value="%s" />
 
