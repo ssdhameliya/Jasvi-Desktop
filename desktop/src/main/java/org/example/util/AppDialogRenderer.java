@@ -78,6 +78,12 @@ public final class AppDialogRenderer {
             if (scene != null && scene.getWindow() instanceof Stage stage) {
                 stage.toFront();
                 stage.requestFocus();
+                Platform.runLater(() -> {
+                    if (stage.isShowing()) {
+                        stage.toFront();
+                        stage.requestFocus();
+                    }
+                });
                 boolean workspace = Boolean.TRUE.equals(pane.getProperties().get(WORKSPACE))
                         || pane.getStyleClass().contains("dse-dialog-workspace");
                 if (workspace) WindowUtilsFx.fitDialogToOwnerScreen(stage, stage.getOwner());

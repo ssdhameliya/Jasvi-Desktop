@@ -51,6 +51,11 @@ public class TokenService {
     @Transactional
     public IssuedToken issue(AuthenticatedUser user) {
         if (user == null || user.id() <= 0) throw new IllegalArgumentException("Authenticated user is required");
+        // Pillar 2: Single-Device Concurrency (Auto-Kick)
+        // Increment auth_version and clear prior sessions so previously active machines are immediately revoked
+        database.update("UPDATE users SET auth_version=COALESCE(auth_version,0)+1 WHERE id=?", user.id());
+        database.update("DELETE FROM auth_session WHERE user_id=?", user.id());
+
         UserState state = userState(user.id()).orElseThrow(() -> new IllegalArgumentException("User account is unavailable"));
         if (!state.active() || state.locked()) throw new SecurityException("User account is not available for sign in");
 

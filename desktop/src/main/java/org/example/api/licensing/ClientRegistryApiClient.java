@@ -140,7 +140,16 @@ public class ClientRegistryApiClient {
     }
 
     public List<Map<String, Object>> getClientUsers(String machineId) {
-        return get("/api/license/registry/clients/" + machineId + "/users", new TypeReference<>() {});
+        return getClientUsers(machineId, null);
+    }
+
+    public List<Map<String, Object>> getClientUsers(String machineId, String date) {
+        String query = (date != null && !date.isBlank()) ? "?date=" + enc(date) : "";
+        return get("/api/license/registry/clients/" + enc(machineId) + "/users" + query, new TypeReference<>() {});
+    }
+
+    public Map<String, Object> releaseWorkstation(String machineId) {
+        return post("/api/license/registry/clients/" + enc(machineId) + "/release", Map.of(), new TypeReference<>() {});
     }
 
     public Map<String, Object> kickClientUser(String machineId, String username) {

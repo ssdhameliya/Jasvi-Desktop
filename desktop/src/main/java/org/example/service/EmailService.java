@@ -72,17 +72,7 @@ public final class EmailService {
     public static void resend(String recipient, String subject, String body, Path attachment, Path signatureImage, SenderProfile profile) {
         org.example.service.PermissionService.require("COMMUNICATION.RESEND", "re-send a communication");
         if (signatureImage == null && MessageTemplateService.isAttachSignatureToEmail()) {
-            String configuredSig = MessageTemplateService.getSignatureImagePath();
-            if (configuredSig != null && !configuredSig.isBlank()) {
-                try {
-                    Path p = Path.of(configuredSig);
-                    if (Files.isRegularFile(p) && Files.isReadable(p)) {
-                        signatureImage = p;
-                    }
-                } catch (Exception ignored) {
-                    java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored);
-                }
-            }
+            signatureImage = MessageTemplateService.getOrCreateSignatureImagePath();
         }
         if (ConfigManager.isSharedClient()) {
             SenderProfile effective = profile != null ? profile : defaultSenderProfile();
@@ -102,17 +92,7 @@ public final class EmailService {
 
     public static void send(String recipient, String subject, String body, Path attachment, Path signatureImage, SenderProfile profile) {
         if (signatureImage == null && MessageTemplateService.isAttachSignatureToEmail()) {
-            String configuredSig = MessageTemplateService.getSignatureImagePath();
-            if (configuredSig != null && !configuredSig.isBlank()) {
-                try {
-                    Path p = Path.of(configuredSig);
-                    if (Files.isRegularFile(p) && Files.isReadable(p)) {
-                        signatureImage = p;
-                    }
-                } catch (Exception ignored) {
-                    java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored);
-                }
-            }
+            signatureImage = MessageTemplateService.getOrCreateSignatureImagePath();
         }
         SenderProfile effectiveProfile = profile != null ? profile : defaultSenderProfile();
         if (ConfigManager.isSharedClient()) {
@@ -207,7 +187,7 @@ public final class EmailService {
                     if (isHtml) {
                         textPart.setContent(body, "text/html; charset=UTF-8");
                     } else {
-                        textPart.setContent(body == null ? "" : body, "text/plain; charset=UTF-8");
+                        textPart.setContent(formatHtmlEmailBody(body, false), "text/html; charset=UTF-8");
                     }
                     rootMultipart.addBodyPart(textPart);
                 }

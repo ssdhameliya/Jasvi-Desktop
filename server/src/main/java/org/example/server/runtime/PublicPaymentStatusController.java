@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Delegates all business logic and persistence retrieval to PublicPaymentStatusService.
  */
 @RestController
-@RequestMapping("/public/payment-status")
+@RequestMapping({"/public/payment-status", "/api/public/payment-status"})
 public class PublicPaymentStatusController {
 
     private final PublicPaymentStatusService service;
@@ -26,7 +26,20 @@ public class PublicPaymentStatusController {
     @GetMapping(produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> renderStatus(
             @RequestParam(name = "inv", required = false) String invoiceNo,
-            @RequestParam(name = "token", required = false) String token) {
-        return service.renderPublicPaymentStatus(invoiceNo, token);
+            @RequestParam(name = "token", required = false) String token,
+            @RequestParam(name = "verifyInvoiceNo", required = false) String verifyInvoiceNo,
+            @RequestParam(name = "verifyDate", required = false) String verifyDate,
+            @RequestParam(name = "verifyAmount", required = false) String verifyAmount) {
+        return service.renderPublicPaymentStatus(invoiceNo, token, verifyInvoiceNo, verifyDate, verifyAmount);
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping(produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> verifyAndRenderStatus(
+            @RequestParam(name = "inv", required = false) String invoiceNo,
+            @RequestParam(name = "token", required = false) String token,
+            @RequestParam(name = "verifyInvoiceNo", required = false) String verifyInvoiceNo,
+            @RequestParam(name = "verifyDate", required = false) String verifyDate,
+            @RequestParam(name = "verifyAmount", required = false) String verifyAmount) {
+        return service.renderPublicPaymentStatus(invoiceNo, token, verifyInvoiceNo, verifyDate, verifyAmount);
     }
 }

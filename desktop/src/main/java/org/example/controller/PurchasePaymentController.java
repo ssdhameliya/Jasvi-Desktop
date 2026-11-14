@@ -65,7 +65,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
     @FXML private VBox proofDropZone, paymentEntryCard;
     @FXML private TableView<PaymentRow> historyTable;
     @FXML private TableColumn<PaymentRow, String> historyDate, historyReference, historyPaidTo,
-            historyMode, historyStatus, historyNotes;
+            historyMode, historyStatus, historyEmailStatus, historyNotes;
     @FXML private TableColumn<PaymentRow, Number> historyAmount;
     @FXML private TableColumn<PaymentRow, Void> historyAction;
 
@@ -264,19 +264,38 @@ public final class PurchasePaymentController implements ScreenLifecycle {
             }
         });
         historyStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().status()));
+        if (historyEmailStatus != null) {
+            historyEmailStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() != null ? "SENT" : "PENDING"));
+            historyEmailStatus.setCellFactory(c -> new TableCell<>() {
+                @Override protected void updateItem(String val, boolean empty) {
+                    super.updateItem(val, empty);
+                    if (empty || val == null) {
+                        setText(null);
+                        setGraphic(null);
+                    } else {
+                        Label badge = new Label(val);
+                        badge.getStyleClass().addAll("status-pill", "status-paid");
+                        setGraphic(badge);
+                        setText(null);
+                    }
+                }
+            });
+        }
         historyNotes.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().notes()));
         historyAction.setCellFactory(c -> new TableCell<>() {
             private final MenuButton actions = new MenuButton("Actions");
             private final MenuItem edit = new MenuItem("Edit Payment", IconFactory.compactIcon("edit", 14));
             private final MenuItem view = new MenuItem("View Proof", IconFactory.compactIcon("attachment", 14));
             private final MenuItem folder = new MenuItem("Remove Proof", IconFactory.compactIcon("delete", 14));
+            private final MenuItem previewEmail = new MenuItem("Preview Payment Email HTML", IconFactory.compactIcon("view", 14));
             {
                 actions.getStyleClass().addAll("approved-button", "approved-secondary-button", "row-actions");
                 actions.setGraphic(IconFactory.compactIcon("actions", 14));
-                actions.getItems().addAll(edit, view, folder);
+                actions.getItems().addAll(edit, view, folder, previewEmail);
                 edit.setOnAction(e -> editPayment(row()));
                 view.setOnAction(e -> openProof(row()));
                 folder.setOnAction(e -> removeStoredProof(row()));
+                previewEmail.setOnAction(e -> previewPaymentEmailHtml(row()));
                 IconFactory.decorateActionMenu(actions);
             }
             private PaymentRow row() {
@@ -312,6 +331,78 @@ public final class PurchasePaymentController implements ScreenLifecycle {
             String pmtRef = row.paymentReference() == null || row.paymentReference().isBlank() ? ("#" + row.id()) : row.paymentReference();
             new OwnedAlert(Alert.AlertType.WARNING,
                     "No Bank Statement entry exists for Payment Ref " + pmtRef + " as it was settled manually by USER: " + user).showAndWait();
+        }
+    }
+
+    private void previewPaymentEmailHtml(PaymentRow row) {
+        if (row == null || purchase == null) return;
+        try {
+            double total = purchase.getTotalAmount();
+            double paid = row.amount();
+            double balance = Math.max(0.0, total - purchase.getPaidAmount());
+            String partyName = purchase.getSupplier() != null ? purchase.getSupplier().getName() : "Supplier";
+            String recipient = purchase.getSupplier() != null && purchase.getSupplier().getEmail() != null ? purchase.getSupplier().getEmail().trim() : "";
+            String docNo = purchase.getInvoiceNo();
+            String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(docNo, total);
+            String sigBase64 = MessageTemplateService.getSignatureImageBase64();
+
+            String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
+            String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
+            String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+
+            var formatted = MessageTemplateService.formatPurchaseRemittanceAdviceEmail(
+                    partyName,
+                    docNo,
+                    purchase.getInvoiceDate() == null ? BusinessClock.today() : purchase.getInvoiceDate(),
+                    total,
+                    paid,
+                    balance,
+                    row.reference(),
+                    row.date(),
+                    row.mode(),
+                    row.notes()
+            );
+            String body = formatted.body();
+
+            String html = MessageTemplateService.formatExecutiveHtmlEmail(
+                    "Remittance Advice",
+                    balance <= 0.009 ? "SETTLED" : "PARTIAL",
+                    docNo,
+                    row.date() == null ? BusinessClock.formatDate(LocalDate.now()) : row.date(),
+                    recipient.isBlank() ? partyName : recipient,
+                    total,
+                    paid,
+                    balance,
+                    body,
+                    true,
+                    ourBankName,
+                    ourAccNo,
+                    ourIfsc,
+                    "Live Electronic Settlement Verification",
+                    row.reference() == null || row.reference().isBlank() ? "-" : row.reference(),
+                    statusUrl,
+                    true,
+                    sigBase64
+            );
+
+            Path tempHtml = Files.createTempFile("dse-payment-email-preview-", ".html");
+            tempHtml.toFile().deleteOnExit();
+            Files.writeString(tempHtml, html, java.nio.charset.StandardCharsets.UTF_8);
+
+            UiTaskExecutor.submitAction("preview-payment-email-html", () -> {
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                    Desktop.getDesktop().browse(tempHtml.toUri());
+                } else if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                    Desktop.getDesktop().open(tempHtml.toFile());
+                } else {
+                    new ProcessBuilder("cmd", "/c", "start", '\"' + tempHtml.toFile().getAbsolutePath() + '\"').start();
+                }
+                return Boolean.TRUE;
+            }, ok -> {}, err -> {
+                new OwnedAlert(Alert.AlertType.ERROR, "Could not open HTML email preview:\n\n" + err.getMessage()).showAndWait();
+            });
+        } catch (Exception ex) {
+            new OwnedAlert(Alert.AlertType.ERROR, "Failed to generate payment email preview:\n\n" + ex.getMessage()).showAndWait();
         }
     }
 

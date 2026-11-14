@@ -38,9 +38,9 @@ public class SecurityConfig {
                                 "/api/auth/registration/captcha", "/api/auth/registration/request",
                                 "/api/auth/registration/email/verify", "/api/auth/registration/mfa/complete",
                                 "/api/auth/password-reset/request", "/api/auth/password-reset/complete",
-                                "/api/public/showcase/**", "/public/payment-status/**", "/api/license/status", "/api/license/upi-payload",
+                                "/api/public/showcase/**", "/public/payment-status", "/public/payment-status/**", "/public/**", "/api/public/payment-status", "/api/public/payment-status/**", "/api/license/status", "/api/license/upi-payload",
                                 "/api/license/upi-qr-image", "/api/license/activate", "/api/license/catalog",
-                                "/api/license/self-register", "/api/license/check-lead")
+                                "/api/license/self-register", "/api/license/check-lead", "/api/license/super/kick-client")
                         .permitAll()
                         .requestMatchers("/api/auth/effective-permissions", "/api/auth/session",
                                 "/api/admin/diagnostics/**", "/api/admin/showcase/**", "/api/sync/v1/**")

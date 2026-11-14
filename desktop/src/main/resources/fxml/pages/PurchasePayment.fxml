@@ -16,7 +16,6 @@
      <Label text="Record supplier payment • review history • manage payment proof" styleClass="payment-page-subtitle"/>
     </VBox>
     <Region HBox.hgrow="ALWAYS"/>
-    <Button text="Email Purchase" onAction="#emailInvoice" styleClass="approved-button,approved-secondary-button,action-email"/>
     <Button text="Print" onAction="#printInvoice" styleClass="approved-button,approved-secondary-button"/>
     <Button text="Back to Register" onAction="#cancel" styleClass="approved-button,approved-secondary-button,back-register-button"/>
    </HBox>
@@ -104,6 +103,7 @@
       <TableColumn fx:id="historyPaidTo" text="Paid To"/>
       <TableColumn fx:id="historyAmount" text="Amount (₹)"/>
       <TableColumn fx:id="historyStatus" text="Status"/>
+      <TableColumn fx:id="historyEmailStatus" text="Email Status"/>
       <TableColumn fx:id="historyNotes" text="Notes"/>
       <TableColumn fx:id="historyAction" text="Actions"/>
      </columns>

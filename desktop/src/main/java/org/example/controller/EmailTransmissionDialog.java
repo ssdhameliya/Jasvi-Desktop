@@ -8,6 +8,7 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.stage.Window;
+import org.example.service.MessageTemplateService;
 import org.example.util.DialogOwnerResolver;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
@@ -42,11 +43,21 @@ public class EmailTransmissionDialog {
             Double totalAmount,
             Double paidAmount,
             Double balanceAmount,
-            String statusBadge
+            String statusBadge,
+            String entityType,
+            Integer entityId
     ) {
         public EmailDraft(String title, String subtitle, String documentLabel, String documentNo,
                           String recipientEmail, String subject, String body, Path attachmentPdf, Path signatureImage) {
-            this(title, subtitle, documentLabel, documentNo, recipientEmail, subject, body, attachmentPdf, signatureImage, null, null, null, null, null, null);
+            this(title, subtitle, documentLabel, documentNo, recipientEmail, subject, body, attachmentPdf, signatureImage, null, null, null, null, null, null, null, null);
+        }
+
+        public EmailDraft(String title, String subtitle, String documentLabel, String documentNo,
+                          String recipientEmail, String subject, String body, Path attachmentPdf, Path signatureImage,
+                          String activityKey, String publicStatusUrl, Double totalAmount, Double paidAmount, Double balanceAmount,
+                          String statusBadge) {
+            this(title, subtitle, documentLabel, documentNo, recipientEmail, subject, body, attachmentPdf, signatureImage,
+                    activityKey, publicStatusUrl, totalAmount, paidAmount, balanceAmount, statusBadge, null, null);
         }
     }
 
@@ -85,6 +96,7 @@ public class EmailTransmissionDialog {
 
     @FXML private Button btnTabEdit;
     @FXML private Button btnTabPreview;
+    @FXML private Button btnPreviewHtml;
 
     @FXML private TextArea txtBody;
     @FXML private VBox boxExecutivePreview;
@@ -215,6 +227,71 @@ public class EmailTransmissionDialog {
         }
         if (btnTabEdit != null) {
             btnTabEdit.getStyleClass().removeAll("active-tab-btn", "approved-primary-button");
+        }
+    }
+
+    @FXML
+    public void previewHtmlInBrowser() {
+        try {
+            String recipient = (txtRecipient != null && txtRecipient.getText() != null) ? txtRecipient.getText().trim() : "";
+            String body = (txtBody != null && txtBody.getText() != null) ? txtBody.getText() : "";
+            String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
+            String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "DOCUMENT";
+            String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "OFFICIAL";
+            double total = (draft != null && draft.totalAmount() != null) ? draft.totalAmount() : 0.0;
+            double paid = (draft != null && draft.paidAmount() != null) ? draft.paidAmount() : 0.0;
+            double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
+            String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
+
+            String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
+            String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
+            String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+            boolean hasDualBank = (draft != null && ("Payment Receipt".equalsIgnoreCase(draft.documentLabel())
+                    || "Remittance Advice".equalsIgnoreCase(draft.documentLabel())
+                    || "Refund Advice".equalsIgnoreCase(draft.documentLabel())));
+
+            boolean hasSig = (draft != null && draft.signatureImage() != null) || MessageTemplateService.isAttachSignatureToEmail();
+            String sigBase64 = hasSig ? MessageTemplateService.getSignatureImageBase64() : null;
+
+            String html = MessageTemplateService.formatExecutiveHtmlEmail(
+                    docLabel,
+                    statusBadge,
+                    docNo,
+                    org.example.util.BusinessClock.formatDate(org.example.util.BusinessClock.today()),
+                    recipient.isBlank() ? "Valued Client" : recipient,
+                    total,
+                    paid,
+                    balance,
+                    body,
+                    hasDualBank,
+                    ourBankName,
+                    ourAccNo,
+                    ourIfsc,
+                    "Live Electronic Settlement Verification",
+                    "-",
+                    statusUrl,
+                    hasSig,
+                    sigBase64
+            );
+
+            Path tempHtml = Files.createTempFile("dse-email-preview-", ".html");
+            tempHtml.toFile().deleteOnExit();
+            Files.writeString(tempHtml, html, java.nio.charset.StandardCharsets.UTF_8);
+
+            UiTaskExecutor.submitAction("preview-html-browser", () -> {
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                    Desktop.getDesktop().browse(tempHtml.toUri());
+                } else if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                    Desktop.getDesktop().open(tempHtml.toFile());
+                } else {
+                    new ProcessBuilder("cmd", "/c", "start", '\"' + tempHtml.toFile().getAbsolutePath() + '\"').start();
+                }
+                return Boolean.TRUE;
+            }, ok -> {}, failure -> {
+                showError("Could not launch web browser for HTML preview:\n\n" + failure.getMessage());
+            });
+        } catch (Exception ex) {
+            showError("Failed to generate HTML preview:\n\n" + ex.getMessage());
         }
     }
 
@@ -515,7 +592,53 @@ public class EmailTransmissionDialog {
             profile = cmbSenderProfile.getValue().profile();
         }
 
-        this.result = new TransmissionResult(recipient, subject, body, draft.attachmentPdf(), draft.signatureImage(), profile);
+        Path sigPath = draft != null ? draft.signatureImage() : null;
+        if (sigPath == null && MessageTemplateService.isAttachSignatureToEmail()) {
+            sigPath = MessageTemplateService.getOrCreateSignatureImagePath();
+        }
+
+        boolean hasDualBank = (draft != null && ("Payment Receipt".equalsIgnoreCase(draft.documentLabel())
+                || "Remittance Advice".equalsIgnoreCase(draft.documentLabel())
+                || "Refund Advice".equalsIgnoreCase(draft.documentLabel())));
+        boolean isExecutive = draft != null && (draft.totalAmount() != null || draft.publicStatusUrl() != null || hasDualBank);
+
+        String transmissionBody = body;
+        if (isExecutive && !body.contains("<!DOCTYPE html>")) {
+            String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
+            String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "DOCUMENT";
+            String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "OFFICIAL";
+            double total = (draft != null && draft.totalAmount() != null) ? draft.totalAmount() : 0.0;
+            double paid = (draft != null && draft.paidAmount() != null) ? draft.paidAmount() : 0.0;
+            double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
+            String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
+
+            String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
+            String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
+            String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+
+            transmissionBody = MessageTemplateService.formatExecutiveHtmlEmail(
+                    docLabel,
+                    statusBadge,
+                    docNo,
+                    org.example.util.BusinessClock.formatDate(org.example.util.BusinessClock.today()),
+                    recipient.isBlank() ? "Valued Client" : recipient,
+                    total,
+                    paid,
+                    balance,
+                    body,
+                    hasDualBank,
+                    ourBankName,
+                    ourAccNo,
+                    ourIfsc,
+                    "Live Electronic Settlement Verification",
+                    "-",
+                    statusUrl,
+                    sigPath != null,
+                    "cid:signatureImage"
+            );
+        }
+
+        this.result = new TransmissionResult(recipient, subject, transmissionBody, draft != null ? draft.attachmentPdf() : null, sigPath, profile);
         if (hostDialog != null) {
             hostDialog.setResult(this.result);
             hostDialog.close();

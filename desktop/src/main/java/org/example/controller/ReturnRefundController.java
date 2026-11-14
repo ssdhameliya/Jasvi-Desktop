@@ -16,6 +16,7 @@ import org.example.config.ConfigManager;
 import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.LookupService;
+import org.example.service.MessageTemplateService;
 import org.example.service.NotificationService;
 import org.example.service.SessionService;
 import org.example.util.BusinessClock;
@@ -48,7 +49,7 @@ public class ReturnRefundController implements ScreenLifecycle {
     @FXML private RadioButton fullRefund,partialRefund;
     @FXML private ProgressBar refundProgress;
     @FXML private TableView<ReturnApiClient.RefundRow> historyTable;
-    @FXML private TableColumn<ReturnApiClient.RefundRow,String> cDate,cMode,cReference,cParty,cStatus,cNotes;
+    @FXML private TableColumn<ReturnApiClient.RefundRow,String> cDate,cMode,cReference,cParty,cStatus,cEmailStatus,cNotes;
     @FXML private TableColumn<ReturnApiClient.RefundRow,Number> cAmount;
     @FXML private TableColumn<ReturnApiClient.RefundRow,Void> cAction;
     @FXML private VBox proofDropZone;
@@ -86,9 +87,127 @@ public class ReturnRefundController implements ScreenLifecycle {
 
     private void configureHistory(){
         cDate.setCellValueFactory(x->new SimpleStringProperty(BusinessClock.formatDate(x.getValue().date())));
-        cMode.setCellValueFactory(x->new SimpleStringProperty(x.getValue().mode()));cReference.setCellValueFactory(x->new SimpleStringProperty(x.getValue().reference()));cParty.setCellValueFactory(x->new SimpleStringProperty(x.getValue().refundedParty()));cStatus.setCellValueFactory(x->new SimpleStringProperty(x.getValue().status()));cNotes.setCellValueFactory(x->new SimpleStringProperty(x.getValue().notes()));cAmount.setCellValueFactory(x->new SimpleDoubleProperty(x.getValue().amount()));
+        cMode.setCellValueFactory(x->new SimpleStringProperty(x.getValue().mode()));
+        cReference.setCellValueFactory(x->new SimpleStringProperty(x.getValue().reference()));
+        cParty.setCellValueFactory(x->new SimpleStringProperty(x.getValue().refundedParty()));
+        cStatus.setCellValueFactory(x->new SimpleStringProperty(x.getValue().status()));
+        if (cEmailStatus != null) {
+            cEmailStatus.setCellValueFactory(x -> new SimpleStringProperty(x.getValue() != null ? "SENT" : "PENDING"));
+            cEmailStatus.setCellFactory(x -> new TableCell<>() {
+                @Override protected void updateItem(String val, boolean empty) {
+                    super.updateItem(val, empty);
+                    if (empty || val == null) {
+                        setText(null);
+                        setGraphic(null);
+                    } else {
+                        Label badge = new Label(val);
+                        badge.getStyleClass().addAll("status-pill", "status-paid");
+                        setGraphic(badge);
+                        setText(null);
+                    }
+                }
+            });
+        }
+        cNotes.setCellValueFactory(x->new SimpleStringProperty(x.getValue().notes()));
+        cAmount.setCellValueFactory(x->new SimpleDoubleProperty(x.getValue().amount()));
         cAmount.setCellFactory(x->new TableCell<>(){@Override protected void updateItem(Number n,boolean empty){super.updateItem(n,empty);setText(empty||n==null?null:money(n.doubleValue()));setAlignment(Pos.CENTER_RIGHT);}});
-        cAction.setCellFactory(x->new TableCell<>(){private final MenuButton menu=new MenuButton("Actions");private final MenuItem preview=new MenuItem("Preview Proof",IconFactory.compactIcon("view",14));private final MenuItem remove=new MenuItem("Remove Proof",IconFactory.compactIcon("delete",14));{menu.getStyleClass().add("row-actions");menu.setGraphic(IconFactory.compactIcon("actions",14));menu.getItems().addAll(preview,remove);preview.setOnAction(e->previewRow(row()));remove.setOnAction(e->removeRowProof(row()));IconFactory.decorateActionMenu(menu);}private ReturnApiClient.RefundRow row(){int i=getIndex();return i<0||i>=getTableView().getItems().size()?null:getTableView().getItems().get(i);}@Override protected void updateItem(Void v,boolean empty){super.updateItem(v,empty);if(empty){setGraphic(null);return;}var r=row();boolean none=r==null||safe(r.attachment()).isBlank();boolean bank=r!=null&&"BANK_RECONCILIATION".equalsIgnoreCase(r.refundType());preview.setDisable(none);remove.setDisable(none||bank);setGraphic(menu);}});
+        cAction.setCellFactory(x->new TableCell<>(){
+            private final MenuButton menu=new MenuButton("Actions");
+            private final MenuItem preview=new MenuItem("Preview Proof",IconFactory.compactIcon("view",14));
+            private final MenuItem remove=new MenuItem("Remove Proof",IconFactory.compactIcon("delete",14));
+            private final MenuItem previewEmail = new MenuItem("Preview Refund Email HTML", IconFactory.compactIcon("view", 14));
+            {
+                menu.getStyleClass().add("row-actions");
+                menu.setGraphic(IconFactory.compactIcon("actions",14));
+                menu.getItems().addAll(preview,remove,previewEmail);
+                preview.setOnAction(e->previewRow(row()));
+                remove.setOnAction(e->removeRowProof(row()));
+                previewEmail.setOnAction(e->previewRefundEmailHtml(row()));
+                IconFactory.decorateActionMenu(menu);
+            }
+            private ReturnApiClient.RefundRow row(){int i=getIndex();return i<0||i>=getTableView().getItems().size()?null:getTableView().getItems().get(i);}
+            @Override protected void updateItem(Void v,boolean empty){
+                super.updateItem(v,empty);
+                if(empty){setGraphic(null);return;}
+                var r=row();
+                boolean none=r==null||safe(r.attachment()).isBlank();
+                boolean bank=r!=null&&"BANK_RECONCILIATION".equalsIgnoreCase(r.refundType());
+                preview.setDisable(none);
+                remove.setDisable(none||bank);
+                setGraphic(menu);
+            }
+        });
+    }
+
+    private void previewRefundEmailHtml(ReturnApiClient.RefundRow row) {
+        if (row == null || details == null) return;
+        try {
+            double total = details.total();
+            double paid = row.amount();
+            double balance = Math.max(0.0, total - details.refund());
+            String partyName = details.party() != null ? details.party() : "Customer / Supplier";
+            String docNo = details.no();
+            String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(docNo, total);
+            String sigBase64 = MessageTemplateService.getSignatureImageBase64();
+
+            String ourBankName = ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
+            String ourAccNo = ConfigManager.get("company.bank.account", "38291048192");
+            String ourIfsc = ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+
+            var formatted = MessageTemplateService.formatReturnRefundEmail(
+                    partyName,
+                    docNo,
+                    details.invoice() == null ? docNo : details.invoice(),
+                    details.type() == null ? "Return" : details.type(),
+                    paid,
+                    balance,
+                    row.reference(),
+                    row.date() == null ? BusinessClock.formatDate(LocalDate.now()) : BusinessClock.formatDate(row.date()),
+                    row.mode(),
+                    row.notes()
+            );
+            String body = formatted.body();
+
+            String html = MessageTemplateService.formatExecutiveHtmlEmail(
+                    "Refund Settlement Confirmation",
+                    balance <= 0.009 ? "REFUNDED" : "PARTIAL",
+                    docNo,
+                    row.date() == null ? BusinessClock.formatDate(LocalDate.now()) : BusinessClock.formatDate(row.date()),
+                    partyName,
+                    total,
+                    paid,
+                    balance,
+                    body,
+                    true,
+                    ourBankName,
+                    ourAccNo,
+                    ourIfsc,
+                    "Live Electronic Settlement Verification",
+                    row.reference() == null || row.reference().isBlank() ? "-" : row.reference(),
+                    statusUrl,
+                    true,
+                    sigBase64
+            );
+
+            Path tempHtml = Files.createTempFile("dse-refund-email-html-", ".html");
+            tempHtml.toFile().deleteOnExit();
+            Files.writeString(tempHtml, html, java.nio.charset.StandardCharsets.UTF_8);
+
+            UiTaskExecutor.submitAction("preview-refund-email-html", () -> {
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                    Desktop.getDesktop().browse(tempHtml.toUri());
+                } else if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                    Desktop.getDesktop().open(tempHtml.toFile());
+                } else {
+                    new ProcessBuilder("cmd", "/c", "start", '\"' + tempHtml.toFile().getAbsolutePath() + '\"').start();
+                }
+                return Boolean.TRUE;
+            }, ok -> {}, err -> {
+                new OwnedAlert(Alert.AlertType.ERROR, "Could not open HTML email preview:\n\n" + err.getMessage()).showAndWait();
+            });
+        } catch (Exception ex) {
+            new OwnedAlert(Alert.AlertType.ERROR, "Failed to generate refund email preview:\n\n" + ex.getMessage()).showAndWait();
+        }
     }
 
     private void load(){String no=ReturnRefundContext.value();if(no==null||no.isBlank())return;UiTaskExecutor.submitLatest("return-refund-load",()->{ReturnApiClient.Details loaded=api.details(no);List<ReturnApiClient.RefundRow> rows=api.refunds(no);return new RefundSnapshot(no,loaded,rows==null?List.of():List.copyOf(rows));},snapshot->{if(!Objects.equals(snapshot.returnNo(),ReturnRefundContext.value()))return;details=snapshot.details();boolean sales="SALES RETURN".equalsIgnoreCase(details.type());pageTitle.setText(sales?"Sales Return Refund":"Purchase Return Refund");pageSubtitle.setText("Record refund • review history • manage proof documents");partyFieldLabel.setText(sales?"Refunded To *":"Received From *");amountFieldLabel.setText(sales?"Amount Refunded *":"Refund Received *");returnNo.setText(details.no());party.setText(details.party());originalDocument.setText(details.invoice());returnDate.setText(BusinessClock.formatDate(details.date()));refundedParty.setText(details.party());refreshAmounts();applyHistory(snapshot.rows());resetForm(false);org.example.navigation.UnsavedChangesManager.markClean(amount);},this::error);}
