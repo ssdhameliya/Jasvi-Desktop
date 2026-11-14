@@ -38,7 +38,7 @@ public final class ImportResultReportService {
                 {"Skipped", String.valueOf(result.skipped)},
                 {"Failed", String.valueOf(result.failedCount())},
                 {"Business Date", BusinessClock.formatDate(BusinessClock.today())},
-                {"Business Time", BusinessClock.now().format(DateTimeFormatter.ofPattern("hh:mm:ss a")) + " " + BusinessClock.zoneAbbreviation()}
+                {"Business Time", BusinessClock.formatTime(BusinessClock.now().toLocalTime()) + " " + BusinessClock.zoneAbbreviation()}
             };
             for (int i = 0; i < summaryRows.length; i++) {
                 Row row = summary.createRow(i);

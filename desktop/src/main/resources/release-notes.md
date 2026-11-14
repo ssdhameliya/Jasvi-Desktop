@@ -1,4 +1,64 @@
+# What's New in DSE ERP v11.0.65
+
+### SuperAdmin Workstation Telemetry & Daily Work Tracking Modernization
+- **Client-Driven Local Work Date & PostgreSQL UTC Timezone Disconnect Elimination (`DashboardController.java`, `ClientRegistryService.java`, `ClientRegistryController.java`) (Rule 4, Rule 5, Rule 7, Rule 11, Rule 12 & Rule 17)**:
+  - Fixed an issue where active user telemetry on "Today" showed empty results for late-night/early-morning sessions (00:00–05:30 IST) due to Hikari pool enforcing `SET TIME ZONE 'UTC'`.
+  - Added explicit `"workDate": LocalDate.now().toString()` into the recurring 30-second client workstation heartbeat payload, persisted on the server via `CAST(? AS date)` to guarantee 100% calendar alignment with the user's business day regardless of server timezone.
+  - Replaced the flawed wall-clock calculation (`EXTRACT(EPOCH FROM CURRENT_TIMESTAMP - first_login_today)`) with genuine accumulated active work seconds (`total_seconds_today`). Sessions under 60 seconds render gracefully as `"< 1 min"` instead of `0 hrs 0 mins`.
+  - Upgraded telemetry status rendering: replaced uncolored Windows Unicode text emojis (`⚪ Active Now` / `⚪ Online`) with crisp JavaFX vector circle graphics (`IconFactory.compactIcon("circle", 8)`) and high-contrast semantic CSS status pill badges (`status-positive`, `badge-active`).
+  - **Zero Truncation & Dynamic Viewport Sizing (Rule 7 & Rule 12)**: Injected `setMinWidth(Region.USE_PREF_SIZE)` on all toolbar date range buttons (`Today`, `Yesterday`, `This Week`, `This Month`, `Refresh Telemetry`) and prompt labels, preventing `T...` or `Yest...` truncation. Enforced `PopupTableWorkspace.prepareDialog(dialog, 1260)` and post-column `DynamicTableLayoutManager` installation with flex column resizing so all 7 columns scale cleanly across all screen sizes.
+
+### Settings iOS-Style Toggle Switches & Icon-Only Guidance System
+- **Modern iOS-Style Switches & Compact Information Controls (`SettingsController.java`, `SecuritySettingsPanel.fxml`, `EmailSettingsPanel.fxml`, `light-theme.css`, `dark-theme.css`) (Rule 4, Rule 5, Rule 8, Rule 9 & Rule 11)**:
+  - Modernized square legacy checkboxes across Settings tabs into sleek, animated iOS-style toggle switches (`.ios-toggle-switch`) with smooth thumb transitions and high-contrast theme styling.
+  - Streamlined information and guidance buttons into compact, standardized icon-only controls (`IconFactory.compactIcon("info-circle")`) with informative tooltips, eliminating verbose button text and saving valuable horizontal header space.
+
+### Universal Date & Timestamp Settings Compliance
+- **Settings-Driven Date Formatting Across Registers, Dialogs & Reports (`BusinessClock.java`, `TaxInvoicePdfGenerator.java`, `TallyDocumentInspectionDialog.java`, etc.) (Rule 4, Rule 13 & Rule 17)**:
+  - Audited and updated date parsing and display across all screens, inspection popups, and PDF generation engines to strictly follow user-configured format preferences (`AppConfig` / User Profile), ensuring 100% ecosystem uniformity.
+
+### Security & Session Settings Panel SVGPath Namespace Repair
+- **Zero-Crash Settings Navigation & Instant Panel Rendering (`SecuritySettingsPanel.fxml`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Fixed an issue where clicking the **Security & Session** tab (`btnTabSecurity`) in Settings failed to load and left the panel blank.
+  - **Root Cause & Permanent Fix**: In `SecuritySettingsPanel.fxml`, the guidance icon on line 100 uses `<SVGPath>`, but the FXML header omitted `<?import javafx.scene.shape.SVGPath?>`. This triggered `javafx.fxml.LoadException: SVGPath is not a valid type` during `FXMLLoader.load()`, aborting section loading.
+  - Added `<?import javafx.scene.shape.SVGPath?>` to the FXML header, ensuring immediate, zero-crash rendering of cloud telemetry metrics, inactivity session policies, MFA configuration, and document reference sync controls.
+
+### Global Action Button Semantic Colors & Multi-Color Theme Parity
+- **Vibrant Semantic Color Roles Across Modal Popups & Action Grids (`IconFactory.java`, `ClientRegistryController.java`) (Rule 4, Rule 5, Rule 8, Rule 9 & Rule 11)**:
+  - Eliminated the monochrome fallback where multiple buttons in dialogs (e.g. Workstation Terminal Hub, Activation Leads, and Plans) rendered with the exact same blue outline (`approved-secondary-button`).
+  - **Central Engine Expansion (`IconFactory.java`)**: Added first-class semantic button variant handlers for:
+    - `whatsapp` -> `approved-emerald-button`, `erp-button-emerald` (Vibrant WhatsApp Green)
+    - `calendar`, `schedule`, `date` -> `approved-purple-button`, `erp-button-purple` (Royal Purple)
+    - `copy`, `paste` -> `approved-slate-button`, `erp-button-slate` (Slate Steel)
+    - `telemetry`, `user`, `users` -> `approved-teal-button`, `erp-button-teal` (Deep Teal)
+    - `kick`, `disconnect` -> `approved-coral-button`, `erp-button-coral` (Coral Warning)
+    - `release`, `seat` -> `approved-amber-button`, `erp-button-amber` (Amber Action)
+    - `hardware`, `application` -> `approved-slate-button`, `erp-button-slate` (Slate)
+    - `reject` -> `approved-danger-button`, `erp-button-danger` (Danger Crimson)
+  - **Workstation Terminal Hub Action Grid**: Configured all 10 buttons with distinct, high-contrast semantic color roles across both Light and Dark themes, ensuring zero visual monotony and immediate action clarity.
+
 # What's New in DSE ERP v11.0.64
+
+### Universal Table Register Column Chooser & Human-Readable Header Names
+- **Visible Table Column Chooser & Zero-Clipping Scrollable Menu (`RegisterColumnPreferences.java`, `light-theme.css`, `dark-theme.css`) (Rule 4, Rule 5, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - Eliminated raw programmer variable names (`colInvoice`, `colDate`, `colSupplier`, `colAmount`, `colDue`) in the `+` column visibility chooser menu across all registers (Purchase, Sales, Quotations, Client Registry, Returns, and Ledgers).
+  - **Human-Readable Header Resolution**: Implemented `resolveHeaderLabel` to retrieve the authentic user-facing table column header name (`Invoice No.`, `Date`, `Supplier`, `Amount`, `Payment Due`, etc.) from `"erp-header-label"` properties, graphics, or humanized IDs.
+  - **Zero Truncation Guarantee**: Replaced the unbounded raw `ContextMenu` with a structured `CustomMenuItem` featuring a smooth, scrollable `ScrollPane` (`maxHeight: 360px`, `fitToWidth: true`). Guarantees that 100% of columns are visible, accessible, and scrollable on every monitor size without overflowing or falling off the bottom of the screen.
+  - **Dynamic Right Alignment**: Replaced the hardcoded `-322px` horizontal offset with dynamic right-edge anchor alignment (`-popupWidth + anchor.getLayoutBounds().getWidth()`), eliminating off-screen drift.
+  - **Reliable Chooser Binding**: Attached skin, scene, and width layout observers to ensure the `+` button is cleanly intercepted across all lifecycle pulses, completely suppressing JavaFX's native blank menu.
+  - **Quick Action Controls**: Added active column count pill (`12 / 12 Active`), `[ ✓ Show All ]`, and `[ 🧹 Reset ]` controls, with automatic `DynamicTableLayoutManager` reflow on toggle.
+
+### Universal Tooltip Legibility & JavaFX Text Fill Contrast Repair
+- **Crisp High-Contrast Tooltips Across All 80+ Screens (`light-theme.css`, `dark-theme.css`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Fixed dark/unreadable tooltip text when hovering over table hyperlinks, code badges, or customized cells (such as Machine Hardware ID in `ClientRegistryController`).
+  - **Root Cause & Permanent Fix**: JavaFX Tooltip skins render text through internal `javafx.scene.text.Text` (`LabeledText`) shapes that completely ignore `-fx-text-fill` and require `-fx-fill`. Without explicit `-fx-fill: #ffffff !important;`, the underlying cell's font color leaked into the tooltip text, rendering it nearly invisible against the dark `#0f172a` tooltip background in both Light and Dark themes.
+  - Added explicit `-fx-fill: #ffffff !important;` and `-fx-text-fill: #ffffff !important;` to `.tooltip`, `.tooltip .text`, `.tooltip .label`, `.tooltip > .text`, and `.tooltip Text` across both `light-theme.css` and `dark-theme.css`, guaranteeing high-contrast, crystal-clear readability everywhere.
+
+### System Diagnostics Filter Strip Reset Button Modernization
+- **Vibrant Labelled Filter Reset Button (`SystemDiagnosticsDialog.java`) (Rule 4, Rule 5, Rule 8, Rule 9 & Rule 11)**:
+  - Eliminated the cramped icon-only display of the date range Reset button in the Diagnostics toolbar.
+  - Replaced empty button text and `top-icon` CSS class with an explicit `[ 🧹 Reset ]` label and standardized `approved-amber-button` styling.
+  - Confirmed `[ 🔄 Refresh ]` is comfortably anchored in the bottom pagination action bar, ensuring clear visual balance and accessible touch/click targets without horizontal overflow.
 
 ### Universal Dialog Redundant Close Button Elimination & Vibrant Button Modernization
 - **Centralized Duplicate Close Button & Bottom Panel Elimination (`AppDialogRenderer.java`, `app-dialog.css`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:

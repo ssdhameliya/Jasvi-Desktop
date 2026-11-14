@@ -68,7 +68,6 @@ public final class TaxInvoicePdfGenerator {
     private static final DeviceRgb PALE_YELLOW = new DeviceRgb(255, 247, 220);
     private static final DeviceRgb GRID = new DeviceRgb(117, 153, 198);
     private static final DeviceRgb MUTED = new DeviceRgb(78, 90, 108);
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     // Item pagination is derived from iText's live remaining page area. Final-page
     // capacity is solved against the measured closing stack so the item frame ends
     // exactly one standard gap above Bank/Calculation, regardless of optional content.

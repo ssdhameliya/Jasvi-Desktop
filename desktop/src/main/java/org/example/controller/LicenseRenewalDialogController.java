@@ -20,6 +20,7 @@ import org.example.api.ApiSession;
 import org.example.api.licensing.LicenseApiClient;
 import org.example.shared.licensing.HardwareFingerprintUtil;
 import org.example.util.AppDialogRenderer;
+import org.example.util.BusinessClock;
 import org.example.util.AppDialogService;
 import org.example.util.DocumentInspectionScaffold;
 import org.example.util.IconFactory;
@@ -189,7 +190,7 @@ public class LicenseRenewalDialogController {
             if (dto.validUntil() != null) {
                 try {
                     java.time.LocalDate date = dto.validUntil().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
-                    formattedDate = date.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy"));
+                    formattedDate = BusinessClock.formatDate(date);
                 } catch (Exception ignored) {
                     formattedDate = dto.validUntil().toString();
                 }
@@ -361,7 +362,7 @@ public class LicenseRenewalDialogController {
         if (cur != null && "ACTIVE".equalsIgnoreCase(cur.status()) && cur.daysRemaining() > 0) {
             String expDate = (lblValidUntil != null && !lblValidUntil.getText().isBlank() && !"-".equals(lblValidUntil.getText()))
                     ? lblValidUntil.getText()
-                    : (cur.validUntil() != null ? cur.validUntil().atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy")) : "N/A");
+                    : (cur.validUntil() != null ? BusinessClock.formatDate(cur.validUntil().atZone(java.time.ZoneId.systemDefault()).toLocalDate()) : "N/A");
             AppDialogService.info(btnClose, "Terminal Already Activated",
                     "This computer is already activated with an active " + cur.tier() +
                     " subscription valid until " + expDate + " (" + cur.daysRemaining() + " days remaining).\n\nNo further activation is required.");

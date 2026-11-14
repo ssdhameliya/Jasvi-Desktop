@@ -140,11 +140,23 @@ public class ClientRegistryApiClient {
     }
 
     public List<Map<String, Object>> getClientUsers(String machineId) {
-        return getClientUsers(machineId, null);
+        return getClientUsers(machineId, null, null);
     }
 
     public List<Map<String, Object>> getClientUsers(String machineId, String date) {
-        String query = (date != null && !date.isBlank()) ? "?date=" + enc(date) : "";
+        return getClientUsers(machineId, date, date);
+    }
+
+    public List<Map<String, Object>> getClientUsers(String machineId, String fromDate, String toDate) {
+        StringBuilder query = new StringBuilder();
+        if (fromDate != null && !fromDate.isBlank()) {
+            query.append("?from=").append(enc(fromDate.trim()));
+            if (toDate != null && !toDate.isBlank()) {
+                query.append("&to=").append(enc(toDate.trim()));
+            }
+        } else if (toDate != null && !toDate.isBlank()) {
+            query.append("?to=").append(enc(toDate.trim()));
+        }
         return get("/api/license/registry/clients/" + enc(machineId) + "/users" + query, new TypeReference<>() {});
     }
 

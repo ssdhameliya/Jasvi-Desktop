@@ -180,10 +180,12 @@ public class ClientRegistryController {
     @GetMapping("/clients/{machineId}/users")
     public List<Map<String, Object>> getClientUsers(
             @PathVariable String machineId,
-            @RequestParam(required = false) String date
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to
     ) {
         requireSuperAdmin();
-        return registryService.getClientUserTelemetry(machineId, date);
+        return registryService.getClientUserTelemetry(machineId, date, from, to);
     }
 
     @PostMapping("/clients/{machineId}/release")

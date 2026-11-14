@@ -71,6 +71,7 @@ public class AgingAnalysisController implements ScreenLifecycle {
         if (kpiDueIcon != null) kpiDueIcon.getChildren().setAll(IconFactory.compactIcon("warning", 16));
         if (kpiCriticalIcon != null) kpiCriticalIcon.getChildren().setAll(IconFactory.compactIcon("error", 16));
 
+        DatePickerFormatter.attach(dpAsOfDate);
         dpAsOfDate.setValue(LocalDate.now());
 
         btnDebtors.setSelected(true);

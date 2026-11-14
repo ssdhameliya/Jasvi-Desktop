@@ -47,7 +47,6 @@ import java.util.regex.Pattern;
  */
 public final class SystemDiagnosticsDialog {
 
-    private static final DateTimeFormatter DISPLAY_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy hh:mm:ss a", Locale.ROOT);
     private static final Pattern SPRING_BOOT_LOG_PATTERN = Pattern.compile(
             "^(\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?)\\s+(\\w+)\\s+(?:\\d+\\s+---\\s+)?(?:\\[(.*?)\\]\\s+)?\\[(.*?)\\]\\s+([^:]+?)\\s+:\\s+(.*)$"
     );
@@ -187,9 +186,9 @@ public final class SystemDiagnosticsDialog {
         dpTo.getStyleClass().addAll("approved-date-picker", "audit-category-combo");
         dpTo.setPrefWidth(125);
 
-        Button btnResetDates = new Button();
+        Button btnResetDates = new Button("Reset");
         btnResetDates.setGraphic(IconFactory.compactIcon("reset", 12));
-        btnResetDates.getStyleClass().addAll("approved-button", "approved-secondary-button", "top-icon");
+        btnResetDates.getStyleClass().addAll("approved-button", "approved-amber-button");
         btnResetDates.setTooltip(new Tooltip("Reset date filter to Last 7 Days"));
         btnResetDates.setOnAction(e -> {
             dpFrom.setValue(LocalDate.now().minusWeeks(1));
@@ -1126,7 +1125,7 @@ public final class SystemDiagnosticsDialog {
         try {
             Instant instant = parseInstant(raw);
             if (instant.equals(Instant.EPOCH)) return raw;
-            return DISPLAY_FORMATTER.format(instant.atZone(ZoneId.systemDefault()));
+            return BusinessClock.formatTimestamp(instant);
         } catch (Exception ignored) {
             return raw;
         }
