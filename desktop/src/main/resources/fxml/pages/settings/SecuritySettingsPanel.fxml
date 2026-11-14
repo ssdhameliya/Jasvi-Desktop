@@ -94,7 +94,12 @@
     <VBox spacing="6" maxWidth="Infinity" styleClass="settings-information-card">
         <HBox spacing="8" alignment="CENTER_LEFT">
             <Label text="Document Numbering &amp; Reference Formats" styleClass="settings-subsection-title"/>
-            <Button text="Information &amp; Guidance" onAction="#showRefFormatInfoDialog" styleClass="settings-secondary-button,approved-button"/>
+            <Button contentDisplay="GRAPHIC_ONLY" onAction="#showRefFormatInfoDialog" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button">
+                <tooltip><Tooltip text="Document Numbering &amp; Reference Formats Guidance"/></tooltip>
+                <graphic>
+                    <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                </graphic>
+            </Button>
             <Region HBox.hgrow="ALWAYS"/>
             <Button text="Synchronize Reference Formats" onAction="#handleRefFormatSyncAction" styleClass="settings-secondary-button,approved-button"/>
         </HBox>
@@ -107,6 +112,6 @@
 
     <!-- UI Diagnostics -->
     <VBox spacing="7" styleClass="security-settings-subsection">
-        <CheckBox fx:id="chkUiDiagnostics" text="Enable UI Diagnostics"/>
+        <CheckBox fx:id="chkUiDiagnostics" text="Enable UI Diagnostics" styleClass="approved-checkbox,ios-toggle-switch"/>
     </VBox>
 </VBox>

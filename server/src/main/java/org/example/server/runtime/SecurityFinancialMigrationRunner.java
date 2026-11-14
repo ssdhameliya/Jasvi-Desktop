@@ -227,7 +227,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_55__agreement_based_licensing_entitlements",
                     "db/migration/V11_0_55__agreement_based_licensing_entitlements.sql"),
             new Migration("V11_0_60__client_user_work_session_telemetry",
-                    "db/migration/V11_0_60__client_user_work_session_telemetry.sql")
+                    "db/migration/V11_0_60__client_user_work_session_telemetry.sql"),
+            new Migration("V11_0_64__payment_email_status",
+                    "db/migration/V11_0_64__payment_email_status.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

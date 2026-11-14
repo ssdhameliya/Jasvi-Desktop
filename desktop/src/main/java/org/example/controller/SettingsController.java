@@ -676,10 +676,22 @@ public class SettingsController implements ScreenLifecycle {
                         failure -> System.err.println("[Settings] Notification preferences unavailable: " + failure.getMessage()));
             }
             case EMAIL -> {
+                if (btnEmailSecurityInfo != null) {
+                    btnEmailSecurityInfo.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+                    btnEmailSecurityInfo.setText("");
+                    btnEmailSecurityInfo.setGraphic(org.example.util.IconFactory.compactIcon("info", 16));
+                    btnEmailSecurityInfo.setTooltip(new Tooltip("Email Account & SMTP Security Guidance"));
+                }
                 initEmailTemplatesAndSignature();
                 loadSectionDataAsync(section);
             }
             case WHATSAPP -> {
+                if (btnWhatsappInfo != null) {
+                    btnWhatsappInfo.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+                    btnWhatsappInfo.setText("");
+                    btnWhatsappInfo.setGraphic(org.example.util.IconFactory.compactIcon("info", 16));
+                    btnWhatsappInfo.setTooltip(new Tooltip("WAHA Docker Engine & WhatsApp Integration Guidance"));
+                }
                 populateWhatsappSendersDropdown();
                 loadSectionDataAsync(section);
             }
@@ -3351,102 +3363,7 @@ private record AssetPreviewRequest(
 
     @FXML
     private void showWhatsappGuidance() {
-        Dialog<ButtonType> dialog = new OwnedDialog<>();
-        dialog.setTitle("WhatsApp Business Integration (WAHA) — Guide");
-        dialog.setHeaderText("How WhatsApp Automated Document Dispatch Works");
-
-        VBox root = new VBox(12);
-        root.setPrefWidth(720);
-        root.getStyleClass().add("settings-guidance-box");
-
-        // Header Card
-        VBox headerCard = new VBox(4);
-        headerCard.getStyleClass().addAll("approved-card", "p-4");
-        Label lblHeader = new Label("Secure, Automated WhatsApp Delivery for Invoices & Receipts");
-        lblHeader.getStyleClass().addAll("section-title", "approved-emerald-text");
-        Label lblIntro = new Label("Jasvi ERP connects directly to WhatsApp Web through the open-source WAHA Docker service, enabling automated delivery of invoices and receipts directly to customer mobile phones.");
-        lblIntro.setWrapText(true);
-        lblIntro.getStyleClass().add("settings-help-text");
-        headerCard.getChildren().addAll(lblHeader, lblIntro);
-
-        // Step 1: WAHA Docker Engine
-        VBox card1 = new VBox(6);
-        card1.getStyleClass().addAll("approved-card", "p-3");
-        HBox badge1 = new HBox(8);
-        badge1.setAlignment(Pos.CENTER_LEFT);
-        Label step1Badge = new Label("STEP 1");
-        step1Badge.getStyleClass().addAll("approved-badge", "badge-indigo");
-        Label step1Title = new Label("WAHA Docker Engine (Port 3000)");
-        step1Title.getStyleClass().add("approved-title");
-        badge1.getChildren().addAll(step1Badge, step1Title);
-
-        Label step1Desc = new Label("Runs locally or on your Cloud Server on port 3000. Verified endpoints:");
-        step1Desc.getStyleClass().add("muted-label");
-
-        HBox endpointsBox = new HBox(12);
-        endpointsBox.setAlignment(Pos.CENTER_LEFT);
-        Label uatPill = new Label("UAT Server: http://144.24.109.1:3000");
-        uatPill.getStyleClass().addAll("code-pill", "approved-emerald-text");
-        Label prodPill = new Label("PROD Server: http://130.210.35.1:3000");
-        prodPill.getStyleClass().addAll("code-pill", "approved-indigo-text");
-        endpointsBox.getChildren().addAll(uatPill, prodPill);
-
-        Label step1Cmd = new Label("Docker launch command: docker run -d --name waha -p 3000:3000 --restart always devlikeapro/waha");
-        step1Cmd.getStyleClass().addAll("code-pill", "text-xs");
-        card1.getChildren().addAll(badge1, step1Desc, endpointsBox, step1Cmd);
-
-        // Step 2: Pair Your WhatsApp Number
-        VBox card2 = new VBox(6);
-        card2.getStyleClass().addAll("approved-card", "p-3");
-        HBox badge2 = new HBox(8);
-        badge2.setAlignment(Pos.CENTER_LEFT);
-        Label step2Badge = new Label("STEP 2");
-        step2Badge.getStyleClass().addAll("approved-badge", "badge-emerald");
-        Label step2Title = new Label("Pair Your WhatsApp Number");
-        step2Title.getStyleClass().add("approved-title");
-        badge2.getChildren().addAll(step2Badge, step2Title);
-
-        Label step2Desc = new Label("Click 'Manage Channels & Scan QR' -> 'Scan QR Code to Pair'. Open WhatsApp on your phone, go to Linked Devices, and scan the QR code to pair your device.");
-        step2Desc.setWrapText(true);
-        step2Desc.getStyleClass().add("settings-help-text");
-        card2.getChildren().addAll(badge2, step2Desc);
-
-        // Step 3: Canonical WhatsApp Sender & 10-Digit Mobile Format
-        VBox card3 = new VBox(6);
-        card3.getStyleClass().addAll("approved-card", "p-3");
-        HBox badge3 = new HBox(8);
-        badge3.setAlignment(Pos.CENTER_LEFT);
-        Label step3Badge = new Label("STEP 3");
-        step3Badge.getStyleClass().addAll("approved-badge", "badge-blue");
-        Label step3Title = new Label("Active Sender Selection (10-Digit Normalization)");
-        step3Title.getStyleClass().add("approved-title");
-        badge3.getChildren().addAll(step3Badge, step3Title);
-
-        Label step3Desc = new Label("Choose your primary paired sender number in the dropdown. Dropdown is populated strictly from Master Data -> 'WhatsApp'. Users only need to enter 10 digits (e.g. 8197349439); the ERP manages country codes and formatting automatically.");
-        step3Desc.setWrapText(true);
-        step3Desc.getStyleClass().add("settings-help-text");
-        card3.getChildren().addAll(badge3, step3Desc);
-
-        // Step 4: Signature & Attachment Flags
-        VBox card4 = new VBox(6);
-        card4.getStyleClass().addAll("approved-card", "p-3");
-        HBox badge4 = new HBox(8);
-        badge4.setAlignment(Pos.CENTER_LEFT);
-        Label step4Badge = new Label("STEP 4");
-        step4Badge.getStyleClass().addAll("approved-badge", "badge-purple");
-        Label step4Title = new Label("Signature & Official Stamp Attachment");
-        step4Title.getStyleClass().add("approved-title");
-        badge4.getChildren().addAll(step4Badge, step4Title);
-
-        Label step4Desc = new Label("Use the toggle switches in Email Settings to choose whether company stamp/signature image is attached on WhatsApp dispatch.");
-        step4Desc.setWrapText(true);
-        step4Desc.getStyleClass().add("settings-help-text");
-        card4.getChildren().addAll(badge4, step4Desc);
-
-        root.getChildren().addAll(headerCard, card1, card2, card3, card4);
-        dialog.getDialogPane().setContent(root);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        dialog.showAndWait();
+        org.example.util.ScreenGuidanceManager.showGuidance(btnWhatsappInfo != null ? btnWhatsappInfo : settingsPageHeader, "SETTINGS_WHATSAPP");
     }
 
     @FXML
@@ -3985,28 +3902,7 @@ private record AssetPreviewRequest(
 
     @FXML
     private void showEmailSecurityInfo() {
-        Alert alert = new OwnedAlert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Email Security & Connection Guidance");
-        alert.setHeaderText("Secure SMTP Setup & Provider Guidelines");
-        String message = """
-                1. Email Security:
-                • Never enter your primary mailbox password.
-                • The application securely stores the app password in your workspace configuration.
-                
-                2. App Passwords (Two-Step Verification):
-                • Yahoo, Gmail, Microsoft, and Zoho require 2-step verification enabled on your account before generating an "App Password".
-                • Generate a 16-character App Password from your provider's security settings and paste it here.
-                
-                3. SMTP Host & Port:
-                • Gmail: smtp.gmail.com (Port: 587 or 465)
-                • Yahoo: smtp.mail.yahoo.com (Port: 587 or 465)
-                • Outlook / Office 365: smtp.office365.com (Port: 587)
-                
-                4. Testing Configuration:
-                • Use the "Test Email" button in the Settings page header to verify delivery before saving.
-                """;
-        alert.setContentText(message);
-        alert.showAndWait();
+        org.example.util.ScreenGuidanceManager.showGuidance(btnEmailSecurityInfo != null ? btnEmailSecurityInfo : settingsPageHeader, "SETTINGS_EMAIL");
     }
 
     @FXML
@@ -5159,18 +5055,22 @@ private record AssetPreviewRequest(
         titleCol.getChildren().addAll(title, desc);
 
         Button btnLaunchShowcase = new Button("Launch 3D Showcase (Browser)");
-        btnLaunchShowcase.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnLaunchShowcase.setGraphic(org.example.util.IconFactory.compactIcon("showcase", 14));
+        btnLaunchShowcase.getStyleClass().addAll("approved-button", "approved-indigo-button");
         btnLaunchShowcase.setOnAction(e -> openBrowserUrl("http://localhost:8089/index.html"));
 
         Button btnOpenWebAdmin = new Button("Open Web Admin Studio");
-        btnOpenWebAdmin.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnOpenWebAdmin.setGraphic(org.example.util.IconFactory.compactIcon("admin", 14));
+        btnOpenWebAdmin.getStyleClass().addAll("approved-button", "approved-purple-button");
         btnOpenWebAdmin.setOnAction(e -> openBrowserUrl("http://localhost:8089/admin/index.html#/settings"));
 
         Button btnReload = new Button("Reload from Server");
-        btnReload.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnReload.setGraphic(org.example.util.IconFactory.compactIcon("refresh", 14));
+        btnReload.getStyleClass().addAll("approved-button", "approved-teal-button");
         btnReload.setOnAction(e -> loadShowcaseData());
 
         Button btnPublish = new Button("Publish Showcase");
+        btnPublish.setGraphic(org.example.util.IconFactory.compactIcon("cloud-upload", 14));
         btnPublish.getStyleClass().addAll("approved-button", "approved-primary-button");
         btnPublish.setOnAction(e -> save());
 
@@ -5284,7 +5184,8 @@ private record AssetPreviewRequest(
         machTitleCol.getChildren().addAll(machTitle, machDesc);
 
         Button btnAddMachine = new Button("+ Add Workstation");
-        btnAddMachine.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnAddMachine.setGraphic(org.example.util.IconFactory.compactIcon("plus", 14));
+        btnAddMachine.getStyleClass().addAll("approved-button", "approved-emerald-button");
         btnAddMachine.setOnAction(e -> {
             var mRow = new ShowcaseMachineRow();
             mRow.id = "mach-" + System.currentTimeMillis();
@@ -5329,8 +5230,8 @@ private record AssetPreviewRequest(
         row.chkActive.getStyleClass().add("approved-checkbox");
 
         Button btnDelete = new Button("Remove");
-        btnDelete.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnDelete.getStyleClass().add("approved-danger-button");
+        btnDelete.setGraphic(org.example.util.IconFactory.compactIcon("delete", 13));
+        btnDelete.getStyleClass().addAll("approved-button", "approved-danger-button");
         btnDelete.setOnAction(e -> {
             showcaseMachines.remove(row);
             if (machineryContainer != null) machineryContainer.getChildren().remove(card);

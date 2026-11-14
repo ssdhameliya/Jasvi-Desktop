@@ -19,6 +19,18 @@
     -fx-pref-width: -1;
     -fx-max-width: Infinity;
 }
+.dse-dialog-pane.dse-dialog-no-button-bar .dse-dialog-shell {
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+}
+.dse-dialog-pane.dse-dialog-no-button-bar > .button-bar {
+    -fx-padding: 0;
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+    -fx-border-width: 0;
+}
 .dse-dialog-pane .dse-dialog-accent {
     -fx-background-radius: 14 14 0 0;
 }

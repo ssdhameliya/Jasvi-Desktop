@@ -12,8 +12,13 @@
     <VBox spacing="12" styleClass="settings-subcard">
         <HBox alignment="CENTER_LEFT" spacing="8">
             <Label text="Email Account (SMTP)" styleClass="section-title"/>
+            <Button fx:id="btnEmailSecurityInfo" contentDisplay="GRAPHIC_ONLY" onAction="#showEmailSecurityInfo" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button">
+                <tooltip><Tooltip text="Email Account &amp; SMTP Security Guidance"/></tooltip>
+                <graphic>
+                    <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                </graphic>
+            </Button>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnEmailSecurityInfo" text="Information &amp; Guidance" onAction="#showEmailSecurityInfo" styleClass="secondary-button"/>
             <Label text="Configuration is stored securely in your workspace" styleClass="page-subtitle"/>
         </HBox>
         <GridPane hgap="18" vgap="14">
@@ -85,7 +90,7 @@
                 <HBox alignment="CENTER_LEFT" spacing="14" styleClass="settings-asset-card">
                     <Label fx:id="lblActiveDepartmentBadge" text="Configuring: Sales &amp; Invoices" styleClass="section-title"/>
                     <Region HBox.hgrow="ALWAYS"/>
-                    <CheckBox fx:id="chkEnableDedicatedProfile" text="Use Dedicated Account for this Department" styleClass="approved-check"/>
+                    <CheckBox fx:id="chkEnableDedicatedProfile" text="Use Dedicated Account for this Department" styleClass="approved-check,ios-toggle-switch"/>
                 </HBox>
             </VBox>
 

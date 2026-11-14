@@ -1,3 +1,38 @@
+# What's New in DSE ERP v11.0.64
+
+### Universal Dialog Redundant Close Button Elimination & Vibrant Button Modernization
+- **Centralized Duplicate Close Button & Bottom Panel Elimination (`AppDialogRenderer.java`, `app-dialog.css`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Eliminated the redundant bottom red `[ ❌ Close ]` button and collapsed the entire bottom button panel across 30 modal popups and inspection dialogs (including Client Registry Workstation Terminal Hub, Bank Statement History, Settings QR dialogs, and Update dialogs).
+  - Automatically unmanages and hides `.button-bar` whenever a dialog's only button is `ButtonType.CLOSE` or `ButtonType.CANCEL`, saving 50–60px of vertical content real estate and removing visual clutter.
+  - 100% JavaFX Contract Preservation: `ButtonType.CLOSE` remains registered in `DialogPane`, ensuring native ESC key handling, window modality, and lifecycle events continue to work seamlessly via the top-right header `[ ❌ ]` close button.
+  - Standard action dialogs with affirmative choices (Save/Cancel, Confirm/Discard) retain their full interactive button bars.
+- **Vibrant Action Button Styling & Standardized Icons (`SettingsController.java`, `CompanySettingsPanel.fxml`, `IconFactory.java`) (Rule 4, Rule 5, Rule 8, Rule 9 & Rule 11)**:
+  - Modernized the 3D Machinery Showcase and Website Studio toolbar buttons (`Launch 3D Showcase (Browser)`, `Open Web Admin Studio`, `Reload from Server`, `Publish Showcase`) with vibrant semantic color classes (`approved-indigo-button`, `approved-purple-button`, `approved-teal-button`, `approved-primary-button`) and crisp FontAwesome 5 vector glyphs (`showcase`, `admin`, `refresh`, `cloud-upload`).
+  - Added `admin` / `administrator` semantic glyph mappings (`fas-user-cog` in purple) to `IconFactory`.
+  - Upgraded secondary action buttons to pop visually with high-contrast borders and smooth hover states across both Light and Dark themes, eliminating flat monochrome appearance.
+
+### Robust Verification Gateway & Zero Format-String Collisions
+- **Token-Based HTML Rendering for Document Privacy Verification Gateway (`PublicPaymentStatusService.java`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Eliminated the critical `HTTP 400 Bad Request` error (`Conversion = ';'`) on the public payment status verification page (`/payment-status`).
+  - **Root Cause & Permanent Fix**: The CSS stylesheet embedded in the verification challenge page contained percent signs (`width: 100%;` and `top: 50%;`). When formatted via `String.format` / `""".formatted(...)`, the percent signs were treated as format specifiers followed by semicolons, throwing `UnknownFormatConversionException: Conversion = ';'` and resulting in HTTP 400.
+  - Replaced format-string parsing with safe, deterministic token replacements (`{{COMPANY}}`, `{{ERROR_BLOCK}}`, `{{INVOICE_NO}}`, `{{TOKEN}}`) and escaped all CSS percentage literals to `%%`, guaranteeing zero format collision crashes regardless of CSS or user input.
+
+### Accurate Payment & Refund Email Status Tracking
+- **100% Truthful `@ Email Status` Badges (`PurchasePaymentController.java`, `RecordPaymentController.java`, `ReturnRefundController.java`, `PaymentRecordEntity.java`, `V11_0_64__payment_email_status.sql`) (Rule 4, Rule 5, Rule 11, Rule 17)**:
+  - Eliminated false `SENT` badges: Previously, payment history tables evaluated `v.getValue() != null ? "SENT" : "PENDING"`, unconditionally displaying a green `SENT` badge for every record as soon as it was created, even when the user cancelled or skipped transmitting the email.
+  - Added dedicated `email_status` column in `payment_record` and `return_refund` tables (defaulting to `PENDING`).
+  - Payments and refunds now truthfully render with a high-contrast amber/neutral `PENDING` badge upon entry. The badge transitions to green `SENT` strictly and only after successful SMTP delivery via `EmailService`.
+  - Added historical backfill migration (`V11_0_64__payment_email_status.sql`) linking existing `communication_log` dispatches to historical payment records.
+
+### Context-Menu Send & Resend Actions for Payment Confirmations
+- **Dynamic Row Actions Menu ("Send / Resend Payment Email") (`PurchasePaymentController.java`, `RecordPaymentController.java`, `ReturnRefundController.java`, `PaymentConfirmationPromptHelper.java`) (Rule 4, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - Added standardized action menu items across all payment and refund registers:
+    - **Purchase Payment History:** `Send Remittance Advice` / `Resend Remittance Advice` (with standardized `email` icon).
+    - **Customer Payment History:** `Send Payment Receipt Email` / `Resend Payment Receipt Email`.
+    - **Return Refund History:** `Send Refund Advice Email` / `Resend Refund Advice Email`.
+  - Seamless Retransmission: If an operator closes or cancels the initial email dialog, or needs to re-transmit confirmation to a supplier or customer later, clicking the action immediately prepares and opens the pre-populated `EmailTransmissionDialog` with the exact payment date, amount, reference, and document PDF.
+  - Upon transmission, the row's `@ Email Status` updates in real time to `SENT` and audit trails are recorded.
+
 # What's New in DSE ERP v11.0.63
 
 ### Shared Client Workspace Self-Healing & Setup Wizard Bypass

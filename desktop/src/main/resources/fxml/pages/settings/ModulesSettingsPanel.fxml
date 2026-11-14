@@ -18,11 +18,11 @@
                 <Label text="General Ledger &amp; Double-Entry Accounting" styleClass="settings-form-label,bold-label"/>
                 <Label text="Master Chart of Accounts, debit/credit journal vouchers, real-time Trial Balance, and Profit &amp; Loss." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkGlEnabled" text="Enable GL Module" styleClass="approved-checkbox"/>
+            <CheckBox fx:id="chkGlEnabled" text="Enable GL Module" styleClass="approved-checkbox,ios-toggle-switch"/>
         </HBox>
         <HBox spacing="24" alignment="CENTER_LEFT">
-            <CheckBox fx:id="chkGlAutoPost" text="Auto-post Journal Vouchers from Sales &amp; Purchases" styleClass="approved-checkbox"/>
-            <CheckBox fx:id="chkGlTrialBalance" text="Maintain Live Trial Balance" styleClass="approved-checkbox"/>
+            <CheckBox fx:id="chkGlAutoPost" text="Auto-post Journal Vouchers from Sales &amp; Purchases" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <CheckBox fx:id="chkGlTrialBalance" text="Maintain Live Trial Balance" styleClass="approved-checkbox,ios-toggle-switch"/>
         </HBox>
     </VBox>
 
@@ -35,12 +35,12 @@
                 <Label text="GST Statutory Compliance &amp; GSTR-2B Auto-Reconciliation" styleClass="settings-form-label,bold-label"/>
                 <Label text="Automated Place of Supply tax split, GSTR-1 government JSON exports, and GSTR-2B ITC fuzzy reconciliation." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkGstEnabled" text="Enable GST Engine" styleClass="approved-checkbox"/>
+            <CheckBox fx:id="chkGstEnabled" text="Enable GST Engine" styleClass="approved-checkbox,ios-toggle-switch"/>
         </HBox>
         <HBox spacing="24" alignment="CENTER_LEFT">
-            <CheckBox fx:id="chkGstAuto2bMatch" text="Auto-Reconcile GSTR-2B Purchases" styleClass="approved-checkbox"/>
-            <CheckBox fx:id="chkGstPosGating" text="Strict Place of Supply Gating" styleClass="approved-checkbox"/>
-            <CheckBox fx:id="chkTdsEnabled" text="TDS / TCS Withholding (Sec 194Q &amp; 206C)" styleClass="approved-checkbox"/>
+            <CheckBox fx:id="chkGstAuto2bMatch" text="Auto-Reconcile GSTR-2B Purchases" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <CheckBox fx:id="chkGstPosGating" text="Strict Place of Supply Gating" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <CheckBox fx:id="chkTdsEnabled" text="TDS / TCS Withholding (Sec 194Q &amp; 206C)" styleClass="approved-checkbox,ios-toggle-switch"/>
         </HBox>
     </VBox>
 
@@ -60,12 +60,12 @@
                 <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
             </columnConstraints>
             <VBox spacing="4" GridPane.columnIndex="0" GridPane.rowIndex="0">
-                <CheckBox fx:id="chkThreeWayMatch" text="Smart 3-Way Purchase Matching (PO vs GRN vs Bill)" styleClass="approved-checkbox"/>
-                <CheckBox fx:id="chkAutoDraftDebitNote" text="Auto-generate draft debit notes for short shipments" styleClass="approved-checkbox"/>
+                <CheckBox fx:id="chkThreeWayMatch" text="Smart 3-Way Purchase Matching (PO vs GRN vs Bill)" styleClass="approved-checkbox,ios-toggle-switch"/>
+                <CheckBox fx:id="chkAutoDraftDebitNote" text="Auto-generate draft debit notes for short shipments" styleClass="approved-checkbox,ios-toggle-switch"/>
             </VBox>
             <VBox spacing="4" GridPane.columnIndex="1" GridPane.rowIndex="0">
-                <CheckBox fx:id="chkStockAutoReorder" text="Dynamic Safety Stock &amp; Auto-Reorder Alerts" styleClass="approved-checkbox"/>
-                <CheckBox fx:id="chkCreditHardStop" text="Customer Overdue Credit Hard Stop (Block Invoicing)" styleClass="approved-checkbox"/>
+                <CheckBox fx:id="chkStockAutoReorder" text="Dynamic Safety Stock &amp; Auto-Reorder Alerts" styleClass="approved-checkbox,ios-toggle-switch"/>
+                <CheckBox fx:id="chkCreditHardStop" text="Customer Overdue Credit Hard Stop (Block Invoicing)" styleClass="approved-checkbox,ios-toggle-switch"/>
             </VBox>
         </GridPane>
     </VBox>
@@ -79,11 +79,11 @@
                 <Label text="Executive 8:00 PM Daily Briefing" styleClass="settings-form-label,bold-label"/>
                 <Label text="Daily evening summary of sales, customer collections, vendor payments, bank balances, and overdue accounts." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkDailyBriefing" text="Enable Daily Briefing" styleClass="approved-checkbox"/>
+            <CheckBox fx:id="chkDailyBriefing" text="Enable Daily Briefing" styleClass="approved-checkbox,ios-toggle-switch"/>
         </HBox>
         <HBox spacing="24" alignment="CENTER_LEFT">
-            <CheckBox fx:id="chkBriefingWa" text="WhatsApp Channel" styleClass="approved-checkbox"/>
-            <CheckBox fx:id="chkBriefingEmail" text="Email Channel" styleClass="approved-checkbox"/>
+            <CheckBox fx:id="chkBriefingWa" text="WhatsApp Channel" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <CheckBox fx:id="chkBriefingEmail" text="Email Channel" styleClass="approved-checkbox,ios-toggle-switch"/>
             <Label text="Mobile No:" styleClass="settings-form-label"/>
             <TextField fx:id="txtBriefingPhone" promptText="+91 98765 43210" styleClass="approved-input"/>
         </HBox>
@@ -98,7 +98,7 @@
                 <Label text="Multi-Warehouse, Batch/Expiry (FEFO) &amp; Serial Registry" styleClass="settings-form-label,bold-label"/>
                 <Label text="Track stock across multiple storage depots, enforce First-Expired First-Out dispatches, and track equipment serial warranties." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkBatchSerialTracking" text="Enable Batch/Serial Tracking" styleClass="approved-checkbox"/>
+            <CheckBox fx:id="chkBatchSerialTracking" text="Enable Batch/Serial Tracking" styleClass="approved-checkbox,ios-toggle-switch"/>
         </HBox>
     </VBox>
 

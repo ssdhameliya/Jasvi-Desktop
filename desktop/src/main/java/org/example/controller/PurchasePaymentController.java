@@ -24,6 +24,7 @@ import org.example.util.BusinessClock;
 import org.example.util.DatePickerFormatter;
 import org.example.util.IconFactory;
 import org.example.util.OwnedAlert;
+import org.example.util.PaymentConfirmationPromptHelper;
 import org.example.util.UiTaskExecutor;
 import org.example.util.AttachmentPreviewSupport;
 
@@ -44,11 +45,14 @@ import java.util.*;
  * reused or modified.</p>
  */
 public final class PurchasePaymentController implements ScreenLifecycle {
-    public record PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion, String paymentReference, String createdBy, Long statementTransactionId, String statementReference) {
+    public record PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion, String paymentReference, String createdBy, Long statementTransactionId, String statementReference, String emailStatus) {
         public PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion) {
-            this(id, date, reference, paidTo, mode, amount, status, notes, proofPath, paymentType, rowVersion, "", "", null, "");
+            this(id, date, reference, paidTo, mode, amount, status, notes, proofPath, paymentType, rowVersion, "", "", null, "", "PENDING");
         }
-    } //
+        public PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion, String paymentReference, String createdBy, Long statementTransactionId, String statementReference) {
+            this(id, date, reference, paidTo, mode, amount, status, notes, proofPath, paymentType, rowVersion, paymentReference, createdBy, statementTransactionId, statementReference, "PENDING");
+        }
+    }
 
 
     @FXML private Label invoiceNo, invoiceStatus, supplier, supplierPhone, supplierEmail, invoiceDate, dueDate,
@@ -265,7 +269,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
         });
         historyStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().status()));
         if (historyEmailStatus != null) {
-            historyEmailStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() != null ? "SENT" : "PENDING"));
+            historyEmailStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null || v.getValue().emailStatus() == null ? "PENDING" : v.getValue().emailStatus()));
             historyEmailStatus.setCellFactory(c -> new TableCell<>() {
                 @Override protected void updateItem(String val, boolean empty) {
                     super.updateItem(val, empty);
@@ -274,7 +278,11 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                         setGraphic(null);
                     } else {
                         Label badge = new Label(val);
-                        badge.getStyleClass().addAll("status-pill", "status-paid");
+                        if ("SENT".equalsIgnoreCase(val)) {
+                            badge.getStyleClass().addAll("status-pill", "status-paid");
+                        } else {
+                            badge.getStyleClass().addAll("status-pill", "status-pending");
+                        }
                         setGraphic(badge);
                         setText(null);
                     }
@@ -287,14 +295,16 @@ public final class PurchasePaymentController implements ScreenLifecycle {
             private final MenuItem edit = new MenuItem("Edit Payment", IconFactory.compactIcon("edit", 14));
             private final MenuItem view = new MenuItem("View Proof", IconFactory.compactIcon("attachment", 14));
             private final MenuItem folder = new MenuItem("Remove Proof", IconFactory.compactIcon("delete", 14));
+            private final MenuItem sendEmail = new MenuItem("Send Remittance Advice", IconFactory.compactIcon("email", 14));
             private final MenuItem previewEmail = new MenuItem("Preview Payment Email HTML", IconFactory.compactIcon("view", 14));
             {
                 actions.getStyleClass().addAll("approved-button", "approved-secondary-button", "row-actions");
                 actions.setGraphic(IconFactory.compactIcon("actions", 14));
-                actions.getItems().addAll(edit, view, folder, previewEmail);
+                actions.getItems().addAll(edit, view, folder, sendEmail, previewEmail);
                 edit.setOnAction(e -> editPayment(row()));
                 view.setOnAction(e -> openProof(row()));
                 folder.setOnAction(e -> removeStoredProof(row()));
+                sendEmail.setOnAction(e -> sendPaymentEmail(row()));
                 previewEmail.setOnAction(e -> previewPaymentEmailHtml(row()));
                 IconFactory.decorateActionMenu(actions);
             }
@@ -310,9 +320,35 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                 view.setDisable(noProof);
                 boolean bankReconciliation=row!=null&&"BANK_RECONCILIATION".equalsIgnoreCase(row.paymentType());folder.setDisable(noProof||bankReconciliation);
                 edit.setDisable(row == null || bankReconciliation);
+                if (row != null && "SENT".equalsIgnoreCase(row.emailStatus())) {
+                    sendEmail.setText("Resend Remittance Advice");
+                } else {
+                    sendEmail.setText("Send Remittance Advice");
+                }
                 setGraphic(actions);
             }
         });
+    }
+
+    private void sendPaymentEmail(PaymentRow row) {
+        if (row == null || purchase == null) return;
+        LocalDate pDate;
+        try {
+            pDate = LocalDate.parse(row.date());
+        } catch (Exception ex) {
+            pDate = BusinessClock.today();
+        }
+        PaymentConfirmationPromptHelper.openPurchaseTransmissionDialog(
+                amount,
+                purchase,
+                row.id(),
+                row.amount(),
+                row.mode() == null ? "Bank Transfer" : row.mode(),
+                row.reference() == null ? "-" : row.reference(),
+                pDate,
+                row.notes() == null ? "" : row.notes(),
+                this::loadHistory
+        );
     }
 
     private void openPaymentRefBankStatement(PaymentRow row) {
@@ -490,6 +526,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
             final LocalDate activeDate = paymentDate.getValue();
             final String activeNotes = persistedNotes();
             setSaveBusy(true);
+            record SaveResult(int paymentId, String warning) {}
             UiTaskExecutor.submitAction(
                     "purchase-payment-save",
                     () -> {
@@ -500,15 +537,15 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                             catch (Exception proofError) { warning = "Payment was saved, but the proof could not be uploaded: " + message(proofError); }
                         }
                         NotificationService.add("Supplier payment recorded for " + invoice);
-                        return warning;
+                        return new SaveResult(paymentId, warning);
                     },
-                    warning -> {
+                    res -> {
                         setSaveBusy(false);
                         org.example.util.AppDialogService.success(amount, "Payment saved", "Supplier payment saved successfully.");
                         org.example.util.ScreenRefreshPolicy.invalidate("purchase-register");
                         refreshInvoiceAmounts(); resetForm(); org.example.navigation.UnsavedChangesManager.markClean(amount); loadHistory();
-                        if (warning != null) new OwnedAlert(Alert.AlertType.WARNING, warning).showAndWait();
-                        org.example.util.PaymentConfirmationPromptHelper.promptAndTransmitPurchase(amount, activePurchase, paidAmount, activeMode, activeRef, activeDate, activeNotes);
+                        if (res.warning() != null) new OwnedAlert(Alert.AlertType.WARNING, res.warning()).showAndWait();
+                        org.example.util.PaymentConfirmationPromptHelper.promptAndTransmitPurchase(amount, activePurchase, res.paymentId(), paidAmount, activeMode, activeRef, activeDate, activeNotes, this::loadHistory);
                     },
                     failure -> { setSaveBusy(false); new OwnedAlert(Alert.AlertType.ERROR, message(failure)).showAndWait(); }
             );
@@ -625,7 +662,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                                 : "FULL".equalsIgnoreCase(row.paymentType()) ? "Full Payment"
                                 : "PARTIAL".equalsIgnoreCase(row.paymentType()) ? "Partial Payment" : "Recorded";
                         allPayments.add(new PaymentRow(row.id(), row.date(), safe(row.reference()), paidToValue,
-                                safe(row.mode()), row.amount(), status, safe(row.notes()), safe(row.attachment()), safe(row.paymentType()), row.rowVersion(), safe(row.paymentReference()), safe(row.createdBy()), row.statementTransactionId(), safe(row.statementReference())));
+                                safe(row.mode()), row.amount(), status, safe(row.notes()), safe(row.attachment()), safe(row.paymentType()), row.rowVersion(), safe(row.paymentReference()), safe(row.createdBy()), row.statementTransactionId(), safe(row.statementReference()), safeOr(row.emailStatus(), "PENDING")));
                     }
                     historyTable.getItems().setAll(allPayments);
                     historyCount.setText(allPayments.size() + " Payment" + (allPayments.size() == 1 ? "" : "s"));

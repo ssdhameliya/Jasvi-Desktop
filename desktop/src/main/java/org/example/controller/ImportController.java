@@ -401,7 +401,12 @@ public class ImportController implements ScreenLifecycle {
         if (btnRevalidate != null) btnRevalidate.setGraphic(IconFactory.compactIcon("validate", 16));
         lblDropIcon.setGraphic(IconFactory.icon("import", 30));
 
-        if (btnImportGuide != null) btnImportGuide.setGraphic(IconFactory.compactIcon("document", 16));
+        if (btnImportGuide != null) {
+            btnImportGuide.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            btnImportGuide.setText("");
+            btnImportGuide.setGraphic(IconFactory.compactIcon("info", 16));
+            btnImportGuide.setTooltip(new Tooltip("Data Import & Migration Operational Guide"));
+        }
         if (btnAutoMap != null) btnAutoMap.setGraphic(IconFactory.compactIcon("settings", 16));
         if (btnResetMapping != null) btnResetMapping.setGraphic(IconFactory.compactIcon("reset", 16));
 

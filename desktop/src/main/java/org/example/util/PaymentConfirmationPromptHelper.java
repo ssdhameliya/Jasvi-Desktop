@@ -40,6 +40,19 @@ public final class PaymentConfirmationPromptHelper {
             String referenceNo,
             LocalDate paymentDate,
             String notes) {
+        promptAndTransmit(ownerNode, sale, null, paymentAmount, paymentMode, referenceNo, paymentDate, notes, null);
+    }
+
+    public static void promptAndTransmit(
+            Node ownerNode,
+            Sales sale,
+            Integer paymentId,
+            double paymentAmount,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            Runnable onSentCallback) {
 
         if (!ConfigManager.getBoolean("bank.paymentConfirmationEmail.enabled", true)) {
             return;
@@ -69,7 +82,7 @@ public final class PaymentConfirmationPromptHelper {
 
             var choice = alert.showAndWait();
             if (choice.isPresent() && choice.get() == btnSend) {
-                openSaleTransmissionDialog(ownerNode, sale, amount, safeMode, safeRef, safeDate, safeNotes);
+                openSaleTransmissionDialog(ownerNode, sale, paymentId, amount, safeMode, safeRef, safeDate, safeNotes, onSentCallback);
             }
         });
     }
@@ -82,6 +95,19 @@ public final class PaymentConfirmationPromptHelper {
             String referenceNo,
             LocalDate paymentDate,
             String notes) {
+        promptAndTransmitPurchase(ownerNode, purchase, null, paymentAmount, paymentMode, referenceNo, paymentDate, notes, null);
+    }
+
+    public static void promptAndTransmitPurchase(
+            Node ownerNode,
+            Purchase purchase,
+            Integer paymentId,
+            double paymentAmount,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            Runnable onSentCallback) {
 
         if (!ConfigManager.getBoolean("bank.paymentConfirmationEmail.enabled", true)) {
             return;
@@ -111,7 +137,7 @@ public final class PaymentConfirmationPromptHelper {
 
             var choice = alert.showAndWait();
             if (choice.isPresent() && choice.get() == btnSend) {
-                openPurchaseTransmissionDialog(ownerNode, purchase, amount, safeMode, safeRef, safeDate, safeNotes);
+                openPurchaseTransmissionDialog(ownerNode, purchase, paymentId, amount, safeMode, safeRef, safeDate, safeNotes, onSentCallback);
             }
         });
     }
@@ -129,6 +155,24 @@ public final class PaymentConfirmationPromptHelper {
             String ref,
             LocalDate date,
             String notes) {
+        promptAndTransmitReturn(ownerNode, null, returnNo, partyName, partyEmail, originalDocNo, returnType, refundAmount, remainingBalance, mode, ref, date, notes, null);
+    }
+
+    public static void promptAndTransmitReturn(
+            Node ownerNode,
+            Integer refundId,
+            String returnNo,
+            String partyName,
+            String partyEmail,
+            String originalDocNo,
+            String returnType,
+            double refundAmount,
+            double remainingBalance,
+            String mode,
+            String ref,
+            LocalDate date,
+            String notes,
+            Runnable onSentCallback) {
 
         if (!ConfigManager.getBoolean("bank.paymentConfirmationEmail.enabled", true)) {
             return;
@@ -159,19 +203,21 @@ public final class PaymentConfirmationPromptHelper {
 
             var choice = alert.showAndWait();
             if (choice.isPresent() && choice.get() == btnSend) {
-                openReturnTransmissionDialog(ownerNode, rNo, pName, pEmail, originalDocNo, rType, amount, remainingBalance, safeMode, safeRef, safeDate, safeNotes);
+                openReturnTransmissionDialog(ownerNode, refundId, rNo, pName, pEmail, originalDocNo, rType, amount, remainingBalance, safeMode, safeRef, safeDate, safeNotes, onSentCallback);
             }
         });
     }
 
-    private static void openSaleTransmissionDialog(
+    public static void openSaleTransmissionDialog(
             Node ownerNode,
             Sales sale,
+            Integer paymentId,
             double amountPaid,
             String paymentMode,
             String referenceNo,
             LocalDate paymentDate,
-            String notes) {
+            String notes,
+            Runnable onSentCallback) {
 
         try {
             double total = sale.getTotalAmount();
@@ -223,20 +269,22 @@ public final class PaymentConfirmationPromptHelper {
                     sale.getId()
             );
 
-            showAndTransmit(ownerNode, draft, "Payment Confirmation");
+            showAndTransmit(ownerNode, draft, "Payment Confirmation", paymentId, null, onSentCallback);
         } catch (Exception ex) {
             AppDialogService.error(ownerNode, "Error", ex.getMessage() == null ? "Failed to prepare payment confirmation email." : ex.getMessage());
         }
     }
 
-    private static void openPurchaseTransmissionDialog(
+    public static void openPurchaseTransmissionDialog(
             Node ownerNode,
             Purchase purchase,
+            Integer paymentId,
             double amountPaid,
             String paymentMode,
             String referenceNo,
             LocalDate paymentDate,
-            String notes) {
+            String notes,
+            Runnable onSentCallback) {
 
         try {
             double total = purchase.getTotalAmount();
@@ -288,14 +336,15 @@ public final class PaymentConfirmationPromptHelper {
                     purchase.getId()
             );
 
-            showAndTransmit(ownerNode, draft, "Supplier Remittance Advice");
+            showAndTransmit(ownerNode, draft, "Supplier Remittance Advice", paymentId, null, onSentCallback);
         } catch (Exception ex) {
             AppDialogService.error(ownerNode, "Error", ex.getMessage() == null ? "Failed to prepare remittance advice email." : ex.getMessage());
         }
     }
 
-    private static void openReturnTransmissionDialog(
+    public static void openReturnTransmissionDialog(
             Node ownerNode,
+            Integer refundId,
             String returnNo,
             String partyName,
             String partyEmail,
@@ -306,7 +355,8 @@ public final class PaymentConfirmationPromptHelper {
             String paymentMode,
             String referenceNo,
             LocalDate paymentDate,
-            String notes) {
+            String notes,
+            Runnable onSentCallback) {
 
         try {
             String dateText = BusinessClock.formatDate(paymentDate);
@@ -363,13 +413,19 @@ public final class PaymentConfirmationPromptHelper {
                     returnId
             );
 
-            showAndTransmit(ownerNode, draft, "Refund Settlement Confirmation");
+            showAndTransmit(ownerNode, draft, "Refund Settlement Confirmation", null, refundId, onSentCallback);
         } catch (Exception ex) {
             AppDialogService.error(ownerNode, "Error", ex.getMessage() == null ? "Failed to prepare refund settlement email." : ex.getMessage());
         }
     }
 
-    private static void showAndTransmit(Node ownerNode, EmailTransmissionDialog.EmailDraft draft, String operationTitle) {
+    private static void showAndTransmit(
+            Node ownerNode,
+            EmailTransmissionDialog.EmailDraft draft,
+            String operationTitle,
+            Integer paymentId,
+            Integer refundId,
+            Runnable onSent) {
         var opt = EmailTransmissionDialog.show(ownerNode, draft);
         if (opt.isPresent()) {
             var res = opt.get();
@@ -386,12 +442,23 @@ public final class PaymentConfirmationPromptHelper {
                             supportApi.communication(new SupportApiClient.CommunicationRequest(
                                     eType, eId, "EMAIL", res.recipientEmail(), res.subject(), "SENT", null, actor
                             ));
+                            if (paymentId != null && paymentId > 0) {
+                                supportApi.updatePaymentEmailStatus(paymentId, "SENT");
+                            }
+                            if (refundId != null && refundId > 0) {
+                                new org.example.api.returns.ReturnApiClient().updateRefundEmailStatus(refundId, "SENT");
+                            }
                         } catch (Exception logEx) {
                             System.err.println("[PaymentConfirmation] Error logging communication: " + logEx.getMessage());
                         }
                         reporter.stage(3, 3, "Message delivered successfully.");
                     },
-                    () -> AppDialogService.success(ownerNode, "Email Sent", operationTitle + " delivered successfully to " + res.recipientEmail() + "."),
+                    () -> {
+                        if (onSent != null) {
+                            try { onSent.run(); } catch (Exception ignored) {}
+                        }
+                        AppDialogService.success(ownerNode, "Email Sent", operationTitle + " delivered successfully to " + res.recipientEmail() + ".");
+                    },
                     err -> {
                         try {
                             String actor = SessionService.current() != null ? SessionService.current().getUsername() : "System";

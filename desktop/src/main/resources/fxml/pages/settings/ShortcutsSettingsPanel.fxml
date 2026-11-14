@@ -100,8 +100,8 @@
     <Label fx:id="lblShortcutScopeHint"/>
     <TextArea fx:id="txtShortcutDescription"/>
     <ToggleButton fx:id="chkShortcutActive"/>
-    <CheckBox fx:id="chkShortcutAllowTextInput"/>
-    <CheckBox fx:id="chkShortcutRequireSelection"/>
+    <CheckBox fx:id="chkShortcutAllowTextInput" text="Allow in Text Inputs" styleClass="approved-checkbox,ios-toggle-switch"/>
+    <CheckBox fx:id="chkShortcutRequireSelection" text="Require Selection" styleClass="approved-checkbox,ios-toggle-switch"/>
     <VBox fx:id="shortcutConflictBox">
       <Label fx:id="lblShortcutConflict"/>
     </VBox>

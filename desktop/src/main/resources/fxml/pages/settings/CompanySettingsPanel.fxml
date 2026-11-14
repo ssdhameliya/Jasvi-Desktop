@@ -162,7 +162,7 @@
                                         <Label text="Manage public 3D coverflow workstations, machinery photography, tolerance specifications, and instant RFQ settings." wrapText="true" styleClass="settings-field-hint"/>
                                     </VBox>
                                     <Button fx:id="btnLaunchShowcaseStudio" text="Launch 3D Showcase Studio" onAction="#launchShowcaseStudio" styleClass="approved-button,approved-primary-button"/>
-                                    <Button fx:id="btnPreviewShowcase" text="Preview Website" onAction="#previewShowcaseInBrowser" styleClass="approved-button,approved-secondary-button"/>
+                                    <Button fx:id="btnPreviewShowcase" text="Preview Website" onAction="#previewShowcaseInBrowser" styleClass="approved-button,approved-indigo-button"/>
                                 </HBox>
                             </VBox>
 </VBox>

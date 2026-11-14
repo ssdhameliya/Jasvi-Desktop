@@ -316,8 +316,13 @@ public class ReturnService {
     @Transactional(readOnly = true)
     public List<ReturnDtos.RefundRow> refunds(String no) {
         requireAccess(no);
-        return jdbc.query("SELECT id,refund_date,COALESCE(reference_no,''),COALESCE(payment_mode,''),COALESCE(bank_account,''),amount,COALESCE(refunded_party,''),CASE WHEN UPPER(COALESCE(refund_type,''))='BANK_RECONCILIATION' THEN 'RECONCILED' ELSE 'RECORDED' END,COALESCE(notes,''),COALESCE(attachment_path,''),COALESCE(refund_type,'PARTIAL') FROM return_refund WHERE return_no=? ORDER BY refund_date DESC,id DESC",
-            (r, i) -> new ReturnDtos.RefundRow(r.getInt(1), String.valueOf(r.getObject(2)), r.getString(3), r.getString(4), r.getString(5), r.getDouble(6), r.getString(7), r.getString(8), r.getString(9), r.getString(10), r.getString(11)), no);
+        return jdbc.query("SELECT id,refund_date,COALESCE(reference_no,''),COALESCE(payment_mode,''),COALESCE(bank_account,''),amount,COALESCE(refunded_party,''),CASE WHEN UPPER(COALESCE(refund_type,''))='BANK_RECONCILIATION' THEN 'RECONCILED' ELSE 'RECORDED' END,COALESCE(notes,''),COALESCE(attachment_path,''),COALESCE(refund_type,'PARTIAL'),COALESCE(email_status,'PENDING') FROM return_refund WHERE return_no=? ORDER BY refund_date DESC,id DESC",
+            (r, i) -> new ReturnDtos.RefundRow(r.getInt(1), String.valueOf(r.getObject(2)), r.getString(3), r.getString(4), r.getString(5), r.getDouble(6), r.getString(7), r.getString(8), r.getString(9), r.getString(10), r.getString(11), r.getString(12)), no);
+    }
+
+    @Transactional
+    public void updateRefundEmailStatus(int refundId, String status) {
+        jdbc.update("UPDATE return_refund SET email_status=? WHERE id=?", (status == null || status.isBlank()) ? "PENDING" : status.trim().toUpperCase(Locale.ROOT), refundId);
     }
 
     @Transactional
