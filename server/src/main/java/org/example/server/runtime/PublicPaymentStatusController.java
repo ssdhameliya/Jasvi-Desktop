@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Delegates all business logic and persistence retrieval to PublicPaymentStatusService.
  */
 @RestController
-@RequestMapping({"/public/payment-status", "/api/public/payment-status"})
+@RequestMapping({"/payment-status", "/public/payment-status", "/api/public/payment-status"})
 public class PublicPaymentStatusController {
 
     private final PublicPaymentStatusService service;

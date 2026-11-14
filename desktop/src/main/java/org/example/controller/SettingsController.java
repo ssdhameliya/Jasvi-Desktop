@@ -236,6 +236,9 @@ public class SettingsController implements ScreenLifecycle {
     private TextField txtCompanyWebsite;
 
     @FXML
+    private TextField txtPublicPortalUrl;
+
+    @FXML
     private TextField txtCompanyTagline;
 
     @FXML
@@ -797,7 +800,8 @@ public class SettingsController implements ScreenLifecycle {
             }
             case INVOICE -> new InvoiceSettingsSnapshot(
                     ConfigManager.get("company.address", ""), ConfigManager.get("company.state", ""),
-                    ConfigManager.get("company.website", ""), ConfigManager.get("company.tagline", "Business Solution - Simplified"),
+                    ConfigManager.get("company.website", ""), ConfigManager.get("company.publicPortalUrl", ""),
+                    ConfigManager.get("company.tagline", "Business Solution - Simplified"),
                     ConfigManager.get("company.shipAddress", ""), ConfigManager.get("company.terms", ""),
                     ConfigManager.get("company.currency", "INR - Indian Rupee"),
                     ConfigManager.get("company.timeZone", BusinessClock.zone().getId()),
@@ -896,6 +900,7 @@ public class SettingsController implements ScreenLifecycle {
             case INVOICE -> {
                 InvoiceSettingsSnapshot value = (InvoiceSettingsSnapshot) snapshot;
                 txtCompanyAddress.setText(value.address()); txtCompanyState.setText(value.state()); txtCompanyWebsite.setText(value.website());
+                if (txtPublicPortalUrl != null) txtPublicPortalUrl.setText(value.publicPortalUrl());
                 txtCompanyTagline.setText(value.tagline()); txtShipAddress.setText(value.shipAddress()); txtInvoiceTerms.setText(value.terms());
                 selectComboValue(cmbCurrency, value.currency()); selectComboValue(cmbTimeZone, value.timeZone()); selectComboValue(cmbDateFormat, value.dateFormat());
                 if (cmbTimeFormat != null) selectComboValue(cmbTimeFormat, value.timeFormat());
@@ -979,7 +984,7 @@ public class SettingsController implements ScreenLifecycle {
                                            String businessType, String industry, String financialYearStart) { }
     private record PaymentSettingsSnapshot(String upiId, String accountHolder, String bankName, String accountNumber, String ifsc,
                                            String branch, String accountType, List<String> accountTypes, String roundingTolerance) { }
-    private record InvoiceSettingsSnapshot(String address, String state, String website, String tagline, String shipAddress,
+    private record InvoiceSettingsSnapshot(String address, String state, String website, String publicPortalUrl, String tagline, String shipAddress,
                                            String terms, String currency, String timeZone, String dateFormat, String timeFormat) { }
     private record EmailSettingsSnapshot(String email, String password, String host, String port, boolean passwordConfigured, boolean editable, String wahaEndpoint, boolean wahaEnabled) { }
     private record WhatsappSettingsSnapshot(String wahaEndpoint, boolean wahaEnabled, String activeSender,
@@ -3144,6 +3149,7 @@ private record AssetPreviewRequest(
         putSetting("company.address", text(txtCompanyAddress));
         putSetting("company.state", text(txtCompanyState));
         putSetting("company.website", text(txtCompanyWebsite));
+        if (txtPublicPortalUrl != null) putSetting("company.publicPortalUrl", text(txtPublicPortalUrl));
         putSetting("company.tagline", text(txtCompanyTagline));
         putSetting("company.shipAddress", text(txtShipAddress));
         putSetting("company.terms", text(txtInvoiceTerms));

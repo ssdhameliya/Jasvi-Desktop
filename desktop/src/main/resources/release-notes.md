@@ -1,3 +1,30 @@
+# What's New in DSE ERP v11.0.63
+
+### Shared Client Workspace Self-Healing & Setup Wizard Bypass
+- **Automatic Shared Client Recovery (`WorkspaceManager.java`, `SetupWizardController.java`) (Rule 4, Rule 17)**:
+  - Eliminated the recurring Setup Wizard ("Choose your workspace") modal dialog pop-up on UAT and PROD workstation launches.
+  - Implemented automatic pointer file self-healing: If `workspace.properties` is missing or temporarily cleared on a client machine where `%APPDATA%\DSE ERP\SharedClient` already exists with valid shared client settings, `WorkspaceManager.initialize()` instantly repairs the pointer and locks to `MANAGED_SHARED_ROOT`, launching straight into the Login Screen without user friction.
+  - Enhanced `SetupWizardController.java` to pre-select the "Connect to an existing workspace (Shared Client)" radio button whenever existing shared configuration is detected.
+
+### Brand Domain Realignment & Zero-Failure Live Settlement Verification Gateway
+- **Configurable Public URL for HTML View & Direct Backend Server Resolution (`InvoiceSettingsPanel.fxml`, `SettingsController.java`, `MessageTemplateService.java`) (Rule 2, Rule 4, Rule 5, Rule 11 & Rule 17)**:
+  - Added explicit **"Public URL for HTML View"** (`company.publicPortalUrl`) setting in **Settings ➔ Invoices & Delivery**, placed symmetrically alongside the Company Website field.
+  - Transparent & Predictable Resolution: When configured by an operator or developer, the system uses the exact URL specified. When left blank, it automatically defaults to the connected Spring Boot backend server (`ConfigManager.getDataApiBaseUrl()`):
+    - **Local Workstation:** `http://127.0.0.1:58080/payment-status` (seamless local browser testing with `[ 🌐 Preview Real HTML ]`)
+    - **UAT Cloud:** `https://api-uat.jasviindustries.in/payment-status` (isolated UAT testing)
+    - **PROD Cloud:** `https://api.jasviindustries.in/payment-status` (official production verification)
+  - Completely decouples public customer verification from internal administrative portals (`erp.jasviindustries.in`).
+- **Resilient Document Privacy Verification Gateway & Zero 400 Bad Request Rejections (`PublicPaymentStatusService.java`, `MessageTemplateService.java`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Eliminated abrupt `400 Bad Request` errors caused when aggressive email security sanitizers (Gmail, Outlook, SafeLinks) strip or truncate unescaped URL query tokens.
+  - Hardened HTML link attributes by escaping `&` to `&amp;` in all email CTAs.
+  - Implemented graceful Document Privacy Verification Gateway: If a link's cryptographic token is stripped, customers can verify their document by entering ANY ONE of:
+    1. Invoice / Bill Number
+    2. Document Date
+    3. Total or Settlement Amount
+  - Added relative form submission action ensuring seamless verification across all domains.
+- **Settings-Driven Date Formatting Parity (`MessageTemplateService.java`, `SettingsController.java`) (Rule 13)**:
+  - Enhanced `cleanExecutiveDate(...)` to parse and format dates from ISO, standard Indian, and day-number strings into full `DD MMM YYYY` format across all email templates.
+
 # What's New in DSE ERP v11.0.62
 
 ### Dynamic Stage & Taskbar Icon Personalization from Application Mark

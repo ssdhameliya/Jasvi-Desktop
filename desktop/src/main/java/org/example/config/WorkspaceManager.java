@@ -67,6 +67,16 @@ public final class WorkspaceManager {
                 }
             }
 
+            // If the persistent pointer is missing/invalid, check if the managed SharedClient storage
+            // already exists on disk with a valid shared-client configuration. Auto-heal the pointer
+            // so updates and workstation launches never unnecessarily prompt with SetupWizard.
+            if (Files.isDirectory(MANAGED_SHARED_ROOT) && isSharedClientConfig(MANAGED_SHARED_ROOT)) {
+                writePointer(MANAGED_SHARED_ROOT);
+                workspaceRoot = MANAGED_SHARED_ROOT;
+                ensureStructure(workspaceRoot);
+                return;
+            }
+
             // Missing/invalid pointers are recoverable. The setup/recovery screen always
             // offers "Use Existing Workspace" so an upgrade never forces data recreation.
             workspaceRoot = null;
