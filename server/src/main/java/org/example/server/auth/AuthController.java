@@ -22,8 +22,16 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<AuthDtos.LoginResponse> login(@RequestBody AuthDtos.LoginRequest request, HttpServletRequest httpRequest) {
-        AuthDtos.LoginResponse result = auth.login(request, httpRequest == null ? "" : httpRequest.getRemoteAddr());
-        return result.success() ? ResponseEntity.ok(result) : ResponseEntity.status(401).body(result);
+        String clientIp = httpRequest == null ? "" : httpRequest.getRemoteAddr();
+        String machineId = httpRequest == null ? null : httpRequest.getHeader("X-Machine-Id");
+        AuthDtos.LoginResponse result = auth.login(request, clientIp, machineId);
+        if (result == null || !result.success()) {
+            if (result != null && result.message() != null && result.message().contains("Access Blocked")) {
+                return ResponseEntity.status(403).body(result);
+            }
+            return ResponseEntity.status(401).body(result);
+        }
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/login/mfa/complete")

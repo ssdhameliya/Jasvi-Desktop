@@ -1,3 +1,55 @@
+# What's New in DSE ERP v11.0.60
+
+### Pre-Authentication Execution Resilience & Login Button Unfreeze
+- **UiTaskExecutor Pre-Auth Key Recognition (`UiTaskExecutor.java`) (Rule 4, Rule 10 & Rule 17)**:
+  - Fixed pre-authentication failure handler suppression where incorrect password attempts left the login button permanently frozen on `"SIGNING IN..."`.
+  - Added `isPreAuthKey(key)` recognizing `login-*`, `registration-*`, `register-*`, and `password-reset-*` tasks, allowing login errors to cleanly report feedback and re-enable buttons.
+
+### Master Licensor Studio Multi-User Work-Hours & Session Telemetry
+- **Multi-User Live Telemetry Drawer (`ClientRegistry.fxml`, `ClientRegistryController.java`, `V11_0_60__client_user_work_session_telemetry.sql`) (Rule 4, Rule 5, Rule 7, Rule 11 & Rule 12)**:
+  - Added `client_user_telemetry` tracking real-time work sessions for all users in a company (e.g. Company A with 3 users).
+  - Displays Username, Role, First Login Today, Last Logout / Active Now, Total Cumulative Work Hours Today, and Live Online/Offline status badge.
+  - Added instant administrative action buttons: `[ 🛑 Kick Session ]` and `[ 🔒 Lock User ]`.
+  - Added `colPurchased` in Master Client Registry table showing Plan Tier (Gold, Silver, Platinum) and Purchase Status (`Purchased` vs `Trial / Unpaid`).
+
+### Automated Rogue Local Instance Detection & Dual Security Alert
+- **Rogue Client Interceptor & Instant 1-Click Remote Kick (`ClientRegistryService.java`, `LicensingApiController.java`, `DashboardController.java`) (Rule 4, Rule 10 & Rule 17)**:
+  - Heartbeat automatically detects standalone or offline local instances running without an active registered plan.
+  - Dual-Channel Alert: Simultaneously dispatches high-priority Email and WhatsApp message to Super Admin's primary number with machine UUID, IP address, hostname, and reported users.
+  - One-Click Remote Kill Switch: Email and WhatsApp contain an HMAC-signed 1-click URL (`/api/license/super/kick-client`) allowing Super Admin to immediately terminate active sessions and blacklist the rogue terminal from any mobile device without logging in.
+  - Rogue terminal receives instant `403 LICENSE_BLOCKED` lockout modal suspending application access.
+
+### Cross-Platform macOS & Windows Frameless Dialog Visual Parity
+- **Universal Frameless Dialog Architecture (`OwnedAlert.java`, `OwnedDialog.java`, `OwnedChoiceDialog.java`, `OwnedTextInputDialog.java`, `PlatformUiSupport.java`, `AppDialogRenderer.java`) (Rule 5, Rule 12 & Rule 18)**:
+  - Eliminated native OS window chrome and the macOS 3-button traffic-light top title bar on modal dialogs by unifying all modal stages on `StageStyle.TRANSPARENT`.
+  - Replaced legacy OS-dependent `StageStyle.UTILITY` on macOS with `StageStyle.TRANSPARENT` and unconditional transparent scene fills.
+  - Retains smooth cross-platform dragging via `AppDialogRenderer`'s custom styled header while achieving 100% identical frameless design system parity between Windows and macOS.
+
+### Licensor Studio Telemetry, UI Modernization & Zero-Re-Entry Machine Lockout
+- **Table Header Icon-to-Text Gap Elimination & Left Alignment (`IconFactory.java`, `light-theme.css`, `dark-theme.css`) (Rule 5 & Rule 7)**:
+  - Eliminated the wide empty gap between table header icons and header text across all 74 desktop registers and tables.
+  - Realigned `.column-header .label`, `.erp-table-header-content`, and `.erp-table-header-label` to `CENTER-LEFT` with 4px tight spacing and explicit `title.setAlignment(Pos.CENTER_LEFT)`, anchoring icons and labels side-by-side at the start of each column.
+- **PostgreSQL User Lock Integer Column Compatibility (`ClientRegistryService.java`) (Rule 4 & Rule 17)**:
+  - Resolved `java.lang.IllegalStateException: ERROR: column "locked" is of type integer but expression is of type boolean` in `ClientRegistryService.lockClientUser`.
+  - Updated the update query to integer `1` (`UPDATE users SET locked = 1, lock_reason = 'LICENSOR_ADMIN', row_version = row_version + 1 WHERE username = ?`), strictly complying with PostgreSQL 16 schema.
+- **Remote Licensor User Unlock & Deactivation / Activation Lifecycle (`ClientRegistryService.java`, `ClientRegistryController.java`, `ClientRegistryApiClient.java`, `ClientRegistryController.java`) (Rule 4, Rule 8 & Rule 17)**:
+  - Added `unlockClientUser` API and service logic resetting `locked = 0`, `lock_reason = 'NONE'`, `failed_attempts = 0`, and `mfa_failed_attempts = 0`.
+  - Added `setUserActiveStatus` API and service logic updating `active = 1` or `0`, terminating active tokens from `auth_session` and setting telemetry `is_active_now = false` upon deactivation.
+  - Upgraded telemetry dialog user action menu to dynamically toggle between `[ 🔒 Lock Account ]` / `[ 🟢 Unlock Account ]` and `[ ⏸️ Deactivate User ]` / `[ ▶️ Activate User ]` with virtual thread execution and instant UI refresh.
+- **Direct Interactive Telemetry Badge (`ClientRegistryController.java`) (Rule 8 & Rule 11)**:
+  - Added pointer cursor and direct click handler to the `🟢 Online • 1/5 Users` badge in the Live Telemetry column, instantly opening the Multi-User Telemetry dialog without navigating into the Actions menu.
+- **Content-Adaptive Telemetry Dialog & Standard Actions (`ClientRegistryController.java`) (Rule 7, Rule 8 & Rule 12)**:
+  - Expanded Live Users & Work-Hours dialog width to 1060px, allocating dynamic proportional widths to prevent column header and value truncation (`SUPER_ADMIN` displayed in full).
+  - Standardized user action controls with a central `MenuButton` dropdown (`Kick Session`, `Lock / Unlock Account`, `Deactivate / Activate User`), eliminating clipped inline buttons and `...` ellipsis.
+- **Subscription Plans Active Modules Hyperlink (`ClientRegistryController.java`) (Rule 8 & Rule 11)**:
+  - Turned the `Features` column (`28 / 28 Modules Active`) into an interactive hyperlink that opens the complete module access inspection matrix.
+- **Main Client Registry Direct Session Kick Action (`ClientRegistryController.java`) (Rule 8 & Rule 17)**:
+  - Added dedicated `🛑 Kick Active User Sessions` action in the client row Actions menu to terminate active sessions immediately.
+- **Instant Rogue Alert Testing Tool (`ClientRegistry.fxml`, `LicensingApiController.java`, `ClientRegistryApiClient.java`) (Rule 10 & Rule 17)**:
+  - Added `[ 🧪 Test Rogue Alert ]` toolbar action in Licensor Studio to test the automated Email & WhatsApp alert pipeline with a live HMAC-signed 1-click Kick URL.
+- **Turn-Zero Login Gate Machine Blacklist (`AuthService.java`, `AuthController.java`, `AuthApiClient.java`) (Rule 4 & Rule 17)**:
+  - Hardened `/api/auth/login` to inspect workstation hardware ID (`X-Machine-Id`). If the machine is marked `BLOCKED` in `licensed_client_registry`, sign-in is immediately rejected with a `403 FORBIDDEN` lockout, preventing kicked or rogue machines from logging in with new or existing users.
+
 # What's New in DSE ERP v11.0.59
 
 ### 15-Tier Universal Button Semantic Colorization & Theme Parity

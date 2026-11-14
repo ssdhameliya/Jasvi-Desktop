@@ -479,7 +479,35 @@ public class DashboardController implements ScreenLifecycle {
                         remoteUrl = String.valueOf(tunnelStatus.get("liveUrl"));
                     }
                 } catch (Exception ignored) {}
-                new org.example.api.licensing.ClientRegistryApiClient().sendHeartbeat(machineId, ver, 1, remoteUrl);
+
+                String companyName = org.example.service.BrandingService.companyName();
+
+                java.util.List<java.util.Map<String, Object>> users = new java.util.ArrayList<>();
+                if (SessionService.current() != null) {
+                    users.add(java.util.Map.of(
+                            "username", SessionService.current().getUsername(),
+                            "roleCode", SessionService.currentRole(),
+                            "durationSeconds", 30L,
+                            "isActive", true,
+                            "isLogout", false
+                    ));
+                }
+
+                var resp = new org.example.api.licensing.ClientRegistryApiClient().sendHeartbeat(
+                        machineId, ver, 1, remoteUrl, companyName, users
+                );
+
+                if (resp != null && "BLOCKED".equalsIgnoreCase(String.valueOf(resp.get("status")))) {
+                    javafx.application.Platform.runLater(() -> {
+                        AppDialogService.error(
+                                shellRoot != null ? shellRoot : contentPane,
+                                "Access Suspended",
+                                "Workstation Suspended by Licensor",
+                                "This workstation has been locked by Jasvi Platform Authority. Please contact Jasvi Industries."
+                        );
+                        logout();
+                    });
+                }
             } catch (Exception ignored) {}
         });
     }

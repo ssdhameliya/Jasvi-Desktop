@@ -124,12 +124,43 @@ public class ClientRegistryApiClient {
     }
 
     public Map<String, Object> sendHeartbeat(String machineId, String clientVersion, Integer activeUsers, String remoteUrl) {
+        return sendHeartbeat(machineId, clientVersion, activeUsers, remoteUrl, null, null);
+    }
+
+    public Map<String, Object> sendHeartbeat(String machineId, String clientVersion, Integer activeUsers, String remoteUrl,
+                                             String companyName, List<Map<String, Object>> users) {
         java.util.Map<String, Object> body = new java.util.HashMap<>();
         if (machineId != null) body.put("machineId", machineId);
         if (clientVersion != null) body.put("clientVersion", clientVersion);
         if (activeUsers != null) body.put("activeUsers", activeUsers);
         if (remoteUrl != null) body.put("remoteUrl", remoteUrl);
+        if (companyName != null) body.put("companyName", companyName);
+        if (users != null && !users.isEmpty()) body.put("users", users);
         return post("/api/license/heartbeat", body, new TypeReference<>() {});
+    }
+
+    public List<Map<String, Object>> getClientUsers(String machineId) {
+        return get("/api/license/registry/clients/" + machineId + "/users", new TypeReference<>() {});
+    }
+
+    public Map<String, Object> kickClientUser(String machineId, String username) {
+        return post("/api/license/registry/clients/" + machineId + "/users/" + username + "/kick", Map.of(), new TypeReference<>() {});
+    }
+
+    public Map<String, Object> lockClientUser(String machineId, String username) {
+        return post("/api/license/registry/clients/" + machineId + "/users/" + username + "/lock", Map.of(), new TypeReference<>() {});
+    }
+
+    public Map<String, Object> unlockClientUser(String machineId, String username) {
+        return post("/api/license/registry/clients/" + machineId + "/users/" + username + "/unlock", Map.of(), new TypeReference<>() {});
+    }
+
+    public Map<String, Object> setUserActiveStatus(String machineId, String username, boolean active) {
+        return post("/api/license/registry/clients/" + machineId + "/users/" + username + "/active?active=" + active, Map.of(), new TypeReference<>() {});
+    }
+
+    public Map<String, Object> triggerTestRogueAlert() {
+        return post("/api/license/super/test-rogue-alert", Map.of(), new TypeReference<>() {});
     }
 
     private <T> T get(String path, TypeReference<T> typeRef) {

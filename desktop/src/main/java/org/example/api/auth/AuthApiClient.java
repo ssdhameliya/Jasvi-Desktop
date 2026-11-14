@@ -339,11 +339,12 @@ public final class AuthApiClient {
                     .timeout(REQUEST_TIMEOUT)
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
+                    .header("X-Machine-Id", org.example.shared.licensing.HardwareFingerprintUtil.getDisplayMachineId())
                     .POST(HttpRequest.BodyPublishers.ofString(payload));
             if (!isPublicAuthPath(path)) ApiSession.authorize(builder);
             HttpRequest request = builder.build();
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 401 && responseType == LoginResponse.class) {
+            if ((response.statusCode() == 401 || response.statusCode() == 403) && responseType == LoginResponse.class) {
                 return json.readValue(response.body(), responseType);
             }
             if (response.statusCode() == 401 || response.statusCode() == 404) return null;

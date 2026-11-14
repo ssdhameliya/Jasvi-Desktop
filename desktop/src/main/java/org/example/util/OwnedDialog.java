@@ -21,7 +21,7 @@ public class OwnedDialog<R> extends Dialog<R> {
 
     public OwnedDialog(Object ownerTarget) {
         Window owner = DialogOwnerResolver.resolve(ownerTarget);
-        initStyle(PlatformUiSupport.isMac() ? StageStyle.UTILITY : StageStyle.TRANSPARENT);
+        initStyle(StageStyle.TRANSPARENT);
         if (owner != null) {
             initOwner(owner);
             initModality(Modality.WINDOW_MODAL);

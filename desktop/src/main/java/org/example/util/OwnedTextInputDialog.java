@@ -12,7 +12,7 @@ public class OwnedTextInputDialog extends TextInputDialog {
 
     private void prepare() {
         Window owner = DialogOwnerResolver.resolve();
-        initStyle(PlatformUiSupport.isMac() ? StageStyle.UTILITY : StageStyle.TRANSPARENT);
+        initStyle(StageStyle.TRANSPARENT);
         if (owner != null) {
             initOwner(owner);
             initModality(Modality.WINDOW_MODAL);
