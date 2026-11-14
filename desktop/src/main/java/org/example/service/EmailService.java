@@ -14,6 +14,45 @@ public final class EmailService {
     private EmailService() {
     }
 
+    public record SenderProfile(String key, String displayName, String email, String password, String host, int port) {}
+
+    public static SenderProfile defaultSenderProfile() {
+        String email = ConfigManager.get("smtp.email", "").trim();
+        String pwd = ConfigManager.getSmtpPassword();
+        String host = ConfigManager.get("smtp.host", "").trim();
+        if (host.isBlank() && !email.isBlank()) {
+            try { host = inferHost(email); } catch (Exception ignored) { host = "smtp.gmail.com"; }
+        }
+        int port = 587;
+        try { port = Integer.parseInt(ConfigManager.get("smtp.port", "587").trim()); } catch (Exception ignored) {}
+        return new SenderProfile("default", BrandingService.companyName(), email, pwd, host, port);
+    }
+
+    public static SenderProfile resolveSenderProfile(String activityKey) {
+        if (!ConfigManager.getBoolean("email.activityRouting.enabled", false) || activityKey == null || activityKey.isBlank()) {
+            return defaultSenderProfile();
+        }
+        String pEmail = ConfigManager.get("email.profile." + activityKey + ".email", "").trim();
+        if (pEmail.isBlank()) {
+            return defaultSenderProfile();
+        }
+        String pName = ConfigManager.get("email.profile." + activityKey + ".name", BrandingService.companyName()).trim();
+        String pPwd = ConfigManager.get("email.profile." + activityKey + ".password", "").trim();
+        if (org.example.shared.SecretValueCodec.isEncrypted(pPwd)) {
+            try { pPwd = org.example.shared.SecretValueCodec.decrypt(pPwd); } catch (Exception ignored) {}
+        }
+        String pHost = ConfigManager.get("email.profile." + activityKey + ".host", "").trim();
+        if (pHost.isBlank()) pHost = ConfigManager.get("smtp.host", "").trim();
+        if (pHost.isBlank()) {
+            try { pHost = inferHost(pEmail); } catch (Exception ignored) { pHost = "smtp.gmail.com"; }
+        }
+        int pPort = 587;
+        try {
+            pPort = Integer.parseInt(ConfigManager.get("email.profile." + activityKey + ".port", ConfigManager.get("smtp.port", "587")).trim());
+        } catch (Exception ignored) {}
+        return new SenderProfile(activityKey, pName, pEmail, pPwd, pHost, pPort);
+    }
+
     public static void sendOtp(String recipient, String otp) {
         send(recipient, BrandingService.applicationName() + " verification code", "Your verification code is " + otp + ". It expires in 10 minutes. Do not share this code.");
     }
@@ -27,6 +66,10 @@ public final class EmailService {
     }
 
     public static void resend(String recipient, String subject, String body, Path attachment, Path signatureImage) {
+        resend(recipient, subject, body, attachment, signatureImage, null);
+    }
+
+    public static void resend(String recipient, String subject, String body, Path attachment, Path signatureImage, SenderProfile profile) {
         org.example.service.PermissionService.require("COMMUNICATION.RESEND", "re-send a communication");
         if (signatureImage == null && MessageTemplateService.isAttachSignatureToEmail()) {
             String configuredSig = MessageTemplateService.getSignatureImagePath();
@@ -42,10 +85,11 @@ public final class EmailService {
             }
         }
         if (ConfigManager.isSharedClient()) {
-            new org.example.api.authority.BusinessEmailClient().resend(recipient, subject, body, attachment, signatureImage);
+            SenderProfile effective = profile != null ? profile : defaultSenderProfile();
+            new org.example.api.authority.BusinessEmailClient().resend(recipient, subject, body, attachment, signatureImage, effective.email(), effective.displayName());
             return;
         }
-        send(recipient, subject, body, attachment, signatureImage);
+        send(recipient, subject, body, attachment, signatureImage, profile);
     }
 
     public static void send(String recipient, String subject, String body, Path attachment) {
@@ -53,6 +97,10 @@ public final class EmailService {
     }
 
     public static void send(String recipient, String subject, String body, Path attachment, Path signatureImage) {
+        send(recipient, subject, body, attachment, signatureImage, null);
+    }
+
+    public static void send(String recipient, String subject, String body, Path attachment, Path signatureImage, SenderProfile profile) {
         if (signatureImage == null && MessageTemplateService.isAttachSignatureToEmail()) {
             String configuredSig = MessageTemplateService.getSignatureImagePath();
             if (configuredSig != null && !configuredSig.isBlank()) {
@@ -66,12 +114,13 @@ public final class EmailService {
                 }
             }
         }
+        SenderProfile effectiveProfile = profile != null ? profile : defaultSenderProfile();
         if (ConfigManager.isSharedClient()) {
-            new org.example.api.authority.BusinessEmailClient().send(recipient, subject, body, attachment, signatureImage);
+            new org.example.api.authority.BusinessEmailClient().send(recipient, subject, body, attachment, signatureImage, effectiveProfile.email(), effectiveProfile.displayName());
             return;
         }
-        String sender = ConfigManager.get("smtp.email", "").trim();
-        String password = ConfigManager.get("smtp.appPassword", "").trim();
+        String sender = effectiveProfile.email().trim();
+        String password = effectiveProfile.password().trim();
         if (sender.isBlank() || password.isBlank()) {
             throw new IllegalStateException("Email is not configured. Open Settings and enter the sending email address and app password.");
         }
@@ -87,12 +136,13 @@ public final class EmailService {
         if (attachment != null && (!Files.isRegularFile(attachment) || !Files.isReadable(attachment))) {
             throw new IllegalStateException("The PDF attachment could not be read: " + attachment);
         }
-        String host = ConfigManager.get("smtp.host", "").trim();
+        String host = effectiveProfile.host().trim();
         if (host.isBlank()) host = inferHost(sender);
         password = password.replaceAll("\\s+", "");
         final String authSender = sender;
         final String authPassword = password;
-        String port = ConfigManager.get("smtp.port", "587").trim();
+        int portVal = effectiveProfile.port() > 0 ? effectiveProfile.port() : 587;
+        String port = Integer.toString(portVal);
         Properties props = new Properties();
         props.put("mail.smtp.host", host);
         props.put("mail.smtp.port", port.isBlank() ? "587" : port);
@@ -110,15 +160,24 @@ public final class EmailService {
         });
         try {
             Message message = new MimeMessage(session);
-            message.setFrom(new InternetAddress(sender));
+            try {
+                message.setFrom(new InternetAddress(sender, effectiveProfile.displayName()));
+            } catch (Exception ex) {
+                message.setFrom(new InternetAddress(sender));
+            }
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipient, true));
             message.setSubject(subject);
 
             boolean hasSignatureImage = signatureImage != null && Files.isRegularFile(signatureImage) && Files.isReadable(signatureImage);
             boolean hasAttachment = attachment != null && Files.isRegularFile(attachment) && Files.isReadable(attachment);
+            boolean isHtml = body != null && (body.contains("<!DOCTYPE html>") || body.contains("<html") || body.contains("<body"));
 
             if (!hasSignatureImage && !hasAttachment) {
-                message.setContent(body == null ? "" : body, "text/plain; charset=UTF-8");
+                if (isHtml) {
+                    message.setContent(body, "text/html; charset=UTF-8");
+                } else {
+                    message.setContent(body == null ? "" : body, "text/plain; charset=UTF-8");
+                }
             } else {
                 var rootMultipart = new jakarta.mail.internet.MimeMultipart("mixed");
 
@@ -126,7 +185,7 @@ public final class EmailService {
                     var relatedMultipart = new jakarta.mail.internet.MimeMultipart("related");
 
                     var htmlPart = new jakarta.mail.internet.MimeBodyPart();
-                    String htmlContent = formatHtmlEmailBody(body, true);
+                    String htmlContent = isHtml ? body : formatHtmlEmailBody(body, true);
                     htmlPart.setContent(htmlContent, "text/html; charset=UTF-8");
                     relatedMultipart.addBodyPart(htmlPart);
 
@@ -145,7 +204,11 @@ public final class EmailService {
                     rootMultipart.addBodyPart(bodyWrapper);
                 } else {
                     var textPart = new jakarta.mail.internet.MimeBodyPart();
-                    textPart.setContent(body == null ? "" : body, "text/plain; charset=UTF-8");
+                    if (isHtml) {
+                        textPart.setContent(body, "text/html; charset=UTF-8");
+                    } else {
+                        textPart.setContent(body == null ? "" : body, "text/plain; charset=UTF-8");
+                    }
                     rootMultipart.addBodyPart(textPart);
                 }
 

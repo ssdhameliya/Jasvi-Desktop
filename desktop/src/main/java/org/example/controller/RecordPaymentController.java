@@ -326,12 +326,29 @@ public class RecordPaymentController implements ScreenLifecycle {
             double value=Double.parseDouble(amount.getText().trim());
             var request=new SupportApiClient.PaymentRequest("SALE",sale.getId(),paymentDate.getValue().toString(),value,mode.getValue(),reference.getText().trim(),notes.getText().trim(),receivedFrom.getText().trim(),fullPayment.isSelected()?"FULL":"PARTIAL",null,"Admin");
             Path proof=selectedAttachment;String currentInvoice=sale.getInvoiceNo();
+            final Sales activeSale=sale;
+            final double paidAmount=value;
+            final String activeMode=mode.getValue();
+            final String activeRef=reference.getText().trim();
+            final LocalDate activeDate=paymentDate.getValue();
+            final String activeNotes=notes.getText().trim();
             if(btnSavePayment!=null)btnSavePayment.setDisable(true);
             UiTaskExecutor.submitAction("record-payment-save",()->{
                 int paymentId=supportApi.recordPaymentWithId(request);String proofWarning=null;
                 if(proof!=null){try{supportApi.uploadPaymentAttachment(paymentId,proof);}catch(Exception proofError){proofWarning="Payment was saved, but the proof could not be uploaded: "+message(proofError);}}
                 return proofWarning;
-            },proofWarning->{if(btnSavePayment!=null)btnSavePayment.setDisable(false);NotificationService.add("Payment received for "+currentInvoice);org.example.util.AppDialogService.success(amount,"Payment saved","Payment saved successfully.");org.example.util.ScreenRefreshPolicy.invalidate("sales-register");resetForm();org.example.navigation.UnsavedChangesManager.markClean(amount);refreshInvoiceAmounts();loadHistory();if(proofWarning!=null)new OwnedAlert(Alert.AlertType.WARNING,proofWarning).showAndWait();},failure->{if(btnSavePayment!=null)btnSavePayment.setDisable(false);new OwnedAlert(Alert.AlertType.ERROR,message(failure)).showAndWait();});
+            },proofWarning->{
+                if(btnSavePayment!=null)btnSavePayment.setDisable(false);
+                NotificationService.add("Payment received for "+currentInvoice);
+                org.example.util.AppDialogService.success(amount,"Payment saved","Payment saved successfully.");
+                org.example.util.ScreenRefreshPolicy.invalidate("sales-register");
+                resetForm();
+                org.example.navigation.UnsavedChangesManager.markClean(amount);
+                refreshInvoiceAmounts();
+                loadHistory();
+                if(proofWarning!=null)new OwnedAlert(Alert.AlertType.WARNING,proofWarning).showAndWait();
+                org.example.util.PaymentConfirmationPromptHelper.promptAndTransmit(btnSavePayment!=null?btnSavePayment:paymentProgress,activeSale,paidAmount,activeMode,activeRef,activeDate,activeNotes);
+            },failure->{if(btnSavePayment!=null)btnSavePayment.setDisable(false);new OwnedAlert(Alert.AlertType.ERROR,message(failure)).showAndWait();});
         } catch(Exception e){new OwnedAlert(Alert.AlertType.ERROR,e.getMessage()).showAndWait();}
     }
 

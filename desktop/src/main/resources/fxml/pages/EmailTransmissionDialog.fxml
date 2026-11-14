@@ -15,6 +15,16 @@
                     <Insets top="16" right="20" bottom="16" left="20"/>
                 </padding>
 
+                <!-- From / Sender Identity (Active when Activity-Based Routing is ON) -->
+                <VBox fx:id="boxSenderProfile" spacing="6" managed="false" visible="false">
+                    <HBox alignment="CENTER_LEFT" spacing="6">
+                        <Label text="From / Sender Identity *" styleClass="field-label,settings-form-label,email-transmission-field-bold"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Department mailbox route" styleClass="page-subtitle,email-transmission-hint"/>
+                    </HBox>
+                    <ComboBox fx:id="cmbSenderProfile" maxWidth="Infinity" styleClass="approved-combo"/>
+                </VBox>
+
                 <!-- Recipient Email -->
                 <VBox spacing="6">
                     <HBox alignment="CENTER_LEFT" spacing="6">
@@ -33,14 +43,46 @@
                     <Label fx:id="errSubject" text="Email subject cannot be blank" visible="false" managed="false" styleClass="validation-message,email-transmission-error"/>
                 </VBox>
 
-                <!-- Message Body -->
-                <VBox spacing="6" VBox.vgrow="ALWAYS">
-                    <HBox alignment="CENTER_LEFT" spacing="6">
-                        <Label text="Message Body" styleClass="field-label,settings-form-label,email-transmission-field-bold"/>
+                <!-- Message Body & Executive Preview Switcher -->
+                <VBox spacing="8" VBox.vgrow="ALWAYS">
+                    <HBox alignment="CENTER_LEFT" spacing="8">
+                        <Label text="Message Content" styleClass="field-label,settings-form-label,email-transmission-field-bold"/>
                         <Region HBox.hgrow="ALWAYS"/>
-                        <Label text="Fully rendered message &amp; signature" styleClass="page-subtitle,email-transmission-hint"/>
+                        <HBox spacing="4">
+                            <Button fx:id="btnTabEdit" text="✍ Edit Text" onAction="#showEditMode" styleClass="secondary-button,approved-secondary-button"/>
+                            <Button fx:id="btnTabPreview" text="👁 Executive Preview" onAction="#showPreviewMode" styleClass="secondary-button,approved-secondary-button"/>
+                        </HBox>
                     </HBox>
-                    <TextArea fx:id="txtBody" prefRowCount="10" minHeight="200" prefHeight="240" wrapText="true" styleClass="email-transmission-body-area" VBox.vgrow="ALWAYS"/>
+                    <StackPane VBox.vgrow="ALWAYS" minHeight="240">
+                        <TextArea fx:id="txtBody" prefRowCount="10" minHeight="220" prefHeight="260" wrapText="true" styleClass="email-transmission-body-area"/>
+                        <VBox fx:id="boxExecutivePreview" visible="false" managed="false" spacing="12" styleClass="settings-card" minHeight="240">
+                            <!-- Branded Letterhead Header -->
+                            <HBox alignment="CENTER_LEFT" spacing="12" styleClass="email-preview-header">
+                                <VBox spacing="2" HBox.hgrow="ALWAYS">
+                                    <Label fx:id="lblPreviewCompany" text="JASVI INDUSTRIES" styleClass="font-bold"/>
+                                    <Label text="INDUSTRIAL MACHINERY &amp; ENGINEERING SOLUTIONS" styleClass="muted-text"/>
+                                </VBox>
+                                <Label fx:id="lblPreviewBadge" text="OFFICIAL" styleClass="status-pill,status-pill-info"/>
+                            </HBox>
+                            <GridPane hgap="14" vgap="6">
+                                <Label text="Document:" GridPane.columnIndex="0" GridPane.rowIndex="0" styleClass="muted-text"/>
+                                <Label fx:id="lblPreviewDocNo" text="-" GridPane.columnIndex="1" GridPane.rowIndex="0" styleClass="font-bold"/>
+                                <Label text="Recipient:" GridPane.columnIndex="2" GridPane.rowIndex="0" styleClass="muted-text"/>
+                                <Label fx:id="lblPreviewRecipient" text="-" GridPane.columnIndex="3" GridPane.rowIndex="0" styleClass="font-bold"/>
+                                <Label text="Total Value:" GridPane.columnIndex="0" GridPane.rowIndex="1" styleClass="muted-text"/>
+                                <Label fx:id="lblPreviewAmount" text="-" GridPane.columnIndex="1" GridPane.rowIndex="1" styleClass="accent-text"/>
+                                <Label text="Status:" GridPane.columnIndex="2" GridPane.rowIndex="1" styleClass="muted-text"/>
+                                <Label fx:id="lblPreviewStatus" text="-" GridPane.columnIndex="3" GridPane.rowIndex="1" styleClass="font-bold"/>
+                            </GridPane>
+                            <!-- Live Status CTA Preview Button -->
+                            <HBox fx:id="boxLiveStatusPreview" alignment="CENTER" spacing="10" styleClass="email-preview-cta-box">
+                                <Button fx:id="btnLiveStatusSample" text="🔍 VIEW LIVE PAYMENT &amp; INVOICE STATUS" styleClass="approved-primary-button"/>
+                            </HBox>
+                            <ScrollPane fitToWidth="true" prefHeight="130" styleClass="edge-to-edge">
+                                <Label fx:id="lblPreviewBody" wrapText="true" styleClass="email-preview-body-prose"/>
+                            </ScrollPane>
+                        </VBox>
+                    </StackPane>
                 </VBox>
 
                 <!-- Signature / Stamp Image Card (if configured) -->

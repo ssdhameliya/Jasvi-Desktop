@@ -40,6 +40,58 @@
         </GridPane>
     </VBox>
 
+    <!-- Feature Flag 1: Department & Activity Sender Routing -->
+    <VBox spacing="10" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <Label text="Department &amp; Activity Email Routing" styleClass="section-title"/>
+                <Label text="Toggle between single master email and dedicated department accounts with separate passcodes" styleClass="page-subtitle"/>
+            </VBox>
+            <ToggleButton fx:id="tglActivityRouting" text="Activity Routing: OFF" styleClass="apple-toggle-switch,ios-toggle-switch"/>
+        </HBox>
+
+        <VBox fx:id="boxActivityRoutingSection" spacing="12" visible="false" managed="false">
+            <HBox alignment="CENTER_LEFT" spacing="12">
+                <Label text="Select Department:" styleClass="settings-form-label"/>
+                <ComboBox fx:id="cmbActivityProfileSelect" prefWidth="260" styleClass="approved-combo"/>
+                <CheckBox fx:id="chkEnableDedicatedProfile" text="Use Dedicated Account for this Activity" styleClass="approved-check"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="btnTestActivityProfile" text="Test Connection" onAction="#testActivityProfileEmail" styleClass="secondary-button"/>
+            </HBox>
+
+            <GridPane hgap="18" vgap="12">
+                <columnConstraints>
+                    <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                    <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                </columnConstraints>
+                <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="0">
+                    <Label text="Sender Display Name" styleClass="settings-form-label"/>
+                    <TextField fx:id="txtProfileSenderName" promptText="Jasvi Industries - Sales" styleClass="approved-input"/>
+                </VBox>
+                <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="0">
+                    <Label text="Department Email Address" styleClass="settings-form-label"/>
+                    <TextField fx:id="txtProfileSenderEmail" promptText="sales@jasviindustries.in" styleClass="approved-input"/>
+                </VBox>
+                <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="1">
+                    <Label text="Email App Password / Passcode" styleClass="settings-form-label"/>
+                    <PasswordField fx:id="txtProfileSenderPassword" promptText="Dedicated app password" styleClass="approved-input"/>
+                </VBox>
+                <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="1">
+                    <Label text="SMTP Host &amp; Port" styleClass="settings-form-label"/>
+                    <HBox spacing="8">
+                        <TextField fx:id="txtProfileSenderHost" promptText="smtp.gmail.com" styleClass="approved-input" HBox.hgrow="ALWAYS"/>
+                        <TextField fx:id="txtProfileSenderPort" promptText="587" prefWidth="75" styleClass="approved-input"/>
+                    </HBox>
+                </VBox>
+            </GridPane>
+
+            <VBox spacing="6">
+                <Label text="Department Custom Signature (Optional)" styleClass="settings-form-label"/>
+                <TextArea fx:id="txtProfileCustomSignature" prefRowCount="3" minHeight="70" promptText="Leave blank to inherit Company Email Signature..." wrapText="true" styleClass="approved-input"/>
+            </VBox>
+        </VBox>
+    </VBox>
+
     <VBox spacing="10" styleClass="settings-subcard">
         <HBox alignment="CENTER_LEFT" spacing="8">
             <Label text="Company Email Signature" styleClass="section-title"/>
@@ -112,6 +164,17 @@
             <Button fx:id="btnResetTemplate" text="Reset Template to Default" onAction="#resetCurrentTemplate" styleClass="secondary-button"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Button fx:id="btnLivePreview" text="Preview Live Output" onAction="#showLivePreviewDialog" styleClass="secondary-button"/>
+        </HBox>
+    </VBox>
+
+    <!-- Feature Flag 2: Bank Reconciliation Payment Receipts -->
+    <VBox spacing="8" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <Label text="Bank Statement Match Payment Receipts" styleClass="section-title"/>
+                <Label text="Prompt to send payment receipt with dual bank details and Live Status tracking upon transaction match" styleClass="page-subtitle"/>
+            </VBox>
+            <ToggleButton fx:id="tglPaymentConfirmationEmail" text="Payment Receipts: ON" styleClass="apple-toggle-switch,ios-toggle-switch"/>
         </HBox>
     </VBox>
 </VBox>

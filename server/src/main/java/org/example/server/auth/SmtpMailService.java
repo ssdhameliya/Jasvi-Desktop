@@ -193,6 +193,10 @@ public class SmtpMailService {
     }
 
     public void sendBusiness(String recipient, String subject, String body, String attachmentName, byte[] attachment, String signatureImageName, byte[] signatureImage) {
+        sendBusiness(recipient, subject, body, attachmentName, attachment, signatureImageName, signatureImage, null, null);
+    }
+
+    public void sendBusiness(String recipient, String subject, String body, String attachmentName, byte[] attachment, String signatureImageName, byte[] signatureImage, String customFromEmail, String customFromName) {
         List<Attachment> attachments = attachment == null || attachment.length == 0
                 ? List.of()
                 : List.of(new Attachment(attachmentName == null ? "document.pdf" : attachmentName,
@@ -201,21 +205,36 @@ public class SmtpMailService {
                 ? null
                 : new Attachment(signatureImageName == null ? "signature.png" : signatureImageName,
                 "image/png", signatureImage);
-        sendBusiness(recipient, subject, body, attachments, sigAttachment);
+        sendBusiness(recipient, subject, body, attachments, sigAttachment, customFromEmail, customFromName);
     }
 
     public void sendBusiness(String recipient, String subject, String body, List<Attachment> attachments) {
-        sendBusiness(recipient, subject, body, attachments, null);
+        sendBusiness(recipient, subject, body, attachments, null, null, null);
     }
 
     public void sendBusiness(String recipient, String subject, String body, List<Attachment> attachments, Attachment signatureImage) {
+        sendBusiness(recipient, subject, body, attachments, signatureImage, null, null);
+    }
+
+    public void sendBusiness(String recipient, String subject, String body, List<Attachment> attachments, Attachment signatureImage, String customFromEmail, String customFromName) {
         Settings settings = settings();
         if (settings.host().isBlank() || settings.email().isBlank() || settings.password().isBlank())
             throw new IllegalStateException("Server business email is not configured");
         try {
             Session session = mailSession(settings, 15_000, 30_000);
             MimeMessage message = new MimeMessage(session);
-            message.setFrom(new InternetAddress(settings.email()));
+            String fromEmail = (customFromEmail != null && !customFromEmail.isBlank()) ? customFromEmail.trim() : settings.email();
+            String fromName = (customFromName != null && !customFromName.isBlank()) ? customFromName.trim() : companyName();
+            try {
+                message.setFrom(new InternetAddress(fromEmail, fromName));
+            } catch (Exception ignored) {
+                message.setFrom(new InternetAddress(fromEmail));
+            }
+            if (customFromEmail != null && !customFromEmail.isBlank() && !customFromEmail.equalsIgnoreCase(settings.email())) {
+                try {
+                    message.setReplyTo(new InternetAddress[]{ new InternetAddress(customFromEmail, fromName) });
+                } catch (Exception ignored) {}
+            }
             message.setRecipient(Message.RecipientType.TO, new InternetAddress(recipient, true));
             message.setSubject(subject == null ? companyName() + " document" : subject);
             List<Attachment> files = attachments == null ? List.of() : attachments.stream()

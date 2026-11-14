@@ -233,7 +233,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
                         reporter.stage(1, 3, "Validating mail recipients...");
                         reporter.stage(2, 3, "Dispatching email to " + result.recipientEmail() + "...");
 
-                        EmailService.resend(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf());
+                        EmailService.resend(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage(), result.senderProfile());
                         reporter.stage(3, 3, "Mail sent successfully.");
 
                         supportApi.communication(new SupportApiClient.CommunicationRequest(

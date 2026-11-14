@@ -392,6 +392,12 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                     fullPayment.isSelected() ? "FULL" : "PARTIAL", null, "System");
             Path proof = selectedProof;
             String invoice = purchase.getInvoiceNo();
+            final org.example.model.Purchase activePurchase = purchase;
+            final double paidAmount = value;
+            final String activeMode = mode.getValue();
+            final String activeRef = reference.getText().trim();
+            final LocalDate activeDate = paymentDate.getValue();
+            final String activeNotes = persistedNotes();
             setSaveBusy(true);
             UiTaskExecutor.submitAction(
                     "purchase-payment-save",
@@ -411,6 +417,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                         org.example.util.ScreenRefreshPolicy.invalidate("purchase-register");
                         refreshInvoiceAmounts(); resetForm(); org.example.navigation.UnsavedChangesManager.markClean(amount); loadHistory();
                         if (warning != null) new OwnedAlert(Alert.AlertType.WARNING, warning).showAndWait();
+                        org.example.util.PaymentConfirmationPromptHelper.promptAndTransmitPurchase(amount, activePurchase, paidAmount, activeMode, activeRef, activeDate, activeNotes);
                     },
                     failure -> { setSaveBusy(false); new OwnedAlert(Alert.AlertType.ERROR, message(failure)).showAndWait(); }
             );

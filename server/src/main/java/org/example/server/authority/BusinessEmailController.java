@@ -30,7 +30,7 @@ public class BusinessEmailController {
                 ? null : Base64.getDecoder().decode(r.attachmentBase64());
         byte[] signature = r.signatureImageBase64() == null || r.signatureImageBase64().isBlank()
                 ? null : Base64.getDecoder().decode(r.signatureImageBase64());
-        mail.sendBusiness(r.recipient(), r.subject(), r.body(), r.attachmentName(), attachment, r.signatureImageName(), signature);
+        mail.sendBusiness(r.recipient(), r.subject(), r.body(), r.attachmentName(), attachment, r.signatureImageName(), signature, r.senderEmail(), r.senderDisplayName());
         return new Result(true, message);
     }
 
@@ -66,7 +66,11 @@ public class BusinessEmailController {
             throw new SecurityException("Company email settings require Administrator access");
     }
 
-    public record Request(String recipient, String subject, String body, String attachmentName, String attachmentBase64, String signatureImageName, String signatureImageBase64) {}
+    public record Request(String recipient, String subject, String body, String attachmentName, String attachmentBase64, String signatureImageName, String signatureImageBase64, String senderEmail, String senderDisplayName) {
+        public Request(String recipient, String subject, String body, String attachmentName, String attachmentBase64, String signatureImageName, String signatureImageBase64) {
+            this(recipient, subject, body, attachmentName, attachmentBase64, signatureImageName, signatureImageBase64, null, null);
+        }
+    }
     public record Settings(String email, String appPassword, String host, Integer port, boolean passwordConfigured) {}
     public record TestRequest(String recipient) {}
     public record Result(boolean success, String message) {}
