@@ -45,12 +45,15 @@ import java.util.*;
  * reused or modified.</p>
  */
 public final class PurchasePaymentController implements ScreenLifecycle {
-    public record PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion, String paymentReference, String createdBy, Long statementTransactionId, String statementReference, String emailStatus) {
+    public record PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion, String paymentReference, String createdBy, Long statementTransactionId, String statementReference, String emailStatus, String whatsappStatus) {
         public PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion) {
-            this(id, date, reference, paidTo, mode, amount, status, notes, proofPath, paymentType, rowVersion, "", "", null, "", "PENDING");
+            this(id, date, reference, paidTo, mode, amount, status, notes, proofPath, paymentType, rowVersion, "", "", null, "", "PENDING", "PENDING");
         }
         public PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion, String paymentReference, String createdBy, Long statementTransactionId, String statementReference) {
-            this(id, date, reference, paidTo, mode, amount, status, notes, proofPath, paymentType, rowVersion, paymentReference, createdBy, statementTransactionId, statementReference, "PENDING");
+            this(id, date, reference, paidTo, mode, amount, status, notes, proofPath, paymentType, rowVersion, paymentReference, createdBy, statementTransactionId, statementReference, "PENDING", "PENDING");
+        }
+        public PaymentRow(int id, String date, String reference, String paidTo, String mode, double amount, String status, String notes, String proofPath, String paymentType, long rowVersion, String paymentReference, String createdBy, Long statementTransactionId, String statementReference, String emailStatus) {
+            this(id, date, reference, paidTo, mode, amount, status, notes, proofPath, paymentType, rowVersion, paymentReference, createdBy, statementTransactionId, statementReference, emailStatus, "PENDING");
         }
     }
 
@@ -69,7 +72,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
     @FXML private VBox proofDropZone, paymentEntryCard;
     @FXML private TableView<PaymentRow> historyTable;
     @FXML private TableColumn<PaymentRow, String> historyDate, historyReference, historyPaidTo,
-            historyMode, historyStatus, historyEmailStatus, historyNotes;
+            historyMode, historyStatus, historyEmailStatus, historyWhatsappStatus, historyNotes;
     @FXML private TableColumn<PaymentRow, Number> historyAmount;
     @FXML private TableColumn<PaymentRow, Void> historyAction;
 
@@ -280,6 +283,31 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                         Label badge = new Label(val);
                         if ("SENT".equalsIgnoreCase(val)) {
                             badge.getStyleClass().addAll("status-pill", "status-paid");
+                        } else if ("FAILED".equalsIgnoreCase(val)) {
+                            badge.getStyleClass().addAll("status-pill", "status-cancelled");
+                        } else {
+                            badge.getStyleClass().addAll("status-pill", "status-pending");
+                        }
+                        setGraphic(badge);
+                        setText(null);
+                    }
+                }
+            });
+        }
+        if (historyWhatsappStatus != null) {
+            historyWhatsappStatus.setCellValueFactory(v -> new SimpleStringProperty(v.getValue() == null || v.getValue().whatsappStatus() == null ? "PENDING" : v.getValue().whatsappStatus()));
+            historyWhatsappStatus.setCellFactory(c -> new TableCell<>() {
+                @Override protected void updateItem(String val, boolean empty) {
+                    super.updateItem(val, empty);
+                    if (empty || val == null) {
+                        setText(null);
+                        setGraphic(null);
+                    } else {
+                        Label badge = new Label(val);
+                        if ("SENT".equalsIgnoreCase(val)) {
+                            badge.getStyleClass().addAll("status-pill", "status-paid");
+                        } else if ("FAILED".equalsIgnoreCase(val)) {
+                            badge.getStyleClass().addAll("status-pill", "status-cancelled");
                         } else {
                             badge.getStyleClass().addAll("status-pill", "status-pending");
                         }
@@ -295,16 +323,20 @@ public final class PurchasePaymentController implements ScreenLifecycle {
             private final MenuItem edit = new MenuItem("Edit Payment", IconFactory.compactIcon("edit", 14));
             private final MenuItem view = new MenuItem("View Proof", IconFactory.compactIcon("attachment", 14));
             private final MenuItem folder = new MenuItem("Remove Proof", IconFactory.compactIcon("delete", 14));
+            private final MenuItem sendDispatch = new MenuItem("Transmit Advice (Email & WhatsApp)", IconFactory.compactIcon("send", 14));
             private final MenuItem sendEmail = new MenuItem("Send Remittance Advice", IconFactory.compactIcon("email", 14));
+            private final MenuItem sendWhatsapp = new MenuItem("Send WhatsApp Remittance", IconFactory.compactIcon("whatsapp", 14));
             private final MenuItem previewEmail = new MenuItem("Preview Payment Email HTML", IconFactory.compactIcon("view", 14));
             {
                 actions.getStyleClass().addAll("approved-button", "approved-secondary-button", "row-actions");
                 actions.setGraphic(IconFactory.compactIcon("actions", 14));
-                actions.getItems().addAll(edit, view, folder, sendEmail, previewEmail);
+                actions.getItems().addAll(edit, view, folder, sendDispatch, sendEmail, sendWhatsapp, previewEmail);
                 edit.setOnAction(e -> editPayment(row()));
                 view.setOnAction(e -> openProof(row()));
                 folder.setOnAction(e -> removeStoredProof(row()));
+                sendDispatch.setOnAction(e -> sendPaymentEmail(row()));
                 sendEmail.setOnAction(e -> sendPaymentEmail(row()));
+                sendWhatsapp.setOnAction(e -> sendPaymentEmail(row()));
                 previewEmail.setOnAction(e -> previewPaymentEmailHtml(row()));
                 IconFactory.decorateActionMenu(actions);
             }
@@ -324,6 +356,11 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                     sendEmail.setText("Resend Remittance Advice");
                 } else {
                     sendEmail.setText("Send Remittance Advice");
+                }
+                if (row != null && "SENT".equalsIgnoreCase(row.whatsappStatus())) {
+                    sendWhatsapp.setText("Resend WhatsApp Remittance");
+                } else {
+                    sendWhatsapp.setText("Send WhatsApp Remittance");
                 }
                 setGraphic(actions);
             }
@@ -662,7 +699,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                                 : "FULL".equalsIgnoreCase(row.paymentType()) ? "Full Payment"
                                 : "PARTIAL".equalsIgnoreCase(row.paymentType()) ? "Partial Payment" : "Recorded";
                         allPayments.add(new PaymentRow(row.id(), row.date(), safe(row.reference()), paidToValue,
-                                safe(row.mode()), row.amount(), status, safe(row.notes()), safe(row.attachment()), safe(row.paymentType()), row.rowVersion(), safe(row.paymentReference()), safe(row.createdBy()), row.statementTransactionId(), safe(row.statementReference()), safeOr(row.emailStatus(), "PENDING")));
+                                safe(row.mode()), row.amount(), status, safe(row.notes()), safe(row.attachment()), safe(row.paymentType()), row.rowVersion(), safe(row.paymentReference()), safe(row.createdBy()), row.statementTransactionId(), safe(row.statementReference()), safeOr(row.emailStatus(), "PENDING"), safeOr(row.whatsappStatus(), "PENDING")));
                     }
                     historyTable.getItems().setAll(allPayments);
                     historyCount.setText(allPayments.size() + " Payment" + (allPayments.size() == 1 ? "" : "s"));

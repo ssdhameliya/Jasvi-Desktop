@@ -10,6 +10,7 @@ import org.example.server.whatsapp.WahaDtos;
 import org.example.server.auth.SmtpMailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +22,18 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ClientRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(ClientRegistryService.class);
     private static final String DEFAULT_PRIV_KEY = "MC4CAQAwBQYDK2VwBCIEIOzrtL2IsC8IKub6TbLVTvXk4kw/FmOmeA0UUEnHFvCA";
+
+    @Value("${dse.deployment.environment:LOCAL}")
+    private String deploymentEnv = "LOCAL";
+
+    private final Map<String, Instant> rogueAlertDebounceMap = new ConcurrentHashMap<>();
 
     private final JpaNativeRepository jdbc;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -89,15 +96,15 @@ public class ClientRegistryService {
                 "r.tier, r.max_users, r.annual_fee, r.issued_at, r.valid_until, r.status, r.license_payload_enc, r.notes, r.row_version, " +
                 "r.remote_url, r.last_heartbeat_at, r.client_version, " +
                 "COALESCE((SELECT COUNT(DISTINCT LOWER(t.username)) FROM client_user_telemetry t " +
-                "WHERE t.machine_id = r.machine_id " +
+                "WHERE (t.machine_id = r.machine_id OR UPPER(TRIM(COALESCE(t.company_name, ''))) = UPPER(TRIM(COALESCE(r.company_name, '')))) " +
                 "AND t.work_date = CAST((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AS date) " +
                 "AND COALESCE(t.is_active_now, false) = true " +
                 "AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes'), 0) AS active_users_count, " +
                 "COALESCE((SELECT SUM(COALESCE(t.total_seconds_today, 0)) FROM client_user_telemetry t " +
-                "WHERE t.machine_id = r.machine_id " +
+                "WHERE (t.machine_id = r.machine_id OR UPPER(TRIM(COALESCE(t.company_name, ''))) = UPPER(TRIM(COALESCE(r.company_name, '')))) " +
                 "AND t.work_date = CAST((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AS date)), 0) AS today_total_seconds, " +
                 "COALESCE((SELECT COUNT(DISTINCT LOWER(t.username)) FROM client_user_telemetry t " +
-                "WHERE t.machine_id = r.machine_id " +
+                "WHERE (t.machine_id = r.machine_id OR UPPER(TRIM(COALESCE(t.company_name, ''))) = UPPER(TRIM(COALESCE(r.company_name, '')))) " +
                 "AND t.work_date = CAST((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AS date) " +
                 "AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL)), 0) AS today_users_count, " +
                 "r.features, COALESCE(r.is_purchased, true) AS is_purchased, r.last_alert_sent_at, r.kicked_at, r.kick_reason " +
@@ -737,6 +744,24 @@ public class ClientRegistryService {
             }
         }
 
+        if (updated == 0 && companyName != null && !companyName.isBlank()) {
+            // Company-wide authorized workstation seat recognition (Cloud Gateway / Multi-seat license)
+            List<Map<String, Object>> companyLicenses = jdbc.queryForList(
+                    "SELECT id, company_name, tier, max_users, status FROM licensed_client_registry " +
+                            "WHERE (UPPER(TRIM(company_name)) = UPPER(TRIM(?)) OR UPPER(TRIM(company_name)) LIKE UPPER(TRIM(?))) " +
+                            "AND status = 'ACTIVE' LIMIT 1",
+                    companyName.trim(), "%" + companyName.trim() + "%"
+            );
+            if (!companyLicenses.isEmpty()) {
+                Long companyId = ((Number) companyLicenses.getFirst().get("id")).longValue();
+                jdbc.update("UPDATE licensed_client_registry SET last_heartbeat_at = CURRENT_TIMESTAMP, " +
+                        "client_version = COALESCE(?, client_version), active_users_count = ? WHERE id = ?",
+                        clientVersion != null && !clientVersion.isBlank() ? clientVersion.trim() : null,
+                        resolvedActiveUsers, companyId);
+                updated = 1;
+            }
+        }
+
         if (updated == 0) {
             // Unregistered / Rogue instance detected! Trigger Super Admin security alert
             sendRogueClientSecurityAlerts(machineId, companyName, clientVersion, clientIp, users);
@@ -746,8 +771,9 @@ public class ClientRegistryService {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT id, company_name, tier, status, valid_until, remote_url, last_heartbeat_at, client_version, " +
                         "COALESCE(is_purchased, true) AS is_purchased, kicked_at, kick_reason " +
-                        "FROM licensed_client_registry WHERE machine_id = ?",
-                machineId
+                        "FROM licensed_client_registry WHERE machine_id = ? " +
+                        "OR (status = 'ACTIVE' AND UPPER(TRIM(company_name)) = UPPER(TRIM(?))) ORDER BY id ASC LIMIT 1",
+                machineId, companyName != null ? companyName.trim() : ""
         );
         Map<String, Object> client = rows.getFirst();
         String currentStatus = String.valueOf(client.get("status"));
@@ -800,29 +826,33 @@ public class ClientRegistryService {
             workDate = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
         }
 
+        String depMode = String.valueOf(user.getOrDefault("deploymentMode", user.getOrDefault("deployment_mode", "LOCAL"))).trim();
+        if (depMode.isBlank()) depMode = "LOCAL";
+
         try {
             jdbc.update("""
                 INSERT INTO client_user_telemetry (
                     machine_id, company_name, username, role_code, work_date,
                     first_login_today, last_logout_today, last_heartbeat,
-                    total_seconds_today, is_active_now, updated_at
+                    total_seconds_today, is_active_now, deployment_mode, updated_at
                 ) VALUES (
                     ?, ?, ?, ?, CAST(? AS date),
                     CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP,
-                    ?, ?, CURRENT_TIMESTAMP
+                    ?, ?, ?, CURRENT_TIMESTAMP
                 ) ON CONFLICT (machine_id, username, work_date) DO UPDATE SET
                     first_login_today = COALESCE(client_user_telemetry.first_login_today, CURRENT_TIMESTAMP),
                     last_heartbeat = CURRENT_TIMESTAMP,
                     total_seconds_today = client_user_telemetry.total_seconds_today + EXCLUDED.total_seconds_today,
                     is_active_now = EXCLUDED.is_active_now,
+                    deployment_mode = EXCLUDED.deployment_mode,
                     last_logout_today = CASE WHEN EXCLUDED.is_active_now = false THEN CURRENT_TIMESTAMP ELSE client_user_telemetry.last_logout_today END,
                     updated_at = CURRENT_TIMESTAMP
             """, machineId, companyName != null ? companyName : "Client Workspace", username, roleCode,
                     workDate.toString(),
                     isLogout ? Instant.now() : null,
-                    durationInc, isActive);
+                    durationInc, isActive, depMode);
 
-            recordUserSessionSegment(machineId, username, roleCode, workDate.toString(), durationInc, isActive, isLogout, isNewLogin);
+            recordUserSessionSegment(machineId, companyName != null ? companyName : "Client Workspace", username, roleCode, workDate.toString(), durationInc, isActive, isLogout, isNewLogin, depMode);
         } catch (Exception ex) {
             log.warn("Could not record client user telemetry for {}: {}", username, ex.getMessage());
         }
@@ -840,8 +870,8 @@ public class ClientRegistryService {
         }
     }
 
-    private void recordUserSessionSegment(String machineId, String username, String roleCode,
-                                          String workDateStr, long durationInc, boolean isActive, boolean isLogout, boolean isNewLogin) {
+    private void recordUserSessionSegment(String machineId, String companyName, String username, String roleCode,
+                                          String workDateStr, long durationInc, boolean isActive, boolean isLogout, boolean isNewLogin, String depMode) {
         if (!hasSessionLogTable()) {
             return;
         }
@@ -857,10 +887,10 @@ public class ClientRegistryService {
             if (isNewLogin) {
                 jdbc.update("""
                     INSERT INTO client_user_session_log (
-                        machine_id, username, role_code, work_date,
-                        session_start, session_end, duration_seconds, is_active
-                    ) VALUES (?, ?, ?, CAST(? AS date), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
-                """, machineId, username, roleCode, workDateStr, Math.max(0L, durationInc), isActive && !isLogout);
+                        machine_id, company_name, username, role_code, work_date,
+                        session_start, session_end, duration_seconds, is_active, deployment_mode
+                    ) VALUES (?, ?, ?, ?, CAST(? AS date), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)
+                """, machineId, companyName != null ? companyName : "Client Workspace", username, roleCode, workDateStr, Math.max(0L, durationInc), isActive && !isLogout, depMode);
                 return;
             }
 
@@ -886,10 +916,10 @@ public class ClientRegistryService {
             } else {
                 jdbc.update("""
                     INSERT INTO client_user_session_log (
-                        machine_id, username, role_code, work_date,
-                        session_start, session_end, duration_seconds, is_active
-                    ) VALUES (?, ?, ?, CAST(? AS date), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
-                """, machineId, username, roleCode, workDateStr, Math.max(0L, durationInc), isActive && !isLogout);
+                        machine_id, company_name, username, role_code, work_date,
+                        session_start, session_end, duration_seconds, is_active, deployment_mode
+                    ) VALUES (?, ?, ?, ?, CAST(? AS date), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)
+                """, machineId, companyName != null ? companyName : "Client Workspace", username, roleCode, workDateStr, Math.max(0L, durationInc), isActive && !isLogout, depMode);
             }
         } catch (Exception ex) {
             log.warn("Could not record user session segment for {}: {}", username, ex.getMessage());
@@ -1001,6 +1031,18 @@ public class ClientRegistryService {
         String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
         syncLocalWorkstationUsersIfHost(machineId, null);
 
+        String resolvedCompany = null;
+        try {
+            List<String> compNames = jdbc.query(
+                    "SELECT company_name FROM licensed_client_registry WHERE machine_id = ? OR machine_id = ? LIMIT 1",
+                    (rs, idx) -> rs.getString(1),
+                    machineId, rawMachine
+            );
+            if (!compNames.isEmpty() && compNames.getFirst() != null && !compNames.getFirst().isBlank()) {
+                resolvedCompany = compNames.getFirst().trim();
+            }
+        } catch (Exception ignored) {}
+
         java.time.LocalDate businessToday = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
         String todayIst = businessToday.toString();
         String from = fromStr != null && !fromStr.isBlank()
@@ -1029,21 +1071,23 @@ public class ClientRegistryService {
                            COUNT(DISTINCT CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN t.work_date END) AS days_active,
                            COALESCE(MAX(sl.total_sessions), COUNT(DISTINCT CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN t.work_date END)) AS session_count,
                            COALESCE(u.locked, 0) AS is_locked,
-                           COALESCE(u.active, 1) AS is_user_active
+                           COALESCE(u.active, 1) AS is_user_active,
+                           MAX(COALESCE(t.deployment_mode, 'LOCAL')) AS deployment_mode
                     FROM client_user_telemetry t
                     LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username)
                     LEFT JOIN (
                         SELECT machine_id, LOWER(username) AS uname, COUNT(*) AS total_sessions
                         FROM client_user_session_log
-                        WHERE machine_id = ? AND work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+                        WHERE (machine_id = ? OR (CAST(? AS varchar) IS NOT NULL AND UPPER(TRIM(COALESCE(company_name, ''))) = UPPER(TRIM(CAST(? AS varchar)))))
+                          AND work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
                         GROUP BY machine_id, LOWER(username)
                     ) sl ON sl.machine_id = t.machine_id AND sl.uname = LOWER(t.username)
-                    WHERE t.machine_id = ?
+                    WHERE (t.machine_id = ? OR (CAST(? AS varchar) IS NOT NULL AND UPPER(TRIM(COALESCE(t.company_name, ''))) = UPPER(TRIM(CAST(? AS varchar)))))
                       AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
                       AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL OR t.work_date = CAST(? AS date))
                     GROUP BY t.username, t.role_code, u.locked, u.active
                     ORDER BY is_active_now DESC, total_seconds_today DESC, last_heartbeat DESC, t.username ASC
-                """, todayIst, machineId, from, to, machineId, from, to, todayIst);
+                """, todayIst, machineId, resolvedCompany, resolvedCompany, from, to, machineId, resolvedCompany, resolvedCompany, from, to, todayIst);
             }
             return jdbc.queryForList("""
                 SELECT t.username,
@@ -1056,15 +1100,16 @@ public class ClientRegistryService {
                        COUNT(DISTINCT CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN t.work_date END) AS days_active,
                        COUNT(DISTINCT CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN t.work_date END) AS session_count,
                        COALESCE(u.locked, 0) AS is_locked,
-                       COALESCE(u.active, 1) AS is_user_active
+                       COALESCE(u.active, 1) AS is_user_active,
+                       MAX(COALESCE(t.deployment_mode, 'LOCAL')) AS deployment_mode
                 FROM client_user_telemetry t
                 LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username)
-                WHERE t.machine_id = ?
+                WHERE (t.machine_id = ? OR (CAST(? AS varchar) IS NOT NULL AND UPPER(TRIM(COALESCE(t.company_name, ''))) = UPPER(TRIM(CAST(? AS varchar)))))
                   AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
                   AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL OR t.work_date = CAST(? AS date))
                 GROUP BY t.username, t.role_code, u.locked, u.active
                 ORDER BY is_active_now DESC, total_seconds_today DESC, last_heartbeat DESC, t.username ASC
-            """, todayIst, machineId, from, to, todayIst);
+            """, todayIst, machineId, resolvedCompany, resolvedCompany, from, to, todayIst);
         }
 
         if (hasSessionLog) {
@@ -1078,20 +1123,22 @@ public class ClientRegistryService {
                        CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN 1 ELSE 0 END AS days_active,
                        GREATEST(COALESCE(sl.session_count, 0), CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN 1 ELSE 0 END) AS session_count,
                        COALESCE(u.locked, 0) AS is_locked,
-                       COALESCE(u.active, 1) AS is_user_active
+                       COALESCE(u.active, 1) AS is_user_active,
+                       COALESCE(t.deployment_mode, 'LOCAL') AS deployment_mode
                 FROM client_user_telemetry t
                 LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username)
                 LEFT JOIN (
                     SELECT machine_id, LOWER(username) AS uname, work_date, COUNT(*) AS session_count
                     FROM client_user_session_log
-                    WHERE machine_id = ? AND work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+                    WHERE (machine_id = ? OR (CAST(? AS varchar) IS NOT NULL AND UPPER(TRIM(COALESCE(company_name, ''))) = UPPER(TRIM(CAST(? AS varchar)))))
+                      AND work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
                     GROUP BY machine_id, LOWER(username), work_date
                 ) sl ON sl.machine_id = t.machine_id AND sl.uname = LOWER(t.username) AND sl.work_date = t.work_date
-                WHERE t.machine_id = ?
+                WHERE (t.machine_id = ? OR (CAST(? AS varchar) IS NOT NULL AND UPPER(TRIM(COALESCE(t.company_name, ''))) = UPPER(TRIM(CAST(? AS varchar)))))
                   AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
                   AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL OR t.work_date = CAST(? AS date))
                 ORDER BY t.work_date DESC, is_active_now DESC, COALESCE(t.total_seconds_today, 0) DESC, t.last_heartbeat DESC, t.username ASC
-            """, todayIst, machineId, from, to, machineId, from, to, todayIst);
+            """, todayIst, machineId, resolvedCompany, resolvedCompany, from, to, machineId, resolvedCompany, resolvedCompany, from, to, todayIst);
         }
 
         return jdbc.queryForList("""
@@ -1104,14 +1151,15 @@ public class ClientRegistryService {
                    CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN 1 ELSE 0 END AS days_active,
                    CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN 1 ELSE 0 END AS session_count,
                    COALESCE(u.locked, 0) AS is_locked,
-                   COALESCE(u.active, 1) AS is_user_active
+                   COALESCE(u.active, 1) AS is_user_active,
+                   COALESCE(t.deployment_mode, 'LOCAL') AS deployment_mode
             FROM client_user_telemetry t
             LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username)
-            WHERE t.machine_id = ?
+            WHERE (t.machine_id = ? OR (CAST(? AS varchar) IS NOT NULL AND UPPER(TRIM(COALESCE(t.company_name, ''))) = UPPER(TRIM(CAST(? AS varchar)))))
               AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
               AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL OR t.work_date = CAST(? AS date))
             ORDER BY t.work_date DESC, is_active_now DESC, COALESCE(t.total_seconds_today, 0) DESC, t.last_heartbeat DESC, t.username ASC
-        """, todayIst, machineId, from, to, todayIst);
+        """, todayIst, machineId, resolvedCompany, resolvedCompany, from, to, todayIst);
     }
 
     @Transactional(readOnly = true)
@@ -1121,6 +1169,19 @@ public class ClientRegistryService {
         }
         String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
         String cleanUsername = username.trim();
+
+        String resolvedCompany = null;
+        try {
+            List<String> compNames = jdbc.query(
+                    "SELECT company_name FROM licensed_client_registry WHERE machine_id = ? OR machine_id = ? LIMIT 1",
+                    (rs, idx) -> rs.getString(1),
+                    machineId, rawMachine
+            );
+            if (!compNames.isEmpty() && compNames.getFirst() != null && !compNames.getFirst().isBlank()) {
+                resolvedCompany = compNames.getFirst().trim();
+            }
+        } catch (Exception ignored) {}
+
         java.time.LocalDate businessToday = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
         String todayIst = businessToday.toString();
         String from = (fromStr != null && !fromStr.isBlank()) ? fromStr.trim() : businessToday.minusDays(30).toString();
@@ -1142,12 +1203,12 @@ public class ClientRegistryService {
                    COALESCE(t.total_seconds_today, 0) AS total_seconds_today,
                    (t.work_date = CAST(? AS date) AND COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now
             FROM client_user_telemetry t
-            WHERE t.machine_id = ?
+            WHERE (t.machine_id = ? OR (CAST(? AS varchar) IS NOT NULL AND UPPER(TRIM(COALESCE(t.company_name, ''))) = UPPER(TRIM(CAST(? AS varchar)))))
               AND LOWER(t.username) = LOWER(?)
               AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
               AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL)
             ORDER BY t.work_date DESC
-        """, todayIst, machineId, cleanUsername, from, to);
+        """, todayIst, machineId, resolvedCompany, resolvedCompany, cleanUsername, from, to);
 
         Map<String, List<Map<String, Object>>> segmentsByDate = new LinkedHashMap<>();
         if (hasSessionLogTable()) {
@@ -1158,11 +1219,11 @@ public class ClientRegistryService {
                        COALESCE(duration_seconds, 0) AS duration_seconds,
                        (work_date = CAST(? AS date) AND COALESCE(is_active, false) AND session_end >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active
                 FROM client_user_session_log
-                WHERE machine_id = ?
+                WHERE (machine_id = ? OR (CAST(? AS varchar) IS NOT NULL AND UPPER(TRIM(COALESCE(company_name, ''))) = UPPER(TRIM(CAST(? AS varchar)))))
                   AND LOWER(username) = LOWER(?)
                   AND work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
                 ORDER BY work_date DESC, session_start ASC
-            """, todayIst, machineId, cleanUsername, from, to);
+            """, todayIst, machineId, resolvedCompany, resolvedCompany, cleanUsername, from, to);
 
             for (Map<String, Object> seg : allSegments) {
                 String dateKey = String.valueOf(seg.get("work_date"));
@@ -1294,7 +1355,23 @@ public class ClientRegistryService {
     }
 
     public void sendRogueClientSecurityAlerts(String machineId, String companyName, String clientVersion, String clientIp, List<Map<String, Object>> users) {
-        // Debounce check: only send 1 alert per machine per 24 hours
+        if (machineId == null || machineId.isBlank()) return;
+
+        // Skip sending rogue security alerts when operating in LOCAL / development mode
+        String env = deploymentEnv != null ? deploymentEnv.trim().toUpperCase(Locale.ROOT) : "LOCAL";
+        if ("LOCAL".equals(env) || "DEV".equals(env) || "TEST".equals(env)) {
+            log.debug("Suppressing rogue client alert in {} environment for machine {}", env, machineId);
+            return;
+        }
+
+        // In-memory 24-hour debounce check: prevents spamming even if machine is not yet recorded in DB
+        Instant lastMemoryAlert = rogueAlertDebounceMap.get(machineId);
+        if (lastMemoryAlert != null && Duration.between(lastMemoryAlert, Instant.now()).toHours() < 24) {
+            log.debug("Rogue client alert throttled by in-memory 24h cooldown for machine {}", machineId);
+            return;
+        }
+
+        // Database debounce check: only send 1 alert per machine per 24 hours
         try {
             List<Map<String, Object>> existing = jdbc.queryForList(
                     "SELECT last_alert_sent_at FROM licensed_client_registry WHERE machine_id = ?", machineId
@@ -1302,10 +1379,13 @@ public class ClientRegistryService {
             if (!existing.isEmpty() && existing.getFirst().get("last_alert_sent_at") != null) {
                 Instant lastAlert = toInstant(existing.getFirst().get("last_alert_sent_at"));
                 if (lastAlert != null && lastAlert.isAfter(Instant.now().minus(24, ChronoUnit.HOURS))) {
+                    rogueAlertDebounceMap.put(machineId, lastAlert);
                     return; // debounced within 24h
                 }
             }
         } catch (Exception ignored) {}
+
+        rogueAlertDebounceMap.put(machineId, Instant.now());
 
         String token = java.util.UUID.randomUUID().toString().replace("-", "") + Long.toHexString(System.currentTimeMillis());
         Instant expiresAt = Instant.now().plus(72, ChronoUnit.HOURS);

@@ -161,12 +161,12 @@
         </HBox>
     </VBox>
 
-    <!-- Feature Flag 2: Bank Reconciliation Payment Receipts -->
+    <!-- Feature Flag 2: Payment & Remittance Email Receipts -->
     <VBox spacing="8" styleClass="settings-subcard">
         <HBox alignment="CENTER_LEFT" spacing="12">
             <VBox spacing="2" HBox.hgrow="ALWAYS">
-                <Label text="Bank Statement Match Payment Receipts" styleClass="section-title"/>
-                <Label text="Prompt to send payment receipt with dual bank details and Live Status tracking upon transaction match" styleClass="page-subtitle"/>
+                <Label text="Payment Receipts &amp; Remittance Advice (Email)" styleClass="section-title"/>
+                <Label text="Prompt and pre-select Email dispatch with letterhead and Live Status tracking for customer payment receipts, supplier disbursements, and refunds" styleClass="page-subtitle"/>
             </VBox>
             <ToggleButton fx:id="tglPaymentConfirmationEmail" text="Payment Receipts: ON" styleClass="apple-toggle-switch,ios-toggle-switch"/>
         </HBox>

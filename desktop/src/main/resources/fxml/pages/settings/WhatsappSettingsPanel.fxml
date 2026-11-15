@@ -92,6 +92,19 @@
 
     <Separator/>
 
+    <!-- Feature Flag: Payment & Remittance WhatsApp Receipts -->
+    <VBox spacing="8" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <Label text="Payment Receipts &amp; Remittance Advice (WhatsApp)" styleClass="section-title"/>
+                <Label text="Prompt and pre-select WhatsApp dispatch for customer payment receipts, supplier disbursements, and refunds" styleClass="page-subtitle"/>
+            </VBox>
+            <ToggleButton fx:id="tglPaymentConfirmationWhatsapp" text="Payment Receipts: ON" styleClass="apple-toggle-switch,ios-toggle-switch"/>
+        </HBox>
+    </VBox>
+
+    <Separator/>
+
     <!-- Footer Action Bar -->
     <HBox alignment="CENTER_RIGHT" spacing="12" styleClass="settings-panel-footer">
         <Button text="Check Engine Status" onAction="#testWhatsappConnection" styleClass="settings-action-button,settings-secondary-button"/>

@@ -2288,13 +2288,14 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         VBox rootBox = new VBox(12);
         rootBox.setPadding(new Insets(10, 12, 10, 12));
-        rootBox.setMinWidth(1260);
-        rootBox.setPrefWidth(1320);
-        rootBox.setMinHeight(480);
+        rootBox.setMinWidth(960);
+        rootBox.setPrefWidth(1220);
 
         // Telemetry Table
         TableView<Map<String, Object>> tableUsers = new TableView<>();
-        tableUsers.setPrefHeight(360);
+        tableUsers.setPrefHeight(320);
+        tableUsers.setMinHeight(200);
+        VBox.setVgrow(tableUsers, Priority.ALWAYS);
         tableUsers.getStyleClass().addAll("approved-table", "clients-directory-table");
         tableUsers.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
@@ -2338,50 +2339,51 @@ public class ClientRegistryController implements ScreenLifecycle {
                 lblMach, new Separator(javafx.geometry.Orientation.VERTICAL),
                 lblConnectionChannel, heroSpacer, lblPlan, lblSeats);
 
-        // Row 2: Dedicated Filter & Action Toolbar (2-Tier Zero-Truncation Layout)
-        VBox filterCard = new VBox(8);
+        // Row 2: Dedicated Filter & Action Toolbar (Single-Row Zero-Truncation Layout)
+        HBox filterCard = new HBox(6);
+        filterCard.setAlignment(Pos.CENTER_LEFT);
         filterCard.getStyleClass().addAll("approved-card", "clients-search-strip");
-        filterCard.setPadding(new Insets(10, 14, 10, 14));
+        filterCard.setPadding(new Insets(6, 10, 6, 10));
 
-        Label lblFromPrompt = new Label("From Date:");
+        Label lblFromPrompt = new Label("From:");
         lblFromPrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
         lblFromPrompt.getProperties().put("erp.label.icon.skip", true);
         lblFromPrompt.setMinWidth(Region.USE_PREF_SIZE);
 
         DatePicker dpFrom = DatePickerFormatter.attach(new DatePicker(LocalDate.now()));
         dpFrom.getStyleClass().add("approved-datepicker");
-        dpFrom.setMinWidth(135);
-        dpFrom.setPrefWidth(135);
+        dpFrom.setMinWidth(115);
+        dpFrom.setPrefWidth(120);
 
-        Label lblToPrompt = new Label("To Date:");
+        Label lblToPrompt = new Label("To:");
         lblToPrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
         lblToPrompt.getProperties().put("erp.label.icon.skip", true);
         lblToPrompt.setMinWidth(Region.USE_PREF_SIZE);
 
         DatePicker dpTo = DatePickerFormatter.attach(new DatePicker(LocalDate.now()));
         dpTo.getStyleClass().add("approved-datepicker");
-        dpTo.setMinWidth(135);
-        dpTo.setPrefWidth(135);
+        dpTo.setMinWidth(115);
+        dpTo.setPrefWidth(120);
 
         DatePickerFormatter.attachAll(dpFrom, dpTo);
 
         Button btnToday = new Button("Today");
-        btnToday.setGraphic(IconFactory.compactIcon("calendar", 13));
+        btnToday.setGraphic(IconFactory.compactIcon("calendar", 12));
         btnToday.setMinWidth(Region.USE_PREF_SIZE);
         btnToday.getStyleClass().addAll("approved-button", "approved-primary-button");
 
         Button btnYesterday = new Button("Yesterday");
-        btnYesterday.setGraphic(IconFactory.compactIcon("calendar", 13));
+        btnYesterday.setGraphic(IconFactory.compactIcon("calendar", 12));
         btnYesterday.setMinWidth(Region.USE_PREF_SIZE);
         btnYesterday.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
         Button btnThisWeek = new Button("This Week");
-        btnThisWeek.setGraphic(IconFactory.compactIcon("calendar", 13));
+        btnThisWeek.setGraphic(IconFactory.compactIcon("calendar", 12));
         btnThisWeek.setMinWidth(Region.USE_PREF_SIZE);
         btnThisWeek.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
         Button btnThisMonth = new Button("This Month");
-        btnThisMonth.setGraphic(IconFactory.compactIcon("calendar", 13));
+        btnThisMonth.setGraphic(IconFactory.compactIcon("calendar", 12));
         btnThisMonth.setMinWidth(Region.USE_PREF_SIZE);
         btnThisMonth.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
@@ -2406,15 +2408,13 @@ public class ClientRegistryController implements ScreenLifecycle {
         btnDailyView.setGraphic(IconFactory.compactIcon("check", 13));
         btnDailyView.setMinWidth(Region.USE_PREF_SIZE);
         btnDailyView.getStyleClass().addAll("approved-button", "approved-primary-button");
+        Tooltip.install(btnDailyView, new Tooltip("📅 Day-Wise View: Showing individual login/logout sessions per user for each active day."));
 
         Button btnSummaryView = new Button("User Summary");
         btnSummaryView.setGraphic(IconFactory.compactIcon("users", 13));
         btnSummaryView.setMinWidth(Region.USE_PREF_SIZE);
         btnSummaryView.getStyleClass().addAll("approved-button", "approved-secondary-button");
-
-        Label lblModeExplainer = new Label("📅 Day-Wise View: Showing individual login/logout sessions per user for each active day.");
-        lblModeExplainer.getStyleClass().addAll("status-badge", "status-info");
-        lblModeExplainer.setMinWidth(Region.USE_PREF_SIZE);
+        Tooltip.install(btnSummaryView, new Tooltip("👥 Consolidated User Summary: Aggregating all work hours, total sessions, and active days into 1 row per user."));
 
         java.util.function.Consumer<String> updateViewToggle = mode -> {
             boolean isDaily = "DAILY".equalsIgnoreCase(mode);
@@ -2432,17 +2432,11 @@ public class ClientRegistryController implements ScreenLifecycle {
                 btnDailyView.setGraphic(IconFactory.compactIcon("check", 13));
                 btnSummaryView.getStyleClass().addAll("approved-secondary-button", "erp-button-secondary");
                 btnSummaryView.setGraphic(IconFactory.compactIcon("users", 13));
-                lblModeExplainer.setText("📅 Day-Wise View: Showing individual login/logout sessions per user for each active day.");
-                lblModeExplainer.getStyleClass().removeAll("status-info", "status-positive", "status-neutral");
-                lblModeExplainer.getStyleClass().add("status-info");
             } else {
                 btnSummaryView.getStyleClass().addAll("approved-primary-button", "erp-button-primary");
                 btnSummaryView.setGraphic(IconFactory.compactIcon("check", 13));
                 btnDailyView.getStyleClass().addAll("approved-secondary-button", "erp-button-secondary");
                 btnDailyView.setGraphic(IconFactory.compactIcon("calendar", 13));
-                lblModeExplainer.setText("👥 Consolidated User Summary: Aggregating all work hours, total sessions, and active days into 1 row per user.");
-                lblModeExplainer.getStyleClass().removeAll("status-info", "status-positive", "status-neutral");
-                lblModeExplainer.getStyleClass().add("status-positive");
             }
         };
 
@@ -2484,38 +2478,29 @@ public class ClientRegistryController implements ScreenLifecycle {
             dpTo.setValue(LocalDate.now());
         });
 
-        Region filterSpacer = new Region();
-        HBox.setHgrow(filterSpacer, Priority.ALWAYS);
-
-        Button btnRefreshUsers = new Button("Refresh Telemetry");
-        btnRefreshUsers.setGraphic(IconFactory.compactIcon("refresh", 13));
-        btnRefreshUsers.setMinWidth(Region.USE_PREF_SIZE);
-        btnRefreshUsers.getStyleClass().addAll("approved-button", "approved-secondary-button");
-
-        HBox dateRow = new HBox(10);
-        dateRow.setAlignment(Pos.CENTER_LEFT);
-        dateRow.getChildren().addAll(
-                lblFromPrompt, dpFrom, lblToPrompt, dpTo,
-                btnToday, btnYesterday, btnThisWeek, btnThisMonth
-        );
-
-        HBox viewRow = new HBox(10);
-        viewRow.setAlignment(Pos.CENTER_LEFT);
-
-        Label lblViewModePrompt = new Label("View Mode:");
+        Label lblViewModePrompt = new Label("View:");
         lblViewModePrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
         lblViewModePrompt.getProperties().put("erp.label.icon.skip", true);
         lblViewModePrompt.setMinWidth(Region.USE_PREF_SIZE);
 
-        HBox viewToggleGroup = new HBox(6, btnDailyView, btnSummaryView);
+        HBox viewToggleGroup = new HBox(4, btnDailyView, btnSummaryView);
         viewToggleGroup.setAlignment(Pos.CENTER_LEFT);
 
-        viewRow.getChildren().addAll(
-                lblViewModePrompt, viewToggleGroup, lblModeExplainer,
+        Region filterSpacer = new Region();
+        HBox.setHgrow(filterSpacer, Priority.ALWAYS);
+
+        Button btnRefreshUsers = new Button("Refresh Telemetry");
+        btnRefreshUsers.setGraphic(IconFactory.compactIcon("refresh", 12));
+        btnRefreshUsers.setMinWidth(Region.USE_PREF_SIZE);
+        btnRefreshUsers.getStyleClass().addAll("approved-button", "approved-secondary-button");
+
+        filterCard.getChildren().addAll(
+                lblFromPrompt, dpFrom, lblToPrompt, dpTo,
+                btnToday, btnYesterday, btnThisWeek, btnThisMonth,
+                new Separator(javafx.geometry.Orientation.VERTICAL),
+                lblViewModePrompt, viewToggleGroup,
                 filterSpacer, btnRefreshUsers
         );
-
-        filterCard.getChildren().addAll(dateRow, viewRow);
 
         TableColumn<Map<String, Object>, String> colWorkDate = new TableColumn<>("Work Date");
         colWorkDate.setCellValueFactory(c -> {
@@ -2826,7 +2811,7 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         rootBox.getChildren().addAll(heroBar, filterCard, tableUsers);
         dialog.getDialogPane().setContent(rootBox);
-        PopupTableWorkspace.prepareDialog(dialog, 1340);
+        PopupTableWorkspace.prepareDialog(dialog, 1220);
         Platform.runLater(syncPresetFromDates);
         dialog.showAndWait();
     }

@@ -115,6 +115,18 @@ public final class UiDesignSystem {
         if (containsAny(styles, "approved-slate-button", "erp-button-slate")) {
             role(button, "slate"); return;
         }
+        if (containsAny(styles, "approved-rose-button", "erp-button-rose")) {
+            role(button, "rose"); return;
+        }
+        if (containsAny(styles, "approved-teal-button", "erp-button-teal")) {
+            role(button, "teal"); return;
+        }
+        if (containsAny(styles, "approved-forest-button", "erp-button-forest")) {
+            role(button, "forest"); return;
+        }
+        if (containsAny(styles, "approved-pink-button", "erp-button-pink")) {
+            role(button, "pink"); return;
+        }
         if (containsAny(styles, "approved-danger-ghost-button", "erp-button-danger-ghost")) {
             role(button, "danger-ghost"); return;
         }
@@ -144,7 +156,11 @@ public final class UiDesignSystem {
             role(button, "danger");
         } else if (containsAny(text, "approve", "reconcile", "complete", "confirm match", "apply adjustment")) {
             role(button, "success");
-        } else if (containsAny(text, "refresh", "reload", "sync", "recalculate", "refreshing")) {
+        } else if (containsAny(text, "expense", "expenses", "petty cash")) {
+            role(button, "rose");
+        } else if (containsAny(text, "bank entry", "bank statement", "move to bank", "bank")) {
+            role(button, "teal");
+        } else if (containsAny(text, "refresh", "reload", "sync", "recalculate", "refreshing", "rescan")) {
             role(button, "emerald");
         } else if (containsAny(text, "reset", "clear", "clear-filters", "clear history", "reset template", "undo")) {
             role(button, "coral");
@@ -152,13 +168,13 @@ public final class UiDesignSystem {
             role(button, "sky");
         } else if (containsAny(text, "view", "preview", "inspect", "drill", "360")) {
             role(button, "cyan");
-        } else if (containsAny(text, "open", "browse", "choose file", "browse file", "attach", "folder")) {
+        } else if (containsAny(text, "open", "browse", "choose file", "browse file", "attach", "folder", "license", "activation")) {
             role(button, "indigo");
-        } else if (containsAny(text, "excel", "spreadsheet", "export excel", "export xls", "csv")) {
+        } else if (containsAny(text, "excel", "spreadsheet", "export excel", "export xls", "csv", "export")) {
             role(button, "emerald");
         } else if (containsAny(text, "email", "send email", "mail")) {
             role(button, "sky");
-        } else if (containsAny(text, "edit", "modify", "rename", "change")) {
+        } else if (containsAny(text, "edit", "modify", "rename", "change", "remind", "reminder", "overdue")) {
             role(button, "amber");
         } else if (containsAny(text, "duplicate", "clone", "repeat")) {
             role(button, "violet");
@@ -179,6 +195,9 @@ public final class UiDesignSystem {
         } else if (!text.contains("saved") && (text.equals("save") || text.startsWith("save ") || text.startsWith("save-")
                 || containsAny(text, "create", "add ", "new ", "import", "generate", "submit", "sign in", "login"))) {
             role(button, "primary");
+        } else if (containsAny(styles, "btn-", "approved-", "erp-button-") && !containsAny(styles, "secondary")) {
+            // Already explicitly styled by a custom palette class - do NOT force secondary onto it!
+            return;
         } else {
             role(button, "secondary");
         }

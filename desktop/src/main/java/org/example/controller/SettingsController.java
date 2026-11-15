@@ -301,6 +301,7 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private ComboBox<String> cmbWhatsappSalesChannel;
     @FXML private ComboBox<String> cmbWhatsappPurchaseChannel;
     @FXML private ComboBox<String> cmbWhatsappQuotationChannel;
+    @FXML private ToggleButton tglPaymentConfirmationWhatsapp;
     @FXML private Button btnWhatsappTest;
     @FXML private Button btnStartWaha;
     @FXML private Button btnWhatsappInfo;
@@ -981,6 +982,11 @@ public class SettingsController implements ScreenLifecycle {
                 if (cmbWhatsappSalesChannel != null) selectComboValue(cmbWhatsappSalesChannel, value.salesChannel());
                 if (cmbWhatsappPurchaseChannel != null) selectComboValue(cmbWhatsappPurchaseChannel, value.purchaseChannel());
                 if (cmbWhatsappQuotationChannel != null) selectComboValue(cmbWhatsappQuotationChannel, value.quotationChannel());
+                if (tglPaymentConfirmationWhatsapp != null) {
+                    boolean paymentWahaActive = ConfigManager.getBoolean("whatsapp.paymentConfirmation.enabled", true);
+                    tglPaymentConfirmationWhatsapp.setSelected(paymentWahaActive);
+                    tglPaymentConfirmationWhatsapp.setText(paymentWahaActive ? "Payment Receipts: ON" : "Payment Receipts: OFF");
+                }
             }
             default -> { }
         }
@@ -3258,6 +3264,11 @@ private record AssetPreviewRequest(
             putSetting("whatsapp.channel.quotation_name", val);
             ConfigManager.setWithoutSaving("whatsapp.channel.quotation_name", val);
         }
+        if (tglPaymentConfirmationWhatsapp != null) {
+            boolean payConfWaha = tglPaymentConfirmationWhatsapp.isSelected();
+            putSetting("whatsapp.paymentConfirmation.enabled", String.valueOf(payConfWaha));
+            ConfigManager.setWithoutSaving("whatsapp.paymentConfirmation.enabled", String.valueOf(payConfWaha));
+        }
         if (SessionService.isAdmin()) {
             try {
                 String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null && !txtWahaEndpoint.getText().isBlank() ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
@@ -3662,6 +3673,18 @@ private record AssetPreviewRequest(
             tglPaymentConfirmationEmail.selectedProperty().addListener((obs, oldVal, newVal) -> {
                 tglPaymentConfirmationEmail.setText(newVal ? "Payment Receipts: ON" : "Payment Receipts: OFF");
                 ConfigManager.setBoolean("bank.paymentConfirmationEmail.enabled", newVal);
+                ConfigManager.save();
+            });
+        }
+
+        // Feature Flag 3: Payment & Remittance WhatsApp Receipts
+        if (tglPaymentConfirmationWhatsapp != null) {
+            boolean paymentWahaActive = ConfigManager.getBoolean("whatsapp.paymentConfirmation.enabled", true);
+            tglPaymentConfirmationWhatsapp.setSelected(paymentWahaActive);
+            tglPaymentConfirmationWhatsapp.setText(paymentWahaActive ? "Payment Receipts: ON" : "Payment Receipts: OFF");
+            tglPaymentConfirmationWhatsapp.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                tglPaymentConfirmationWhatsapp.setText(newVal ? "Payment Receipts: ON" : "Payment Receipts: OFF");
+                ConfigManager.setBoolean("whatsapp.paymentConfirmation.enabled", newVal);
                 ConfigManager.save();
             });
         }

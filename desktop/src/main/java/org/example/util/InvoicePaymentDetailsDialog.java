@@ -134,8 +134,10 @@ public final class InvoicePaymentDetailsDialog {
             }
         });
         IconFactory.applyTableHeaderIcon(amount, "currency");
+        TableColumn<SupportApiClient.PaymentRow, String> emailStatus = textColumn("Email Status", "email", SupportApiClient.PaymentRow::emailStatus);
+        TableColumn<SupportApiClient.PaymentRow, String> whatsappStatus = textColumn("WhatsApp Status", "whatsapp", SupportApiClient.PaymentRow::whatsappStatus);
         TableColumn<SupportApiClient.PaymentRow, String> notes = textColumn("Notes", "notes", SupportApiClient.PaymentRow::notes);
-        table.getColumns().addAll(paymentRefCol, date, reference, from, mode, amount, notes);
+        table.getColumns().addAll(paymentRefCol, date, reference, from, mode, amount, emailStatus, whatsappStatus, notes);
         DynamicTableLayoutManager.install(table);
         VBox.setVgrow(table, Priority.ALWAYS);
 

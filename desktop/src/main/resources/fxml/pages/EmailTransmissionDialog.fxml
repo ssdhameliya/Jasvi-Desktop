@@ -6,8 +6,29 @@
 
 <BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="org.example.controller.EmailTransmissionDialog"
-            prefWidth="860" prefHeight="780" minWidth="760" minHeight="620"
-            styleClass="entity-dialog,premium-entity-dialog,approved-ui">
+            prefWidth="960" prefHeight="780" minWidth="820" minHeight="620"
+            styleClass="entity-dialog,premium-entity-dialog,approved-ui,erp-screen-root">
+    <top>
+        <VBox styleClass="dse-stage-header-wrap">
+            <!-- Top Accent 3D Gradient Line governed by app-dialog.css -->
+            <Region styleClass="dse-dialog-accent" minHeight="4" prefHeight="4" maxHeight="4"/>
+            <HBox alignment="CENTER_LEFT" spacing="14" styleClass="erp-page-identity-header,approved-card,entity-dialog-header">
+                <padding>
+                    <Insets top="14" right="20" bottom="14" left="20"/>
+                </padding>
+                <StackPane fx:id="headerIconHolder" minWidth="44" minHeight="44" prefWidth="44" prefHeight="44"
+                           styleClass="erp-page-header-icon,dialog-title-icon"/>
+                <VBox spacing="2" HBox.hgrow="ALWAYS">
+                    <Label fx:id="lblTitle" text="Transmit Document via Email"
+                           styleClass="section-title,erp-page-title,approved-strong-label,entity-dialog-title"/>
+                    <Label fx:id="lblSubtitle" text="Direct SMTP delivery to billing contact"
+                           styleClass="muted-label,erp-page-subtitle,entity-dialog-subtitle"/>
+                </VBox>
+                <Label text="EMAIL DELIVERY" styleClass="status-badge,status-info"/>
+                <Button onAction="#cancel" styleClass="dse-dialog-close,icon-button"/>
+            </HBox>
+        </VBox>
+    </top>
     <center>
         <ScrollPane fitToWidth="true" fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" styleClass="edge-to-edge,email-transmission-scroll">
             <VBox spacing="14" styleClass="premium-dialog-content">

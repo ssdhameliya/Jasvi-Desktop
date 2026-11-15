@@ -3,12 +3,15 @@ import java.util.List;
 public final class SupportDtos { private SupportDtos(){}
  public record SavedView(String name,String data){} public record SavedViewSave(Integer userId,String screen,String name,String data){}
  public record ActivityRow(long id,String entityType,int entityId,String action,String detail,String createdBy,String createdAt){}
- public record PaymentRow(int id,String date,String reference,String mode,double amount,String notes,String receivedFrom,String attachment,String paymentType,long rowVersion,String paymentReference,String createdBy,Long statementTransactionId,String statementReference,Integer financeEntryId,String financeVoucherNo,String emailStatus){
+ public record PaymentRow(int id,String date,String reference,String mode,double amount,String notes,String receivedFrom,String attachment,String paymentType,long rowVersion,String paymentReference,String createdBy,Long statementTransactionId,String statementReference,Integer financeEntryId,String financeVoucherNo,String emailStatus,String whatsappStatus){
   public PaymentRow(int id,String date,String reference,String mode,double amount,String notes,String receivedFrom,String attachment,String paymentType,long rowVersion){
-   this(id,date,reference,mode,amount,notes,receivedFrom,attachment,paymentType,rowVersion,null,null,null,null,null,null,"PENDING");
+   this(id,date,reference,mode,amount,notes,receivedFrom,attachment,paymentType,rowVersion,null,null,null,null,null,null,"PENDING","PENDING");
   }
   public PaymentRow(int id,String date,String reference,String mode,double amount,String notes,String receivedFrom,String attachment,String paymentType,long rowVersion,String paymentReference,String createdBy,Long statementTransactionId,String statementReference,Integer financeEntryId,String financeVoucherNo){
-   this(id,date,reference,mode,amount,notes,receivedFrom,attachment,paymentType,rowVersion,paymentReference,createdBy,statementTransactionId,statementReference,financeEntryId,financeVoucherNo,"PENDING");
+   this(id,date,reference,mode,amount,notes,receivedFrom,attachment,paymentType,rowVersion,paymentReference,createdBy,statementTransactionId,statementReference,financeEntryId,financeVoucherNo,"PENDING","PENDING");
+  }
+  public PaymentRow(int id,String date,String reference,String mode,double amount,String notes,String receivedFrom,String attachment,String paymentType,long rowVersion,String paymentReference,String createdBy,Long statementTransactionId,String statementReference,Integer financeEntryId,String financeVoucherNo,String emailStatus){
+   this(id,date,reference,mode,amount,notes,receivedFrom,attachment,paymentType,rowVersion,paymentReference,createdBy,statementTransactionId,statementReference,financeEntryId,financeVoucherNo,emailStatus,"PENDING");
   }
  }
  public record PaymentCreated(int id){}

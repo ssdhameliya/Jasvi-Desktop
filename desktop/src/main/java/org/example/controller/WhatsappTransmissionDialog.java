@@ -42,6 +42,10 @@ public class WhatsappTransmissionDialog {
             Path attachmentPdf
     ) {}
 
+    @FXML private StackPane headerIconHolder;
+    @FXML private Label lblTitle;
+    @FXML private Label lblSubtitle;
+
     @FXML private StackPane senderIconHolder;
     @FXML private Label lblSenderTitle;
     @FXML private Label lblSenderInfo;
@@ -66,6 +70,9 @@ public class WhatsappTransmissionDialog {
     private WhatsappTransmissionResult result;
 
     public void initialize() {
+        if (headerIconHolder != null) {
+            headerIconHolder.getChildren().setAll(IconFactory.icon("whatsapp", 22));
+        }
         if (senderIconHolder != null) {
             senderIconHolder.getChildren().setAll(IconFactory.icon("whatsapp", 22));
         }
@@ -91,6 +98,9 @@ public class WhatsappTransmissionDialog {
     public void setDraft(WhatsappDraft draft, Dialog<WhatsappTransmissionResult> dialog) {
         this.draft = draft;
         this.hostDialog = dialog;
+
+        if (lblTitle != null && draft.title() != null) lblTitle.setText(draft.title());
+        if (lblSubtitle != null && draft.subtitle() != null) lblSubtitle.setText(draft.subtitle());
 
         if (lblSenderInfo != null && draft.senderInfo() != null && !draft.senderInfo().isBlank()) {
             lblSenderInfo.setText(draft.senderInfo());

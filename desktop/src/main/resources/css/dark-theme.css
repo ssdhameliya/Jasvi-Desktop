@@ -14806,6 +14806,10 @@
 .erp-ui-standard .erp-control-button.erp-button-role-success:hover { -fx-background-color: #10704f; }
 .erp-ui-standard .erp-control-button.erp-button-role-danger { -fx-background-color: #a83843; -fx-border-color: #e05a64; -fx-text-fill: white; }
 .erp-ui-standard .erp-control-button.erp-button-role-danger:hover { -fx-background-color: #b8323d; }
+.erp-ui-standard .erp-control-button.erp-button-role-rose { -fx-background-color: linear-gradient(to bottom right, #e11d48, #9f1239); -fx-border-color: #fb7185; -fx-text-fill: white; }
+.erp-ui-standard .erp-control-button.erp-button-role-rose:hover { -fx-background-color: linear-gradient(to bottom right, #f43f5e, #be123c); }
+.erp-ui-standard .erp-control-button.erp-button-role-teal { -fx-background-color: linear-gradient(to bottom right, #0f766e, #134e4a); -fx-border-color: #2dd4bf; -fx-text-fill: white; }
+.erp-ui-standard .erp-control-button.erp-button-role-teal:hover { -fx-background-color: linear-gradient(to bottom right, #0d9488, #115e59); }
 .erp-ui-standard .erp-control-button.erp-button-role-row-action { -fx-min-height: 32px; -fx-pref-height: 32px; -fx-padding: 5px 10px; -fx-background-color: -dse-surface-1; -fx-border-color: -dse-border-strong; -fx-text-fill: -dse-text; }
 .erp-ui-standard .erp-control-button.erp-button-role-icon { -fx-min-width: 32px; -fx-pref-width: 32px; -fx-padding: 5px; -fx-background-color: transparent; -fx-border-color: transparent; }
 .erp-ui-standard .erp-control-button:pressed { -fx-translate-y: 1px; }
@@ -18389,7 +18393,7 @@
     -fx-background-color:
         rgba(0, 0, 0, 0.50),
         linear-gradient(to bottom, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 100%),
-        linear-gradient(to bottom, #3730a3 0%, #312e81 50%, #1e1b4b 100%);
+        linear-gradient(to bottom, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
     -fx-background-insets: 0 0 -2 0, 0, 1;
     -fx-text-fill: #ffffff;
     -fx-border-color: linear-gradient(to bottom, rgba(165, 180, 252, 0.85), rgba(79, 70, 229, 0.50));
@@ -18401,7 +18405,7 @@
     -fx-background-color:
         rgba(0, 0, 0, 0.60),
         linear-gradient(to bottom, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 100%),
-        linear-gradient(to bottom, #3730a3 0%, #312e81 50%, #1e1b4b 100%);
+        linear-gradient(to bottom, #818cf8 0%, #6366f1 35%, #4f46e5 100%);
     -fx-background-insets: 0 0 -2.5 0, 0, 1;
     -fx-border-color: #818cf8;
     -fx-border-width: 1.5px;
@@ -18601,7 +18605,7 @@
 }
 
 /* 9C. Magenta / Pink (Document Studio / PDF / Excel Designer / Templates) */
-.button.approved-pink-button, .button.erp-button-role-pink, .button.erp-button-pink, .approved-pink-button, .erp-button-pink, .btn-pink, .dse-theme-dark .button.approved-pink-button, .dse-theme-dark .button.erp-button-role-pink, .dse-theme-dark .button.erp-button-pink {
+.button.approved-pink-button, .button.erp-button-role-pink, .button.erp-button-pink, .approved-pink-button, .erp-button-pink, .btn-pink, .button.approved-rose-button, .button.erp-button-role-rose, .button.erp-button-rose, .approved-rose-button, .erp-button-rose, .dse-theme-dark .button.approved-pink-button, .dse-theme-dark .button.erp-button-role-pink, .dse-theme-dark .button.erp-button-pink, .dse-theme-dark .button.approved-rose-button, .dse-theme-dark .button.erp-button-role-rose, .dse-theme-dark .button.erp-button-rose {
     -fx-background-color:
         rgba(0, 0, 0, 0.50),
         linear-gradient(to bottom, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 100%),
@@ -18612,7 +18616,7 @@
     -fx-border-width: 1px;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 8, 0, 0, 3);
 }
-.button.approved-pink-button:hover, .button.erp-button-role-pink:hover, .button.erp-button-pink:hover, .approved-pink-button:hover, .btn-pink:hover, .dse-theme-dark .button.approved-pink-button:hover, .dse-theme-dark .button.erp-button-role-pink:hover, .dse-theme-dark .button.erp-button-pink:hover {
+.button.approved-pink-button:hover, .button.erp-button-role-pink:hover, .button.erp-button-pink:hover, .approved-pink-button:hover, .btn-pink:hover, .button.approved-rose-button:hover, .button.erp-button-role-rose:hover, .button.erp-button-rose:hover, .approved-rose-button:hover, .dse-theme-dark .button.approved-pink-button:hover, .dse-theme-dark .button.erp-button-role-pink:hover, .dse-theme-dark .button.erp-button-pink:hover, .dse-theme-dark .button.approved-rose-button:hover, .dse-theme-dark .button.erp-button-role-rose:hover, .dse-theme-dark .button.erp-button-rose:hover {
     -fx-translate-y: -1.5px;
     -fx-background-color:
         rgba(0, 0, 0, 0.60),
@@ -18655,7 +18659,7 @@
 .erp-button-purple .erp-action-glyph,
 .erp-button-indigo .erp-action-glyph,
 .erp-button-coral .erp-action-glyph,
-.erp-button-pink .erp-action-glyph,
+.erp-button-pink .erp-action-glyph, .erp-button-rose .erp-action-glyph,
 .erp-button-violet .erp-action-glyph,
 .erp-button-slate .erp-action-glyph,
 .erp-button-success .erp-action-glyph,
@@ -18672,7 +18676,7 @@
 .approved-purple-button .erp-action-glyph,
 .approved-indigo-button .erp-action-glyph,
 .approved-coral-button .erp-action-glyph,
-.approved-pink-button .erp-action-glyph,
+.approved-pink-button .erp-action-glyph, .approved-rose-button .erp-action-glyph,
 .approved-violet-button .erp-action-glyph,
 .approved-slate-button .erp-action-glyph,
 .approved-next-button .erp-action-glyph,
@@ -20246,6 +20250,36 @@
     -fx-border-color: #1e3a5f;
     -fx-border-width: 0 0 0 1.5px;
 }
+
+/* Payment & Remittance Transmission Workspace Tabs */
+.payment-transmission-tabs > .tab-header-area > .tab-header-background {
+    -fx-background-color: #0d1b2d;
+    -fx-background-radius: 8px;
+    -fx-border-color: #284766;
+    -fx-border-radius: 8px;
+}
+.payment-transmission-tabs > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6px;
+    -fx-padding: 8px 16px;
+}
+.payment-transmission-tabs > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: #1e293b;
+    -fx-background-radius: 6px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 1);
+}
+.payment-transmission-tabs > .tab-header-area > .headers-region > .tab > .tab-container > .tab-label {
+    -fx-text-fill: #94a3b8;
+    -fx-font-weight: 600;
+}
+.payment-transmission-tabs > .tab-header-area > .headers-region > .tab:selected > .tab-container > .tab-label {
+    -fx-text-fill: #38bdf8;
+    -fx-font-weight: 700;
+}
+.payment-transmission-tabs > .tab-content-area {
+    -fx-padding: 8px 0 0 0;
+}
+
 
 
 
