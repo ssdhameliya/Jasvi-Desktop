@@ -12,9 +12,12 @@ public final class ReturnDtos{private ReturnDtos(){}
  public record UpdateRequest(String field,String value,long expectedRowVersion){}
  public record RefundRequest(double amount){}
  public record RefundCreateRequest(String date,double amount,String mode,String reference,String bankAccount,String refundedParty,String notes,String refundType,String createdBy){}
- public record RefundRow(int id,String date,String reference,String mode,String bankAccount,double amount,String refundedParty,String status,String notes,String attachment,String refundType,String emailStatus){
+ public record RefundRow(int id,String date,String reference,String mode,String bankAccount,double amount,String refundedParty,String status,String notes,String attachment,String refundType,String emailStatus,String whatsappStatus){
   public RefundRow(int id,String date,String reference,String mode,String bankAccount,double amount,String refundedParty,String status,String notes,String attachment,String refundType){
-   this(id,date,reference,mode,bankAccount,amount,refundedParty,status,notes,attachment,refundType,"PENDING");
+   this(id,date,reference,mode,bankAccount,amount,refundedParty,status,notes,attachment,refundType,"PENDING","PENDING");
+  }
+  public RefundRow(int id,String date,String reference,String mode,String bankAccount,double amount,String refundedParty,String status,String notes,String attachment,String refundType,String emailStatus){
+   this(id,date,reference,mode,bankAccount,amount,refundedParty,status,notes,attachment,refundType,emailStatus,"PENDING");
   }
  }
  public record RefundCreated(int id){}

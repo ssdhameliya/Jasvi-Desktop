@@ -231,7 +231,11 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_64__payment_email_status",
                     "db/migration/V11_0_64__payment_email_status.sql"),
             new Migration("V11_0_65__client_user_session_log",
-                    "db/migration/V11_0_65__client_user_session_log.sql")
+                    "db/migration/V11_0_65__client_user_session_log.sql"),
+            new Migration("V11_0_67__client_registry_cloud_workstation_unification",
+                    "db/migration/V11_0_67__client_registry_cloud_workstation_unification.sql"),
+            new Migration("V11_0_68__payment_and_refund_whatsapp_status",
+                    "db/migration/V11_0_68__payment_and_refund_whatsapp_status.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;
@@ -390,6 +394,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
         requireTable("credit_note_header");
         requireTable("debit_note_header");
         requireTable("client_user_session_log");
+        requireColumn("client_user_telemetry", "deployment_mode");
+        requireColumn("client_user_session_log", "deployment_mode");
+        requireColumn("client_user_session_log", "company_name");
         requireFunction("dse_safe_date");
     }
 

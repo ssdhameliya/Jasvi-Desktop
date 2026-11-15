@@ -34,6 +34,8 @@ payment.upi=
 
 # WhatsApp sender phone (international format without +)
 whatsapp.senderPhone=
+whatsapp.paymentConfirmation.enabled=true
+bank.paymentConfirmationEmail.enabled=true
 
 # Application updates (served through the configured DSE ERP server)
 update.channel=STABLE

@@ -27,6 +27,7 @@ public class ReturnController {
     @PostMapping("/record-refund") public ReturnDtos.RefundCreated recordRefundByQuery(@RequestParam String no,@RequestBody ReturnDtos.RefundCreateRequest request){service.requireAccess(no);return new ReturnDtos.RefundCreated(service.recordRefund(no,request));}
     @PostMapping("/{no}/refunds") public ReturnDtos.RefundCreated recordRefund(@PathVariable String no,@RequestBody ReturnDtos.RefundCreateRequest request){service.requireAccess(no);return new ReturnDtos.RefundCreated(service.recordRefund(no,request));}
     @PutMapping("/refunds/{refundId}/email-status") public ReturnDtos.Ok refundEmailStatus(@PathVariable int refundId,@RequestParam String status){service.updateRefundEmailStatus(refundId,status);return ok("Updated");}
+    @PutMapping("/refunds/{refundId}/whatsapp-status") public ReturnDtos.Ok refundWhatsappStatus(@PathVariable int refundId,@RequestParam String status){service.updateRefundWhatsappStatus(refundId,status);return ok("Updated");}
     @PostMapping("/{no}/quick-apply") public ReturnDtos.Ok quickApply(@PathVariable String no){service.requireAccess(no);int count=service.applyCreditNoteToOutstandingInvoices(no);return ok("Credit note applied to "+count+" invoice(s)");}
 
     @PostMapping("/approve-by-no") public ReturnDtos.Ok approveByQuery(@RequestParam String no){service.approve(no);return ok("Return approved");}

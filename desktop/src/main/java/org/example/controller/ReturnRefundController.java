@@ -229,14 +229,16 @@ public class ReturnRefundController implements ScreenLifecycle {
             boolean isSales = "SALES RETURN".equalsIgnoreCase(details.type());
             var parties = new org.example.service.PartyService().getByType(isSales ? "CUSTOMER" : "SUPPLIER");
             String pEmail = "";
+            String pPhone = "";
             for (var p : parties) {
                 if (p != null && p.getName() != null && p.getName().trim().equalsIgnoreCase(details.party().trim())) {
                     pEmail = p.getEmail() == null ? "" : p.getEmail().trim();
+                    pPhone = p.getPhone() == null ? "" : p.getPhone().trim();
                     break;
                 }
             }
-            if (pEmail.isBlank()) {
-                new OwnedAlert(Alert.AlertType.WARNING, "No email address found for " + details.party() + ". Please update party email in Masters.").showAndWait();
+            if (pEmail.isBlank() && pPhone.isBlank()) {
+                new OwnedAlert(Alert.AlertType.WARNING, "No email address or phone number found for " + details.party() + ". Please update party contacts in Masters.").showAndWait();
                 return;
             }
             LocalDate rDate;
@@ -252,6 +254,7 @@ public class ReturnRefundController implements ScreenLifecycle {
                     details.no(),
                     details.party(),
                     pEmail,
+                    pPhone,
                     details.invoice(),
                     details.type(),
                     row.amount(),
@@ -303,15 +306,17 @@ public class ReturnRefundController implements ScreenLifecycle {
                     boolean isSales="SALES RETURN".equalsIgnoreCase(rDetails.type());
                     var parties=new org.example.service.PartyService().getByType(isSales?"CUSTOMER":"SUPPLIER");
                     String pEmail="";
+                    String pPhone="";
                     for(var p:parties){
                         if(p!=null&&p.getName()!=null&&p.getName().trim().equalsIgnoreCase(rDetails.party().trim())){
                             pEmail=p.getEmail()==null?"":p.getEmail().trim();
+                            pPhone=p.getPhone()==null?"":p.getPhone().trim();
                             break;
                         }
                     }
-                    if(!pEmail.isBlank()){
+                    if(!pEmail.isBlank()||!pPhone.isBlank()){
                         org.example.util.PaymentConfirmationPromptHelper.promptAndTransmitReturn(
-                                amount,id,rDetails.no(),rDetails.party(),pEmail,rDetails.invoice(),
+                                amount,id,rDetails.no(),rDetails.party(),pEmail,pPhone,rDetails.invoice(),
                                 rDetails.type(),rVal,rRemaining,rMode,rRef,rDate,rNotes,this::load
                         );
                     }
