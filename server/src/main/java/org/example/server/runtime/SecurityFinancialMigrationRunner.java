@@ -229,7 +229,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_60__client_user_work_session_telemetry",
                     "db/migration/V11_0_60__client_user_work_session_telemetry.sql"),
             new Migration("V11_0_64__payment_email_status",
-                    "db/migration/V11_0_64__payment_email_status.sql")
+                    "db/migration/V11_0_64__payment_email_status.sql"),
+            new Migration("V11_0_65__client_user_session_log",
+                    "db/migration/V11_0_65__client_user_session_log.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;
@@ -387,6 +389,7 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
         requireTable("audit_change");
         requireTable("credit_note_header");
         requireTable("debit_note_header");
+        requireTable("client_user_session_log");
         requireFunction("dse_safe_date");
     }
 

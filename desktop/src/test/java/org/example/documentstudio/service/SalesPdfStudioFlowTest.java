@@ -53,8 +53,21 @@ class SalesPdfStudioFlowTest {
 
     private static void deleteTree(Path root) throws Exception {
         if (!Files.exists(root)) return;
-        try (var stream = Files.walk(root)) {
-            for (Path path : stream.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+        for (int attempt = 0; attempt < 10; attempt++) {
+            try {
+                try (var stream = Files.walk(root)) {
+                    for (Path path : stream.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            if (!Files.exists(root)) return;
+            System.gc();
+            Thread.sleep(100);
         }
     }
 

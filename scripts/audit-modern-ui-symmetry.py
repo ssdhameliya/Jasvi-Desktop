@@ -32,4 +32,22 @@ for idx, (d, l) in enumerate(zip(dark_lines, light_lines)):
     if d == "}":
         assert l == "}", f"Closing brace mismatch at line {idx+1}:\n  Dark:  {d}\n  Light: {l}"
 
-print(f"MODERN_UI_SYMMETRY_OK lines={len(dark_lines)} selectors={selectors_count} parity=100%")                         
+full_dark_lines = DARK_CSS.read_text(encoding="utf-8").splitlines()
+full_light_lines = LIGHT_CSS.read_text(encoding="utf-8").splitlines()
+assert len(full_dark_lines) == len(full_light_lines), (
+    f"Full-file line count mismatch: dark={len(full_dark_lines)}, light={len(full_light_lines)}"
+)
+for idx, (dl, ll) in enumerate(zip(full_dark_lines, full_light_lines), 1):
+    ds, ls = dl.strip(), ll.strip()
+    assert (ds == "") == (ls == ""), f"Blank line mismatch at line {idx}"
+    assert (ds == "}") == (ls == "}"), f"Closing brace mismatch at line {idx}"
+    if ds.endswith("{") or ls.endswith("{"):
+        assert ds.replace(".dse-theme-dark", ".dse-theme-light") == ls, (
+            f"Full-file selector mismatch at line {idx}:\n  Dark:  {ds}\n  Light: {ls}"
+        )
+    elif ":" in ds and ":" in ls and "{" not in ds and not ds.startswith(("/*", "*")):
+        assert ds.split(":", 1)[0].strip() == ls.split(":", 1)[0].strip(), (
+            f"Full-file CSS property mismatch at line {idx}:\n  Dark:  {ds}\n  Light: {ls}"
+        )
+
+print(f"MODERN_UI_SYMMETRY_OK lines={len(dark_lines)} full_lines={len(full_dark_lines)} selectors={selectors_count} parity=100%")                         

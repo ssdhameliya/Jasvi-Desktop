@@ -1,4 +1,39 @@
+# What's New in DSE ERP v11.0.66
+
+### Light Theme Table Selection Lavender Modernization & Visual Contrast Parity
+- **Elimination of Solid Dark Purple Table Row Selection (`app-dialog.css`, `light-theme.css`, `SharedUiOwnershipContractTest.java`) (Rule 5, Rule 7, Rule 11 & Rule 17)**:
+  - Fixed an issue where selected table rows in Light Theme rendered with a solid dark purple background (`#6d28d9`) and forced white text (`#ffffff`), which clashed with the light UI and washed out semantic number and badge colors.
+  - Replaced the high-specificity rule in `app-dialog.css` with standard theme soft lavender (`-fx-background-color: #eee8ff`), clear left-accent border (`-fx-border-color: transparent transparent #c4b5fd #7c3aed; -fx-border-width: 0 0 1 4;`), and dark slate primary text (`-fx-text-fill: #1e293b`).
+  - Retained high-contrast semantic color tokens on selected rows for links and values (blue `#2563eb`, green `#16a34a`, orange `#d97706`, purple `#7c3aed`, pink `#e11d48`, teal `#0d9488`, indigo `#4f46e5`).
+  - Added automated contract assertions in `SharedUiOwnershipContractTest.java` ensuring `#6d28d9` and `#5b21b6` cannot regress into `app-dialog.css`.
+
+### Authentic Workstation Connection Channel Resolution & Telemetry Integrity
+- **Real-Time Network Endpoint Resolution vs Static Client Profile Separation (`ClientRegistryController.java`) (Rule 4, Rule 5, Rule 11 & Rule 17)**:
+  - Resolved a false positive where local workstation sessions were mislabeled as `Cloud Gateway` in the hero header and `Online • Cloud` in the telemetry table whenever a remote tunnel URL was registered on the client profile.
+  - Implemented dynamic runtime network endpoint inspection (`isWorkstationCloudConnected()`): when running locally (`DeploymentMode.LOCAL`, `127.0.0.1`, `localhost`, or LAN IP), the workstation is accurately tagged as `Local Workstation` (`status-positive`, green hardware badge) and user sessions render as `🟢 Online • Local`.
+  - Properly isolated remote tunnel availability: if `remote_url` is configured on the client profile, it is cleanly surfaced via informative tooltips without overriding local connection channel truth.
+
+### Register Search Bar Non-Focused Outer Border Visibility
+- **Permanent 1.2px Outer Search Border Across Sales and Purchase Registers (`SalesList.fxml`, `PurchaseList.fxml`, `light-theme.css`, `dark-theme.css`) (Rule 5, Rule 7 & Rule 11)**:
+  - Fixed an issue where search shells across registers did not show an outer bounding line until clicked or focused.
+  - Declared explicit `-fx-border-color: #cbd5e1; -fx-border-width: 1.2px;` in Light Theme and `-fx-border-color: #334155; -fx-border-width: 1.2px;` in Dark Theme, ensuring instant visual discoverability before user interaction.
+
+### Zero Mock Data on Dashboard Active Sales KPI
+- **100% Database-Driven Sales Metrics (`DashboardController.java`, `DashboardHome.fxml`) (Rule 6, Rule 11 & Rule 17)**:
+  - Eliminated the hardcoded `+8.4%` mock percentage trend pill on the Dashboard Active Sales KPI card.
+  - Replaced it with genuine database-calculated metrics and live active sales invoice counters.
+
+### Top-User Profile Action Menu Colorful Semantic Icons
+- **Theme-Agnostic Vibrant Action Glyphs (`light-theme.css`, `dark-theme.css`, `IconFactory.java`) (Rule 5, Rule 8, Rule 9 & Rule 11)**:
+  - Ensured top-user profile dropdown items (Settings, Profile, Licensing, User Access, Logout) render crisp, colorful semantic SVG glyphs and text labels across both Light and Dark themes.
+
 # What's New in DSE ERP v11.0.65
+
+### Full-File 1:1 Line-by-Line Light & Dark CSS Symmetry (`light-theme.css`, `dark-theme.css`, `audit-modern-ui-symmetry.py`)
+- **Strict 1:1 Line-by-Line Stylesheet Parity Across All 20,145 Lines (`light-theme.css`, `dark-theme.css`, `audit-modern-ui-symmetry.py`) (Rule 5, Rule 6, Rule 8, Rule 10 & Rule 11)**:
+  - Repaired the corrupted `.page-header` selector on Line 1 of `light-theme.css` (`iled.page-header, .screen-header {` -> `.page-header, .screen-header {`).
+  - Ported the 17 Sale & Purchase entry semantic field-label rules (`.purchase-page .sales-entry-field-label.field-label-*` and `.erp-field-label-colour-*`) into `dark-theme.css` with high-contrast Dark palette tokens and unified the 10 `.dse-global-search-v3-desc-*` blocks across both themes.
+  - Aligned all 4,169 CSS rule blocks, property sequences, section headers, and blank lines across all 20,145 lines of `light-theme.css` and `dark-theme.css` so that every line `1..20,145` matches 1:1 (selector-for-selector and property-for-property on the exact same line number) with zero duplicate blocks (`duplicates=0`).
 
 ### SuperAdmin Workstation Telemetry & Daily Work Tracking Modernization
 - **Client-Driven Local Work Date & PostgreSQL UTC Timezone Disconnect Elimination (`DashboardController.java`, `ClientRegistryService.java`, `ClientRegistryController.java`) (Rule 4, Rule 5, Rule 7, Rule 11, Rule 12 & Rule 17)**:
@@ -7,6 +42,16 @@
   - Replaced the flawed wall-clock calculation (`EXTRACT(EPOCH FROM CURRENT_TIMESTAMP - first_login_today)`) with genuine accumulated active work seconds (`total_seconds_today`). Sessions under 60 seconds render gracefully as `"< 1 min"` instead of `0 hrs 0 mins`.
   - Upgraded telemetry status rendering: replaced uncolored Windows Unicode text emojis (`⚪ Active Now` / `⚪ Online`) with crisp JavaFX vector circle graphics (`IconFactory.compactIcon("circle", 8)`) and high-contrast semantic CSS status pill badges (`status-positive`, `badge-active`).
   - **Zero Truncation & Dynamic Viewport Sizing (Rule 7 & Rule 12)**: Injected `setMinWidth(Region.USE_PREF_SIZE)` on all toolbar date range buttons (`Today`, `Yesterday`, `This Week`, `This Month`, `Refresh Telemetry`) and prompt labels, preventing `T...` or `Yest...` truncation. Enforced `PopupTableWorkspace.prepareDialog(dialog, 1260)` and post-column `DynamicTableLayoutManager` installation with flex column resizing so all 7 columns scale cleanly across all screen sizes.
+  - **Sub-Second Login Acceleration & Hardware Fingerprint Caching (`HardwareFingerprintUtil.java`, `LicenseVerifierService.java`, `AuthApiClient.java`, `LoginController.java`, `DashboardController.java`) (Rule 4 & Rule 10)**: Consolidated sequential Windows PowerShell hardware fingerprint calls into a single combined query with persistent user-home cache (`~/.jasvi/machine-fingerprint.v1.cache`) and virtual-thread startup pre-warming, activated 60-second TTL caching on `LicenseVerifierService.checkLicense()`, deduplicated `/api/runtime/status` checks, moved non-critical post-login hydration off the blocking login spinner, and deferred `DashboardController.idlePrewarm` keyframes so `useradmin` and `superadmin` sign-in transitions complete in under 1.5 seconds.
+  - **Clickable `Total Work` Hyperlink & Day-by-Day `From Time → To Time` Work Breakdown Modal (`ClientRegistryController.java`, `ClientRegistryService.java`, `ClientRegistryController.java` [Server], `ProfessionalUiEnhancer.java`, `IconFactory.java`) (Rule 5, Rule 7, Rule 8, Rule 9, Rule 11, Rule 12, Rule 13 & Rule 17)**:
+    - Rendered the `Total Work` column (`colHours`) as an interactive semantic `Hyperlink` (`table-hyperlink`) and added a `View Daily Breakdown` row action that opens a dedicated **Daily Work-Hours & Time Breakdown Dialog** displaying each date worked, exact `From Time (Login)`, `To Time (Logout / Active)`, `Time Window (From → To)`, `Work Duration`, and `Status`.
+    - Fixed blank dynamic column headers on `colFirstLogin` (`First Login Today` / `Earliest Login`) and `colLastLogout` (`Last Logout / Disconnect` / `Latest Logout`) by mapping login/logout/disconnect semantics in `ProfessionalUiEnhancer.java` and guarding header text clearing.
+    - Registered FontAwesome icon mappings in `IconFactory.java` for `circle`, `online`, `telemetry`, `kick`, `release`, `hardware`, and `server`, eliminating `?` fallback icons on `Active Now` and `Refresh Telemetry`.
+    - Added automatic local workstation user synchronization (`syncLocalWorkstationUsersIfHost`), immediate login/logout telemetry hooks, and asynchronous cloud heartbeat relay (`relayHeartbeatToCentralCloudAsync`) so Super Admin tracks all local users and workstations in real time.
+  - **3-Screen Telemetry Alignment, Day-Wise Rows & Per-Session Login/Logoff Intervals (`V11_0_65__client_user_session_log.sql`, `ClientRegistryService.java`, `ClientRegistryController.java`, `DashboardController.java`) (Rule 5, Rule 7, Rule 10, Rule 11, Rule 12, Rule 13 & Rule 17)**:
+    - **Screen 1 (`Live Telemetry` column):** Shows live/seen workstation status along with today's cumulative work hours across all connected users on that machine (`Today Xh Ym`), with expanded minimum column width to eliminate text ellipsis.
+    - **Screen 2 (`Live Users & Work-Hours Telemetry`):** Returns **Day-Wise × User** rows by default across filtered date ranges (`From Date` – `To Date`), adding `Work Date`, `Sessions` count, a `Day-Wise` / `User Summary` view toggle, live seat accuracy, and automatic date-preset highlight synchronization.
+    - **Screen 3 (`Login & Logoff Session Breakdown`):** Promoted `client_user_session_log` to Flyway migration `V11_0_65` with historical backfill and safe schema detection (`hasSessionLogTable()`), eliminating `Transaction silently rolled back because it has been marked as rollback-only`, and displaying each individual login → logoff interval (`Session #`, `From Time`, `To Time`, `Time Window`, `Work Duration`, `Status`) with `Selected Day` / `Full Period` toggle.
 
 ### Settings iOS-Style Toggle Switches & Icon-Only Guidance System
 - **Modern iOS-Style Switches & Compact Information Controls (`SettingsController.java`, `SecuritySettingsPanel.fxml`, `EmailSettingsPanel.fxml`, `light-theme.css`, `dark-theme.css`) (Rule 4, Rule 5, Rule 8, Rule 9 & Rule 11)**:

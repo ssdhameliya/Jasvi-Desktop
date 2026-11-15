@@ -8,7 +8,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.*;
 import java.time.temporal.ChronoField;
@@ -52,20 +55,45 @@ public class LicenseVerifierService {
         }
     }
 
+    private static final long CACHE_TTL_MS = 60_000L;
+
     private final JpaNativeRepository jdbc;
     private final boolean bypassInDev;
+    private final TransactionTemplate requiresNewTx;
     private final AtomicReference<LicenseStatus> cachedStatus = new AtomicReference<>();
+    private volatile long cachedAtMillis = 0L;
 
     public LicenseVerifierService(
             JpaNativeRepository jdbc,
+            PlatformTransactionManager transactionManager,
             @Value("${jasvi.licensing.bypass:false}") boolean bypassInDev
     ) {
         this.jdbc = jdbc;
         this.bypassInDev = bypassInDev;
+        this.requiresNewTx = new TransactionTemplate(transactionManager);
+        this.requiresNewTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        HardwareFingerprintUtil.prewarmAsync();
     }
 
-    @Transactional(readOnly = true)
+    public void invalidateCache() {
+        cachedStatus.set(null);
+        cachedAtMillis = 0L;
+    }
+
+    @Transactional
     public LicenseStatus checkLicense() {
+        long nowMs = System.currentTimeMillis();
+        LicenseStatus existing = cachedStatus.get();
+        if (existing != null && (nowMs - cachedAtMillis) < CACHE_TTL_MS) {
+            return existing;
+        }
+        LicenseStatus computed = computeLicenseStatus();
+        cachedStatus.set(computed);
+        cachedAtMillis = nowMs;
+        return computed;
+    }
+
+    private LicenseStatus computeLicenseStatus() {
         if (bypassInDev) {
             return new LicenseStatus(
                     Status.ACTIVE,
@@ -330,7 +358,7 @@ public class LicenseVerifierService {
                 log.info("[LicenseVerifier] Auto-binding anchor HQ license to host machine during activation: {}", HardwareFingerprintUtil.getDisplayMachineId());
                 try {
                     autoBindHostMachine(payload.licenseKey(), payload.companyName(), payload.tier(), payload.validUntil(), payload.gracePeriodDays());
-                    cachedStatus.set(null);
+                    invalidateCache();
                     return true;
                 } catch (Exception ex) {
                     log.warn("[LicenseVerifier] Auto-bind error during activation: {}", ex.getMessage());
@@ -373,7 +401,7 @@ public class LicenseVerifierService {
                 canonical
         );
 
-        cachedStatus.set(null);
+        invalidateCache();
         return true;
     }
 
@@ -397,16 +425,18 @@ public class LicenseVerifierService {
             java.security.PrivateKey privateKey = Ed25519CryptoUtil.loadPrivateKey(privKeyB64);
             String sig = Ed25519CryptoUtil.signString(payload.toCanonicalString(), privateKey);
 
-            jdbc.update(
-                    "UPDATE app_license SET machine_hash = ?, features = ?, signature = ?, canonical_payload = ?, " +
-                            "last_verified_at = CURRENT_TIMESTAMP, status = 'ACTIVE' WHERE license_key = ?",
-                    currentMachineId, String.join(",", resolvedFeatures), sig, payload.toCanonicalString(), licenseKey
-            );
-            jdbc.update(
-                    "UPDATE licensed_client_registry SET machine_id = ?, status = 'ACTIVE' WHERE company_name = ?",
-                    currentMachineId, companyName
-            );
-            cachedStatus.set(null);
+            requiresNewTx.executeWithoutResult(status -> {
+                jdbc.update(
+                        "UPDATE app_license SET machine_hash = ?, features = ?, signature = ?, canonical_payload = ?, " +
+                                "last_verified_at = CURRENT_TIMESTAMP, status = 'ACTIVE' WHERE license_key = ?",
+                        currentMachineId, String.join(",", resolvedFeatures), sig, payload.toCanonicalString(), licenseKey
+                );
+                jdbc.update(
+                        "UPDATE licensed_client_registry SET machine_id = ?, status = 'ACTIVE' WHERE company_name = ?",
+                        currentMachineId, companyName
+                );
+            });
+            invalidateCache();
         } catch (Exception e) {
             log.error("[LicenseVerifier] Could not auto-bind host: {}", e.getMessage(), e);
         }

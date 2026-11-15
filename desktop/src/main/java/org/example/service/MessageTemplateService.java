@@ -643,18 +643,18 @@ public final class MessageTemplateService {
 
     public static String resolvePublicStatusBaseUrl() {
         // Tier 1: Explicit setting configured by administrator/developer in Settings (or public.portal.url)
-        String configured = ConfigManager.get("company.publicPortalUrl", "").trim().replaceAll("/+$", "");
+        String configured = ConfigManager.get("company.publicPortalUrl", "").trim();
         if (!configured.isBlank()) {
-            return ensureHttpScheme(configured);
+            return sanitizePublicPortalUrl(configured);
         }
-        String customPortal = ConfigManager.get("public.portal.url", "").trim().replaceAll("/+$", "");
+        String customPortal = ConfigManager.get("public.portal.url", "").trim();
         if (!customPortal.isBlank()) {
-            return ensureHttpScheme(customPortal);
+            return sanitizePublicPortalUrl(customPortal);
         }
 
         // Tier 2: Connected Backend Server (Local: http://127.0.0.1:58080, UAT: https://api-uat.jasviindustries.in, PROD: https://api.jasviindustries.in)
-        String apiBase = ConfigManager.getDataApiBaseUrl().trim().replaceAll("/+$", "");
-        return apiBase.isBlank() ? "http://127.0.0.1:58080" : apiBase;
+        String apiBase = ConfigManager.getDataApiBaseUrl().trim();
+        return apiBase.isBlank() ? "http://127.0.0.1:58080" : sanitizePublicPortalUrl(apiBase);
     }
 
     private static boolean isLocalhostAddress(String url) {
@@ -663,9 +663,20 @@ public final class MessageTemplateService {
         return lower.contains("localhost") || lower.contains("127.0.0.1");
     }
 
-    private static String ensureHttpScheme(String url) {
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            return "https://" + url;
+    public static String sanitizePublicPortalUrl(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) return "";
+        String url = rawUrl.trim().replaceAll("/+$", "");
+        // Fix single-slash or malformed protocol typos (e.g. https:/domain or http:/domain)
+        if (url.startsWith("https:/") && !url.startsWith("https://")) {
+            url = "https://" + url.substring("https:/".length()).replaceAll("^/+", "");
+        } else if (url.startsWith("http:/") && !url.startsWith("http://")) {
+            url = "http://" + url.substring("http:/".length()).replaceAll("^/+", "");
+        } else if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            url = "https://" + url;
+        }
+        // Auto-heal common typo in domain name: jasviinduestries -> jasviindustries
+        if (url.toLowerCase(Locale.ROOT).contains("jasviinduestries.in")) {
+            url = url.replaceAll("(?i)jasviinduestries\\.in", "jasviindustries.in");
         }
         return url;
     }
@@ -879,6 +890,16 @@ public final class MessageTemplateService {
         String company = BrandingService.companyName();
         String phone = ConfigManager.get("company.phone", "").trim();
         String email = ConfigManager.get("company.email", "").trim();
+        String website = ConfigManager.get("company.website", "").trim();
+        String address = ConfigManager.get("company.address", "").trim();
+        String tagline = BrandingService.tagline();
+        if (tagline == null || tagline.isBlank() || tagline.equalsIgnoreCase("Business Management Suite")) {
+            tagline = ConfigManager.get("company.tagline", "OFFICIAL PAYMENT & SETTLEMENT RECORD");
+        }
+        String primaryColor = ConfigManager.get("branding.primaryColor", "#1e3a8a").trim();
+        if (!primaryColor.matches("^#[0-9a-fA-F]{6}$")) {
+            primaryColor = "#1e3a8a";
+        }
         date = cleanExecutiveDate(date);
 
         String badgeBg = "#1e3a8a";
@@ -901,11 +922,11 @@ public final class MessageTemplateService {
         html.append("<div style=\"max-width:660px; margin:0 auto; background:#ffffff; border-radius:10px; border:1px solid #e2e8f0; overflow:hidden; box-shadow:0 4px 14px rgba(15,23,42,0.06);\">");
 
         // Header Banner
-        html.append("<div style=\"background:#1e3a8a; padding:22px 24px; color:#ffffff;\">");
+        html.append("<div style=\"background:").append(primaryColor).append("; padding:22px 24px; color:#ffffff;\">");
         html.append("<div style=\"display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;\">");
         html.append("<div>");
         html.append("<div style=\"font-size:20px; font-weight:700; letter-spacing:0.5px;\">").append(escape(company)).append("</div>");
-        html.append("<div style=\"font-size:11px; opacity:0.85; margin-top:3px;\">INDUSTRIAL MACHINERY &amp; ENGINEERING SOLUTIONS &bull; AHMEDABAD</div>");
+        html.append("<div style=\"font-size:11px; opacity:0.85; margin-top:3px;\">").append(escape(tagline.toUpperCase(Locale.ROOT))).append("</div>");
         html.append("</div>");
         html.append("<div>");
         html.append("<span style=\"background:").append(badgeBg).append("; color:").append(badgeColor).append("; font-size:11px; font-weight:700; padding:5px 12px; border-radius:9999px; text-transform:uppercase; letter-spacing:0.5px;\">")
@@ -932,7 +953,7 @@ public final class MessageTemplateService {
             html.append("<table style=\"width:100%; border-collapse:collapse; font-size:12px; line-height:1.6;\">");
             html.append("<tr>");
             html.append("<td style=\"width:50%; vertical-align:top; padding-right:12px;\">");
-            html.append("<div style=\"font-weight:700; color:#1e3a8a; margin-bottom:4px;\">Beneficiary Bank (Jasvi Industries)</div>");
+            html.append("<div style=\"font-weight:700; color:").append(primaryColor).append("; margin-bottom:4px;\">Beneficiary Bank (").append(escape(company)).append(")</div>");
             html.append("<div>Bank: <strong>").append(escape(ourBankName)).append("</strong></div>");
             html.append("<div>A/C No: <strong>").append(escape(ourAccNo)).append("</strong></div>");
             html.append("<div>IFSC: <strong>").append(escape(ourIfsc)).append("</strong></div>");
@@ -952,7 +973,7 @@ public final class MessageTemplateService {
         if (publicStatusUrl != null && !publicStatusUrl.isBlank()) {
             String safeStatusUrl = publicStatusUrl.replace("&", "&amp;");
             html.append("<div style=\"margin:24px 0 16px 0; text-align:center;\">");
-            html.append("<a href=\"").append(safeStatusUrl).append("\" target=\"_blank\" style=\"display:inline-block; background:#1e3a8a; color:#ffffff; font-weight:700; font-size:13px; text-decoration:none; padding:12px 24px; border-radius:6px; letter-spacing:0.3px; box-shadow:0 2px 6px rgba(30,58,138,0.25);\">🔍 VIEW LIVE PAYMENT &amp; INVOICE STATUS</a>");
+            html.append("<a href=\"").append(safeStatusUrl).append("\" target=\"_blank\" style=\"display:inline-block; background:").append(primaryColor).append("; color:#ffffff; font-weight:700; font-size:13px; text-decoration:none; padding:12px 24px; border-radius:6px; letter-spacing:0.3px; box-shadow:0 2px 6px rgba(30,58,138,0.25);\">🔍 VIEW LIVE PAYMENT &amp; INVOICE STATUS</a>");
             html.append("<div style=\"font-size:11px; color:#64748b; margin-top:6px;\">Click anytime to view real-time settlement and payment reconciliation in our portal</div>");
             html.append("</div>");
         }
@@ -969,7 +990,20 @@ public final class MessageTemplateService {
 
         // Footer
         html.append("<div style=\"background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; font-size:11px; color:#64748b; text-align:center;\">");
-        html.append("Generated automatically by ").append(escape(company)).append(" ERP &bull; Phone: ").append(escape(phone)).append(" &bull; Email: ").append(escape(email));
+        html.append("Generated automatically by <strong>").append(escape(company)).append("</strong> ERP");
+        if (!address.isBlank()) {
+            html.append(" &bull; ").append(escape(address));
+        }
+        if (!phone.isBlank()) {
+            html.append(" &bull; Phone: ").append(escape(phone));
+        }
+        if (!email.isBlank()) {
+            html.append(" &bull; Email: ").append(escape(email));
+        }
+        if (!website.isBlank()) {
+            String webUrl = website.startsWith("http://") || website.startsWith("https://") ? website : "https://" + website;
+            html.append(" &bull; <a href=\"").append(escape(webUrl)).append("\" target=\"_blank\" style=\"color:#2563eb; text-decoration:none;\">").append(escape(website)).append("</a>");
+        }
         html.append("</div>");
 
         html.append("</div></body></html>");

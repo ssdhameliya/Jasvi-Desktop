@@ -23,7 +23,7 @@
                             <HBox alignment="CENTER_LEFT">
                                 <Label text="Active Sales" wrapText="true" styleClass="approved-kpi-caption,metric-label"/>
                                 <Region HBox.hgrow="ALWAYS"/>
-                                <Label text="+8.4%" styleClass="metric-trend-pill,trend-positive"/>
+                                <Label text="Active" styleClass="metric-trend-pill,trend-positive"/>
                             </HBox>
                             <Label fx:id="lblSalesValue" styleClass="approved-kpi-value,metric-value"/>
                             <Label fx:id="lblSalesNote" wrapText="true" styleClass="approved-kpi-note,metric-note"/>

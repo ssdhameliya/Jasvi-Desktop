@@ -659,25 +659,27 @@ public class LoginController implements ScreenLifecycle {
             } catch (Exception ex) {
                 System.err.println("[Login] Permission refresh warning: " + ex.getMessage());
             }
-            try {
-                NotificationPreferenceService.refreshStrict();
-            } catch (Exception ex) {
-                System.err.println("[Login] Notification preference refresh warning: " + ex.getMessage());
-            }
-            try {
-                org.example.api.support.SupportApiClient support = new org.example.api.support.SupportApiClient();
-                String zone = support.setting("company.timeZone", "");
-                String dateFormat = support.setting("company.dateFormat", "");
-                String timeFormat = support.setting("company.timeFormat", "");
-                ConfigManager.applyServerBusinessPolicy(zone, dateFormat, timeFormat);
-            } catch (Exception ex) {
-                System.err.println("[Login] Business policy sync warning: " + ex.getMessage());
-            }
-            try {
-                org.example.config.SharedAssetBridge.syncAllAsync();
-            } catch (Exception ex) {
-                System.err.println("[Login] Asset sync warning: " + ex.getMessage());
-            }
+            Thread.ofVirtual().name("post-login-background-sync").start(() -> {
+                try {
+                    NotificationPreferenceService.refreshStrict();
+                } catch (Exception ex) {
+                    System.err.println("[Login] Notification preference refresh warning: " + ex.getMessage());
+                }
+                try {
+                    org.example.api.support.SupportApiClient support = new org.example.api.support.SupportApiClient();
+                    String zone = support.setting("company.timeZone", "");
+                    String dateFormat = support.setting("company.dateFormat", "");
+                    String timeFormat = support.setting("company.timeFormat", "");
+                    ConfigManager.applyServerBusinessPolicy(zone, dateFormat, timeFormat);
+                } catch (Exception ex) {
+                    System.err.println("[Login] Business policy sync warning: " + ex.getMessage());
+                }
+                try {
+                    org.example.config.SharedAssetBridge.syncAllAsync();
+                } catch (Exception ex) {
+                    System.err.println("[Login] Asset sync warning: " + ex.getMessage());
+                }
+            });
             return user;
         }, authenticated -> {
             try {

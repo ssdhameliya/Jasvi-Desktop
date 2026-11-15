@@ -31,7 +31,7 @@ import java.util.Comparator;
  * Ensures managed PostgreSQL and the packaged Spring Boot backend are running before API-backed JavaFX screens open.
  */
 public final class RuntimeBootstrapper {
-    private static final Duration DEFAULT_START_TIMEOUT = Duration.ofSeconds(45);
+    private static final Duration DEFAULT_START_TIMEOUT = Duration.ofSeconds(90);
     private static final int DEFAULT_MANAGED_SERVER_PORT = 58080;
     private static final int SERVER_PORT_SEARCH_LIMIT = 20;
     private static volatile Process managedServer;

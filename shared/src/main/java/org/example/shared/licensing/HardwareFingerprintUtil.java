@@ -4,9 +4,12 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Enumeration;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -22,6 +25,17 @@ public final class HardwareFingerprintUtil {
     private HardwareFingerprintUtil() {}
 
     /**
+     * Asynchronously pre-warms the hardware fingerprint cache on a virtual thread
+     * so login and license checks never block on cold OS process spawns.
+     */
+    public static void prewarmAsync() {
+        if (CACHED_HASH.get() != null) {
+            return;
+        }
+        Thread.ofVirtual().name("hardware-fingerprint-prewarm").start(HardwareFingerprintUtil::getDisplayMachineId);
+    }
+
+    /**
      * Returns the 64-character SHA-256 composite machine hash.
      */
     public static String getMachineHash() {
@@ -29,9 +43,21 @@ public final class HardwareFingerprintUtil {
         if (cached != null) {
             return cached;
         }
-        String computed = computeMachineHash();
-        CACHED_HASH.compareAndSet(null, computed);
-        return computed;
+        synchronized (HardwareFingerprintUtil.class) {
+            cached = CACHED_HASH.get();
+            if (cached != null) {
+                return cached;
+            }
+            String persisted = readPersistedHash();
+            if (persisted != null) {
+                CACHED_HASH.set(persisted);
+                return persisted;
+            }
+            String computed = computeMachineHash();
+            CACHED_HASH.set(computed);
+            persistHash(computed);
+            return computed;
+        }
     }
 
     /**
@@ -48,20 +74,52 @@ public final class HardwareFingerprintUtil {
         return display;
     }
 
+    private static Path cacheFilePath() {
+        return Path.of(System.getProperty("user.home", "."), ".jasvi", "machine-fingerprint.v1.cache");
+    }
+
+    private static String readPersistedHash() {
+        try {
+            Path file = cacheFilePath();
+            if (Files.isRegularFile(file)) {
+                String value = Files.readString(file, StandardCharsets.UTF_8).trim().toUpperCase(Locale.ROOT);
+                if (value.length() == 64 && value.matches("[0-9A-F]{64}")) {
+                    return value;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private static void persistHash(String hash) {
+        if (hash == null || hash.length() != 64) {
+            return;
+        }
+        try {
+            Path file = cacheFilePath();
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, hash, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+        }
+    }
+
     private static String computeMachineHash() {
         StringBuilder raw = new StringBuilder();
+        String primaryMac = readPrimaryMacAddress();
 
         if (isWindows()) {
-            raw.append("MB:").append(readWindowsMotherboardUuid()).append("|");
-            raw.append("CPU:").append(readWindowsCpuId()).append("|");
-            raw.append("DISK:").append(readWindowsDriveSerial()).append("|");
+            String[] combined = readWindowsCombinedFingerprint();
+            raw.append("MB:").append(combined[0]).append("|");
+            raw.append("CPU:").append(combined[1]).append("|");
+            raw.append("DISK:").append(combined[2]).append("|");
         } else {
-            raw.append("MAC:").append(readPrimaryMacAddress()).append("|");
+            raw.append("MAC:").append(primaryMac).append("|");
             raw.append("HOST:").append(System.getProperty("user.name", "unknown")).append("|");
         }
 
         // Always append primary MAC as secondary stabilizer
-        raw.append("MAC:").append(readPrimaryMacAddress());
+        raw.append("MAC:").append(primaryMac);
 
         return sha256Hex(raw.toString());
     }
@@ -70,8 +128,34 @@ public final class HardwareFingerprintUtil {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
+    private static String[] readWindowsCombinedFingerprint() {
+        String combinedOut = runProcess(
+                "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                "$u=(Get-CimInstance Win32_ComputerSystemProduct).UUID; " +
+                "$c=(Get-CimInstance Win32_Processor | Select-Object -First 1).ProcessorId; " +
+                "$d=(Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID='C:'\").VolumeSerialNumber; " +
+                "Write-Output \"$u|$c|$d\""
+        );
+        if (combinedOut != null && combinedOut.contains("|")) {
+            String[] parts = combinedOut.split("\\|", -1);
+            if (parts.length >= 3) {
+                String mb = cleanValue(parts[0], "");
+                String cpu = cleanValue(parts[1], "");
+                String disk = cleanValue(parts[2], "");
+                if (!mb.isEmpty() && !cpu.isEmpty() && !disk.isEmpty()) {
+                    return new String[]{mb, cpu, disk};
+                }
+            }
+        }
+        return new String[]{
+                readWindowsMotherboardUuid(),
+                readWindowsCpuId(),
+                readWindowsDriveSerial()
+        };
+    }
+
     private static String readWindowsMotherboardUuid() {
-        String out = runProcess("powershell", "-NoProfile", "-Command",
+        String out = runProcess("powershell", "-NoProfile", "-NonInteractive", "-Command",
                 "(Get-CimInstance Win32_ComputerSystemProduct).UUID");
         if (out.isBlank() || out.equalsIgnoreCase("unknown")) {
             out = runProcess("wmic", "csproduct", "get", "uuid");
@@ -80,7 +164,7 @@ public final class HardwareFingerprintUtil {
     }
 
     private static String readWindowsCpuId() {
-        String out = runProcess("powershell", "-NoProfile", "-Command",
+        String out = runProcess("powershell", "-NoProfile", "-NonInteractive", "-Command",
                 "(Get-CimInstance Win32_Processor).ProcessorId");
         if (out.isBlank() || out.equalsIgnoreCase("unknown")) {
             out = runProcess("wmic", "cpu", "get", "processorid");
@@ -89,7 +173,7 @@ public final class HardwareFingerprintUtil {
     }
 
     private static String readWindowsDriveSerial() {
-        String out = runProcess("powershell", "-NoProfile", "-Command",
+        String out = runProcess("powershell", "-NoProfile", "-NonInteractive", "-Command",
                 "(Get-CimInstance Win32_LogicalDisk -Filter 'DeviceID=''C:''').VolumeSerialNumber");
         if (out.isBlank() || out.equalsIgnoreCase("unknown")) {
             out = runProcess("wmic", "logicaldisk", "where", "DeviceID='C:'", "get", "volumeserialnumber");
@@ -136,7 +220,9 @@ public final class HardwareFingerprintUtil {
                     }
                 }
             }
-            process.waitFor();
+            if (!process.waitFor(4, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+            }
             return sb.toString().trim();
         } catch (Exception e) {
             return "";

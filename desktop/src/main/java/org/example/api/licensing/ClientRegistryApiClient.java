@@ -148,6 +148,10 @@ public class ClientRegistryApiClient {
     }
 
     public List<Map<String, Object>> getClientUsers(String machineId, String fromDate, String toDate) {
+        return getClientUsers(machineId, fromDate, toDate, "DAILY");
+    }
+
+    public List<Map<String, Object>> getClientUsers(String machineId, String fromDate, String toDate, String viewMode) {
         StringBuilder query = new StringBuilder();
         if (fromDate != null && !fromDate.isBlank()) {
             query.append("?from=").append(enc(fromDate.trim()));
@@ -157,7 +161,23 @@ public class ClientRegistryApiClient {
         } else if (toDate != null && !toDate.isBlank()) {
             query.append("?to=").append(enc(toDate.trim()));
         }
+        if (viewMode != null && !viewMode.isBlank()) {
+            query.append(query.isEmpty() ? "?" : "&").append("viewMode=").append(enc(viewMode.trim().toUpperCase(java.util.Locale.ROOT)));
+        }
         return get("/api/license/registry/clients/" + enc(machineId) + "/users" + query, new TypeReference<>() {});
+    }
+
+    public List<Map<String, Object>> getClientUserDailyHistory(String machineId, String username, String fromDate, String toDate) {
+        StringBuilder query = new StringBuilder();
+        if (fromDate != null && !fromDate.isBlank()) {
+            query.append("?from=").append(enc(fromDate.trim()));
+            if (toDate != null && !toDate.isBlank()) {
+                query.append("&to=").append(enc(toDate.trim()));
+            }
+        } else if (toDate != null && !toDate.isBlank()) {
+            query.append("?to=").append(enc(toDate.trim()));
+        }
+        return get("/api/license/registry/clients/" + enc(machineId) + "/users/" + enc(username) + "/history" + query, new TypeReference<>() {});
     }
 
     public Map<String, Object> releaseWorkstation(String machineId) {

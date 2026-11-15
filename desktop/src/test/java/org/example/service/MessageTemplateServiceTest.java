@@ -141,4 +141,59 @@ class MessageTemplateServiceTest {
         ConfigManager.save();
         assertEquals("assets/email-signature.png", MessageTemplateService.getSignatureImagePath());
     }
+
+    @Test
+    void formatExecutiveHtmlReflectsDynamicBrandingAndCompanySettings() {
+        ConfigManager.setWithoutSaving("company.name", "Dynamic Enterprises LLP");
+        ConfigManager.setWithoutSaving("company.tagline", "PRECISION ENGINEERING & AUTOMATION");
+        ConfigManager.setWithoutSaving("company.phone", "+91 91234 56789");
+        ConfigManager.setWithoutSaving("company.email", "billing@dynamic.in");
+        ConfigManager.setWithoutSaving("company.website", "www.dynamic.in");
+        ConfigManager.setWithoutSaving("company.address", "GIDC Vatva, Ahmedabad");
+        ConfigManager.setWithoutSaving("branding.primaryColor", "#0f766e");
+        BrandingService.invalidateSharedIdentity();
+
+        String html = MessageTemplateService.formatExecutiveHtmlEmail(
+                "Payment Receipt",
+                "PAID",
+                "INV-2026-9999",
+                "15/11/2026",
+                "Shree Hari Traders",
+                50000.0,
+                50000.0,
+                0.0,
+                "Payment Received: ₹50,000",
+                true,
+                "Bank of India",
+                "1234567890",
+                "BKID0001234",
+                "Shree Hari Traders",
+                "UTR987654321",
+                "http://127.0.0.1:58080/payment-status?inv=INV-2026-9999&token=abc",
+                false,
+                null
+        );
+
+        assertNotNull(html);
+        assertTrue(html.contains("Dynamic Enterprises LLP"));
+        assertTrue(html.contains("PRECISION ENGINEERING &amp; AUTOMATION"));
+        assertTrue(html.contains("#0f766e")); // Primary color
+        assertTrue(html.contains("Beneficiary Bank (Dynamic Enterprises LLP)"));
+        assertTrue(html.contains("GIDC Vatva, Ahmedabad"));
+        assertTrue(html.contains("+91 91234 56789"));
+        assertTrue(html.contains("billing@dynamic.in"));
+        assertTrue(html.contains("www.dynamic.in"));
+        assertFalse(html.contains("INDUSTRIAL MACHINERY &amp; ENGINEERING SOLUTIONS &bull; AHMEDABAD"));
+        assertFalse(html.contains("Beneficiary Bank (Jasvi Industries)"));
+    }
+
+    @Test
+    void sanitizePublicPortalUrlAutoHealsTypoAndProtocol() {
+        assertEquals("https://api-uat.jasviindustries.in",
+                MessageTemplateService.sanitizePublicPortalUrl("https:/api-uat.jasviinduestries.in"));
+        assertEquals("https://api-uat.jasviindustries.in",
+                MessageTemplateService.sanitizePublicPortalUrl("api-uat.jasviinduestries.in"));
+        assertEquals("http://127.0.0.1:58080",
+                MessageTemplateService.sanitizePublicPortalUrl("http:/127.0.0.1:58080/"));
+    }
 }

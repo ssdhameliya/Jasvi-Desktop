@@ -272,7 +272,6 @@ public class DashboardController implements ScreenLifecycle {
         // footer from the clock listener caused repeated ConfigManager reads and
         // layout pulses, especially on macOS Retina displays.
         refreshCompanyFooter();
-        sendClientHeartbeatAsync();
 
 
         navigationManager = new NavigationManager(contentPane);
@@ -280,12 +279,14 @@ public class DashboardController implements ScreenLifecycle {
         initializeSidebarAccordion();
         applySidebarVisibility(loadSidebarVisiblePreference(), false);
 
-        String landingPath = PermissionService.allowed("DASHBOARD.VIEW") ? "/fxml/pages/DashboardHome.fxml" : "/fxml/pages/Profile.fxml";
-        String landingTitle = PermissionService.allowed("DASHBOARD.VIEW") ? "Dashboard" : "My Profile";
-        if (navigationManager.loadPage(landingPath)) {
-            applyScreenIdentity(landingTitle);
-            selectMenu("Dashboard".equals(landingTitle) ? btnDashboard : null);
-        }
+        Platform.runLater(() -> {
+            String landingPath = PermissionService.allowed("DASHBOARD.VIEW") ? "/fxml/pages/DashboardHome.fxml" : "/fxml/pages/Profile.fxml";
+            String landingTitle = PermissionService.allowed("DASHBOARD.VIEW") ? "Dashboard" : "My Profile";
+            if (navigationManager.loadPage(landingPath)) {
+                applyScreenIdentity(landingTitle);
+                selectMenu("Dashboard".equals(landingTitle) ? btnDashboard : null);
+            }
+        });
         updateThemeButton();
         refreshShellIndicatorsAsync();
         if (SessionService.current() != null) {
@@ -338,7 +339,7 @@ public class DashboardController implements ScreenLifecycle {
         }
         applyRolePermissions();
         idlePrewarm = new Timeline(
-            new KeyFrame(Duration.millis(1200), evt -> {
+            new KeyFrame(Duration.millis(10000), evt -> {
                 NavigationManager.prewarmPage("/fxml/pages/SalesList.fxml");
                 NavigationManager.prewarmPage("/fxml/pages/PurchaseList.fxml");
                 java.util.concurrent.CompletableFuture.runAsync(() -> {
@@ -348,7 +349,7 @@ public class DashboardController implements ScreenLifecycle {
                     } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
                 });
             }),
-            new KeyFrame(Duration.millis(2500), evt -> {
+            new KeyFrame(Duration.millis(18000), evt -> {
                 NavigationManager.prewarmPage("/fxml/pages/Quotations.fxml");
                 NavigationManager.prewarmPage("/fxml/pages/QuotationEditor.fxml");
                 NavigationManager.prewarmPage("/fxml/pages/Inventory.fxml");
@@ -359,7 +360,7 @@ public class DashboardController implements ScreenLifecycle {
                     } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
                 });
             }),
-            new KeyFrame(Duration.millis(4000), evt -> {
+            new KeyFrame(Duration.millis(26000), evt -> {
                 NavigationManager.prewarmPage("/fxml/pages/Customer.fxml");
                 NavigationManager.prewarmPage("/fxml/pages/Suppliers.fxml");
                 NavigationManager.prewarmPage("/fxml/pages/Reports.fxml");
@@ -373,8 +374,9 @@ public class DashboardController implements ScreenLifecycle {
         notificationRefresh.setCycleCount(Timeline.INDEFINITE);
         notificationRefresh.play();
 
+        sendClientHeartbeatAsync(0L, false, true);
         clientHeartbeatTimeline = new Timeline(
-            new KeyFrame(Duration.seconds(30), event -> sendClientHeartbeatAsync()));
+            new KeyFrame(Duration.seconds(30), event -> sendClientHeartbeatAsync(30L, false, false)));
         clientHeartbeatTimeline.setCycleCount(Timeline.INDEFINITE);
         clientHeartbeatTimeline.play();
 
@@ -474,6 +476,17 @@ public class DashboardController implements ScreenLifecycle {
 
     /** Reports machine telemetry and tunnel health quietly in the background (non-blocking). */
     private void sendClientHeartbeatAsync() {
+        sendClientHeartbeatAsync(30L, false);
+    }
+
+    private void sendClientHeartbeatAsync(long durationSeconds, boolean isLogout) {
+        sendClientHeartbeatAsync(durationSeconds, isLogout, false);
+    }
+
+    private void sendClientHeartbeatAsync(long durationSeconds, boolean isLogout, boolean isNewLogin) {
+        var currentUser = SessionService.current();
+        String currentUsername = currentUser != null ? currentUser.getUsername() : null;
+        String currentRole = SessionService.currentRole();
         Thread.ofVirtual().name("client-heartbeat-worker").start(() -> {
             try {
                 String machineId = org.example.shared.licensing.HardwareFingerprintUtil.getDisplayMachineId();
@@ -489,22 +502,24 @@ public class DashboardController implements ScreenLifecycle {
                 String companyName = org.example.service.BrandingService.companyName();
 
                 java.util.List<java.util.Map<String, Object>> users = new java.util.ArrayList<>();
-                if (SessionService.current() != null) {
-                    users.add(java.util.Map.of(
-                            "username", SessionService.current().getUsername(),
-                            "roleCode", SessionService.currentRole(),
-                            "durationSeconds", 30L,
-                            "workDate", java.time.LocalDate.now().toString(),
-                            "isActive", true,
-                            "isLogout", false
-                    ));
+                if (currentUsername != null && !currentUsername.isBlank()) {
+                    java.util.Map<String, Object> userEntry = new java.util.LinkedHashMap<>();
+                    userEntry.put("username", currentUsername);
+                    userEntry.put("roleCode", currentRole != null ? currentRole : "USER");
+                    userEntry.put("durationSeconds", Math.max(0L, durationSeconds));
+                    userEntry.put("workDate", java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")).toString());
+                    userEntry.put("isActive", !isLogout);
+                    userEntry.put("isLogout", isLogout);
+                    userEntry.put("isNewLogin", isNewLogin);
+                    userEntry.put("deploymentMode", org.example.config.ConfigManager.isSharedClient() ? "SHARED" : "LOCAL");
+                    users.add(userEntry);
                 }
 
                 var resp = new org.example.api.licensing.ClientRegistryApiClient().sendHeartbeat(
-                        machineId, ver, 1, remoteUrl, companyName, users
+                        machineId, ver, isLogout ? 0 : 1, remoteUrl, companyName, users
                 );
 
-                if (resp != null && "BLOCKED".equalsIgnoreCase(String.valueOf(resp.get("status")))) {
+                if (!isLogout && resp != null && "BLOCKED".equalsIgnoreCase(String.valueOf(resp.get("status")))) {
                     javafx.application.Platform.runLater(() -> {
                         AppDialogService.error(
                                 shellRoot != null ? shellRoot : contentPane,
@@ -2085,6 +2100,7 @@ public class DashboardController implements ScreenLifecycle {
     private void logout() {
         if (!org.example.navigation.UnsavedChangesManager.allowExit("sign out")) return;
         stopRecurringTasks();
+        sendClientHeartbeatAsync(0L, true);
         org.example.util.UiTaskExecutor.cancelAllReads();
         org.example.navigation.NavigationManager.clearGlobalCache();
         org.example.navigation.WorkspaceTabManager.reset();

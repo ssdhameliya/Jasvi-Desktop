@@ -476,9 +476,8 @@ public final class ReturnDocumentInspectionDialog {
         lblRemarksCaption.getStyleClass().add("inspection-card-caption");
 
         Label lblRemarksValue = new Label(safe(details.notes()).isBlank() ? "No additional return remarks recorded." : details.notes());
-        lblRemarksValue.getStyleClass().addAll("inspection-card-value", "inspection-value-bold");
+        lblRemarksValue.getStyleClass().addAll("inspection-card-value", "inspection-value-bold", "inspection-remarks-box");
         lblRemarksValue.setWrapText(true);
-        lblRemarksValue.setStyle("-fx-padding: 10 14 10 14; -fx-background-color: rgba(15, 23, 42, 0.55); -fx-background-radius: 6;");
 
         VBox notesCard = new VBox(10, lblNotesTitle, auditGrid, lblRemarksCaption, lblRemarksValue);
         notesCard.getStyleClass().addAll("inspection-card", "erp-detail-drawer-card");
