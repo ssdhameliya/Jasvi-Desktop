@@ -18290,8 +18290,8 @@
 .email-transmission-body-area {
     -fx-font-family: 'Segoe UI', -apple-system, sans-serif;
     -fx-font-size: 13px;
-    -fx-min-height: 200;
-    -fx-pref-height: 240;
+    -fx-min-height: 240;
+    -fx-pref-height: 360;
     -fx-background-color: #ffffff;
     -fx-border-color: #cbd5e1;
     -fx-border-width: 1px;
@@ -20278,6 +20278,15 @@
 }
 .payment-transmission-tabs > .tab-content-area {
     -fx-padding: 8px 0 0 0;
+}
+
+.locked-input,
+.locked-input:focused {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #cbd5e1;
+    -fx-text-fill: #475569;
+    -fx-opacity: 0.95;
+    -fx-cursor: default;
 }
 
 

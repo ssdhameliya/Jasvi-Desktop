@@ -10,6 +10,7 @@ import javafx.collections.transformation.FilteredList;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
@@ -1375,15 +1376,17 @@ public class ClientRegistryController implements ScreenLifecycle {
     @FXML
     private void handleOpenPlanPaidDetails() {
         Dialog<Map<String, Object>> dialog = new OwnedDialog<>(tablePlans);
-        dialog.setTitle("Plan Paid Details & Commercial Configuration");
-        dialog.setHeaderText("Configure UPI payment VPA, support WhatsApp hotline, and automated message templates");
+        dialog.setTitle("Commercial & Platform Security Settings");
+        dialog.setHeaderText("Configure SuperAdmin security alerts, UPI payments, and client messaging templates");
         dialog.setResizable(true);
 
         DialogPane pane = dialog.getDialogPane();
-        pane.setMinWidth(840);
-        pane.setPrefWidth(880);
+        pane.setMinWidth(920);
+        pane.setPrefWidth(960);
+        pane.setMinHeight(720);
+        pane.setPrefHeight(760);
 
-        ButtonType btnSave = new ButtonType("Save Commercial Details", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnSave = new ButtonType("Save Commercial & Security Settings", ButtonBar.ButtonData.OK_DONE);
         pane.getButtonTypes().addAll(btnSave, ButtonType.CANCEL);
 
         GridPane grid = new GridPane();
@@ -1392,40 +1395,59 @@ public class ClientRegistryController implements ScreenLifecycle {
         grid.setPadding(new Insets(18, 24, 18, 24));
 
         ColumnConstraints colLabel = new ColumnConstraints();
-        colLabel.setMinWidth(260);
-        colLabel.setPrefWidth(280);
+        colLabel.setMinWidth(300);
+        colLabel.setPrefWidth(320);
 
         ColumnConstraints colInput = new ColumnConstraints();
         colInput.setHgrow(Priority.ALWAYS);
-        colInput.setMinWidth(480);
+        colInput.setMinWidth(520);
         colInput.setFillWidth(true);
 
         grid.getColumnConstraints().addAll(colLabel, colInput);
 
         Map<String, Object> comm = currentCommercialSettings != null ? currentCommercialSettings : Map.of();
 
+        // 1. Platform Server & Security Endpoint Configuration
+        TextField serverUrlField = new TextField(String.valueOf(comm.getOrDefault("serverPublicUrl", "https://erp.jasviindustries.in")));
+        serverUrlField.setPromptText("e.g. https://erp.jasviindustries.in or https://api-uat.jasviindustries.in");
+        serverUrlField.getStyleClass().add("approved-input");
+        String tipServerUrl = "Public HTTPS server base URL used to construct instant 1-click kick/block links in security alerts.";
+        serverUrlField.setTooltip(new Tooltip(tipServerUrl));
+
+        // 2. Commercial UPI Payments & Billing
         TextField phoneField = new TextField(String.valueOf(comm.getOrDefault("supportPhone", "9537544008")));
         phoneField.setPromptText("e.g. 9537544008");
         phoneField.getStyleClass().add("approved-input");
+        String tipPhone = "Public WhatsApp customer support hotline displayed on client lock screens, renewal prompts, and invoices.";
+        phoneField.setTooltip(new Tooltip(tipPhone));
 
         TextField vpaField = new TextField(String.valueOf(comm.getOrDefault("upiVpa", "jasviindustries@icici")));
         vpaField.setPromptText("e.g. jasviindustries@icici");
         vpaField.getStyleClass().add("approved-input");
+        String tipVpa = "Unified Payments Interface (UPI) VPA ID for dynamic client payment QR codes on invoices and renewal modals.";
+        vpaField.setTooltip(new Tooltip(tipVpa));
 
         TextField payeeField = new TextField(String.valueOf(comm.getOrDefault("payeeName", "Jasvi Industries")));
         payeeField.setPromptText("e.g. Jasvi Industries");
         payeeField.getStyleClass().add("approved-input");
+        String tipPayee = "Official registered business name encoded into UPI dynamic payment intent strings and printed on invoices.";
+        payeeField.setTooltip(new Tooltip(tipPayee));
 
         TextField gstField = new TextField(String.valueOf(comm.getOrDefault("gstRate", "18.00")));
         gstField.setPromptText("e.g. 18.00");
         gstField.getStyleClass().add("approved-input");
+        String tipGst = "Default Goods and Services Tax (GST) rate applied to commercial subscription plans and invoices.";
+        gstField.setTooltip(new Tooltip(tipGst));
 
+        // 3. Automated Messaging Templates
         TextArea leadTplArea = new TextArea(String.valueOf(comm.getOrDefault("whatsappTemplateLead", "")));
         leadTplArea.setPromptText("Template for new inbound client lead notification...");
         leadTplArea.setPrefRowCount(3);
         leadTplArea.setMinHeight(84);
         leadTplArea.setWrapText(true);
         leadTplArea.getStyleClass().add("approved-input");
+        String tipLeadTpl = "Automated template sent to prospective client inquiries. Placeholders: {CompanyName}, {ContactPerson}, {Phone}, {MachineId}.";
+        leadTplArea.setTooltip(new Tooltip(tipLeadTpl));
 
         TextArea issuedTplArea = new TextArea(String.valueOf(comm.getOrDefault("whatsappTemplateIssued", "")));
         issuedTplArea.setPromptText("Template for license issuance message sent to client...");
@@ -1433,48 +1455,57 @@ public class ClientRegistryController implements ScreenLifecycle {
         issuedTplArea.setMinHeight(84);
         issuedTplArea.setWrapText(true);
         issuedTplArea.getStyleClass().add("approved-input");
+        String tipIssuedTpl = "Automated template sent when license is approved/renewed. Placeholders: {CompanyName}, {Tier}, {MachineId}, {ValidUntil}.";
+        issuedTplArea.setTooltip(new Tooltip(tipIssuedTpl));
 
-        Label lblPhone = new Label("Primary Support WhatsApp *:");
-        lblPhone.getStyleClass().add("field-label");
+        int row = 0;
 
-        Label lblVpa = new Label("Merchant UPI VPA (ID) *:");
-        lblVpa.getStyleClass().add("field-label");
+        // Header Section 1: Platform Security & Server Endpoint
+        Label sec1 = new Label("🛡️ Platform Security & Server Endpoint");
+        sec1.getStyleClass().addAll("section-title", "erp-popup-metric-accent");
+        grid.add(sec1, 0, row++, 2, 1);
 
-        Label lblPayee = new Label("Payee Business Name:");
-        lblPayee.getStyleClass().add("field-label");
+        grid.add(createFieldLabelWithInfo("Platform Public URL (Kick/Block Link Base) *:", tipServerUrl), 0, row);
+        grid.add(serverUrlField, 1, row++);
 
-        Label lblGst = new Label("GST Taxation Rate (%):");
-        lblGst.getStyleClass().add("field-label");
+        // Header Section 2: Commercial UPI Payments & Billing
+        Label sec2 = new Label("💳 Commercial UPI Payments & Billing Details");
+        sec2.getStyleClass().addAll("section-title", "erp-popup-metric-accent");
+        grid.add(sec2, 0, row++, 2, 1);
 
-        Label lblLeadTpl = new Label("WhatsApp Lead Response Template:");
-        lblLeadTpl.getStyleClass().add("field-label");
+        grid.add(createFieldLabelWithInfo("Client Support WhatsApp Hotline *:", tipPhone), 0, row);
+        grid.add(phoneField, 1, row++);
 
-        Label lblIssuedTpl = new Label("WhatsApp License Issued Template:");
-        lblIssuedTpl.getStyleClass().add("field-label");
+        grid.add(createFieldLabelWithInfo("Merchant UPI VPA (Payment QR Code) *:", tipVpa), 0, row);
+        grid.add(vpaField, 1, row++);
 
-        grid.add(lblPhone, 0, 0);
-        grid.add(phoneField, 1, 0);
+        grid.add(createFieldLabelWithInfo("Payee Commercial Business Name:", tipPayee), 0, row);
+        grid.add(payeeField, 1, row++);
 
-        grid.add(lblVpa, 0, 1);
-        grid.add(vpaField, 1, 1);
+        grid.add(createFieldLabelWithInfo("GST Taxation Rate (%):", tipGst), 0, row);
+        grid.add(gstField, 1, row++);
 
-        grid.add(lblPayee, 0, 2);
-        grid.add(payeeField, 1, 2);
+        // Header Section 3: Automated WhatsApp Messaging Templates
+        Label sec3 = new Label("💬 Automated WhatsApp Messaging Templates");
+        sec3.getStyleClass().addAll("section-title", "erp-popup-metric-accent");
+        grid.add(sec3, 0, row++, 2, 1);
 
-        grid.add(lblGst, 0, 3);
-        grid.add(gstField, 1, 3);
+        grid.add(createFieldLabelWithInfo("Inbound Client Lead Response Template:", tipLeadTpl), 0, row);
+        grid.add(leadTplArea, 1, row++);
 
-        grid.add(lblLeadTpl, 0, 4);
-        grid.add(leadTplArea, 1, 4);
+        grid.add(createFieldLabelWithInfo("Client License Approved & Issued Template:", tipIssuedTpl), 0, row);
+        grid.add(issuedTplArea, 1, row++);
 
-        grid.add(lblIssuedTpl, 0, 5);
-        grid.add(issuedTplArea, 1, 5);
-
-        pane.setContent(grid);
+        ScrollPane scroll = new ScrollPane(grid);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        pane.setContent(scroll);
 
         dialog.setResultConverter(clicked -> {
             if (clicked == btnSave) {
                 return Map.of(
+                        "serverPublicUrl", serverUrlField.getText() != null ? serverUrlField.getText().trim() : "",
                         "supportPhone", phoneField.getText() != null ? phoneField.getText().trim() : "",
                         "upiVpa", vpaField.getText() != null ? vpaField.getText().trim() : "",
                         "payeeName", payeeField.getText() != null ? payeeField.getText().trim() : "",
@@ -1487,6 +1518,10 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
 
         dialog.showAndWait().ifPresent(req -> {
+            if (String.valueOf(req.get("serverPublicUrl")).isBlank()) {
+                AppDialogService.warning(tablePlans, "Validation", "Platform Public Server URL is required.");
+                return;
+            }
             if (String.valueOf(req.get("supportPhone")).isBlank()) {
                 AppDialogService.warning(tablePlans, "Validation", "Primary Support WhatsApp hotline is required.");
                 return;
@@ -1504,11 +1539,26 @@ public class ClientRegistryController implements ScreenLifecycle {
                     res -> {
                         currentCommercialSettings = new java.util.HashMap<>(req);
                         populateCommercialSettings(req);
-                        AppDialogService.success(tablePlans, "Settings Saved", "Commercial settings updated and synced with cloud catalog!");
+                        AppDialogService.success(tablePlans, "Settings Saved", "Commercial & Platform Security settings updated and synced with cloud catalog!");
                     },
                     err -> AppDialogService.error(tablePlans, "Save Error", "Could not save settings", err.getMessage())
             );
         });
+    }
+
+    private HBox createFieldLabelWithInfo(String text, String tooltipText) {
+        Label lbl = new Label(text);
+        lbl.getStyleClass().add("field-label");
+        Node infoIcon = IconFactory.compactIcon("info", 14);
+        if (infoIcon != null) {
+            Tooltip tip = new Tooltip(tooltipText);
+            tip.setWrapText(true);
+            tip.setMaxWidth(380);
+            Tooltip.install(infoIcon, tip);
+        }
+        HBox box = new HBox(6, lbl, infoIcon != null ? infoIcon : new Label(""));
+        box.setAlignment(Pos.CENTER_LEFT);
+        return box;
     }
 
     @FXML
@@ -1665,6 +1715,14 @@ public class ClientRegistryController implements ScreenLifecycle {
         btnUseCurrentMachine.setMinWidth(Region.USE_PREF_SIZE);
         btnUseCurrentMachine.setOnAction(e -> txtMachine.setText(HardwareFingerprintUtil.getDisplayMachineId()));
 
+        if (isEdit) {
+            txtMachine.setEditable(false);
+            txtMachine.setFocusTraversable(false);
+            txtMachine.getStyleClass().add("locked-input");
+            btnUseCurrentMachine.setVisible(false);
+            btnUseCurrentMachine.setManaged(false);
+        }
+
         HBox machineRow = new HBox(8, txtMachine, btnUseCurrentMachine);
         HBox.setHgrow(txtMachine, Priority.ALWAYS);
 
@@ -1728,12 +1786,54 @@ public class ClientRegistryController implements ScreenLifecycle {
         lblComp.setMinWidth(Region.USE_PREF_SIZE);
         Label lblMachine = new Label("Machine Hardware ID *:");
         lblMachine.setMinWidth(Region.USE_PREF_SIZE);
-        Label lblContact = new Label("Contact Person:");
+        Label lblContact = new Label("Contact Person *:");
         lblContact.setMinWidth(Region.USE_PREF_SIZE);
-        Label lblPhone = new Label("Phone / WhatsApp:");
+        Label lblPhone = new Label("Phone / WhatsApp *:");
         lblPhone.setMinWidth(Region.USE_PREF_SIZE);
-        Label lblEmail = new Label("Email:");
+        Label lblEmail = new Label("Email *:");
         lblEmail.setMinWidth(Region.USE_PREF_SIZE);
+
+        boolean isMasterOrg = isEdit && ("JASVI INDUSTRIES".equalsIgnoreCase(String.valueOf(existingClient.getOrDefault("company_name", "")))
+                || HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").equalsIgnoreCase(
+                        String.valueOf(existingClient.getOrDefault("machine_id", "")).replace("-", "")));
+
+        HBox boxContact = new HBox(4, lblContact);
+        boxContact.setAlignment(Pos.CENTER_LEFT);
+        HBox boxPhone = new HBox(4, lblPhone);
+        boxPhone.setAlignment(Pos.CENTER_LEFT);
+        HBox boxEmail = new HBox(4, lblEmail);
+        boxEmail.setAlignment(Pos.CENTER_LEFT);
+
+        if (isMasterOrg) {
+            String tipMaster = "👑 Master Organization Contact: Updates here dynamically synchronize the SuperAdmin user profile, security WhatsApp alerts, and emergency email ecosystem-wide.";
+            Node infoContact = IconFactory.compactIcon("info", 14);
+            if (infoContact != null) {
+                Tooltip tip = new Tooltip(tipMaster);
+                tip.setWrapText(true);
+                tip.setMaxWidth(380);
+                Tooltip.install(infoContact, tip);
+                boxContact.getChildren().add(infoContact);
+            }
+
+            Node infoPhone = IconFactory.compactIcon("info", 14);
+            if (infoPhone != null) {
+                Tooltip tip = new Tooltip("👑 Master Emergency Phone: Receives instant rogue workstation WhatsApp alerts and 1-click kick/block notifications.");
+                tip.setWrapText(true);
+                tip.setMaxWidth(380);
+                Tooltip.install(infoPhone, tip);
+                boxPhone.getChildren().add(infoPhone);
+            }
+
+            Node infoEmail = IconFactory.compactIcon("info", 14);
+            if (infoEmail != null) {
+                Tooltip tip = new Tooltip("👑 Master Emergency Email: Receives critical security reports and password reset OTPs.");
+                tip.setWrapText(true);
+                tip.setMaxWidth(380);
+                Tooltip.install(infoEmail, tip);
+                boxEmail.getChildren().add(infoEmail);
+            }
+        }
+
         Label lblTier = new Label("Subscription Plan *:");
         lblTier.setMinWidth(Region.USE_PREF_SIZE);
         Label lblUsers = new Label("Max Concurrent Users *:");
@@ -1750,11 +1850,11 @@ public class ClientRegistryController implements ScreenLifecycle {
         grid.add(lblMachine, 2, 0);
         grid.add(machineRow, 3, 0, 3, 1);
 
-        grid.add(lblContact, 0, 1);
+        grid.add(boxContact, 0, 1);
         grid.add(txtContact, 1, 1);
-        grid.add(lblPhone, 2, 1);
+        grid.add(boxPhone, 2, 1);
         grid.add(txtPhone, 3, 1);
-        grid.add(lblEmail, 4, 1);
+        grid.add(boxEmail, 4, 1);
         grid.add(txtEmail, 5, 1);
 
         grid.add(lblTier, 0, 2);
@@ -1787,6 +1887,9 @@ public class ClientRegistryController implements ScreenLifecycle {
         dialog.setResultConverter(btn -> {
             if (btn == btnSave) {
                 java.util.Map<String, Object> reqMap = new java.util.HashMap<>();
+                if (isEdit && existingClient.get("id") != null) {
+                    reqMap.put("id", existingClient.get("id"));
+                }
                 reqMap.put("companyName", txtComp.getText().trim());
                 reqMap.put("machineId", txtMachine.getText().trim().replace("-", ""));
                 reqMap.put("contactPerson", txtContact.getText().trim());
@@ -1810,8 +1913,10 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
 
         dialog.showAndWait().ifPresent(req -> {
-            if (String.valueOf(req.get("companyName")).isBlank() || String.valueOf(req.get("machineId")).isBlank()) {
-                AppDialogService.warning(tableClients, "Validation", "Company Name and Machine ID are required.");
+            if (String.valueOf(req.get("companyName")).isBlank() || String.valueOf(req.get("machineId")).isBlank()
+                    || String.valueOf(req.get("contactPerson")).isBlank() || String.valueOf(req.get("phone")).isBlank()
+                    || String.valueOf(req.get("email")).isBlank()) {
+                AppDialogService.warning(tableClients, "Validation", "Company Name, Machine ID, Contact Person, Phone, and Email are all required fields.");
                 return;
             }
 
@@ -2285,16 +2390,19 @@ public class ClientRegistryController implements ScreenLifecycle {
         dialog.setHeaderText("Real-time active sessions, daily login/logout timestamps, and work hours for " + company);
 
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.setResizable(true);
 
         VBox rootBox = new VBox(12);
-        rootBox.setPadding(new Insets(10, 12, 10, 12));
-        rootBox.setMinWidth(960);
-        rootBox.setPrefWidth(1220);
+        rootBox.setPadding(new Insets(10, 14, 10, 14));
+        rootBox.setMinWidth(1320);
+        rootBox.setPrefWidth(1440);
+        rootBox.setMinHeight(520);
+        rootBox.setPrefHeight(680);
 
         // Telemetry Table
         TableView<Map<String, Object>> tableUsers = new TableView<>();
-        tableUsers.setPrefHeight(320);
-        tableUsers.setMinHeight(200);
+        tableUsers.setPrefHeight(440);
+        tableUsers.setMinHeight(280);
         VBox.setVgrow(tableUsers, Priority.ALWAYS);
         tableUsers.getStyleClass().addAll("approved-table", "clients-directory-table");
         tableUsers.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
@@ -2340,10 +2448,10 @@ public class ClientRegistryController implements ScreenLifecycle {
                 lblConnectionChannel, heroSpacer, lblPlan, lblSeats);
 
         // Row 2: Dedicated Filter & Action Toolbar (Single-Row Zero-Truncation Layout)
-        HBox filterCard = new HBox(6);
+        HBox filterCard = new HBox(8);
         filterCard.setAlignment(Pos.CENTER_LEFT);
         filterCard.getStyleClass().addAll("approved-card", "clients-search-strip");
-        filterCard.setPadding(new Insets(6, 10, 6, 10));
+        filterCard.setPadding(new Insets(8, 12, 8, 12));
 
         Label lblFromPrompt = new Label("From:");
         lblFromPrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
@@ -2352,8 +2460,8 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         DatePicker dpFrom = DatePickerFormatter.attach(new DatePicker(LocalDate.now()));
         dpFrom.getStyleClass().add("approved-datepicker");
-        dpFrom.setMinWidth(115);
-        dpFrom.setPrefWidth(120);
+        dpFrom.setMinWidth(140);
+        dpFrom.setPrefWidth(145);
 
         Label lblToPrompt = new Label("To:");
         lblToPrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
@@ -2362,8 +2470,8 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         DatePicker dpTo = DatePickerFormatter.attach(new DatePicker(LocalDate.now()));
         dpTo.getStyleClass().add("approved-datepicker");
-        dpTo.setMinWidth(115);
-        dpTo.setPrefWidth(120);
+        dpTo.setMinWidth(140);
+        dpTo.setPrefWidth(145);
 
         DatePickerFormatter.attachAll(dpFrom, dpTo);
 
@@ -2496,6 +2604,7 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         filterCard.getChildren().addAll(
                 lblFromPrompt, dpFrom, lblToPrompt, dpTo,
+                new Separator(javafx.geometry.Orientation.VERTICAL),
                 btnToday, btnYesterday, btnThisWeek, btnThisMonth,
                 new Separator(javafx.geometry.Orientation.VERTICAL),
                 lblViewModePrompt, viewToggleGroup,
@@ -2507,26 +2616,26 @@ public class ClientRegistryController implements ScreenLifecycle {
             LocalDate d = parseWorkDate(c.getValue().get("work_date"));
             return new SimpleStringProperty(d != null ? BusinessClock.formatDate(d) : "-");
         });
-        colWorkDate.setMinWidth(115);
+        colWorkDate.setMinWidth(110);
 
         TableColumn<Map<String, Object>, String> colUser = new TableColumn<>("Username");
         colUser.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("username", "-"))));
-        colUser.setMinWidth(115);
+        colUser.setMinWidth(110);
 
         TableColumn<Map<String, Object>, String> colRole = new TableColumn<>("Role");
         colRole.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("role_code", "USER"))));
-        colRole.setMinWidth(95);
+        colRole.setMinWidth(110);
 
         TableColumn<Map<String, Object>, String> colFirstLogin = new TableColumn<>("First Login (Day)");
         colFirstLogin.setCellValueFactory(c -> {
             Object fl = c.getValue().get("first_login_today");
             return new SimpleStringProperty(fl != null ? BusinessClock.formatTimestamp(fl.toString()) : "-");
         });
-        colFirstLogin.setMinWidth(155);
+        colFirstLogin.setMinWidth(140);
 
         TableColumn<Map<String, Object>, Object> colLastLogout = new TableColumn<>("Last Logout / Active");
         colLastLogout.setCellValueFactory(c -> new javafx.beans.property.SimpleObjectProperty<>(c.getValue()));
-        colLastLogout.setMinWidth(160);
+        colLastLogout.setMinWidth(145);
         colLastLogout.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(Object item, boolean empty) {
@@ -2561,7 +2670,7 @@ public class ClientRegistryController implements ScreenLifecycle {
             }
             return new SimpleStringProperty(count == 1 ? "1 time" : count + " times");
         });
-        colSessions.setMinWidth(95);
+        colSessions.setMinWidth(85);
 
         TableColumn<Map<String, Object>, String> colHours = new TableColumn<>("Total Work (Day)");
         colHours.setCellValueFactory(c -> {
@@ -2602,7 +2711,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                 setAlignment(Pos.CENTER_LEFT);
             }
         });
-        colHours.setMinWidth(145);
+        colHours.setMinWidth(135);
 
         TableColumn<Map<String, Object>, String> colActiveStatus = new TableColumn<>("Status");
         colActiveStatus.setCellValueFactory(c -> {
@@ -2612,7 +2721,7 @@ public class ClientRegistryController implements ScreenLifecycle {
             boolean userIsCloud = "SHARED".equalsIgnoreCase(depMode) || "CLOUD".equalsIgnoreCase(depMode) || isCloudGateway;
             return new SimpleStringProperty(userIsCloud ? "ONLINE_CLOUD" : "ONLINE_LOCAL");
         });
-        colActiveStatus.setMinWidth(135);
+        colActiveStatus.setMinWidth(120);
         colActiveStatus.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String s, boolean empty) {
@@ -2665,7 +2774,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
 
         TableColumn<Map<String, Object>, Void> colUserActions = new TableColumn<>("Actions");
-        colUserActions.setMinWidth(120);
+        colUserActions.setMinWidth(135);
         colUserActions.setCellFactory(col -> new TableCell<>() {
             private final MenuButton actionsBtn = new MenuButton("Actions");
             {
@@ -2811,7 +2920,7 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         rootBox.getChildren().addAll(heroBar, filterCard, tableUsers);
         dialog.getDialogPane().setContent(rootBox);
-        PopupTableWorkspace.prepareDialog(dialog, 1220);
+        PopupTableWorkspace.prepareDialog(dialog, 1440);
         Platform.runLater(syncPresetFromDates);
         dialog.showAndWait();
     }
@@ -2893,12 +3002,14 @@ public class ClientRegistryController implements ScreenLifecycle {
         breakdownDialog.setTitle("Login & Logoff Session Breakdown — " + username);
         breakdownDialog.setHeaderText("Session-by-session login/logout intervals (From Time → To Time) and work duration for " + username + " (" + company + ")");
         breakdownDialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        breakdownDialog.setResizable(true);
 
         VBox root = new VBox(12);
         root.setPadding(new Insets(10, 14, 10, 14));
-        root.setMinWidth(1040);
-        root.setPrefWidth(1100);
-        root.setMinHeight(440);
+        root.setMinWidth(1320);
+        root.setPrefWidth(1440);
+        root.setMinHeight(520);
+        root.setPrefHeight(680);
 
         HBox summaryBar = new HBox(12);
         summaryBar.setAlignment(Pos.CENTER_LEFT);
@@ -2947,7 +3058,9 @@ public class ClientRegistryController implements ScreenLifecycle {
         );
 
         TableView<Map<String, Object>> tableDaily = new TableView<>();
-        tableDaily.setPrefHeight(340);
+        tableDaily.setPrefHeight(440);
+        tableDaily.setMinHeight(280);
+        VBox.setVgrow(tableDaily, Priority.ALWAYS);
         tableDaily.getStyleClass().addAll("approved-table", "clients-directory-table");
         tableDaily.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
@@ -3088,7 +3201,7 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         root.getChildren().addAll(summaryBar, tableDaily);
         breakdownDialog.getDialogPane().setContent(root);
-        PopupTableWorkspace.prepareDialog(breakdownDialog, 1180);
+        PopupTableWorkspace.prepareDialog(breakdownDialog, 1440);
         breakdownDialog.showAndWait();
     }
 

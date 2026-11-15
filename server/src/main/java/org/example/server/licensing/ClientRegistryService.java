@@ -69,15 +69,34 @@ public class ClientRegistryService {
             log.debug("Could not initialize client_user_session_log table: {}", e.getMessage());
         }
         try {
+            // Deduplicate primary organization records on startup
+            jdbc.update(
+                    "DELETE FROM licensed_client_registry WHERE UPPER(TRIM(company_name)) = 'JASVI INDUSTRIES' " +
+                            "AND id NOT IN (SELECT id FROM licensed_client_registry WHERE UPPER(TRIM(company_name)) = 'JASVI INDUSTRIES' ORDER BY valid_until DESC, id DESC LIMIT 1)"
+            );
+        } catch (Exception ignored) {}
+        try {
             Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM licensed_client_registry", Integer.class);
             if (count == null || count == 0) {
-                // Seed anchor client
+                // Dynamically seed anchor client from users table (Rule 17: Zero Mock Data, Zero hardcoded strings)
+                String seedContact = "Platform Administrator";
+                String seedPhone = "";
+                String seedEmail = "";
+                try {
+                    Map<String, Object> u = jdbc.queryForMap(
+                            "SELECT full_name, email, phone FROM users WHERE LOWER(username) = 'superadmin' OR UPPER(COALESCE(role, '')) = 'SUPER_ADMIN' ORDER BY id ASC LIMIT 1"
+                    );
+                    if (u.get("full_name") != null && !String.valueOf(u.get("full_name")).isBlank()) seedContact = String.valueOf(u.get("full_name")).trim();
+                    if (u.get("phone") != null && !String.valueOf(u.get("phone")).isBlank()) seedPhone = String.valueOf(u.get("phone")).trim();
+                    if (u.get("email") != null && !String.valueOf(u.get("email")).isBlank()) seedEmail = String.valueOf(u.get("email")).trim();
+                } catch (Exception ignored) {}
+
                 registerClient(Map.of(
                         "companyName", "JASVI INDUSTRIES",
                         "machineId", HardwareFingerprintUtil.getDisplayMachineId(),
-                        "contactPerson", "Bipin Dhameliya",
-                        "phone", "9597544008",
-                        "email", "jasviindustries@gmail.com",
+                        "contactPerson", seedContact,
+                        "phone", seedPhone,
+                        "email", seedEmail,
                         "tier", "GOLD",
                         "maxUsers", 5,
                         "annualFee", 3500.00,
@@ -201,39 +220,90 @@ public class ClientRegistryService {
             throw new RuntimeException("Failed to serialize license payload JSON", e);
         }
 
-        jdbc.update(
-                "INSERT INTO licensed_client_registry (company_name, machine_id, contact_person, phone, email, " +
-                        "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, remote_url, features) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, 'ACTIVE', ?, ?, 1, ?, ?) " +
-                        "ON CONFLICT (machine_id) DO UPDATE SET " +
-                        "company_name = EXCLUDED.company_name, " +
-                        "contact_person = EXCLUDED.contact_person, " +
-                        "phone = EXCLUDED.phone, " +
-                        "email = EXCLUDED.email, " +
-                        "tier = EXCLUDED.tier, " +
-                        "max_users = EXCLUDED.max_users, " +
-                        "annual_fee = EXCLUDED.annual_fee, " +
-                        "valid_until = EXCLUDED.valid_until, " +
-                        "status = 'ACTIVE', " +
-                        "license_payload_enc = EXCLUDED.license_payload_enc, " +
-                        "notes = EXCLUDED.notes, " +
-                        "remote_url = COALESCE(EXCLUDED.remote_url, licensed_client_registry.remote_url), " +
-                        "features = EXCLUDED.features, " +
-                        "row_version = licensed_client_registry.row_version + 1",
-                companyName,
-                machineId,
-                contactPerson,
-                phone,
-                email,
-                tier,
-                maxUsers,
-                annualFee,
-                java.util.Date.from(validUntil),
-                payloadJson,
-                notes,
-                remoteUrl,
-                featuresStr
-        );
+        Long existingId = null;
+        if (req.get("id") != null) {
+            try {
+                existingId = Long.parseLong(String.valueOf(req.get("id")).trim());
+            } catch (Exception ignored) {}
+        }
+
+        if (existingId != null) {
+            jdbc.update(
+                    "UPDATE licensed_client_registry SET " +
+                            "company_name = ?, " +
+                            "machine_id = ?, " +
+                            "contact_person = ?, " +
+                            "phone = ?, " +
+                            "email = ?, " +
+                            "tier = ?, " +
+                            "max_users = ?, " +
+                            "annual_fee = ?, " +
+                            "valid_until = ?, " +
+                            "status = 'ACTIVE', " +
+                            "license_payload_enc = ?, " +
+                            "notes = ?, " +
+                            "remote_url = COALESCE(?, licensed_client_registry.remote_url), " +
+                            "features = ?, " +
+                            "row_version = licensed_client_registry.row_version + 1 " +
+                            "WHERE id = ?",
+                    companyName,
+                    machineId,
+                    contactPerson,
+                    phone,
+                    email,
+                    tier,
+                    maxUsers,
+                    annualFee,
+                    java.util.Date.from(validUntil),
+                    payloadJson,
+                    notes,
+                    remoteUrl,
+                    featuresStr,
+                    existingId
+            );
+        } else {
+            jdbc.update(
+                    "INSERT INTO licensed_client_registry (company_name, machine_id, contact_person, phone, email, " +
+                            "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, remote_url, features) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, 'ACTIVE', ?, ?, 1, ?, ?) " +
+                            "ON CONFLICT (machine_id) DO UPDATE SET " +
+                            "company_name = EXCLUDED.company_name, " +
+                            "contact_person = EXCLUDED.contact_person, " +
+                            "phone = EXCLUDED.phone, " +
+                            "email = EXCLUDED.email, " +
+                            "tier = EXCLUDED.tier, " +
+                            "max_users = EXCLUDED.max_users, " +
+                            "annual_fee = EXCLUDED.annual_fee, " +
+                            "valid_until = EXCLUDED.valid_until, " +
+                            "status = 'ACTIVE', " +
+                            "license_payload_enc = EXCLUDED.license_payload_enc, " +
+                            "notes = EXCLUDED.notes, " +
+                            "remote_url = COALESCE(EXCLUDED.remote_url, licensed_client_registry.remote_url), " +
+                            "features = EXCLUDED.features, " +
+                            "row_version = licensed_client_registry.row_version + 1",
+                    companyName,
+                    machineId,
+                    contactPerson,
+                    phone,
+                    email,
+                    tier,
+                    maxUsers,
+                    annualFee,
+                    java.util.Date.from(validUntil),
+                    payloadJson,
+                    notes,
+                    remoteUrl,
+                    featuresStr
+            );
+        }
+
+        try {
+            // Deduplicate primary organization records after registration or edit
+            jdbc.update(
+                    "DELETE FROM licensed_client_registry WHERE UPPER(TRIM(company_name)) = 'JASVI INDUSTRIES' " +
+                            "AND id NOT IN (SELECT id FROM licensed_client_registry WHERE UPPER(TRIM(company_name)) = 'JASVI INDUSTRIES' ORDER BY valid_until DESC, id DESC LIMIT 1)"
+            );
+        } catch (Exception ignored) {}
 
         try {
             String hostClean = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").toUpperCase(Locale.ROOT);
@@ -244,13 +314,34 @@ public class ClientRegistryService {
                         tier, maxUsers, java.util.Date.from(validUntil), featuresStr, signature, payload.toCanonicalString(),
                         companyName.toUpperCase(Locale.ROOT)
                 );
+
+                // Rule 17 (Zero Mock Data): Dynamically cascade Master Organization Contact from Tab 1 to SuperAdmin identity & alerts
+                if (email != null && !email.isBlank()) {
+                    jdbc.update(
+                            "UPDATE users SET email = ?, full_name = COALESCE(NULLIF(?, ''), full_name) " +
+                                    "WHERE LOWER(username) = 'superadmin' OR UPPER(COALESCE(role, '')) = 'SUPER_ADMIN'",
+                            email.trim(), contactPerson != null ? contactPerson.trim() : null
+                    );
+                    saveSetting("licensing.superadmin_email", email.trim());
+                }
+                if (phone != null && !phone.isBlank()) {
+                    jdbc.update(
+                            "UPDATE users SET phone = ? " +
+                                    "WHERE LOWER(username) = 'superadmin' OR UPPER(COALESCE(role, '')) = 'SUPER_ADMIN'",
+                            phone.trim()
+                    );
+                    saveSetting("licensing.superadmin_whatsapp", phone.trim());
+                }
             }
         } catch (Exception ignored) {}
 
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT * FROM licensed_client_registry WHERE machine_id = ?", machineId
-        );
-        return rows.getFirst();
+        List<Map<String, Object>> rows;
+        if (existingId != null) {
+            rows = jdbc.queryForList("SELECT * FROM licensed_client_registry WHERE id = ?", existingId);
+        } else {
+            rows = jdbc.queryForList("SELECT * FROM licensed_client_registry WHERE machine_id = ?", machineId);
+        }
+        return rows.isEmpty() ? getClients(null, "ALL").getFirst() : rows.getFirst();
     }
 
     @Transactional
@@ -459,7 +550,51 @@ public class ClientRegistryService {
     @Transactional(readOnly = true)
     public Map<String, Object> getCommercialSettings() {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("supportPhone", getSetting("licensing.support_phone", "9537544008"));
+
+        // Dynamically resolve Master Organization Contact from Tab 1 (primary client in licensed_client_registry)
+        String masterEmail = null;
+        String masterPhone = null;
+        try {
+            String hostClean = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").toUpperCase(Locale.ROOT);
+            List<Map<String, Object>> masterClients = jdbc.queryForList(
+                    "SELECT email, phone FROM licensed_client_registry " +
+                            "WHERE UPPER(TRIM(company_name)) = 'JASVI INDUSTRIES' OR UPPER(REPLACE(machine_id, '-', '')) = ? " +
+                            "ORDER BY id ASC LIMIT 1",
+                    hostClean
+            );
+            if (!masterClients.isEmpty()) {
+                Map<String, Object> mc = masterClients.getFirst();
+                if (mc.get("email") != null && !String.valueOf(mc.get("email")).isBlank()) {
+                    masterEmail = String.valueOf(mc.get("email")).trim();
+                }
+                if (mc.get("phone") != null && !String.valueOf(mc.get("phone")).isBlank()) {
+                    masterPhone = String.valueOf(mc.get("phone")).trim();
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // Fallback dynamically to users table where username = 'superadmin'
+        if (masterEmail == null || masterEmail.isBlank()) {
+            try {
+                masterEmail = jdbc.queryForObject(
+                        "SELECT email FROM users WHERE LOWER(username) = 'superadmin' OR UPPER(COALESCE(role, '')) = 'SUPER_ADMIN' ORDER BY id ASC LIMIT 1",
+                        String.class
+                );
+            } catch (Exception ignored) {}
+        }
+        if (masterPhone == null || masterPhone.isBlank()) {
+            try {
+                masterPhone = jdbc.queryForObject(
+                        "SELECT phone FROM users WHERE LOWER(username) = 'superadmin' OR UPPER(COALESCE(role, '')) = 'SUPER_ADMIN' ORDER BY id ASC LIMIT 1",
+                        String.class
+                );
+            } catch (Exception ignored) {}
+        }
+
+        String defaultEmail = (masterEmail != null && !masterEmail.isBlank()) ? masterEmail : getSetting("licensing.superadmin_email", "");
+        String defaultPhone = (masterPhone != null && !masterPhone.isBlank()) ? masterPhone : getSetting("licensing.superadmin_whatsapp", "");
+
+        result.put("supportPhone", getSetting("licensing.support_phone", (defaultPhone != null && !defaultPhone.isBlank()) ? defaultPhone : ""));
         result.put("upiVpa", getSetting("licensing.upi_vpa", "jasviindustries@icici"));
         result.put("payeeName", getSetting("licensing.payee_name", "Jasvi Industries"));
         result.put("gstRate", getSetting("licensing.gst_rate", "18.00"));
@@ -467,6 +602,9 @@ public class ClientRegistryService {
                 "Hello Jasvi Team, I am {CompanyName} ({ContactPerson}, {Phone}). Terminal ID: {MachineId}. Please activate our Jasvi ERP license."));
         result.put("whatsappTemplateIssued", getSetting("licensing.whatsapp_template_issued",
                 "Dear {CompanyName}, your Jasvi ERP {Tier} license is approved! Terminal ID: {MachineId}. Valid Until: {ValidUntil}. Thank you for choosing Jasvi ERP."));
+        result.put("superAdminEmail", defaultEmail != null ? defaultEmail : "");
+        result.put("superAdminWhatsapp", defaultPhone != null ? defaultPhone : "");
+        result.put("serverPublicUrl", getSetting("licensing.server_public_url", "https://erp.jasviindustries.in"));
         return result;
     }
 
@@ -479,6 +617,9 @@ public class ClientRegistryService {
         saveSetting("licensing.gst_rate", settings.get("gstRate"));
         saveSetting("licensing.whatsapp_template_lead", settings.get("whatsappTemplateLead"));
         saveSetting("licensing.whatsapp_template_issued", settings.get("whatsappTemplateIssued"));
+        saveSetting("licensing.superadmin_email", settings.get("superAdminEmail"));
+        saveSetting("licensing.superadmin_whatsapp", settings.get("superAdminWhatsapp"));
+        saveSetting("licensing.server_public_url", settings.get("serverPublicUrl"));
     }
 
     @Transactional(readOnly = true)
@@ -772,9 +913,22 @@ public class ClientRegistryService {
                 "SELECT id, company_name, tier, status, valid_until, remote_url, last_heartbeat_at, client_version, " +
                         "COALESCE(is_purchased, true) AS is_purchased, kicked_at, kick_reason " +
                         "FROM licensed_client_registry WHERE machine_id = ? " +
-                        "OR (status = 'ACTIVE' AND UPPER(TRIM(company_name)) = UPPER(TRIM(?))) ORDER BY id ASC LIMIT 1",
-                machineId, companyName != null ? companyName.trim() : ""
+                        "OR UPPER(REPLACE(machine_id, '-', '')) = UPPER(REPLACE(?, '-', '')) " +
+                        "ORDER BY (CASE WHEN UPPER(REPLACE(machine_id, '-', '')) = UPPER(REPLACE(?, '-', '')) THEN 0 ELSE 1 END), id ASC LIMIT 1",
+                machineId, machineId, machineId
         );
+        if (rows.isEmpty() && companyName != null && !companyName.isBlank()) {
+            rows = jdbc.queryForList(
+                    "SELECT id, company_name, tier, status, valid_until, remote_url, last_heartbeat_at, client_version, " +
+                            "COALESCE(is_purchased, true) AS is_purchased, kicked_at, kick_reason " +
+                            "FROM licensed_client_registry WHERE status = 'ACTIVE' AND UPPER(TRIM(company_name)) = UPPER(TRIM(?)) " +
+                            "ORDER BY id ASC LIMIT 1",
+                    companyName.trim()
+            );
+        }
+        if (rows.isEmpty()) {
+            return Map.of("status", "UNREGISTERED", "machineId", machineId, "isPurchased", false);
+        }
         Map<String, Object> client = rows.getFirst();
         String currentStatus = String.valueOf(client.get("status"));
 
@@ -837,7 +991,7 @@ public class ClientRegistryService {
                     total_seconds_today, is_active_now, deployment_mode, updated_at
                 ) VALUES (
                     ?, ?, ?, ?, CAST(? AS date),
-                    CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP, CASE WHEN ? = true THEN CURRENT_TIMESTAMP ELSE NULL END, CURRENT_TIMESTAMP,
                     ?, ?, ?, CURRENT_TIMESTAMP
                 ) ON CONFLICT (machine_id, username, work_date) DO UPDATE SET
                     first_login_today = COALESCE(client_user_telemetry.first_login_today, CURRENT_TIMESTAMP),
@@ -849,7 +1003,7 @@ public class ClientRegistryService {
                     updated_at = CURRENT_TIMESTAMP
             """, machineId, companyName != null ? companyName : "Client Workspace", username, roleCode,
                     workDate.toString(),
-                    isLogout ? Instant.now() : null,
+                    isLogout,
                     durationInc, isActive, depMode);
 
             recordUserSessionSegment(machineId, companyName != null ? companyName : "Client Workspace", username, roleCode, workDate.toString(), durationInc, isActive, isLogout, isNewLogin, depMode);
@@ -1388,13 +1542,13 @@ public class ClientRegistryService {
         rogueAlertDebounceMap.put(machineId, Instant.now());
 
         String token = java.util.UUID.randomUUID().toString().replace("-", "") + Long.toHexString(System.currentTimeMillis());
-        Instant expiresAt = Instant.now().plus(72, ChronoUnit.HOURS);
 
         try {
             jdbc.update(
-                    "INSERT INTO license_revocation_token (token, machine_id, company_name, client_ip, expires_at) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO license_revocation_token (token, machine_id, company_name, client_ip, expires_at) " +
+                            "VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP + INTERVAL '72 hours')",
                     token, machineId, (companyName != null && !companyName.isBlank()) ? companyName : "Unregistered Client",
-                    clientIp != null ? clientIp : "Unknown IP", expiresAt
+                    clientIp != null ? clientIp : "Unknown IP"
             );
             jdbc.update("UPDATE licensed_client_registry SET last_alert_sent_at = CURRENT_TIMESTAMP WHERE machine_id = ?", machineId);
         } catch (Exception ex) {
@@ -1429,19 +1583,34 @@ public class ClientRegistryService {
 
     private void dispatchSuperAdminWhatsAppAlert(String machineId, String company, String ip, String version, String users, String kickUrl) {
         if (whatsappService == null) return;
-        String superAdminPhone = getSetting("licensing.superadmin_whatsapp", "");
-        if (superAdminPhone.isBlank()) {
+        // Dynamically resolve Master Phone from Tab 1 (primary client in licensed_client_registry)
+        String superAdminPhone = null;
+        try {
+            String hostClean = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").toUpperCase(Locale.ROOT);
+            superAdminPhone = jdbc.queryForObject(
+                    "SELECT phone FROM licensed_client_registry " +
+                            "WHERE (UPPER(TRIM(company_name)) = 'JASVI INDUSTRIES' OR UPPER(REPLACE(machine_id, '-', '')) = ?) " +
+                            "AND phone IS NOT NULL AND BTRIM(phone) <> '' ORDER BY id ASC LIMIT 1",
+                    String.class, hostClean
+            );
+        } catch (Exception ignored) {}
+
+        if (superAdminPhone == null || superAdminPhone.isBlank()) {
+            superAdminPhone = getSetting("licensing.superadmin_whatsapp", "");
+        }
+        if (superAdminPhone == null || superAdminPhone.isBlank()) {
             try {
                 superAdminPhone = jdbc.queryForObject(
-                        "SELECT phone FROM users WHERE UPPER(COALESCE(role,'')) IN ('SUPER_ADMIN','ADMIN') AND phone IS NOT NULL AND BTRIM(phone) <> '' ORDER BY id ASC LIMIT 1",
+                        "SELECT phone FROM users WHERE (LOWER(username) = 'superadmin' OR UPPER(COALESCE(role,'')) = 'SUPER_ADMIN') " +
+                                "AND phone IS NOT NULL AND BTRIM(phone) <> '' ORDER BY id ASC LIMIT 1",
                         String.class
                 );
             } catch (Exception ignored) {}
         }
         if (superAdminPhone == null || superAdminPhone.isBlank()) {
-            superAdminPhone = getSetting("licensing.support_phone", "9537544008");
+            superAdminPhone = getSetting("licensing.support_phone", "");
         }
-        if (superAdminPhone.isBlank()) return;
+        if (superAdminPhone == null || superAdminPhone.isBlank()) return;
 
         String text = "🚨 *JASVI SECURITY ALERT: UNLICENSED INSTANCE*\n\n" +
                 "An unauthorized local workstation has connected to the system without an active plan:\n\n" +
@@ -1465,13 +1634,31 @@ public class ClientRegistryService {
 
     private void dispatchSuperAdminEmailAlert(String machineId, String company, String ip, String version, String users, String kickUrl) {
         if (mailService == null || !mailService.isConfigured()) return;
-        String superAdminEmail = getSetting("licensing.superadmin_email", "");
-        if (superAdminEmail.isBlank()) {
+        // Dynamically resolve Master Email from Tab 1 (primary client in licensed_client_registry)
+        String superAdminEmail = null;
+        try {
+            String hostClean = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").toUpperCase(Locale.ROOT);
+            superAdminEmail = jdbc.queryForObject(
+                    "SELECT email FROM licensed_client_registry " +
+                            "WHERE (UPPER(TRIM(company_name)) = 'JASVI INDUSTRIES' OR UPPER(REPLACE(machine_id, '-', '')) = ?) " +
+                            "AND email IS NOT NULL AND BTRIM(email) <> '' ORDER BY id ASC LIMIT 1",
+                    String.class, hostClean
+            );
+        } catch (Exception ignored) {}
+
+        if (superAdminEmail == null || superAdminEmail.isBlank()) {
+            superAdminEmail = getSetting("licensing.superadmin_email", "").trim();
+        }
+        if (superAdminEmail == null || superAdminEmail.isBlank() || "superadmin@jasviindustries.in".equalsIgnoreCase(superAdminEmail)) {
             try {
-                superAdminEmail = jdbc.queryForObject(
-                        "SELECT email FROM users WHERE UPPER(COALESCE(role,'')) IN ('SUPER_ADMIN','ADMIN') AND email IS NOT NULL AND BTRIM(email) <> '' ORDER BY id ASC LIMIT 1",
+                String queried = jdbc.queryForObject(
+                        "SELECT email FROM users WHERE (LOWER(username) = 'superadmin' OR UPPER(COALESCE(role,'')) = 'SUPER_ADMIN') " +
+                                "AND email IS NOT NULL AND BTRIM(email) <> '' AND LOWER(email) NOT LIKE '%superadmin@jasviindustries.in%' ORDER BY id ASC LIMIT 1",
                         String.class
                 );
+                if (queried != null && !queried.isBlank()) {
+                    superAdminEmail = queried.trim();
+                }
             } catch (Exception ignored) {}
         }
         if (superAdminEmail == null || superAdminEmail.isBlank()) return;
@@ -1549,8 +1736,9 @@ public class ClientRegistryService {
         // Update or insert client registry record as BLOCKED
         int updated = jdbc.update(
                 "UPDATE licensed_client_registry SET status = 'BLOCKED', is_purchased = false, kicked_at = CURRENT_TIMESTAMP, " +
-                        "kick_reason = 'Terminated by Super Admin via Email/WhatsApp 1-click alert' WHERE machine_id = ?",
-                targetMachine
+                        "kick_reason = 'Terminated by Super Admin via Email/WhatsApp 1-click alert' " +
+                        "WHERE machine_id = ? OR UPPER(REPLACE(machine_id, '-', '')) = UPPER(REPLACE(?, '-', ''))",
+                targetMachine, targetMachine
         );
         if (updated == 0) {
             jdbc.update(

@@ -122,6 +122,7 @@ public final class PopupTableWorkspace {
             dialog.getDialogPane().getStyleClass().add("erp-ui-standard");
         }
         if (prefWidth > 0) dialog.getDialogPane().setPrefWidth(prefWidth);
+        dialog.setResizable(true);
         if (!Boolean.TRUE.equals(dialog.getDialogPane().getProperties().get("erp-popup-responsive-width"))) {
             dialog.getDialogPane().getProperties().put("erp-popup-responsive-width", true);
             dialog.addEventHandler(DialogEvent.DIALOG_SHOWING, event -> {

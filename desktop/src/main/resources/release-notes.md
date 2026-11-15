@@ -1,3 +1,40 @@
+# What's New in DSE ERP v11.0.68
+
+### Master Client Registry In-Place Updates & Machine Hardware ID Security
+- **In-Place Primary Key Updates & Hardware ID Lock (`ClientRegistryService.java`, `ClientRegistryController.java`) (Rule 4, Rule 11 & Rule 17)**:
+  - Eliminated duplicate row creation when editing clients in the Master Client Registry by switching persistence to primary key updates (`UPDATE ... WHERE id = ?`) and normalizing hardware machine IDs, coupled with automatic deduplication of primary organization records.
+  - Locked `Machine Hardware ID` on existing client dialogs (`.locked-input`, non-editable, non-focusable) and hid the `Use Current Machine ID` button to prevent accidental hardware tampering.
+  - Enforced mandatory validation for `Contact Person *`, `Phone / WhatsApp *`, and `Email *` to ensure all client records maintain complete communication metadata.
+  - Removed redundant `SuperAdmin Alert Email` and `SuperAdmin Security WhatsApp` fields from the Commercial Settings modal, consolidating **Client Registry Tab 1 (`JASVI INDUSTRIES`)** as the single master source of truth for platform security alerts.
+
+### Accurate MFA Multi-State Policy Badging & SuperAdmin Emergency Contact Policy
+- **MFA Enrollment Verification & SVG Policy Callouts (`AdminDtos.java`, `AdminService.java`, `AdminApiClient.java`, `UserAccessController.java`, `UserDialogController.java`) (Rule 5, Rule 9 & Rule 11)**:
+  - Upgraded User Management MFA status badge to accurately reflect three authentic security states: `✔ Active` (enrolled and verified TOTP), `⏳ Pending Setup` (policy enabled but unverified enrollment), and `—` (disabled), preventing misleading false "Enabled" security status.
+  - Replaced plain text `?` labels in the User Dialog with clickable SVG buttons (`IconFactory.compactIcon("info", 14)`) opening an informative modal dialog explaining the SuperAdmin Emergency Contact Policy, with non-focusable locked fields.
+
+### Graceful Session Revocation & Real-Time Single-Device Concurrency Auto-Kick
+- **Centralized Session Revocation Dispatcher & Active Heartbeat Auto-Kick (`DashboardController.java`, `ApiSession.java`, `UiTaskExecutor.java`) (Rule 4, Rule 10, Rule 12 & Rule 17)**:
+  - Eliminated raw technical exception alerts (`AuthenticationRequiredException: Please sign in again`) and zombie desktop states when an account is signed into from another workstation.
+  - Upgraded recurring 30-second client workstation heartbeat (`sendClientHeartbeatAsync`): catches `AuthenticationRequiredException` (HTTP 401) and immediately triggers `Platform.runLater` to display a clean, user-defined security dialog (`Session Terminated: Signed In from Another Workstation`) before gracefully redirecting to the login screen.
+  - Implemented thread-safe `SessionRevocationListener` and debounced notification inside `ApiSession`: any API client encountering HTTP 401 or authentication revocation triggers a single coordinated sign-out flow.
+  - Enhanced `UiTaskExecutor`: intercepts authentication failures during background reads or actions, logs clean audit events (`SESSION_SUPERSEDED`), and suppresses misleading per-screen error alerts (e.g. `Profile could not be loaded`) in favor of centralized session termination.
+
+### Super Admin Remote Revocation & Unlicensed Workstation 1-Click Kick Authority
+- **PostgreSQL Native Timestamps & SQL Token Interval (`ClientRegistryService.java`, `ClientRegistryTemporalSafetyTest.java`) (Rule 4, Rule 10 & Rule 17)**:
+  - Resolved an issue where Super Admin 1-click kick/kill links generated in rogue instance alerts returned `⚠️ Invalid Token - This revocation token does not exist or has expired`.
+  - Replaced raw `Instant` parameters in JDBC updates with native PostgreSQL interval computation `CURRENT_TIMESTAMP + INTERVAL '72 hours'` for token expiry and `CASE WHEN ? = true THEN CURRENT_TIMESTAMP ELSE NULL END` for logout telemetry, preventing `PSQLException: Can't infer the SQL type to use for an instance of java.time.Instant`.
+  - Prioritized exact `machine_id` lookups over generic company name matching in `recordHeartbeat(...)` so blacklisted workstations are immediately terminated on their next heartbeat regardless of company-wide active license rows.
+  - Hardened `executeOneClickKick(...)` to match both dashed and undashed hardware IDs (`C78F-8CA1-B474-E8B6` and `C78F8CA1B474E8B6`) when setting `BLOCKED` status.
+
+### Payment Transmission Dedicated Signature & Stamp Tab
+- **Tab 4 (`🖋️ Company Signature & Stamp`) in Payment Transmission Dialog (`PaymentTransmissionDialog.fxml`, `PaymentTransmissionDialog.java`) (Rule 5, Rule 7, Rule 9, Rule 11 & Rule 12)**:
+  - Eliminated vertical clipping at the bottom of Tab 1 by extracting the Company Signature & Commercial Stamp into a dedicated 4th tab with full-width layout, high-contrast status pill (`Active & Signed`), thumbnail preview (`90x42`), and modal preview action.
+
+### Settings Display Name Live Synchronization & Snapshot Discard Reversion
+- **Live Name Mirroring & Snapshot Reversion (`CompanySettingsPanel.fxml`, `SettingsController.java`) (Rule 5, Rule 11 & Rule 17)**:
+  - Added live text listener linking Company Name to Application Display Name with descriptive explanatory tooltip.
+  - Implemented true `revertSection(...)` on "Discard & Leave": discarding unsaved changes in Settings tabs now immediately restores the saved snapshot from `ConfigManager`, purges uncommitted file assets, and refreshes preview canvases.
+
 # What's New in DSE ERP v11.0.66
 
 ### Light Theme Table Selection Lavender Modernization & Visual Contrast Parity

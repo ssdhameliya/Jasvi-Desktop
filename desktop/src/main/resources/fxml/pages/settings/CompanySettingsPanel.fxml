@@ -89,7 +89,11 @@
                                 <!-- Application identity is intentionally kept at the bottom of the primary Company & Billing form. -->
                                 <VBox spacing="5" GridPane.columnIndex="0" GridPane.rowIndex="2">
                                     <Label text="Application Display Name" styleClass="settings-form-label"/>
-                                    <TextField fx:id="txtApplicationName" promptText="Uses Company Name" editable="false" focusTraversable="false" styleClass="approved-input,readonly-field"/>
+                                    <TextField fx:id="txtApplicationName" promptText="Uses Company Name" editable="false" focusTraversable="false" styleClass="approved-input,readonly-field">
+                                        <tooltip>
+                                            <Tooltip text="Inherited automatically from Company Name above"/>
+                                        </tooltip>
+                                    </TextField>
                                 </VBox>
 
                                 <VBox spacing="5" GridPane.columnIndex="1" GridPane.rowIndex="2">

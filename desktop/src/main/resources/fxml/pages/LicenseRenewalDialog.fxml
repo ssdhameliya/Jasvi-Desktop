@@ -50,7 +50,7 @@
 
                 <VBox spacing="4" styleClass="email-transmission-sig-box">
                     <HBox alignment="CENTER_LEFT" spacing="6">
-                        <Label text="Machine Hardware ID:" styleClass="settings-form-label"/>
+                        <Label text="💻 Local Workstation ID:" styleClass="settings-form-label"/>
                         <Region HBox.hgrow="ALWAYS"/>
                         <Button fx:id="btnCopyMachineId" text="Copy ID" onAction="#handleCopyMachineId"
                                 styleClass="approved-button,approved-secondary-button"/>
@@ -60,7 +60,7 @@
 
                 <GridPane hgap="12" vgap="6">
                     <columnConstraints>
-                        <ColumnConstraints minWidth="120"/>
+                        <ColumnConstraints minWidth="130"/>
                         <ColumnConstraints hgrow="ALWAYS"/>
                     </columnConstraints>
                     <Label text="Company:" GridPane.rowIndex="0" GridPane.columnIndex="0" styleClass="settings-form-label"/>
@@ -69,11 +69,14 @@
                     <Label text="Plan Tier:" GridPane.rowIndex="1" GridPane.columnIndex="0" styleClass="settings-form-label"/>
                     <Label fx:id="lblTier" text="-" GridPane.rowIndex="1" GridPane.columnIndex="1" styleClass="field-label"/>
 
-                    <Label text="Valid Until:" GridPane.rowIndex="2" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                    <Label fx:id="lblValidUntil" text="-" GridPane.rowIndex="2" GridPane.columnIndex="1" styleClass="field-label"/>
+                    <Label text="Cloud Server Host:" GridPane.rowIndex="2" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                    <Label fx:id="lblServerHost" text="-" GridPane.rowIndex="2" GridPane.columnIndex="1" styleClass="field-label"/>
 
-                    <Label text="Days Remaining:" GridPane.rowIndex="3" GridPane.columnIndex="0" styleClass="settings-form-label"/>
-                    <Label fx:id="lblDaysRemaining" text="-" GridPane.rowIndex="3" GridPane.columnIndex="1" styleClass="field-label"/>
+                    <Label text="Valid Until:" GridPane.rowIndex="3" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                    <Label fx:id="lblValidUntil" text="-" GridPane.rowIndex="3" GridPane.columnIndex="1" styleClass="field-label"/>
+
+                    <Label text="Days Remaining:" GridPane.rowIndex="4" GridPane.columnIndex="0" styleClass="settings-form-label"/>
+                    <Label fx:id="lblDaysRemaining" text="-" GridPane.rowIndex="4" GridPane.columnIndex="1" styleClass="field-label"/>
                 </GridPane>
 
                 <VBox spacing="8">

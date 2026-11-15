@@ -171,4 +171,18 @@
             <ToggleButton fx:id="tglPaymentConfirmationEmail" text="Payment Receipts: ON" styleClass="apple-toggle-switch,ios-toggle-switch"/>
         </HBox>
     </VBox>
+
+    <!-- Feature Flag 3: Bank Reconciliation Settlement Advice Prompt -->
+    <VBox spacing="8" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT" spacing="6">
+                    <Label text="Prompt Advice on Bank Statement Match" styleClass="section-title"/>
+                    <Label fx:id="lblPromptBankMatchInfo" text="ⓘ" styleClass="action-help-icon,text-muted"/>
+                </HBox>
+                <Label text="Show confirmation dialog after bank statement match. When turned OFF, transactions settle silently in the background." styleClass="page-subtitle"/>
+            </VBox>
+            <ToggleButton fx:id="tglPromptBankMatch" text="Bank Match Prompt: ON" styleClass="apple-toggle-switch,ios-toggle-switch"/>
+        </HBox>
+    </VBox>
 </VBox>

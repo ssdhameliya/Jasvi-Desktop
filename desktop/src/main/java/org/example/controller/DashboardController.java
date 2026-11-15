@@ -1,6 +1,8 @@
 package org.example.controller;
 
+import org.example.api.ApiSession;
 import org.example.util.AppDialogService;
+import org.example.util.DesktopLog;
 
 import org.example.navigation.ScreenLifecycle;
 import org.example.util.BusinessClock;
@@ -380,6 +382,7 @@ public class DashboardController implements ScreenLifecycle {
         clientHeartbeatTimeline.setCycleCount(Timeline.INDEFINITE);
         clientHeartbeatTimeline.play();
 
+        ApiSession.setSessionRevocationListener(this::handleSessionRevocationNotice);
     }
 
 
@@ -530,8 +533,55 @@ public class DashboardController implements ScreenLifecycle {
                         logout();
                     });
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ex) {
+                if (!isLogout && isAuthenticationRevoked(ex)) {
+                    DesktopLog.info("DashboardController", "HEARTBEAT_AUTH_REVOKED", "Heartbeat detected revoked session: " + ex.getMessage());
+                    ApiSession.notifySessionRevoked("Account signed in from another computer.");
+                }
+            }
         });
+    }
+
+    private void handleSessionRevocationNotice(String reason) {
+        javafx.application.Platform.runLater(() -> {
+            stopRecurringTasks();
+            DesktopLog.info("DashboardController", "SESSION_SUPERSEDED", "User session was terminated: " + reason);
+            try {
+                AppDialogService.warning(
+                        shellRoot != null ? shellRoot : contentPane,
+                        "Session Terminated",
+                        "Signed In from Another Workstation",
+                        "Your account was signed in from another computer. This workstation has been safely signed out to protect your company data."
+                );
+            } catch (Exception ignored) {}
+            forceSignOutToLogin();
+        });
+    }
+
+    private void forceSignOutToLogin() {
+        stopRecurringTasks();
+        ApiSession.setSessionRevocationListener(null);
+        org.example.util.UiTaskExecutor.cancelAllReads();
+        org.example.navigation.NavigationManager.clearGlobalCache();
+        org.example.navigation.WorkspaceTabManager.reset();
+        try { new org.example.service.UserService().logout(); } catch (Exception ignored) {}
+        finally { SessionService.clear(); }
+        org.example.util.SceneManager.showLogin();
+    }
+
+    private static boolean isAuthenticationRevoked(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof org.example.api.ApiSession.AuthenticationRequiredException) {
+                return true;
+            }
+            String msg = current.getMessage();
+            if (msg != null && (msg.contains("Please sign in again") || msg.contains("401") || msg.contains("AUTHENTICATION_REJECTED") || msg.contains("REVOKED"))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private void applyBadge(Label badge, int count) {
@@ -564,6 +614,7 @@ public class DashboardController implements ScreenLifecycle {
             clientHeartbeatTimeline.stop();
             clientHeartbeatTimeline = null;
         }
+        ApiSession.setSessionRevocationListener(null);
     }
 
     /** Re-applies permission state immediately after a permission cache refresh. */

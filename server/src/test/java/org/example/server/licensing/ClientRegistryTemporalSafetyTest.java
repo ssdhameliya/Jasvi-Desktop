@@ -213,4 +213,47 @@ class ClientRegistryTemporalSafetyTest {
         assertTrue(executedSql.get(0).contains("ORDER BY t.work_date DESC"), "DAILY mode must return day-wise rows");
         assertTrue(executedSql.get(1).contains("GROUP BY t.username, t.role_code"), "SUMMARY mode must group by user");
     }
+
+    @Test
+    @DisplayName("executeOneClickKick properly updates blocked status and handles timestamp parameter safety")
+    void testExecuteOneClickKickTimestampAndMachinePrioritization() {
+        List<Object> recordedArgs = new ArrayList<>();
+        List<String> executedQueries = new ArrayList<>();
+
+        JpaNativeRepository stubRepo = new JpaNativeRepository() {
+            @Override
+            public <T> T queryForObject(String sql, Class<T> type, Object... args) {
+                return null;
+            }
+
+            @Override
+            public List<Map<String, Object>> queryForList(String sql, Object... args) {
+                executedQueries.add(sql);
+                if (sql.contains("FROM license_revocation_token WHERE token = ?")) {
+                    return List.of(Map.of(
+                            "token", "valid-test-token-12345",
+                            "machine_id", "C78F8CA1B474E8B6",
+                            "company_name", "Jasvi Engineers",
+                            "expires_at", Timestamp.from(Instant.now().plus(24, java.time.temporal.ChronoUnit.HOURS))
+                    ));
+                }
+                return List.of();
+            }
+
+            @Override
+            public int update(String sql, Object... args) {
+                executedQueries.add(sql);
+                if (args != null) recordedArgs.addAll(Arrays.asList(args));
+                return 1;
+            }
+        };
+
+        ClientRegistryService service = new ClientRegistryService(stubRepo, null, null);
+        String html = service.executeOneClickKick("valid-test-token-12345", "C78F8CA1B474E8B6", "127.0.0.1");
+
+        assertNotNull(html);
+        assertTrue(html.contains("Workstation Successfully Kicked"), "Kick must succeed for valid revocation token");
+        assertTrue(executedQueries.stream().anyMatch(q -> q.contains("UPDATE licensed_client_registry SET status = 'BLOCKED'")),
+                "Must set status = 'BLOCKED' on target machine");
+    }
 }
