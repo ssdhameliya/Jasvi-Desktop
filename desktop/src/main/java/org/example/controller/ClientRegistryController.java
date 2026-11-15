@@ -270,26 +270,21 @@ public class ClientRegistryController implements ScreenLifecycle {
             }
         });
 
+        colLiveStatus.setMinWidth(190);
         colLiveStatus.setCellValueFactory(cell -> {
             Object hb = cell.getValue().get("last_heartbeat_at");
             Object ver = cell.getValue().get("client_version");
             Object activeUsers = cell.getValue().get("active_users_count");
             Object maxUsers = cell.getValue().get("max_users");
+            Object todaySecObj = cell.getValue().get("today_total_seconds");
+            Object todayUsersObj = cell.getValue().get("today_users_count");
             String hbStr = (hb != null && !"null".equalsIgnoreCase(hb.toString())) ? hb.toString() : "";
             String v = (ver != null && !ver.toString().isBlank() && !"null".equalsIgnoreCase(ver.toString())) ? ver.toString() : "";
-            int act = 0;
-            if (activeUsers instanceof Number n) {
-                act = n.intValue();
-            } else if (activeUsers != null) {
-                try { act = Integer.parseInt(activeUsers.toString().trim()); } catch (Exception ignored) {}
-            }
-            int max = 1;
-            if (maxUsers instanceof Number n) {
-                max = n.intValue();
-            } else if (maxUsers != null) {
-                try { max = Integer.parseInt(maxUsers.toString().trim()); } catch (Exception ignored) {}
-            }
-            return new SimpleStringProperty(hbStr + "|" + v + "|" + act + "|" + max);
+            int act = parseIntVal(activeUsers, 0);
+            int max = Math.max(1, parseIntVal(maxUsers, 1));
+            long todaySec = parseLongVal(todaySecObj, 0L);
+            int todayUsers = parseIntVal(todayUsersObj, 0);
+            return new SimpleStringProperty(hbStr + "|" + v + "|" + act + "|" + max + "|" + todaySec + "|" + todayUsers);
         });
         colLiveStatus.setCellFactory(col -> new TableCell<>() {
             @Override
@@ -301,22 +296,20 @@ public class ClientRegistryController implements ScreenLifecycle {
                     return;
                 }
                 if (raw == null || raw.isBlank()) {
-                    Label offline = new Label("⚪ Offline");
+                    Label offline = new Label("⚪ Offline • Today 0m");
                     offline.getStyleClass().addAll("status-badge", "status-neutral");
                     setGraphic(offline);
                     setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
                     setAlignment(Pos.CENTER);
                     return;
                 }
-                String[] parts = raw.split("\\|", 4);
+                String[] parts = raw.split("\\|", 6);
                 String hbStr = parts[0];
                 String ver = parts.length > 1 ? parts[1] : "";
-                int activeCount = 1;
-                int maxUsers = 1;
-                try {
-                    if (parts.length > 2 && !parts[2].isBlank()) activeCount = Integer.parseInt(parts[2]);
-                    if (parts.length > 3 && !parts[3].isBlank()) maxUsers = Integer.parseInt(parts[3]);
-                } catch (Exception ignored) {}
+                int activeCount = parts.length > 2 ? parseIntVal(parts[2], 0) : 0;
+                int maxUsers = parts.length > 3 ? Math.max(1, parseIntVal(parts[3], 1)) : 1;
+                long todaySec = parts.length > 4 ? parseLongVal(parts[4], 0L) : 0L;
+                int todayUsers = parts.length > 5 ? parseIntVal(parts[5], 0) : 0;
 
                 Instant hbTime = null;
                 try {
@@ -327,25 +320,30 @@ public class ClientRegistryController implements ScreenLifecycle {
                     } catch (Exception ignored2) {}
                 }
 
+                String compactToday = formatCompactWorkDuration(todaySec);
                 Label badge;
-                String userCapacityLabel = activeCount + "/" + maxUsers + " Users";
-                if (hbTime != null && Duration.between(hbTime, Instant.now()).toMinutes() <= 15) {
-                    if (maxUsers > 0 && activeCount >= maxUsers) {
-                        badge = new Label("🟡 At Limit • " + userCapacityLabel);
+                if (activeCount > 0 || (hbTime != null && Duration.between(hbTime, Instant.now()).toMinutes() <= 15)) {
+                    int liveCount = Math.max(activeCount, 0);
+                    String text = (liveCount > 0 ? liveCount + "/" + maxUsers + " Online" : "Online") + " • Today " + compactToday;
+                    if (maxUsers > 0 && liveCount >= maxUsers) {
+                        badge = new Label("🟡 " + text);
                         badge.getStyleClass().addAll("status-badge", "status-warning");
                     } else {
-                        badge = new Label("🟢 Online • " + userCapacityLabel);
+                        badge = new Label("🟢 " + text);
                         badge.getStyleClass().addAll("status-badge", "status-positive", "badge-active");
                     }
                 } else if (hbTime != null && Duration.between(hbTime, Instant.now()).toHours() < 24) {
                     long hours = Duration.between(hbTime, Instant.now()).toHours();
-                    badge = new Label("🟡 Seen " + (hours == 0 ? "recently" : hours + "h ago") + " • " + userCapacityLabel);
+                    String seenText = hours == 0 ? "Recent" : hours + "h ago";
+                    badge = new Label("🟡 " + seenText + " • Today " + compactToday);
                     badge.getStyleClass().addAll("status-badge", "status-warning");
                 } else {
-                    badge = new Label("⚪ Offline • " + (hbStr.length() > 10 ? hbStr.substring(0, 10) : hbStr));
+                    String offlineTail = todaySec > 0 ? ("Today " + compactToday) : (hbStr.length() > 10 ? hbStr.substring(0, 10) : "Offline");
+                    badge = new Label("⚪ " + (todaySec > 0 ? "Offline • " + offlineTail : "Offline" + (offlineTail.equals("Offline") ? "" : " • " + offlineTail)));
                     badge.getStyleClass().addAll("status-badge", "status-neutral");
                 }
 
+                badge.setMinWidth(Region.USE_PREF_SIZE);
                 badge.setCursor(javafx.scene.Cursor.HAND);
                 badge.setOnMouseClicked(event -> {
                     if (getTableRow() != null && getTableRow().getItem() != null) {
@@ -353,10 +351,12 @@ public class ClientRegistryController implements ScreenLifecycle {
                     }
                 });
 
-                String tooltipText = "Active Connected Users: " + activeCount + " of " + maxUsers +
+                String tooltipText = "Active Connected Users Now: " + activeCount + " of " + maxUsers +
+                        "\nUsers Worked Today: " + todayUsers +
+                        "\nTotal Work Today (All Users): " + formatWorkDuration(todaySec) +
                         (ver.isBlank() ? "" : "\nERP Client Version: " + ver) +
                         (hbStr.isBlank() ? "" : "\nLast Live Heartbeat: " + hbStr) +
-                        "\n\n👉 Click to inspect live active sessions & user work-hours";
+                        "\n\n👉 Click to open Day-Wise & User Work-Hours Telemetry";
                 Tooltip tooltip = new Tooltip(tooltipText);
                 Tooltip.install(badge, tooltip);
 
@@ -2288,13 +2288,13 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         VBox rootBox = new VBox(12);
         rootBox.setPadding(new Insets(10, 12, 10, 12));
-        rootBox.setMinWidth(1000);
-        rootBox.setPrefWidth(1060);
-        rootBox.setMinHeight(460);
+        rootBox.setMinWidth(1260);
+        rootBox.setPrefWidth(1320);
+        rootBox.setMinHeight(480);
 
         // Telemetry Table
         TableView<Map<String, Object>> tableUsers = new TableView<>();
-        tableUsers.setPrefHeight(340);
+        tableUsers.setPrefHeight(360);
         tableUsers.getStyleClass().addAll("approved-table", "clients-directory-table");
         tableUsers.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
@@ -2316,19 +2316,32 @@ public class ClientRegistryController implements ScreenLifecycle {
         Region heroSpacer = new Region();
         HBox.setHgrow(heroSpacer, Priority.ALWAYS);
 
-        Object maxSeats = client.getOrDefault("max_users", 5);
-        Object activeSeats = client.getOrDefault("active_users_count", 0);
-        Label lblSeats = new Label(activeSeats + " / " + maxSeats + " Workstation Seats Active");
-        lblSeats.getStyleClass().addAll("status-badge", "status-neutral");
+        int maxSeatsVal = Math.max(1, parseIntVal(client.get("max_users"), 5));
+        int initialActiveSeats = parseIntVal(client.get("active_users_count"), 0);
+        Label lblSeats = new Label(initialActiveSeats + " / " + maxSeatsVal + " Workstation Seats Active");
+        lblSeats.getStyleClass().addAll("status-badge", initialActiveSeats > 0 ? "status-positive" : "status-neutral");
+
+        String rawRemoteUrl = String.valueOf(client.getOrDefault("remote_url", ""));
+        boolean hasRemoteTunnel = rawRemoteUrl != null && !rawRemoteUrl.isBlank() && !"null".equalsIgnoreCase(rawRemoteUrl.trim());
+        boolean isCloudGateway = isWorkstationCloudConnected();
+        Label lblConnectionChannel = new Label(isCloudGateway ? "Cloud Gateway" : "Local Workstation");
+        lblConnectionChannel.setGraphic(IconFactory.compactIcon(isCloudGateway ? "cloud" : "hardware", 12));
+        lblConnectionChannel.getStyleClass().addAll("status-badge", isCloudGateway ? "status-info" : "status-positive");
+        if (isCloudGateway) {
+            Tooltip.install(lblConnectionChannel, new Tooltip("Connected via Central Cloud Gateway" + (hasRemoteTunnel ? ": " + rawRemoteUrl.trim() : "")));
+        } else {
+            Tooltip.install(lblConnectionChannel, new Tooltip("Direct on-premise local workstation connection (127.0.0.1 / LAN)"
+                    + (hasRemoteTunnel ? "\nRemote Access Gateway: " + rawRemoteUrl.trim() : "")));
+        }
 
         heroBar.getChildren().addAll(lblComp, new Separator(javafx.geometry.Orientation.VERTICAL),
-                lblMach, heroSpacer, lblPlan, lblSeats);
+                lblMach, new Separator(javafx.geometry.Orientation.VERTICAL),
+                lblConnectionChannel, heroSpacer, lblPlan, lblSeats);
 
-        // Row 2: Dedicated Filter & Action Toolbar
-        HBox filterBar = new HBox(10);
-        filterBar.setAlignment(Pos.CENTER_LEFT);
-        filterBar.getStyleClass().addAll("approved-card", "clients-search-strip");
-        filterBar.setPadding(new Insets(8, 14, 8, 14));
+        // Row 2: Dedicated Filter & Action Toolbar (2-Tier Zero-Truncation Layout)
+        VBox filterCard = new VBox(8);
+        filterCard.getStyleClass().addAll("approved-card", "clients-search-strip");
+        filterCard.setPadding(new Insets(10, 14, 10, 14));
 
         Label lblFromPrompt = new Label("From Date:");
         lblFromPrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
@@ -2337,8 +2350,8 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         DatePicker dpFrom = DatePickerFormatter.attach(new DatePicker(LocalDate.now()));
         dpFrom.getStyleClass().add("approved-datepicker");
-        dpFrom.setMinWidth(140);
-        dpFrom.setPrefWidth(140);
+        dpFrom.setMinWidth(135);
+        dpFrom.setPrefWidth(135);
 
         Label lblToPrompt = new Label("To Date:");
         lblToPrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
@@ -2347,43 +2360,126 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         DatePicker dpTo = DatePickerFormatter.attach(new DatePicker(LocalDate.now()));
         dpTo.getStyleClass().add("approved-datepicker");
-        dpTo.setMinWidth(140);
-        dpTo.setPrefWidth(140);
+        dpTo.setMinWidth(135);
+        dpTo.setPrefWidth(135);
 
         DatePickerFormatter.attachAll(dpFrom, dpTo);
 
         Button btnToday = new Button("Today");
         btnToday.setGraphic(IconFactory.compactIcon("calendar", 13));
         btnToday.setMinWidth(Region.USE_PREF_SIZE);
-        btnToday.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnToday.setOnAction(e -> {
-            dpFrom.setValue(LocalDate.now());
-            dpTo.setValue(LocalDate.now());
-        });
+        btnToday.getStyleClass().addAll("approved-button", "approved-primary-button");
 
         Button btnYesterday = new Button("Yesterday");
         btnYesterday.setGraphic(IconFactory.compactIcon("calendar", 13));
         btnYesterday.setMinWidth(Region.USE_PREF_SIZE);
         btnYesterday.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnYesterday.setOnAction(e -> {
-            dpFrom.setValue(LocalDate.now().minusDays(1));
-            dpTo.setValue(LocalDate.now().minusDays(1));
-        });
 
         Button btnThisWeek = new Button("This Week");
         btnThisWeek.setGraphic(IconFactory.compactIcon("calendar", 13));
         btnThisWeek.setMinWidth(Region.USE_PREF_SIZE);
         btnThisWeek.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnThisWeek.setOnAction(e -> {
-            dpFrom.setValue(LocalDate.now().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)));
-            dpTo.setValue(LocalDate.now());
-        });
 
         Button btnThisMonth = new Button("This Month");
         btnThisMonth.setGraphic(IconFactory.compactIcon("calendar", 13));
         btnThisMonth.setMinWidth(Region.USE_PREF_SIZE);
         btnThisMonth.getStyleClass().addAll("approved-button", "approved-secondary-button");
+
+        List<Button> presetButtons = List.of(btnToday, btnYesterday, btnThisWeek, btnThisMonth);
+        java.util.function.Consumer<Button> highlightPreset = activeBtn -> {
+            for (Button b : presetButtons) {
+                b.getStyleClass().removeAll(
+                        "approved-primary-button", "approved-secondary-button",
+                        "erp-button-primary", "erp-button-secondary",
+                        "erp-button-purple", "approved-purple-button"
+                );
+                if (b == activeBtn) {
+                    b.getStyleClass().addAll("approved-primary-button", "erp-button-primary");
+                } else {
+                    b.getStyleClass().addAll("approved-secondary-button", "erp-button-secondary");
+                }
+            }
+        };
+
+        final String[] viewModeHolder = { "DAILY" };
+        Button btnDailyView = new Button("Day-Wise");
+        btnDailyView.setGraphic(IconFactory.compactIcon("check", 13));
+        btnDailyView.setMinWidth(Region.USE_PREF_SIZE);
+        btnDailyView.getStyleClass().addAll("approved-button", "approved-primary-button");
+
+        Button btnSummaryView = new Button("User Summary");
+        btnSummaryView.setGraphic(IconFactory.compactIcon("users", 13));
+        btnSummaryView.setMinWidth(Region.USE_PREF_SIZE);
+        btnSummaryView.getStyleClass().addAll("approved-button", "approved-secondary-button");
+
+        Label lblModeExplainer = new Label("📅 Day-Wise View: Showing individual login/logout sessions per user for each active day.");
+        lblModeExplainer.getStyleClass().addAll("status-badge", "status-info");
+        lblModeExplainer.setMinWidth(Region.USE_PREF_SIZE);
+
+        java.util.function.Consumer<String> updateViewToggle = mode -> {
+            boolean isDaily = "DAILY".equalsIgnoreCase(mode);
+            viewModeHolder[0] = isDaily ? "DAILY" : "SUMMARY";
+            btnDailyView.getStyleClass().removeAll(
+                    "approved-primary-button", "approved-secondary-button",
+                    "erp-button-primary", "erp-button-secondary"
+            );
+            btnSummaryView.getStyleClass().removeAll(
+                    "approved-primary-button", "approved-secondary-button",
+                    "erp-button-primary", "erp-button-secondary"
+            );
+            if (isDaily) {
+                btnDailyView.getStyleClass().addAll("approved-primary-button", "erp-button-primary");
+                btnDailyView.setGraphic(IconFactory.compactIcon("check", 13));
+                btnSummaryView.getStyleClass().addAll("approved-secondary-button", "erp-button-secondary");
+                btnSummaryView.setGraphic(IconFactory.compactIcon("users", 13));
+                lblModeExplainer.setText("📅 Day-Wise View: Showing individual login/logout sessions per user for each active day.");
+                lblModeExplainer.getStyleClass().removeAll("status-info", "status-positive", "status-neutral");
+                lblModeExplainer.getStyleClass().add("status-info");
+            } else {
+                btnSummaryView.getStyleClass().addAll("approved-primary-button", "erp-button-primary");
+                btnSummaryView.setGraphic(IconFactory.compactIcon("check", 13));
+                btnDailyView.getStyleClass().addAll("approved-secondary-button", "erp-button-secondary");
+                btnDailyView.setGraphic(IconFactory.compactIcon("calendar", 13));
+                lblModeExplainer.setText("👥 Consolidated User Summary: Aggregating all work hours, total sessions, and active days into 1 row per user.");
+                lblModeExplainer.getStyleClass().removeAll("status-info", "status-positive", "status-neutral");
+                lblModeExplainer.getStyleClass().add("status-positive");
+            }
+        };
+
+        Runnable syncPresetFromDates = () -> {
+            LocalDate now = LocalDate.now();
+            LocalDate f = dpFrom.getValue();
+            LocalDate t = dpTo.getValue();
+            if (now.equals(f) && now.equals(t)) {
+                highlightPreset.accept(btnToday);
+            } else if (now.minusDays(1).equals(f) && now.minusDays(1).equals(t)) {
+                highlightPreset.accept(btnYesterday);
+            } else if (now.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)).equals(f) && now.equals(t)) {
+                highlightPreset.accept(btnThisWeek);
+            } else if (now.withDayOfMonth(1).equals(f) && now.equals(t)) {
+                highlightPreset.accept(btnThisMonth);
+            } else {
+                highlightPreset.accept(null);
+            }
+        };
+
+        btnToday.setOnAction(e -> {
+            highlightPreset.accept(btnToday);
+            dpFrom.setValue(LocalDate.now());
+            dpTo.setValue(LocalDate.now());
+        });
+        btnYesterday.setOnAction(e -> {
+            highlightPreset.accept(btnYesterday);
+            dpFrom.setValue(LocalDate.now().minusDays(1));
+            dpTo.setValue(LocalDate.now().minusDays(1));
+        });
+        btnThisWeek.setOnAction(e -> {
+            highlightPreset.accept(btnThisWeek);
+            dpFrom.setValue(LocalDate.now().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)));
+            dpTo.setValue(LocalDate.now());
+        });
         btnThisMonth.setOnAction(e -> {
+            highlightPreset.accept(btnThisMonth);
             dpFrom.setValue(LocalDate.now().withDayOfMonth(1));
             dpTo.setValue(LocalDate.now());
         });
@@ -2396,30 +2492,56 @@ public class ClientRegistryController implements ScreenLifecycle {
         btnRefreshUsers.setMinWidth(Region.USE_PREF_SIZE);
         btnRefreshUsers.getStyleClass().addAll("approved-button", "approved-secondary-button");
 
-        filterBar.getChildren().addAll(lblFromPrompt, dpFrom, lblToPrompt, dpTo, btnToday, btnYesterday, btnThisWeek, btnThisMonth, filterSpacer, btnRefreshUsers);
+        HBox dateRow = new HBox(10);
+        dateRow.setAlignment(Pos.CENTER_LEFT);
+        dateRow.getChildren().addAll(
+                lblFromPrompt, dpFrom, lblToPrompt, dpTo,
+                btnToday, btnYesterday, btnThisWeek, btnThisMonth
+        );
+
+        HBox viewRow = new HBox(10);
+        viewRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label lblViewModePrompt = new Label("View Mode:");
+        lblViewModePrompt.getStyleClass().addAll("form-field-caption", "inspection-card-caption");
+        lblViewModePrompt.getProperties().put("erp.label.icon.skip", true);
+        lblViewModePrompt.setMinWidth(Region.USE_PREF_SIZE);
+
+        HBox viewToggleGroup = new HBox(6, btnDailyView, btnSummaryView);
+        viewToggleGroup.setAlignment(Pos.CENTER_LEFT);
+
+        viewRow.getChildren().addAll(
+                lblViewModePrompt, viewToggleGroup, lblModeExplainer,
+                filterSpacer, btnRefreshUsers
+        );
+
+        filterCard.getChildren().addAll(dateRow, viewRow);
+
+        TableColumn<Map<String, Object>, String> colWorkDate = new TableColumn<>("Work Date");
+        colWorkDate.setCellValueFactory(c -> {
+            LocalDate d = parseWorkDate(c.getValue().get("work_date"));
+            return new SimpleStringProperty(d != null ? BusinessClock.formatDate(d) : "-");
+        });
+        colWorkDate.setMinWidth(115);
 
         TableColumn<Map<String, Object>, String> colUser = new TableColumn<>("Username");
         colUser.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("username", "-"))));
-        colUser.setMinWidth(120);
-        colUser.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.14));
+        colUser.setMinWidth(115);
 
         TableColumn<Map<String, Object>, String> colRole = new TableColumn<>("Role");
         colRole.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("role_code", "USER"))));
-        colRole.setMinWidth(100);
-        colRole.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.11));
+        colRole.setMinWidth(95);
 
-        TableColumn<Map<String, Object>, String> colFirstLogin = new TableColumn<>("First Login Today");
+        TableColumn<Map<String, Object>, String> colFirstLogin = new TableColumn<>("First Login (Day)");
         colFirstLogin.setCellValueFactory(c -> {
             Object fl = c.getValue().get("first_login_today");
             return new SimpleStringProperty(fl != null ? BusinessClock.formatTimestamp(fl.toString()) : "-");
         });
-        colFirstLogin.setMinWidth(165);
-        colFirstLogin.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.18));
+        colFirstLogin.setMinWidth(155);
 
-        TableColumn<Map<String, Object>, Object> colLastLogout = new TableColumn<>("Last Logout / Disconnect");
+        TableColumn<Map<String, Object>, Object> colLastLogout = new TableColumn<>("Last Logout / Active");
         colLastLogout.setCellValueFactory(c -> new javafx.beans.property.SimpleObjectProperty<>(c.getValue()));
-        colLastLogout.setMinWidth(175);
-        colLastLogout.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.19));
+        colLastLogout.setMinWidth(160);
         colLastLogout.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(Object item, boolean empty) {
@@ -2432,50 +2554,80 @@ public class ClientRegistryController implements ScreenLifecycle {
                 boolean active = Boolean.TRUE.equals(map.get("is_active_now"));
                 if (active) {
                     Label badge = new Label("Active Now");
-                    badge.setGraphic(IconFactory.compactIcon("circle", 8));
+                    badge.setGraphic(IconFactory.compactIcon("online", 10));
                     badge.getStyleClass().addAll("status-badge", "status-positive");
                     setGraphic(badge);
                     setText(null);
                 } else {
+                    Object fl = map.get("first_login_today");
                     Object lo = map.get("last_logout_today");
                     setGraphic(null);
-                    setText(lo != null ? BusinessClock.formatTimestamp(lo.toString()) : "Disconnected");
+                    setText(lo != null ? BusinessClock.formatTimestamp(lo.toString()) : (fl == null ? "Not Logged In" : "Disconnected"));
                 }
                 setAlignment(Pos.CENTER_LEFT);
             }
         });
 
-        TableColumn<Map<String, Object>, String> colHours = new TableColumn<>("Total Work Today");
-        colHours.setCellValueFactory(c -> {
-            Object secObj = c.getValue().get("total_seconds_today");
-            long totalSec = 0;
-            if (secObj instanceof Number n) totalSec = n.longValue();
-            long hrs = totalSec / 3600;
-            long mins = (totalSec % 3600) / 60;
-            String timeText;
-            if (hrs == 0 && mins == 0) {
-                timeText = totalSec > 0 ? "< 1 min" : "0 mins";
-            } else if (hrs == 0) {
-                timeText = mins + " mins";
-            } else {
-                timeText = String.format("%d hrs %d mins", hrs, mins);
+        TableColumn<Map<String, Object>, String> colSessions = new TableColumn<>("Sessions");
+        colSessions.setCellValueFactory(c -> {
+            int count = parseIntVal(c.getValue().get("session_count"), 0);
+            if (count <= 0 && (c.getValue().get("first_login_today") != null || parseLongVal(c.getValue().get("total_seconds_today"), 0L) > 0)) {
+                count = 1;
             }
-            Object daysActive = c.getValue().get("days_active");
-            if (daysActive instanceof Number nd && nd.intValue() > 1) {
-                return new SimpleStringProperty(timeText + " (" + nd.intValue() + " days)");
+            return new SimpleStringProperty(count == 1 ? "1 time" : count + " times");
+        });
+        colSessions.setMinWidth(95);
+
+        TableColumn<Map<String, Object>, String> colHours = new TableColumn<>("Total Work (Day)");
+        colHours.setCellValueFactory(c -> {
+            long totalSec = parseLongVal(c.getValue().get("total_seconds_today"), 0L);
+            String timeText = formatWorkDuration(totalSec);
+            if ("SUMMARY".equalsIgnoreCase(viewModeHolder[0])) {
+                int days = Math.max(1, parseIntVal(c.getValue().get("days_active"), 1));
+                return new SimpleStringProperty(timeText + " (" + days + (days == 1 ? " day active)" : " days active)"));
             }
             return new SimpleStringProperty(timeText);
         });
-        colHours.setMinWidth(140);
-        colHours.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.16));
+        colHours.setCellFactory(col -> new TableCell<>() {
+            private final Hyperlink link = new Hyperlink();
+            {
+                link.getStyleClass().addAll("table-hyperlink", "erp-table-link-cell");
+                link.setTooltip(new Tooltip("Click to inspect login/logoff times (From Time → To Time) for every session"));
+                link.setOnAction(e -> {
+                    if (getTableRow() != null && getTableRow().getItem() != null) {
+                        Map<String, Object> rowItem = getTableRow().getItem();
+                        LocalDate clickedDay = "DAILY".equalsIgnoreCase(viewModeHolder[0]) ? parseWorkDate(rowItem.get("work_date")) : null;
+                        showUserDailyWorkBreakdownDialog(client, rowItem, clickedDay, dpFrom.getValue(), dpTo.getValue());
+                    }
+                });
+            }
+
+            @Override
+            protected void updateItem(String text, boolean empty) {
+                super.updateItem(text, empty);
+                if (empty || text == null || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+                link.setText(text);
+                link.setGraphic(IconFactory.compactIcon("calendar", 11));
+                setGraphic(link);
+                setText(null);
+                setAlignment(Pos.CENTER_LEFT);
+            }
+        });
+        colHours.setMinWidth(145);
 
         TableColumn<Map<String, Object>, String> colActiveStatus = new TableColumn<>("Status");
         colActiveStatus.setCellValueFactory(c -> {
             boolean active = Boolean.TRUE.equals(c.getValue().get("is_active_now"));
-            return new SimpleStringProperty(active ? "ONLINE" : "OFFLINE");
+            if (!active) return new SimpleStringProperty("OFFLINE");
+            String depMode = String.valueOf(c.getValue().getOrDefault("deployment_mode", c.getValue().getOrDefault("deploymentMode", "")));
+            boolean userIsCloud = "SHARED".equalsIgnoreCase(depMode) || "CLOUD".equalsIgnoreCase(depMode) || isCloudGateway;
+            return new SimpleStringProperty(userIsCloud ? "ONLINE_CLOUD" : "ONLINE_LOCAL");
         });
-        colActiveStatus.setMinWidth(90);
-        colActiveStatus.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.10));
+        colActiveStatus.setMinWidth(135);
         colActiveStatus.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String s, boolean empty) {
@@ -2485,24 +2637,50 @@ public class ClientRegistryController implements ScreenLifecycle {
                     setText(null);
                     return;
                 }
-                boolean on = "ONLINE".equalsIgnoreCase(s);
-                Label badge = new Label(on ? "Online" : "Offline");
-                badge.setGraphic(IconFactory.compactIcon(on ? "check" : "cancel", 11));
-                badge.getStyleClass().addAll("status-badge", on ? "status-positive" : "status-neutral");
+                String text;
+                String semantic;
+                String styleClass;
+                if ("ONLINE_CLOUD".equalsIgnoreCase(s)) {
+                    text = "Online • Cloud";
+                    semantic = "cloud";
+                    styleClass = "status-info";
+                } else if ("ONLINE_LOCAL".equalsIgnoreCase(s)) {
+                    text = "Online • Local";
+                    semantic = "check";
+                    styleClass = "status-positive";
+                } else {
+                    text = "Offline";
+                    semantic = "cancel";
+                    styleClass = "status-neutral";
+                }
+                Label badge = new Label(text);
+                badge.setGraphic(IconFactory.compactIcon(semantic, 11));
+                badge.getStyleClass().addAll("status-badge", styleClass);
                 setGraphic(badge);
                 setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
                 setAlignment(Pos.CENTER);
             }
         });
 
-        Runnable reloadUsers = () -> loadUserTelemetry(tableUsers, colFirstLogin, colLastLogout, colHours, rawMachine, dpFrom.getValue(), dpTo.getValue());
+        Runnable reloadUsers = () -> {
+            syncPresetFromDates.run();
+            loadUserTelemetry(tableUsers, colWorkDate, colFirstLogin, colLastLogout, colHours, lblSeats, maxSeatsVal, rawMachine, dpFrom.getValue(), dpTo.getValue(), viewModeHolder[0]);
+        };
         dpFrom.valueProperty().addListener((obs, oldV, newV) -> reloadUsers.run());
         dpTo.valueProperty().addListener((obs, oldV, newV) -> reloadUsers.run());
         btnRefreshUsers.setOnAction(e -> reloadUsers.run());
 
+        btnDailyView.setOnAction(e -> {
+            updateViewToggle.accept("DAILY");
+            reloadUsers.run();
+        });
+        btnSummaryView.setOnAction(e -> {
+            updateViewToggle.accept("SUMMARY");
+            reloadUsers.run();
+        });
+
         TableColumn<Map<String, Object>, Void> colUserActions = new TableColumn<>("Actions");
-        colUserActions.setMinWidth(130);
-        colUserActions.prefWidthProperty().bind(tableUsers.widthProperty().multiply(0.12));
+        colUserActions.setMinWidth(120);
         colUserActions.setCellFactory(col -> new TableCell<>() {
             private final MenuButton actionsBtn = new MenuButton("Actions");
             {
@@ -2626,53 +2804,378 @@ public class ClientRegistryController implements ScreenLifecycle {
                         });
                     }
 
-                    actionsBtn.getItems().setAll(miKick, miLockUnlock, miActiveToggle);
+                    MenuItem miDailyBreakdown = new MenuItem("View Session Breakdown");
+                    miDailyBreakdown.setGraphic(IconFactory.compactIcon("calendar", 12));
+                    miDailyBreakdown.setOnAction(e -> {
+                        LocalDate clickedDay = "DAILY".equalsIgnoreCase(viewModeHolder[0]) ? parseWorkDate(user.get("work_date")) : null;
+                        showUserDailyWorkBreakdownDialog(client, user, clickedDay, dpFrom.getValue(), dpTo.getValue());
+                    });
+
+                    actionsBtn.getItems().setAll(miDailyBreakdown, new SeparatorMenuItem(), miKick, miLockUnlock, miActiveToggle);
                     setGraphic(actionsBtn);
                     setAlignment(Pos.CENTER);
                 }
             }
         });
 
-        tableUsers.getColumns().addAll(colUser, colRole, colFirstLogin, colLastLogout, colHours, colActiveStatus, colUserActions);
+        tableUsers.getColumns().addAll(colWorkDate, colUser, colRole, colFirstLogin, colLastLogout, colSessions, colHours, colActiveStatus, colUserActions);
 
         DynamicTableLayoutManager.install(tableUsers);
 
         reloadUsers.run();
 
-        rootBox.getChildren().addAll(heroBar, filterBar, tableUsers);
+        rootBox.getChildren().addAll(heroBar, filterCard, tableUsers);
         dialog.getDialogPane().setContent(rootBox);
-        PopupTableWorkspace.prepareDialog(dialog, 1260);
+        PopupTableWorkspace.prepareDialog(dialog, 1340);
+        Platform.runLater(syncPresetFromDates);
         dialog.showAndWait();
     }
 
+    private int parseIntVal(Object val, int fallback) {
+        if (val instanceof Number n) return n.intValue();
+        if (val != null) {
+            try { return Integer.parseInt(val.toString().trim()); } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private long parseLongVal(Object val, long fallback) {
+        if (val instanceof Number n) return n.longValue();
+        if (val != null) {
+            try { return Long.parseLong(val.toString().trim()); } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private LocalDate parseWorkDate(Object val) {
+        if (val == null) return null;
+        String s = val.toString().trim();
+        if (s.isBlank() || "null".equalsIgnoreCase(s)) return null;
+        try {
+            return LocalDate.parse(s.substring(0, Math.min(10, s.length())));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String formatCompactWorkDuration(long totalSec) {
+        long safe = Math.max(0L, totalSec);
+        long hrs = safe / 3600;
+        long mins = (safe % 3600) / 60;
+        if (hrs == 0 && mins == 0) {
+            return safe > 0 ? "<1m" : "0m";
+        } else if (hrs == 0) {
+            return mins + "m";
+        } else if (mins == 0) {
+            return hrs + "h";
+        }
+        return String.format("%dh %dm", hrs, mins);
+    }
+
+    private String formatWorkDuration(long totalSec) {
+        long hrs = Math.max(0L, totalSec) / 3600;
+        long mins = (Math.max(0L, totalSec) % 3600) / 60;
+        if (hrs == 0 && mins == 0) {
+            return totalSec > 0 ? "< 1 min" : "0 mins";
+        } else if (hrs == 0) {
+            return mins + " mins";
+        }
+        return String.format("%d hrs %d mins", hrs, mins);
+    }
+
+    private void showUserDailyWorkBreakdownDialog(Map<String, Object> client,
+                                                  Map<String, Object> userRow,
+                                                  LocalDate clickedWorkDate,
+                                                  LocalDate fromDate,
+                                                  LocalDate toDate) {
+        if (client == null || userRow == null) return;
+        String rawMachine = String.valueOf(client.getOrDefault("machine_id", ""));
+        String company = String.valueOf(client.getOrDefault("company_name", "Client"));
+        String username = String.valueOf(userRow.getOrDefault("username", "User"));
+        String roleCode = String.valueOf(userRow.getOrDefault("role_code", "USER"));
+
+        LocalDate periodFrom = fromDate != null ? fromDate : LocalDate.now().withDayOfMonth(1);
+        LocalDate periodTo = toDate != null ? toDate : LocalDate.now();
+        if (periodFrom.isAfter(periodTo)) {
+            LocalDate tmp = periodFrom;
+            periodFrom = periodTo;
+            periodTo = tmp;
+        }
+        final LocalDate fullFrom = periodFrom;
+        final LocalDate fullTo = periodTo;
+
+        Dialog<Void> breakdownDialog = new OwnedDialog<>(tableClients);
+        breakdownDialog.setTitle("Login & Logoff Session Breakdown — " + username);
+        breakdownDialog.setHeaderText("Session-by-session login/logout intervals (From Time → To Time) and work duration for " + username + " (" + company + ")");
+        breakdownDialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox root = new VBox(12);
+        root.setPadding(new Insets(10, 14, 10, 14));
+        root.setMinWidth(1040);
+        root.setPrefWidth(1100);
+        root.setMinHeight(440);
+
+        HBox summaryBar = new HBox(12);
+        summaryBar.setAlignment(Pos.CENTER_LEFT);
+        summaryBar.getStyleClass().addAll("approved-card", "clients-search-strip");
+        summaryBar.setPadding(new Insets(10, 14, 10, 14));
+
+        Label lblUser = new Label("User: " + username);
+        lblUser.getStyleClass().addAll("header-title", "metric-label");
+
+        Label lblRole = new Label("Role: " + roleCode);
+        lblRole.getStyleClass().addAll("status-badge", "status-neutral");
+
+        boolean startSelectedDay = clickedWorkDate != null && !fullFrom.equals(fullTo);
+        LocalDate initialFrom = startSelectedDay ? clickedWorkDate : (clickedWorkDate != null ? clickedWorkDate : fullFrom);
+        LocalDate initialTo = startSelectedDay ? clickedWorkDate : (clickedWorkDate != null ? clickedWorkDate : fullTo);
+
+        Label lblRange = new Label("Period: " + (initialFrom.equals(initialTo)
+                ? BusinessClock.formatDate(initialFrom)
+                : BusinessClock.formatDate(initialFrom) + " → " + BusinessClock.formatDate(initialTo)));
+        lblRange.getStyleClass().addAll("metric-label", "code-label");
+
+        Button btnSelectedDay = new Button(clickedWorkDate != null ? "Selected Day" : "Active Day");
+        btnSelectedDay.setGraphic(IconFactory.compactIcon("calendar", 12));
+        btnSelectedDay.setMinWidth(Region.USE_PREF_SIZE);
+
+        Button btnFullPeriod = new Button("Full Period");
+        btnFullPeriod.setGraphic(IconFactory.compactIcon("calendar", 12));
+        btnFullPeriod.setMinWidth(Region.USE_PREF_SIZE);
+
+        boolean showScopeButtons = clickedWorkDate != null && !fullFrom.equals(fullTo);
+        btnSelectedDay.setVisible(showScopeButtons);
+        btnSelectedDay.setManaged(showScopeButtons);
+        btnFullPeriod.setVisible(showScopeButtons);
+        btnFullPeriod.setManaged(showScopeButtons);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        long initialRangeSec = parseLongVal(userRow.get("total_seconds_today"), 0L);
+        Label lblTotalBadge = new Label("Total Work: " + formatWorkDuration(initialRangeSec));
+        lblTotalBadge.getStyleClass().addAll("status-badge", "status-positive");
+
+        summaryBar.getChildren().addAll(
+                lblUser, lblRole, new Separator(javafx.geometry.Orientation.VERTICAL),
+                lblRange, btnSelectedDay, btnFullPeriod, spacer, lblTotalBadge
+        );
+
+        TableView<Map<String, Object>> tableDaily = new TableView<>();
+        tableDaily.setPrefHeight(340);
+        tableDaily.getStyleClass().addAll("approved-table", "clients-directory-table");
+        tableDaily.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        TableColumn<Map<String, Object>, String> colSessionNo = new TableColumn<>("Session #");
+        colSessionNo.setCellValueFactory(c -> new SimpleStringProperty("Session " + parseIntVal(c.getValue().get("session_number"), 1)));
+        colSessionNo.setMinWidth(95);
+
+        TableColumn<Map<String, Object>, String> colDate = new TableColumn<>("Work Date");
+        colDate.setCellValueFactory(c -> {
+            LocalDate d = parseWorkDate(c.getValue().get("work_date"));
+            return new SimpleStringProperty(d != null ? BusinessClock.formatDate(d) : "-");
+        });
+        colDate.setMinWidth(115);
+
+        TableColumn<Map<String, Object>, String> colFromTime = new TableColumn<>("From Time (Login)");
+        colFromTime.setCellValueFactory(c -> {
+            Object fl = c.getValue().get("session_start");
+            if (fl == null) fl = c.getValue().get("first_login_today");
+            return new SimpleStringProperty(fl != null ? BusinessClock.formatTimestamp(fl.toString()) : "-");
+        });
+        colFromTime.setMinWidth(160);
+
+        TableColumn<Map<String, Object>, String> colToTime = new TableColumn<>("To Time (Logout / Active)");
+        colToTime.setCellValueFactory(c -> {
+            boolean active = Boolean.TRUE.equals(c.getValue().get("is_active_now"));
+            Object endObj = c.getValue().get("session_end");
+            if (endObj == null) endObj = c.getValue().get("effective_end_time");
+            if (endObj == null) endObj = c.getValue().get("last_logout_today");
+            if (endObj == null) endObj = c.getValue().get("last_heartbeat");
+            String formattedEnd = endObj != null ? BusinessClock.formatTimestamp(endObj.toString()) : "-";
+            return new SimpleStringProperty(active ? "Active Now (" + formattedEnd + ")" : formattedEnd);
+        });
+        colToTime.setMinWidth(175);
+
+        TableColumn<Map<String, Object>, String> colWindow = new TableColumn<>("Time Window (From → To)");
+        colWindow.setCellValueFactory(c -> {
+            Object fl = c.getValue().get("session_start");
+            if (fl == null) fl = c.getValue().get("first_login_today");
+            Object endObj = c.getValue().get("session_end");
+            if (endObj == null) endObj = c.getValue().get("effective_end_time");
+            if (endObj == null) endObj = c.getValue().get("last_logout_today");
+            if (endObj == null) endObj = c.getValue().get("last_heartbeat");
+            boolean active = Boolean.TRUE.equals(c.getValue().get("is_active_now"));
+            String fromClock = extractClockPortion(fl != null ? BusinessClock.formatTimestamp(fl.toString()) : "-");
+            String toClock = active ? "Active Now" : extractClockPortion(endObj != null ? BusinessClock.formatTimestamp(endObj.toString()) : "-");
+            return new SimpleStringProperty(fromClock + " → " + toClock);
+        });
+        colWindow.setMinWidth(165);
+
+        TableColumn<Map<String, Object>, String> colDuration = new TableColumn<>("Work Duration");
+        colDuration.setCellValueFactory(c -> {
+            Object d = c.getValue().get("duration_seconds");
+            if (d == null) d = c.getValue().get("total_seconds_today");
+            return new SimpleStringProperty(formatWorkDuration(parseLongVal(d, 0L)));
+        });
+        colDuration.setMinWidth(115);
+
+        TableColumn<Map<String, Object>, String> colDayStatus = new TableColumn<>("Status");
+        colDayStatus.setCellValueFactory(c -> {
+            boolean active = Boolean.TRUE.equals(c.getValue().get("is_active_now"));
+            return new SimpleStringProperty(active ? "ONLINE" : "LOGGED_OUT");
+        });
+        colDayStatus.setMinWidth(105);
+        colDayStatus.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String s, boolean empty) {
+                super.updateItem(s, empty);
+                if (empty || s == null) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+                boolean on = "ONLINE".equalsIgnoreCase(s);
+                Label badge = new Label(on ? "Active Now" : "Logged Out");
+                badge.setGraphic(IconFactory.compactIcon(on ? "online" : "check", 11));
+                badge.getStyleClass().addAll("status-badge", on ? "status-positive" : "status-neutral");
+                setGraphic(badge);
+                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                setAlignment(Pos.CENTER);
+            }
+        });
+
+        tableDaily.getColumns().addAll(colSessionNo, colDate, colFromTime, colToTime, colWindow, colDuration, colDayStatus);
+        DynamicTableLayoutManager.install(tableDaily);
+
+        java.util.function.BiConsumer<LocalDate, LocalDate> loadSessions = (loadFrom, loadTo) -> {
+            lblRange.setText("Period: " + (loadFrom.equals(loadTo)
+                    ? BusinessClock.formatDate(loadFrom)
+                    : BusinessClock.formatDate(loadFrom) + " → " + BusinessClock.formatDate(loadTo)));
+            boolean isDayMode = clickedWorkDate != null && loadFrom.equals(clickedWorkDate) && loadTo.equals(clickedWorkDate);
+            btnSelectedDay.getStyleClass().removeAll("approved-primary-button", "approved-secondary-button", "erp-button-primary", "erp-button-secondary");
+            btnFullPeriod.getStyleClass().removeAll("approved-primary-button", "approved-secondary-button", "erp-button-primary", "erp-button-secondary");
+            if (isDayMode) {
+                btnSelectedDay.getStyleClass().addAll("approved-button", "approved-primary-button", "erp-button-primary");
+                btnFullPeriod.getStyleClass().addAll("approved-button", "approved-secondary-button", "erp-button-secondary");
+            } else {
+                btnSelectedDay.getStyleClass().addAll("approved-button", "approved-secondary-button", "erp-button-secondary");
+                btnFullPeriod.getStyleClass().addAll("approved-button", "approved-primary-button", "erp-button-primary");
+            }
+
+            Thread.ofVirtual().start(() -> {
+                try {
+                    List<Map<String, Object>> history = api.getClientUserDailyHistory(rawMachine, username, loadFrom.toString(), loadTo.toString());
+                    List<Map<String, Object>> rows = history != null ? history : List.of();
+                    long sumSec = 0L;
+                    for (Map<String, Object> r : rows) {
+                        Object d = r.get("duration_seconds");
+                        if (d == null) d = r.get("total_seconds_today");
+                        sumSec += parseLongVal(d, 0L);
+                    }
+                    final long finalSumSec = sumSec;
+                    final int finalCount = rows.size();
+                    Platform.runLater(() -> {
+                        tableDaily.setItems(FXCollections.observableArrayList(rows));
+                        lblTotalBadge.setText("Total Work: " + formatWorkDuration(finalSumSec) + " (" + finalCount + (finalCount == 1 ? " Session)" : " Sessions)"));
+                        if (rows.isEmpty()) {
+                            Label empty = new Label("No login/logoff sessions recorded for " + username + " in this period.");
+                            empty.getStyleClass().addAll("metric-label", "status-neutral");
+                            tableDaily.setPlaceholder(empty);
+                        }
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() -> {
+                        Label err = new Label("Unable to load session breakdown: " + ex.getMessage());
+                        err.getStyleClass().addAll("metric-label", "status-warning");
+                        tableDaily.setPlaceholder(err);
+                    });
+                }
+            });
+        };
+
+        btnSelectedDay.setOnAction(e -> {
+            if (clickedWorkDate != null) loadSessions.accept(clickedWorkDate, clickedWorkDate);
+        });
+        btnFullPeriod.setOnAction(e -> loadSessions.accept(fullFrom, fullTo));
+
+        loadSessions.accept(initialFrom, initialTo);
+
+        root.getChildren().addAll(summaryBar, tableDaily);
+        breakdownDialog.getDialogPane().setContent(root);
+        PopupTableWorkspace.prepareDialog(breakdownDialog, 1180);
+        breakdownDialog.showAndWait();
+    }
+
+    private String extractClockPortion(String formattedTimestamp) {
+        if (formattedTimestamp == null || formattedTimestamp.isBlank() || "-".equals(formattedTimestamp)) {
+            return "-";
+        }
+        String trimmed = formattedTimestamp.trim();
+        int amPmIdx = Math.max(trimmed.toUpperCase(Locale.ROOT).lastIndexOf(" AM"), trimmed.toUpperCase(Locale.ROOT).lastIndexOf(" PM"));
+        if (amPmIdx > 0) {
+            int spaceBeforeTime = trimmed.lastIndexOf(' ', amPmIdx - 1);
+            if (spaceBeforeTime >= 0) {
+                return trimmed.substring(spaceBeforeTime + 1).trim();
+            }
+        }
+        int lastSpace = trimmed.lastIndexOf(' ');
+        if (lastSpace > 0 && lastSpace + 1 < trimmed.length()) {
+            return trimmed.substring(lastSpace + 1).trim();
+        }
+        return trimmed;
+    }
+
     private void loadUserTelemetry(TableView<Map<String, Object>> table,
+                                   TableColumn<Map<String, Object>, String> colWorkDate,
                                    TableColumn<Map<String, Object>, String> colFirstLogin,
                                    TableColumn<Map<String, Object>, ?> colLastLogout,
                                    TableColumn<Map<String, Object>, String> colHours,
-                                   String machineId, LocalDate fromDate, LocalDate toDate) {
-        boolean isRange = fromDate != null && toDate != null && fromDate.isBefore(toDate);
-        if (isRange) {
+                                   Label lblSeats,
+                                   int maxSeats,
+                                   String machineId,
+                                   LocalDate fromDate,
+                                   LocalDate toDate,
+                                   String viewMode) {
+        boolean summaryMode = "SUMMARY".equalsIgnoreCase(viewMode);
+        colWorkDate.setVisible(!summaryMode);
+
+        if (summaryMode) {
             colFirstLogin.setText("Earliest Login");
-            colLastLogout.setText("Latest Logout");
+            colLastLogout.setText("Latest Logout / Active");
             colHours.setText("Total Work (Range)");
         } else {
-            colFirstLogin.setText("First Login Today");
-            colLastLogout.setText("Last Logout / Disconnect");
-            colHours.setText("Total Work Today");
+            colFirstLogin.setText("First Login (Day)");
+            colLastLogout.setText("Last Logout / Active");
+            colHours.setText("Total Work (Day)");
         }
+
+        boolean isRange = fromDate != null && toDate != null && fromDate.isBefore(toDate);
+        boolean includesToday = fromDate == null || toDate == null || !toDate.isBefore(LocalDate.now());
 
         Thread.ofVirtual().start(() -> {
             try {
                 String fromStr = fromDate != null ? fromDate.toString() : null;
                 String toStr = toDate != null ? toDate.toString() : fromStr;
-                List<Map<String, Object>> users = api.getClientUsers(machineId, fromStr, toStr);
+                List<Map<String, Object>> users = api.getClientUsers(machineId, fromStr, toStr, viewMode);
+                List<Map<String, Object>> rows = users != null ? users : List.of();
+                long liveActiveCount = rows.stream()
+                        .filter(r -> Boolean.TRUE.equals(r.get("is_active_now")))
+                        .map(r -> String.valueOf(r.getOrDefault("username", "")).toLowerCase(Locale.ROOT))
+                        .distinct()
+                        .count();
                 Platform.runLater(() -> {
-                    table.setItems(FXCollections.observableArrayList(users != null ? users : List.of()));
-                    if (users == null || users.isEmpty()) {
+                    table.setItems(FXCollections.observableArrayList(rows));
+                    if (lblSeats != null && includesToday) {
+                        lblSeats.setText(liveActiveCount + " / " + maxSeats + " Workstation Seats Active");
+                        lblSeats.getStyleClass().removeAll("status-positive", "status-neutral", "status-warning");
+                        lblSeats.getStyleClass().add(liveActiveCount > 0 ? "status-positive" : "status-neutral");
+                    }
+                    if (rows.isEmpty()) {
                         String rangeText = isRange
                                 ? (BusinessClock.formatDate(fromDate) + " to " + BusinessClock.formatDate(toDate))
                                 : (fromDate != null ? BusinessClock.formatDate(fromDate) : "selected date");
-                        Label emptyLbl = new Label("No active user sessions recorded for this workstation for " + rangeText);
+                        Label emptyLbl = new Label("No user sessions recorded for this workstation for " + rangeText);
                         emptyLbl.getStyleClass().addAll("metric-label", "status-neutral");
                         table.setPlaceholder(emptyLbl);
                     }
@@ -3101,6 +3604,38 @@ public class ClientRegistryController implements ScreenLifecycle {
             if (action != null) action.run();
         });
         return b;
+    }
+
+    private boolean isWorkstationCloudConnected() {
+        if (!org.example.config.ConfigManager.isSharedClient()) {
+            return false;
+        }
+        try {
+            String url = org.example.config.ConfigManager.getDataApiBaseUrl();
+            if (url == null || url.isBlank()) return false;
+            URI uri = URI.create(url);
+            String host = uri.getHost();
+            if (host == null) return false;
+            return !(host.equalsIgnoreCase("localhost")
+                    || host.equals("127.0.0.1")
+                    || host.equals("::1")
+                    || host.startsWith("192.168.")
+                    || host.startsWith("10.")
+                    || (host.startsWith("172.") && isPrivateClassB(host)));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isPrivateClassB(String host) {
+        try {
+            String[] parts = host.split("\\.");
+            if (parts.length >= 2) {
+                int second = Integer.parseInt(parts[1]);
+                return second >= 16 && second <= 31;
+            }
+        } catch (Exception ignored) {}
+        return false;
     }
 
     @Override

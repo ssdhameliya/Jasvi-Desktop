@@ -21,6 +21,8 @@ public final class PermissionService {
     private static volatile boolean cacheLoaded;
     private static volatile Set<String> cachedSubscribedFeatures;
     private static volatile boolean featuresLoaded;
+    private static final Object PERMISSION_LOCK = new Object();
+    private static final Object FEATURE_LOCK = new Object();
     private static final Set<Runnable> CHANGE_LISTENERS = new CopyOnWriteArraySet<>();
 
     private PermissionService() {}
@@ -67,40 +69,60 @@ public final class PermissionService {
     }
 
     /** Refresh after login or after an administrator saves the matrix. */
-    public static synchronized void refresh() {
+    public static void refresh() {
         refresh(false);
     }
 
     /** Login-time refresh: permission/API failures are fatal instead of silently falling back. */
-    public static synchronized void refreshStrict() {
+    public static void refreshStrict() {
         refresh(true);
     }
 
     private static void refresh(boolean strict) {
-        cachedRole = null; cachedAllowed = Set.of(); cacheLoaded = false;
-        cachedSubscribedFeatures = null; featuresLoaded = false;
+        synchronized (FEATURE_LOCK) {
+            cachedSubscribedFeatures = null;
+            featuresLoaded = false;
+        }
+        synchronized (PERMISSION_LOCK) {
+            cachedRole = null;
+            cachedAllowed = Set.of();
+            cacheLoaded = false;
+        }
         if (SessionService.current() != null) {
-            ensureFeaturesLoaded();
             String role = normalizeRole(SessionService.current().getRole());
-            // ADMIN is a system policy, not a permission-matrix row. Never make an
-            // administrator's desktop access depend on the permission endpoint being available.
-            if (SessionService.isSuperAdmin()) {
-                cachedRole = role;
-                cacheLoaded = true;
-            } else if (SessionService.isAdminRole(role)) {
-                String token = org.example.api.ApiSession.token();
-                if (token == null || token.isBlank()) {
-                    cachedRole = role;
-                    cacheLoaded = true;
-                } else {
-                    ensureLoaded(role, false);
-                    if (!cacheLoaded) {
+            boolean isSuperAdmin = SessionService.isSuperAdmin();
+            boolean isAdmin = SessionService.isAdminRole(role);
+            boolean needRolePermissions = !isSuperAdmin && (!isAdmin || (org.example.api.ApiSession.token() != null && !org.example.api.ApiSession.token().isBlank()));
+
+            try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+                var featureTask = java.util.concurrent.CompletableFuture.runAsync(PermissionService::ensureFeaturesLoaded, executor);
+                var permTask = needRolePermissions
+                    ? java.util.concurrent.CompletableFuture.runAsync(() -> {
+                        ensureLoaded(role, !isAdmin && strict);
+                        if (isAdmin && !cacheLoaded) {
+                            synchronized (PERMISSION_LOCK) {
+                                cachedRole = role;
+                                cacheLoaded = true;
+                            }
+                        }
+                    }, executor)
+                    : java.util.concurrent.CompletableFuture.completedFuture(null);
+
+                if (isSuperAdmin || (isAdmin && !needRolePermissions)) {
+                    synchronized (PERMISSION_LOCK) {
                         cachedRole = role;
                         cacheLoaded = true;
                     }
                 }
-            } else {
-                ensureLoaded(role, strict);
+
+                java.util.concurrent.CompletableFuture.allOf(featureTask, permTask).join();
+            } catch (java.util.concurrent.CompletionException ce) {
+                Throwable cause = ce.getCause() != null ? ce.getCause() : ce;
+                if (cause instanceof org.example.api.ApiSession.AuthenticationRequiredException authEx) {
+                    throw authEx;
+                }
+                if (cause instanceof RuntimeException re) throw re;
+                throw new IllegalStateException("Permission refresh failed", cause);
             }
         }
         notifyChangeListeners();
@@ -112,26 +134,29 @@ public final class PermissionService {
         }
     }
 
-    private static synchronized void ensureLoaded(String role) {
+    private static void ensureLoaded(String role) {
         ensureLoaded(role, false);
     }
 
-    private static synchronized void ensureLoaded(String role, boolean strict) {
+    private static void ensureLoaded(String role, boolean strict) {
         if (cacheLoaded && role.equals(cachedRole)) return;
-        try {
-            Set<String> allowed = new HashSet<>();
-            for (var p : new AuthApiClient().effectivePermissions()) {
-                allowed.add(normalize(p.module()+"."+p.action()));
-            }
-            cachedRole = role; cachedAllowed = Set.copyOf(allowed); cacheLoaded = true;
-        } catch (org.example.api.ApiSession.AuthenticationRequiredException authenticationFailure) {
-            cachedRole = role; cachedAllowed = Set.of(); cacheLoaded = false;
-            throw authenticationFailure;
-        } catch (Exception failure) {
-            cachedRole = role; cachedAllowed = Set.of(); cacheLoaded = false;
-            if (strict) {
-                throw failure instanceof RuntimeException runtime ? runtime
-                        : new IllegalStateException("Unable to load effective permissions", failure);
+        synchronized (PERMISSION_LOCK) {
+            if (cacheLoaded && role.equals(cachedRole)) return;
+            try {
+                Set<String> allowed = new HashSet<>();
+                for (var p : new AuthApiClient().effectivePermissions()) {
+                    allowed.add(normalize(p.module()+"."+p.action()));
+                }
+                cachedRole = role; cachedAllowed = Set.copyOf(allowed); cacheLoaded = true;
+            } catch (org.example.api.ApiSession.AuthenticationRequiredException authenticationFailure) {
+                cachedRole = role; cachedAllowed = Set.of(); cacheLoaded = false;
+                throw authenticationFailure;
+            } catch (Exception failure) {
+                cachedRole = role; cachedAllowed = Set.of(); cacheLoaded = false;
+                if (strict) {
+                    throw failure instanceof RuntimeException runtime ? runtime
+                            : new IllegalStateException("Unable to load effective permissions", failure);
+                }
             }
         }
     }
@@ -193,22 +218,25 @@ public final class PermissionService {
         return cachedSubscribedFeatures != null ? cachedSubscribedFeatures : Set.of();
     }
 
-    public static synchronized void ensureFeaturesLoaded() {
+    public static void ensureFeaturesLoaded() {
         if (featuresLoaded && cachedSubscribedFeatures != null) return;
-        try {
-            org.example.api.licensing.LicenseApiClient client = new org.example.api.licensing.LicenseApiClient();
-            org.example.api.licensing.LicenseApiClient.LicenseStatusDto status = client.getStatus();
-            if (status != null && status.features() != null && !status.features().isEmpty()) {
-                cachedSubscribedFeatures = org.example.shared.PermissionCatalog.expandFeatureTokens(status.features());
+        synchronized (FEATURE_LOCK) {
+            if (featuresLoaded && cachedSubscribedFeatures != null) return;
+            try {
+                org.example.api.licensing.LicenseApiClient client = new org.example.api.licensing.LicenseApiClient();
+                org.example.api.licensing.LicenseApiClient.LicenseStatusDto status = client.getStatus();
+                if (status != null && status.features() != null && !status.features().isEmpty()) {
+                    cachedSubscribedFeatures = org.example.shared.PermissionCatalog.expandFeatureTokens(status.features());
+                    featuresLoaded = true;
+                    return;
+                }
+                String tier = (status != null && status.tier() != null) ? status.tier() : "GOLD";
+                cachedSubscribedFeatures = org.example.shared.PermissionCatalog.expandFeatureTokens(fallbackFeaturesForTier(tier));
                 featuresLoaded = true;
-                return;
+            } catch (Exception e) {
+                cachedSubscribedFeatures = org.example.shared.PermissionCatalog.expandFeatureTokens(defaultAllFeatures());
+                featuresLoaded = true;
             }
-            String tier = (status != null && status.tier() != null) ? status.tier() : "GOLD";
-            cachedSubscribedFeatures = org.example.shared.PermissionCatalog.expandFeatureTokens(fallbackFeaturesForTier(tier));
-            featuresLoaded = true;
-        } catch (Exception e) {
-            cachedSubscribedFeatures = org.example.shared.PermissionCatalog.expandFeatureTokens(defaultAllFeatures());
-            featuresLoaded = true;
         }
     }
 

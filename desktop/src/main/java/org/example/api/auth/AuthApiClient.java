@@ -24,6 +24,8 @@ import java.util.List;
 public final class AuthApiClient {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
+    private static volatile String lastCompatibleBaseUrl;
+    private static volatile long lastCompatibleCheckedAtMs;
 
     private final HttpClient http;
     private final ObjectMapper json;
@@ -34,12 +36,14 @@ public final class AuthApiClient {
         this.fixedBaseUrl = null;
         this.http = org.example.api.ApiRuntime.HTTP;
         this.json = org.example.api.ApiRuntime.JSON;
+        org.example.shared.licensing.HardwareFingerprintUtil.prewarmAsync();
     }
 
     AuthApiClient(String baseUrl) {
         this.fixedBaseUrl = normalizeBaseUrl(baseUrl);
         this.http = org.example.api.ApiRuntime.HTTP;
         this.json = org.example.api.ApiRuntime.JSON;
+        org.example.shared.licensing.HardwareFingerprintUtil.prewarmAsync();
     }
 
     public LoginAttempt authenticate(String identity, String password) {
@@ -428,7 +432,14 @@ public final class AuthApiClient {
         // Login, MFA and session establishment must use the same Shared Client compatibility
         // authority as startup. Compatible older desktops are allowed when they remain at or
         // above the server-owned minimum; same-version stale builds and API mismatches still fail.
+        String normalized = normalizeBaseUrl(serverBaseUrl);
+        long now = System.currentTimeMillis();
+        if (normalized.equals(lastCompatibleBaseUrl) && (now - lastCompatibleCheckedAtMs) < 15_000L) {
+            return;
+        }
         DeploymentConnectionService.inspect(normalizeBaseUrl(serverBaseUrl));
+        lastCompatibleBaseUrl = normalized;
+        lastCompatibleCheckedAtMs = now;
     }
 
     private String baseUrl() {

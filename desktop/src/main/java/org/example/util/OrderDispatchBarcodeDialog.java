@@ -310,7 +310,7 @@ public final class OrderDispatchBarcodeDialog {
         HBox controlsBar = new HBox(8);
         controlsBar.setAlignment(Pos.CENTER_LEFT);
         controlsBar.setPadding(new Insets(10, 14, 10, 14));
-        controlsBar.setStyle("-fx-background-color: -fx-background-secondary; -fx-background-radius: 6; -fx-border-color: -fx-border-color; -fx-border-radius: 6;");
+        controlsBar.getStyleClass().add("barcode-preview-controls");
 
         Label lblBox = new Label("Package:");
         lblBox.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
@@ -420,7 +420,7 @@ public final class OrderDispatchBarcodeDialog {
 
         VBox rootLayout = new VBox(12, controlsBar, scrollPane);
         rootLayout.setPadding(new Insets(10));
-        rootLayout.setStyle("-fx-background-color: -fx-background;");
+        rootLayout.getStyleClass().add("barcode-preview-root");
 
         javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
         double maxW = Math.max(760, screen.getWidth() - 48);
@@ -701,7 +701,7 @@ public final class OrderDispatchBarcodeDialog {
         verificationBox.setPadding(new Insets(6, 0, 0, 0));
 
         Label lblSeal = new Label("DISPATCH VERIFICATION & SECURITY SEAL");
-        lblSeal.setStyle("-fx-font-size: 8.5px; -fx-font-weight: bold; -fx-text-fill: #64748b; -fx-letter-spacing: 1px;");
+        lblSeal.setStyle("-fx-font-size: 8.5px; -fx-font-weight: bold; -fx-text-fill: #475569; -fx-letter-spacing: 1px;");
 
         HBox signRow = new HBox(16);
         signRow.setAlignment(Pos.CENTER);

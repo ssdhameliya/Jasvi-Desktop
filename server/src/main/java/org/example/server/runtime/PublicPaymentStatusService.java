@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -39,6 +40,73 @@ public class PublicPaymentStatusService {
         this.db = db;
     }
 
+    private static String cleanParam(String val) {
+        if (val == null) return null;
+        String trimmed = val.trim();
+        if (trimmed.isEmpty()) return null;
+        if (trimmed.contains(",")) {
+            String[] parts = trimmed.split(",");
+            for (String part : parts) {
+                if (part != null && !part.trim().isBlank()) {
+                    return part.trim();
+                }
+            }
+        }
+        return trimmed;
+    }
+
+    private Optional<SalesHeaderEntity> resolveSale(String invoiceNo, String verifyInvoiceNo) {
+        if (invoiceNo != null && !invoiceNo.isBlank()) {
+            Optional<SalesHeaderEntity> direct = salesRepository.findByInvoiceNo(invoiceNo.trim());
+            if (direct.isPresent()) return direct;
+        }
+        if (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank() && !verifyInvoiceNo.equalsIgnoreCase(invoiceNo)) {
+            Optional<SalesHeaderEntity> verifyDirect = salesRepository.findByInvoiceNo(verifyInvoiceNo.trim());
+            if (verifyDirect.isPresent()) return verifyDirect;
+        }
+        String candidate = (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank()) ? verifyInvoiceNo.trim() : (invoiceNo != null ? invoiceNo.trim() : null);
+        if (candidate != null && candidate.matches("^[0-9A-Za-z_/-]{2,40}$")) {
+            try {
+                List<Map<String, Object>> rows = db.queryForList(
+                        "SELECT id FROM sales_header WHERE invoice_no = ? OR invoice_no LIKE ? OR invoice_no LIKE ? ORDER BY id DESC LIMIT 2",
+                        candidate, "%/" + candidate, "%-" + candidate);
+                if (rows.size() == 1) {
+                    Object val = rows.get(0).get("id");
+                    if (val instanceof Number n) {
+                        return salesRepository.findById(n.intValue());
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return Optional.empty();
+    }
+
+    private Optional<PurchaseHeaderEntity> resolvePurchase(String invoiceNo, String verifyInvoiceNo) {
+        if (invoiceNo != null && !invoiceNo.isBlank()) {
+            Optional<PurchaseHeaderEntity> direct = purchaseRepository.findByInvoiceNo(invoiceNo.trim());
+            if (direct.isPresent()) return direct;
+        }
+        if (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank() && !verifyInvoiceNo.equalsIgnoreCase(invoiceNo)) {
+            Optional<PurchaseHeaderEntity> verifyDirect = purchaseRepository.findByInvoiceNo(verifyInvoiceNo.trim());
+            if (verifyDirect.isPresent()) return verifyDirect;
+        }
+        String candidate = (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank()) ? verifyInvoiceNo.trim() : (invoiceNo != null ? invoiceNo.trim() : null);
+        if (candidate != null && candidate.matches("^[0-9A-Za-z_/-]{2,40}$")) {
+            try {
+                List<Map<String, Object>> rows = db.queryForList(
+                        "SELECT id FROM purchase_header WHERE invoice_no = ? OR invoice_no LIKE ? OR invoice_no LIKE ? ORDER BY id DESC LIMIT 2",
+                        candidate, "%/" + candidate, "%-" + candidate);
+                if (rows.size() == 1) {
+                    Object val = rows.get(0).get("id");
+                    if (val instanceof Number n) {
+                        return purchaseRepository.findById(n.intValue());
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return Optional.empty();
+    }
+
     public ResponseEntity<String> renderPublicPaymentStatus(String invoiceNo, String token) {
         return renderPublicPaymentStatus(invoiceNo, token, null, null, null);
     }
@@ -46,15 +114,17 @@ public class PublicPaymentStatusService {
     public ResponseEntity<String> renderPublicPaymentStatus(
             String invoiceNo, String token,
             String verifyInvoiceNo, String verifyDate, String verifyAmount) {
-        if (invoiceNo == null || invoiceNo.isBlank()) {
-            if (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank()) {
-                invoiceNo = verifyInvoiceNo.trim();
-            } else {
-                return ResponseEntity.ok(renderVerificationChallengePage("", token != null ? token : "", null));
-            }
+        invoiceNo = cleanParam(invoiceNo);
+        token = cleanParam(token);
+        verifyInvoiceNo = cleanParam(verifyInvoiceNo);
+        verifyDate = cleanParam(verifyDate);
+        verifyAmount = cleanParam(verifyAmount);
+
+        if ((invoiceNo == null || invoiceNo.isBlank()) && (verifyInvoiceNo == null || verifyInvoiceNo.isBlank())) {
+            return ResponseEntity.ok(renderVerificationChallengePage("", token != null ? token : "", null));
         }
 
-        Optional<SalesHeaderEntity> optionalSale = salesRepository.findByInvoiceNo(invoiceNo.trim());
+        Optional<SalesHeaderEntity> optionalSale = resolveSale(invoiceNo, verifyInvoiceNo);
         double totalAmount = 0.0;
         double paidAmount = 0.0;
         String docType = "SALE";
@@ -65,6 +135,7 @@ public class PublicPaymentStatusService {
 
         if (optionalSale.isPresent()) {
             SalesHeaderEntity sale = optionalSale.get();
+            invoiceNo = sale.getInvoiceNo();
             totalAmount = sale.getTotalAmount() == null ? 0.0 : sale.getTotalAmount();
             paidAmount = sale.getPaidAmount() == null ? 0.0 : sale.getPaidAmount();
             docId = sale.getId();
@@ -74,9 +145,10 @@ public class PublicPaymentStatusService {
             invoiceDate = sale.getInvoiceDate() == null ? "-" : sale.getInvoiceDate();
             dueDate = sale.getDueDate() == null ? "-" : sale.getDueDate();
         } else {
-            Optional<PurchaseHeaderEntity> optionalPurchase = purchaseRepository.findByInvoiceNo(invoiceNo.trim());
+            Optional<PurchaseHeaderEntity> optionalPurchase = resolvePurchase(invoiceNo, verifyInvoiceNo);
             if (optionalPurchase.isPresent()) {
                 PurchaseHeaderEntity purchase = optionalPurchase.get();
+                invoiceNo = purchase.getInvoiceNo();
                 totalAmount = purchase.getTotalAmount() == null ? 0.0 : purchase.getTotalAmount();
                 paidAmount = purchase.getPaidAmount() == null ? 0.0 : purchase.getPaidAmount();
                 docId = purchase.getId();
@@ -92,20 +164,29 @@ public class PublicPaymentStatusService {
 
         boolean tokenValid = (token != null && !token.isBlank() && PaymentStatusTokenService.verifyToken(invoiceNo, totalAmount, token));
 
-        // Privacy Verification Gate:
+        // Privacy Verification Gate Option B:
+        // Configurable setting (default true). When true, recipient must answer at least one verification question
+        // before the private financial payment & invoice record is displayed.
+        boolean requireVerificationPrompt = !"false".equalsIgnoreCase(querySetting("payment.status.requireVerificationPrompt", "true"));
+
         boolean hasVerificationInput = (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank())
                 || (verifyDate != null && !verifyDate.isBlank())
                 || (verifyAmount != null && !verifyAmount.isBlank());
 
+        // If verification prompt is enforced and user has not provided verification input yet, present challenge page:
+        if (requireVerificationPrompt && !hasVerificationInput) {
+            return ResponseEntity.ok(renderVerificationChallengePage(invoiceNo, token != null ? token : "", null));
+        }
+
+        // If token is invalid and no verification input was provided:
         if (!tokenValid && !hasVerificationInput) {
             return ResponseEntity.ok(renderVerificationChallengePage(invoiceNo, token != null ? token : "", null));
         }
 
         boolean verified = false;
-        if (tokenValid) {
-            verified = true;
-        }
-        if (!verified && verifyInvoiceNo != null && !verifyInvoiceNo.isBlank()) {
+
+        // Check 3 verification questions:
+        if (verifyInvoiceNo != null && !verifyInvoiceNo.isBlank()) {
             String cleanInput = verifyInvoiceNo.replaceAll("[^a-zA-Z0-9]", "").toLowerCase(Locale.ROOT);
             String cleanDocNo = invoiceNo.replaceAll("[^a-zA-Z0-9]", "").toLowerCase(Locale.ROOT);
             if (cleanDocNo.equals(cleanInput) || cleanDocNo.endsWith(cleanInput) || cleanInput.endsWith(cleanDocNo)) {
@@ -129,9 +210,14 @@ public class PublicPaymentStatusService {
             } catch (Exception ignored) {}
         }
 
+        // When verification prompt is disabled in settings, valid cryptographic token is sufficient:
+        if (!requireVerificationPrompt && tokenValid) {
+            verified = true;
+        }
+
         if (!verified) {
             return ResponseEntity.ok(renderVerificationChallengePage(invoiceNo, token != null ? token : "",
-                    "The information provided does not match our records for this document. Please check your invoice or email and try again."));
+                    "The verification details entered do not match our records for this document. Please check your invoice or email and try again."));
         }
 
         double balanceAmount = Math.max(0.0, totalAmount - paidAmount);
@@ -157,13 +243,13 @@ public class PublicPaymentStatusService {
                 ? paymentRecordRepository.findByDocumentTypeAndDocumentIdOrderByPaymentDateDescIdDesc(docType, docId)
                 : List.of();
 
-        String companyName = querySetting("company.name", "JASVI INDUSTRIES");
-        String companyPhone = querySetting("company.phone", "+91 98765 43210");
-        String companyEmail = querySetting("company.email", "sales@jasviindustries.in");
-        String bankName = querySetting("payment.bankName", "HDFC Bank");
+        String companyName = querySetting("company.name", querySetting("application.displayName", "DSE ERP"));
+        String companyPhone = querySetting("company.phone", "");
+        String companyEmail = querySetting("company.email", "");
+        String bankName = querySetting("payment.bankName", "Bank of India");
         String accountHolder = querySetting("payment.accountHolder", companyName);
-        String accountNumber = querySetting("payment.accountNumber", "50200012345678");
-        String ifsc = querySetting("payment.ifsc", "HDFC0001234");
+        String accountNumber = querySetting("payment.accountNumber", "-");
+        String ifsc = querySetting("payment.ifsc", "-");
 
         StringBuilder paymentRowsHtml = new StringBuilder();
         if (payments.isEmpty()) {
@@ -452,7 +538,7 @@ public class PublicPaymentStatusService {
     }
 
     private String renderVerificationChallengePage(String invoiceNo, String token, String errorMessage) {
-        String company = querySetting("company.name", "JASVI INDUSTRIES");
+        String company = querySetting("company.name", querySetting("application.displayName", "DSE ERP"));
         String errorBlock = (errorMessage == null || errorMessage.isBlank()) ? "" : """
             <div style="background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; text-align: left;">
                 &#9888; <strong>Verification Notice:</strong> %s
@@ -612,13 +698,17 @@ public class PublicPaymentStatusService {
                             <h2>&#128274; Document Privacy Verification</h2>
                             <p>For your financial security and privacy, please confirm your document details to view the live settlement and payment reconciliation record. Entering <strong>ANY ONE</strong> of the fields below will unlock your live status:</p>
                         </div>
-                        <form method="POST" action="">
+                        <form id="verifyForm" method="POST" action="" onsubmit="return handleFormSubmit(event);">
                             <input type="hidden" name="inv" value="{{INVOICE_NO}}" />
                             <input type="hidden" name="token" value="{{TOKEN}}" />
 
+                            <div id="clientValidationNotice" style="display:none; background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:12px 16px; border-radius:8px; font-size:13px; margin-bottom:16px;">
+                                &#9888; <strong>Please enter details:</strong> Provide at least ONE of the 3 fields below to unlock your status.
+                            </div>
+
                             <div class="form-group">
                                 <label>1. Invoice / Bill Number</label>
-                                <input type="text" name="verifyInvoiceNo" placeholder="e.g. PUR/10-11-2026/5144 or 5144" autocomplete="off" />
+                                <input type="text" id="verifyInvoiceNo" name="verifyInvoiceNo" placeholder="e.g. PUR/10-11-2026/5144 or 5144" autocomplete="off" />
                                 <span class="tip">&#128161; <strong>Helpful Tip:</strong> Found on your invoice header, tax bill, or the subject line of your received email.</span>
                             </div>
 
@@ -626,7 +716,7 @@ public class PublicPaymentStatusService {
 
                             <div class="form-group">
                                 <label>2. Document Date</label>
-                                <input type="text" name="verifyDate" placeholder="e.g. 10-11-2026 or 10 Nov 2026" autocomplete="off" />
+                                <input type="text" id="verifyDate" name="verifyDate" placeholder="e.g. 10-11-2026 or 10 Nov 2026" autocomplete="off" />
                                 <span class="tip">&#128161; <strong>Helpful Tip:</strong> The date printed on your invoice or the settlement advice date shown in your email.</span>
                             </div>
 
@@ -634,12 +724,39 @@ public class PublicPaymentStatusService {
 
                             <div class="form-group">
                                 <label>3. Total or Settlement Amount (₹)</label>
-                                <input type="text" name="verifyAmount" placeholder="e.g. 38,545,002.08 or 38545002" autocomplete="off" />
+                                <input type="text" id="verifyAmount" name="verifyAmount" placeholder="e.g. 38,545,002.08 or 38545002" autocomplete="off" />
                                 <span class="tip">&#128161; <strong>Helpful Tip:</strong> Total invoice value or the payment disbursed amount stated in your remittance breakdown.</span>
                             </div>
 
-                            <button type="submit" class="btn-submit">&#128275; Verify &amp; View Live Status</button>
+                            <button type="submit" id="btnSubmit" class="btn-submit">&#128275; Verify &amp; View Live Status</button>
                         </form>
+                        <script>
+                            function handleFormSubmit(e) {
+                                var inv = (document.getElementById('verifyInvoiceNo') ? document.getElementById('verifyInvoiceNo').value : '').trim();
+                                var dt = (document.getElementById('verifyDate') ? document.getElementById('verifyDate').value : '').trim();
+                                var amt = (document.getElementById('verifyAmount') ? document.getElementById('verifyAmount').value : '').trim();
+                                var notice = document.getElementById('clientValidationNotice');
+                                if (!inv && !dt && !amt) {
+                                    if (e && e.preventDefault) e.preventDefault();
+                                    if (notice) notice.style.display = 'block';
+                                    var fld = document.getElementById('verifyInvoiceNo');
+                                    if (fld) { fld.focus(); fld.style.borderColor = '#ef4444'; }
+                                    return false;
+                                }
+                                if (notice) notice.style.display = 'none';
+                                var form = document.getElementById('verifyForm');
+                                if (form && window.location.pathname) {
+                                    form.action = window.location.pathname;
+                                }
+                                var btn = document.getElementById('btnSubmit');
+                                if (btn) {
+                                    btn.innerHTML = '&#8987; Verifying Credentials...';
+                                    btn.style.opacity = '0.8';
+                                    btn.style.cursor = 'wait';
+                                }
+                                return true;
+                            }
+                        </script>
                     </div>
                     <div class="footer">
                         &#128737; 256-bit Encrypted Verification &bull; Official Portal of {{COMPANY}}
@@ -657,13 +774,14 @@ public class PublicPaymentStatusService {
     }
 
     private String renderErrorPage(String message) {
+        String company = querySetting("company.name", querySetting("application.displayName", "DSE ERP"));
         return """
             <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Verification Error • Jasvi ERP</title>
+                <title>Verification Error • %s</title>
                 <style>
                     body { font-family: -apple-system, sans-serif; background: #f8fafc; color: #1e293b; padding: 40px 16px; text-align: center; }
                     .card { max-width: 480px; margin: 0 auto; background: #fff; padding: 32px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -679,6 +797,6 @@ public class PublicPaymentStatusService {
                 </div>
             </body>
             </html>
-        """.formatted(escape(message));
+        """.formatted(escape(company), escape(message));
     }
 }

@@ -44,6 +44,24 @@ public class ClientRegistryService {
 
     private void initDefaultClientsIfEmpty() {
         try {
+            jdbc.update("""
+                CREATE TABLE IF NOT EXISTS client_user_session_log (
+                    id BIGSERIAL PRIMARY KEY,
+                    machine_id VARCHAR(64) NOT NULL,
+                    username VARCHAR(120) NOT NULL,
+                    role_code VARCHAR(64) DEFAULT 'USER',
+                    work_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                    session_start TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    session_end TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    duration_seconds BIGINT NOT NULL DEFAULT 0,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE
+                )
+            """);
+            jdbc.update("CREATE INDEX IF NOT EXISTS idx_client_user_session_lookup ON client_user_session_log(machine_id, username, work_date)");
+        } catch (Exception e) {
+            log.debug("Could not initialize client_user_session_log table: {}", e.getMessage());
+        }
+        try {
             Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM licensed_client_registry", Integer.class);
             if (count == null || count == 0) {
                 // Seed anchor client
@@ -67,28 +85,40 @@ public class ClientRegistryService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getClients(String query, String status) {
-        StringBuilder sql = new StringBuilder("SELECT id, company_name, machine_id, contact_person, phone, email, " +
-                "tier, max_users, annual_fee, issued_at, valid_until, status, license_payload_enc, notes, row_version, " +
-                "remote_url, last_heartbeat_at, client_version, active_users_count, features, " +
-                "COALESCE(is_purchased, true) AS is_purchased, last_alert_sent_at, kicked_at, kick_reason " +
-                "FROM licensed_client_registry WHERE 1=1 ");
+        StringBuilder sql = new StringBuilder("SELECT r.id, r.company_name, r.machine_id, r.contact_person, r.phone, r.email, " +
+                "r.tier, r.max_users, r.annual_fee, r.issued_at, r.valid_until, r.status, r.license_payload_enc, r.notes, r.row_version, " +
+                "r.remote_url, r.last_heartbeat_at, r.client_version, " +
+                "COALESCE((SELECT COUNT(DISTINCT LOWER(t.username)) FROM client_user_telemetry t " +
+                "WHERE t.machine_id = r.machine_id " +
+                "AND t.work_date = CAST((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AS date) " +
+                "AND COALESCE(t.is_active_now, false) = true " +
+                "AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes'), 0) AS active_users_count, " +
+                "COALESCE((SELECT SUM(COALESCE(t.total_seconds_today, 0)) FROM client_user_telemetry t " +
+                "WHERE t.machine_id = r.machine_id " +
+                "AND t.work_date = CAST((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AS date)), 0) AS today_total_seconds, " +
+                "COALESCE((SELECT COUNT(DISTINCT LOWER(t.username)) FROM client_user_telemetry t " +
+                "WHERE t.machine_id = r.machine_id " +
+                "AND t.work_date = CAST((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AS date) " +
+                "AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL)), 0) AS today_users_count, " +
+                "r.features, COALESCE(r.is_purchased, true) AS is_purchased, r.last_alert_sent_at, r.kicked_at, r.kick_reason " +
+                "FROM licensed_client_registry r WHERE 1=1 ");
         List<Object> params = new ArrayList<>();
 
         if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {
-            sql.append("AND status = ? ");
+            sql.append("AND r.status = ? ");
             params.add(status.trim().toUpperCase(Locale.ROOT));
         }
 
         if (query != null && !query.isBlank()) {
             String q = "%" + query.trim().toLowerCase(Locale.ROOT) + "%";
-            sql.append("AND (LOWER(company_name) LIKE ? OR LOWER(machine_id) LIKE ? OR LOWER(contact_person) LIKE ? OR LOWER(phone) LIKE ?) ");
+            sql.append("AND (LOWER(r.company_name) LIKE ? OR LOWER(r.machine_id) LIKE ? OR LOWER(r.contact_person) LIKE ? OR LOWER(r.phone) LIKE ?) ");
             params.add(q);
             params.add(q);
             params.add(q);
             params.add(q);
         }
 
-        sql.append("ORDER BY id DESC");
+        sql.append("ORDER BY r.id DESC");
         return jdbc.queryForList(sql.toString(), params.toArray());
     }
 
@@ -641,20 +671,28 @@ public class ClientRegistryService {
                 recordSingleUserTelemetry(machineId, companyName, user);
             }
         }
+        syncLocalWorkstationUsersIfHost(machineId, companyName);
+        relayHeartbeatToCentralCloudAsync(machineId, clientVersion, activeUsers, remoteUrl, companyName, users);
 
-        int resolvedActiveUsers = 1;
-        if (activeUsers != null && activeUsers > 1) {
-            resolvedActiveUsers = activeUsers;
-        } else {
+        int resolvedActiveUsers;
+        if (users != null && !users.isEmpty()) {
             try {
                 Long liveCount = jdbc.queryForObject(
-                        "SELECT COUNT(DISTINCT user_id) FROM auth_session WHERE expires_at > CURRENT_TIMESTAMP",
-                        Long.class
+                        "SELECT COUNT(DISTINCT LOWER(username)) FROM client_user_telemetry " +
+                                "WHERE machine_id = ? " +
+                                "AND work_date = CAST((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata') AS date) " +
+                                "AND COALESCE(is_active_now, false) = true " +
+                                "AND last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes'",
+                        Long.class,
+                        machineId
                 );
-                resolvedActiveUsers = (liveCount != null && liveCount > 0) ? liveCount.intValue() : 1;
+                int telemetryCount = liveCount != null ? liveCount.intValue() : 0;
+                resolvedActiveUsers = (activeUsers != null && activeUsers > telemetryCount) ? activeUsers : telemetryCount;
             } catch (Exception ignored) {
-                resolvedActiveUsers = activeUsers != null && activeUsers > 0 ? activeUsers : 1;
+                resolvedActiveUsers = activeUsers != null ? Math.max(0, activeUsers) : 0;
             }
+        } else {
+            resolvedActiveUsers = activeUsers != null ? Math.max(0, activeUsers) : 1;
         }
 
         StringBuilder updateSql = new StringBuilder("UPDATE licensed_client_registry SET " +
@@ -749,6 +787,7 @@ public class ClientRegistryService {
         String roleCode = String.valueOf(user.getOrDefault("roleCode", "USER")).trim();
         long durationInc = user.get("durationSeconds") instanceof Number n ? n.longValue() : 30L;
         boolean isLogout = Boolean.TRUE.equals(user.get("isLogout"));
+        boolean isNewLogin = Boolean.TRUE.equals(user.get("isNewLogin"));
         boolean isActive = !isLogout && Boolean.TRUE.equals(user.getOrDefault("isActive", true));
 
         String workDateStr = String.valueOf(user.getOrDefault("workDate", "")).trim();
@@ -772,6 +811,7 @@ public class ClientRegistryService {
                     CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP,
                     ?, ?, CURRENT_TIMESTAMP
                 ) ON CONFLICT (machine_id, username, work_date) DO UPDATE SET
+                    first_login_today = COALESCE(client_user_telemetry.first_login_today, CURRENT_TIMESTAMP),
                     last_heartbeat = CURRENT_TIMESTAMP,
                     total_seconds_today = client_user_telemetry.total_seconds_today + EXCLUDED.total_seconds_today,
                     is_active_now = EXCLUDED.is_active_now,
@@ -781,9 +821,155 @@ public class ClientRegistryService {
                     workDate.toString(),
                     isLogout ? Instant.now() : null,
                     durationInc, isActive);
+
+            recordUserSessionSegment(machineId, username, roleCode, workDate.toString(), durationInc, isActive, isLogout, isNewLogin);
         } catch (Exception ex) {
             log.warn("Could not record client user telemetry for {}: {}", username, ex.getMessage());
         }
+    }
+
+    private boolean hasSessionLogTable() {
+        try {
+            Boolean exists = jdbc.queryForObject(
+                    "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = CURRENT_SCHEMA() AND table_name = 'client_user_session_log')",
+                    Boolean.class
+            );
+            return Boolean.TRUE.equals(exists);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private void recordUserSessionSegment(String machineId, String username, String roleCode,
+                                          String workDateStr, long durationInc, boolean isActive, boolean isLogout, boolean isNewLogin) {
+        if (!hasSessionLogTable()) {
+            return;
+        }
+        try {
+            jdbc.update("""
+                UPDATE client_user_session_log
+                SET is_active = FALSE
+                WHERE machine_id = ? AND LOWER(username) = LOWER(?) AND work_date = CAST(? AS date)
+                  AND is_active = TRUE
+                  AND (? = TRUE OR session_end < CURRENT_TIMESTAMP - INTERVAL '5 minutes')
+            """, machineId, username, workDateStr, isNewLogin);
+
+            if (isNewLogin) {
+                jdbc.update("""
+                    INSERT INTO client_user_session_log (
+                        machine_id, username, role_code, work_date,
+                        session_start, session_end, duration_seconds, is_active
+                    ) VALUES (?, ?, ?, CAST(? AS date), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
+                """, machineId, username, roleCode, workDateStr, Math.max(0L, durationInc), isActive && !isLogout);
+                return;
+            }
+
+            List<Map<String, Object>> openRows = jdbc.queryForList("""
+                SELECT id FROM client_user_session_log
+                WHERE machine_id = ? AND LOWER(username) = LOWER(?) AND work_date = CAST(? AS date)
+                  AND is_active = TRUE
+                  AND session_end >= CURRENT_TIMESTAMP - INTERVAL '5 minutes'
+                ORDER BY session_end DESC LIMIT 1
+            """, machineId, username, workDateStr);
+
+            if (!openRows.isEmpty() && openRows.getFirst().get("id") instanceof Number idNum) {
+                jdbc.update("""
+                    UPDATE client_user_session_log
+                    SET session_end = CURRENT_TIMESTAMP,
+                        duration_seconds = GREATEST(
+                            COALESCE(duration_seconds, 0) + ?,
+                            CAST(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - session_start)) AS BIGINT)
+                        ),
+                        is_active = ?
+                    WHERE id = ?
+                """, Math.max(0L, durationInc), isActive && !isLogout, idNum.longValue());
+            } else {
+                jdbc.update("""
+                    INSERT INTO client_user_session_log (
+                        machine_id, username, role_code, work_date,
+                        session_start, session_end, duration_seconds, is_active
+                    ) VALUES (?, ?, ?, CAST(? AS date), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
+                """, machineId, username, roleCode, workDateStr, Math.max(0L, durationInc), isActive && !isLogout);
+            }
+        } catch (Exception ex) {
+            log.warn("Could not record user session segment for {}: {}", username, ex.getMessage());
+        }
+    }
+
+    private void syncLocalWorkstationUsersIfHost(String machineId, String companyName) {
+        try {
+            String hostId = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").toUpperCase(Locale.ROOT);
+            if (!hostId.equalsIgnoreCase(machineId)) {
+                return;
+            }
+            String workDate = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")).toString();
+            String resolvedCompany = (companyName != null && !companyName.isBlank()) ? companyName : "Jasvi Client Workspace";
+            jdbc.update("""
+                INSERT INTO client_user_telemetry (
+                    machine_id, company_name, username, role_code, work_date,
+                    first_login_today, last_logout_today, last_heartbeat,
+                    total_seconds_today, is_active_now, updated_at
+                )
+                SELECT ?, ?, u.username, COALESCE(u.role, 'USER'), CAST(? AS date),
+                       NULL, NULL, CURRENT_TIMESTAMP - INTERVAL '10 minutes',
+                       0, false, CURRENT_TIMESTAMP
+                FROM users u
+                WHERE COALESCE(u.active, 1) = 1
+                ON CONFLICT (machine_id, username, work_date) DO NOTHING
+            """, machineId, resolvedCompany, workDate);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void relayHeartbeatToCentralCloudAsync(String machineId, String clientVersion, Integer activeUsers,
+                                                   String remoteUrl, String companyName, List<Map<String, Object>> users) {
+        if (users != null && users.stream().anyMatch(u -> Boolean.TRUE.equals(u.get("relayedFromLocal")))) {
+            return;
+        }
+        String masterUrl = System.getProperty("jasvi.licensing.master-url",
+                System.getenv().getOrDefault("JASVI_LICENSING_MASTER_URL", "https://erp.jasviindustries.in")).trim();
+        if (masterUrl.isBlank()) return;
+        while (masterUrl.endsWith("/")) {
+            masterUrl = masterUrl.substring(0, masterUrl.length() - 1);
+        }
+        String hostId = HardwareFingerprintUtil.getDisplayMachineId().replace("-", "").toUpperCase(Locale.ROOT);
+        if (!hostId.equalsIgnoreCase(machineId)) {
+            return;
+        }
+        final String targetMasterUrl = masterUrl;
+        Thread.ofVirtual().name("central-licensor-heartbeat-relay").start(() -> {
+            try {
+                List<Map<String, Object>> enrichedUsers = new ArrayList<>();
+                if (users != null) {
+                    for (Map<String, Object> u : users) {
+                        Map<String, Object> copy = new LinkedHashMap<>(u);
+                        copy.put("relayedFromLocal", true);
+                        enrichedUsers.add(copy);
+                    }
+                }
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("machineId", machineId);
+                if (clientVersion != null) payload.put("clientVersion", clientVersion);
+                if (activeUsers != null) payload.put("activeUsers", activeUsers);
+                if (remoteUrl != null) payload.put("remoteUrl", remoteUrl);
+                if (companyName != null) payload.put("companyName", companyName);
+                payload.put("users", enrichedUsers);
+
+                java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(3))
+                        .build();
+                java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder(
+                                java.net.URI.create(targetMasterUrl + "/api/license/heartbeat"))
+                        .timeout(Duration.ofSeconds(4))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(
+                                objectMapper.writeValueAsString(payload), StandardCharsets.UTF_8))
+                        .build();
+                http.send(req, java.net.http.HttpResponse.BodyHandlers.discarding());
+            } catch (Exception ignored) {
+            }
+        });
     }
 
     private void purgeExpiredTelemetry() {
@@ -794,66 +980,230 @@ public class ClientRegistryService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<Map<String, Object>> getClientUserTelemetry(String rawMachine) {
-        return getClientUserTelemetry(rawMachine, null, null, null);
+        return getClientUserTelemetry(rawMachine, null, null, null, "DAILY");
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<Map<String, Object>> getClientUserTelemetry(String rawMachine, String targetDateStr) {
-        return getClientUserTelemetry(rawMachine, targetDateStr, null, null);
+        return getClientUserTelemetry(rawMachine, targetDateStr, null, null, "DAILY");
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<Map<String, Object>> getClientUserTelemetry(String rawMachine, String targetDateStr, String fromStr, String toStr) {
+        return getClientUserTelemetry(rawMachine, targetDateStr, fromStr, toStr, "DAILY");
+    }
+
+    @Transactional
+    public List<Map<String, Object>> getClientUserTelemetry(String rawMachine, String targetDateStr, String fromStr, String toStr, String viewMode) {
         if (rawMachine == null || rawMachine.isBlank()) return List.of();
         String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+        syncLocalWorkstationUsersIfHost(machineId, null);
 
         java.time.LocalDate businessToday = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
-        String from = fromStr != null && !fromStr.isBlank() ? fromStr.trim() : (targetDateStr != null && !targetDateStr.isBlank() && !"TODAY".equalsIgnoreCase(targetDateStr) ? targetDateStr.trim() : businessToday.toString());
+        String todayIst = businessToday.toString();
+        String from = fromStr != null && !fromStr.isBlank()
+                ? fromStr.trim()
+                : (targetDateStr != null && !targetDateStr.isBlank() && !"TODAY".equalsIgnoreCase(targetDateStr) ? targetDateStr.trim() : todayIst);
         String to = toStr != null && !toStr.isBlank() ? toStr.trim() : from;
-
-        boolean isRange = from != null && to != null && !from.equalsIgnoreCase(to);
-
-        List<Object> params = new ArrayList<>();
-        params.add(machineId);
-
-        if (isRange) {
-            params.add(from);
-            params.add(to);
-            return jdbc.queryForList(
-                    "SELECT t.username, t.role_code, " +
-                            "MIN(t.first_login_today) AS first_login_today, " +
-                            "MAX(t.last_logout_today) AS last_logout_today, " +
-                            "MAX(t.last_heartbeat) AS last_heartbeat, " +
-                            "SUM(COALESCE(t.total_seconds_today, 0)) AS total_seconds_today, " +
-                            "BOOL_OR(COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now, " +
-                            "COUNT(DISTINCT t.work_date) AS days_active, " +
-                            "COALESCE(u.locked, 0) AS is_locked, COALESCE(u.active, 1) AS is_user_active " +
-                            "FROM client_user_telemetry t " +
-                            "LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username) " +
-                            "WHERE t.machine_id = ? AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date) " +
-                            "GROUP BY t.username, t.role_code, u.locked, u.active " +
-                            "ORDER BY BOOL_OR(COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') DESC, MAX(t.last_heartbeat) DESC",
-                    params.toArray()
-            );
+        if (from.compareTo(to) > 0) {
+            String tmp = from;
+            from = to;
+            to = tmp;
         }
 
-        params.add(from);
+        boolean summaryMode = "SUMMARY".equalsIgnoreCase(viewMode != null ? viewMode.trim() : "");
+        boolean hasSessionLog = hasSessionLogTable();
 
-        return jdbc.queryForList(
-                "SELECT t.id, t.machine_id, t.company_name, t.username, t.role_code, t.work_date, " +
-                        "t.first_login_today, t.last_logout_today, t.last_heartbeat, " +
-                        "COALESCE(t.total_seconds_today, 0) AS total_seconds_today, " +
-                        "(COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now, " +
-                        "1 AS days_active, " +
-                        "COALESCE(u.locked, 0) AS is_locked, COALESCE(u.active, 1) AS is_user_active " +
-                        "FROM client_user_telemetry t " +
-                        "LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username) " +
-                        "WHERE t.machine_id = ? AND t.work_date = CAST(? AS date) " +
-                        "ORDER BY (COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') DESC, t.last_heartbeat DESC",
-                params.toArray()
-        );
+        if (summaryMode) {
+            if (hasSessionLog) {
+                return jdbc.queryForList("""
+                    SELECT t.username,
+                           t.role_code,
+                           MIN(t.first_login_today) AS first_login_today,
+                           MAX(COALESCE(t.last_logout_today, t.last_heartbeat)) AS last_logout_today,
+                           MAX(t.last_heartbeat) AS last_heartbeat,
+                           SUM(COALESCE(t.total_seconds_today, 0)) AS total_seconds_today,
+                           BOOL_OR(t.work_date = CAST(? AS date) AND COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now,
+                           COUNT(DISTINCT CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN t.work_date END) AS days_active,
+                           COALESCE(MAX(sl.total_sessions), COUNT(DISTINCT CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN t.work_date END)) AS session_count,
+                           COALESCE(u.locked, 0) AS is_locked,
+                           COALESCE(u.active, 1) AS is_user_active
+                    FROM client_user_telemetry t
+                    LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username)
+                    LEFT JOIN (
+                        SELECT machine_id, LOWER(username) AS uname, COUNT(*) AS total_sessions
+                        FROM client_user_session_log
+                        WHERE machine_id = ? AND work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+                        GROUP BY machine_id, LOWER(username)
+                    ) sl ON sl.machine_id = t.machine_id AND sl.uname = LOWER(t.username)
+                    WHERE t.machine_id = ?
+                      AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+                      AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL OR t.work_date = CAST(? AS date))
+                    GROUP BY t.username, t.role_code, u.locked, u.active
+                    ORDER BY is_active_now DESC, total_seconds_today DESC, last_heartbeat DESC, t.username ASC
+                """, todayIst, machineId, from, to, machineId, from, to, todayIst);
+            }
+            return jdbc.queryForList("""
+                SELECT t.username,
+                       t.role_code,
+                       MIN(t.first_login_today) AS first_login_today,
+                       MAX(COALESCE(t.last_logout_today, t.last_heartbeat)) AS last_logout_today,
+                       MAX(t.last_heartbeat) AS last_heartbeat,
+                       SUM(COALESCE(t.total_seconds_today, 0)) AS total_seconds_today,
+                       BOOL_OR(t.work_date = CAST(? AS date) AND COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now,
+                       COUNT(DISTINCT CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN t.work_date END) AS days_active,
+                       COUNT(DISTINCT CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN t.work_date END) AS session_count,
+                       COALESCE(u.locked, 0) AS is_locked,
+                       COALESCE(u.active, 1) AS is_user_active
+                FROM client_user_telemetry t
+                LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username)
+                WHERE t.machine_id = ?
+                  AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+                  AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL OR t.work_date = CAST(? AS date))
+                GROUP BY t.username, t.role_code, u.locked, u.active
+                ORDER BY is_active_now DESC, total_seconds_today DESC, last_heartbeat DESC, t.username ASC
+            """, todayIst, machineId, from, to, todayIst);
+        }
+
+        if (hasSessionLog) {
+            return jdbc.queryForList("""
+                SELECT t.id, t.machine_id, t.company_name, t.username, t.role_code, t.work_date,
+                       t.first_login_today,
+                       COALESCE(t.last_logout_today, t.last_heartbeat) AS last_logout_today,
+                       t.last_heartbeat,
+                       COALESCE(t.total_seconds_today, 0) AS total_seconds_today,
+                       (t.work_date = CAST(? AS date) AND COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now,
+                       CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN 1 ELSE 0 END AS days_active,
+                       GREATEST(COALESCE(sl.session_count, 0), CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN 1 ELSE 0 END) AS session_count,
+                       COALESCE(u.locked, 0) AS is_locked,
+                       COALESCE(u.active, 1) AS is_user_active
+                FROM client_user_telemetry t
+                LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username)
+                LEFT JOIN (
+                    SELECT machine_id, LOWER(username) AS uname, work_date, COUNT(*) AS session_count
+                    FROM client_user_session_log
+                    WHERE machine_id = ? AND work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+                    GROUP BY machine_id, LOWER(username), work_date
+                ) sl ON sl.machine_id = t.machine_id AND sl.uname = LOWER(t.username) AND sl.work_date = t.work_date
+                WHERE t.machine_id = ?
+                  AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+                  AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL OR t.work_date = CAST(? AS date))
+                ORDER BY t.work_date DESC, is_active_now DESC, COALESCE(t.total_seconds_today, 0) DESC, t.last_heartbeat DESC, t.username ASC
+            """, todayIst, machineId, from, to, machineId, from, to, todayIst);
+        }
+
+        return jdbc.queryForList("""
+            SELECT t.id, t.machine_id, t.company_name, t.username, t.role_code, t.work_date,
+                   t.first_login_today,
+                   COALESCE(t.last_logout_today, t.last_heartbeat) AS last_logout_today,
+                   t.last_heartbeat,
+                   COALESCE(t.total_seconds_today, 0) AS total_seconds_today,
+                   (t.work_date = CAST(? AS date) AND COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now,
+                   CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN 1 ELSE 0 END AS days_active,
+                   CASE WHEN COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL THEN 1 ELSE 0 END AS session_count,
+                   COALESCE(u.locked, 0) AS is_locked,
+                   COALESCE(u.active, 1) AS is_user_active
+            FROM client_user_telemetry t
+            LEFT JOIN users u ON LOWER(u.username) = LOWER(t.username)
+            WHERE t.machine_id = ?
+              AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+              AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL OR t.work_date = CAST(? AS date))
+            ORDER BY t.work_date DESC, is_active_now DESC, COALESCE(t.total_seconds_today, 0) DESC, t.last_heartbeat DESC, t.username ASC
+        """, todayIst, machineId, from, to, todayIst);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getClientUserDailyBreakdown(String rawMachine, String username, String fromStr, String toStr) {
+        if (rawMachine == null || rawMachine.isBlank() || username == null || username.isBlank()) {
+            return List.of();
+        }
+        String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+        String cleanUsername = username.trim();
+        java.time.LocalDate businessToday = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        String todayIst = businessToday.toString();
+        String from = (fromStr != null && !fromStr.isBlank()) ? fromStr.trim() : businessToday.minusDays(30).toString();
+        String to = (toStr != null && !toStr.isBlank()) ? toStr.trim() : todayIst;
+        if (from.compareTo(to) > 0) {
+            String tmp = from;
+            from = to;
+            to = tmp;
+        }
+
+        List<Map<String, Object>> dailyRows = jdbc.queryForList("""
+            SELECT t.work_date,
+                   t.username,
+                   t.role_code,
+                   t.first_login_today,
+                   t.last_logout_today,
+                   t.last_heartbeat,
+                   COALESCE(t.last_logout_today, t.last_heartbeat) AS effective_end_time,
+                   COALESCE(t.total_seconds_today, 0) AS total_seconds_today,
+                   (t.work_date = CAST(? AS date) AND COALESCE(t.is_active_now, false) AND t.last_heartbeat >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active_now
+            FROM client_user_telemetry t
+            WHERE t.machine_id = ?
+              AND LOWER(t.username) = LOWER(?)
+              AND t.work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+              AND (COALESCE(t.total_seconds_today, 0) > 0 OR t.first_login_today IS NOT NULL)
+            ORDER BY t.work_date DESC
+        """, todayIst, machineId, cleanUsername, from, to);
+
+        Map<String, List<Map<String, Object>>> segmentsByDate = new LinkedHashMap<>();
+        if (hasSessionLogTable()) {
+            List<Map<String, Object>> allSegments = jdbc.queryForList("""
+                SELECT work_date,
+                       session_start,
+                       session_end,
+                       COALESCE(duration_seconds, 0) AS duration_seconds,
+                       (work_date = CAST(? AS date) AND COALESCE(is_active, false) AND session_end >= CURRENT_TIMESTAMP - INTERVAL '3 minutes') AS is_active
+                FROM client_user_session_log
+                WHERE machine_id = ?
+                  AND LOWER(username) = LOWER(?)
+                  AND work_date BETWEEN CAST(? AS date) AND CAST(? AS date)
+                ORDER BY work_date DESC, session_start ASC
+            """, todayIst, machineId, cleanUsername, from, to);
+
+            for (Map<String, Object> seg : allSegments) {
+                String dateKey = String.valueOf(seg.get("work_date"));
+                segmentsByDate.computeIfAbsent(dateKey, k -> new ArrayList<>()).add(seg);
+            }
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> dayRow : dailyRows) {
+            String workDate = String.valueOf(dayRow.get("work_date"));
+            List<Map<String, Object>> segments = segmentsByDate.getOrDefault(workDate, List.of());
+            if (!segments.isEmpty()) {
+                int sessionNum = 1;
+                for (Map<String, Object> seg : segments) {
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("session_number", sessionNum++);
+                    entry.put("work_date", dayRow.get("work_date"));
+                    entry.put("username", dayRow.get("username"));
+                    entry.put("role_code", dayRow.get("role_code"));
+                    entry.put("session_start", seg.get("session_start"));
+                    entry.put("session_end", seg.get("session_end"));
+                    entry.put("first_login_today", seg.get("session_start"));
+                    entry.put("effective_end_time", seg.get("session_end"));
+                    entry.put("duration_seconds", seg.get("duration_seconds"));
+                    entry.put("total_seconds_today", seg.get("duration_seconds"));
+                    entry.put("day_total_seconds", dayRow.get("total_seconds_today"));
+                    boolean activeSeg = Boolean.TRUE.equals(seg.get("is_active")) && Boolean.TRUE.equals(dayRow.get("is_active_now"));
+                    entry.put("is_active_now", activeSeg);
+                    result.add(entry);
+                }
+            } else {
+                Map<String, Object> fallback = new LinkedHashMap<>(dayRow);
+                fallback.put("session_number", 1);
+                fallback.put("session_start", dayRow.get("first_login_today"));
+                fallback.put("session_end", dayRow.get("effective_end_time"));
+                fallback.put("duration_seconds", dayRow.get("total_seconds_today"));
+                fallback.put("day_total_seconds", dayRow.get("total_seconds_today"));
+                result.add(fallback);
+            }
+        }
+        return result;
     }
 
     @Transactional
@@ -1058,7 +1408,7 @@ public class ClientRegistryService {
                     <p style="color: #cbd5e1; font-size: 14px; margin-top: 16px;">
                       An unauthorized or unlicensed local workstation has connected to the Jasvi ecosystem without an active plan or purchase.
                     </p>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px;">
+                    <table style="width: 100%%; border-collapse: collapse; margin-top: 16px; font-size: 13px;">
                       <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Organization / Company:</td><td style="padding: 8px; font-weight: bold; color: #f8fafc;">%s</td></tr>
                       <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Terminal / Machine ID:</td><td style="padding: 8px; font-family: monospace; color: #38bdf8;">%s</td></tr>
                       <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Public IP Address:</td><td style="padding: 8px; font-family: monospace; color: #cbd5e1;">%s</td></tr>

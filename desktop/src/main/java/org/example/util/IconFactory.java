@@ -628,11 +628,9 @@ public final class IconFactory {
             String colourName = colour(semantic);
             item.getStyleClass().removeIf(style -> style.startsWith("erp-menu-semantic-"));
             item.getStyleClass().add("erp-menu-semantic-" + colourName);
-            String hex = hexColor(colourName);
             String existingStyle = item.getStyle();
-            String colorStyle = "-fx-text-fill: " + hex + ";";
             String cleanedStyle = existingStyle == null ? "" : existingStyle.replaceAll("-fx-text-fill:[^;]+;?", "").trim();
-            item.setStyle(cleanedStyle.isEmpty() ? colorStyle : cleanedStyle + " " + colorStyle);
+            item.setStyle(cleanedStyle);
         }
     }
 
@@ -647,13 +645,6 @@ public final class IconFactory {
         String colourName = colour(semantic);
         String hex = hexColor(colourName);
         glyph.setIconColor(Color.web(hex));
-        String existingStyle = glyph.getStyle();
-        String colorStyle = "-fx-icon-color: " + hex + ";";
-        if (existingStyle == null || existingStyle.isBlank()) {
-            glyph.setStyle(colorStyle);
-        } else {
-            glyph.setStyle(existingStyle.trim() + " " + colorStyle);
-        }
         glyph.getStyleClass().addAll(
             "erp-action-glyph",
             "erp-action-glyph-" + colourName
@@ -818,6 +809,12 @@ public final class IconFactory {
         if (button.getStyleClass().contains("square-action")
                 || button.getStyleClass().contains("approved-quick-action")
                 || button.getStyleClass().contains("shortcut-group-button")) return;
+        if (button.getStyleClass().contains("top-user")) {
+            button.getStyleClass().removeAll(BUTTON_VARIANTS);
+            button.getStyleClass().remove("erp-action-button");
+            button.getStyleClass().removeIf(style -> style != null && style.startsWith("erp-semantic-"));
+            return;
+        }
         if (button.getStyleClass().contains("settings-tab-btn")) {
             button.getStyleClass().removeAll(BUTTON_VARIANTS);
             button.getStyleClass().remove("erp-action-button");
@@ -1187,6 +1184,14 @@ public final class IconFactory {
             case "showcase" -> "fas-cube";
             case "security-session" -> "fas-shield-alt";
             case "template" -> "fas-file-alt";
+            case "circle", "dot" -> "fas-circle";
+            case "active", "online" -> "fas-check-circle";
+            case "telemetry" -> "fas-clock";
+            case "kick" -> "fas-user-slash";
+            case "release" -> "fas-unlock";
+            case "hardware" -> "fas-desktop";
+            case "server" -> "fas-server";
+            case "cloud" -> "fas-cloud";
             default -> "fas-question-circle";
         };
     }
@@ -1196,8 +1201,8 @@ public final class IconFactory {
         String registered = UiSemanticRegistry.colour(semantic);
         if (registered != null) return registered;
         return switch (semantic) {
-            case "amount", "sale", "sales-order", "complete", "add", "import", "whatsapp", "save", "validate", "approve", "publish" -> "green";
-            case "export", "excel", "csv" -> "blue";
+            case "amount", "sale", "sales-order", "complete", "add", "import", "whatsapp", "save", "validate", "approve", "publish", "active", "online" -> "green";
+            case "export", "excel", "csv", "telemetry", "cloud" -> "blue";
             case "balance", "purchase", "purchase-order", "goods-receipt", "item", "reminder", "warning", "snooze", "quantity", "tax", "gstin", "discount", "category", "minimum", "source", "reference", "rollback", "package", "set-default", "transporter", "vehicle", "lock" -> "orange";
             case "quotation", "document", "master", "return", "settings", "more", "actions", "status", "reopen", "role", "reset", "notes", "print", "application", "calendar", "audit", "archive", "duplicate", "barcode", "template", "admin", "administrator" -> "purple";
             case "report", "delete", "error", "cancel", "pdf", "debit", "reject", "exit" -> "pink";
@@ -1317,6 +1322,7 @@ public final class IconFactory {
         if (value.contains("disabled") || value.contains("inactive")) return "dismiss";
 
         // Specific actions must win before broad business nouns.
+        if (value.startsWith("refresh") || value.contains("refresh ")) return "refresh";
         if (value.contains("telemetry") || value.contains("work hours")) return "telemetry";
         if (value.contains("kick active") || value.contains("kick")) return "kick";
         if (value.contains("release workstation") || value.contains("release seat")) return "release";
@@ -1451,7 +1457,8 @@ public final class IconFactory {
         if (value.contains("rectangle")) return "category";
         if (value.equals("line")) return "line";
         if (value.contains("dashboard")) return "dashboard";
-        if (value.equals("today") || value.equals("yesterday") || value.contains("days") || value.contains("month") || value.contains("year") || value.contains("all time") || value.contains("period") || value.contains("custom range") || value.contains("this fy") || value.contains("financial year") || value.contains("quarter") || value.equals("fy")) return "calendar";
+        if (value.equals("today") || value.equals("yesterday") || value.contains("week") || value.contains("days") || value.contains("month") || value.contains("year") || value.contains("all time") || value.contains("period") || value.contains("custom range") || value.contains("this fy") || value.contains("financial year") || value.contains("quarter") || value.equals("fy") || value.contains("day-wise") || value.contains("day wise") || value.contains("selected day")) return "calendar";
+        if (value.contains("user summary")) return "users";
         if (value.contains("dark")) return "moon";
         if (value.contains("light")) return "sun";
         if (value.contains("logout") || value.contains("sign out")) return "exit";

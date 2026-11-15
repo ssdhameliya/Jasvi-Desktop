@@ -964,13 +964,13 @@ public final class ProfessionalUiEnhancer {
                         String newText = newVal.trim();
                         column.getProperties().put("erp-header-label", newText);
                         javafx.application.Platform.runLater(() -> {
-                            if (!column.getText().isEmpty()) {
-                                column.setText("");
-                            }
                             String sem = UiSemanticRegistry.headerSemantic(newText);
                             if (sem == null) sem = headerSemantic(newText, column.getId());
                             if (sem == null && !newText.isBlank()) sem = fallbackHeaderSemantic(newText, column.getId());
                             if (sem != null) {
+                                if (!column.getText().isEmpty()) {
+                                    column.setText("");
+                                }
                                 String sig = newText + "|" + sem;
                                 column.getProperties().put("erp-header-signature", sig);
                                 column.getProperties().put("erp-header-semantic", sem);
@@ -1073,8 +1073,10 @@ public final class ProfessionalUiEnhancer {
         if (key.contains("role")) return "role";
 
         if (key.contains("date") || key.contains("created on") || key.contains("created at")
-            || key.contains("updated") || key.contains("last login") || key.contains("timestamp")
-            || key.contains("time")) return "calendar";
+            || key.contains("updated") || key.contains("last login") || key.contains("login")
+            || key.contains("logout") || key.contains("disconnect") || key.contains("timestamp")
+            || key.contains("time") || key.contains("duration") || key.contains("work")) return "calendar";
+        if (key.contains("session")) return "telemetry";
         if (key.contains("supplier") || key.contains("vendor")) return "supplier";
         if (key.contains("customer supplier") || key.equals("party") || key.contains("party name")
             || key.contains("received from")) return "customer";

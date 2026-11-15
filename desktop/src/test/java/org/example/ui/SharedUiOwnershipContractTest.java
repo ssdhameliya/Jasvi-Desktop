@@ -116,6 +116,33 @@ class SharedUiOwnershipContractTest {
     }
 
     @Test
+    void lightAndDarkThemesMaintainStrictLineByLineSymmetry() throws Exception {
+        List<String> light = Files.readAllLines(Path.of("src/main/resources/css/light-theme.css"));
+        List<String> dark = Files.readAllLines(Path.of("src/main/resources/css/dark-theme.css"));
+
+        assertEquals(light.size(), dark.size(),
+                "Total line count must match exactly between light-theme.css (" + light.size() + ") and dark-theme.css (" + dark.size() + ")");
+
+        for (int i = 0; i < light.size(); i++) {
+            String l = light.get(i).strip();
+            String d = dark.get(i).strip();
+            int lineNo = i + 1;
+
+            assertEquals(l.isEmpty(), d.isEmpty(), "Blank line mismatch at line " + lineNo);
+            assertEquals(l.equals("}"), d.equals("}"), "Closing brace mismatch at line " + lineNo);
+            if (l.endsWith("{") || d.endsWith("{")) {
+                assertEquals(l, d.replace(".dse-theme-dark", ".dse-theme-light"),
+                        "Selector mismatch at line " + lineNo + " (Light: '" + l + "', Dark: '" + d + "')");
+            } else if (l.contains(":") && d.contains(":") && !l.startsWith("/*") && !l.startsWith("*")) {
+                String propL = l.split(":", 2)[0].strip();
+                String propD = d.split(":", 2)[0].strip();
+                assertEquals(propL, propD,
+                        "CSS property mismatch at line " + lineNo + " (Light: '" + propL + "', Dark: '" + propD + "')");
+            }
+        }
+    }
+
+    @Test
     void coreControllersDoNotOwnHardCodedPresentationColoursAndBlankFxmlButtonsAreExplicit() throws Exception {
         Path controllers = Path.of("src/main/java/org/example/controller");
         List<String> colourLeaks = new ArrayList<>();
@@ -195,4 +222,98 @@ class SharedUiOwnershipContractTest {
         assertTrue(themes.contains("ownerThemeUrl(owner)"));
     }
 
+    @Test
+    void profileMenuIconsStayColorfulSearchShellsKeepVisibleBordersAndTrendPillsAvoidMockPercentages() throws Exception {
+        String iconFactory = Files.readString(Path.of("src/main/java/org/example/util/IconFactory.java"));
+        assertTrue(iconFactory.contains("button.getStyleClass().contains(\"top-user\")"),
+                "IconFactory must exclude top-user from solid teal button styling so menuUser and its dropdown keep semantic colours");
+
+        for (String theme : List.of("light-theme.css", "dark-theme.css")) {
+            String css = Files.readString(Path.of("src/main/resources/css", theme));
+            int solidWhiteRuleIndex = css.indexOf(".approved-teal-button .erp-action-glyph");
+            int topUserSemanticIndex = css.indexOf(".top-user .erp-action-glyph.erp-action-glyph-blue");
+            int menuSemanticIndex = css.indexOf(".context-menu .menu-item.erp-menu-semantic-purple .erp-action-glyph");
+            assertTrue(solidWhiteRuleIndex >= 0, theme + " missing solid button glyph rule");
+            assertTrue(topUserSemanticIndex > solidWhiteRuleIndex,
+                    theme + " must override solid white glyph rule for .top-user");
+            assertTrue(menuSemanticIndex > solidWhiteRuleIndex,
+                    theme + " must override solid white glyph rule for .context-menu items");
+
+            Matcher shellMatcher = Pattern.compile("\\.register-header-search-shell\\s*\\{([^}]*)}").matcher(css);
+            assertTrue(shellMatcher.find(), theme + " missing .register-header-search-shell rule");
+            String shellBody = shellMatcher.group(1);
+            assertFalse(shellBody.contains("-fx-border-color: transparent"),
+                    theme + " must keep a visible outer border on unfocused register search shells");
+            assertTrue(shellBody.contains("-fx-border-width: 1.2px"),
+                    theme + " must declare an explicit outer border width on register search shells");
+            assertTrue(css.contains(".register-header-search-shell.erp-input-active-focused"),
+                    theme + " must style focused register search shells cleanly");
+        }
+
+        Pattern labelPattern = Pattern.compile("<Label\\b([^>]*)>", Pattern.DOTALL);
+        try (var fxmlPaths = Files.walk(Path.of("src/main/resources/fxml"))) {
+            List<Path> files = fxmlPaths.filter(p -> p.toString().endsWith(".fxml")).toList();
+            assertFalse(files.isEmpty(), "Expected FXML pages for audit");
+            for (Path fxml : files) {
+                String content = Files.readString(fxml);
+                Matcher labelMatcher = labelPattern.matcher(content);
+                while (labelMatcher.find()) {
+                    String attrs = labelMatcher.group(1);
+                    if (!attrs.contains("metric-trend-pill")) continue;
+                    Matcher textMatcher = TEXT.matcher(attrs);
+                    if (textMatcher.find()) {
+                        String pillText = textMatcher.group(1);
+                        assertFalse(pillText.contains("%"),
+                                fxml.getFileName() + " contains hardcoded percentage mock trend pill: " + pillText);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void testLightThemeTableRowSelectionAndContextMenuIsolation() throws Exception {
+        String lightCss = Files.readString(Path.of("src/main/resources/css/light-theme.css"));
+        String darkCss = Files.readString(Path.of("src/main/resources/css/dark-theme.css"));
+
+        // 1. Light theme table row selection must NOT be dark purple (#6d28d9 or #5b21b6)
+        Pattern selPattern = Pattern.compile("\\.table-row-cell:selected[^{]*\\{([^}]*)\\}");
+        Matcher m = selPattern.matcher(lightCss);
+        while (m.find()) {
+            String body = m.group(1);
+            if (body.contains("-fx-border-width: 0 0 1 4")) {
+                assertFalse(body.contains("#6d28d9"), "light-theme.css must not use dark purple #6d28d9 for table-row selection");
+                assertFalse(body.contains("#5b21b6"), "light-theme.css must not use dark purple #5b21b6 for table-row selection");
+            }
+        }
+
+        // 2. Light theme table row selection in app-dialog.css must NOT be dark purple (#6d28d9 or #5b21b6)
+        String appDialogCss = Files.readString(Path.of("src/main/resources/css/app-dialog.css"));
+        Pattern appDialogPattern = Pattern.compile("\\.dse-theme-light[^{]*table-row-cell:filled:selected[^{]*\\{([^}]*)\\}");
+        Matcher adm = appDialogPattern.matcher(appDialogCss);
+        while (adm.find()) {
+            String body = adm.group(1);
+            assertFalse(body.contains("#6d28d9"), "app-dialog.css must not use #6d28d9 for light theme table selection");
+            assertFalse(body.contains("#5b21b6"), "app-dialog.css must not use #5b21b6 for light theme table selection");
+        }
+
+        // 3. ClientRegistryController must distinguish Cloud Gateway vs Local Workstation
+        String clientRegistrySrc = Files.readString(Path.of("src/main/java/org/example/controller/ClientRegistryController.java"));
+        assertTrue(clientRegistrySrc.contains("Cloud Gateway") && clientRegistrySrc.contains("Local Workstation"),
+                "ClientRegistryController must display Cloud Gateway vs Local Workstation connection channel");
+        assertTrue(clientRegistrySrc.contains("Online • Cloud") && clientRegistrySrc.contains("Online • Local"),
+                "ClientRegistryController must distinguish Online • Cloud and Online • Local in user session telemetry");
+
+        // 2. ContextMenu action glyphs and semantic labels must be present in both themes
+        for (String colour : List.of("blue", "green", "orange", "purple", "pink", "teal", "indigo")) {
+            assertTrue(lightCss.contains(".context-menu .menu-item.erp-menu-semantic-" + colour + " .label"),
+                    "light-theme.css missing context-menu semantic label for " + colour);
+            assertTrue(darkCss.contains(".context-menu .menu-item.erp-menu-semantic-" + colour + " .label"),
+                    "dark-theme.css missing context-menu semantic label for " + colour);
+            assertTrue(lightCss.contains("erp-action-glyph-" + colour),
+                    "light-theme.css missing action glyph for " + colour);
+            assertTrue(darkCss.contains("erp-action-glyph-" + colour),
+                    "dark-theme.css missing action glyph for " + colour);
+        }
+    }
 }

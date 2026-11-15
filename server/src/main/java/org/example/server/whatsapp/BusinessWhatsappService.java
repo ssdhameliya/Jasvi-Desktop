@@ -12,8 +12,11 @@ import org.example.server.util.BusinessClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.*;
 
@@ -27,6 +30,7 @@ public class BusinessWhatsappService {
     private final CanonicalDocumentService canonicalDocs;
     private final SupportService supportService;
     private final AuditService audit;
+    private final TransactionTemplate requiresNewTx;
 
     public BusinessWhatsappService(
             WahaApiClient wahaClient,
@@ -34,13 +38,16 @@ public class BusinessWhatsappService {
             JpaNativeRepository jdbc,
             CanonicalDocumentService canonicalDocs,
             SupportService supportService,
-            AuditService audit) {
+            AuditService audit,
+            PlatformTransactionManager transactionManager) {
         this.wahaClient = wahaClient;
         this.channelRepo = channelRepo;
         this.jdbc = jdbc;
         this.canonicalDocs = canonicalDocs;
         this.supportService = supportService;
         this.audit = audit;
+        this.requiresNewTx = new TransactionTemplate(transactionManager);
+        this.requiresNewTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     private String getSetting(String key, String def) {
@@ -55,11 +62,13 @@ public class BusinessWhatsappService {
     }
 
     private void updateSetting(String key, String value) {
-        jdbc.update(
-                "INSERT INTO application_setting (setting_key, setting_value, updated_at) " +
-                        "VALUES (?, ?, CURRENT_TIMESTAMP) " +
-                        "ON CONFLICT (setting_key) DO UPDATE SET setting_value=EXCLUDED.setting_value, updated_at=CURRENT_TIMESTAMP",
-                key, value == null ? "" : value);
+        requiresNewTx.executeWithoutResult(status -> {
+            jdbc.update(
+                    "INSERT INTO application_setting (setting_key, setting_value, updated_at) " +
+                            "VALUES (?, ?, CURRENT_TIMESTAMP) " +
+                            "ON CONFLICT (setting_key) DO UPDATE SET setting_value=EXCLUDED.setting_value, updated_at=CURRENT_TIMESTAMP",
+                    key, value == null ? "" : value);
+        });
     }
 
     private Long getSettingLong(String key, Long def) {
@@ -398,26 +407,28 @@ public class BusinessWhatsappService {
     public void recordDocumentCommunicationAudit(String entityType, Integer entityId, String recipientPhone,
                                                  String docNumber, boolean success, String errorMessage) {
         try {
-            String status = success ? "SENT" : "FAILED";
-            String username = "SYSTEM";
-            try { username = CurrentUser.require().username(); } catch (Exception ignored) {}
+            requiresNewTx.executeWithoutResult(txStatus -> {
+                String status = success ? "SENT" : "FAILED";
+                String username = "SYSTEM";
+                try { username = CurrentUser.require().username(); } catch (Exception ignored) {}
 
-            String resolvedType = entityType != null ? entityType.toUpperCase(Locale.ROOT) : "COMMUNICATION";
-            int resolvedId = entityId != null ? entityId : 0;
+                String resolvedType = entityType != null ? entityType.toUpperCase(Locale.ROOT) : "COMMUNICATION";
+                int resolvedId = entityId != null ? entityId : 0;
 
-            jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
-                            "VALUES (?, ?, 'WHATSAPP', ?, ?, ?, ?, ?, ?)",
-                    resolvedType, resolvedId, recipientPhone,
-                    "WhatsApp: " + (docNumber != null ? docNumber : "Direct Message"),
-                    status, errorMessage, username, BusinessClock.nowUtcText());
+                jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
+                                "VALUES (?, ?, 'WHATSAPP', ?, ?, ?, ?, ?, ?)",
+                        resolvedType, resolvedId, recipientPhone,
+                        "WhatsApp: " + (docNumber != null ? docNumber : "Direct Message"),
+                        status, errorMessage, username, BusinessClock.nowUtcText());
 
-            if (success && resolvedId > 0) {
-                if ("SALE".equalsIgnoreCase(resolvedType) || "SALES_INVOICE".equalsIgnoreCase(resolvedType)) {
-                    jdbc.update("UPDATE sales_header SET whatsapp_sent = 1 WHERE id = ?", resolvedId);
-                } else if ("QUOTATION".equalsIgnoreCase(resolvedType)) {
-                    jdbc.update("UPDATE quotation_header SET whatsapp_sent = 1 WHERE id = ?", resolvedId);
+                if (success && resolvedId > 0) {
+                    if ("SALE".equalsIgnoreCase(resolvedType) || "SALES_INVOICE".equalsIgnoreCase(resolvedType)) {
+                        jdbc.update("UPDATE sales_header SET whatsapp_sent = 1 WHERE id = ?", resolvedId);
+                    } else if ("QUOTATION".equalsIgnoreCase(resolvedType)) {
+                        jdbc.update("UPDATE quotation_header SET whatsapp_sent = 1 WHERE id = ?", resolvedId);
+                    }
                 }
-            }
+            });
         } catch (Exception logEx) {
             log.warn("Failed to write communication audit log for WhatsApp: {}", logEx.getMessage());
         }
@@ -444,13 +455,15 @@ public class BusinessWhatsappService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordTextCommunicationAudit(String recipientPhone, boolean success, String errorMessage) {
         try {
-            String status = success ? "SENT" : "FAILED";
-            String username = "SYSTEM";
-            try { username = CurrentUser.require().username(); } catch (Exception ignored) {}
+            requiresNewTx.executeWithoutResult(txStatus -> {
+                String status = success ? "SENT" : "FAILED";
+                String username = "SYSTEM";
+                try { username = CurrentUser.require().username(); } catch (Exception ignored) {}
 
-            jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
-                            "VALUES ('WHATSAPP_MESSAGE', 0, 'WHATSAPP', ?, 'Direct WhatsApp Message', ?, ?, ?, ?)",
-                    recipientPhone, status, errorMessage, username, BusinessClock.nowUtcText());
+                jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
+                                "VALUES ('WHATSAPP_MESSAGE', 0, 'WHATSAPP', ?, 'Direct WhatsApp Message', ?, ?, ?, ?)",
+                        recipientPhone, status, errorMessage, username, BusinessClock.nowUtcText());
+            });
         } catch (Exception logEx) {
             log.warn("Failed to record text communication log: {}", logEx.getMessage());
         }

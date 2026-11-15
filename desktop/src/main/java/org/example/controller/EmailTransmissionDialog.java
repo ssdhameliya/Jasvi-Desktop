@@ -152,11 +152,36 @@ public class EmailTransmissionDialog {
         }
         if (btnLiveStatusSample != null) {
             btnLiveStatusSample.setOnAction(ev -> {
-                if (draft != null && draft.publicStatusUrl() != null && !draft.publicStatusUrl().isBlank()) {
-                    try {
-                        java.awt.Desktop.getDesktop().browse(java.net.URI.create(draft.publicStatusUrl()));
-                    } catch (Exception ignored) {}
+                if (draft == null || draft.publicStatusUrl() == null || draft.publicStatusUrl().isBlank()) {
+                    Alert info = new org.example.util.OwnedAlert(Alert.AlertType.INFORMATION);
+                    info.setTitle("Live Tracking Status");
+                    info.setHeaderText("Status Link Notification");
+                    info.setContentText("Live settlement and status verification URL is generated for confirmed payment advice or invoice records.");
+                    info.showAndWait();
+                    return;
                 }
+                String url = draft.publicStatusUrl();
+                UiTaskExecutor.submitAction("open-live-status-url", () -> {
+                    boolean launched = false;
+                    if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                        try {
+                            Desktop.getDesktop().browse(java.net.URI.create(url));
+                            launched = true;
+                        } catch (Exception ignored) {}
+                    }
+                    if (!launched) {
+                        try {
+                            new ProcessBuilder("cmd", "/c", "start", '\"' + url + '\"').start();
+                            launched = true;
+                        } catch (Exception ignored) {}
+                    }
+                    if (!launched) {
+                        throw new IllegalStateException("System default browser could not be launched for URL: " + url);
+                    }
+                    return Boolean.TRUE;
+                }, ok -> {}, failure -> {
+                    showError("Could not launch web browser for live tracking status:\n\n" + failure.getMessage() + "\n\nURL: " + url);
+                });
             });
         }
         if (txtRecipient != null) {

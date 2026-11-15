@@ -182,10 +182,22 @@ public class ClientRegistryController {
             @PathVariable String machineId,
             @RequestParam(required = false) String date,
             @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false, defaultValue = "DAILY") String viewMode
+    ) {
+        requireSuperAdmin();
+        return registryService.getClientUserTelemetry(machineId, date, from, to, viewMode);
+    }
+
+    @GetMapping("/clients/{machineId}/users/{username}/history")
+    public List<Map<String, Object>> getClientUserDailyHistory(
+            @PathVariable String machineId,
+            @PathVariable String username,
+            @RequestParam(required = false) String from,
             @RequestParam(required = false) String to
     ) {
         requireSuperAdmin();
-        return registryService.getClientUserTelemetry(machineId, date, from, to);
+        return registryService.getClientUserDailyBreakdown(machineId, username, from, to);
     }
 
     @PostMapping("/clients/{machineId}/release")

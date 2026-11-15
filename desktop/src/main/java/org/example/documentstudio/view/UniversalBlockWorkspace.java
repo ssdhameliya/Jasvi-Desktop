@@ -91,7 +91,7 @@ public final class UniversalBlockWorkspace extends BorderPane {
 
         VBox bannerBox = new VBox(6, title, subtitle);
         bannerBox.setPadding(new Insets(16));
-        bannerBox.setStyle("-fx-background-color: #f8fafc; -fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
+        bannerBox.getStyleClass().add("dse-universal-block-banner");
         return bannerBox;
     }
 
@@ -108,7 +108,7 @@ public final class UniversalBlockWorkspace extends BorderPane {
         card.setPrefSize(270, 165);
         card.setMaxSize(270, 165);
         card.setPadding(new Insets(14));
-        card.setStyle("-fx-background-color: #ffffff; -fx-border-color: #cbd5e1; -fx-border-radius: 8; -fx-background-radius: 8;");
+        card.getStyleClass().add("dse-universal-block-card");
 
         Node iconNode = SemanticIconManager.compact(block.icon(), 20);
         Label title = new Label(block.displayName());
@@ -128,9 +128,9 @@ public final class UniversalBlockWorkspace extends BorderPane {
 
         long mappedCount = countMappedFields(block);
         Label status = new Label(mappedCount > 0 ? (mappedCount + " fields mapped ✓") : "Not mapped");
-        status.setStyle(mappedCount > 0
-                ? "-fx-font-size: 11px; -fx-text-fill: #166534; -fx-font-weight: bold;"
-                : "-fx-font-size: 11px; -fx-text-fill: #94a3b8;");
+        status.getStyleClass().add(mappedCount > 0
+                ? "dse-universal-block-status-mapped"
+                : "dse-universal-block-status");
 
         Button btnOpen = new Button("Map Block →");
         btnOpen.getStyleClass().addAll("approved-button", "approved-primary-button");
