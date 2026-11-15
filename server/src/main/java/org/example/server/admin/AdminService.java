@@ -132,11 +132,16 @@ public class AdminService {
     public List<AdminDtos.UserDto> users() {
         boolean superAdmin = isSuperAdminCaller();
         return jdbc.query("SELECT u.id,u.username,u.full_name,u.email,u.phone,COALESCE(NULLIF(TRIM(u.role),''),'SALES')," +
-                        "u.department,u.access_level,u.branch,u.active,u.locked,u.mfa_enabled,COALESCE(NULLIF(u.last_login_utc,''),CAST(u.last_login AS text)),COALESCE(u.row_version,0) " +
+                        "u.department,u.access_level,u.branch,u.active,u.locked,u.mfa_enabled,COALESCE(NULLIF(u.last_login_utc,''),CAST(u.last_login AS text)),COALESCE(u.row_version,0)," +
+                        "CASE WHEN COALESCE(u.mfa_enabled,0) = 0 THEN 'DISABLED' " +
+                        "WHEN u.totp_secret_enc IS NULL OR BTRIM(u.totp_secret_enc) = '' " +
+                        "OR EXISTS(SELECT 1 FROM auth_totp_enrollment_pending p WHERE p.user_id = u.id) THEN 'PENDING_SETUP' " +
+                        "ELSE 'ACTIVE' END AS mfa_status " +
                         "FROM users u ORDER BY u.full_name,u.username",
                 (row, index) -> new AdminDtos.UserDto(row.getInt(1), row.getString(2), row.getString(3), row.getString(4),
                         row.getString(5), row.getString(6), row.getString(7), row.getString(8), row.getString(9), flag(row.getObject(10)),
-                        flag(row.getObject(11)), flag(row.getObject(12)), BusinessClock.toUtcText(row.getObject(13)), row.getLong(14)))
+                        flag(row.getObject(11)), flag(row.getObject(12)), BusinessClock.toUtcText(row.getObject(13)), row.getLong(14),
+                        row.getString(15)))
                 .stream()
                 .filter(u -> superAdmin || (!"SUPER_ADMIN".equalsIgnoreCase(u.role()) && !"superadmin".equalsIgnoreCase(u.username())))
                 .toList();

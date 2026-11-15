@@ -55,6 +55,7 @@ public class LicenseRenewalDialogController {
     @FXML private Button btnCopyMachineId;
     @FXML private Label lblCompany;
     @FXML private Label lblTier;
+    @FXML private Label lblServerHost;
     @FXML private Label lblValidUntil;
     @FXML private Label lblDaysRemaining;
 
@@ -185,6 +186,12 @@ public class LicenseRenewalDialogController {
 
         if (lblCompany != null) lblCompany.setText(dto.companyName() != null ? dto.companyName() : "-");
         if (lblTier != null) lblTier.setText(dto.tier() != null ? dto.tier() : "GOLD");
+        if (lblServerHost != null) {
+            String sHost = dto.currentMachineId() != null && !dto.currentMachineId().isBlank()
+                    ? dto.currentMachineId()
+                    : (dto.machineId() != null && !dto.machineId().isBlank() ? dto.machineId() : "Oracle Cloud Host");
+            lblServerHost.setText(sHost);
+        }
         if (lblValidUntil != null) {
             String formattedDate = "-";
             if (dto.validUntil() != null) {

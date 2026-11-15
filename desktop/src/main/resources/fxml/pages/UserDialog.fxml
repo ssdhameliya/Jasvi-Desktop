@@ -48,11 +48,17 @@
                             <TextField fx:id="txtUsername" promptText="Enter unique login username" styleClass="approved-input"/>
                         </VBox>
                         <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="2">
-                            <Label text="Official Email Address *" styleClass="field-label"/>
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label text="Official Email Address *" styleClass="field-label"/>
+                                <Button fx:id="btnEmailInfo" styleClass="icon-button,erp-info-icon-btn" visible="false" managed="false"/>
+                            </HBox>
                             <TextField fx:id="txtEmail" promptText="name@company.com" styleClass="approved-input"/>
                         </VBox>
                         <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="0">
-                            <Label text="Phone / Mobile *" styleClass="field-label"/>
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label text="Phone / Mobile *" styleClass="field-label"/>
+                                <Button fx:id="btnPhoneInfo" styleClass="icon-button,erp-info-icon-btn" visible="false" managed="false"/>
+                            </HBox>
                             <TextField fx:id="txtPhone" promptText="10-digit mobile number" styleClass="approved-input"/>
                         </VBox>
                         <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="1">

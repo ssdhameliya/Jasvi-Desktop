@@ -397,8 +397,14 @@ public final class UiTaskExecutor {
 
         try {
             PerformanceMonitor.event("background-work-failed", key + " | " + safeMessage(error));
+            if (!isPreAuthKey(key) && isAuthenticationFailure(error)) {
+                DesktopLog.info("UiTaskExecutor", "SESSION_SUPERSEDED", key + " | Session expired or signed in from another computer: " + safeMessage(error));
+                org.example.api.ApiSession.notifySessionRevoked("Your account was signed in from another computer.");
+                logSkipped(key, token, "suppressed-after-session-revocation");
+                return;
+            }
             DesktopLog.error("UiTaskExecutor", "READ_FAILED", key + " | " + safeMessage(error), error);
-            if (!isPreAuthKey(key) && (!org.example.api.ApiSession.isEstablished() || isAuthenticationFailure(error))) {
+            if (!isPreAuthKey(key) && !org.example.api.ApiSession.isEstablished()) {
                 logSkipped(key, token, "suppressed-after-logout");
                 return;
             }
@@ -459,8 +465,9 @@ public final class UiTaskExecutor {
         try {
             PerformanceMonitor.event("background-action-failed", key + " | " + safeMessage(error));
             if (!isPreAuthKey(key) && (!org.example.api.ApiSession.isEstablished() || isAuthenticationFailure(error))) {
-                DesktopLog.info("UiTaskExecutor", "ACTION_SUPPRESSED_UNAUTHENTICATED",
+                DesktopLog.info("UiTaskExecutor", "SESSION_SUPERSEDED",
                         key + " | Session not established or expired: " + safeMessage(error));
+                org.example.api.ApiSession.notifySessionRevoked("Your account was signed in from another computer.");
                 return;
             }
             DesktopLog.error("UiTaskExecutor", "ACTION_FAILED", key + " | " + safeMessage(error), error);

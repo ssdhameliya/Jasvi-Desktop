@@ -1,7 +1,11 @@
 package org.example.server.admin;
 import java.util.List;
 public final class AdminDtos { private AdminDtos(){}
- public record UserDto(int id,String username,String fullName,String email,String phone,String role,String department,String accessLevel,String branch,boolean active,boolean locked,boolean mfaEnabled,String lastLogin,long rowVersion){}
+ public record UserDto(int id,String username,String fullName,String email,String phone,String role,String department,String accessLevel,String branch,boolean active,boolean locked,boolean mfaEnabled,String lastLogin,long rowVersion,String mfaStatus){
+     public UserDto(int id,String username,String fullName,String email,String phone,String role,String department,String accessLevel,String branch,boolean active,boolean locked,boolean mfaEnabled,String lastLogin,long rowVersion){
+         this(id,username,fullName,email,phone,role,department,accessLevel,branch,active,locked,mfaEnabled,lastLogin,rowVersion,mfaEnabled?"ACTIVE":"DISABLED");
+     }
+ }
  public record UserSaveRequest(Integer id,String username,String password,String fullName,String email,String phone,String role,String department,String accessLevel,String branch,boolean active,boolean locked,boolean mfaEnabled,long rowVersion){}
  public record RoleDto(int id,String code,String displayName,String description,boolean active,long userCount){}
  public record RoleSaveRequest(Integer id,String name,String description,boolean active){}

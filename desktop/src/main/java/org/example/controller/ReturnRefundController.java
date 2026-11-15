@@ -121,15 +121,19 @@ public class ReturnRefundController implements ScreenLifecycle {
             private final MenuButton menu=new MenuButton("Actions");
             private final MenuItem preview=new MenuItem("Preview Proof",IconFactory.compactIcon("view",14));
             private final MenuItem remove=new MenuItem("Remove Proof",IconFactory.compactIcon("delete",14));
+            private final MenuItem sendDispatch = new MenuItem("Transmit Advice (Email & WhatsApp)", IconFactory.compactIcon("send", 14));
             private final MenuItem sendEmail = new MenuItem("Send Refund Advice Email", IconFactory.compactIcon("email", 14));
+            private final MenuItem sendWhatsapp = new MenuItem("Send WhatsApp Refund", IconFactory.compactIcon("whatsapp", 14));
             private final MenuItem previewEmail = new MenuItem("Preview Refund Email HTML", IconFactory.compactIcon("view", 14));
             {
                 menu.getStyleClass().add("row-actions");
                 menu.setGraphic(IconFactory.compactIcon("actions",14));
-                menu.getItems().addAll(preview,remove,sendEmail,previewEmail);
+                menu.getItems().addAll(preview,remove,sendDispatch,sendEmail,sendWhatsapp,previewEmail);
                 preview.setOnAction(e->previewRow(row()));
                 remove.setOnAction(e->removeRowProof(row()));
-                sendEmail.setOnAction(e->sendRefundEmail(row()));
+                sendDispatch.setOnAction(e->sendRefundEmail(row(), PaymentTransmissionDialog.ChannelPreference.BOTH));
+                sendEmail.setOnAction(e->sendRefundEmail(row(), PaymentTransmissionDialog.ChannelPreference.EMAIL_ONLY));
+                sendWhatsapp.setOnAction(e->sendRefundEmail(row(), PaymentTransmissionDialog.ChannelPreference.WHATSAPP_ONLY));
                 previewEmail.setOnAction(e->previewRefundEmailHtml(row()));
                 IconFactory.decorateActionMenu(menu);
             }
@@ -146,6 +150,11 @@ public class ReturnRefundController implements ScreenLifecycle {
                     sendEmail.setText("Resend Refund Advice Email");
                 } else {
                     sendEmail.setText("Send Refund Advice Email");
+                }
+                if (r != null && "SENT".equalsIgnoreCase(r.whatsappStatus())) {
+                    sendWhatsapp.setText("Resend WhatsApp Refund");
+                } else {
+                    sendWhatsapp.setText("Send WhatsApp Refund");
                 }
                 setGraphic(menu);
             }
@@ -224,6 +233,10 @@ public class ReturnRefundController implements ScreenLifecycle {
     }
 
     private void sendRefundEmail(ReturnApiClient.RefundRow row) {
+        sendRefundEmail(row, PaymentTransmissionDialog.ChannelPreference.BOTH);
+    }
+
+    private void sendRefundEmail(ReturnApiClient.RefundRow row, PaymentTransmissionDialog.ChannelPreference channelPref) {
         if (row == null || details == null || details.party() == null || details.party().isBlank()) return;
         try {
             boolean isSales = "SALES RETURN".equalsIgnoreCase(details.type());
@@ -263,6 +276,7 @@ public class ReturnRefundController implements ScreenLifecycle {
                     row.reference() == null ? "-" : row.reference(),
                     rDate,
                     row.notes() == null ? "" : row.notes(),
+                    channelPref != null ? channelPref : PaymentTransmissionDialog.ChannelPreference.BOTH,
                     this::load
             );
         } catch (Exception ex) {

@@ -1370,87 +1370,176 @@ public class BankStatementController implements ScreenLifecycle {
     }
 
     private void checkAndPromptPaymentConfirmationEmail(Row row, List<BankStatementApiClient.AllocationRequest> allocations) {
+        if (!ConfigManager.getBoolean("bank.promptRemittanceOnMatch.enabled", true)) return;
         if (!ConfigManager.getBoolean("bank.paymentConfirmationEmail.enabled", true) && !ConfigManager.getBoolean("whatsapp.paymentConfirmation.enabled", true)) return;
         if (allocations == null || allocations.isEmpty()) return;
 
-        for (var alloc : allocations) {
-            if ("SALE".equalsIgnoreCase(alloc.targetType())) {
-                try {
-                    var salesService = new org.example.service.SalesService();
-                    var allSales = salesService.getAll();
-                    org.example.model.Sales matchedSale = null;
-                    for (var s : allSales) {
-                        if (s != null && Objects.equals(s.getId(), alloc.targetId())) {
-                            matchedSale = s;
-                            break;
-                        }
-                    }
-                    if (matchedSale == null || matchedSale.getCustomer() == null) {
-                        continue;
-                    }
-                    String cEmail = matchedSale.getCustomer().getEmail() == null ? "" : matchedSale.getCustomer().getEmail().trim();
-                    String cPhone = matchedSale.getCustomer().getPhone() == null ? "" : matchedSale.getCustomer().getPhone().trim();
-                    if (cEmail.isBlank() && cPhone.isBlank()) {
-                        continue;
-                    }
+        final String dateText = row.dto.transactionDate() != null ? row.dto.transactionDate() : BusinessClock.formatDate(LocalDate.now());
+        LocalDate parsedDate = BusinessClock.parseDate(dateText);
+        final LocalDate paymentDate = parsedDate != null ? parsedDate : BusinessClock.today();
+        final String refNo = row.dto.reference() != null && !row.dto.reference().isBlank() ? row.dto.reference() : ("Bank Ref #" + row.dto.id());
 
-                    final org.example.model.Sales sale = matchedSale;
-                    final double allocAmount = alloc.amount();
-                    final String dateText = row.dto.transactionDate() != null ? row.dto.transactionDate() : BusinessClock.formatDate(LocalDate.now());
-                    final String refNo = row.dto.reference() != null && !row.dto.reference().isBlank() ? row.dto.reference() : ("Bank Ref #" + row.dto.id());
-                    final String narration = row.dto.description() != null ? row.dto.description() : ("Bank deposit for " + sale.getInvoiceNo());
-
-                    org.example.util.PaymentConfirmationPromptHelper.promptAndTransmit(
-                            table, sale, allocAmount, "Bank Transfer", refNo, LocalDate.parse(dateText), narration
-                    );
-                    break;
-                } catch (Exception ex) {
-                    System.err.println("[BankStatement] Failed to check for payment receipt prompt: " + ex.getMessage());
-                }
-            } else if ("PURCHASE".equalsIgnoreCase(alloc.targetType())) {
-                try {
-                    var purchaseService = new org.example.service.PurchaseService();
-                    var allPurchases = purchaseService.getAll();
-                    org.example.model.Purchase matchedPurchase = null;
-                    for (var p : allPurchases) {
-                        if (p != null && Objects.equals(p.getId(), alloc.targetId())) {
-                            matchedPurchase = p;
-                            break;
-                        }
+        // Retrieve created payment record IDs from latest transaction linkage
+        Map<String, Integer> paymentRecordIdByTarget = new HashMap<>();
+        try {
+            var latestTx = api.transaction(row.dto.id());
+            if (latestTx != null && latestTx.linkedAllocations() != null) {
+                for (var a : latestTx.linkedAllocations()) {
+                    if (a.paymentRecordId() != null && a.paymentRecordId() > 0 && a.targetType() != null && a.targetId() != null) {
+                        paymentRecordIdByTarget.put(a.targetType().toUpperCase(Locale.ROOT) + "_" + a.targetId(), a.paymentRecordId());
                     }
-                    if (matchedPurchase == null || matchedPurchase.getSupplier() == null) {
-                        continue;
-                    }
-                    String sEmail = matchedPurchase.getSupplier().getEmail() == null ? "" : matchedPurchase.getSupplier().getEmail().trim();
-                    String sPhone = matchedPurchase.getSupplier().getPhone() == null ? "" : matchedPurchase.getSupplier().getPhone().trim();
-                    if (sEmail.isBlank() && sPhone.isBlank()) {
-                        continue;
-                    }
-
-                    final org.example.model.Purchase purchase = matchedPurchase;
-                    final double allocAmount = alloc.amount();
-                    final String dateText = row.dto.transactionDate() != null ? row.dto.transactionDate() : BusinessClock.formatDate(LocalDate.now());
-                    final String refNo = row.dto.reference() != null && !row.dto.reference().isBlank() ? row.dto.reference() : ("Bank Ref #" + row.dto.id());
-                    final String narration = row.dto.description() != null ? row.dto.description() : ("Bank disbursement for " + purchase.getInvoiceNo());
-
-                    org.example.util.PaymentConfirmationPromptHelper.promptAndTransmitPurchase(
-                            table, purchase, allocAmount, "Bank Transfer", refNo, LocalDate.parse(dateText), narration
-                    );
-                    break;
-                } catch (Exception ex) {
-                    System.err.println("[BankStatement] Failed to check for purchase remittance advice prompt: " + ex.getMessage());
                 }
             }
+        } catch (Exception ignored) {}
+
+        // 1. Process PURCHASE allocations grouped by Supplier
+        try {
+            var purchaseService = new org.example.service.PurchaseService();
+            var allPurchases = purchaseService.getAll();
+            Map<Integer, org.example.model.Purchase> purchaseMap = new HashMap<>();
+            for (var p : allPurchases) {
+                if (p != null && p.getId() > 0) {
+                    purchaseMap.put(p.getId(), p);
+                }
+            }
+
+            Map<Integer, List<BankStatementApiClient.AllocationRequest>> allocsBySupplier = new LinkedHashMap<>();
+            for (var alloc : allocations) {
+                if ("PURCHASE".equalsIgnoreCase(alloc.targetType())) {
+                    org.example.model.Purchase p = purchaseMap.get(alloc.targetId());
+                    if (p == null) {
+                        try {
+                            var pageRes = purchaseService.page(0, 10, "", "", null, null, "All", "All", "All", "All");
+                            for (var item : pageRes.rows()) {
+                                if (item != null && Objects.equals(item.getId(), alloc.targetId())) {
+                                    p = item;
+                                    purchaseMap.put(item.getId(), item);
+                                    break;
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                    if (p != null && p.getSupplier() != null && p.getSupplier().getId() > 0) {
+                        allocsBySupplier.computeIfAbsent(p.getSupplier().getId(), k -> new ArrayList<>()).add(alloc);
+                    }
+                }
+            }
+
+            for (var entry : allocsBySupplier.entrySet()) {
+                var supplierAllocs = entry.getValue();
+                if (supplierAllocs.isEmpty()) continue;
+                var firstAlloc = supplierAllocs.getFirst();
+                org.example.model.Purchase firstPurchase = purchaseMap.get(firstAlloc.targetId());
+                if (firstPurchase == null || firstPurchase.getSupplier() == null) continue;
+
+                double totalAllocAmount = 0.0;
+                List<String> invoiceNos = new ArrayList<>();
+                List<Integer> paymentIds = new ArrayList<>();
+
+                for (var a : supplierAllocs) {
+                    totalAllocAmount += a.amount();
+                    var pur = purchaseMap.get(a.targetId());
+                    if (pur != null && pur.getInvoiceNo() != null) {
+                        invoiceNos.add(pur.getInvoiceNo());
+                    }
+                    Integer pid = paymentRecordIdByTarget.get("PURCHASE_" + a.targetId());
+                    if (pid != null && pid > 0) {
+                        paymentIds.add(pid);
+                    }
+                }
+
+                String supplierEmail = firstPurchase.getSupplier().getEmail() == null ? "" : firstPurchase.getSupplier().getEmail().trim();
+                String supplierPhone = firstPurchase.getSupplier().getPhone() == null ? "" : firstPurchase.getSupplier().getPhone().trim();
+                if (supplierEmail.isBlank() && supplierPhone.isBlank()) continue;
+
+                String narration;
+                if (invoiceNos.size() > 1) {
+                    narration = "Bank disbursement for " + invoiceNos.size() + " bills: " + String.join(", ", invoiceNos);
+                } else {
+                    narration = row.dto.description() != null ? row.dto.description() : ("Bank disbursement for " + firstPurchase.getInvoiceNo());
+                }
+
+                org.example.util.PaymentConfirmationPromptHelper.promptAndTransmitPurchase(
+                        table, firstPurchase, paymentIds, totalAllocAmount, "Bank Transfer", refNo, paymentDate, narration, null
+                );
+            }
+        } catch (Exception ex) {
+            System.err.println("[BankStatement] Failed to check for purchase remittance advice prompt: " + ex.getMessage());
+        }
+
+        // 2. Process SALE allocations grouped by Customer
+        try {
+            var salesService = new org.example.service.SalesService();
+            var allSales = salesService.getAll();
+            Map<Integer, org.example.model.Sales> salesMap = new HashMap<>();
+            for (var s : allSales) {
+                if (s != null && s.getId() > 0) {
+                    salesMap.put(s.getId(), s);
+                }
+            }
+
+            Map<Integer, List<BankStatementApiClient.AllocationRequest>> allocsByCustomer = new LinkedHashMap<>();
+            for (var alloc : allocations) {
+                if ("SALE".equalsIgnoreCase(alloc.targetType())) {
+                    org.example.model.Sales s = salesMap.get(alloc.targetId());
+                    if (s != null && s.getCustomer() != null && s.getCustomer().getId() > 0) {
+                        allocsByCustomer.computeIfAbsent(s.getCustomer().getId(), k -> new ArrayList<>()).add(alloc);
+                    }
+                }
+            }
+
+            for (var entry : allocsByCustomer.entrySet()) {
+                var custAllocs = entry.getValue();
+                if (custAllocs.isEmpty()) continue;
+                var firstAlloc = custAllocs.getFirst();
+                org.example.model.Sales firstSale = salesMap.get(firstAlloc.targetId());
+                if (firstSale == null || firstSale.getCustomer() == null) continue;
+
+                double totalAllocAmount = 0.0;
+                List<String> invoiceNos = new ArrayList<>();
+                List<Integer> paymentIds = new ArrayList<>();
+
+                for (var a : custAllocs) {
+                    totalAllocAmount += a.amount();
+                    var sl = salesMap.get(a.targetId());
+                    if (sl != null && sl.getInvoiceNo() != null) {
+                        invoiceNos.add(sl.getInvoiceNo());
+                    }
+                    Integer pid = paymentRecordIdByTarget.get("SALE_" + a.targetId());
+                    if (pid != null && pid > 0) {
+                        paymentIds.add(pid);
+                    }
+                }
+
+                String custEmail = firstSale.getCustomer().getEmail() == null ? "" : firstSale.getCustomer().getEmail().trim();
+                String custPhone = firstSale.getCustomer().getPhone() == null ? "" : firstSale.getCustomer().getPhone().trim();
+                if (custEmail.isBlank() && custPhone.isBlank()) continue;
+
+                String narration;
+                if (invoiceNos.size() > 1) {
+                    narration = "Bank deposit for " + invoiceNos.size() + " invoices: " + String.join(", ", invoiceNos);
+                } else {
+                    narration = row.dto.description() != null ? row.dto.description() : ("Bank deposit for " + firstSale.getInvoiceNo());
+                }
+
+                org.example.util.PaymentConfirmationPromptHelper.promptAndTransmit(
+                        table, firstSale, paymentIds, totalAllocAmount, "Bank Transfer", refNo, paymentDate, narration, null
+                );
+            }
+        } catch (Exception ex) {
+            System.err.println("[BankStatement] Failed to check for payment receipt prompt: " + ex.getMessage());
         }
     }
 
     private void openPaymentReceiptTransmissionDialog(Row row, org.example.model.Sales sale, double allocAmount) {
         try {
             String dateText = row.dto.transactionDate() != null ? row.dto.transactionDate() : BusinessClock.formatDate(LocalDate.now());
+            LocalDate parsedDate = BusinessClock.parseDate(dateText);
+            LocalDate paymentDate = parsedDate != null ? parsedDate : BusinessClock.today();
             String refNo = row.dto.reference() != null && !row.dto.reference().isBlank() ? row.dto.reference() : ("Bank Ref #" + row.dto.id());
             String narration = row.dto.description() != null ? row.dto.description() : ("Bank deposit for " + sale.getInvoiceNo());
             org.example.util.PaymentConfirmationPromptHelper.openSaleTransmissionDialog(
-                    table, sale, null, allocAmount, "Bank Transfer", refNo, LocalDate.parse(dateText), narration, null
+                    table, sale, (Integer) null, allocAmount, "Bank Transfer", refNo, paymentDate, narration, null
             );
         } catch (Exception ex) {
             error(ex);

@@ -733,8 +733,8 @@
 .dse-theme-dark .email-transmission-body-area {
     -fx-font-family: 'Segoe UI', -apple-system, sans-serif;
     -fx-font-size: 13px;
-    -fx-min-height: 200;
-    -fx-pref-height: 240;
+    -fx-min-height: 240;
+    -fx-pref-height: 360;
     -fx-background-color: #131a29;
     -fx-control-inner-background: #131a29;
     -fx-border-color: #2a374d;
@@ -748,8 +748,8 @@
 .dse-theme-light .email-transmission-body-area {
     -fx-font-family: 'Segoe UI', -apple-system, sans-serif;
     -fx-font-size: 13px;
-    -fx-min-height: 200;
-    -fx-pref-height: 240;
+    -fx-min-height: 240;
+    -fx-pref-height: 360;
     -fx-background-color: #ffffff;
     -fx-control-inner-background: #ffffff;
     -fx-border-color: #cbd5e1;

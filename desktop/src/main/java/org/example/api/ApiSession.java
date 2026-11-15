@@ -2,13 +2,33 @@ package org.example.api;
 
 import java.net.http.HttpRequest;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class ApiSession {
+    public interface SessionRevocationListener {
+        void onSessionRevoked(String reason);
+    }
+
     private static volatile String accessToken;
     private static volatile Instant expiresAt;
     private static volatile String apiBaseUrl;
+    private static volatile SessionRevocationListener revocationListener;
+    private static final AtomicBoolean revokedNoticeDispatched = new AtomicBoolean(false);
 
     private ApiSession() {
+    }
+
+    public static void setSessionRevocationListener(SessionRevocationListener listener) {
+        revocationListener = listener;
+    }
+
+    public static void notifySessionRevoked(String reason) {
+        String msg = (reason != null && !reason.isBlank()) ? reason : "Your account was signed in from another computer.";
+        SessionRevocationListener listener = revocationListener;
+        clear();
+        if (listener != null && revokedNoticeDispatched.compareAndSet(false, true)) {
+            listener.onSessionRevoked(msg);
+        }
     }
 
     public static void establish(String token, String expiry, String baseUrl) {
@@ -18,6 +38,7 @@ public final class ApiSession {
         accessToken = token;
         expiresAt = expiry == null || expiry.isBlank() ? null : Instant.parse(expiry);
         apiBaseUrl = normalizedBase;
+        revokedNoticeDispatched.set(false);
     }
 
     /** Compatibility overload for tests/older callers; new login code must bind the issuing server explicitly. */
@@ -28,7 +49,11 @@ public final class ApiSession {
     public static HttpRequest.Builder authorize(HttpRequest.Builder request) {
         String token = accessToken;
         if (token == null || token.isBlank() || (expiresAt != null && !expiresAt.isAfter(Instant.now()))) {
+            boolean wasEstablished = token != null && !token.isBlank();
             clear();
+            if (wasEstablished) {
+                notifySessionRevoked("Your login session expired. Please sign in again.");
+            }
             throw new AuthenticationRequiredException("Please sign in again");
         }
         return request.header("Authorization", "Bearer " + token);
@@ -73,6 +98,7 @@ public final class ApiSession {
         if (!message.isBlank() && !"Authentication required".equalsIgnoreCase(message)) {
             detail += " - " + message;
         }
+        notifySessionRevoked(prefix + " was rejected by the ERP server (" + detail + ").");
         return new AuthenticationRequiredException(prefix + " was rejected by the ERP server (" + detail + "). Please sign in again.");
     }
 

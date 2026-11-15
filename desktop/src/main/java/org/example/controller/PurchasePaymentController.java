@@ -334,9 +334,9 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                 edit.setOnAction(e -> editPayment(row()));
                 view.setOnAction(e -> openProof(row()));
                 folder.setOnAction(e -> removeStoredProof(row()));
-                sendDispatch.setOnAction(e -> sendPaymentEmail(row()));
-                sendEmail.setOnAction(e -> sendPaymentEmail(row()));
-                sendWhatsapp.setOnAction(e -> sendPaymentEmail(row()));
+                sendDispatch.setOnAction(e -> sendPaymentEmail(row(), PaymentTransmissionDialog.ChannelPreference.BOTH));
+                sendEmail.setOnAction(e -> sendPaymentEmail(row(), PaymentTransmissionDialog.ChannelPreference.EMAIL_ONLY));
+                sendWhatsapp.setOnAction(e -> sendPaymentEmail(row(), PaymentTransmissionDialog.ChannelPreference.WHATSAPP_ONLY));
                 previewEmail.setOnAction(e -> previewPaymentEmailHtml(row()));
                 IconFactory.decorateActionMenu(actions);
             }
@@ -368,6 +368,10 @@ public final class PurchasePaymentController implements ScreenLifecycle {
     }
 
     private void sendPaymentEmail(PaymentRow row) {
+        sendPaymentEmail(row, PaymentTransmissionDialog.ChannelPreference.BOTH);
+    }
+
+    private void sendPaymentEmail(PaymentRow row, PaymentTransmissionDialog.ChannelPreference channelPref) {
         if (row == null || purchase == null) return;
         LocalDate pDate;
         try {
@@ -384,6 +388,7 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                 row.reference() == null ? "-" : row.reference(),
                 pDate,
                 row.notes() == null ? "" : row.notes(),
+                channelPref != null ? channelPref : PaymentTransmissionDialog.ChannelPreference.BOTH,
                 this::loadHistory
         );
     }

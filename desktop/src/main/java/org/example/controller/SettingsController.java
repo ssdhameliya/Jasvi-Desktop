@@ -294,6 +294,8 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private TextArea txtProfileCustomSignature;
     @FXML private Button btnTestActivityProfile;
     @FXML private ToggleButton tglPaymentConfirmationEmail;
+    @FXML private ToggleButton tglPromptBankMatch;
+    @FXML private Label lblPromptBankMatchInfo;
     @FXML private TextField txtWahaEndpoint;
     @FXML private PasswordField txtWahaApiKey;
     @FXML private CheckBox chkWahaEnabled;
@@ -646,6 +648,15 @@ public class SettingsController implements ScreenLifecycle {
                 populateLookupDropdown(cmbIndustry, "INDUSTRY", List.of("Manufacturing","Trading","Retail","Wholesale","Construction","Engineering","Textile","Automotive","Information Technology","Professional Services","Logistics","Healthcare","Food & Beverage","Other"));
                 BrandImagePresenter.applicationBannerPreview(imgApplicationBrand, applicationBrandPreview);
                 BrandImagePresenter.contain(imgApplicationMark, applicationMarkPreview);
+                if (txtCompanyName != null && txtApplicationName != null) {
+                    txtCompanyName.textProperty().addListener((obs, oldVal, newVal) -> {
+                        String appName = newVal == null || newVal.isBlank()
+                                ? org.example.service.BrandingService.technicalProductName()
+                                : newVal.trim();
+                        txtApplicationName.setText(appName);
+                    });
+                    txtApplicationName.setTooltip(new Tooltip("Inherited automatically from Company Name above"));
+                }
                 refreshAllAssetPreviewsAsync();
                 loadSectionDataAsync(section);
             }
@@ -693,6 +704,7 @@ public class SettingsController implements ScreenLifecycle {
                     btnWhatsappInfo.setGraphic(org.example.util.IconFactory.compactIcon("info", 16));
                     btnWhatsappInfo.setTooltip(new Tooltip("WAHA Docker Engine & WhatsApp Integration Guidance"));
                 }
+                initWhatsappSettings();
                 populateWhatsappSendersDropdown();
                 loadSectionDataAsync(section);
             }
@@ -1651,9 +1663,14 @@ private record AssetPreviewRequest(
        ========================================================= */
     private void selectSection(Section section, HBox selectedNavigation, VBox selectedPanel) {
         Section target = section == null ? Section.COMPANY : section;
-        if (activeSection != null && target != activeSection && trackedSettingsPanel != null
-                && !org.example.navigation.UnsavedChangesManager.allowNavigation("Settings — " + saveLabel(target))) {
-            return;
+        if (activeSection != null && target != activeSection && trackedSettingsPanel != null) {
+            boolean wasDirty = org.example.navigation.UnsavedChangesManager.hasUnsavedChanges();
+            if (!org.example.navigation.UnsavedChangesManager.allowNavigation("Settings — " + saveLabel(target))) {
+                return;
+            }
+            if (wasDirty) {
+                revertSection(activeSection);
+            }
         }
         activeSection = target;
         if (needsAsyncSectionData(activeSection) && !readySections.contains(activeSection) && !loadingSections.contains(activeSection)) {
@@ -1752,6 +1769,44 @@ private record AssetPreviewRequest(
         }
     }
 
+    private void revertSection(Section section) {
+        if (section == null) return;
+        Object cleanSnapshot = readSectionSnapshot(section);
+        if (cleanSnapshot != null) {
+            applySectionSnapshot(section, cleanSnapshot);
+        } else {
+            revertUnsnapshottedSection(section);
+        }
+        for (String key : assetKeys(section)) {
+            pendingAssets.remove(key);
+        }
+        if (section == Section.COMPANY || section == Section.PAYMENT || section == Section.INVOICE) {
+            refreshAllAssetPreviewsAsync();
+        }
+    }
+
+    private void revertUnsnapshottedSection(Section section) {
+        switch (section) {
+            case NOTIFICATIONS -> {
+                var prefs = org.example.service.NotificationPreferenceService.current();
+                applyNotificationPreferences(prefs);
+                if (chkNotifications != null) {
+                    chkNotifications.setSelected(prefs.enabled());
+                    setNotificationCategoriesDisabled(!prefs.enabled());
+                }
+            }
+            case SHORTCUTS -> initializeShortcutSettings();
+            case UPDATES -> {
+                if (chkUpdateAtStartup != null) chkUpdateAtStartup.setSelected(Boolean.parseBoolean(ConfigManager.get("update.checkAtStartup", "true")));
+                if (chkDownloadInBackground != null) chkDownloadInBackground.setSelected(Boolean.parseBoolean(ConfigManager.get("update.downloadInBackground", "false")));
+                refreshUpdateSummary();
+            }
+            case MODULES -> loadModulesSettings();
+            case SHOWCASE -> loadShowcaseData();
+            default -> {}
+        }
+    }
+
     @FXML private void showCompany() { selectSection(Section.COMPANY, navCompany, ensureSectionLoaded(Section.COMPANY)); }
     @FXML private void showPayment() { selectSection(Section.PAYMENT, navPayment, ensureSectionLoaded(Section.PAYMENT)); }
     @FXML private void showInvoice() { selectSection(Section.INVOICE, navInvoice, ensureSectionLoaded(Section.INVOICE)); }
@@ -1759,6 +1814,7 @@ private record AssetPreviewRequest(
     @FXML private void showEmail() { selectSection(Section.EMAIL, navEmail, ensureSectionLoaded(Section.EMAIL)); }
     @FXML private void showWhatsapp() {
         selectSection(Section.WHATSAPP, null, ensureSectionLoaded(Section.WHATSAPP));
+        initWhatsappSettings();
         populateWhatsappSendersDropdown();
     }
     @FXML private void showSecurity() {
@@ -3218,6 +3274,11 @@ private record AssetPreviewRequest(
             putSetting("bank.paymentConfirmationEmail.enabled", String.valueOf(payConf));
             ConfigManager.setWithoutSaving("bank.paymentConfirmationEmail.enabled", String.valueOf(payConf));
         }
+        if (tglPromptBankMatch != null) {
+            boolean promptMatch = tglPromptBankMatch.isSelected();
+            putSetting("bank.promptRemittanceOnMatch.enabled", String.valueOf(promptMatch));
+            ConfigManager.setWithoutSaving("bank.promptRemittanceOnMatch.enabled", String.valueOf(promptMatch));
+        }
         if (ConfigManager.isSharedClient()) {
             if (!SessionService.isAdmin()) return;
             new org.example.api.authority.BusinessEmailClient().saveSettings(
@@ -3665,8 +3726,9 @@ private record AssetPreviewRequest(
             });
         }
 
-        // Feature Flag 2: Bank Reconciliation Payment Receipts
-        if (tglPaymentConfirmationEmail != null) {
+        // Feature Flag 2: Bank Reconciliation Payment Receipts (Email)
+        if (tglPaymentConfirmationEmail != null && !Boolean.TRUE.equals(tglPaymentConfirmationEmail.getProperties().get("erp.toggle.initialized"))) {
+            tglPaymentConfirmationEmail.getProperties().put("erp.toggle.initialized", true);
             boolean paymentEmailActive = ConfigManager.getBoolean("bank.paymentConfirmationEmail.enabled", true);
             tglPaymentConfirmationEmail.setSelected(paymentEmailActive);
             tglPaymentConfirmationEmail.setText(paymentEmailActive ? "Payment Receipts: ON" : "Payment Receipts: OFF");
@@ -3677,16 +3739,21 @@ private record AssetPreviewRequest(
             });
         }
 
-        // Feature Flag 3: Payment & Remittance WhatsApp Receipts
-        if (tglPaymentConfirmationWhatsapp != null) {
-            boolean paymentWahaActive = ConfigManager.getBoolean("whatsapp.paymentConfirmation.enabled", true);
-            tglPaymentConfirmationWhatsapp.setSelected(paymentWahaActive);
-            tglPaymentConfirmationWhatsapp.setText(paymentWahaActive ? "Payment Receipts: ON" : "Payment Receipts: OFF");
-            tglPaymentConfirmationWhatsapp.selectedProperty().addListener((obs, oldVal, newVal) -> {
-                tglPaymentConfirmationWhatsapp.setText(newVal ? "Payment Receipts: ON" : "Payment Receipts: OFF");
-                ConfigManager.setBoolean("whatsapp.paymentConfirmation.enabled", newVal);
+        // Feature Flag 3: Bank Reconciliation Settlement Advice Prompt
+        if (tglPromptBankMatch != null && !Boolean.TRUE.equals(tglPromptBankMatch.getProperties().get("erp.toggle.initialized"))) {
+            tglPromptBankMatch.getProperties().put("erp.toggle.initialized", true);
+            boolean promptMatchActive = ConfigManager.getBoolean("bank.promptRemittanceOnMatch.enabled", true);
+            tglPromptBankMatch.setSelected(promptMatchActive);
+            tglPromptBankMatch.setText(promptMatchActive ? "Bank Match Prompt: ON" : "Bank Match Prompt: OFF");
+            tglPromptBankMatch.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                tglPromptBankMatch.setText(newVal ? "Bank Match Prompt: ON" : "Bank Match Prompt: OFF");
+                ConfigManager.setBoolean("bank.promptRemittanceOnMatch.enabled", newVal);
                 ConfigManager.save();
             });
+        }
+        if (lblPromptBankMatchInfo != null) {
+            lblPromptBankMatchInfo.setTooltip(new Tooltip("When enabled (ON), matching an imported bank statement transaction displays a confirmation prompt to review and transmit remittance advice to the supplier or customer.\n\nWhen disabled (OFF), bank statement matches settle silently in the background without pop-up interruptions. You can still transmit payment advice anytime directly from the Purchase Payment or Sales Register screens."));
+            lblPromptBankMatchInfo.setCursor(javafx.scene.Cursor.HAND);
         }
 
         if (cmbActivityProfileSelect != null) {
@@ -3734,6 +3801,21 @@ private record AssetPreviewRequest(
             txtMessageTemplateBody.textProperty().addListener((obs, o, n) -> updateTemplatePreview());
         }
         updateTemplatePreview();
+    }
+
+    private void initWhatsappSettings() {
+        // Feature Flag: Payment & Remittance WhatsApp Receipts
+        if (tglPaymentConfirmationWhatsapp != null && !Boolean.TRUE.equals(tglPaymentConfirmationWhatsapp.getProperties().get("erp.toggle.initialized"))) {
+            tglPaymentConfirmationWhatsapp.getProperties().put("erp.toggle.initialized", true);
+            boolean paymentWahaActive = ConfigManager.getBoolean("whatsapp.paymentConfirmation.enabled", true);
+            tglPaymentConfirmationWhatsapp.setSelected(paymentWahaActive);
+            tglPaymentConfirmationWhatsapp.setText(paymentWahaActive ? "Payment Receipts: ON" : "Payment Receipts: OFF");
+            tglPaymentConfirmationWhatsapp.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                tglPaymentConfirmationWhatsapp.setText(newVal ? "Payment Receipts: ON" : "Payment Receipts: OFF");
+                ConfigManager.setBoolean("whatsapp.paymentConfirmation.enabled", newVal);
+                ConfigManager.save();
+            });
+        }
     }
 
     private void saveTemplateFromUiToDraft(String docOption) {

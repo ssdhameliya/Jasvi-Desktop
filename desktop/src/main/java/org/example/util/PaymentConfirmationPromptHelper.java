@@ -19,6 +19,8 @@ import org.example.service.SessionService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -43,13 +45,26 @@ public final class PaymentConfirmationPromptHelper {
             String referenceNo,
             LocalDate paymentDate,
             String notes) {
-        promptAndTransmit(ownerNode, sale, null, paymentAmount, paymentMode, referenceNo, paymentDate, notes, null);
+        promptAndTransmit(ownerNode, sale, (Integer) null, paymentAmount, paymentMode, referenceNo, paymentDate, notes, null);
     }
 
     public static void promptAndTransmit(
             Node ownerNode,
             Sales sale,
             Integer paymentId,
+            double paymentAmount,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            Runnable onSentCallback) {
+        promptAndTransmit(ownerNode, sale, paymentId != null ? List.of(paymentId) : List.of(), paymentAmount, paymentMode, referenceNo, paymentDate, notes, onSentCallback);
+    }
+
+    public static void promptAndTransmit(
+            Node ownerNode,
+            Sales sale,
+            List<Integer> paymentIds,
             double paymentAmount,
             String paymentMode,
             String referenceNo,
@@ -85,9 +100,9 @@ public final class PaymentConfirmationPromptHelper {
 
         Platform.runLater(() -> {
             StringBuilder dest = new StringBuilder();
-            if (!customerEmail.isBlank() && !customerPhone.isBlank()) {
+            if (canSendEmail && canSendWhatsapp) {
                 dest.append("Email (").append(customerEmail).append(") & WhatsApp (").append(customerPhone).append(")");
-            } else if (!customerEmail.isBlank()) {
+            } else if (canSendEmail) {
                 dest.append("Email (").append(customerEmail).append(")");
             } else {
                 dest.append("WhatsApp (").append(customerPhone).append(")");
@@ -104,7 +119,7 @@ public final class PaymentConfirmationPromptHelper {
 
             var choice = alert.showAndWait();
             if (choice.isPresent() && choice.get() == btnSend) {
-                openSaleTransmissionDialog(ownerNode, sale, paymentId, amount, safeMode, safeRef, safeDate, safeNotes, onSentCallback);
+                openSaleTransmissionDialog(ownerNode, sale, paymentIds, amount, safeMode, safeRef, safeDate, safeNotes, onSentCallback);
             }
         });
     }
@@ -117,13 +132,26 @@ public final class PaymentConfirmationPromptHelper {
             String referenceNo,
             LocalDate paymentDate,
             String notes) {
-        promptAndTransmitPurchase(ownerNode, purchase, null, paymentAmount, paymentMode, referenceNo, paymentDate, notes, null);
+        promptAndTransmitPurchase(ownerNode, purchase, (Integer) null, paymentAmount, paymentMode, referenceNo, paymentDate, notes, null);
     }
 
     public static void promptAndTransmitPurchase(
             Node ownerNode,
             Purchase purchase,
             Integer paymentId,
+            double paymentAmount,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            Runnable onSentCallback) {
+        promptAndTransmitPurchase(ownerNode, purchase, paymentId != null ? List.of(paymentId) : List.of(), paymentAmount, paymentMode, referenceNo, paymentDate, notes, onSentCallback);
+    }
+
+    public static void promptAndTransmitPurchase(
+            Node ownerNode,
+            Purchase purchase,
+            List<Integer> paymentIds,
             double paymentAmount,
             String paymentMode,
             String referenceNo,
@@ -159,9 +187,9 @@ public final class PaymentConfirmationPromptHelper {
 
         Platform.runLater(() -> {
             StringBuilder dest = new StringBuilder();
-            if (!supplierEmail.isBlank() && !supplierPhone.isBlank()) {
+            if (canSendEmail && canSendWhatsapp) {
                 dest.append("Email (").append(supplierEmail).append(") & WhatsApp (").append(supplierPhone).append(")");
-            } else if (!supplierEmail.isBlank()) {
+            } else if (canSendEmail) {
                 dest.append("Email (").append(supplierEmail).append(")");
             } else {
                 dest.append("WhatsApp (").append(supplierPhone).append(")");
@@ -178,7 +206,7 @@ public final class PaymentConfirmationPromptHelper {
 
             var choice = alert.showAndWait();
             if (choice.isPresent() && choice.get() == btnSend) {
-                openPurchaseTransmissionDialog(ownerNode, purchase, paymentId, amount, safeMode, safeRef, safeDate, safeNotes, onSentCallback);
+                openPurchaseTransmissionDialog(ownerNode, purchase, paymentIds, amount, safeMode, safeRef, safeDate, safeNotes, onSentCallback);
             }
         });
     }
@@ -276,6 +304,47 @@ public final class PaymentConfirmationPromptHelper {
             LocalDate paymentDate,
             String notes,
             Runnable onSentCallback) {
+        openSaleTransmissionDialog(ownerNode, sale, paymentId != null ? List.of(paymentId) : List.of(), amountPaid, paymentMode, referenceNo, paymentDate, notes, PaymentTransmissionDialog.ChannelPreference.BOTH, onSentCallback);
+    }
+
+    public static void openSaleTransmissionDialog(
+            Node ownerNode,
+            Sales sale,
+            Integer paymentId,
+            double amountPaid,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            PaymentTransmissionDialog.ChannelPreference preferredChannel,
+            Runnable onSentCallback) {
+        openSaleTransmissionDialog(ownerNode, sale, paymentId != null ? List.of(paymentId) : List.of(), amountPaid, paymentMode, referenceNo, paymentDate, notes, preferredChannel, onSentCallback);
+    }
+
+    public static void openSaleTransmissionDialog(
+            Node ownerNode,
+            Sales sale,
+            List<Integer> paymentIds,
+            double amountPaid,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            Runnable onSentCallback) {
+        openSaleTransmissionDialog(ownerNode, sale, paymentIds, amountPaid, paymentMode, referenceNo, paymentDate, notes, PaymentTransmissionDialog.ChannelPreference.BOTH, onSentCallback);
+    }
+
+    public static void openSaleTransmissionDialog(
+            Node ownerNode,
+            Sales sale,
+            List<Integer> paymentIds,
+            double amountPaid,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            PaymentTransmissionDialog.ChannelPreference preferredChannel,
+            Runnable onSentCallback) {
 
         try {
             double total = sale.getTotalAmount();
@@ -326,6 +395,8 @@ public final class PaymentConfirmationPromptHelper {
             String customerEmail = sale.getCustomer() != null && sale.getCustomer().getEmail() != null ? sale.getCustomer().getEmail().trim() : "";
             String customerPhone = sale.getCustomer() != null && sale.getCustomer().getPhone() != null ? sale.getCustomer().getPhone().trim() : "";
 
+            Integer primaryPaymentId = (paymentIds != null && !paymentIds.isEmpty()) ? paymentIds.getFirst() : null;
+
             var draft = new PaymentTransmissionDialog.PaymentDraft(
                     "Transmit Payment Confirmation Advice",
                     "Direct delivery of payment receipt & confirmation to customer",
@@ -346,11 +417,12 @@ public final class PaymentConfirmationPromptHelper {
                     statusBadge,
                     "SALE",
                     sale.getId(),
-                    paymentId,
-                    null
+                    primaryPaymentId,
+                    null,
+                    preferredChannel != null ? preferredChannel : PaymentTransmissionDialog.ChannelPreference.BOTH
             );
 
-            showAndTransmit(ownerNode, draft, "Payment Confirmation", paymentId, null, onSentCallback);
+            showAndTransmit(ownerNode, draft, "Payment Confirmation", primaryPaymentId, paymentIds, null, onSentCallback);
         } catch (Exception ex) {
             AppDialogService.error(ownerNode, "Error", ex.getMessage() == null ? "Failed to prepare payment confirmation advice." : ex.getMessage());
         }
@@ -365,6 +437,47 @@ public final class PaymentConfirmationPromptHelper {
             String referenceNo,
             LocalDate paymentDate,
             String notes,
+            Runnable onSentCallback) {
+        openPurchaseTransmissionDialog(ownerNode, purchase, paymentId != null ? List.of(paymentId) : List.of(), amountPaid, paymentMode, referenceNo, paymentDate, notes, PaymentTransmissionDialog.ChannelPreference.BOTH, onSentCallback);
+    }
+
+    public static void openPurchaseTransmissionDialog(
+            Node ownerNode,
+            Purchase purchase,
+            Integer paymentId,
+            double amountPaid,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            PaymentTransmissionDialog.ChannelPreference preferredChannel,
+            Runnable onSentCallback) {
+        openPurchaseTransmissionDialog(ownerNode, purchase, paymentId != null ? List.of(paymentId) : List.of(), amountPaid, paymentMode, referenceNo, paymentDate, notes, preferredChannel, onSentCallback);
+    }
+
+    public static void openPurchaseTransmissionDialog(
+            Node ownerNode,
+            Purchase purchase,
+            List<Integer> paymentIds,
+            double amountPaid,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            Runnable onSentCallback) {
+        openPurchaseTransmissionDialog(ownerNode, purchase, paymentIds, amountPaid, paymentMode, referenceNo, paymentDate, notes, PaymentTransmissionDialog.ChannelPreference.BOTH, onSentCallback);
+    }
+
+    public static void openPurchaseTransmissionDialog(
+            Node ownerNode,
+            Purchase purchase,
+            List<Integer> paymentIds,
+            double amountPaid,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            PaymentTransmissionDialog.ChannelPreference preferredChannel,
             Runnable onSentCallback) {
 
         try {
@@ -416,6 +529,8 @@ public final class PaymentConfirmationPromptHelper {
             String supplierEmail = purchase.getSupplier() != null && purchase.getSupplier().getEmail() != null ? purchase.getSupplier().getEmail().trim() : "";
             String supplierPhone = purchase.getSupplier() != null && purchase.getSupplier().getPhone() != null ? purchase.getSupplier().getPhone().trim() : "";
 
+            Integer primaryPaymentId = (paymentIds != null && !paymentIds.isEmpty()) ? paymentIds.getFirst() : null;
+
             var draft = new PaymentTransmissionDialog.PaymentDraft(
                     "Transmit Supplier Remittance Advice",
                     "Direct delivery of payment remittance advice to supplier",
@@ -436,11 +551,12 @@ public final class PaymentConfirmationPromptHelper {
                     statusBadge,
                     "PURCHASE",
                     purchase.getId(),
-                    paymentId,
-                    null
+                    primaryPaymentId,
+                    null,
+                    preferredChannel != null ? preferredChannel : PaymentTransmissionDialog.ChannelPreference.BOTH
             );
 
-            showAndTransmit(ownerNode, draft, "Supplier Remittance Advice", paymentId, null, onSentCallback);
+            showAndTransmit(ownerNode, draft, "Supplier Remittance Advice", primaryPaymentId, paymentIds, null, onSentCallback);
         } catch (Exception ex) {
             AppDialogService.error(ownerNode, "Error", ex.getMessage() == null ? "Failed to prepare remittance advice." : ex.getMessage());
         }
@@ -461,6 +577,26 @@ public final class PaymentConfirmationPromptHelper {
             String referenceNo,
             LocalDate paymentDate,
             String notes,
+            Runnable onSentCallback) {
+        openReturnTransmissionDialog(ownerNode, refundId, returnNo, partyName, partyEmail, partyPhone, originalDocNo, returnType, refundAmount, remainingBalance, paymentMode, referenceNo, paymentDate, notes, PaymentTransmissionDialog.ChannelPreference.BOTH, onSentCallback);
+    }
+
+    public static void openReturnTransmissionDialog(
+            Node ownerNode,
+            Integer refundId,
+            String returnNo,
+            String partyName,
+            String partyEmail,
+            String partyPhone,
+            String originalDocNo,
+            String returnType,
+            double refundAmount,
+            double remainingBalance,
+            String paymentMode,
+            String referenceNo,
+            LocalDate paymentDate,
+            String notes,
+            PaymentTransmissionDialog.ChannelPreference preferredChannel,
             Runnable onSentCallback) {
 
         try {
@@ -524,7 +660,8 @@ public final class PaymentConfirmationPromptHelper {
                     isSalesReturn ? "SALES_RETURN" : "PURCHASE_RETURN",
                     returnId,
                     null,
-                    refundId
+                    refundId,
+                    preferredChannel != null ? preferredChannel : PaymentTransmissionDialog.ChannelPreference.BOTH
             );
 
             showAndTransmit(ownerNode, draft, "Refund Settlement Confirmation", null, refundId, onSentCallback);
@@ -538,6 +675,17 @@ public final class PaymentConfirmationPromptHelper {
             PaymentTransmissionDialog.PaymentDraft draft,
             String operationTitle,
             Integer paymentId,
+            Integer refundId,
+            Runnable onSent) {
+        showAndTransmit(ownerNode, draft, operationTitle, paymentId, null, refundId, onSent);
+    }
+
+    private static void showAndTransmit(
+            Node ownerNode,
+            PaymentTransmissionDialog.PaymentDraft draft,
+            String operationTitle,
+            Integer paymentId,
+            List<Integer> paymentIds,
             Integer refundId,
             Runnable onSent) {
 
@@ -559,13 +707,25 @@ public final class PaymentConfirmationPromptHelper {
 
                         // 1. Send Email if selected
                         if (res.sendEmail()) {
-                            reporter.stage(currentStage++, totalStages, "Transmitting Email to " + res.recipientEmail() + " via SMTP...");
+                            reporter.stage(currentStage++, totalStages, "Transmitting Email via SMTP...");
                             try {
-                                EmailService.send(res.recipientEmail(), res.emailSubject(), res.emailBody(), res.attachmentPdf(), res.signatureImage(), res.senderProfile());
-                                supportApi.communication(new SupportApiClient.CommunicationRequest(
-                                        eType, eId, "EMAIL", res.recipientEmail(), res.emailSubject(), "SENT", null, actor
-                                ));
-                                if (paymentId != null && paymentId > 0) {
+                                List<String> emails = Arrays.stream(res.recipientEmail().split("[;,]"))
+                                        .map(String::trim)
+                                        .filter(s -> !s.isBlank())
+                                        .toList();
+                                for (String email : emails) {
+                                    EmailService.send(email, res.emailSubject(), res.emailBody(), res.attachmentPdf(), res.signatureImage(), res.senderProfile());
+                                    supportApi.communication(new SupportApiClient.CommunicationRequest(
+                                            eType, eId, "EMAIL", email, res.emailSubject(), "SENT", null, actor
+                                    ));
+                                }
+                                if (paymentIds != null && !paymentIds.isEmpty()) {
+                                    for (Integer pid : paymentIds) {
+                                        if (pid != null && pid > 0) {
+                                            supportApi.updatePaymentEmailStatus(pid, "SENT");
+                                        }
+                                    }
+                                } else if (paymentId != null && paymentId > 0) {
                                     supportApi.updatePaymentEmailStatus(paymentId, "SENT");
                                 }
                                 if (refundId != null && refundId > 0) {
@@ -575,7 +735,13 @@ public final class PaymentConfirmationPromptHelper {
                                 supportApi.communication(new SupportApiClient.CommunicationRequest(
                                         eType, eId, "EMAIL", res.recipientEmail(), res.emailSubject(), "FAILED", ex.getMessage(), actor
                                 ));
-                                if (paymentId != null && paymentId > 0) {
+                                if (paymentIds != null && !paymentIds.isEmpty()) {
+                                    for (Integer pid : paymentIds) {
+                                        if (pid != null && pid > 0) {
+                                            supportApi.updatePaymentEmailStatus(pid, "FAILED");
+                                        }
+                                    }
+                                } else if (paymentId != null && paymentId > 0) {
                                     supportApi.updatePaymentEmailStatus(paymentId, "FAILED");
                                 }
                                 if (refundId != null && refundId > 0) {
@@ -587,31 +753,49 @@ public final class PaymentConfirmationPromptHelper {
 
                         // 2. Send WhatsApp if selected
                         if (res.sendWhatsapp()) {
-                            reporter.stage(currentStage++, totalStages, "Transmitting WhatsApp to " + res.recipientPhone() + " via WAHA Engine...");
+                            reporter.stage(currentStage++, totalStages, "Transmitting WhatsApp via WAHA Engine...");
                             try {
                                 var wahaApi = new BusinessWhatsappApiClient();
-                                BusinessWhatsappApiClient.SendResponse sendResp = null;
-                                if (res.attachmentPdf() != null && Files.isRegularFile(res.attachmentPdf())) {
-                                    sendResp = wahaApi.sendDocument(new BusinessWhatsappApiClient.DocumentSendRequest(
-                                            eType, draft != null && draft.documentNo() != null ? draft.documentNo() : "PAY", eId, null, res.recipientPhone(), res.whatsappMessage(), 0L
-                                    ));
-                                } else {
-                                    sendResp = wahaApi.sendText(new BusinessWhatsappApiClient.TextSendRequest(
-                                            res.recipientPhone(), res.whatsappMessage(), null
-                                    ));
-                                }
-                                if (sendResp != null && !sendResp.success()) {
-                                    throw new IllegalStateException(sendResp.message());
+                                List<String> phones = Arrays.stream(res.recipientPhone().split("[;,]"))
+                                        .map(String::trim)
+                                        .filter(s -> !s.isBlank())
+                                        .toList();
+                                for (String phone : phones) {
+                                    BusinessWhatsappApiClient.SendResponse sendResp = null;
+                                    if (res.attachmentPdf() != null && Files.isRegularFile(res.attachmentPdf())) {
+                                        sendResp = wahaApi.sendDocument(new BusinessWhatsappApiClient.DocumentSendRequest(
+                                                eType, draft != null && draft.documentNo() != null ? draft.documentNo() : "PAY", eId, null, phone, res.whatsappMessage(), 0L
+                                        ));
+                                    } else {
+                                        sendResp = wahaApi.sendText(new BusinessWhatsappApiClient.TextSendRequest(
+                                                phone, res.whatsappMessage(), null
+                                        ));
+                                    }
+                                    if (sendResp != null && !sendResp.success()) {
+                                        throw new IllegalStateException(sendResp.message());
+                                    }
                                 }
                                 // Note: BusinessWhatsappService on the server automatically records the WHATSAPP communication log entry.
-                                if (paymentId != null && paymentId > 0) {
+                                if (paymentIds != null && !paymentIds.isEmpty()) {
+                                    for (Integer pid : paymentIds) {
+                                        if (pid != null && pid > 0) {
+                                            supportApi.updatePaymentWhatsappStatus(pid, "SENT");
+                                        }
+                                    }
+                                } else if (paymentId != null && paymentId > 0) {
                                     supportApi.updatePaymentWhatsappStatus(paymentId, "SENT");
                                 }
                                 if (refundId != null && refundId > 0) {
                                     new org.example.api.returns.ReturnApiClient().updateRefundWhatsappStatus(refundId, "SENT");
                                 }
                             } catch (Exception ex) {
-                                if (paymentId != null && paymentId > 0) {
+                                if (paymentIds != null && !paymentIds.isEmpty()) {
+                                    for (Integer pid : paymentIds) {
+                                        if (pid != null && pid > 0) {
+                                            supportApi.updatePaymentWhatsappStatus(pid, "FAILED");
+                                        }
+                                    }
+                                } else if (paymentId != null && paymentId > 0) {
                                     supportApi.updatePaymentWhatsappStatus(paymentId, "FAILED");
                                 }
                                 if (refundId != null && refundId > 0) {

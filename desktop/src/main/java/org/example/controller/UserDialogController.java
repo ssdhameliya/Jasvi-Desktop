@@ -9,6 +9,7 @@ import javafx.util.StringConverter;
 import org.example.api.admin.AdminApiClient;
 import org.example.service.NotificationService;
 import org.example.service.SessionService;
+import org.example.util.AppDialogService;
 import org.example.util.OwnedAlert;
 import org.example.util.IconFactory;
 import org.example.util.SearchableComboBoxHelper;
@@ -26,6 +27,7 @@ public class UserDialogController implements ScreenLifecycle {
     private static final Pattern EMAIL = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
     @FXML private Label lblTitle, lblSubtitle, lblMessage, lblMfaPolicy, lblMfaStatus, lblStatusBadge, lblShortcuts;
+    @FXML private Button btnEmailInfo, btnPhoneInfo;
     @FXML private TextField txtFullName, txtUsername, txtEmail, txtDepartment, txtBranch, txtPhone;
     @FXML private PasswordField txtPassword, txtConfirm;
     @FXML private TextField txtPasswordVisible, txtConfirmVisible;
@@ -94,6 +96,16 @@ public class UserDialogController implements ScreenLifecycle {
         btnCancel.setGraphic(IconFactory.icon("cancel", 16));
         if (headerIconHolder != null) {
             headerIconHolder.getChildren().setAll(IconFactory.icon("user", 24));
+        }
+        if (btnEmailInfo != null) {
+            btnEmailInfo.setGraphic(IconFactory.compactIcon("info", 14));
+            btnEmailInfo.getProperties().put("erp-icon-preserve", true);
+            btnEmailInfo.setOnAction(e -> showSuperAdminContactPolicyDialog());
+        }
+        if (btnPhoneInfo != null) {
+            btnPhoneInfo.setGraphic(IconFactory.compactIcon("info", 14));
+            btnPhoneInfo.getProperties().put("erp-icon-preserve", true);
+            btnPhoneInfo.setOnAction(e -> showSuperAdminContactPolicyDialog());
         }
         javafx.application.Platform.runLater(() -> {
             if (heroHeader != null && hostDialog != null) {
@@ -250,6 +262,54 @@ public class UserDialogController implements ScreenLifecycle {
         chkLocked.setSelected(u.locked());
         chkMfa.setSelected(u.mfaEnabled());
         originalMfaEnabled = u.mfaEnabled();
+
+        boolean isSuperAdmin = "superadmin".equalsIgnoreCase(u.username()) || "SUPER_ADMIN".equalsIgnoreCase(canonicalRole(u.role()));
+        if (isSuperAdmin) {
+            txtEmail.setEditable(false);
+            txtPhone.setEditable(false);
+            txtEmail.setFocusTraversable(false);
+            txtPhone.setFocusTraversable(false);
+            txtEmail.getStyleClass().add("locked-input");
+            txtPhone.getStyleClass().add("locked-input");
+            String lockTip = "🔒 Click for details: SuperAdmin official email and emergency phone are securely governed by Client Registry Tab 1 to prevent local administrator tampering.";
+            txtEmail.setTooltip(new Tooltip(lockTip));
+            txtPhone.setTooltip(new Tooltip(lockTip));
+            if (btnEmailInfo != null) {
+                btnEmailInfo.setVisible(true);
+                btnEmailInfo.setManaged(true);
+                btnEmailInfo.setTooltip(new Tooltip(lockTip));
+            }
+            if (btnPhoneInfo != null) {
+                btnPhoneInfo.setVisible(true);
+                btnPhoneInfo.setManaged(true);
+                btnPhoneInfo.setTooltip(new Tooltip(lockTip));
+            }
+        } else {
+            txtEmail.setEditable(!viewOnly);
+            txtPhone.setEditable(!viewOnly);
+            txtEmail.setFocusTraversable(true);
+            txtPhone.setFocusTraversable(true);
+            txtEmail.getStyleClass().remove("locked-input");
+            txtPhone.getStyleClass().remove("locked-input");
+            if (btnEmailInfo != null) {
+                btnEmailInfo.setVisible(false);
+                btnEmailInfo.setManaged(false);
+            }
+            if (btnPhoneInfo != null) {
+                btnPhoneInfo.setVisible(false);
+                btnPhoneInfo.setManaged(false);
+            }
+        }
+    }
+
+    private void showSuperAdminContactPolicyDialog() {
+        AppDialogService.info(
+                txtFullName,
+                "SuperAdmin Emergency Contact Policy",
+                "Governed Securely by Client Registry (Licensor Hub)",
+                "The SuperAdmin official email and emergency WhatsApp number are securely managed in Client Registry Tab 1 (Licensor Hub) under JASVI INDUSTRIES.\n\n" +
+                "This architectural isolation ensures that local office administrators cannot modify or hijack platform security alerts, rogue instance kick/block notifications, or password reset OTP destinations."
+        );
     }
 
     private void setFormLoading(boolean loading) {

@@ -351,7 +351,9 @@ public final class DynamicTableLayoutManager {
             if (isSelectionColumn(columns.get(i), semantic, heading)) floor = 36.0;
             else if ("actions".equals(semantic)) {
                 double colMin = columns.get(i).getMinWidth();
-                floor = (colMin >= 160.0 && Double.isFinite(colMin)) ? colMin : Math.min(ACTION_CONTROL_MIN_WIDTH, 96.0);
+                floor = (colMin > ABSOLUTE_MIN_COLUMN && Double.isFinite(colMin))
+                        ? Math.max(ACTION_CONTROL_MIN_WIDTH, colMin)
+                        : ACTION_CONTROL_MIN_WIDTH;
             }
             else floor = Math.max(ABSOLUTE_MIN_COLUMN, Math.min(profiles.get(i).floor(), denseFloor(semantic, heading)));
             dense[i] = floor;
@@ -375,7 +377,9 @@ public final class DynamicTableLayoutManager {
             String semantic = headerSemantic(columns.get(i), headerLabel(columns.get(i)));
             String heading = headerLabel(columns.get(i));
             double colMin = columns.get(i).getMinWidth();
-            double actionsHardFloor = (colMin >= 160.0 && Double.isFinite(colMin)) ? colMin : 78.0;
+            double actionsHardFloor = (colMin > ABSOLUTE_MIN_COLUMN && Double.isFinite(colMin))
+                    ? Math.max(ACTION_CONTROL_MIN_WIDTH, colMin)
+                    : ACTION_CONTROL_MIN_WIDTH;
             double hardFloor = "actions".equals(semantic) ? actionsHardFloor : isSelectionColumn(columns.get(i), semantic, heading) ? 30.0 : denseFloor(semantic, heading);
             dense[i] = Math.max(hardFloor, dense[i] * scale);
             scaledTotal += dense[i];
@@ -385,7 +389,9 @@ public final class DynamicTableLayoutManager {
             for (int i = 0; i < dense.length; i++) {
                 String semantic = headerSemantic(columns.get(i), headerLabel(columns.get(i)));
                 double colMin = columns.get(i).getMinWidth();
-                double actionsHardFloor = (colMin >= 160.0 && Double.isFinite(colMin)) ? colMin : 72.0;
+                double actionsHardFloor = (colMin > ABSOLUTE_MIN_COLUMN && Double.isFinite(colMin))
+                        ? Math.max(ACTION_CONTROL_MIN_WIDTH, colMin)
+                        : ACTION_CONTROL_MIN_WIDTH;
                 double hardFloor = "actions".equals(semantic) ? actionsHardFloor : ABSOLUTE_MIN_COLUMN;
                 reducible += Math.max(0, dense[i] - hardFloor);
             }
@@ -393,7 +399,9 @@ public final class DynamicTableLayoutManager {
             for (int i = 0; i < dense.length && needed > 0.25; i++) {
                 String semantic = headerSemantic(columns.get(i), headerLabel(columns.get(i)));
                 double colMin = columns.get(i).getMinWidth();
-                double actionsHardFloor = (colMin >= 160.0 && Double.isFinite(colMin)) ? colMin : 72.0;
+                double actionsHardFloor = (colMin > ABSOLUTE_MIN_COLUMN && Double.isFinite(colMin))
+                        ? Math.max(ACTION_CONTROL_MIN_WIDTH, colMin)
+                        : ACTION_CONTROL_MIN_WIDTH;
                 double hardFloor = "actions".equals(semantic) ? actionsHardFloor : ABSOLUTE_MIN_COLUMN;
                 double own = Math.max(0, dense[i] - hardFloor);
                 double reduction = reducible <= 0 ? 0 : Math.min(own, needed * own / reducible);
@@ -525,13 +533,17 @@ public final class DynamicTableLayoutManager {
         } else {
             double reducible = 0;
             for (int i = 0; i < widths.length; i++) {
-                double minSafe = (i == widths.length - 1) ? 82.0 : ABSOLUTE_MIN_COLUMN;
+                double minSafe = (i == widths.length - 1)
+                        ? Math.max(ACTION_CONTROL_MIN_WIDTH, profiles != null && i < profiles.size() ? profiles.get(i).floor() * 0.90 : ACTION_CONTROL_MIN_WIDTH)
+                        : ABSOLUTE_MIN_COLUMN;
                 double floor = profiles != null && i < profiles.size() ? Math.max(minSafe, profiles.get(i).floor() * 0.60) : minSafe;
                 reducible += Math.max(0, widths[i] - floor);
             }
             double needed = -diff;
             for (int i = 0; i < widths.length && needed > 0.1; i++) {
-                double minSafe = (i == widths.length - 1) ? 82.0 : ABSOLUTE_MIN_COLUMN;
+                double minSafe = (i == widths.length - 1)
+                        ? Math.max(ACTION_CONTROL_MIN_WIDTH, profiles != null && i < profiles.size() ? profiles.get(i).floor() * 0.90 : ACTION_CONTROL_MIN_WIDTH)
+                        : ABSOLUTE_MIN_COLUMN;
                 double floor = profiles != null && i < profiles.size() ? Math.max(minSafe, profiles.get(i).floor() * 0.60) : minSafe;
                 double own = Math.max(0, widths[i] - floor);
                 double cut = reducible <= 0 ? 0 : Math.min(own, needed * own / reducible);

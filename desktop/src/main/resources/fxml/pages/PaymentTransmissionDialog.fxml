@@ -6,7 +6,7 @@
 
 <BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="org.example.controller.PaymentTransmissionDialog"
-            prefWidth="1140" prefHeight="800" minWidth="880" minHeight="640" maxWidth="Infinity" maxHeight="Infinity"
+            prefWidth="1180" prefHeight="790" minWidth="920" minHeight="560" maxWidth="Infinity" maxHeight="Infinity"
             styleClass="entity-dialog,premium-entity-dialog,approved-ui,erp-screen-root,document-inspection-host">
     <top>
         <VBox styleClass="dse-stage-header-wrap">
@@ -64,8 +64,11 @@
                                 <Label fx:id="lblEmailStatusChip" text="SMTP READY" styleClass="status-pill,status-pill-info"/>
                             </HBox>
                             <VBox fx:id="boxEmailFields" spacing="4">
-                                <Label text="Recipient Email Address *" styleClass="field-label,settings-form-label"/>
-                                <TextField fx:id="txtRecipientEmail" promptText="accounts@example.com" styleClass="approved-input"/>
+                                <HBox alignment="CENTER_LEFT" spacing="6">
+                                    <Label text="Recipient Email Address *" styleClass="field-label,settings-form-label"/>
+                                    <Label fx:id="lblEmailInfo" text="ⓘ" styleClass="action-help-icon,text-muted"/>
+                                </HBox>
+                                <TextField fx:id="txtRecipientEmail" promptText="accounts@example.com; manager@example.com" styleClass="approved-input"/>
                                 <Label fx:id="errEmail" text="Valid recipient email address is required" visible="false" managed="false"
                                        styleClass="validation-message,email-transmission-error"/>
                             </VBox>
@@ -80,8 +83,11 @@
                                 <Label fx:id="lblWhatsappStatusChip" text="GATEWAY ACTIVE" styleClass="status-pill,status-pill-success"/>
                             </HBox>
                             <VBox fx:id="boxWhatsappFields" spacing="4">
-                                <Label text="Recipient Mobile / WhatsApp Number *" styleClass="field-label,settings-form-label"/>
-                                <TextField fx:id="txtRecipientPhone" promptText="+91 98765 43210" styleClass="approved-input"/>
+                                <HBox alignment="CENTER_LEFT" spacing="6">
+                                    <Label text="Recipient Mobile / WhatsApp Number *" styleClass="field-label,settings-form-label"/>
+                                    <Label fx:id="lblPhoneInfo" text="ⓘ" styleClass="action-help-icon,text-muted"/>
+                                </HBox>
+                                <TextField fx:id="txtRecipientPhone" promptText="+91 98765 43210; 9537544008" styleClass="approved-input"/>
                                 <Label fx:id="errPhone" text="Recipient mobile phone number is required" visible="false" managed="false"
                                        styleClass="validation-message,email-transmission-error"/>
                             </VBox>
@@ -94,8 +100,8 @@
                          styleClass="payment-transmission-tabs,modern-tab-pane">
                     
                     <!-- TAB 1: EMAIL DISPATCH & EXECUTIVE LETTERHEAD -->
-                    <Tab text="📧 Email Dispatch &amp; Letterhead">
-                        <VBox spacing="12">
+                    <Tab fx:id="tabEmail" text="📧 Email Dispatch &amp; Letterhead">
+                        <VBox spacing="12" VBox.vgrow="ALWAYS">
                             <padding>
                                 <Insets top="12" right="6" bottom="6" left="6"/>
                             </padding>
@@ -128,11 +134,11 @@
                                 </HBox>
                             </HBox>
 
-                            <StackPane minHeight="240" VBox.vgrow="ALWAYS">
-                                <TextArea fx:id="txtEmailBody" prefRowCount="8" minHeight="220" wrapText="true"
-                                          styleClass="email-transmission-body-area"/>
+                            <StackPane minHeight="340" VBox.vgrow="ALWAYS">
+                                <TextArea fx:id="txtEmailBody" prefRowCount="16" minHeight="320" wrapText="true"
+                                          VBox.vgrow="ALWAYS" maxHeight="Infinity" styleClass="email-transmission-body-area"/>
                                 <VBox fx:id="boxExecutivePreview" visible="false" managed="false" spacing="12"
-                                      styleClass="settings-card" minHeight="240">
+                                      styleClass="settings-card" minHeight="320" VBox.vgrow="ALWAYS" maxHeight="Infinity">
                                     <HBox alignment="CENTER_LEFT" spacing="12" styleClass="email-preview-header">
                                         <VBox spacing="2" HBox.hgrow="ALWAYS">
                                             <Label fx:id="lblPreviewCompany" text="JASVI INDUSTRIES" styleClass="font-bold"/>
@@ -153,28 +159,17 @@
                                     <HBox fx:id="boxLiveStatusPreview" alignment="CENTER" spacing="10" styleClass="email-preview-cta-box">
                                         <Button fx:id="btnLiveStatusSample" text="🔍 VIEW LIVE PAYMENT &amp; INVOICE STATUS" styleClass="approved-primary-button"/>
                                     </HBox>
-                                    <ScrollPane fitToWidth="true" prefHeight="110" styleClass="edge-to-edge">
+                                    <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" maxHeight="Infinity" prefHeight="220" styleClass="edge-to-edge">
                                         <Label fx:id="lblPreviewBody" wrapText="true" styleClass="email-preview-body-prose"/>
                                     </ScrollPane>
                                 </VBox>
                             </StackPane>
-
-                            <!-- Signature Card -->
-                            <HBox fx:id="boxSignatureImage" alignment="CENTER_LEFT" spacing="12" styleClass="email-transmission-sig-box">
-                                <VBox spacing="2" HBox.hgrow="ALWAYS">
-                                    <Label text="Company Signature &amp; Commercial Stamp Attached" styleClass="email-transmission-sig-title"/>
-                                    <Label fx:id="lblSignatureInfo" text="Appended automatically below letterhead signature" styleClass="email-transmission-sig-info"/>
-                                </VBox>
-                                <ImageView fx:id="imgSignatureThumb" fitHeight="32" fitWidth="70" preserveRatio="true"/>
-                                <Button fx:id="btnPreviewSignature" text="Preview Signature" onAction="#previewSignature"
-                                        styleClass="email-transmission-preview-btn"/>
-                            </HBox>
                         </VBox>
                     </Tab>
 
                     <!-- TAB 2: WHATSAPP CHAT DISPATCH & BUBBLE PREVIEW -->
-                    <Tab text="💬 WhatsApp Chat Dispatch">
-                        <VBox spacing="12">
+                    <Tab fx:id="tabWhatsapp" text="💬 WhatsApp Chat Dispatch">
+                        <VBox spacing="12" VBox.vgrow="ALWAYS">
                             <padding>
                                 <Insets top="12" right="6" bottom="6" left="6"/>
                             </padding>
@@ -190,18 +185,22 @@
                                     <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
                                     <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
                                 </columnConstraints>
+                                <rowConstraints>
+                                    <RowConstraints vgrow="ALWAYS"/>
+                                </rowConstraints>
 
                                 <!-- Column 0: Editable WhatsApp Text Area -->
-                                <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="0">
+                                <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="0" VBox.vgrow="ALWAYS">
                                     <Label text="Message Text (Supports WhatsApp *bold*, _italic_, and emoji)" styleClass="field-label"/>
-                                    <TextArea fx:id="txtWhatsappMessage" prefRowCount="10" minHeight="240" wrapText="true"
+                                    <TextArea fx:id="txtWhatsappMessage" prefRowCount="16" minHeight="340" wrapText="true"
+                                              VBox.vgrow="ALWAYS" maxHeight="Infinity"
                                               styleClass="approved-textarea,email-transmission-body-area"/>
                                 </VBox>
 
                                 <!-- Column 1: WhatsApp Live Chat Simulation Preview Card -->
-                                <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="0">
+                                <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="0" VBox.vgrow="ALWAYS">
                                     <Label text="Live WhatsApp Chat Bubble Preview" styleClass="field-label"/>
-                                    <VBox spacing="8" styleClass="approved-card" minHeight="240" VBox.vgrow="ALWAYS">
+                                    <VBox spacing="8" styleClass="approved-card" minHeight="340" VBox.vgrow="ALWAYS" maxHeight="Infinity">
                                         <padding>
                                             <Insets top="12" right="14" bottom="12" left="14"/>
                                         </padding>
@@ -209,7 +208,7 @@
                                             <Label text="JASVI INDUSTRIES" styleClass="font-bold"/>
                                             <Label text="VERIFIED BUSINESS" styleClass="status-pill,status-pill-success"/>
                                         </HBox>
-                                        <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="edge-to-edge">
+                                        <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" maxHeight="Infinity" styleClass="edge-to-edge">
                                             <Label fx:id="lblWhatsappChatPreview" wrapText="true"
                                                    styleClass="email-preview-body-prose"/>
                                         </ScrollPane>
@@ -223,7 +222,7 @@
                     </Tab>
 
                     <!-- TAB 3: ATTACHED PDF RECEIPT -->
-                    <Tab text="📄 Attached PDF Receipt">
+                    <Tab fx:id="tabAttachment" text="📄 Attached PDF Receipt">
                         <VBox spacing="14">
                             <padding>
                                 <Insets top="14" right="6" bottom="6" left="6"/>
@@ -237,6 +236,28 @@
                                 <Button fx:id="btnPreviewPdf" text="Preview PDF" onAction="#previewPdf"
                                         styleClass="email-transmission-preview-btn"/>
                                 <Label text="ATTACHED" styleClass="email-transmission-attached-badge"/>
+                            </HBox>
+                        </VBox>
+                    </Tab>
+
+                    <!-- TAB 4: COMPANY SIGNATURE & COMMERCIAL STAMP -->
+                    <Tab fx:id="tabSignature" text="🖋️ Company Signature &amp; Stamp">
+                        <VBox spacing="14">
+                            <padding>
+                                <Insets top="14" right="6" bottom="6" left="6"/>
+                            </padding>
+                            <HBox fx:id="boxSignatureImage" alignment="CENTER_LEFT" spacing="14" styleClass="email-transmission-sig-box,approved-card">
+                                <StackPane fx:id="sigIconHolder" minWidth="36" minHeight="36" styleClass="dialog-title-icon"/>
+                                <VBox spacing="3" HBox.hgrow="ALWAYS">
+                                    <HBox alignment="CENTER_LEFT" spacing="8">
+                                        <Label text="Company Signature &amp; Commercial Stamp" styleClass="email-transmission-sig-title,approved-strong-label"/>
+                                        <Label fx:id="lblSigStatusBadge" text="OFFICIALLY STAMPED" styleClass="status-pill,status-pill-success"/>
+                                    </HBox>
+                                    <Label fx:id="lblSignatureInfo" text="Appended automatically below letterhead and email advice transmission" styleClass="email-transmission-sig-info,muted-label"/>
+                                </VBox>
+                                <ImageView fx:id="imgSignatureThumb" fitHeight="42" fitWidth="90" preserveRatio="true"/>
+                                <Button fx:id="btnPreviewSignature" text="Preview Signature" onAction="#previewSignature"
+                                        styleClass="secondary-button,approved-secondary-button,email-transmission-preview-btn"/>
                             </HBox>
                         </VBox>
                     </Tab>
