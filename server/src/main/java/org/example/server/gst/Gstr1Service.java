@@ -201,17 +201,40 @@ public class Gstr1Service {
                 itmList.add(new Gstr1Dtos.Gstr1ItemDetailDto(1, txVal, rt, iamt, camt, samt, BigDecimal.ZERO));
             }
 
+            // Group itmList by tax rate (rt) so each rate object appears strictly once per invoice in GST Portal schema
+            Map<BigDecimal, Gstr1Dtos.Gstr1ItemDetailDto> rateGrouped = new LinkedHashMap<>();
+            int rtSeq = 1;
+            for (Gstr1Dtos.Gstr1ItemDetailDto it : itmList) {
+                Gstr1Dtos.Gstr1ItemDetailDto exist = rateGrouped.get(it.rt());
+                if (exist == null) {
+                    rateGrouped.put(it.rt(), new Gstr1Dtos.Gstr1ItemDetailDto(
+                            rtSeq++, it.txval(), it.rt(), it.iamt(), it.camt(), it.samt(), it.csamt()
+                    ));
+                } else {
+                    rateGrouped.put(it.rt(), new Gstr1Dtos.Gstr1ItemDetailDto(
+                            exist.num(),
+                            exist.txval().add(it.txval()),
+                            exist.rt(),
+                            exist.iamt().add(it.iamt()),
+                            exist.camt().add(it.camt()),
+                            exist.samt().add(it.samt()),
+                            exist.csamt().add(it.csamt())
+                    ));
+                }
+            }
+            List<Gstr1Dtos.Gstr1ItemDetailDto> rateGroupedItms = new ArrayList<>(rateGrouped.values());
+
             if (cGstin.length() == 15) {
                 // Table 4: B2B
                 partyNames.put(cGstin, custName);
                 Gstr1Dtos.Gstr1B2bInvoiceDto invDto = new Gstr1Dtos.Gstr1B2bInvoiceDto(
-                        invNo, idt, totalAmt, pos, "N", "R", itmList
+                        invNo, idt, totalAmt, pos, "N", "R", rateGroupedItms
                 );
                 b2bMap.computeIfAbsent(cGstin, k -> new ArrayList<>()).add(invDto);
             } else if (isInter && totalAmt.compareTo(BigDecimal.valueOf(250000.0)) > 0) {
                 // Table 5: B2CL (Interstate unregistered with invoice value > Rs 2.5 Lakhs)
                 Gstr1Dtos.Gstr1B2clInvoiceDto b2clInv = new Gstr1Dtos.Gstr1B2clInvoiceDto(
-                        invNo, idt, totalAmt, "", itmList
+                        invNo, idt, totalAmt, "", rateGroupedItms
                 );
                 b2clMap.computeIfAbsent(pos, k -> new ArrayList<>()).add(b2clInv);
             } else {
@@ -291,6 +314,46 @@ public class Gstr1Service {
                     ));
                 }
             }
+
+            // Also include outward customer debit notes in Table 9B (CDNR) and Table 9C (CDNUR)
+            try {
+                List<Map<String, Object>> dnRows = jdbc.queryForList("""
+                    SELECT id, debit_note_no, note_date, original_bill_no, supplier_name as party_name, supplier_gstin as party_gstin,
+                           taxable_amount, cgst_amount, sgst_amount, igst_amount, total_amount
+                    FROM debit_note_header
+                    WHERE note_date BETWEEN ? AND ?
+                    ORDER BY id ASC
+                    """, win.startDate(), win.endDate());
+
+                for (Map<String, Object> dn : dnRows) {
+                    String ctin = dn.get("party_gstin") != null ? String.valueOf(dn.get("party_gstin")).trim().toUpperCase(Locale.ROOT) : "";
+                    String nNo = String.valueOf(dn.get("debit_note_no"));
+                    String nDt = formatDateGst(String.valueOf(dn.get("note_date")));
+                    String origInv = dn.get("original_bill_no") != null ? String.valueOf(dn.get("original_bill_no")) : "INV-ORIG";
+                    BigDecimal totVal = toBigDecimal(dn.get("total_amount"));
+                    BigDecimal txVal = toBigDecimal(dn.get("taxable_amount"));
+                    BigDecimal cgst = toBigDecimal(dn.get("cgst_amount"));
+                    BigDecimal sgst = toBigDecimal(dn.get("sgst_amount"));
+                    BigDecimal igst = toBigDecimal(dn.get("igst_amount"));
+                    BigDecimal totalTax = cgst.add(sgst).add(igst);
+                    BigDecimal rt = txVal.compareTo(BigDecimal.ZERO) > 0 ? totalTax.multiply(BigDecimal.valueOf(100)).divide(txVal, 2, RoundingMode.HALF_UP) : BigDecimal.valueOf(18.0);
+
+                    List<Gstr1Dtos.Gstr1ItemDetailDto> itm = List.of(new Gstr1Dtos.Gstr1ItemDetailDto(1, txVal, rt, igst, cgst, sgst, BigDecimal.ZERO));
+                    String pos = ctin.length() >= 2 ? ctin.substring(0, 2) : homeState;
+
+                    if (ctin.length() == 15) {
+                        cnPartyNames.put(ctin, String.valueOf(dn.get("party_name")));
+                        cnByParty.computeIfAbsent(ctin, k -> new ArrayList<>()).add(new Gstr1Dtos.Gstr1CdnrNoteDto(
+                                nNo, nDt, "D", origInv, nDt, totVal, pos, "N", itm
+                        ));
+                    } else {
+                        cdnurList.add(new Gstr1Dtos.Gstr1CdnurNoteDto(
+                                totVal.compareTo(BigDecimal.valueOf(250000.0)) > 0 && !pos.equals(homeState) ? "B2CL" : "B2CS",
+                                nNo, nDt, "D", origInv, nDt, totVal, pos, "N", itm
+                        ));
+                    }
+                }
+            } catch (Exception ignored) {}
 
             for (var entry : cnByParty.entrySet()) {
                 cdnrList.add(new Gstr1Dtos.Gstr1CdnrPartyDto(entry.getKey(), cnPartyNames.getOrDefault(entry.getKey(), ""), entry.getValue()));

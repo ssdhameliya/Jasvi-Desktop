@@ -1,3 +1,74 @@
+# What's New in DSE ERP v11.0.69
+
+### Reason-Driven Return Posting Engine & Interactive Posting Flow Inspector
+- **Reason-Driven Return Posting Profiles (`ReturnService.java`) (Rule 4, Rule 11 & Rule 17)**:
+  - Eliminated inventory corruption and unlawful tax adjustments by partitioning return transactions into 3 distinct statutory profiles:
+    - **`PHYSICAL_STOCK` (Defective Goods, Wrong Item Delivered, Transit Damage, Excess Qty)**: Reinstates physical inventory at authentic FIFO unit valuation, reverses outward sales revenue and output GST liability, and credits Accounts Receivable.
+    - **`FINANCIAL_ONLY` (Rate Difference, Price Correction, Over-Billed, Tax Rate Revision)**: Enforces **STRICTLY ZERO inventory movement**, while drafting a statutory GST Credit Note (GSTR-1 Table 9B / GSTR-3B Table 3.1(a)) to adjust taxable revenue and output tax without distorting physical warehouse quantities.
+    - **`COMMERCIAL_REBATE` (Commercial Discount, Volume Incentive, Turnover Rebate, Goodwill Concession)**: Implements CGST Section 15(3)(b) commercial rebate rules with **STRICTLY ZERO inventory movement** and **ZERO GST tax reversal**, creating financial double-entry vouchers (Dr Discount Allowed / Cr Accounts Receivable) without altering GSTR-1/3B statutory returns.
+  - Updated return approval (`approve`) and deletion/cancellation (`reverseApprovedStock`) to strictly honor the return reason profile, ensuring stock is never reversed for price or discount adjustments.
+- **Statutory Posting Flow Inspection API (`GeneralLedgerService.java`, `GeneralLedgerController.java`, `GeneralLedgerDtos.java`) (Rule 4, Rule 11 & Rule 17)**:
+  - Implemented high-performance REST endpoint `GET /api/accounting/posting-flow/{docType}/{docNo}` providing complete end-to-end audit transparency across the entire accounting lifecycle:
+    - **Double-Entry Journal Voucher**: Returns exact balanced debit/credit lines from `journal_entry` and `journal_line` (or prospective canonical voucher for unapproved drafts).
+    - **Inventory Cost Ledger Movement**: Shows stock direction (`+ INWARD RESTOCK`, `- OUTWARD ISSUE`, `ZERO MOVEMENT`), quantity, unit valuation, and FIFO cost delta.
+    - **Statutory GST Impact & Schedule Mapping**: Maps transactions directly to their statutory tax return tables (GSTR-1 Table 4A/9B, GSTR-3B Table 3.1(a)/4(B)(2), Section 15(3)(b) Non-GST) with taxable values, tax breakdowns, and legal statutory provisions.
+- **Universal Desktop Posting Flow Inspector Dialog (`PostingFlowDialog.java`) (Rule 4, Rule 5, Rule 6, Rule 7, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - Designed and implemented a responsive, draggable, content-adaptive modal dialog accessible across Sales Register, Purchase Register, Sales Returns, and Purchase Returns via row action menus (`⚡ View Posting Flow`) and keyboard shortcut (`Ctrl+J`).
+  - Features 3 tabbed inspection views:
+    - **Tab 1: Double-Entry Journal (GL)**: Colorized debit (green) and credit (orange) amounts, account codes, account names, and real-time ledger balance verification (`✓ BALANCED`).
+    - **Tab 2: Inventory Movement**: Complete warehouse stock movement tracking with semantic movement direction badges and FIFO valuation delta.
+    - **Tab 3: Statutory GST Impact**: Clean card breakdown of target statutory returns (GSTR-1/3B/2B), reporting schedules, CGST/SGST/IGST breakdown, and statutory rule citations.
+- **Live Pre-Posting Simulation in Return Creation Dialog (`ReturnEditorService.java`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Added a real-time reactive posting simulation strip to the Return Creation Dialog (`ReturnEditorService.java`).
+  - Dynamically updates as users select items and reasons, giving immediate visual feedback before saving:
+    - `Defective Material / Damaged Goods`: Shows `[📦 PHYSICAL GOODS RESTOCK PROFILE]` with inward restock and GSTR-1 Table 9B credit note.
+    - `Rate Difference / Price Correction`: Shows `[🏷️ RATE DIFFERENCE / PRICE ADJUSTMENT]` with zero inventory movement and GSTR-1 Table 9B credit note.
+    - `Commercial Discount / Volume Rebate`: Shows `[🎉 COMMERCIAL REBATE (CGST SEC 15(3)(b))]` with zero inventory movement, Dr Discount Allowed / Cr Debtors, and zero GST reversal.
+- **Keyboard Shortcuts & Context Menu Integration (`SalesListController.java`, `PurchaseListController.java`, `SalesReturnsController.java`, `PurchaseReturnsController.java`) (Rule 4, Rule 8 & Rule 9)**:
+  - Installed `Ctrl+J` global table key handler on Sales and Purchase registers for 1-click posting flow inspection of selected records.
+  - Added standardized semantic `status` icon actions across all document registers.
+
+### Comprehensive Statutory GST & Double-Entry General Ledger Engine
+- **Automated General Ledger Double-Entry Posting Engine (`GeneralLedgerService.java`, `BusinessOperationsService.java`, `PaymentIntegrityService.java`, `CreditDebitNoteService.java`) (Rule 4, Rule 11 & Rule 17)**:
+  - Eliminated the critical decoupling between operational business documents and accounting registers by wiring `glService.postSalesInvoice`, `postPurchaseBill`, `postPaymentReceipt`, and `postPurchasePayment`.
+  - Automatically posts balanced double-entry journal vouchers to Accounts Receivable (1040), Accounts Payable (2010), Sales Revenue (4010/4020), Raw Material Purchases (5020), Output Tax Liabilities (2081/2082/2083), Input Tax Pools (1081/1082/1083), and Cash/Bank accounts (1010/1020).
+  - Implemented automatic balance reversal and voucher cancellation (`cancelJournalEntriesForReference`) whenever an operational invoice, purchase bill, or payment is cancelled or deleted.
+- **Statutory 180-Day Rule 37 Settlement Enforcer & Section 16(4) Expiration Barrier (`GstComplianceService.java`, `GstComplianceController.java`) (Rule 4, Rule 11 & Rule 17)**:
+  - Implemented strict enforcement of the second proviso to Section 16(2) of the CGST Act and Rule 37: invoices matching GSTR-2B with outstanding unpaid aging exceeding 180 days are flagged as `RULE_37_REVERSAL_DUE` with required action `REVERSAL_REQUIRED`, preventing unlawful ITC retention.
+  - Replaced the client-side simulated 15-character GSTIN matching loop with authentic payment status evaluation, differentiating between `MATCHED & SETTLED` and `ELIGIBLE_PENDING_SETTLEMENT`.
+- **GSTR-3B Credit Note Netting & Two-Way Reverse Charge (RCM) Accounting Parity (`GstComplianceService.java`) (Rule 4 & Rule 17)**:
+  - Updated Table 3.1(a) to compute outward taxable turnover and outward taxes strictly **NET of Sales Credit Notes** from `credit_note_header`, preventing taxpayer overpayment.
+  - Implemented complete Section 9(3)/9(4) two-way RCM accounting: tax payable in cash under Table 3.1(d) is automatically credited into Table 4(A)(3) as eligible Input Tax Credit in the same tax period.
+  - Updated Table 4(B) to subtract Purchase Debit Notes and Returns as statutory ITC reversals.
+- **Government GSTR-1 JSON Schema Grouping & Outward Debit Notes (`Gstr1Service.java`) (Rule 4 & Rule 17)**:
+  - Eliminated portal schema rejection errors caused by multiple line items at the same tax rate: invoice lines are aggregated by tax rate (`rt`) so each rate object appears strictly once per invoice in the exported JSON.
+  - Added outward customer debit notes from `debit_note_header` into Table 9B (CDNR) and Table 9C (CDNUR) with note type `D`, preventing under-reporting of outward tax liabilities.
+- **Desktop Dynamic Place of Supply (POS) & Real Line HSN / Quantity Aggregation (`GstComplianceController.java`) (Rule 4, Rule 7 & Rule 11)**:
+  - Replaced hardcoded HSN code `"8471"` and unit `"NOS"` with authentic item HSN and actual line item quantities.
+  - Upgraded Place of Supply resolution to derive state codes dynamically from billing GSTIN and party master records instead of defaulting unregistered supplies to Gujarat (`"24"`).
+
+### Dynamic Environment-Aware Platform Base URL & Local Rogue Alert Simulation
+- **Tri-Environment Base URL Resolution (`ClientRegistryService.java`, `ClientRegistryController.java`) (Rule 4, Rule 11 & Rule 17)**:
+  - Eliminated the static global fallback to `https://erp.jasviindustries.in` across all environments.
+  - Implemented dynamic environment resolution (`resolveEffectiveServerPublicUrl()`): automatically routes 1-click kick and revocation links to `https://erp.jasviindustries.in` in PROD, `https://api-uat.jasviindustries.in` in UAT, and local server (`http://localhost:58080` or active Cloudflare tunnel) in LOCAL/DEV mode.
+  - Added intelligent local database setting sanitization: in `LOCAL` / `DEV` mode, any legacy cloud setting pointing to `erp.jasviindustries.in` in the database is automatically bypassed in favor of the local workstation endpoint.
+  - Added `@Transactional` boundary to `sendRogueClientSecurityAlerts(...)`, ensuring revocation tokens are reliably written to `license_revocation_token` without JPA transaction warnings.
+  - Enabled the **Test Rogue Alert** (`🛡️ Test Rogue Alert`) action to run in local workstation mode (`TEST-ROGUE-*` bypass), allowing full end-to-end testing of 1-click workstation termination on local developer workstations.
+- **Client Registry Table Telemetry Event Consumption & Double-Click Row Inspection (`ClientRegistryController.java`) (Rule 4, Rule 7 & Rule 11)**:
+  - Eliminated simultaneous double-dialog opening when clicking the Live Telemetry badge (`colLiveStatus`): added `event.consume()` to prevent mouse click events from bubbling up to the parent `TableRow`.
+  - Upgraded table row click handlers across Registered Clients, Approval Requests, and Plans to double-click inspection (`e.getClickCount() == 2`), ensuring single-click exclusively selects the row without inadvertently opening the Workstation Terminal action dialog.
+- **Workstation Terminal Dialog Layout Optimization & Zero Truncation Guarantee (`ClientRegistryController.java`) (Rule 4, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - Eliminated text truncation with ellipses (`...`) for long Cloudflare tunnel URLs and contact person details in the Workstation Terminal inspection modal.
+  - Allocated a dedicated full-width card row spanning columns 1-3 for `Remote IP / Tunnel` with inline 1-click **Copy Tunnel URL** and **Open URL** browser launch actions.
+  - Implemented universal tooltip installation (`Tooltip.install`) across all inspection field values with text wrapping, ensuring all client metadata and addresses remain 100% visible and accessible.
+- **Spring Boot IoC Dependency Injection Constructor Resolution (`BusinessOperationsService.java`) (Rule 4, Rule 10 & Rule 17)**:
+  - Added `@Autowired` to the primary 16-parameter constructor of `BusinessOperationsService`.
+  - Resolved `BeanInstantiationException: No default constructor found` during runtime application context startup, ensuring seamless backend bootstrapping and full bean wiring across `CanonicalDocumentService` and `CanonicalDocumentController`.
+- **SuperAdmin 1-Click Rogue Workstation Termination Transactional Boundary (`ClientRegistryService.java`, `AuthService.java`) (Rule 4, Rule 10 & Rule 17)**:
+  - Added `@Transactional` boundary to `executeOneClickKick(...)`, ensuring `license_revocation_token` consumption, rogue machine blocking (`BLOCKED`), and auth session deletion execute inside a verified database transaction.
+  - Resolved `TransactionRequiredException: No active transaction for update or delete query` (HTTP 500) when superadmins click the 1-click termination link via Email / WhatsApp alerts across all environments (Local, UAT, and PROD).
+  - Hardened `AuthService.login(...)` workstation security gating with hyphen-agnostic matching: both raw display IDs (`TEST-ROGUE-76520`) and stripped canonical forms (`TESTROGUE76520`) are matched against `licensed_client_registry`, guaranteeing 100% enforcement of `BLOCKED` status and machine seat quotas across all login attempts.
+
 # What's New in DSE ERP v11.0.68
 
 ### Master Client Registry In-Place Updates & Machine Hardware ID Security

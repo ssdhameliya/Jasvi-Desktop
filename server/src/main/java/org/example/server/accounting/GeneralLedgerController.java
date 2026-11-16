@@ -47,4 +47,18 @@ public class GeneralLedgerController {
     public GeneralLedgerDtos.FinancialStatementDto financialStatements() {
         return service.getFinancialStatements();
     }
+
+    @GetMapping("/posting-flow/{docType}/{docNo}")
+    public GeneralLedgerDtos.PostingFlowResponse postingFlowByPath(
+            @PathVariable("docType") String docType,
+            @PathVariable("docNo") String docNo) {
+        return service.getPostingFlow(docType, docNo);
+    }
+
+    @GetMapping("/posting-flow")
+    public GeneralLedgerDtos.PostingFlowResponse postingFlowByQuery(
+            @RequestParam("docType") String docType,
+            @RequestParam("docNo") String docNo) {
+        return service.getPostingFlow(docType, docNo);
+    }
 }

@@ -28,15 +28,24 @@ public final class ApiRuntime {
      */
     public static String userMessage(String area, int status, String body) {
         String serverMessage = "";
-        try {
-            var node = JSON.readTree(body == null ? "" : body);
-            if (node != null) {
-                if (node.hasNonNull("message")) serverMessage = node.get("message").asText("").trim();
-                else if (node.hasNonNull("error")) serverMessage = node.get("error").asText("").trim();
-                else if (node.hasNonNull("detail")) serverMessage = node.get("detail").asText("").trim();
+        String trimmed = body == null ? "" : body.trim();
+        if (trimmed.startsWith("<")) {
+            // HTML error response from reverse proxy, Tomcat, or web server
+            if (status == 400) return "The request could not be processed by the server (HTTP 400 Bad Request).";
+            if (status == 404) return "The requested ERP endpoint could not be found (HTTP 404 Not Found).";
+            if (status == 500) return "The ERP server encountered an internal error (HTTP 500). Please check the server logs.";
+            if (status == 502 || status == 503 || status == 504) return "The ERP server gateway or network connection is unavailable (HTTP " + status + ").";
+        } else {
+            try {
+                var node = JSON.readTree(body == null ? "" : body);
+                if (node != null) {
+                    if (node.hasNonNull("message")) serverMessage = node.get("message").asText("").trim();
+                    else if (node.hasNonNull("error")) serverMessage = node.get("error").asText("").trim();
+                    else if (node.hasNonNull("detail")) serverMessage = node.get("detail").asText("").trim();
+                }
+            } catch (Exception e) {
+                org.example.util.DesktopLog.warn("ApiRuntime", "PARSE_ERROR", "Failed to parse API error body: " + e.getMessage());
             }
-        } catch (Exception e) {
-            org.example.util.DesktopLog.warn("ApiRuntime", "PARSE_ERROR", "Failed to parse API error body: " + e.getMessage());
         }
 
         if (status == 401) return "Your session has expired. Please sign in again.";

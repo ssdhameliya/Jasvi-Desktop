@@ -308,6 +308,7 @@ public class BankStatementController implements ScreenLifecycle {
                 } else {
                     Hyperlink link=new Hyperlink(text);
                     link.getStyleClass().add("bank-match-link");
+                    link.setTooltip(new Tooltip("Open ERP Document: "+text));
                     link.setOnAction(e->openLinked(row));
                     setGraphic(link);
                 }
@@ -1262,7 +1263,37 @@ public class BankStatementController implements ScreenLifecycle {
         allocation.setOnEditCommit(e->{double value=e.getNewValue()==null?0:e.getNewValue();e.getRowValue().allocation.set(value);e.getRowValue().selected.set(value>.0001);});
         allocation.setMinWidth(130); allocation.setPrefWidth(140);
 
-        candidatesTable.getColumns().setAll(selected,score,type,document,party,date,total,paid,outstanding,allocation);
+        TableColumn<CandidateRow,String> reasonCol=new TableColumn<>("Match Basis");
+        reasonCol.setCellValueFactory(v->v.getValue().reason);
+        reasonCol.setCellFactory(c -> new TableCell<CandidateRow, String>() {
+            @Override
+            protected void updateItem(String text, boolean empty) {
+                super.updateItem(text, empty);
+                getStyleClass().removeAll("erp-table-value-colour-blue", "erp-table-value-colour-green", "erp-table-value-colour-cyan", "erp-table-value-colour-purple");
+                if (empty || text == null || text.isBlank()) {
+                    setText(null);
+                    setGraphic(null);
+                    setTooltip(null);
+                    return;
+                }
+                setText(text);
+                setTooltip(new Tooltip(text));
+                if (text.contains("Exact")) {
+                    getStyleClass().add("erp-table-value-colour-green");
+                } else if (text.contains("TDS")) {
+                    getStyleClass().add("erp-table-value-colour-cyan");
+                } else if (text.contains("Invoice")) {
+                    getStyleClass().add("erp-table-value-colour-blue");
+                } else {
+                    getStyleClass().add("erp-table-value-colour-purple");
+                }
+                setAlignment(Pos.CENTER_LEFT);
+            }
+        });
+        reasonCol.setMinWidth(170); reasonCol.setPrefWidth(220);
+        IconFactory.applyTableHeaderIcon(reasonCol, "notes");
+
+        candidatesTable.getColumns().setAll(selected,score,reasonCol,type,document,party,date,total,paid,outstanding,allocation);
         DynamicTableLayoutManager.install(candidatesTable);
         CheckBox selectAllCandidates=new CheckBox();
         selectAllCandidates.getProperties().put("erp.icon.skip",true);
@@ -1321,7 +1352,11 @@ public class BankStatementController implements ScreenLifecycle {
         help.setWrapText(true);help.getStyleClass().add("bank-dialog-help");
         VBox tableArea=new VBox(7,bank,help,candidatesTable);VBox.setVgrow(candidatesTable,Priority.ALWAYS);
         VBox content=PopupTableWorkspace.content(metrics,tableArea,selectedStatus);
-        Dialog<ButtonType> dialog=new OwnedDialog<>();dialog.setTitle("Match Transaction");dialog.setHeaderText("Review possible matches and allocate the complete bank transaction.");dialog.getDialogPane().setContent(content);PopupTableWorkspace.prepareDialog(dialog,1320);
+        Dialog<ButtonType> dialog=new OwnedDialog<>();dialog.setTitle("Match Transaction");dialog.setHeaderText("Review possible matches and allocate the complete bank transaction.");dialog.getDialogPane().setContent(content);
+        double screenW = Screen.getPrimary().getVisualBounds().getWidth();
+        double targetW = Math.max(1480, Math.min(1760, screenW - 48));
+        PopupTableWorkspace.prepareDialog(dialog, targetW);
+        candidatesTable.setPrefWidth(targetW - 32);
         ButtonType refreshType=new ButtonType("Refresh Suggestions",ButtonBar.ButtonData.OTHER);ButtonType confirm=new ButtonType("Confirm Match",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(refreshType,ButtonType.CANCEL,confirm);
         Button refreshButton=(Button)dialog.getDialogPane().lookupButton(refreshType);refreshButton.setGraphic(IconFactory.compactIcon("refresh",15));refreshButton.addEventFilter(javafx.event.ActionEvent.ACTION,e->{e.consume();dialog.close();javafx.application.Platform.runLater(()->match(bankRow));});
         dialog.showAndWait().filter(confirm::equals).ifPresent(x->{
@@ -1984,10 +2019,11 @@ public class BankStatementController implements ScreenLifecycle {
         final BankStatementApiClient.CandidateDto dto;
         final BooleanProperty selected=new SimpleBooleanProperty(false);
         final DoubleProperty confidence=new SimpleDoubleProperty();
-        final StringProperty type=new SimpleStringProperty(),document=new SimpleStringProperty(),party=new SimpleStringProperty(),date=new SimpleStringProperty();
+        final StringProperty type=new SimpleStringProperty(),document=new SimpleStringProperty(),party=new SimpleStringProperty(),date=new SimpleStringProperty(),reason=new SimpleStringProperty();
         final DoubleProperty total=new SimpleDoubleProperty(),paid=new SimpleDoubleProperty(),outstanding=new SimpleDoubleProperty(),allocation=new SimpleDoubleProperty();
         CandidateRow(BankStatementApiClient.CandidateDto dto,double allocation,boolean selectedInitially){
             this.dto=dto;confidence.set(dto.confidence());type.set(safe(dto.type()));document.set(safe(dto.documentNo()));party.set(safe(dto.partyName()));date.set(safe(dto.documentDate()));
+            reason.set(safe(dto.matchReason()));
             total.set(dto.totalAmount());paid.set(dto.paidAmount());outstanding.set(dto.outstanding());this.allocation.set(allocation);selected.set(selectedInitially);
         }
     }
@@ -2003,6 +2039,10 @@ public class BankStatementController implements ScreenLifecycle {
 
         public double bankAmount() {
             return tx.credit() > 0 ? tx.credit() : tx.debit();
+        }
+
+        public String matchReason() {
+            return candidate == null || candidate.matchReason() == null ? "" : candidate.matchReason();
         }
     }
 
@@ -2113,20 +2153,24 @@ public class BankStatementController implements ScreenLifecycle {
         colSel.setCellValueFactory(v -> v.getValue().selected);
         colSel.setCellFactory(CheckBoxTableCell.forTableColumn(colSel));
         colSel.setEditable(true);
+        colSel.setMinWidth(48); colSel.setPrefWidth(48);
         autoTable.setEditable(true);
         IconFactory.applyTableHeaderIcon(colSel, "select");
 
         TableColumn<AutoMatchItem, String> colDate = new TableColumn<>("Bank Date");
         colDate.setCellValueFactory(v -> new SimpleStringProperty(BusinessClock.formatDate(v.getValue().tx.transactionDate())));
         colDate.setCellFactory(c -> SemanticTableCells.dateString());
+        colDate.setMinWidth(95); colDate.setPrefWidth(105);
         IconFactory.applyTableHeaderIcon(colDate, "calendar");
 
         TableColumn<AutoMatchItem, String> colRef = new TableColumn<>("Reference / Cheque");
         colRef.setCellValueFactory(v -> new SimpleStringProperty(safe(v.getValue().tx.reference())));
+        colRef.setMinWidth(130); colRef.setPrefWidth(150);
         IconFactory.applyTableHeaderIcon(colRef, "reference");
 
         TableColumn<AutoMatchItem, String> colDesc = new TableColumn<>("Description / Narration");
         colDesc.setCellValueFactory(v -> new SimpleStringProperty(safe(v.getValue().tx.description())));
+        colDesc.setMinWidth(160); colDesc.setPrefWidth(200);
         IconFactory.applyTableHeaderIcon(colDesc, "notes");
 
         TableColumn<AutoMatchItem, String> colAmount = new TableColumn<>("Bank Amount");
@@ -2156,6 +2200,7 @@ public class BankStatementController implements ScreenLifecycle {
                 setAlignment(Pos.CENTER_LEFT);
             }
         });
+        colAmount.setMinWidth(115); colAmount.setPrefWidth(130);
         IconFactory.applyTableHeaderIcon(colAmount, "payment");
 
         TableColumn<AutoMatchItem, String> colDoc = new TableColumn<>("Matched Document");
@@ -2182,28 +2227,64 @@ public class BankStatementController implements ScreenLifecycle {
                 }
             }
         });
+        colDoc.setMinWidth(140); colDoc.setPrefWidth(160);
         IconFactory.applyTableHeaderIcon(colDoc, "document");
 
         TableColumn<AutoMatchItem, String> colParty = new TableColumn<>("Party / Account");
         colParty.setCellValueFactory(v -> new SimpleStringProperty(safe(v.getValue().candidate.partyName())));
+        colParty.setMinWidth(150); colParty.setPrefWidth(180);
         IconFactory.applyTableHeaderIcon(colParty, "customer");
 
         TableColumn<AutoMatchItem, String> colDocDate = new TableColumn<>("Doc Date");
         colDocDate.setCellValueFactory(v -> new SimpleStringProperty(BusinessClock.formatDate(v.getValue().candidate.documentDate())));
         colDocDate.setCellFactory(c -> SemanticTableCells.dateString());
+        colDocDate.setMinWidth(95); colDocDate.setPrefWidth(105);
         IconFactory.applyTableHeaderIcon(colDocDate, "calendar");
 
         TableColumn<AutoMatchItem, String> colOuts = new TableColumn<>("Outstanding");
         colOuts.setCellValueFactory(v -> new SimpleStringProperty("₹ " + money(v.getValue().candidate.outstanding())));
         colOuts.setCellFactory(c -> SemanticTableCells.moneyString("blue"));
+        colOuts.setMinWidth(110); colOuts.setPrefWidth(125);
         IconFactory.applyTableHeaderIcon(colOuts, "balance");
 
         TableColumn<AutoMatchItem, String> colConf = new TableColumn<>("Confidence");
         colConf.setCellValueFactory(v -> new SimpleStringProperty(String.format(Locale.ENGLISH, "%.0f%%", v.getValue().candidate.confidence())));
         colConf.setCellFactory(c -> SemanticTableCells.status("complete"));
+        colConf.setMinWidth(85); colConf.setPrefWidth(95);
         IconFactory.applyTableHeaderIcon(colConf, "status");
 
-        autoTable.getColumns().setAll(colSel, colDate, colRef, colDesc, colAmount, colDoc, colParty, colDocDate, colOuts, colConf);
+        TableColumn<AutoMatchItem, String> colReason = new TableColumn<>("Match Reason");
+        colReason.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().matchReason()));
+        colReason.setCellFactory(c -> new TableCell<AutoMatchItem, String>() {
+            @Override
+            protected void updateItem(String reason, boolean empty) {
+                super.updateItem(reason, empty);
+                getStyleClass().removeAll("erp-table-value-colour-blue", "erp-table-value-colour-green", "erp-table-value-colour-cyan", "erp-table-value-colour-purple");
+                if (empty || reason == null || reason.isBlank()) {
+                    setText(null);
+                    setGraphic(null);
+                    setTooltip(null);
+                    return;
+                }
+                setText(reason);
+                setTooltip(new Tooltip(reason));
+                if (reason.contains("Exact")) {
+                    getStyleClass().add("erp-table-value-colour-green");
+                } else if (reason.contains("TDS")) {
+                    getStyleClass().add("erp-table-value-colour-cyan");
+                } else if (reason.contains("Invoice")) {
+                    getStyleClass().add("erp-table-value-colour-blue");
+                } else {
+                    getStyleClass().add("erp-table-value-colour-purple");
+                }
+                setAlignment(Pos.CENTER_LEFT);
+            }
+        });
+        colReason.setMinWidth(170);
+        colReason.setPrefWidth(220);
+        IconFactory.applyTableHeaderIcon(colReason, "notes");
+
+        autoTable.getColumns().setAll(colSel, colDate, colRef, colDesc, colAmount, colDoc, colParty, colDocDate, colOuts, colConf, colReason);
         DynamicTableLayoutManager.install(autoTable);
 
         Runnable updateModalMetrics = () -> {
@@ -2223,7 +2304,8 @@ public class BankStatementController implements ScreenLifecycle {
                         (it.candidate.partyName() != null && it.candidate.partyName().toLowerCase(Locale.ROOT).contains(lq)) ||
                         (it.candidate.documentNo() != null && it.candidate.documentNo().toLowerCase(Locale.ROOT).contains(lq)) ||
                         (it.tx.reference() != null && it.tx.reference().toLowerCase(Locale.ROOT).contains(lq)) ||
-                        (it.tx.description() != null && it.tx.description().toLowerCase(Locale.ROOT).contains(lq))
+                        (it.tx.description() != null && it.tx.description().toLowerCase(Locale.ROOT).contains(lq)) ||
+                        (it.matchReason().toLowerCase(Locale.ROOT).contains(lq))
                 ));
             }
         });
@@ -2235,7 +2317,10 @@ public class BankStatementController implements ScreenLifecycle {
         VBox content = PopupTableWorkspace.content(metrics, tableArea, footer);
 
         dialog.getDialogPane().setContent(content);
-        PopupTableWorkspace.prepareDialog(dialog, 1200);
+        double screenW = Screen.getPrimary().getVisualBounds().getWidth();
+        double targetW = Math.max(1480, Math.min(1760, screenW - 48));
+        PopupTableWorkspace.prepareDialog(dialog, targetW);
+        autoTable.setPrefWidth(targetW - 32);
 
         ButtonType refreshType = new ButtonType("Refresh Suggestions", ButtonBar.ButtonData.OTHER);
         ButtonType confirmType = new ButtonType("Confirm Match", ButtonBar.ButtonData.OK_DONE);

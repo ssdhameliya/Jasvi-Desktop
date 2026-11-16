@@ -350,6 +350,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (getTableRow() != null && getTableRow().getItem() != null) {
                         showUserTelemetryDialog(getTableRow().getItem());
                     }
+                    event.consume();
                 });
 
                 String tooltipText = "Active Connected Users Now: " + activeCount + " of " + maxUsers +
@@ -515,7 +516,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         tableClients.setRowFactory(tv -> {
             TableRow<Map<String, Object>> row = new TableRow<>();
             row.setOnMouseClicked(e -> {
-                if (row.isEmpty() || e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 1
+                if (row.isEmpty() || e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 2
                         || org.example.util.RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(), row)) return;
                 Map<String, Object> item = row.getItem();
                 tableClients.getSelectionModel().select(item);
@@ -707,7 +708,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         tableLeads.setRowFactory(tv -> {
             TableRow<Map<String, Object>> row = new TableRow<>();
             row.setOnMouseClicked(e -> {
-                if (row.isEmpty() || e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 1
+                if (row.isEmpty() || e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 2
                         || org.example.util.RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(), row)) return;
                 Map<String, Object> lead = row.getItem();
                 tableLeads.getSelectionModel().select(lead);
@@ -842,16 +843,26 @@ public class ClientRegistryController implements ScreenLifecycle {
         );
     }
 
+    private void copyToClipboard(String text, String successMsg) {
+        if (text == null || text.isBlank() || "-".equals(text)) return;
+        ClipboardContent content = new ClipboardContent();
+        content.putString(text);
+        Clipboard.getSystemClipboard().setContent(content);
+        javafx.scene.Node owner = (tableClients != null && tableClients.getScene() != null) ? tableClients : tableLeads;
+        AppDialogService.info(owner, "Copied", successMsg + ":\n" + text);
+    }
+
     private void copyMachineId(String machineId) {
         if (machineId == null || machineId.isBlank()) return;
         String clean = machineId.replace("-", "").toUpperCase(Locale.ROOT);
         String formatted = clean.length() == 16
                 ? String.format("%s-%s-%s-%s", clean.substring(0, 4), clean.substring(4, 8), clean.substring(8, 12), clean.substring(12, 16))
                 : clean;
-        ClipboardContent content = new ClipboardContent();
-        content.putString(formatted);
-        Clipboard.getSystemClipboard().setContent(content);
-        AppDialogService.info(tableLeads, "Copied", "Machine Hardware ID copied to clipboard:\n" + formatted);
+        copyToClipboard(formatted, "Machine Hardware ID copied to clipboard");
+    }
+
+    private void copyRemoteUrl(String remoteUrl) {
+        copyToClipboard(remoteUrl, "Remote Tunnel URL copied to clipboard");
     }
 
     private void showLeadDetailsDialog(Map<String, Object> lead) {
@@ -1143,7 +1154,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         tablePlans.setRowFactory(tv -> {
             TableRow<Map<String, Object>> row = new TableRow<>();
             row.setOnMouseClicked(e -> {
-                if (row.isEmpty() || e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 1
+                if (row.isEmpty() || e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 2
                         || org.example.util.RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(), row)) return;
                 Map<String, Object> plan = row.getItem();
                 tablePlans.getSelectionModel().select(plan);
@@ -1409,7 +1420,7 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         // 1. Platform Server & Security Endpoint Configuration
         TextField serverUrlField = new TextField(String.valueOf(comm.getOrDefault("serverPublicUrl", "https://erp.jasviindustries.in")));
-        serverUrlField.setPromptText("e.g. https://erp.jasviindustries.in or https://api-uat.jasviindustries.in");
+        serverUrlField.setPromptText("e.g. http://localhost:8080 (Local), https://api-uat.jasviindustries.in (UAT), or https://erp.jasviindustries.in (PROD)");
         serverUrlField.getStyleClass().add("approved-input");
         String tipServerUrl = "Public HTTPS server base URL used to construct instant 1-click kick/block links in security alerts.";
         serverUrlField.setTooltip(new Tooltip(tipServerUrl));
@@ -3340,8 +3351,8 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         VBox root = new VBox(14);
         root.setPadding(new Insets(16, 20, 16, 20));
-        root.setMinWidth(800);
-        root.setPrefWidth(840);
+        root.setMinWidth(860);
+        root.setPrefWidth(900);
 
         HBox hero = new HBox(12);
         hero.setAlignment(Pos.CENTER_LEFT);
@@ -3363,21 +3374,21 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         GridPane grid = new GridPane();
         grid.setHgap(16);
-        grid.setVgap(8);
+        grid.setVgap(10);
         grid.getStyleClass().add("approved-card");
-        grid.setPadding(new Insets(12, 16, 12, 16));
+        grid.setPadding(new Insets(14, 18, 14, 18));
 
         ColumnConstraints col0 = new ColumnConstraints();
-        col0.setMinWidth(160);
-        col0.setPrefWidth(175);
+        col0.setMinWidth(140);
+        col0.setPrefWidth(150);
         col0.setHgrow(Priority.NEVER);
 
         ColumnConstraints col1 = new ColumnConstraints();
         col1.setHgrow(Priority.ALWAYS);
 
         ColumnConstraints col2 = new ColumnConstraints();
-        col2.setMinWidth(150);
-        col2.setPrefWidth(165);
+        col2.setMinWidth(140);
+        col2.setPrefWidth(150);
         col2.setHgrow(Priority.NEVER);
 
         ColumnConstraints col3 = new ColumnConstraints();
@@ -3386,20 +3397,51 @@ public class ClientRegistryController implements ScreenLifecycle {
         grid.getColumnConstraints().addAll(col0, col1, col2, col3);
 
         int r = 0;
+        grid.add(createFieldLabel("Contact Person:"), 0, r);
+        grid.add(createFieldValue(contactPerson + (phone.isBlank() ? "" : " (" + phone + ")"), "metric-label"), 1, r);
+        grid.add(createFieldLabel("Email Address:"), 2, r);
+        grid.add(createFieldValue(email, "code-label"), 3, r++);
+
+        grid.add(createFieldLabel("Connected Seats:"), 0, r);
+        grid.add(createFieldValue(activeUsers + " / " + maxUsers + " Users", "status-badge"), 1, r);
+        grid.add(createFieldLabel("Annual Pricing:"), 2, r);
+        grid.add(createFieldValue(feeStr, "summary-paid"), 3, r++);
+
+        grid.add(createFieldLabel("Valid Until:"), 0, r);
+        grid.add(createFieldValue(validStr, "metric-label"), 1, r);
+        grid.add(createFieldLabel("License Tier:"), 2, r);
+        grid.add(createFieldValue(tier + (isPurchased ? " • Purchased License" : " • Evaluation Trial"), isPurchased ? "status-positive" : "status-warning"), 3, r++);
+
         grid.add(createFieldLabel("Remote IP / Tunnel:"), 0, r);
-        grid.add(createFieldValue(remoteUrl, "code-label"), 1, r);
-        grid.add(createFieldLabel("Contact Person:"), 2, r);
-        grid.add(createFieldValue(contactPerson + (phone.isBlank() ? "" : " (" + phone + ")"), "metric-label"), 3, r++);
+        HBox urlBox = new HBox(8);
+        urlBox.setAlignment(Pos.CENTER_LEFT);
+        Label lblUrl = createFieldValue(remoteUrl, "code-label");
+        lblUrl.setWrapText(true);
+        HBox.setHgrow(lblUrl, Priority.ALWAYS);
 
-        grid.add(createFieldLabel("Email Address:"), 0, r);
-        grid.add(createFieldValue(email, "code-label"), 1, r);
-        grid.add(createFieldLabel("Connected Seats:"), 2, r);
-        grid.add(createFieldValue(activeUsers + " / " + maxUsers + " Users", "status-badge"), 3, r++);
+        Button btnCopyUrl = new Button("Copy URL");
+        btnCopyUrl.setGraphic(IconFactory.compactIcon("copy", 11));
+        btnCopyUrl.getStyleClass().addAll("approved-button", "approved-slate-button");
+        btnCopyUrl.setDisable(remoteUrl == null || remoteUrl.isBlank() || "-".equals(remoteUrl));
+        btnCopyUrl.setOnAction(e -> copyRemoteUrl(remoteUrl));
 
-        grid.add(createFieldLabel("Annual Pricing:"), 0, r);
-        grid.add(createFieldValue(feeStr, "summary-paid"), 1, r);
-        grid.add(createFieldLabel("Valid Until:"), 2, r);
-        grid.add(createFieldValue(validStr, "metric-label"), 3, r++);
+        Button btnOpenUrl = new Button("Open");
+        btnOpenUrl.setGraphic(IconFactory.compactIcon("link", 11));
+        btnOpenUrl.getStyleClass().addAll("approved-button", "approved-sky-button");
+        btnOpenUrl.setDisable(remoteUrl == null || !remoteUrl.toLowerCase(Locale.ROOT).startsWith("http"));
+        btnOpenUrl.setOnAction(e -> {
+            try {
+                if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(remoteUrl));
+                }
+            } catch (Exception ex) {
+                AppDialogService.error(tableClients, "Open Link Failed", "Could not open URL: " + ex.getMessage());
+            }
+        });
+
+        urlBox.getChildren().addAll(lblUrl, btnCopyUrl, btnOpenUrl);
+        GridPane.setColumnSpan(urlBox, 3);
+        grid.add(urlBox, 1, r++);
 
         Label lblActionsHeader = new Label("Available Workstation & Licensing Actions");
         lblActionsHeader.getStyleClass().addAll("metric-label", "header-subtitle");
@@ -3449,7 +3491,7 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         root.getChildren().addAll(hero, grid, lblActionsHeader, actionsGrid);
         dialog.getDialogPane().setContent(root);
-        PopupTableWorkspace.prepareDialog(dialog, 840);
+        PopupTableWorkspace.prepareDialog(dialog, 900);
         dialog.showAndWait();
     }
 
@@ -3681,12 +3723,18 @@ public class ClientRegistryController implements ScreenLifecycle {
     }
 
     private Label createFieldValue(String text, String semanticClass) {
-        Label l = new Label(text != null && !text.isBlank() ? text : "-");
+        String display = text != null && !text.isBlank() ? text : "-";
+        Label l = new Label(display);
         l.getStyleClass().addAll("field-value", "inspection-card-value");
         if (semanticClass != null && !semanticClass.isBlank()) {
             l.getStyleClass().add(semanticClass);
         }
         l.getProperties().put("erp.value.icon.skip", true);
+        if (!"-".equals(display)) {
+            Tooltip tip = new Tooltip(display);
+            tip.setShowDelay(javafx.util.Duration.millis(150));
+            Tooltip.install(l, tip);
+        }
         return l;
     }
 

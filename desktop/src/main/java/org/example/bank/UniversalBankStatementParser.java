@@ -245,7 +245,7 @@ public final class UniversalBankStatementParser {
         String periodFrom = "";
         String periodTo = "";
 
-        int maxHeaderScan = Math.min(35, sheet.getLastRowNum());
+        int maxHeaderScan = Math.min(100, sheet.getLastRowNum());
         for (int r = 0; r <= maxHeaderScan; r++) {
             Row row = sheet.getRow(r);
             if (row == null)
@@ -368,6 +368,7 @@ public final class UniversalBankStatementParser {
         Double runningOpening = null, runningClosing = null;
         int errorCount = 0;
         int sourceIdx = 1;
+        Map<String, Integer> occurrenceMap = new HashMap<>();
 
         for (int r = headerRowIdx + 1; r <= sheet.getLastRowNum(); r++) {
             Row row = sheet.getRow(r);
@@ -443,8 +444,8 @@ public final class UniversalBankStatementParser {
             }
 
             if (parsedDate == null) {
-                // If amounts are zero or negative, this is trailing footer/summary metadata
-                if (debit <= 0 && credit <= 0) {
+                // If amounts are zero or negative, or contains summary keywords, this is trailing footer/summary metadata
+                if ((debit <= 0 && credit <= 0) || isFooterOrSummaryRow(dateStr, desc, ref, row)) {
                     continue;
                 }
                 auditRows.add(new AuditRow(r + 1, sourceIdx, "", dateStr, valDateStr, desc, ref, debit, credit, balance,
@@ -455,6 +456,10 @@ public final class UniversalBankStatementParser {
             }
 
             if (debit <= 0 && credit <= 0) {
+                if (isFooterOrSummaryRow(dateStr, desc, ref, row) || desc.toLowerCase(Locale.ROOT).contains("total")
+                        || desc.toLowerCase(Locale.ROOT).contains("balance") || desc.toLowerCase(Locale.ROOT).contains("statement")) {
+                    continue;
+                }
                 auditRows.add(new AuditRow(r + 1, sourceIdx, parsedDate, parsedDate, parsedValDate, desc, ref, debit,
                         credit, balance, "INVALID_ERROR", "Both debit and credit amounts are zero"));
                 errorCount++;
@@ -467,10 +472,13 @@ public final class UniversalBankStatementParser {
             runningClosing = balance;
 
             String ts = parsedTimestamp != null ? parsedTimestamp : (parsedDate + "T00:00:00");
-            String fpKey = (!account.isBlank() ? account : fileName) + "|" + ts + "|" + ref + "|"
+            String baseKey = (!account.isBlank() ? account : fileName) + "|" + ts + "|" + ref + "|"
+                    + (desc != null ? desc.trim() : "") + "|"
                     + String.format(Locale.ROOT, "%.2f", debit) + "|"
                     + String.format(Locale.ROOT, "%.2f", credit) + "|"
                     + String.format(Locale.ROOT, "%.2f", balance);
+            int occurrence = occurrenceMap.merge(baseKey, 1, Integer::sum);
+            String fpKey = baseKey + "|#" + occurrence;
             String fp = sha256Hex(fpKey);
 
             // Standardize valueDate = parsedDate if not explicitly distinct

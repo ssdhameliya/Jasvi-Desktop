@@ -17,6 +17,7 @@ import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.collections.FXCollections;
+import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -155,8 +156,52 @@ public final class ReturnEditorService {
             PopupTableWorkspace.controlCard("Return Date", returnDate, "calendar"),
             PopupTableWorkspace.metricCard("Estimated Total", total, "warning")
         );
+        Label lblPostingProfile = new Label("📦 PHYSICAL RESTOCK PROFILE");
+        lblPostingProfile.getStyleClass().addAll("filter-chip", "erp-table-value-colour-green");
+        lblPostingProfile.setGraphic(IconFactory.compactIcon("item", 14));
+
+        Label lblPostingDetails = new Label("Stock will be restocked to inventory at FIFO valuation • Statutory GST Credit Note drafted for GSTR-1 Table 9B");
+        lblPostingDetails.getStyleClass().addAll("approved-lead");
+
+        Runnable updatePostingPreview = () -> {
+            List<ReturnLine> sel = rows.stream().filter(ReturnLine::selected).toList();
+            if (sel.isEmpty()) {
+                lblPostingProfile.setText("⚡ SELECT ITEMS TO PREVIEW POSTING");
+                lblPostingProfile.setGraphic(IconFactory.compactIcon("status", 14));
+                lblPostingDetails.setText("Select items and reasons to see real-time GL double-entry, inventory movement, and GST impact.");
+                return;
+            }
+            boolean anyRebate = sel.stream().anyMatch(r -> isCommercialRebate(r.reason()));
+            boolean anyPhysical = sel.stream().anyMatch(r -> isPhysicalStockReturn(r.reason()));
+
+            if (anyRebate) {
+                lblPostingProfile.setText("🎉 COMMERCIAL REBATE (CGST SEC 15(3)(b))");
+                lblPostingProfile.setGraphic(IconFactory.compactIcon("notes", 14));
+                lblPostingDetails.setText("ZERO Inventory Movement (Stock unaffected) • Dr Discount Allowed / Cr Debtors • Zero GST Reversal");
+            } else if (!anyPhysical) {
+                lblPostingProfile.setText("🏷️ RATE DIFFERENCE / PRICE ADJUSTMENT");
+                lblPostingProfile.setGraphic(IconFactory.compactIcon("currency", 14));
+                lblPostingDetails.setText("ZERO Inventory Movement (Stock unaffected) • Reverses Revenue & Output GST • Statutory GST Credit Note (GSTR-1 Table 9B)");
+            } else {
+                lblPostingProfile.setText("📦 PHYSICAL GOODS RESTOCK PROFILE");
+                lblPostingProfile.setGraphic(IconFactory.compactIcon("item", 14));
+                lblPostingDetails.setText("Inward Stock Restock at FIFO Valuation • Reverses Revenue & Output GST • Statutory GST Credit Note (GSTR-1 Table 9B)");
+            }
+        };
+
+        rows.forEach(row -> {
+            row.selectedProperty().addListener((o, a, b) -> updatePostingPreview.run());
+            row.reasonProperty().addListener((o, a, b) -> updatePostingPreview.run());
+        });
+        updatePostingPreview.run();
+
+        HBox postingPreviewStrip = new HBox(10, lblPostingProfile, lblPostingDetails);
+        postingPreviewStrip.setAlignment(Pos.CENTER_LEFT);
+        postingPreviewStrip.setPadding(new javafx.geometry.Insets(6, 12, 6, 12));
+        postingPreviewStrip.getStyleClass().add("approved-surface");
+
         HBox selectionBar = PopupTableWorkspace.footer(selectAvailable);
-        VBox tableArea = new VBox(9, selectionBar, table);
+        VBox tableArea = new VBox(8, selectionBar, table, postingPreviewStrip);
         VBox.setVgrow(table, Priority.ALWAYS);
         HBox footer = PopupTableWorkspace.footerWithRight(selectedCount,
             PopupTableWorkspace.footerText("Enter a reason for every selected return item."));
@@ -300,26 +345,47 @@ public final class ReturnEditorService {
     }
 
     private static final List<String> DEFAULT_PURCHASE_REASONS = List.of(
-            "Defective Material",
-            "Goods returned to supplier",
-            "Wrong Item Delivered",
-            "Transit Damage",
-            "Excess Quantity",
-            "Quality Rejection",
+            "Defective Material (Physical Return)",
+            "Goods returned to supplier (Physical Return)",
+            "Wrong Item Delivered (Physical Return)",
+            "Transit Damage (Physical Return)",
+            "Excess Quantity (Physical Return)",
+            "Quality Rejection (Physical Return)",
+            "Rate Difference / Price Correction (Zero Stock)",
+            "Commercial Discount / Volume Rebate (Zero Stock, Non-GST)",
+            "Supplier Return",
             "Rate Difference",
-            "Supplier Return"
+            "Commercial Discount"
     );
 
     private static final List<String> DEFAULT_SALES_REASONS = List.of(
-            "Goods returned by customer",
-            "Defective Material",
-            "Wrong Item Delivered",
-            "Transit Damage",
-            "Excess Quantity",
-            "Quality Rejection",
+            "Goods returned by customer (Physical Return)",
+            "Defective Material (Physical Return)",
+            "Wrong Item Delivered (Physical Return)",
+            "Transit Damage (Physical Return)",
+            "Excess Quantity (Physical Return)",
+            "Quality Rejection (Physical Return)",
+            "Rate Difference / Price Correction (Zero Stock)",
+            "Commercial Discount / Volume Rebate (Zero Stock, Non-GST)",
+            "Customer Return",
             "Rate Difference",
-            "Customer Return"
+            "Commercial Discount"
     );
+
+    private static boolean isPhysicalStockReturn(String reason) {
+        if (reason == null || reason.isBlank()) return true;
+        String r = reason.trim().toUpperCase(Locale.ROOT);
+        if (r.contains("RATE DIFF") || r.contains("PRICE") || r.contains("OVER BILL") || r.contains("TAX RATE")) return false;
+        if (r.contains("DISCOUNT") || r.contains("REBATE") || r.contains("INCENTIVE") || r.contains("GOODWILL")) return false;
+        if (r.contains("COMMERCIAL")) return false;
+        return true;
+    }
+
+    private static boolean isCommercialRebate(String reason) {
+        if (reason == null || reason.isBlank()) return false;
+        String r = reason.trim().toUpperCase(Locale.ROOT);
+        return r.contains("COMMERCIAL") || r.contains("DISCOUNT") || r.contains("REBATE") || r.contains("INCENTIVE") || r.contains("GOODWILL");
+    }
 
     private static List<String> loadLookupReasons() {
         return loadLookupReasons(Type.PURCHASE);

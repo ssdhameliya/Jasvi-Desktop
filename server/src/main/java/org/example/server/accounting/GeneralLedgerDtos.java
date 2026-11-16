@@ -106,4 +106,51 @@ public class GeneralLedgerDtos {
             BigDecimal totalLiabilities,
             BigDecimal totalEquity
     ) {}
+
+    public record PostingFlowVoucherLine(
+            String accountCode,
+            String accountName,
+            BigDecimal debitAmount,
+            BigDecimal creditAmount,
+            String narration
+    ) {}
+
+    public record PostingFlowInventoryLine(
+            String itemCode,
+            String description,
+            String movementType,
+            BigDecimal quantity,
+            String unit,
+            BigDecimal unitCost,
+            BigDecimal totalValuation
+    ) {}
+
+    public record PostingFlowGstImpact(
+            String returnForm,
+            String tableSection,
+            BigDecimal taxableAmount,
+            BigDecimal cgstAmount,
+            BigDecimal sgstAmount,
+            BigDecimal igstAmount,
+            BigDecimal totalTax,
+            String statutoryRule
+    ) {}
+
+    public record PostingFlowResponse(
+            String documentType,
+            String documentNo,
+            LocalDate documentDate,
+            String partyName,
+            String partyGstin,
+            BigDecimal totalAmount,
+            String postingProfile,
+            String summaryDescription,
+            String journalVoucherNo,
+            List<PostingFlowVoucherLine> journalLines,
+            BigDecimal totalDebit,
+            BigDecimal totalCredit,
+            boolean isBalanced,
+            List<PostingFlowInventoryLine> inventoryMovements,
+            PostingFlowGstImpact gstImpact
+    ) {}
 }

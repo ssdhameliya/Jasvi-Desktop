@@ -154,6 +154,15 @@ public class PurchaseListController implements ScreenLifecycle{
   if(colActions!=null) IconFactory.applyTableHeaderIcon(colActions, "actions");
 
   tablePurchase.setRowFactory(tv->{TableRow<Purchase> row=new TableRow<>();row.setOnMouseClicked(e->{if(row.isEmpty()||e.getButton()!=javafx.scene.input.MouseButton.PRIMARY||e.getClickCount()!=1||RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(),row))return;Purchase clicked=row.getItem();tablePurchase.getSelectionModel().select(clicked);PurchaseDocumentInspectionDialog.show(tablePurchase,clicked,support,this::refresh);e.consume();});return row;});
+  tablePurchase.setOnKeyPressed(event -> {
+      if (new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.J, javafx.scene.input.KeyCombination.CONTROL_DOWN).match(event)) {
+          Purchase sel = tablePurchase.getSelectionModel().getSelectedItem();
+          if (sel != null && sel.getInvoiceNo() != null) {
+              org.example.util.PostingFlowDialog.show(tablePurchase, "PURCHASE", sel.getInvoiceNo());
+              event.consume();
+          }
+      }
+  });
   DynamicTableLayoutManager.install(tablePurchase);
   ProfessionalUiEnhancer.refreshTableDecorations(tablePurchase);
  }
@@ -226,7 +235,11 @@ public class PurchaseListController implements ScreenLifecycle{
    LinkedRecordContext.open("DEBIT_NOTE", null, row.getInvoiceNo(), "APPROVE_RETURN", "PURCHASE_REGISTER");
    NavigationManager.navigateOrReport("/fxml/pages/DebitNoteRegister.fxml");
   });
-  sharedMenu.getItems().setAll(view, linkages, attach, audit, editActionItem, duplicate, pdf, barcode, excel, email, whatsapp, paymentActionItem, returnActionItem, viewReturns, notes, cancelActionItem, deleteActionItem);
+  MenuItem postingFlow = purchaseActionItem("⚡ View Posting Flow (GL/Stock/GST)", "status", () -> {
+   Purchase row = requirePurchaseActionTarget(target);
+   org.example.util.PostingFlowDialog.show(tablePurchase, "PURCHASE", row.getInvoiceNo());
+  });
+  sharedMenu.getItems().setAll(view, postingFlow, linkages, attach, audit, editActionItem, duplicate, pdf, barcode, excel, email, whatsapp, paymentActionItem, returnActionItem, viewReturns, notes, cancelActionItem, deleteActionItem);
   IconFactory.decorateActionMenu(sharedMenu);
 
   java.util.function.Consumer<Purchase> updateAvailability = current -> {

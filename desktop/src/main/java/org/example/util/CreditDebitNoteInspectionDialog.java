@@ -506,7 +506,14 @@ public final class CreditDebitNoteInspectionDialog {
             );
         });
 
-        dock.getChildren().addAll(btnEdit, btnBarcode, btnAudit);
+        // 4. View Posting Flow
+        Button btnPostingFlow = new Button("View Posting Flow");
+        btnPostingFlow.setGraphic(IconFactory.compactIcon("status", 14));
+        btnPostingFlow.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnPostingFlow.setTooltip(new Tooltip("Inspect Credit/Debit Note Double-Entry Voucher & Statutory GST Schedules"));
+        btnPostingFlow.setOnAction(e -> PostingFlowDialog.show(dialog.getDialogPane(), isCreditNote ? "CREDIT_NOTE" : "DEBIT_NOTE", details.noteNo()));
+
+        dock.getChildren().addAll(btnEdit, btnBarcode, btnAudit, btnPostingFlow);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
