@@ -9,6 +9,7 @@ import org.example.model.PurchaseCharge;
 import org.example.model.SalesCharge;
 import org.example.util.IconFactory;
 import org.example.util.OwnedDialog;
+import org.example.util.WindowUtilsFx;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -146,6 +147,11 @@ public final class DocumentChargeDialog {
         dialog.getDialogPane().setMinSize(minWidth, minHeight);
         if (prefWidth > 0 && prefHeight > 0) dialog.getDialogPane().setPrefSize(prefWidth, prefHeight);
         dialog.setResizable(true);
+        dialog.setOnShown(ev -> {
+            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, stage.getOwner());
+            }
+        });
 
         ButtonType apply = new ButtonType("Apply Charges", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, apply);

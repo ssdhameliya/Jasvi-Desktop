@@ -658,14 +658,45 @@ public class GeneralLedgerService {
         List<GeneralLedgerDtos.PostingFlowInventoryLine> invLines = new ArrayList<>();
         List<Map<String, Object>> lines = jdbc.queryForList("""
             SELECT sl.item_code, COALESCE(sl.item_description_snapshot, im.description, sl.item_code) AS descr,
-                   sl.quantity, COALESCE(im.unit, 'Nos') AS unit, COALESCE(sl.unit_cost_snapshot, 0) AS unit_cost
+                   sl.quantity, COALESCE(im.unit, 'Nos') AS unit, COALESCE(sl.unit_cost_snapshot, 0) AS unit_cost,
+                   COALESCE(sl.rate, 0) AS rate, COALESCE(sl.discount_percent, 0) AS discount_percent,
+                   COALESCE(sl.line_total, 0) AS line_total, COALESCE(im.opening_stock, 0) AS current_stock
             FROM sales_line sl
             LEFT JOIN item_master im ON im.item_code = sl.item_code
             WHERE sl.sales_id = ? ORDER BY sl.id ASC
             """, salesId);
+
+        BigDecimal orderTaxableRevenue = BigDecimal.ZERO;
+        BigDecimal orderInventoryCost = BigDecimal.ZERO;
+        BigDecimal orderTotalProfit = BigDecimal.ZERO;
+
         for (Map<String, Object> l : lines) {
             BigDecimal q = toBigDecimal(l.get("quantity"));
             BigDecimal uc = toBigDecimal(l.get("unit_cost"));
+            BigDecimal rate = toBigDecimal(l.get("rate"));
+            BigDecimal lineTot = toBigDecimal(l.get("line_total"));
+            BigDecimal currentStock = toBigDecimal(l.get("current_stock"));
+
+            // Stock before and after order
+            // Sales decrement warehouse inventory, so before order stock was currentStock + q
+            BigDecimal stockAfter = currentStock;
+            BigDecimal stockBefore = currentStock.add(q);
+
+            // Effective selling rate per unit (respecting item-level discounts)
+            BigDecimal sellingRate = (q.compareTo(BigDecimal.ZERO) > 0 && lineTot.compareTo(BigDecimal.ZERO) > 0)
+                    ? lineTot.divide(q, 2, RoundingMode.HALF_UP)
+                    : rate;
+            BigDecimal lineRev = lineTot.compareTo(BigDecimal.ZERO) > 0 ? lineTot : q.multiply(sellingRate).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal lineCost = q.multiply(uc).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal lineProfit = lineRev.subtract(lineCost);
+            BigDecimal marginPct = (lineRev.compareTo(BigDecimal.ZERO) > 0)
+                    ? lineProfit.multiply(BigDecimal.valueOf(100)).divide(lineRev, 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+
+            orderTaxableRevenue = orderTaxableRevenue.add(lineRev);
+            orderInventoryCost = orderInventoryCost.add(lineCost);
+            orderTotalProfit = orderTotalProfit.add(lineProfit);
+
             invLines.add(new GeneralLedgerDtos.PostingFlowInventoryLine(
                     Objects.toString(l.get("item_code"), ""),
                     Objects.toString(l.get("descr"), ""),
@@ -673,9 +704,19 @@ public class GeneralLedgerService {
                     q.negate(),
                     Objects.toString(l.get("unit"), "Nos"),
                     uc,
-                    q.multiply(uc).setScale(2, RoundingMode.HALF_UP).negate()
+                    lineCost.negate(),
+                    stockBefore,
+                    stockAfter,
+                    sellingRate,
+                    lineRev,
+                    lineProfit,
+                    marginPct
             ));
         }
+
+        BigDecimal orderMarginPct = (orderTaxableRevenue.compareTo(BigDecimal.ZERO) > 0)
+                ? orderTotalProfit.multiply(BigDecimal.valueOf(100)).divide(orderTaxableRevenue, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
 
         // GST Impact
         boolean b2b = gstin != null && gstin.trim().length() == 15;
@@ -692,7 +733,8 @@ public class GeneralLedgerService {
                 "STANDARD_SALES_INVOICE",
                 "Standard Sales Invoice: Debits Customer AR, Credits Revenue and Output GST liability. Reduces warehouse inventory.",
                 jvNo, vLines, totDeb, totCred, totDeb.compareTo(totCred) == 0,
-                invLines, gst
+                invLines, gst,
+                orderTaxableRevenue, orderInventoryCost, orderTotalProfit, orderMarginPct
         );
     }
 
@@ -763,22 +805,48 @@ public class GeneralLedgerService {
         List<GeneralLedgerDtos.PostingFlowInventoryLine> invLines = new ArrayList<>();
         List<Map<String, Object>> lines = jdbc.queryForList("""
             SELECT pl.item_code, COALESCE(pl.item_description_snapshot, im.description, pl.item_code) AS descr,
-                   pl.quantity, COALESCE(im.unit, 'Nos') AS unit, COALESCE(pl.rate, 0) AS unit_cost
+                   pl.quantity, COALESCE(im.unit, 'Nos') AS unit, COALESCE(pl.rate, 0) AS rate,
+                   COALESCE(pl.discount_percent, 0) AS discount_percent,
+                   COALESCE(pl.line_total, 0) AS line_total, COALESCE(im.opening_stock, 0) AS current_stock
             FROM purchase_line pl
             LEFT JOIN item_master im ON im.item_code = pl.item_code
             WHERE pl.purchase_id = ? ORDER BY pl.id ASC
             """, purchaseId);
+
+        BigDecimal orderInwardValuation = BigDecimal.ZERO;
         for (Map<String, Object> l : lines) {
             BigDecimal q = toBigDecimal(l.get("quantity"));
-            BigDecimal uc = toBigDecimal(l.get("unit_cost"));
+            BigDecimal rate = toBigDecimal(l.get("rate"));
+            BigDecimal lineTot = toBigDecimal(l.get("line_total"));
+            BigDecimal currentStock = toBigDecimal(l.get("current_stock"));
+
+            // Purchases increment inventory, so before inward order stock was currentStock - q
+            BigDecimal stockAfter = currentStock;
+            BigDecimal stockBefore = currentStock.subtract(q);
+
+            BigDecimal inwardRate = (q.compareTo(BigDecimal.ZERO) > 0 && lineTot.compareTo(BigDecimal.ZERO) > 0)
+                    ? lineTot.divide(q, 2, RoundingMode.HALF_UP)
+                    : rate;
+            BigDecimal valuationDelta = lineTot.compareTo(BigDecimal.ZERO) > 0
+                    ? lineTot
+                    : q.multiply(inwardRate).setScale(2, RoundingMode.HALF_UP);
+
+            orderInwardValuation = orderInwardValuation.add(valuationDelta);
+
             invLines.add(new GeneralLedgerDtos.PostingFlowInventoryLine(
                     Objects.toString(l.get("item_code"), ""),
                     Objects.toString(l.get("descr"), ""),
                     "INWARD_PURCHASE (STOCK INCREASED)",
                     q,
                     Objects.toString(l.get("unit"), "Nos"),
-                    uc,
-                    q.multiply(uc).setScale(2, RoundingMode.HALF_UP)
+                    inwardRate,
+                    valuationDelta,
+                    stockBefore,
+                    stockAfter,
+                    inwardRate,
+                    valuationDelta,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO
             ));
         }
 
@@ -795,7 +863,8 @@ public class GeneralLedgerService {
                 "STANDARD_PURCHASE_BILL",
                 "Standard Purchase Bill: Debits Purchase Expenses and Input GST Asset, Credits Supplier AP. Increases warehouse inventory.",
                 jvNo, vLines, totDeb, totCred, totDeb.compareTo(totCred) == 0,
-                invLines, gst
+                invLines, gst,
+                taxable, orderInwardValuation, BigDecimal.ZERO, BigDecimal.ZERO
         );
     }
 
@@ -803,9 +872,12 @@ public class GeneralLedgerService {
         // Query return_register first
         List<Map<String, Object>> retRows = jdbc.queryForList("""
             SELECT r.id, r.return_no, r.return_date, r.invoice_no, r.party_id, r.item_code,
-                   r.quantity, r.amount, r.reason, r.status, pm.name AS party_name, COALESCE(pm.gstin, '') AS party_gstin
+                   r.quantity, r.amount, r.reason, r.status, pm.name AS party_name, COALESCE(pm.gstin, '') AS party_gstin,
+                   COALESCE(im.opening_stock, 0) AS current_stock, COALESCE(im.unit, 'Nos') AS unit,
+                   COALESCE(NULLIF(im.description, ''), r.item_code) AS descr
             FROM return_register r
             LEFT JOIN party_master pm ON pm.id = r.party_id
+            LEFT JOIN item_master im ON im.item_code = r.item_code
             WHERE r.return_no = ?
             ORDER BY r.id ASC
             """, no);
@@ -817,6 +889,8 @@ public class GeneralLedgerService {
         BigDecimal total = BigDecimal.ZERO;
         String reason = "";
         List<GeneralLedgerDtos.PostingFlowInventoryLine> invLines = new ArrayList<>();
+        BigDecimal orderTotalRevClawback = BigDecimal.ZERO;
+        BigDecimal orderTotalCostReinstated = BigDecimal.ZERO;
 
         if (!retRows.isEmpty()) {
             Map<String, Object> first = retRows.getFirst();
@@ -829,18 +903,38 @@ public class GeneralLedgerService {
             for (Map<String, Object> r : retRows) {
                 BigDecimal q = toBigDecimal(r.get("quantity"));
                 BigDecimal a = toBigDecimal(r.get("amount"));
+                BigDecimal currentStock = toBigDecimal(r.get("current_stock"));
+                String u = Objects.toString(r.get("unit"), "Nos");
+                String d = Objects.toString(r.get("descr"), "");
                 total = total.add(a);
                 String lineReason = Objects.toString(r.get("reason"), reason);
                 boolean physical = isPhysicalStockReturnReason(lineReason);
 
+                BigDecimal retRate = q.compareTo(BigDecimal.ZERO) > 0 ? a.divide(q, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+                BigDecimal stockBefore = physical ? currentStock.subtract(q) : currentStock;
+                BigDecimal stockAfter = currentStock;
+
+                BigDecimal lineRev = a.negate();
+                BigDecimal lineCost = physical ? a : BigDecimal.ZERO;
+                BigDecimal lineProfit = physical ? BigDecimal.ZERO : lineRev;
+
+                orderTotalRevClawback = orderTotalRevClawback.add(lineRev);
+                orderTotalCostReinstated = orderTotalCostReinstated.add(lineCost);
+
                 invLines.add(new GeneralLedgerDtos.PostingFlowInventoryLine(
                         Objects.toString(r.get("item_code"), ""),
-                        "Return item (" + lineReason + ")",
+                        d + " (" + lineReason + ")",
                         physical ? "INWARD_RESTOCK (STOCK REINSTATED)" : "ZERO_MOVEMENT (PRICE / REBATE ADJUSTMENT)",
                         physical ? q : BigDecimal.ZERO,
-                        "Nos",
-                        q.compareTo(BigDecimal.ZERO) > 0 ? a.divide(q, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO,
-                        physical ? a : BigDecimal.ZERO
+                        u,
+                        retRate,
+                        physical ? a : BigDecimal.ZERO,
+                        stockBefore,
+                        stockAfter,
+                        retRate,
+                        lineRev,
+                        lineProfit,
+                        BigDecimal.ZERO
                 ));
             }
         } else {
@@ -862,6 +956,10 @@ public class GeneralLedgerService {
             total = toBigDecimal(cn.get("total_amount"));
             reason = Objects.toString(cn.get("reason_code"), "") + " " + Objects.toString(cn.get("notes"), "");
             boolean stockMoved = Boolean.TRUE.equals(cn.get("stock_returned"));
+            BigDecimal taxAmt = toBigDecimal(cn.get("taxable_amount"));
+
+            orderTotalRevClawback = taxAmt.negate();
+            orderTotalCostReinstated = stockMoved ? taxAmt : BigDecimal.ZERO;
 
             invLines.add(new GeneralLedgerDtos.PostingFlowInventoryLine(
                     "CREDIT_NOTE_ITEMS",
@@ -869,8 +967,14 @@ public class GeneralLedgerService {
                     stockMoved ? "INWARD_RESTOCK (STOCK REINSTATED)" : "ZERO_MOVEMENT (FINANCIAL / COMMERCIAL ADJUSTMENT)",
                     stockMoved ? BigDecimal.ONE : BigDecimal.ZERO,
                     "Lot",
-                    toBigDecimal(cn.get("taxable_amount")),
-                    stockMoved ? toBigDecimal(cn.get("taxable_amount")) : BigDecimal.ZERO
+                    taxAmt,
+                    stockMoved ? taxAmt : BigDecimal.ZERO,
+                    null,
+                    null,
+                    taxAmt,
+                    taxAmt.negate(),
+                    stockMoved ? BigDecimal.ZERO : taxAmt.negate(),
+                    BigDecimal.ZERO
             ));
         }
 
@@ -944,7 +1048,8 @@ public class GeneralLedgerService {
         return new GeneralLedgerDtos.PostingFlowResponse(
                 "SALES_RETURN", retNo, date, partyName, gstin, total,
                 profile, summary, jvNo, vLines, totDeb, totCred, totDeb.compareTo(totCred) == 0,
-                invLines, gst
+                invLines, gst,
+                orderTotalRevClawback, orderTotalCostReinstated, BigDecimal.ZERO, BigDecimal.ZERO
         );
     }
 
@@ -1075,7 +1180,8 @@ public class GeneralLedgerService {
         return new GeneralLedgerDtos.PostingFlowResponse(
                 "PURCHASE_RETURN", dnNo, date, supplier, gstin, total,
                 profile, summary, jvNo, vLines, totDeb, totCred, totDeb.compareTo(totCred) == 0,
-                invLines, gst
+                invLines, gst,
+                taxable.negate(), isPhysical ? taxable.negate() : BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO
         );
     }
 

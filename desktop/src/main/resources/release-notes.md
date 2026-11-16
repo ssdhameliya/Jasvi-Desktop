@@ -1,3 +1,21 @@
+# What's New in DSE ERP v11.0.70
+
+### 360° Returns, Credit Notes & Reconciliation Alignment, Fast-Track GSTIN & GL Auto-Post
+- **360° Reciprocal Navigation & Inspection Alignment (Rule 4, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - Seamless reciprocal cross-links across all 3 inspection dialogs (`SalesDocumentInspectionDialog`, `PurchaseDocumentInspectionDialog`, `ReturnDocumentInspectionDialog`, and `CreditDebitNoteInspectionDialog`):
+    - Added 1-click navigation buttons (`btnViewNote`, `btnViewReturn`) linking Original Invoice ↔ Return Approval ↔ Credit/Debit Note with shared audit and attachments.
+  - Aligned table click events across Credit Note Register (`tblCreditNotes`), Return Approvals (`tblReturns`), Debit Note Register (`tblDebitNotes`), and Purchase Return Approvals to single-click inspection (`event.getClickCount() == 1` and Enter key) while protecting action dropdowns (`RegisterUiSupport.isInteractiveTableTarget`).
+- **Invoice Overview Return Deductions & Settlement Badges (Rule 6, Rule 11 & Rule 17)**:
+  - Dynamically computes and renders `Return / Credit Amount`, `Net Invoice Value`, and `Return Settlement` badges (`REFUNDED`, `SETTLED`, `PENDING`) on invoice overview cards for both partial and full returns.
+- **Manual Payment vs Bank Statement Reference & Auto-Posted GL Voucher (Rule 11, Rule 13 & Rule 17)**:
+  - Enriched `BankReconciliationService.java` to resolve the auto-posted General Ledger Journal Entry voucher (`entry_number` and `id`) for manual payments (`PRF/...`).
+  - Wired `colFinRef` as an interactive hyperlink opening the General Ledger Posting Flow inspector (`PostingFlowDialog`).
+  - Formatted `colRetDate` and `colDate` with `BusinessClock.formatDate(...)` to eliminate raw UTC timestamps (`+05:30`).
+  - Expanded `colRetDocNo` (`minWidth="200"`) and `colStatus` to prevent truncation of 21-character references and humanized status `"Manual Payment • [User]"`.
+- **Fast-Track GSTIN Master Wizard & HSN Tariff Master Data (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Elevated GSTIN to Section 1 of Customer & Supplier wizards with colorized badge and automatic state / entity-type resolution from the 15-character GSTIN checksum, keeping all pre-filled fields editable.
+  - Full item-level HSN tariff lookup and GST rates mapping.
+
 # What's New in DSE ERP v11.0.69
 
 ### Reason-Driven Return Posting Engine & Interactive Posting Flow Inspector
@@ -14,9 +32,13 @@
     - **Statutory GST Impact & Schedule Mapping**: Maps transactions directly to their statutory tax return tables (GSTR-1 Table 4A/9B, GSTR-3B Table 3.1(a)/4(B)(2), Section 15(3)(b) Non-GST) with taxable values, tax breakdowns, and legal statutory provisions.
 - **Universal Desktop Posting Flow Inspector Dialog (`PostingFlowDialog.java`) (Rule 4, Rule 5, Rule 6, Rule 7, Rule 8, Rule 9, Rule 11 & Rule 12)**:
   - Designed and implemented a responsive, draggable, content-adaptive modal dialog accessible across Sales Register, Purchase Register, Sales Returns, and Purchase Returns via row action menus (`⚡ View Posting Flow`) and keyboard shortcut (`Ctrl+J`).
+  - Upgraded top summary banner to a 6-card semantic KPI grid: Document Total (Blue), Taxable Revenue (Purple), Total Cost / COGS (Orange), Total Order Profit (Green/Red), Gross Margin % (Cyan), and Ledger Integrity (Balanced).
+  - Renamed "Unit Valuation" to "Average Unit Cost" and expanded the Inventory Movement table to 12 comprehensive analytical columns: Item Code, Description, Movement Direction, Stock Before Order, Order Qty, Stock After Order, Average Unit Cost, Selling / Unit Rate, Total Valuation Delta, Line Revenue, Item Profit (₹), and Margin (%).
+  - Multi-item calculation engine calculates line-level and order-level profit and margins across all commercial documents (Sales Invoices, Purchase Bills, Sales Returns, Debit Notes).
+  - Enforced content-adaptive dialog bounds (`1480px` to `1760px` dynamic width) and responsive column width distribution, guaranteeing zero clipped headers, table values, or ellipses.
   - Features 3 tabbed inspection views:
     - **Tab 1: Double-Entry Journal (GL)**: Colorized debit (green) and credit (orange) amounts, account codes, account names, and real-time ledger balance verification (`✓ BALANCED`).
-    - **Tab 2: Inventory Movement**: Complete warehouse stock movement tracking with semantic movement direction badges and FIFO valuation delta.
+    - **Tab 2: Inventory Movement & Margin Drill-Down**: Complete warehouse stock movement tracking with opening stock, order qty, closing stock, average unit cost, selling rate, line revenue, item profit, and margin %.
     - **Tab 3: Statutory GST Impact**: Clean card breakdown of target statutory returns (GSTR-1/3B/2B), reporting schedules, CGST/SGST/IGST breakdown, and statutory rule citations.
 - **Live Pre-Posting Simulation in Return Creation Dialog (`ReturnEditorService.java`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
   - Added a real-time reactive posting simulation strip to the Return Creation Dialog (`ReturnEditorService.java`).
@@ -68,6 +90,9 @@
   - Added `@Transactional` boundary to `executeOneClickKick(...)`, ensuring `license_revocation_token` consumption, rogue machine blocking (`BLOCKED`), and auth session deletion execute inside a verified database transaction.
   - Resolved `TransactionRequiredException: No active transaction for update or delete query` (HTTP 500) when superadmins click the 1-click termination link via Email / WhatsApp alerts across all environments (Local, UAT, and PROD).
   - Hardened `AuthService.login(...)` workstation security gating with hyphen-agnostic matching: both raw display IDs (`TEST-ROGUE-76520`) and stripped canonical forms (`TESTROGUE76520`) are matched against `licensed_client_registry`, guaranteeing 100% enforcement of `BLOCKED` status and machine seat quotas across all login attempts.
+- **Universal Dialog & Popup Sizing Modernization (`GstFullDetailsDialog.java`, `DocumentChargeDialog.java`, `ClientRegistryController.java`) (Rule 4, Rule 7 & Rule 12)**:
+  - Replaced static table heights in `GstFullDetailsDialog` (`170px` and `180px`) with dynamic `VBox.setVgrow(table, Priority.ALWAYS)` and minimum height constraints, allowing goods, services, and filing tables to scale cleanly with monitor resolutions.
+  - Wired `WindowUtilsFx.fitDialogToOwnerScreen` on showing for `DocumentChargeDialog` and `showClientLicenseDialog`, ensuring generous padding, zero off-screen clipping, and consistent drag physics.
 
 # What's New in DSE ERP v11.0.68
 

@@ -26,10 +26,14 @@ public class ItemDialogController implements ScreenLifecycle {
     @FXML private ComboBox<String> cmbCategory, cmbUnit, cmbGST, cmbDiscount;
     @FXML private Button btnSave, btnCancel, btnAuditTrail;
     @FXML private Label lblTitle, lblSubtitle, lblStatusBadge, lblMarginChip, lblStockChip, lblShortcuts;
+    @FXML private Label lblHsnBadge, lblHsnDescription, lblGstAutoHint;
+    @FXML private ProgressIndicator loaderHsn;
     @FXML private Label errDescription, errCategory, errUnit, errGst, errDiscount, errHSN, errSellingPrice,
             errPurchasePrice, errOpeningStock, errMinimumStock, errRemarks;
     @FXML private StackPane headerIconHolder;
     @FXML private HBox heroHeader;
+
+    private final javafx.animation.PauseTransition hsnDebounce = new javafx.animation.PauseTransition(javafx.util.Duration.millis(350));
 
     private final LookupService lookupService = new LookupService();
     private final ItemService service = new ItemService();
@@ -255,6 +259,7 @@ public class ItemDialogController implements ScreenLifecycle {
         txtLocation.setText(safe(item.getLocation()));
         txtRemarks.setText(safe(item.getRemarks()));
         updateMarginCalculation();
+        performHsnLookup(false);
     }
 
     private void unlockEditMode() {
@@ -352,6 +357,9 @@ public class ItemDialogController implements ScreenLifecycle {
         if (txtHSN.getText() == null || txtHSN.getText().trim().isBlank()) {
             showError(txtHSN, errHSN, "HSN Code is required.");
             valid = false;
+        } else if (!org.example.shared.statutory.HsnTariffRegistry.isValidHsnFormat(txtHSN.getText().trim())) {
+            showError(txtHSN, errHSN, "HSN must be 4, 6, or 8 digits.");
+            valid = false;
         }
         if (cmbGST.getValue() == null || cmbGST.getValue().isBlank()) {
             showError(cmbGST, errGst, "Please select GST %.");
@@ -410,7 +418,7 @@ public class ItemDialogController implements ScreenLifecycle {
         txtDescription.textProperty().addListener((o, a, b) -> clearError(txtDescription, errDescription));
         cmbCategory.valueProperty().addListener((o, a, b) -> clearError(cmbCategory, errCategory));
         cmbUnit.valueProperty().addListener((o, a, b) -> clearError(cmbUnit, errUnit));
-        txtHSN.textProperty().addListener((o, a, b) -> clearError(txtHSN, errHSN));
+        setupHsnLiveLookup();
         cmbGST.valueProperty().addListener((o, a, b) -> clearError(cmbGST, errGst));
         cmbDiscount.valueProperty().addListener((o, a, b) -> clearError(cmbDiscount, errDiscount));
         txtSellingPrice.textProperty().addListener((o, a, b) -> clearError(txtSellingPrice, errSellingPrice));
@@ -418,6 +426,100 @@ public class ItemDialogController implements ScreenLifecycle {
         txtPurchasePrice.textProperty().addListener((o, a, b) -> clearError(txtPurchasePrice, errPurchasePrice));
         txtOpeningStock.textProperty().addListener((o, a, b) -> clearError(txtOpeningStock, errOpeningStock));
         txtMinimumStock.textProperty().addListener((o, a, b) -> clearError(txtMinimumStock, errMinimumStock));
+    }
+
+    private void setupHsnLiveLookup() {
+        hsnDebounce.setOnFinished(e -> performHsnLookup(true));
+        txtHSN.textProperty().addListener((o, a, newVal) -> {
+            clearError(txtHSN, errHSN);
+            if (newVal == null || newVal.trim().isBlank()) {
+                hsnDebounce.stop();
+                if (loaderHsn != null) { loaderHsn.setVisible(false); loaderHsn.setManaged(false); }
+                if (lblHsnBadge != null) { lblHsnBadge.setVisible(false); lblHsnBadge.setManaged(false); }
+                if (lblHsnDescription != null) { lblHsnDescription.setVisible(false); lblHsnDescription.setManaged(false); }
+                if (lblGstAutoHint != null) { lblGstAutoHint.setVisible(false); lblGstAutoHint.setManaged(false); }
+                return;
+            }
+            String clean = newVal.replaceAll("[^0-9]", "");
+            if (!clean.equals(newVal)) {
+                javafx.application.Platform.runLater(() -> txtHSN.setText(clean));
+                return;
+            }
+            if (clean.length() >= 2) {
+                if (loaderHsn != null) { loaderHsn.setVisible(true); loaderHsn.setManaged(true); }
+                hsnDebounce.playFromStart();
+            } else {
+                hsnDebounce.stop();
+                if (loaderHsn != null) { loaderHsn.setVisible(false); loaderHsn.setManaged(false); }
+                if (lblHsnBadge != null) { lblHsnBadge.setVisible(false); lblHsnBadge.setManaged(false); }
+                if (lblHsnDescription != null) { lblHsnDescription.setVisible(false); lblHsnDescription.setManaged(false); }
+                if (lblGstAutoHint != null) { lblGstAutoHint.setVisible(false); lblGstAutoHint.setManaged(false); }
+            }
+        });
+    }
+
+    private void performHsnLookup(boolean autoApplyGst) {
+        if (loaderHsn != null) { loaderHsn.setVisible(false); loaderHsn.setManaged(false); }
+        String raw = txtHSN.getText() == null ? "" : txtHSN.getText().trim();
+        if (raw.isBlank()) return;
+
+        var match = org.example.shared.statutory.HsnTariffRegistry.lookup(raw);
+        if (match != null) {
+            if (lblHsnBadge != null) {
+                lblHsnBadge.setVisible(true);
+                lblHsnBadge.setManaged(true);
+                lblHsnBadge.getStyleClass().removeAll("status-success", "status-warning", "status-danger", "status-neutral", "status-info");
+                if (raw.length() == 8) {
+                    lblHsnBadge.setText("✔ Valid 8-Digit HSN");
+                    lblHsnBadge.getStyleClass().add("status-success");
+                } else if (raw.length() == 6) {
+                    lblHsnBadge.setText("✔ Valid 6-Digit Subheading");
+                    lblHsnBadge.getStyleClass().add("status-success");
+                } else if (raw.length() == 4) {
+                    lblHsnBadge.setText("ℹ 4-Digit Chapter");
+                    lblHsnBadge.getStyleClass().add("status-info");
+                } else {
+                    lblHsnBadge.setText("✔ Chapter " + raw);
+                    lblHsnBadge.getStyleClass().add("status-info");
+                }
+            }
+            if (lblHsnDescription != null) {
+                lblHsnDescription.setText("🛈 " + match.description());
+                lblHsnDescription.setVisible(true);
+                lblHsnDescription.setManaged(true);
+            }
+            if (autoApplyGst && cmbGST != null && match.gstRate() >= 0) {
+                String formattedRate = String.format(java.util.Locale.ROOT, "%.1f%%", match.gstRate()).replace(".0%", "%");
+                for (String item : cmbGST.getItems()) {
+                    if (item != null && item.trim().equalsIgnoreCase(formattedRate)) {
+                        cmbGST.setValue(item);
+                        if (lblGstAutoHint != null) {
+                            lblGstAutoHint.setText("✔ " + item + " statutory rate auto-applied from HSN " + match.code());
+                            lblGstAutoHint.setVisible(true);
+                            lblGstAutoHint.setManaged(true);
+                        }
+                        break;
+                    }
+                }
+            }
+        } else {
+            if (lblHsnBadge != null) {
+                lblHsnBadge.setVisible(true);
+                lblHsnBadge.setManaged(true);
+                lblHsnBadge.getStyleClass().removeAll("status-success", "status-warning", "status-danger", "status-neutral", "status-info");
+                lblHsnBadge.setText("⚠ Unrecognized HSN");
+                lblHsnBadge.getStyleClass().add("status-warning");
+            }
+            if (lblHsnDescription != null) {
+                lblHsnDescription.setText("Unregistered tariff code — please verify statutory GST rate manually");
+                lblHsnDescription.setVisible(true);
+                lblHsnDescription.setManaged(true);
+            }
+            if (lblGstAutoHint != null) {
+                lblGstAutoHint.setVisible(false);
+                lblGstAutoHint.setManaged(false);
+            }
+        }
     }
 
     private void showError(Control control, Label label, String message) {
@@ -447,6 +549,9 @@ public class ItemDialogController implements ScreenLifecycle {
         clearError(txtPurchasePrice, errPurchasePrice);
         clearError(txtOpeningStock, errOpeningStock);
         clearError(txtMinimumStock, errMinimumStock);
+        if (lblHsnBadge != null) { lblHsnBadge.setVisible(false); lblHsnBadge.setManaged(false); }
+        if (lblHsnDescription != null) { lblHsnDescription.setVisible(false); lblHsnDescription.setManaged(false); }
+        if (lblGstAutoHint != null) { lblGstAutoHint.setVisible(false); lblGstAutoHint.setManaged(false); }
     }
 
     private double parseFieldDouble(TextField field) {

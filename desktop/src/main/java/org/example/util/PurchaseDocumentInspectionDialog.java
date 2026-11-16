@@ -148,20 +148,34 @@ public final class PurchaseDocumentInspectionDialog {
                         new DocumentInspectionScaffold.FieldPair("Supplier GSTIN", gstin, "tax", false)
                 ));
 
-        VBox card2 = DocumentInspectionScaffold.createSummaryCard("Purchase Breakdown", "currency",
-                List.of(
-                        new DocumentInspectionScaffold.FieldPair("Taxable Subtotal", money(purchase.getSubtotal()), "currency", false),
-                        new DocumentInspectionScaffold.FieldPair("GST Amount", money(purchase.getGstAmount()), "tax", false),
-                        new DocumentInspectionScaffold.FieldPair("Total Purchase", money(purchase.getTotalAmount()), "currency", true)
-                ));
+        String retStatus = safe(purchase.getReturnStatus()).toUpperCase(Locale.ROOT);
+        boolean hasReturn = !retStatus.isBlank() && !"N/A".equals(retStatus);
+        double returnAmt = purchase.getApprovedReturnAmount() > 0 ? purchase.getApprovedReturnAmount() : (retStatus.contains("FULLY") ? purchase.getTotalAmount() : 0.0);
+        double netPurchase = Math.max(0.0, purchase.getTotalAmount() - returnAmt);
+
+        List<DocumentInspectionScaffold.FieldPair> card2Fields = new ArrayList<>();
+        card2Fields.add(new DocumentInspectionScaffold.FieldPair("Taxable Subtotal", money(purchase.getSubtotal()), "currency", false));
+        card2Fields.add(new DocumentInspectionScaffold.FieldPair("GST Amount", money(purchase.getGstAmount()), "tax", false));
+        if (hasReturn && returnAmt > 0) {
+            card2Fields.add(new DocumentInspectionScaffold.FieldPair("Original Bill", money(purchase.getTotalAmount()), "currency", false));
+            card2Fields.add(new DocumentInspectionScaffold.FieldPair("Return / Debit", "- " + money(returnAmt), "return", true));
+            card2Fields.add(new DocumentInspectionScaffold.FieldPair("Net Bill Value", money(netPurchase), "currency", true));
+        } else {
+            card2Fields.add(new DocumentInspectionScaffold.FieldPair("Total Purchase", money(purchase.getTotalAmount()), "currency", true));
+        }
+        VBox card2 = DocumentInspectionScaffold.createSummaryCard("Purchase Breakdown", "currency", card2Fields);
 
         String dueStr = purchase.getDueDate() != null ? BusinessClock.formatDate(purchase.getDueDate()) : "Not set";
-        VBox card3 = DocumentInspectionScaffold.createSummaryCard("Disbursement Status", "payment",
-                List.of(
-                        new DocumentInspectionScaffold.FieldPair("Total Paid", money(purchase.getPaidAmount()), "complete", false),
-                        new DocumentInspectionScaffold.FieldPair("Pending Payable", money(purchase.getBalanceAmount()), purchase.getBalanceAmount() > .009 ? "balance" : "complete", true),
-                        new DocumentInspectionScaffold.FieldPair("Payment Due", dueStr, "calendar", false)
-                ));
+        List<DocumentInspectionScaffold.FieldPair> card3Fields = new ArrayList<>();
+        card3Fields.add(new DocumentInspectionScaffold.FieldPair("Total Paid", money(purchase.getPaidAmount()), "complete", false));
+        if (hasReturn && purchase.getSettledReturnAmount() > 0) {
+            card3Fields.add(new DocumentInspectionScaffold.FieldPair("Refund Received", "- " + money(purchase.getSettledReturnAmount()), "payment", false));
+        } else if (hasReturn && retStatus.contains("FULLY")) {
+            card3Fields.add(new DocumentInspectionScaffold.FieldPair("Return Settlement", "Fully Debited / Refunded", "return", false));
+        }
+        card3Fields.add(new DocumentInspectionScaffold.FieldPair("Pending Payable", money(purchase.getBalanceAmount()), purchase.getBalanceAmount() > .009 ? "balance" : "complete", true));
+        card3Fields.add(new DocumentInspectionScaffold.FieldPair("Payment Due", dueStr, "calendar", false));
+        VBox card3 = DocumentInspectionScaffold.createSummaryCard("Disbursement Status", "payment", card3Fields);
 
         String gstType = !safe(purchase.getGstType()).isBlank() ? purchase.getGstType() : "Standard";
         String refNo = !safe(purchase.getReferenceNo()).isBlank() ? purchase.getReferenceNo() : "—";

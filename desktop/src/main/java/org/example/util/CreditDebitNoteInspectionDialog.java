@@ -413,6 +413,21 @@ public final class CreditDebitNoteInspectionDialog {
                 }
             });
             actionRow.getChildren().add(btnViewOriginal);
+
+            Button btnViewReturn = new Button(isCreditNote ? "Open Linked Return" : "Open Linked Return");
+            btnViewReturn.setGraphic(IconFactory.compactIcon("return", 14));
+            btnViewReturn.getStyleClass().addAll("approved-button", "approved-secondary-button");
+            btnViewReturn.setOnAction(e -> {
+                dialog.close();
+                if (isCreditNote) {
+                    LinkedRecordContext.open("SALES_RETURN", null, details.originalDocNo(), "VIEW", "Credit Note " + details.noteNo());
+                    NavigationManager.getInstance().loadPage("/fxml/pages/SalesReturns.fxml");
+                } else {
+                    LinkedRecordContext.open("PURCHASE_RETURN", null, details.originalDocNo(), "VIEW", "Debit Note " + details.noteNo());
+                    NavigationManager.getInstance().loadPage("/fxml/pages/PurchaseReturns.fxml");
+                }
+            });
+            actionRow.getChildren().add(btnViewReturn);
         }
 
         VBox container = new VBox(10, grid, actionRow);

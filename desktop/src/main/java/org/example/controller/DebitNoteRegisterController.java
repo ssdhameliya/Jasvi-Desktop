@@ -117,11 +117,22 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
         tblDebitNotes.setRowFactory(tv -> {
             TableRow<DebitNoteRow> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
-                if (event.getButton() == MouseButton.PRIMARY && !row.isEmpty()) {
-                    tblDebitNotes.getSelectionModel().select(row.getItem());
-                }
+                if (event.getButton() != MouseButton.PRIMARY || event.getClickCount() != 1 || row.isEmpty() || RegisterUiSupport.isInteractiveTableTarget(event.getPickResult().getIntersectedNode(), row)) return;
+                DebitNoteRow clicked = row.getItem();
+                tblDebitNotes.getSelectionModel().select(clicked);
+                showDetails(clicked);
+                event.consume();
             });
             return row;
+        });
+        tblDebitNotes.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                DebitNoteRow selected = tblDebitNotes.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    showDetails(selected);
+                    event.consume();
+                }
+            }
         });
 
         RegisterUiSupport.hideDrawer(detailDrawer, mainSplit, tblDebitNotes);
@@ -279,6 +290,26 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
 
         IconFactory.applyTableHeaderIcon(colRetActions, "actions");
         DynamicTableLayoutManager.install(tblReturns);
+        tblReturns.setRowFactory(tv -> {
+            TableRow<ReturnApiClient.Summary> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (event.getButton() != MouseButton.PRIMARY || event.getClickCount() != 1 || row.isEmpty() || RegisterUiSupport.isInteractiveTableTarget(event.getPickResult().getIntersectedNode(), row)) return;
+                ReturnApiClient.Summary clicked = row.getItem();
+                tblReturns.getSelectionModel().select(clicked);
+                inspectPurchaseReturn(clicked);
+                event.consume();
+            });
+            return row;
+        });
+        tblReturns.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                ReturnApiClient.Summary selected = tblReturns.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    inspectPurchaseReturn(selected);
+                    event.consume();
+                }
+            }
+        });
 
         colRetActions.setCellFactory(col -> new TableCell<>() {
             private final MenuButton actions = new MenuButton("Actions");

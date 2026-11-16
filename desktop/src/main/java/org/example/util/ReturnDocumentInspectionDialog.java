@@ -430,7 +430,22 @@ public final class ReturnDocumentInspectionDialog {
             }
         });
 
-        VBox docCard = new VBox(10, lblDocTitle, docGrid, btnViewOriginal);
+        Button btnViewNote = new Button("Open Linked " + (isSales ? "Credit Note" : "Debit Note"));
+        btnViewNote.setGraphic(IconFactory.compactIcon(isSales ? "credit_note" : "debit_note", 14));
+        btnViewNote.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnViewNote.setOnAction(e -> {
+            dialog.close();
+            if (isSales) {
+                LinkedRecordContext.open("CREDIT_NOTE", null, details.no(), "VIEW", details.invoice());
+                NavigationManager.getInstance().loadPage("/fxml/pages/CreditNoteRegister.fxml");
+            } else {
+                LinkedRecordContext.open("DEBIT_NOTE", null, details.no(), "VIEW", details.invoice());
+                NavigationManager.getInstance().loadPage("/fxml/pages/DebitNoteRegister.fxml");
+            }
+        });
+
+        HBox btnRow = new HBox(8, btnViewOriginal, btnViewNote);
+        VBox docCard = new VBox(10, lblDocTitle, docGrid, btnRow);
         docCard.getStyleClass().addAll("inspection-card", "erp-detail-drawer-card");
         docCard.setPadding(new Insets(14));
         HBox.setHgrow(docCard, Priority.ALWAYS);

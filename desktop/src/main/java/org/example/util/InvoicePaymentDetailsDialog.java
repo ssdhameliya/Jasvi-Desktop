@@ -229,7 +229,8 @@ public final class InvoicePaymentDetailsDialog {
         IconFactory.applyTableHeaderIcon(colRetDocType, "document");
 
         TableColumn<LinkedReturnNoteRow, String> colRetDocNo = new TableColumn<>("Document No.");
-        colRetDocNo.setPrefWidth(160);
+        colRetDocNo.setPrefWidth(220);
+        colRetDocNo.setMinWidth(200);
         colRetDocNo.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().docNo())));
         IconFactory.applyTableHeaderIcon(colRetDocNo, "link");
         colRetDocNo.setCellFactory(ignored -> new javafx.scene.control.TableCell<>() {
@@ -254,8 +255,9 @@ public final class InvoicePaymentDetailsDialog {
         });
 
         TableColumn<LinkedReturnNoteRow, String> colRetDate = new TableColumn<>("Date");
-        colRetDate.setPrefWidth(110);
-        colRetDate.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().date())));
+        colRetDate.setPrefWidth(120);
+        colRetDate.setMinWidth(110);
+        colRetDate.setCellValueFactory(v -> new ReadOnlyStringWrapper(BusinessClock.formatDate(v.getValue().date())));
         IconFactory.applyTableHeaderIcon(colRetDate, "calendar");
 
         TableColumn<LinkedReturnNoteRow, String> colRetParty = new TableColumn<>(isSales ? "Customer" : "Supplier");
@@ -375,7 +377,7 @@ public final class InvoicePaymentDetailsDialog {
         });
 
         TableColumn<BankStatementApiClient.LinkageItemDto, String> colFinRef = new TableColumn<>("Finance Voucher");
-        colFinRef.setPrefWidth(155);
+        colFinRef.setPrefWidth(165);
         colFinRef.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().financeVoucherNo())));
         IconFactory.applyTableHeaderIcon(colFinRef, "link");
         colFinRef.setCellFactory(ignored -> new javafx.scene.control.TableCell<>() {
@@ -386,9 +388,13 @@ public final class InvoicePaymentDetailsDialog {
                     int idx = getIndex();
                     if (idx >= 0 && idx < getTableView().getItems().size()) {
                         BankStatementApiClient.LinkageItemDto item = getTableView().getItems().get(idx);
-                        if (item.financeEntryId() != null) {
+                        String vType = item.financeVoucherType() == null ? "" : item.financeVoucherType().toUpperCase(Locale.ROOT);
+                        if ("JOURNAL_ENTRY".equals(vType) || (item.financeVoucherNo() != null && item.financeVoucherNo().startsWith("JRN"))) {
                             closeDialogHierarchy(parentDialog);
-                            String vType = item.financeVoucherType() == null ? "" : item.financeVoucherType().toUpperCase(Locale.ROOT);
+                            org.example.controller.LinkedRecordContext.open("JOURNAL_ENTRY", item.financeEntryId(), item.financeVoucherNo(), "VIEW", invoiceNo);
+                            org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/GeneralLedger.fxml");
+                        } else if (item.financeEntryId() != null) {
+                            closeDialogHierarchy(parentDialog);
                             org.example.controller.BankExpenseController.requestLinkedEntry(
                                     vType.contains("EXPENSE") ? org.example.controller.BankExpenseController.Mode.EXPENSE : org.example.controller.BankExpenseController.Mode.BANK,
                                     item.financeEntryId()
@@ -412,8 +418,9 @@ public final class InvoicePaymentDetailsDialog {
         });
 
         TableColumn<BankStatementApiClient.LinkageItemDto, String> colDate = new TableColumn<>("Date");
-        colDate.setPrefWidth(105);
-        colDate.setCellValueFactory(v -> new ReadOnlyStringWrapper(safe(v.getValue().transactionDate())));
+        colDate.setPrefWidth(120);
+        colDate.setMinWidth(110);
+        colDate.setCellValueFactory(v -> new ReadOnlyStringWrapper(BusinessClock.formatDate(v.getValue().transactionDate())));
         IconFactory.applyTableHeaderIcon(colDate, "calendar");
 
         TableColumn<BankStatementApiClient.LinkageItemDto, String> colBankRef = new TableColumn<>("Bank / Mode / UTR");
@@ -432,11 +439,16 @@ public final class InvoicePaymentDetailsDialog {
         IconFactory.applyTableHeaderIcon(colAmount, "currency");
 
         TableColumn<BankStatementApiClient.LinkageItemDto, String> colStatus = new TableColumn<>("Status / Settled By");
-        colStatus.setPrefWidth(175);
+        colStatus.setPrefWidth(220);
+        colStatus.setMinWidth(200);
         colStatus.setCellValueFactory(v -> {
             var item = v.getValue();
             String st = item.status() == null ? "" : item.status();
-            String by = item.settledBy() == null || item.settledBy().isBlank() ? "" : (" (User: " + item.settledBy() + ")");
+            if ("MANUAL_PAYMENT".equalsIgnoreCase(st)) {
+                String by = item.settledBy() == null || item.settledBy().isBlank() ? "" : (" • " + item.settledBy());
+                return new ReadOnlyStringWrapper("Manual Payment" + by);
+            }
+            String by = item.settledBy() == null || item.settledBy().isBlank() ? "" : (" • " + item.settledBy());
             return new ReadOnlyStringWrapper(safe(st + by));
         });
         IconFactory.applyTableHeaderIcon(colStatus, "status");

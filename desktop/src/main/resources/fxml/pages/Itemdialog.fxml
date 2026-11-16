@@ -91,14 +91,27 @@
                             <ColumnConstraints percentWidth="20" hgrow="ALWAYS"/>
                         </columnConstraints>
                         <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
-                            <Label text="HSN/SAC Code *" styleClass="field-label"/>
-                            <TextField fx:id="txtHSN" promptText="e.g. 84799090" styleClass="approved-input"/>
+                            <HBox alignment="CENTER_LEFT" spacing="6">
+                                <Label text="HSN/SAC Code *" styleClass="field-label"/>
+                                <Region HBox.hgrow="ALWAYS"/>
+                                <Label fx:id="lblHsnBadge" text="" managed="false" visible="false"
+                                       styleClass="status-badge,status-neutral,micro-badge"/>
+                            </HBox>
+                            <HBox alignment="CENTER_LEFT" spacing="6">
+                                <TextField fx:id="txtHSN" promptText="e.g. 84799090" HBox.hgrow="ALWAYS" styleClass="approved-input"/>
+                                <ProgressIndicator fx:id="loaderHsn" prefWidth="16" prefHeight="16" minWidth="16" minHeight="16"
+                                                   managed="false" visible="false" styleClass="micro-spinner"/>
+                            </HBox>
+                            <Label fx:id="lblHsnDescription" wrapText="true" managed="false" visible="false"
+                                   styleClass="field-micro-hint,approved-soft-label"/>
                             <Label fx:id="errHSN" managed="false" visible="false" styleClass="validation-message"/>
                         </VBox>
                         <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="1">
                             <Label text="GST % *" styleClass="field-label"/>
                             <ComboBox fx:id="cmbGST" promptText="Select GST %" maxWidth="Infinity"
                                       styleClass="approved-input"/>
+                            <Label fx:id="lblGstAutoHint" wrapText="true" managed="false" visible="false"
+                                   styleClass="field-micro-hint,status-success-text"/>
                             <Label fx:id="errGst" managed="false" visible="false" styleClass="validation-message"/>
                         </VBox>
                         <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="2">

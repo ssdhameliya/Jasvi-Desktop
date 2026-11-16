@@ -2211,3 +2211,84 @@
     -fx-background-color: #0b1329;
 }
 
+.field-micro-hint {
+    -fx-font-size: 11px;
+    -fx-font-weight: 500;
+}
+.dse-theme-light .field-micro-hint {
+    -fx-text-fill: #475569;
+}
+.dse-theme-dark .field-micro-hint {
+    -fx-text-fill: #94a3b8;
+}
+
+.micro-spinner {
+    -fx-pref-width: 16px;
+    -fx-pref-height: 16px;
+    -fx-max-width: 16px;
+    -fx-max-height: 16px;
+}
+
+.status-success-text {
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+.dse-theme-light .status-success-text {
+    -fx-text-fill: #15803d;
+}
+.dse-theme-dark .status-success-text {
+    -fx-text-fill: #4ade80;
+}
+
+.dse-theme-light .field-label-gstin { -fx-text-fill: #0284c7; -fx-font-weight: 700; }
+.dse-theme-dark .field-label-gstin { -fx-text-fill: #38bdf8; -fx-font-weight: 700; }
+
+.dse-theme-light .field-label-code { -fx-text-fill: #4f46e5; -fx-font-weight: 700; }
+.dse-theme-dark .field-label-code { -fx-text-fill: #818cf8; -fx-font-weight: 700; }
+
+.dse-theme-light .field-label-name { -fx-text-fill: #7c3aed; -fx-font-weight: 700; }
+.dse-theme-dark .field-label-name { -fx-text-fill: #a78bfa; -fx-font-weight: 700; }
+
+.dse-theme-light .field-label-contact { -fx-text-fill: #0d9488; -fx-font-weight: 700; }
+.dse-theme-dark .field-label-contact { -fx-text-fill: #2dd4bf; -fx-font-weight: 700; }
+
+.dse-theme-light .field-label-phone { -fx-text-fill: #16a34a; -fx-font-weight: 700; }
+.dse-theme-dark .field-label-phone { -fx-text-fill: #4ade80; -fx-font-weight: 700; }
+
+.dse-theme-light .field-label-email { -fx-text-fill: #2563eb; -fx-font-weight: 700; }
+.dse-theme-dark .field-label-email { -fx-text-fill: #60a5fa; -fx-font-weight: 700; }
+
+.dse-theme-light .field-label-balance { -fx-text-fill: #d97706; -fx-font-weight: 700; }
+.dse-theme-dark .field-label-balance { -fx-text-fill: #fbbf24; -fx-font-weight: 700; }
+
+.dse-theme-light .field-label-status { -fx-text-fill: #059669; -fx-font-weight: 700; }
+.dse-theme-dark .field-label-status { -fx-text-fill: #34d399; -fx-font-weight: 700; }
+
+.dse-theme-light .gstin-patch-banner {
+    -fx-background-color: #f0f9ff;
+    -fx-border-color: #bae6fd;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12 8 12;
+}
+.dse-theme-dark .gstin-patch-banner {
+    -fx-background-color: #0c4a6e;
+    -fx-border-color: #0369a1;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12 8 12;
+}
+
+.dse-theme-light .gstin-banner-icon {
+    -fx-background-color: #e0f2fe;
+    -fx-background-radius: 6;
+    -fx-padding: 4;
+}
+.dse-theme-dark .gstin-banner-icon {
+    -fx-background-color: #075985;
+    -fx-background-radius: 6;
+    -fx-padding: 4;
+}
+

@@ -471,6 +471,20 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
            .sorted(Comparator.comparing(PaymentRecordEntity::getId).reversed())
            .toList();
        for (var mp : manualPayments) {
+           String glVoucher = null;
+           Integer glId = null;
+           try {
+               String refType = "SALE".equals(activeType) ? "PAYMENT_RECEIPT" : "PURCHASE_PAYMENT";
+               var glRows = jdbc.queryForList(
+                   "SELECT id, entry_number FROM journal_entry WHERE (reference_no = ? OR (reference_type = ? AND reference_id = ?)) AND status <> 'CANCELLED' ORDER BY id DESC LIMIT 1",
+                   mp.getPaymentReference(), refType, mp.getId()
+               );
+               if (!glRows.isEmpty()) {
+                   glVoucher = java.util.Objects.toString(glRows.getFirst().get("entry_number"), null);
+                   glId = ((Number) glRows.getFirst().get("id")).intValue();
+               }
+           } catch (Exception ignored) {}
+
            items.add(new BankReconciliationDtos.LinkageItemDto(
                null,
                null,
@@ -480,9 +494,9 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
                mp.getReferenceNo(),
                "PURCHASE".equals(activeType) ? n(mp.getAmount()) : 0d,
                "SALE".equals(activeType) ? n(mp.getAmount()) : 0d,
-               null,
-               null,
-               "MANUAL PAYMENT",
+               glId,
+               glVoucher,
+               "JOURNAL_ENTRY",
                activeType,
                finalTargetId,
                finalDocNo,
