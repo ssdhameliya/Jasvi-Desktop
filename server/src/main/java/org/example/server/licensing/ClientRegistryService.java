@@ -547,6 +547,36 @@ public class ClientRegistryService {
         }
     }
 
+    public String resolveDefaultServerPublicUrl() {
+        String env = deploymentEnv != null ? deploymentEnv.trim().toUpperCase(Locale.ROOT) : "LOCAL";
+        return switch (env) {
+            case "PROD", "PRODUCTION" -> "https://erp.jasviindustries.in";
+            case "UAT", "STAGING" -> "https://api-uat.jasviindustries.in";
+            default -> {
+                String tunnelUrl = getSetting("remote_access.last_tunnel_url", null);
+                yield (tunnelUrl != null && !tunnelUrl.isBlank()) ? tunnelUrl.trim() : "http://localhost:58080";
+            }
+        };
+    }
+
+    public String resolveEffectiveServerPublicUrl() {
+        String env = deploymentEnv != null ? deploymentEnv.trim().toUpperCase(Locale.ROOT) : "LOCAL";
+        String savedUrl = getSetting("licensing.server_public_url", null);
+
+        // In LOCAL / DEV mode, ignore saved cloud domains (they cannot route to local machine)
+        if ("LOCAL".equals(env) || "DEV".equals(env) || "TEST".equals(env)) {
+            if (savedUrl != null && !savedUrl.isBlank()
+                    && !savedUrl.contains("erp.jasviindustries.in")
+                    && !savedUrl.contains("api-uat.jasviindustries.in")) {
+                return savedUrl.trim();
+            }
+            String tunnelUrl = getSetting("remote_access.last_tunnel_url", null);
+            return (tunnelUrl != null && !tunnelUrl.isBlank()) ? tunnelUrl.trim() : "http://localhost:58080";
+        }
+
+        return (savedUrl != null && !savedUrl.isBlank()) ? savedUrl.trim() : resolveDefaultServerPublicUrl();
+    }
+
     @Transactional(readOnly = true)
     public Map<String, Object> getCommercialSettings() {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -604,7 +634,7 @@ public class ClientRegistryService {
                 "Dear {CompanyName}, your Jasvi ERP {Tier} license is approved! Terminal ID: {MachineId}. Valid Until: {ValidUntil}. Thank you for choosing Jasvi ERP."));
         result.put("superAdminEmail", defaultEmail != null ? defaultEmail : "");
         result.put("superAdminWhatsapp", defaultPhone != null ? defaultPhone : "");
-        result.put("serverPublicUrl", getSetting("licensing.server_public_url", "https://erp.jasviindustries.in"));
+        result.put("serverPublicUrl", resolveEffectiveServerPublicUrl());
         return result;
     }
 
@@ -1508,12 +1538,14 @@ public class ClientRegistryService {
         return Map.of("success", true, "username", username, "status", active ? "ACTIVE" : "INACTIVE");
     }
 
+    @Transactional
     public void sendRogueClientSecurityAlerts(String machineId, String companyName, String clientVersion, String clientIp, List<Map<String, Object>> users) {
         if (machineId == null || machineId.isBlank()) return;
 
-        // Skip sending rogue security alerts when operating in LOCAL / development mode
+        // Skip sending rogue security alerts when operating in LOCAL / development mode, unless explicitly triggered for test
         String env = deploymentEnv != null ? deploymentEnv.trim().toUpperCase(Locale.ROOT) : "LOCAL";
-        if ("LOCAL".equals(env) || "DEV".equals(env) || "TEST".equals(env)) {
+        boolean isExplicitTest = machineId != null && machineId.startsWith("TEST-ROGUE-");
+        if (!isExplicitTest && ("LOCAL".equals(env) || "DEV".equals(env) || "TEST".equals(env))) {
             log.debug("Suppressing rogue client alert in {} environment for machine {}", env, machineId);
             return;
         }
@@ -1555,7 +1587,7 @@ public class ClientRegistryService {
             log.warn("Could not record revocation token: {}", ex.getMessage());
         }
 
-        String baseUrl = getSetting("licensing.server_public_url", "https://erp.jasviindustries.in");
+        String baseUrl = resolveEffectiveServerPublicUrl();
         if (baseUrl.endsWith("/")) baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         String kickUrl = baseUrl + "/api/license/super/kick-client?token=" + token + "&machineId=" + machineId;
 
@@ -1704,6 +1736,7 @@ public class ClientRegistryService {
         }
     }
 
+    @Transactional
     public String executeOneClickKick(String token, String rawMachine, String clientIp) {
         if (token == null || token.isBlank()) {
             return renderKickHtmlResponse(false, "Invalid Token", "Revocation token is missing.", null);

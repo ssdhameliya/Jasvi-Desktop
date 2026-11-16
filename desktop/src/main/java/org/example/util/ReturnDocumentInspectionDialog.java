@@ -664,7 +664,14 @@ public final class ReturnDocumentInspectionDialog {
                     err -> AppDialogService.error(dialog.getDialogPane(), "Audit record not found", err.getMessage()));
         });
 
-        dock.getChildren().addAll(btnEditReason, btnOriginal, btnRefund, btnPdf, btnExcel, btnEmail, btnAudit);
+        // 8. View Posting Flow
+        Button btnPostingFlow = new Button("View Posting Flow");
+        btnPostingFlow.setGraphic(IconFactory.compactIcon("status", 14));
+        btnPostingFlow.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnPostingFlow.setTooltip(new Tooltip("Inspect Reason-Driven Return Posting, Stock Movement & Statutory GST Impact"));
+        btnPostingFlow.setOnAction(e -> PostingFlowDialog.show(dialog.getDialogPane(), isSales ? "SALES_RETURN" : "PURCHASE_RETURN", details.no()));
+
+        dock.getChildren().addAll(btnEditReason, btnOriginal, btnRefund, btnPdf, btnExcel, btnEmail, btnAudit, btnPostingFlow);
 
         // Approval Buttons if pending
         if (isPending && canApprove) {

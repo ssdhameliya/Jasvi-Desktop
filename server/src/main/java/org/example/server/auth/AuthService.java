@@ -53,11 +53,14 @@ public class AuthService {
     @Transactional
     public AuthDtos.LoginResponse login(AuthDtos.LoginRequest request, String sourceAddress, String machineId) {
         if (machineId != null && !machineId.isBlank()) {
-            String normMachine = machineId.replace("-", "").trim().toUpperCase(java.util.Locale.ROOT);
+            String rawMachine = machineId.trim();
+            String normMachine = rawMachine.replace("-", "").toUpperCase(java.util.Locale.ROOT);
             try {
                 var blockedRows = db.queryForList(
-                        "SELECT status, kick_reason FROM licensed_client_registry WHERE machine_id = ? AND status IN ('BLOCKED', 'REVOKED')",
-                        normMachine
+                        "SELECT status, kick_reason FROM licensed_client_registry " +
+                                "WHERE (machine_id = ? OR UPPER(REPLACE(machine_id, '-', '')) = ? OR machine_id = ?) " +
+                                "AND status IN ('BLOCKED', 'REVOKED')",
+                        rawMachine, normMachine, normMachine
                 );
                 if (!blockedRows.isEmpty()) {
                     String reason = String.valueOf(blockedRows.getFirst().getOrDefault("kick_reason", "Blacklisted by Super Admin"));
@@ -67,8 +70,10 @@ public class AuthService {
                 // Pillar 1: Hardware Machine Seat Quota Enforcement
                 // If this machine is not yet registered, verify active workstations count has not reached max_users limit
                 var registered = db.queryForList(
-                        "SELECT id FROM licensed_client_registry WHERE machine_id = ? AND status = 'ACTIVE'",
-                        normMachine
+                        "SELECT id FROM licensed_client_registry " +
+                                "WHERE (machine_id = ? OR UPPER(REPLACE(machine_id, '-', '')) = ? OR machine_id = ?) " +
+                                "AND status = 'ACTIVE'",
+                        rawMachine, normMachine, normMachine
                 );
                 if (registered.isEmpty()) {
                     Integer maxMachines = db.queryForObject(

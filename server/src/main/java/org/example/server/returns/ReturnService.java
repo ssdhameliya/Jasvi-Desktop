@@ -506,9 +506,29 @@ public class ReturnService {
         if (waiting != null && waiting > 0) throw new IllegalStateException("A Return for this document is already waiting for Admin approval.");
     }
 
+    public static boolean isPhysicalStockReturn(String reason) {
+        if (reason == null || reason.isBlank()) return true;
+        String r = reason.trim().toUpperCase(Locale.ROOT);
+        if (r.contains("RATE DIFF") || r.contains("PRICE") || r.contains("OVER BILL") || r.contains("TAX RATE")) return false;
+        if (r.contains("DISCOUNT") || r.contains("REBATE") || r.contains("INCENTIVE") || r.contains("GOODWILL")) return false;
+        if (r.contains("COMMERCIAL")) return false;
+        return true;
+    }
+
+    public static boolean isCommercialRebate(String reason) {
+        if (reason == null || reason.isBlank()) return false;
+        String r = reason.trim().toUpperCase(Locale.ROOT);
+        return r.contains("COMMERCIAL") || r.contains("DISCOUNT") || r.contains("REBATE") || r.contains("INCENTIVE") || r.contains("GOODWILL");
+    }
+
     private void postReturnStock(String no, boolean sales) {
-        List<Map<String, Object>> lines = jdbc.queryForList("SELECT r.id,r.item_code,r.quantity,r.source_line_id,COALESCE(sl.unit_cost_snapshot,0) unit_cost FROM return_register r LEFT JOIN sales_line sl ON r.return_type='SALES RETURN' AND sl.id=r.source_line_id WHERE r.return_no=? ORDER BY r.id", no);
+        List<Map<String, Object>> lines = jdbc.queryForList("SELECT r.id,r.item_code,r.quantity,r.source_line_id,COALESCE(r.reason,'') reason,COALESCE(sl.unit_cost_snapshot,0) unit_cost FROM return_register r LEFT JOIN sales_line sl ON r.return_type='SALES RETURN' AND sl.id=r.source_line_id WHERE r.return_no=? ORDER BY r.id", no);
         for (Map<String, Object> line : lines) {
+            String lineReason = Objects.toString(line.get("reason"), "");
+            if (!isPhysicalStockReturn(lineReason)) {
+                // Rate difference, price adjustment, or commercial rebate: ZERO stock movement
+                continue;
+            }
             String code = Objects.toString(line.get("item_code"), "");
             double q = n(line.get("quantity"));
             if (sales) operations.applyStockMovement(code, q, false, n(line.get("unit_cost")), "SALES_RETURN", ((Number) line.get("id")).intValue());
@@ -521,7 +541,7 @@ public class ReturnService {
         try {
             if (sales) {
                 List<Map<String, Object>> lines = jdbc.queryForList("""
-                    SELECT r.item_code, r.quantity, r.amount, im.id AS item_id,
+                    SELECT r.item_code, r.quantity, r.amount, COALESCE(r.reason,'') AS reason, im.id AS item_id,
                            COALESCE(NULLIF(sl.item_description_snapshot,''), im.description, r.item_code) AS descr,
                            COALESCE(im.hsn, '') AS hsn,
                            COALESCE(sl.rate, 0) AS rate,
@@ -534,12 +554,17 @@ public class ReturnService {
                 if (lines.isEmpty()) return;
 
                 List<CreditDebitNoteDtos.NoteLineDto> noteLines = new ArrayList<>();
+                boolean anyRebate = false;
                 for (Map<String, Object> l : lines) {
+                    String lineReason = Objects.toString(l.get("reason"), "");
+                    boolean rebate = isCommercialRebate(lineReason);
+                    if (rebate) anyRebate = true;
+
                     BigDecimal qty = BigDecimal.valueOf(n(l.get("quantity"))).setScale(2, RoundingMode.HALF_UP);
                     BigDecimal price = BigDecimal.valueOf(n(l.get("rate"))).setScale(2, RoundingMode.HALF_UP);
-                    BigDecimal gstRate = BigDecimal.valueOf(n(l.get("gst_rate"))).setScale(2, RoundingMode.HALF_UP);
+                    BigDecimal gstRate = rebate ? BigDecimal.ZERO : BigDecimal.valueOf(n(l.get("gst_rate"))).setScale(2, RoundingMode.HALF_UP);
                     BigDecimal taxable = qty.multiply(price).setScale(2, RoundingMode.HALF_UP);
-                    BigDecimal taxTotal = taxable.multiply(gstRate).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                    BigDecimal taxTotal = rebate ? BigDecimal.ZERO : taxable.multiply(gstRate).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
                     BigDecimal cgst = taxTotal.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
                     BigDecimal sgst = taxTotal.subtract(cgst);
                     BigDecimal lineTotal = taxable.add(taxTotal);
@@ -561,10 +586,10 @@ public class ReturnService {
 
                 CreditDebitNoteDtos.CreditNoteDto cnReq = new CreditDebitNoteDtos.CreditNoteDto(
                         null, null, BusinessClock.today(), origin.invoice(),
-                        (long) partyId, partyName, gstin, "SALES_RETURN",
+                        (long) partyId, partyName, gstin, anyRebate ? "COMMERCIAL_REBATE" : "SALES_RETURN",
                         null, null, null, null, null, null,
                         false,
-                        "POSTED", null, "Generated from approved Sales Return " + no,
+                        "POSTED", null, anyRebate ? "Commercial Rebate per CGST Sec 15(3)(b) generated from Return " + no : "Generated from approved Sales Return " + no,
                         CurrentUser.require().username(), null, 0L, noteLines
                 );
 
@@ -576,7 +601,7 @@ public class ReturnService {
                 }
             } else {
                 List<Map<String, Object>> lines = jdbc.queryForList("""
-                    SELECT r.item_code, r.quantity, r.amount, im.id AS item_id,
+                    SELECT r.item_code, r.quantity, r.amount, COALESCE(r.reason,'') AS reason, im.id AS item_id,
                            COALESCE(NULLIF(pl.item_description_snapshot,''), im.description, r.item_code) AS descr,
                            COALESCE(im.hsn, '') AS hsn,
                            COALESCE(pl.rate, 0) AS rate,
@@ -589,12 +614,17 @@ public class ReturnService {
                 if (lines.isEmpty()) return;
 
                 List<CreditDebitNoteDtos.NoteLineDto> noteLines = new ArrayList<>();
+                boolean anyRebate = false;
                 for (Map<String, Object> l : lines) {
+                    String lineReason = Objects.toString(l.get("reason"), "");
+                    boolean rebate = isCommercialRebate(lineReason);
+                    if (rebate) anyRebate = true;
+
                     BigDecimal qty = BigDecimal.valueOf(n(l.get("quantity"))).setScale(2, RoundingMode.HALF_UP);
                     BigDecimal price = BigDecimal.valueOf(n(l.get("rate"))).setScale(2, RoundingMode.HALF_UP);
-                    BigDecimal gstRate = BigDecimal.valueOf(n(l.get("gst_rate"))).setScale(2, RoundingMode.HALF_UP);
+                    BigDecimal gstRate = rebate ? BigDecimal.ZERO : BigDecimal.valueOf(n(l.get("gst_rate"))).setScale(2, RoundingMode.HALF_UP);
                     BigDecimal taxable = qty.multiply(price).setScale(2, RoundingMode.HALF_UP);
-                    BigDecimal taxTotal = taxable.multiply(gstRate).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                    BigDecimal taxTotal = rebate ? BigDecimal.ZERO : taxable.multiply(gstRate).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
                     BigDecimal cgst = taxTotal.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
                     BigDecimal sgst = taxTotal.subtract(cgst);
                     BigDecimal lineTotal = taxable.add(taxTotal);
@@ -616,10 +646,10 @@ public class ReturnService {
 
                 CreditDebitNoteDtos.DebitNoteDto dnReq = new CreditDebitNoteDtos.DebitNoteDto(
                         null, null, BusinessClock.today(), origin.invoice(),
-                        (long) partyId, partyName, gstin, "PURCHASE_RETURN",
+                        (long) partyId, partyName, gstin, anyRebate ? "COMMERCIAL_REBATE" : "PURCHASE_RETURN",
                         null, null, null, null, null, null,
                         false,
-                        "POSTED", null, "Generated from approved Purchase Return " + no,
+                        "POSTED", null, anyRebate ? "Supplier Commercial Rebate generated from Return " + no : "Generated from approved Purchase Return " + no,
                         CurrentUser.require().username(), null, 0L, noteLines
                 );
 
@@ -636,7 +666,12 @@ public class ReturnService {
     }
 
     private void reverseApprovedStock(String no, boolean sales) {
-        for (Map<String, Object> r : jdbc.queryForList("SELECT item_code,quantity FROM return_register WHERE return_no=?", no)) {
+        for (Map<String, Object> r : jdbc.queryForList("SELECT item_code,quantity,COALESCE(reason,'') reason FROM return_register WHERE return_no=?", no)) {
+            String lineReason = Objects.toString(r.get("reason"), "");
+            if (!isPhysicalStockReturn(lineReason)) {
+                // Stock was never moved for financial/rebate adjustment, do not reverse
+                continue;
+            }
             double q = n(r.get("quantity"));
             String code = Objects.toString(r.get("item_code"), "");
             operations.applyStockDelta(code, sales ? -q : q, sales);

@@ -118,6 +118,7 @@ public class SalesReturnsController implements ScreenLifecycle {
             final MenuButton menu = new MenuButton();
             {
                 add("View Details", "view", e -> showDetails(row()));
+                add("⚡ View Posting Flow", "status", e -> viewPostingFlow(row()));
                 add("Audit Trail", "history", e -> audit(row()));
                 add("Edit Reason", "edit", e -> edit(row()));
                 add("Print / PDF", "print", e -> pdf(row()));
@@ -250,6 +251,8 @@ public class SalesReturnsController implements ScreenLifecycle {
     private String returnSemantic(String value){String v=safe(value).toUpperCase(Locale.ROOT);if(v.contains("CANCEL")||v.contains("REJECT")||v.contains("FAIL"))return"cancel";if(v.contains("COMPLETE")||v.contains("APPROV"))return"complete";if(v.contains("PARTIAL")||v.contains("PROGRESS"))return"refresh";return"reminder";}
     private String returnState(String value){String v=safe(value).toUpperCase(Locale.ROOT);if(v.contains("CANCEL")||v.contains("REJECT")||v.contains("FAIL"))return"danger";if(v.contains("COMPLETE")||v.contains("APPROV")||v.contains("REFUND"))return"success";if(v.contains("PARTIAL")||v.contains("PROGRESS"))return"info";return"warning";}
     private void showDetails(Row row) { if(row==null)return; selected=row; org.example.util.ReturnDocumentInspectionDialog.show(table,row.no(),true,returnApi,supportApi,this::load); }
+    private void viewPostingFlow(Row row) { if (row == null || row.no() == null) return; org.example.util.PostingFlowDialog.show(table, "SALES_RETURN", row.no()); }
+    @FXML private void viewPostingFlowSelected(){if(selected!=null)viewPostingFlow(selected);}
     @FXML private void auditSelected(){if(selected!=null)audit(selected);}
     @FXML private void closeDetails(){selected=null;if(detailDrawer!=null)RegisterUiSupport.hideDrawer(detailDrawer,mainSplit,table);}
     @FXML private void pdfSelected(){if(selected!=null)pdf(selected);}

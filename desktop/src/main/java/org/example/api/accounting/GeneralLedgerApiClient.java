@@ -56,6 +56,11 @@ public final class GeneralLedgerApiClient {
         return get("/api/accounting/financial-statements", FinancialStatementDto.class);
     }
 
+    public PostingFlowResponse postingFlow(String docType, String docNo) {
+        String p = "/api/accounting/posting-flow?docType=" + enc(docType) + "&docNo=" + enc(docNo);
+        return get(p, PostingFlowResponse.class);
+    }
+
     private <T> T get(String p, Class<T> c) { return req("GET", p, null, c, null); }
     private <T> T get(String p, TypeReference<T> t) { return req("GET", p, null, null, t); }
     private <T> T post(String p, Object b, Class<T> c) { return req("POST", p, b, c, null); }
@@ -185,5 +190,52 @@ public final class GeneralLedgerApiClient {
             BigDecimal totalAssets,
             BigDecimal totalLiabilities,
             BigDecimal totalEquity
+    ) {}
+
+    public record PostingFlowVoucherLine(
+            String accountCode,
+            String accountName,
+            BigDecimal debitAmount,
+            BigDecimal creditAmount,
+            String narration
+    ) {}
+
+    public record PostingFlowInventoryLine(
+            String itemCode,
+            String description,
+            String movementType,
+            BigDecimal quantity,
+            String unit,
+            BigDecimal unitCost,
+            BigDecimal totalValuation
+    ) {}
+
+    public record PostingFlowGstImpact(
+            String returnForm,
+            String tableSection,
+            BigDecimal taxableAmount,
+            BigDecimal cgstAmount,
+            BigDecimal sgstAmount,
+            BigDecimal igstAmount,
+            BigDecimal totalTax,
+            String statutoryRule
+    ) {}
+
+    public record PostingFlowResponse(
+            String documentType,
+            String documentNo,
+            LocalDate documentDate,
+            String partyName,
+            String partyGstin,
+            BigDecimal totalAmount,
+            String postingProfile,
+            String summaryDescription,
+            String journalVoucherNo,
+            List<PostingFlowVoucherLine> journalLines,
+            BigDecimal totalDebit,
+            BigDecimal totalCredit,
+            boolean isBalanced,
+            List<PostingFlowInventoryLine> inventoryMovements,
+            PostingFlowGstImpact gstImpact
     ) {}
 }

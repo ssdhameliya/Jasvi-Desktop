@@ -1149,6 +1149,13 @@ public final class SalesDocumentInspectionDialog {
         btnAudit.getStyleClass().addAll("approved-button", "approved-slate-button");
         btnAudit.setOnAction(e -> ActivityTimelineDialog.show(dialog.getDialogPane(), "SALE", sale.getId(), sale.getInvoiceNo()));
 
+        // 10. View Posting Flow (GL / Stock / GST)
+        Button btnPostingFlow = new Button("View Posting Flow");
+        btnPostingFlow.setGraphic(IconFactory.compactIcon("status", 14));
+        btnPostingFlow.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnPostingFlow.setTooltip(new Tooltip("Inspect General Ledger Journal Voucher, Stock Movement & Statutory GST Impact"));
+        btnPostingFlow.setOnAction(e -> PostingFlowDialog.show(dialog.getDialogPane(), "SALE", sale.getInvoiceNo()));
+
         // Approval actions if pending
         boolean isPendingApproval = "PENDING APPROVAL".equalsIgnoreCase(safe(sale.getDocumentStatus()).trim());
         boolean isAdmin = SessionService.isAdmin();
@@ -1156,7 +1163,7 @@ public final class SalesDocumentInspectionDialog {
         dock.getChildren().addAll(btnEdit, btnDuplicate, btnPrint, btnBarcode, btnExcel, btnEmail, btnRecordPayment);
         if (btnViewReturn != null) dock.getChildren().add(btnViewReturn);
         if (btnReturn != null) dock.getChildren().add(btnReturn);
-        dock.getChildren().add(btnAudit);
+        dock.getChildren().addAll(btnAudit, btnPostingFlow);
 
         if (isPendingApproval && isAdmin) {
             Button btnApprove = new Button("Approve Sale");

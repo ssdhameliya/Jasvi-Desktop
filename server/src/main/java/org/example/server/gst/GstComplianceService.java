@@ -78,6 +78,9 @@ public class GstComplianceService {
                     missing2b++;
                     itcAtRisk = itcAtRisk.add(totalTax);
                 }
+                case "RULE_37_REVERSAL_DUE" -> {
+                    itcAtRisk = itcAtRisk.add(totalTax);
+                }
                 case "MISSING_IN_BOOKS" -> missingBooks++;
                 default -> {}
             }
@@ -157,12 +160,31 @@ public class GstComplianceService {
                     } catch (Exception ignored) {}
                 }
 
+                // Check Statutory 180-day rule (Second proviso to Section 16(2) of CGST Act & Rule 37)
+                boolean rule37ReversalRequired = false;
+                if (matchedErp.getInvoiceDate() != null) {
+                    try {
+                        String sDate = matchedErp.getInvoiceDate().length() >= 10 ? matchedErp.getInvoiceDate().substring(0, 10) : matchedErp.getInvoiceDate();
+                        LocalDate erpD = LocalDate.parse(sDate);
+                        long ageDays = ChronoUnit.DAYS.between(erpD, LocalDate.now());
+                        String payStatus = matchedErp.getPaymentStatus() != null ? matchedErp.getPaymentStatus().toUpperCase() : "PENDING";
+                        if (ageDays > 180 && !Set.of("PAID", "SETTLED").contains(payStatus)) {
+                            rule37ReversalRequired = true;
+                        }
+                    } catch (Exception ignored) {}
+                }
+
                 if (!dateOk) {
                     item.setMatchStatus("DATE_MISMATCH");
                     item.setActionTaken("VERIFY_DATE");
                 } else if (diff.compareTo(new BigDecimal("1.00")) <= 0) {
-                    item.setMatchStatus("MATCHED");
-                    item.setActionTaken("CLAIMED");
+                    if (rule37ReversalRequired) {
+                        item.setMatchStatus("RULE_37_REVERSAL_DUE");
+                        item.setActionTaken("REVERSAL_REQUIRED");
+                    } else {
+                        item.setMatchStatus("MATCHED");
+                        item.setActionTaken("CLAIMED");
+                    }
                 } else {
                     item.setMatchStatus("RATE_VALUE_DIFF");
                     item.setActionTaken("NEEDS_ADJUSTMENT");
@@ -423,6 +445,63 @@ public class GstComplianceService {
             itcSgst = itcSgst.add(m.getSgstAmount() != null ? m.getSgstAmount() : BigDecimal.ZERO);
         }
 
+        // Net Outward Sales with Credit Notes (GSTR-3B Table 3.1(a) must be NET of Credit Notes)
+        BigDecimal cnTaxable = BigDecimal.ZERO;
+        BigDecimal cnIgst = BigDecimal.ZERO;
+        BigDecimal cnCgst = BigDecimal.ZERO;
+        BigDecimal cnSgst = BigDecimal.ZERO;
+        try {
+            List<Map<String, Object>> cnRows = jdbc.queryForList("""
+                SELECT taxable_amount, cgst_amount, sgst_amount, igst_amount, note_date
+                FROM credit_note_header
+                WHERE UPPER(COALESCE(status, '')) <> 'CANCELLED'
+                """);
+            for (Map<String, Object> cn : cnRows) {
+                if (filterMonth != null && filterYear != null && cn.get("note_date") != null) {
+                    try {
+                        LocalDate d = LocalDate.parse(cn.get("note_date").toString().substring(0, 10));
+                        if (d.getMonthValue() != filterMonth || d.getYear() != filterYear) continue;
+                    } catch (Exception ignored) {}
+                }
+                cnTaxable = cnTaxable.add(toBigDecimal(cn.get("taxable_amount")));
+                cnCgst = cnCgst.add(toBigDecimal(cn.get("cgst_amount")));
+                cnSgst = cnSgst.add(toBigDecimal(cn.get("sgst_amount")));
+                cnIgst = cnIgst.add(toBigDecimal(cn.get("igst_amount")));
+            }
+        } catch (Exception ignored) {}
+
+        outwardTaxable = outwardTaxable.subtract(cnTaxable).max(BigDecimal.ZERO);
+        outwardIgst = outwardIgst.subtract(cnIgst).max(BigDecimal.ZERO);
+        outwardCgst = outwardCgst.subtract(cnCgst).max(BigDecimal.ZERO);
+        outwardSgst = outwardSgst.subtract(cnSgst).max(BigDecimal.ZERO);
+
+        // Net Inward ITC with Purchase Debit Notes / Returns (Table 4(B) Reversals)
+        BigDecimal dnIgst = BigDecimal.ZERO;
+        BigDecimal dnCgst = BigDecimal.ZERO;
+        BigDecimal dnSgst = BigDecimal.ZERO;
+        try {
+            List<Map<String, Object>> dnRows = jdbc.queryForList("""
+                SELECT cgst_amount, sgst_amount, igst_amount, note_date
+                FROM debit_note_header
+                WHERE UPPER(COALESCE(status, '')) <> 'CANCELLED'
+                """);
+            for (Map<String, Object> dn : dnRows) {
+                if (filterMonth != null && filterYear != null && dn.get("note_date") != null) {
+                    try {
+                        LocalDate d = LocalDate.parse(dn.get("note_date").toString().substring(0, 10));
+                        if (d.getMonthValue() != filterMonth || d.getYear() != filterYear) continue;
+                    } catch (Exception ignored) {}
+                }
+                dnCgst = dnCgst.add(toBigDecimal(dn.get("cgst_amount")));
+                dnSgst = dnSgst.add(toBigDecimal(dn.get("sgst_amount")));
+                dnIgst = dnIgst.add(toBigDecimal(dn.get("igst_amount")));
+            }
+        } catch (Exception ignored) {}
+
+        itcIgst = itcIgst.subtract(dnIgst).max(BigDecimal.ZERO);
+        itcCgst = itcCgst.subtract(dnCgst).max(BigDecimal.ZERO);
+        itcSgst = itcSgst.subtract(dnSgst).max(BigDecimal.ZERO);
+
         // Section 49 / Rule 88A GST Set-off logic
         BigDecimal remOutwardIgst = outwardIgst;
         BigDecimal remItcIgst = itcIgst;
@@ -500,6 +579,13 @@ public class GstComplianceService {
             }
         } catch (Exception ignored) {}
 
+        // Credit Section 9(3)/9(4) RCM tax paid in cash as eligible ITC under Table 4(A)(3)
+        if (rcmTax.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal rcmHalf = rcmTax.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+            itcCgst = itcCgst.add(rcmHalf);
+            itcSgst = itcSgst.add(rcmTax.subtract(rcmHalf));
+        }
+
         BigDecimal netIgst = remOutwardIgst;
         BigDecimal totalCash = netIgst.add(netCgst).add(netSgst).add(rcmTax);
 
@@ -523,5 +609,12 @@ public class GstComplianceService {
                 e.getSgstAmount(), e.getCessAmount(), e.getItcEligibility(), e.getMatchStatus(),
                 e.getErpPurchaseId(), e.getVarianceAmount(), e.getActionTaken(), e.getRowVersion()
         );
+    }
+
+    private static BigDecimal toBigDecimal(Object o) {
+        if (o == null) return BigDecimal.ZERO;
+        if (o instanceof BigDecimal b) return b;
+        if (o instanceof Number n) return BigDecimal.valueOf(n.doubleValue());
+        try { return new BigDecimal(o.toString()); } catch (Exception ignored) { return BigDecimal.ZERO; }
     }
 }

@@ -675,6 +675,9 @@ public class GstComplianceController implements ScreenLifecycle {
                         String cGstin = customer != null && customer.getGstin() != null ? customer.getGstin().trim() : "";
                         String cName = customer != null && customer.getName() != null ? customer.getName() : "Customer";
                         String pos = cGstin.length() >= 2 ? cGstin.substring(0, 2) : "24";
+                        if (pos.equals("24") && s.getBillingGstin() != null && s.getBillingGstin().trim().length() >= 2) {
+                            pos = s.getBillingGstin().trim().substring(0, 2);
+                        }
 
                         String gstType = s.getGstType();
                         double sIgst = 0.0, sCgst = 0.0, sSgst = 0.0;
@@ -719,11 +722,14 @@ public class GstComplianceController implements ScreenLifecycle {
                             cur[3] += sSgst;
                         }
 
-                        // HSN Summary aggregation
-                        String hsnCode = "8471";
+                        // HSN Summary aggregation from real lines
+                        String hsnCode = (s.getLines() != null && !s.getLines().isEmpty() && s.getLines().get(0).getItemHsn() != null && !s.getLines().get(0).getItemHsn().isBlank())
+                                ? s.getLines().get(0).getItemHsn().trim() : "9983";
+                        double sQty = (s.getLines() != null && !s.getLines().isEmpty())
+                                ? s.getLines().stream().mapToDouble(l -> l.getQuantity() > 0 ? l.getQuantity() : 1.0).sum() : 1.0;
                         String hsnKey = hsnCode + "_" + (int) rate;
                         double[] hCur = hsnMap.computeIfAbsent(hsnKey, k -> new double[]{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, rate});
-                        hCur[0] += 1.0; // qty
+                        hCur[0] += sQty; // real item quantity
                         hCur[1] += total;
                         hCur[2] += taxable;
                         hCur[3] += sIgst;
@@ -809,21 +815,34 @@ public class GstComplianceController implements ScreenLifecycle {
                         }
 
                         String status;
+                        String action;
+                        boolean isSettled = p.getPaymentStatus() != null && Set.of("PAID", "SETTLED").contains(p.getPaymentStatus().toUpperCase(Locale.ROOT));
+                        long ageDays = p.getInvoiceDate() != null ? java.time.temporal.ChronoUnit.DAYS.between(p.getInvoiceDate(), LocalDate.now()) : 0;
+
                         if (gstin.length() == 15) {
-                            status = "MATCHED";
-                            totalEligibleItc += tax;
-                            inputCgst += cgst;
-                            inputSgst += sgst;
-                            inputIgst += igst;
+                            if (ageDays > 180 && !isSettled) {
+                                status = "RULE_37_REVERSAL_DUE";
+                                action = "REVERSAL_REQUIRED";
+                                totalItcAtRisk += tax;
+                                valueDiff++;
+                            } else {
+                                status = isSettled ? "MATCHED & SETTLED" : "ELIGIBLE_PENDING_SETTLEMENT";
+                                action = isSettled ? "CLAIMED" : "VERIFIED";
+                                totalEligibleItc += tax;
+                                inputCgst += cgst;
+                                inputSgst += sgst;
+                                inputIgst += igst;
+                            }
                         } else {
                             status = "GSTIN_PENDING";
+                            action = "NOTIFY_SUPPLIER";
                             totalItcAtRisk += tax;
                             missingBooks++;
                         }
 
                         String dateStr = p.getInvoiceDate() != null ? BusinessClock.formatDate(p.getInvoiceDate()) : "-";
                         list.add(new Gstr2bRow(p.getId(), gstin, tradeName, p.getInvoiceNo(), dateStr,
-                                fmt(taxable), fmt(igst), fmt(cgst), fmt(sgst), status, "VERIFIED", tax));
+                                fmt(taxable), fmt(igst), fmt(cgst), fmt(sgst), status, action, tax));
                     }
 
                     // Rule 88A setoff for GSTR-3B display

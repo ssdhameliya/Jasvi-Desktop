@@ -137,6 +137,15 @@ public class SalesListController implements ScreenLifecycle {
             });
             return row;
         });
+        tableSales.setOnKeyPressed(event -> {
+            if (new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.J, javafx.scene.input.KeyCombination.CONTROL_DOWN).match(event)) {
+                Sales sel = tableSales.getSelectionModel().getSelectedItem();
+                if (sel != null && sel.getInvoiceNo() != null) {
+                    org.example.util.PostingFlowDialog.show(tableSales, "SALE", sel.getInvoiceNo());
+                    event.consume();
+                }
+            }
+        });
         txtSearch.textProperty().addListener((o,a,b)->{if(!filterEventsSuppressed())filterDebouncer.submit(this::applyFilters);});
     }
 
@@ -497,7 +506,11 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             LinkedRecordContext.open("CREDIT_NOTE", null, row.getInvoiceNo(), "APPROVE_RETURN", "SALES_REGISTER");
             NavigationManager.navigateOrReport("/fxml/pages/CreditNoteRegister.fxml");
         });
-        sharedMenu.getItems().setAll(view,linkages,attach,audit,edit,duplicate,print,barcode,excel,email,whatsapp,payment,createReturn,viewReturns,cancel,delete);
+        MenuItem postingFlow = salesActionItem("⚡ View Posting Flow (GL/Stock/GST)", "status", () -> {
+            Sales row = requireSalesActionTarget(target);
+            org.example.util.PostingFlowDialog.show(tableSales, "SALE", row.getInvoiceNo());
+        });
+        sharedMenu.getItems().setAll(view,postingFlow,linkages,attach,audit,edit,duplicate,print,barcode,excel,email,whatsapp,payment,createReturn,viewReturns,cancel,delete);
         IconFactory.decorateActionMenu(sharedMenu);
 
         java.util.function.Consumer<Sales> updateAvailability = current -> {

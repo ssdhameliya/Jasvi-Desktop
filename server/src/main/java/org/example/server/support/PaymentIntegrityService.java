@@ -5,7 +5,10 @@ import org.example.server.audit.AuditService;
 import org.example.server.operations.BusinessOperationsService;
 import org.example.server.security.CurrentUser;
 import org.example.server.util.BusinessClock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.example.server.accounting.GeneralLedgerService;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,16 +26,22 @@ public class PaymentIntegrityService {
     private final JpaNativeRepository jdbc;
     private final AuditService audit;
     private final BusinessOperationsService operations;
+    private final ObjectProvider<GeneralLedgerService> glProvider;
 
     public PaymentIntegrityService(JpaNativeRepository jdbc, AuditService audit) {
-        this(jdbc, audit, null);
+        this(jdbc, audit, null, null);
+    }
+
+    public PaymentIntegrityService(JpaNativeRepository jdbc, AuditService audit, BusinessOperationsService operations) {
+        this(jdbc, audit, operations, null);
     }
 
     @Autowired
-    public PaymentIntegrityService(JpaNativeRepository jdbc, AuditService audit, BusinessOperationsService operations) {
+    public PaymentIntegrityService(JpaNativeRepository jdbc, AuditService audit, BusinessOperationsService operations, ObjectProvider<GeneralLedgerService> glProvider) {
         this.jdbc = jdbc;
         this.audit = audit;
         this.operations = operations;
+        this.glProvider = glProvider;
     }
 
     @Transactional
@@ -92,6 +101,34 @@ public class PaymentIntegrityService {
                         new AuditService.Change("Payment Mode", null, mode),
                         new AuditService.Change("Payment Reference", null, paymentReference),
                         new AuditService.Change("Bank / Reference No.", null, clean(request.reference()))));
+
+        if (glProvider != null && glProvider.getIfAvailable() != null) {
+            try {
+                String user = CurrentUser.isSet() ? CurrentUser.require().username() : "SYSTEM";
+                if (type == DocumentType.SALE) {
+                    Map<String, Object> saleInfo = jdbc.queryForMap(
+                            "SELECT customer_id, invoice_no, COALESCE(customer_name_snapshot, '') as cname FROM sales_header WHERE id = ?",
+                            request.documentId()
+                    );
+                    Integer custId = saleInfo.get("customer_id") != null ? ((Number) saleInfo.get("customer_id")).intValue() : null;
+                    String invNo = String.valueOf(saleInfo.get("invoice_no"));
+                    String cName = String.valueOf(saleInfo.get("cname"));
+                    glProvider.getIfAvailable().postPaymentReceipt(Long.valueOf(paymentId), paymentReference, date, amount, mode, custId, cName, invNo, user);
+                } else if (type == DocumentType.PURCHASE) {
+                    Map<String, Object> purInfo = jdbc.queryForMap(
+                            "SELECT supplier_id, invoice_no, COALESCE(supplier_name_snapshot, '') as sname FROM purchase_header WHERE id = ?",
+                            request.documentId()
+                    );
+                    Integer supId = purInfo.get("supplier_id") != null ? ((Number) purInfo.get("supplier_id")).intValue() : null;
+                    String billNo = String.valueOf(purInfo.get("invoice_no"));
+                    String sName = String.valueOf(purInfo.get("sname"));
+                    glProvider.getIfAvailable().postPurchasePayment(Long.valueOf(paymentId), paymentReference, date, amount, mode, supId, sName, billNo, user);
+                }
+            } catch (Exception ex) {
+                java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Auto-post payment GL skipped: " + ex.getMessage());
+            }
+        }
+
         return paymentId;
     }
 

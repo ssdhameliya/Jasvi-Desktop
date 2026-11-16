@@ -24,7 +24,11 @@ public final class BankReconciliationDtos {
   }
  }
  public record TransactionPage(List<TransactionDto> rows,Metrics metrics,int page,int size,long totalRows,int totalPages){}
- public record CandidateDto(String type,Integer id,String documentNo,String partyName,String documentDate,double totalAmount,double paidAmount,double outstanding,double confidence){}
+ public record CandidateDto(String type,Integer id,String documentNo,String partyName,String documentDate,double totalAmount,double paidAmount,double outstanding,double confidence,String matchReason){
+  public CandidateDto(String type,Integer id,String documentNo,String partyName,String documentDate,double totalAmount,double paidAmount,double outstanding,double confidence){
+   this(type,id,documentNo,partyName,documentDate,totalAmount,paidAmount,outstanding,confidence,"");
+  }
+ }
  public record AllocationRequest(String targetType,Integer targetId,double amount){}
  public record MatchRequest(String user,List<AllocationRequest> allocations){}
  public record ExpenseRequest(String category,String accountName,String paymentMode,String notes,String billPath,String user){}
