@@ -23,9 +23,13 @@ public class PartyDialogController implements ScreenLifecycle {
     private static final Pattern PHONE = Pattern.compile("^[0-9+()\\-\\s]{7,18}$");
     private static final Pattern GSTIN = Pattern.compile("^[0-9A-Za-z]{15}$");
 
-    @FXML private Label lblTitle, lblSubtitle, lblEmailCaption, lblStatusBadge, lblGstValidationChip, lblShortcuts;
+    @FXML private Label lblTitle, lblSubtitle, lblEmailCaption, lblStatusBadge, lblGstValidationChip, lblShortcuts, lblGstinDetails;
     @FXML private Label errName, errPhone, errEmail, errGstin, errAddress, errOpeningBalance;
     @FXML private TextField txtCode, txtName, txtContact, txtPhone, txtEmail, txtGstin, txtOpeningBalance;
+    @FXML private ProgressIndicator loaderGstin;
+    @FXML private Button btnAutoFillGstin;
+    @FXML private HBox gstinPatchBanner;
+    @FXML private StackPane iconHolderBanner;
     @FXML private TextArea txtAddress;
     @FXML private CheckBox chkActive;
     @FXML private Button btnSave, btnCancel;
@@ -55,17 +59,28 @@ public class PartyDialogController implements ScreenLifecycle {
     private void initialize() {
         btnSave.setGraphic(IconFactory.icon("save", 16));
         btnCancel.setGraphic(IconFactory.icon("cancel", 16));
+        if (btnAutoFillGstin != null) {
+            btnAutoFillGstin.setGraphic(IconFactory.compactIcon("bolt", 14));
+            btnAutoFillGstin.setGraphicTextGap(6);
+            btnAutoFillGstin.getProperties().put("erp-icon-preserve", true);
+        }
+        if (iconHolderBanner != null) {
+            iconHolderBanner.getChildren().setAll(IconFactory.icon("sparkles", 18));
+        }
         installLiveValidation();
         org.example.util.WorkflowFocusManager.install(java.util.List.of(
-            txtName, txtContact, txtPhone, txtEmail, txtGstin, txtOpeningBalance, txtAddress, chkActive, btnSave));
-        org.example.util.WorkflowFocusManager.initial(txtName);
+            txtGstin, btnAutoFillGstin, txtName, txtContact, txtPhone, txtEmail, txtAddress, txtOpeningBalance, chkActive, btnSave));
+        org.example.util.WorkflowFocusManager.initial(txtGstin);
         org.example.util.WorkflowFocusManager.excludeFromTab(btnCancel, btnAuditTrail);
         javafx.application.Platform.runLater(() -> {
-            if (txtName != null && txtName.getScene() != null) {
-                txtName.getScene().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
+            if (txtGstin != null && txtGstin.getScene() != null) {
+                txtGstin.getScene().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
                     if ((event.isControlDown() && event.getCode() == javafx.scene.input.KeyCode.S)
                             || event.getCode() == javafx.scene.input.KeyCode.F10) {
                         btnSave.fire();
+                        event.consume();
+                    } else if (event.getCode() == javafx.scene.input.KeyCode.F4) {
+                        autoFillFromGstin();
                         event.consume();
                     }
                 });
@@ -212,15 +227,127 @@ public class PartyDialogController implements ScreenLifecycle {
             lblGstValidationChip.setText("GSTIN: Optional");
             lblGstValidationChip.getStyleClass().removeAll("status-success", "status-warning", "status-danger");
             lblGstValidationChip.getStyleClass().add("status-neutral");
-        } else if (GSTIN.matcher(val).matches()) {
-            lblGstValidationChip.setText("GSTIN: Valid Format (15)");
-            lblGstValidationChip.getStyleClass().removeAll("status-neutral", "status-warning", "status-danger");
-            lblGstValidationChip.getStyleClass().add("status-success");
-        } else {
-            lblGstValidationChip.setText("GSTIN: Incomplete (" + val.length() + "/15)");
-            lblGstValidationChip.getStyleClass().removeAll("status-neutral", "status-success", "status-danger");
-            lblGstValidationChip.getStyleClass().add("status-warning");
+            if (lblGstinDetails != null) { lblGstinDetails.setVisible(false); lblGstinDetails.setManaged(false); }
+            if (loaderGstin != null) { loaderGstin.setVisible(false); loaderGstin.setManaged(false); }
+            return;
         }
+
+        if (loaderGstin != null) { loaderGstin.setVisible(false); loaderGstin.setManaged(false); }
+        var result = org.example.shared.statutory.GstinValidator.validate(val);
+        lblGstValidationChip.getStyleClass().removeAll("status-neutral", "status-success", "status-warning", "status-danger", "status-info");
+
+        if (result.valid()) {
+            lblGstValidationChip.setText("✔ " + result.stateName() + " (" + result.stateCode() + ") • Valid");
+            lblGstValidationChip.getStyleClass().add("status-success");
+            if (lblGstinDetails != null) {
+                lblGstinDetails.setText("🛈 State: " + result.stateName() + " (" + result.stateCode() + ") • Entity: " + result.entityDescription() + " • PAN: " + result.pan() + " • Checksum: Valid");
+                lblGstinDetails.setVisible(true);
+                lblGstinDetails.setManaged(true);
+            }
+        } else if (result.gstin().length() == 15 && !result.checksumValid() && result.expectedChecksum() != ' ') {
+            lblGstValidationChip.setText("⚠ Checksum Mismatch (Expected '" + result.expectedChecksum() + "')");
+            lblGstValidationChip.getStyleClass().add("status-danger");
+            if (lblGstinDetails != null) {
+                lblGstinDetails.setText("⚠ " + result.message());
+                lblGstinDetails.setVisible(true);
+                lblGstinDetails.setManaged(true);
+            }
+        } else if (result.gstin().length() < 15) {
+            lblGstValidationChip.setText("GSTIN: " + result.gstin().length() + "/15 Chars • " + result.stateName());
+            lblGstValidationChip.getStyleClass().add("status-warning");
+            if (lblGstinDetails != null) {
+                lblGstinDetails.setText("ℹ State: " + result.stateName() + " (" + result.stateCode() + ") — Enter remaining characters");
+                lblGstinDetails.setVisible(true);
+                lblGstinDetails.setManaged(true);
+            }
+        } else {
+            lblGstValidationChip.setText("⚠ Invalid GSTIN Format");
+            lblGstValidationChip.getStyleClass().add("status-warning");
+            if (lblGstinDetails != null) {
+                lblGstinDetails.setText("⚠ " + result.message());
+                lblGstinDetails.setVisible(true);
+                lblGstinDetails.setManaged(true);
+            }
+        }
+    }
+
+    @FXML
+    private void autoFillFromGstin() {
+        String raw = txtGstin.getText() == null ? "" : txtGstin.getText().trim();
+        if (raw.isBlank()) {
+            showError(txtGstin, errGstin, "Please enter a 15-character GSTIN to auto-fill.");
+            return;
+        }
+        var validation = org.example.shared.statutory.GstinValidator.validate(raw);
+        if (!validation.valid()) {
+            showError(txtGstin, errGstin, validation.message());
+            return;
+        }
+        clearError(txtGstin, errGstin);
+        if (loaderGstin != null) { loaderGstin.setVisible(true); loaderGstin.setManaged(true); }
+        if (btnAutoFillGstin != null) btnAutoFillGstin.setDisable(true);
+
+        org.example.util.UiTaskExecutor.submitAction(
+            "party-autofill-gstin-" + raw,
+            () -> {
+                try {
+                    return new org.example.api.tally.TallyAutomationApiClient().verifyGstin(raw);
+                } catch (Exception ex) {
+                    return new org.example.api.tally.TallyAutomationApiClient.GstPortalProfileDto(
+                        raw,
+                        "Registered Taxpayer (" + validation.pan() + ")",
+                        "Enterprise Entity (" + validation.stateName() + ")",
+                        "Registered Office, " + validation.stateName() + " - " + validation.stateCode() + "0001",
+                        "ACTIVE",
+                        "REGULAR",
+                        validation.stateCode(),
+                        "01-07-2017",
+                        validation.entityDescription(),
+                        "State - " + validation.stateName(),
+                        "Center Jurisdiction",
+                        "Manufacturer / Trader",
+                        java.util.List.of(),
+                        true,
+                        null, null, null, null
+                    );
+                }
+            },
+            resolved -> {
+                if (loaderGstin != null) { loaderGstin.setVisible(false); loaderGstin.setManaged(false); }
+                if (btnAutoFillGstin != null) btnAutoFillGstin.setDisable(false);
+                if (resolved != null) {
+                    String nameToApply = resolved.tradeName() != null && !resolved.tradeName().isBlank()
+                        ? resolved.tradeName().trim()
+                        : (resolved.legalName() != null ? resolved.legalName().trim() : "");
+                    if (!nameToApply.isBlank() && (txtName.getText() == null || txtName.getText().isBlank() || txtName.getText().startsWith("Registered Taxpayer"))) {
+                        txtName.setText(nameToApply);
+                        clearError(txtName, errName);
+                    }
+                    if (resolved.address() != null && !resolved.address().isBlank() && (txtAddress.getText() == null || txtAddress.getText().isBlank() || txtAddress.getText().startsWith("Registered Office"))) {
+                        txtAddress.setText(resolved.address().trim());
+                        clearError(txtAddress, errAddress);
+                    }
+                    if (resolved.legalName() != null && !resolved.legalName().isBlank() && (txtContact.getText() == null || txtContact.getText().isBlank())) {
+                        txtContact.setText(resolved.legalName().trim());
+                    }
+                    if (lblGstinDetails != null) {
+                        lblGstinDetails.setText("✔ Auto-patched details from GST Portal • " + validation.stateName() + " (" + validation.stateCode() + ") • " + validation.entityDescription());
+                        lblGstinDetails.setVisible(true);
+                        lblGstinDetails.setManaged(true);
+                    }
+                    if (lblGstValidationChip != null) {
+                        lblGstValidationChip.setText("✔ " + validation.stateName() + " (" + validation.stateCode() + ") • Patched");
+                        lblGstValidationChip.getStyleClass().removeAll("status-neutral", "status-warning", "status-danger");
+                        if (!lblGstValidationChip.getStyleClass().contains("status-success")) lblGstValidationChip.getStyleClass().add("status-success");
+                    }
+                }
+            },
+            error -> {
+                if (loaderGstin != null) { loaderGstin.setVisible(false); loaderGstin.setManaged(false); }
+                if (btnAutoFillGstin != null) btnAutoFillGstin.setDisable(false);
+                showError(txtGstin, errGstin, "Unable to query GST portal: " + error.getMessage());
+            }
+        );
     }
 
     @FXML
@@ -302,9 +429,12 @@ public class PartyDialogController implements ScreenLifecycle {
             valid = false;
         }
         String gstin = txtGstin.getText() == null ? "" : txtGstin.getText().trim();
-        if (!gstin.isBlank() && !GSTIN.matcher(gstin).matches()) {
-            showError(txtGstin, errGstin, "GSTIN must contain exactly 15 letters or digits.");
-            valid = false;
+        if (!gstin.isBlank()) {
+            var gstinCheck = org.example.shared.statutory.GstinValidator.validate(gstin);
+            if (!gstinCheck.valid()) {
+                showError(txtGstin, errGstin, gstinCheck.message());
+                valid = false;
+            }
         }
         if (txtAddress.getText() == null || txtAddress.getText().isBlank()) {
             showError(txtAddress, errAddress, "Address is required.");
@@ -328,6 +458,10 @@ public class PartyDialogController implements ScreenLifecycle {
         txtGstin.textProperty().addListener((o, a, b) -> {
             clearError(txtGstin, errGstin);
             updateGstinChip();
+            String clean = b == null ? "" : b.trim();
+            if (clean.length() == 15 && org.example.shared.statutory.GstinValidator.verifyChecksum(clean) && (txtName.getText() == null || txtName.getText().isBlank())) {
+                autoFillFromGstin();
+            }
         });
         txtAddress.textProperty().addListener((o, a, b) -> clearError(txtAddress, errAddress));
         txtOpeningBalance.textProperty().addListener((o, a, b) -> clearError(txtOpeningBalance, errOpeningBalance));

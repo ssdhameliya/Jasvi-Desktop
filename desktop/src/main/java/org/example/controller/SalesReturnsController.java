@@ -159,7 +159,13 @@ public class SalesReturnsController implements ScreenLifecycle {
     private void installRows() {
         table.setRowFactory(view -> {
             TableRow<Row> row = new TableRow<>();
-            row.setOnMouseClicked(event -> { if (event.getButton()!=javafx.scene.input.MouseButton.PRIMARY || event.getClickCount()!=1 || row.isEmpty() || RegisterUiSupport.isInteractiveTableTarget(event.getPickResult().getIntersectedNode(), row)) return; Row clicked=row.getItem(); table.getSelectionModel().select(clicked); showDetails(clicked); event.consume(); });
+            row.setOnMouseClicked(event -> {
+                if (event.getButton() != javafx.scene.input.MouseButton.PRIMARY || event.getClickCount() != 1 || row.isEmpty() || RegisterUiSupport.isInteractiveTableTarget(event.getPickResult().getIntersectedNode(), row)) return;
+                Row clicked = row.getItem();
+                table.getSelectionModel().select(clicked);
+                showDetails(clicked);
+                event.consume();
+            });
             MenuItem add = new MenuItem("Add Sales Return", IconFactory.compactIcon("add", 16)); add.setOnAction(e -> create());
             MenuItem edit = new MenuItem("Edit Reason", IconFactory.compactIcon("edit", 16)); edit.setOnAction(e -> { if (!row.isEmpty()) edit(row.getItem()); });
             MenuItem remove = new MenuItem("Delete Return", IconFactory.compactIcon("delete", 16)); remove.setOnAction(e -> { if (!row.isEmpty()) delete(row.getItem()); });

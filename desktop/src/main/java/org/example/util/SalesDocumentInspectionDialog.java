@@ -153,21 +153,35 @@ public final class SalesDocumentInspectionDialog {
                 ));
 
         // Card 2: Financial Breakdown
-        VBox card2 = DocumentInspectionScaffold.createSummaryCard("Invoice Breakdown", "currency",
-                List.of(
-                        new DocumentInspectionScaffold.FieldPair("Taxable Subtotal", money(sale.getSubtotal()), "currency", false),
-                        new DocumentInspectionScaffold.FieldPair("GST Amount", money(sale.getGstAmount()), "tax", false),
-                        new DocumentInspectionScaffold.FieldPair("Total Invoice", money(sale.getTotalAmount()), "currency", true)
-                ));
+        String retStatus = safe(sale.getReturnStatus()).toUpperCase(Locale.ROOT);
+        boolean hasReturn = !retStatus.isBlank() && !"N/A".equals(retStatus);
+        double returnAmt = sale.getApprovedReturnAmount() > 0 ? sale.getApprovedReturnAmount() : (retStatus.contains("FULLY") ? sale.getTotalAmount() : 0.0);
+        double netInvoice = Math.max(0.0, sale.getTotalAmount() - returnAmt);
+
+        List<DocumentInspectionScaffold.FieldPair> card2Fields = new ArrayList<>();
+        card2Fields.add(new DocumentInspectionScaffold.FieldPair("Taxable Subtotal", money(sale.getSubtotal()), "currency", false));
+        card2Fields.add(new DocumentInspectionScaffold.FieldPair("GST Amount", money(sale.getGstAmount()), "tax", false));
+        if (hasReturn && returnAmt > 0) {
+            card2Fields.add(new DocumentInspectionScaffold.FieldPair("Original Invoice", money(sale.getTotalAmount()), "currency", false));
+            card2Fields.add(new DocumentInspectionScaffold.FieldPair("Return / Credit", "- " + money(returnAmt), "return", true));
+            card2Fields.add(new DocumentInspectionScaffold.FieldPair("Net Invoice Value", money(netInvoice), "currency", true));
+        } else {
+            card2Fields.add(new DocumentInspectionScaffold.FieldPair("Total Invoice", money(sale.getTotalAmount()), "currency", true));
+        }
+        VBox card2 = DocumentInspectionScaffold.createSummaryCard("Invoice Breakdown", "currency", card2Fields);
 
         // Card 3: Payments & Balance
         String dueStr = sale.getDueDate() != null ? BusinessClock.formatDate(sale.getDueDate()) : "Not set";
-        VBox card3 = DocumentInspectionScaffold.createSummaryCard("Collection Status", "payment",
-                List.of(
-                        new DocumentInspectionScaffold.FieldPair("Total Paid", money(sale.getPaidAmount()), "complete", false),
-                        new DocumentInspectionScaffold.FieldPair("Pending Balance", money(sale.getBalanceAmount()), sale.getBalanceAmount() > .009 ? "balance" : "complete", true),
-                        new DocumentInspectionScaffold.FieldPair("Payment Due", dueStr, "calendar", false)
-                ));
+        List<DocumentInspectionScaffold.FieldPair> card3Fields = new ArrayList<>();
+        card3Fields.add(new DocumentInspectionScaffold.FieldPair("Total Paid", money(sale.getPaidAmount()), "complete", false));
+        if (hasReturn && sale.getSettledReturnAmount() > 0) {
+            card3Fields.add(new DocumentInspectionScaffold.FieldPair("Refund Settled", "- " + money(sale.getSettledReturnAmount()), "payment", false));
+        } else if (hasReturn && retStatus.contains("FULLY")) {
+            card3Fields.add(new DocumentInspectionScaffold.FieldPair("Return Settlement", "Fully Credited / Refunded", "return", false));
+        }
+        card3Fields.add(new DocumentInspectionScaffold.FieldPair("Pending Balance", money(sale.getBalanceAmount()), sale.getBalanceAmount() > .009 ? "balance" : "complete", true));
+        card3Fields.add(new DocumentInspectionScaffold.FieldPair("Payment Due", dueStr, "calendar", false));
+        VBox card3 = DocumentInspectionScaffold.createSummaryCard("Collection Status", "payment", card3Fields);
 
         // Card 4: Logistics & Terms
         String gstType = !safe(sale.getGstType()).isBlank() ? sale.getGstType() : "Standard";

@@ -1705,6 +1705,11 @@ public class ClientRegistryController implements ScreenLifecycle {
 
         ButtonType btnSave = new ButtonType(isEdit ? "Update & Re-Sign License" : "Issue License", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(btnSave, ButtonType.CANCEL);
+        dialog.setOnShown(ev -> {
+            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, tableClients);
+            }
+        });
 
         VBox rootBox = new VBox(8);
         rootBox.setPadding(new Insets(4, 6, 4, 6));

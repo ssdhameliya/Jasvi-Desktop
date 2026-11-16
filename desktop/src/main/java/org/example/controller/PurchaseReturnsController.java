@@ -153,7 +153,14 @@ public class PurchaseReturnsController implements ScreenLifecycle {
 
     private void installRows() {
         table.setRowFactory(view -> {
-            TableRow<Row> row = new TableRow<>(); row.setOnMouseClicked(e -> { if(e.getButton()!=javafx.scene.input.MouseButton.PRIMARY || e.getClickCount()!=1 || row.isEmpty() || RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(),row))return; Row clicked=row.getItem(); table.getSelectionModel().select(clicked); showDetails(clicked); e.consume(); });
+            TableRow<Row> row = new TableRow<>();
+            row.setOnMouseClicked(e -> {
+                if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY || e.getClickCount() != 1 || row.isEmpty() || RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(), row)) return;
+                Row clicked = row.getItem();
+                table.getSelectionModel().select(clicked);
+                showDetails(clicked);
+                e.consume();
+            });
             MenuItem add = new MenuItem("Add Purchase Return", IconFactory.compactIcon("add", 16)); add.setOnAction(e -> create());
             MenuItem edit = new MenuItem("Edit Reason", IconFactory.compactIcon("edit", 16)); edit.setOnAction(e -> { if (!row.isEmpty()) edit(row.getItem()); });
             MenuItem delete = new MenuItem("Delete Return", IconFactory.compactIcon("delete", 16)); delete.setOnAction(e -> { if (!row.isEmpty()) delete(row.getItem()); });

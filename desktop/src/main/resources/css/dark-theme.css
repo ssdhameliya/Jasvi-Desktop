@@ -20289,6 +20289,80 @@
     -fx-cursor: default;
 }
 
+.field-micro-hint {
+    -fx-font-size: 11px;
+    -fx-font-weight: 500;
+    -fx-text-fill: #94a3b8;
+}
+
+.micro-spinner {
+    -fx-pref-width: 16px;
+    -fx-pref-height: 16px;
+    -fx-max-width: 16px;
+    -fx-max-height: 16px;
+}
+
+.status-success-text {
+    -fx-text-fill: #4ade80;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+
+.field-label-gstin {
+    -fx-text-fill: #38bdf8;
+    -fx-font-weight: 700;
+}
+
+.field-label-code {
+    -fx-text-fill: #818cf8;
+    -fx-font-weight: 700;
+}
+
+.field-label-name {
+    -fx-text-fill: #a78bfa;
+    -fx-font-weight: 700;
+}
+
+.field-label-contact {
+    -fx-text-fill: #2dd4bf;
+    -fx-font-weight: 700;
+}
+
+.field-label-phone {
+    -fx-text-fill: #4ade80;
+    -fx-font-weight: 700;
+}
+
+.field-label-email {
+    -fx-text-fill: #60a5fa;
+    -fx-font-weight: 700;
+}
+
+.field-label-balance {
+    -fx-text-fill: #fbbf24;
+    -fx-font-weight: 700;
+}
+
+.field-label-status {
+    -fx-text-fill: #34d399;
+    -fx-font-weight: 700;
+}
+
+.gstin-patch-banner {
+    -fx-background-color: #0c4a6e;
+    -fx-border-color: #0369a1;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12 8 12;
+}
+
+.gstin-banner-icon {
+    -fx-background-color: #075985;
+    -fx-background-radius: 6;
+    -fx-padding: 4;
+}
+
 
 
 

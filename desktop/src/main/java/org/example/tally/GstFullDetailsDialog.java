@@ -432,7 +432,8 @@ public final class GstFullDetailsDialog {
         }
 
         TableView<HsnTableRow> table = new TableView<>();
-        table.setPrefHeight(170);
+        table.setMinHeight(140);
+        VBox.setVgrow(table, Priority.ALWAYS);
         table.getStyleClass().addAll("approved-table", "erp-table-standard");
 
         TableColumn<HsnTableRow, String> colGoodsHsn = new TableColumn<>("Goods HSN");
@@ -517,7 +518,8 @@ public final class GstFullDetailsDialog {
         header.getChildren().addAll(icon, title);
 
         TableView<TallyAutomationApiClient.GstFilingStatusDto> table = new TableView<>();
-        table.setPrefHeight(180);
+        table.setMinHeight(150);
+        VBox.setVgrow(table, Priority.ALWAYS);
         table.getStyleClass().addAll("approved-table", "erp-table-standard");
 
         Label placeholder = new Label("No recent return filings recorded on GST portal for this profile.");

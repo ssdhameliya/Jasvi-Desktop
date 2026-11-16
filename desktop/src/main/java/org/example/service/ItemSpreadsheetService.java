@@ -111,7 +111,39 @@ public final class ItemSpreadsheetService {
     private String[] csv(String line){return line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)",-1);}
     private String cv(String[] v,int i){return i<v.length?v[i].trim().replaceAll("^\"|\"$","").replace("\"\"","\""):"";}
     private double cn(String[]v,int i){String x=cv(v,i).replace(",","");if(x.isBlank())return 0;try{return Double.parseDouble(x);}catch(Exception e){throw new IllegalArgumentException(HEADERS[i]+" must be a number");}}
-    private Item readCsvItem(String[]v){Item i=new Item();i.setItemCode(cv(v,0));i.setDescription(cv(v,1));if(i.getItemCode().isBlank())throw new IllegalArgumentException("Item Code is required");if(i.getDescription().isBlank())throw new IllegalArgumentException("Description is required");i.setCategory(cv(v,2));i.setUnit(cv(v,3));i.setHsn(cv(v,4));if(i.getHsn().isBlank())throw new IllegalArgumentException("HSN Code is required");i.setGst(cn(v,5));i.setDiscountPercent(cn(v,6));i.setPurchasePrice(cn(v,7));i.setSellingPrice(cn(v,8));i.setRemarks(cv(v,9));if(i.getRemarks().isBlank())throw new IllegalArgumentException("Remarks are required");i.setOpeningStock(cn(v,10));i.setMinimumStock(cn(v,11));i.setLocation(cv(v,12));i.setBrand(null);i.setMaterial(null);i.setSize(null);return i;}
+    private Item readCsvItem(String[]v){
+        Item i=new Item();
+        i.setItemCode(cv(v,0));
+        i.setDescription(cv(v,1));
+        if(i.getItemCode().isBlank())throw new IllegalArgumentException("Item Code is required");
+        if(i.getDescription().isBlank())throw new IllegalArgumentException("Description is required");
+        i.setCategory(cv(v,2));
+        i.setUnit(cv(v,3));
+        String rawHsn = cv(v,4);
+        if(rawHsn.isBlank())throw new IllegalArgumentException("HSN Code is required");
+        String cleanHsn = rawHsn.replaceAll("[^0-9]", "");
+        i.setHsn(cleanHsn.isBlank() ? rawHsn : cleanHsn);
+        double gstVal = cn(v,5);
+        if (gstVal <= 0) {
+            var tariff = org.example.shared.statutory.HsnTariffRegistry.lookup(i.getHsn());
+            if (tariff != null && tariff.gstRate() > 0) {
+                gstVal = tariff.gstRate();
+            }
+        }
+        i.setGst(gstVal);
+        i.setDiscountPercent(cn(v,6));
+        i.setPurchasePrice(cn(v,7));
+        i.setSellingPrice(cn(v,8));
+        i.setRemarks(cv(v,9));
+        if(i.getRemarks().isBlank())throw new IllegalArgumentException("Remarks are required");
+        i.setOpeningStock(cn(v,10));
+        i.setMinimumStock(cn(v,11));
+        i.setLocation(cv(v,12));
+        i.setBrand(null);
+        i.setMaterial(null);
+        i.setSize(null);
+        return i;
+    }
 
     private void persistAll(List<Item> items) throws IOException {
         try { new MasterApiClient().saveItems(items); }
@@ -129,9 +161,18 @@ public final class ItemSpreadsheetService {
         item.setCategory(text(row, 2, f));
         item.setBrand(null); item.setMaterial(null); item.setSize(null);
         item.setUnit(text(row, 3, f));
-        item.setHsn(text(row, 4, f));
-        if(item.getHsn()==null||item.getHsn().isBlank()) throw new IllegalArgumentException("HSN Code is required");
-        item.setGst(number(row, 5, f));
+        String rawHsn = text(row, 4, f);
+        if(rawHsn == null || rawHsn.isBlank()) throw new IllegalArgumentException("HSN Code is required");
+        String cleanHsn = rawHsn.replaceAll("[^0-9]", "");
+        item.setHsn(cleanHsn.isBlank() ? rawHsn : cleanHsn);
+        double gstVal = number(row, 5, f);
+        if (gstVal <= 0) {
+            var tariff = org.example.shared.statutory.HsnTariffRegistry.lookup(item.getHsn());
+            if (tariff != null && tariff.gstRate() > 0) {
+                gstVal = tariff.gstRate();
+            }
+        }
+        item.setGst(gstVal);
         item.setDiscountPercent(number(row, 6, f));
         item.setPurchasePrice(number(row, 7, f));
         item.setSellingPrice(number(row, 8, f));

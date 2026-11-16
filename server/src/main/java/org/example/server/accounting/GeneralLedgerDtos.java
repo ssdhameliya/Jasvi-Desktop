@@ -122,8 +122,20 @@ public class GeneralLedgerDtos {
             BigDecimal quantity,
             String unit,
             BigDecimal unitCost,
-            BigDecimal totalValuation
-    ) {}
+            BigDecimal totalValuation,
+            BigDecimal stockBefore,
+            BigDecimal stockAfter,
+            BigDecimal sellingRate,
+            BigDecimal lineRevenue,
+            BigDecimal lineProfit,
+            BigDecimal profitMarginPercent
+    ) {
+        public PostingFlowInventoryLine(String itemCode, String description, String movementType,
+                                        BigDecimal quantity, String unit, BigDecimal unitCost, BigDecimal totalValuation) {
+            this(itemCode, description, movementType, quantity, unit, unitCost, totalValuation,
+                 null, null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+    }
 
     public record PostingFlowGstImpact(
             String returnForm,
@@ -151,6 +163,20 @@ public class GeneralLedgerDtos {
             BigDecimal totalCredit,
             boolean isBalanced,
             List<PostingFlowInventoryLine> inventoryMovements,
-            PostingFlowGstImpact gstImpact
-    ) {}
+            PostingFlowGstImpact gstImpact,
+            BigDecimal totalTaxableRevenue,
+            BigDecimal totalInventoryCost,
+            BigDecimal totalOrderProfit,
+            BigDecimal orderProfitMarginPercent
+    ) {
+        public PostingFlowResponse(String documentType, String documentNo, LocalDate documentDate, String partyName,
+                                   String partyGstin, BigDecimal totalAmount, String postingProfile, String summaryDescription,
+                                   String journalVoucherNo, List<PostingFlowVoucherLine> journalLines, BigDecimal totalDebit,
+                                   BigDecimal totalCredit, boolean isBalanced, List<PostingFlowInventoryLine> inventoryMovements,
+                                   PostingFlowGstImpact gstImpact) {
+            this(documentType, documentNo, documentDate, partyName, partyGstin, totalAmount, postingProfile, summaryDescription,
+                 journalVoucherNo, journalLines, totalDebit, totalCredit, isBalanced, inventoryMovements, gstImpact,
+                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+    }
 }

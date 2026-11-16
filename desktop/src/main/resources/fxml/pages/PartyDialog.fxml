@@ -4,7 +4,7 @@
 <?import javafx.scene.layout.*?>
 <BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml"
             fx:controller="org.example.controller.PartyDialogController"
-            prefWidth="1140" prefHeight="800" maxWidth="Infinity" maxHeight="Infinity"
+            prefWidth="1200" prefHeight="860" maxWidth="Infinity" maxHeight="Infinity"
             styleClass="entity-dialog,premium-entity-dialog,party-dialog,approved-ui,approved-screen,approved-screen-party-dialog,erp-screen-root,document-inspection-host">
     <top>
         <HBox fx:id="heroHeader" alignment="CENTER_LEFT" spacing="14"
@@ -15,7 +15,7 @@
                 <Label fx:id="lblTitle" text="Party Specification Wizard"
                        styleClass="section-title,erp-page-title,approved-strong-label,entity-dialog-title"/>
                 <Label fx:id="lblSubtitle"
-                       text="Standardized commercial party registry • Statutory GST/PAN verification • Logistics &amp; financial credit terms"
+                       text="Standardized commercial party registry • Fast-track statutory GST/PAN verification • Logistics &amp; financial credit terms"
                        styleClass="muted-label,erp-page-subtitle,entity-dialog-subtitle"/>
             </VBox>
             <Region HBox.hgrow="ALWAYS"/>
@@ -25,46 +25,90 @@
     <center>
         <ScrollPane fitToWidth="true" hbarPolicy="NEVER" styleClass="dialog-scroll-pane,erp-dialog-scroll">
             <VBox spacing="14" styleClass="premium-dialog-content">
-                <!-- Card 1: Legal Identity & Contact Personnel -->
+                <!-- Fast-Track Onboarding Banner -->
+                <HBox fx:id="gstinPatchBanner" alignment="CENTER_LEFT" spacing="12"
+                      styleClass="approved-card,gstin-patch-banner">
+                    <StackPane fx:id="iconHolderBanner" minWidth="32" minHeight="32" prefWidth="32" prefHeight="32"
+                               styleClass="field-icon-holder,gstin-banner-icon"/>
+                    <VBox spacing="2" HBox.hgrow="ALWAYS">
+                        <Label text="⚡ FAST-TRACK STATUTORY ONBOARDING VIA GSTIN"
+                               styleClass="approved-strong-label,field-label-gstin"/>
+                        <Label text="Entering GSTIN will automatically fetch and patch official Legal Name, Trade Name, Registered Address, and State from the GST Portal. All patched fields remain 100% editable for your review."
+                               wrapText="true" styleClass="muted-label,field-micro-hint"/>
+                    </VBox>
+                </HBox>
+
+                <!-- Card 1: Statutory Taxation & Fast-Track Identity (MOVED TO TOP) -->
                 <VBox spacing="10" styleClass="approved-card,form-section-card">
                     <HBox alignment="CENTER_LEFT" spacing="8" styleClass="section-header-row">
-                        <Label text="1. LEGAL IDENTITY &amp; CONTACT PERSONNEL"
+                        <Label text="1. STATUTORY TAXATION &amp; FAST-TRACK IDENTITY"
+                               styleClass="dialog-section-title,approved-strong-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="lblGstValidationChip" text="GSTIN: 15 Chars" styleClass="status-badge,status-neutral"/>
+                    </HBox>
+                    <GridPane hgap="18" vgap="12" styleClass="premium-form-grid">
+                        <columnConstraints>
+                            <ColumnConstraints percentWidth="65" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="35" hgrow="ALWAYS"/>
+                        </columnConstraints>
+                        <!-- Col 0: GSTIN Input, Auto-Fill Button, Spinner -->
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
+                            <Label text="GSTIN (Goods and Services Tax Identification Number)" styleClass="field-label,field-label-gstin"/>
+                            <HBox alignment="CENTER_LEFT" spacing="8">
+                                <TextField fx:id="txtGstin" promptText="15-character alphanumeric GSTIN (e.g. 24AAAAA0000A1Z5)"
+                                           HBox.hgrow="ALWAYS" styleClass="approved-input"/>
+                                <Button fx:id="btnAutoFillGstin" text="⚡ Auto-Fill Details" onAction="#autoFillFromGstin"
+                                        styleClass="approved-button,approved-primary-button"/>
+                                <ProgressIndicator fx:id="loaderGstin" prefWidth="16" prefHeight="16" minWidth="16" minHeight="16"
+                                                   managed="false" visible="false" styleClass="micro-spinner"/>
+                            </HBox>
+                            <Label fx:id="lblGstinDetails" wrapText="true" managed="false" visible="false"
+                                   styleClass="field-micro-hint,approved-soft-label"/>
+                            <Label fx:id="errGstin" managed="false" visible="false" styleClass="validation-message"/>
+                        </VBox>
+                        <!-- Col 1: Party Code -->
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="1">
+                            <Label text="Party Code" styleClass="field-label,field-label-code"/>
+                            <TextField fx:id="txtCode" editable="false" promptText="Auto-generated"
+                                       styleClass="readonly-field,approved-input"/>
+                        </VBox>
+                    </GridPane>
+                </VBox>
+
+                <!-- Card 2: Legal Identity & Contact Personnel -->
+                <VBox spacing="10" styleClass="approved-card,form-section-card">
+                    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="section-header-row">
+                        <Label text="2. LEGAL IDENTITY &amp; CONTACT PERSONNEL"
                                styleClass="dialog-section-title,approved-strong-label"/>
                         <Region HBox.hgrow="ALWAYS"/>
                         <Label text="Commercial Master Identity" styleClass="muted-label,field-hint-chip"/>
                     </HBox>
-                    <GridPane hgap="16" vgap="10" styleClass="premium-form-grid">
+                    <GridPane hgap="18" vgap="12" styleClass="premium-form-grid">
                         <columnConstraints>
-                            <ColumnConstraints percentWidth="25" hgrow="ALWAYS"/>
-                            <ColumnConstraints percentWidth="45" hgrow="ALWAYS"/>
-                            <ColumnConstraints percentWidth="30" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
                         </columnConstraints>
-                        <!-- Row 0: Code, Name, Contact Person -->
+                        <!-- Row 0: Name, Contact Person -->
                         <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
-                            <Label text="Party Code" styleClass="field-label"/>
-                            <TextField fx:id="txtCode" editable="false" promptText="Auto-generated"
-                                       styleClass="readonly-field,approved-input"/>
-                        </VBox>
-                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="1">
-                            <Label text="Legal / Trade Name *" styleClass="field-label"/>
+                            <Label text="Legal / Trade Name *" styleClass="field-label,field-label-name"/>
                             <TextField fx:id="txtName" promptText="Enter full business or party name"
                                        styleClass="approved-input"/>
                             <Label fx:id="errName" managed="false" visible="false" styleClass="validation-message"/>
                         </VBox>
-                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="2">
-                            <Label text="Primary Contact Person" styleClass="field-label"/>
+                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="1">
+                            <Label text="Primary Contact Person" styleClass="field-label,field-label-contact"/>
                             <TextField fx:id="txtContact" promptText="Name of authorized manager / contact"
                                        styleClass="approved-input"/>
                         </VBox>
                         <!-- Row 1: Phone, Email -->
                         <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="0">
-                            <Label text="Phone / Mobile *" styleClass="field-label"/>
+                            <Label text="Phone / Mobile *" styleClass="field-label,field-label-phone"/>
                             <TextField fx:id="txtPhone" promptText="10-digit mobile number"
                                        styleClass="approved-input"/>
                             <Label fx:id="errPhone" managed="false" visible="false" styleClass="validation-message"/>
                         </VBox>
-                        <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="1" GridPane.columnSpan="2">
-                            <Label fx:id="lblEmailCaption" text="Official Email Address" styleClass="field-label"/>
+                        <VBox spacing="4" GridPane.rowIndex="1" GridPane.columnIndex="1">
+                            <Label fx:id="lblEmailCaption" text="Official Email Address" styleClass="field-label,field-label-email"/>
                             <TextField fx:id="txtEmail" promptText="billing@company.com"
                                        styleClass="approved-input"/>
                             <Label fx:id="errEmail" managed="false" visible="false" styleClass="validation-message"/>
@@ -72,59 +116,39 @@
                     </GridPane>
                 </VBox>
 
-                <!-- Card 2: Statutory Taxation & Financial Balances -->
+                <!-- Card 3: Billing, Shipping & Financial Balances -->
                 <VBox spacing="10" styleClass="approved-card,form-section-card">
                     <HBox alignment="CENTER_LEFT" spacing="8" styleClass="section-header-row">
-                        <Label text="2. STATUTORY TAXATION &amp; FINANCIAL BALANCES"
-                               styleClass="dialog-section-title,approved-strong-label"/>
-                        <Region HBox.hgrow="ALWAYS"/>
-                        <Label fx:id="lblGstValidationChip" text="GSTIN: 15 Chars" styleClass="status-badge,status-neutral"/>
-                    </HBox>
-                    <GridPane hgap="16" vgap="10" styleClass="premium-form-grid">
-                        <columnConstraints>
-                            <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
-                            <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
-                        </columnConstraints>
-                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
-                            <Label text="GSTIN (Goods and Services Tax Identification Number)" styleClass="field-label"/>
-                            <TextField fx:id="txtGstin" promptText="15-character alphanumeric GSTIN (e.g. 24AAAAA0000A1Z5)"
-                                       styleClass="approved-input"/>
-                            <Label fx:id="errGstin" managed="false" visible="false" styleClass="validation-message"/>
-                        </VBox>
-                        <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="1">
-                            <Label text="Opening Ledger Balance (₹)" styleClass="field-label"/>
-                            <TextField fx:id="txtOpeningBalance" promptText="0.00"
-                                       styleClass="numeric-field,approved-input"/>
-                            <Label text="Historical opening ledger balance (optional for new ledgers)" styleClass="field-help,muted-label"/>
-                            <Label fx:id="errOpeningBalance" managed="false" visible="false" styleClass="validation-message"/>
-                        </VBox>
-                    </GridPane>
-                </VBox>
-
-                <!-- Card 3: Billing, Shipping & Logistics -->
-                <VBox spacing="10" styleClass="approved-card,form-section-card">
-                    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="section-header-row">
-                        <Label text="3. BILLING, SHIPPING &amp; LOGISTICS"
+                        <Label text="3. BILLING, SHIPPING &amp; FINANCIAL BALANCES"
                                styleClass="dialog-section-title,approved-strong-label"/>
                         <Region HBox.hgrow="ALWAYS"/>
                         <Label text="Dispatch Delivery" styleClass="status-badge,status-info"/>
                     </HBox>
-                    <GridPane hgap="16" vgap="10" styleClass="premium-form-grid">
+                    <GridPane hgap="18" vgap="12" styleClass="premium-form-grid">
                         <columnConstraints>
-                            <ColumnConstraints percentWidth="75" hgrow="ALWAYS"/>
-                            <ColumnConstraints percentWidth="25" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="65" hgrow="ALWAYS"/>
+                            <ColumnConstraints percentWidth="35" hgrow="ALWAYS"/>
                         </columnConstraints>
                         <VBox spacing="4" GridPane.rowIndex="0" GridPane.columnIndex="0">
-                            <Label text="Complete Registered Address *" styleClass="field-label"/>
+                            <Label text="Complete Registered Address *" styleClass="field-label,field-label-address"/>
                             <TextArea fx:id="txtAddress" promptText="Enter full street address, premise, city, state and PIN code"
-                                      prefRowCount="3" minHeight="74" prefHeight="84" wrapText="true" styleClass="approved-input"/>
+                                      prefRowCount="3" minHeight="84" prefHeight="94" wrapText="true" styleClass="approved-input"/>
                             <Label fx:id="errAddress" managed="false" visible="false" styleClass="validation-message"/>
                         </VBox>
                         <VBox spacing="8" GridPane.rowIndex="0" GridPane.columnIndex="1">
-                            <Label text="Master Account Status" styleClass="field-label"/>
-                            <CheckBox fx:id="chkActive" text="Active in transactions" selected="true" styleClass="approved-checkbox"/>
-                            <Label text="Inactive parties are hidden from invoice and order dropdowns." wrapText="true"
-                                   styleClass="field-help,muted-label"/>
+                            <VBox spacing="4">
+                                <Label text="Opening Ledger Balance (₹)" styleClass="field-label,field-label-balance"/>
+                                <TextField fx:id="txtOpeningBalance" promptText="0.00"
+                                           styleClass="numeric-field,approved-input"/>
+                                <Label text="Historical opening ledger balance (optional for new ledgers)" styleClass="field-help,muted-label"/>
+                                <Label fx:id="errOpeningBalance" managed="false" visible="false" styleClass="validation-message"/>
+                            </VBox>
+                            <VBox spacing="4">
+                                <Label text="Master Account Status" styleClass="field-label,field-label-status"/>
+                                <CheckBox fx:id="chkActive" text="Active in transactions" selected="true" styleClass="approved-checkbox"/>
+                                <Label text="Inactive parties are hidden from invoice and order dropdowns." wrapText="true"
+                                       styleClass="field-help,muted-label"/>
+                            </VBox>
                         </VBox>
                     </GridPane>
                 </VBox>
@@ -134,7 +158,7 @@
     <bottom>
         <HBox alignment="CENTER_RIGHT" spacing="12"
               styleClass="entity-dialog-actions,premium-dialog-actions,erp-action-dock,approved-card">
-            <Label fx:id="lblShortcuts" text="Shortcuts: [Ctrl+S] / [F10] Save  •  [Esc] Cancel"
+            <Label fx:id="lblShortcuts" text="Shortcuts: [Ctrl+S] / [F10] Save  •  [F4] Auto-Fill  •  [Esc] Cancel"
                    styleClass="muted-label,shortcut-hint-label"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Button fx:id="btnAuditTrail" text="Audit Trail" onAction="#showAuditTrail"
