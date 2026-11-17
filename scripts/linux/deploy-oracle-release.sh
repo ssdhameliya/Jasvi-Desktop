@@ -330,6 +330,73 @@ sudo -n systemctl is-active --quiet "$SERVICE" || {
   exit 1
 }
 
+# Reclaim obsolete server JAR releases and PreUpgrade database dumps after
+# health verification succeeds. Always preserves the active release, the
+# previous rollback release (2 releases max), and the 2 newest pre-upgrade
+# backups. Non-fatal by design so a permission or lock hiccup can never
+# undermine a verified deployment.
+prune_post_deploy_artifacts() {
+  local current_real
+  current_real=$(readlink -f "$BASE/current" 2>/dev/null || printf '%s' "$RELEASE")
+  local keep_releases="${DSE_KEEP_RELEASES:-2}"
+  local keep_pre_backups="${DSE_KEEP_PRE_UPGRADE_BACKUPS:-2}"
+  sudo -n python3 - "$RELEASES" "$current_real" "${PREVIOUS:-}" "$BACKUP_DIR" "$PRE_BACKUP" "$EXPECTED_ENV" "$keep_releases" "$keep_pre_backups" <<'PY_PRUNE'
+import os, re, shutil, sys
+
+releases_dir, current_real, previous_real, backup_dir, current_backup, expected_env, keep_rel_raw, keep_bak_raw = sys.argv[1:]
+keep_releases = max(2, int(keep_rel_raw))
+keep_backups = max(2, int(keep_bak_raw))
+
+semver_re = re.compile(r'^(\d+)\.(\d+)\.(\d+)$')
+protected_releases = {os.path.realpath(p) for p in (current_real, previous_real) if p}
+
+removed_releases = 0
+if os.path.isdir(releases_dir):
+    candidates = []
+    for entry in os.listdir(releases_dir):
+        match = semver_re.match(entry)
+        full_path = os.path.join(releases_dir, entry)
+        if not match or not os.path.isdir(full_path) or os.path.islink(full_path):
+            continue
+        version_key = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        candidates.append((version_key, os.path.realpath(full_path), full_path))
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    kept = 0
+    for _, real_path, full_path in candidates:
+        if real_path in protected_releases or kept < keep_releases:
+            kept += 1
+            continue
+        shutil.rmtree(full_path, ignore_errors=False)
+        removed_releases += 1
+
+backup_re = re.compile(r'^DSE-ERP-' + re.escape(expected_env) + r'-before-.*\.pgbackup$')
+protected_backup = os.path.realpath(current_backup) if current_backup else ''
+removed_backups = 0
+if os.path.isdir(backup_dir):
+    backups = []
+    for entry in os.listdir(backup_dir):
+        if not backup_re.match(entry):
+            continue
+        full_path = os.path.join(backup_dir, entry)
+        if not os.path.isfile(full_path) or os.path.islink(full_path):
+            continue
+        stat = os.stat(full_path)
+        backups.append((stat.st_mtime, entry, os.path.realpath(full_path), full_path))
+    backups.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    kept = 0
+    for _, _, real_path, full_path in backups:
+        if real_path == protected_backup or kept < keep_backups:
+            kept += 1
+            continue
+        os.remove(full_path)
+        removed_backups += 1
+
+print(f"POST_DEPLOY_RETENTION_OK env={expected_env} keptReleases={keep_releases} removedReleases={removed_releases} keptPreUpgradeBackups={keep_backups} removedPreUpgradeBackups={removed_backups}")
+PY_PRUNE
+}
+
+prune_post_deploy_artifacts || echo "WARNING: post-deploy retention cleanup skipped (non-fatal)." >&2
+
 echo "$NEW_BODY"
 echo "Deployment verified: $VERSION / $EXPECTED_ENV / $DSE_EXPECTED_DATABASE / desktop >= $EXPECTED_MINIMUM_DESKTOP / Android $EFFECTIVE_MINIMUM_ANDROID..$EFFECTIVE_LATEST_ANDROID / iOS $EFFECTIVE_MINIMUM_IOS..$EFFECTIVE_LATEST_IOS"
 echo "Current release: $(readlink -f "$BASE/current")"
