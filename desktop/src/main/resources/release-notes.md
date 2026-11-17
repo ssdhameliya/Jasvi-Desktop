@@ -1,6 +1,31 @@
 # What's New in DSE ERP v11.0.70
 
+### GSTR-2B Full Status Filtering, Anti-Truncation & Rule 88A Cross-ITC Set-Off
+- **GSTR-2B Reconciliation Filters, Status Badging & Zero Truncation (`GstComplianceController.java`) (Rule 4, Rule 7, Rule 11 & Rule 12)**:
+  - Fixed hardcoded status dropdown filter (`cmbMatchFilter`) to include all authentic statutory reconciliation states: `All Statuses`, `ELIGIBLE_PENDING_SETTLEMENT`, `MATCHED & SETTLED`, `MATCHED`, `GSTIN_PENDING`, `RULE_37_REVERSAL_DUE`, and `MISSING_IN_BOOKS`.
+  - Allocated generous minimum width (`195px`) for `colMatchStatus`, eliminating text clipping and ellipsis (`...`) for long status names per Rule 12.
+  - Replaced indiscriminate red error styling with semantic badges: green (`pill-success`) for matched/settled bills, amber (`pill-warning`) for eligible pending settlement / GSTIN validation, and red (`pill-danger`) for Rule 37 180-day reversal alerts or books missing entries.
+  - Implemented statutory CGST Section 49(5)(b) and 49(5)(d) Rule 88A cross-utilization: excess CGST and SGST ITC automatically absorbs remaining outward IGST liability, eliminating false cash liability in the GSTR-3B tax set-off calculation.
+
 ### 360° Returns, Credit Notes & Reconciliation Alignment, Fast-Track GSTIN & GL Auto-Post
+- **General Ledger Search, Multi-Leg Visibility & Universal Posting Flow (Rule 4, Rule 5, Rule 7, Rule 8, Rule 9, Rule 11 & Rule 12)**:
+  - **Comprehensive Multi-Leg Search Indexing (`GeneralLedgerController.java`)**:
+    - Expanded search engine to index all voucher lines, account codes (`1040`, `2081`, `4010`, `5020`), account names (`Sundry Debtors`, `Domestic Sales`, `Output CGST`), party names, and narrations.
+    - Searching by invoice number, voucher number, or statutory tax account code immediately matches and highlights all relevant vouchers without omissions.
+  - **Voucher Inspection Multi-Leg Table (`showJournalDetails`)**:
+    - Upgraded the journal inspection modal from a 2-line summary to a responsive, multi-leg sub-table displaying **EVERY individual debit and credit line** of that transaction with Account Code, Account Name, Debit Amount (Green), Credit Amount (Red), and Remarks.
+    - Added `"View Posting Flow (Ctrl+J)"` directly into the table context action menu and inspection action dock.
+    - Installed `Ctrl+J` keyboard accelerator on the General Ledger table for 1-click drill-down into universal unit economics.
+- **Posting Flow Inspector Unit Economics & Discount Transparency (`PostingFlowDialog.java`)**:
+  - **Tab 2 Line-Level Discount & Gross Rate Columns**:
+    - Added dedicated columns: `Gross List Rate` (Purple), `Discount (% / ₹)` (Orange), and `Net Selling Rate` (Blue) alongside Average Unit Cost, Order Qty, Line Revenue, Item Profit, and Margin %.
+    - Gives 100% transparency showing how customer invoice rates derive from list rates minus trade discount concessions.
+  - **7-Card Top Summary Metric Grid**:
+    - Expanded summary banner to 7 cards, integrating a dedicated `Order Discount` card (`-₹ X,XXX.XX` in Orange) to track total concessions at a glance.
+  - **Live Audit Timestamp, User & Trigger Event Badge**:
+    - Surfaces database audit metadata (`posted_at`, `posted_by`, `trigger_event`) directly in the dialog hero banner (`🕒 Posted on: [Date & Time] by [User]`).
+  - **Granular Credit & Debit Note Item Lines (`GeneralLedgerService.java`)**:
+    - Enriched posting flow engine to join `credit_note_line` and `debit_note_line` tables, displaying every individual returned item, restored unit cost, and stock delta.
 - **360° Reciprocal Navigation & Inspection Alignment (Rule 4, Rule 8, Rule 9, Rule 11 & Rule 12)**:
   - Seamless reciprocal cross-links across all 3 inspection dialogs (`SalesDocumentInspectionDialog`, `PurchaseDocumentInspectionDialog`, `ReturnDocumentInspectionDialog`, and `CreditDebitNoteInspectionDialog`):
     - Added 1-click navigation buttons (`btnViewNote`, `btnViewReturn`) linking Original Invoice ↔ Return Approval ↔ Credit/Debit Note with shared audit and attachments.
@@ -90,7 +115,8 @@
   - Added `@Transactional` boundary to `executeOneClickKick(...)`, ensuring `license_revocation_token` consumption, rogue machine blocking (`BLOCKED`), and auth session deletion execute inside a verified database transaction.
   - Resolved `TransactionRequiredException: No active transaction for update or delete query` (HTTP 500) when superadmins click the 1-click termination link via Email / WhatsApp alerts across all environments (Local, UAT, and PROD).
   - Hardened `AuthService.login(...)` workstation security gating with hyphen-agnostic matching: both raw display IDs (`TEST-ROGUE-76520`) and stripped canonical forms (`TESTROGUE76520`) are matched against `licensed_client_registry`, guaranteeing 100% enforcement of `BLOCKED` status and machine seat quotas across all login attempts.
-- **Universal Dialog & Popup Sizing Modernization (`GstFullDetailsDialog.java`, `DocumentChargeDialog.java`, `ClientRegistryController.java`) (Rule 4, Rule 7 & Rule 12)**:
+- **Universal Dialog & Popup Sizing Modernization (`GstFullDetailsDialog.java`, `DocumentChargeDialog.java`, `ClientRegistryController.java`, `CreditDebitNoteInspectionDialog.java`) (Rule 4, Rule 6, Rule 7 & Rule 12)**:
+  - Modernized `CreditDebitNoteInspectionDialog.java` from flat monochrome labels (`makeKpiCard`) to the standardized 4-card metric strip (`DocumentInspectionScaffold.createSummaryCard` and `createSummaryStrip`), achieving 100% visual and theme parity with Sales and Purchase inspection dialogs.
   - Replaced static table heights in `GstFullDetailsDialog` (`170px` and `180px`) with dynamic `VBox.setVgrow(table, Priority.ALWAYS)` and minimum height constraints, allowing goods, services, and filing tables to scale cleanly with monitor resolutions.
   - Wired `WindowUtilsFx.fitDialogToOwnerScreen` on showing for `DocumentChargeDialog` and `showClientLicenseDialog`, ensuring generous padding, zero off-screen clipping, and consistent drag physics.
 

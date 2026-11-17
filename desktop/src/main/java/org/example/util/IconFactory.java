@@ -1031,6 +1031,7 @@ public final class IconFactory {
             case "export" -> "export";
             case "send" -> "sent";
             case "match" -> "reconcile";
+            case "bolt", "lightning", "autofill", "auto-fill" -> "refresh";
             default -> value.isBlank() ? "unknown" : value;
         };
     }
@@ -1361,6 +1362,7 @@ public final class IconFactory {
         if (value.contains("publish") && value.contains("default")) return "set-default";
         if (value.equals("publish")) return "publish";
         if (value.contains("auto map")) return "mapping";
+        if (value.contains("auto-fill") || value.contains("autofill") || value.contains("auto fill") || value.contains("fetch gstin") || value.contains("gstin details")) return "refresh";
         if (value.contains("apply field properties")) return "field-properties";
         if (value.contains("apply advanced correction")) return "apply";
         if (value.contains("paste format")) return "paste-format";

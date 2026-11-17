@@ -57,7 +57,7 @@
                             <HBox alignment="CENTER_LEFT" spacing="8">
                                 <TextField fx:id="txtGstin" promptText="15-character alphanumeric GSTIN (e.g. 24AAAAA0000A1Z5)"
                                            HBox.hgrow="ALWAYS" styleClass="approved-input"/>
-                                <Button fx:id="btnAutoFillGstin" text="⚡ Auto-Fill Details" onAction="#autoFillFromGstin"
+                                <Button fx:id="btnAutoFillGstin" text="Auto-Fill Details" onAction="#autoFillFromGstin"
                                         styleClass="approved-button,approved-primary-button"/>
                                 <ProgressIndicator fx:id="loaderGstin" prefWidth="16" prefHeight="16" minWidth="16" minHeight="16"
                                                    managed="false" visible="false" styleClass="micro-spinner"/>

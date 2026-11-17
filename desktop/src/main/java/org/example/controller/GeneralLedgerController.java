@@ -186,6 +186,13 @@ public class GeneralLedgerController implements ScreenLifecycle {
                         }
                     });
 
+                    MenuItem flowItem = new MenuItem("View Posting Flow (Ctrl+J)");
+                    flowItem.setGraphic(IconFactory.compactIcon("status", 13));
+                    flowItem.setOnAction(e -> {
+                        JournalRow row = getTableView().getItems().get(getIndex());
+                        if (row != null) openPostingFlow(row);
+                    });
+
                     MenuItem auditItem = new MenuItem("Audit Trail");
                     auditItem.setGraphic(IconFactory.compactIcon("history", 13));
                     auditItem.setOnAction(e -> {
@@ -209,7 +216,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
                         if (row != null) copyVoucher(row);
                     });
 
-                    actionsBtn.getItems().addAll(viewItem, auditItem, openItem, copyItem);
+                    actionsBtn.getItems().addAll(viewItem, flowItem, auditItem, openItem, copyItem);
                     IconFactory.decorateActionMenu(actionsBtn);
                 }
 
@@ -255,6 +262,15 @@ public class GeneralLedgerController implements ScreenLifecycle {
 
     private void configureTableInteractions() {
         if (tblJournals != null) {
+            tblJournals.setOnKeyPressed(event -> {
+                if (new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.J, javafx.scene.input.KeyCombination.CONTROL_DOWN).match(event)) {
+                    JournalRow sel = tblJournals.getSelectionModel().getSelectedItem();
+                    if (sel != null) {
+                        openPostingFlow(sel);
+                        event.consume();
+                    }
+                }
+            });
             tblJournals.setRowFactory(tv -> {
                 TableRow<JournalRow> row = new TableRow<>();
                 row.setOnMouseClicked(event -> {
@@ -272,6 +288,12 @@ public class GeneralLedgerController implements ScreenLifecycle {
                 return row;
             });
         }
+    }
+
+    private void openPostingFlow(JournalRow row) {
+        if (row == null) return;
+        String docNo = row.referenceNo() != null && !row.referenceNo().isBlank() ? row.referenceNo() : row.entryNumber();
+        PostingFlowDialog.show(tblJournals, row.entryType(), docNo);
     }
 
     private void showJournalDetails(JournalRow row) {
@@ -338,13 +360,55 @@ public class GeneralLedgerController implements ScreenLifecycle {
         addJournalDetailRow(grid, r++, "Voucher Type", row.entryType(), "status");
         addJournalDetailRow(grid, r++, "Reference / Source Doc", row.referenceNo() != null && !row.referenceNo().isBlank() ? row.referenceNo() : "Direct Journal (None)", "open");
         addJournalDetailRow(grid, r++, "Voucher Status", row.status() != null ? row.status() : "POSTED", "complete");
-        addJournalDetailRow(grid, r++, "Debit Account (Dr.)", row.drHead() != null ? row.drHead() : "-", "finance");
-        addJournalDetailRow(grid, r++, "Debit Amount", row.drAmount() != null ? row.drAmount() : "-", "currency");
-        addJournalDetailRow(grid, r++, "Credit Account (Cr.)", row.crHead() != null ? row.crHead() : "-", "finance");
-        addJournalDetailRow(grid, r++, "Credit Amount", row.crAmount() != null ? row.crAmount() : "-", "currency");
+        addJournalDetailRow(grid, r++, "Total Debit", row.totalDebit() != null ? row.totalDebit() : "-", "currency");
+        addJournalDetailRow(grid, r++, "Total Credit", row.totalCredit() != null ? row.totalCredit() : "-", "currency");
         addJournalDetailRow(grid, r++, "Narration / Remarks", row.narration() != null && !row.narration().isBlank() ? row.narration() : "—", "document");
 
-        ScrollPane scroll = new ScrollPane(grid);
+        // Multi-leg table showing ALL lines with zero concealment
+        Label lblLegHeader = new Label("ALL GENERAL LEDGER POSTING LEGS & ACCOUNTS");
+        lblLegHeader.setGraphic(IconFactory.compactIcon("ledger", 14));
+        lblLegHeader.getStyleClass().addAll("inspection-kicker", "approved-lead");
+
+        TableView<GeneralLedgerApiClient.JournalLineDto> legTable = new TableView<>();
+        legTable.getStyleClass().addAll("approved-table", "erp-table-profile-dialog");
+        legTable.setPrefHeight(180);
+        legTable.setMinHeight(140);
+
+        TableColumn<GeneralLedgerApiClient.JournalLineDto, String> colLineCode = new TableColumn<>("Account Code");
+        colLineCode.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().accountCode()));
+        colLineCode.setCellFactory(c -> styledTableCell("erp-table-value-colour-purple", Pos.CENTER_LEFT));
+        IconFactory.applyTableHeaderIcon(colLineCode, "identity");
+
+        TableColumn<GeneralLedgerApiClient.JournalLineDto, String> colLineName = new TableColumn<>("Account Name");
+        colLineName.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().accountName()));
+        IconFactory.applyTableHeaderIcon(colLineName, "ledger");
+
+        TableColumn<GeneralLedgerApiClient.JournalLineDto, String> colLineDr = new TableColumn<>("Debit (Dr)");
+        colLineDr.setCellValueFactory(v -> new SimpleStringProperty(formatMoneyNullable(v.getValue().debitAmount())));
+        colLineDr.setCellFactory(c -> styledTableCell("erp-table-value-colour-green", Pos.CENTER_RIGHT));
+        IconFactory.applyTableHeaderIcon(colLineDr, "currency");
+
+        TableColumn<GeneralLedgerApiClient.JournalLineDto, String> colLineCr = new TableColumn<>("Credit (Cr)");
+        colLineCr.setCellValueFactory(v -> new SimpleStringProperty(formatMoneyNullable(v.getValue().creditAmount())));
+        colLineCr.setCellFactory(c -> styledTableCell("erp-table-value-colour-orange", Pos.CENTER_RIGHT));
+        IconFactory.applyTableHeaderIcon(colLineCr, "currency");
+
+        TableColumn<GeneralLedgerApiClient.JournalLineDto, String> colLineNarr = new TableColumn<>("Line Remarks / Party");
+        colLineNarr.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().lineNarration() != null ? v.getValue().lineNarration() : "—"));
+        IconFactory.applyTableHeaderIcon(colLineNarr, "notes");
+
+        legTable.getColumns().addAll(colLineCode, colLineName, colLineDr, colLineCr, colLineNarr);
+        DynamicTableLayoutManager.install(legTable);
+        if (row.lines() != null && !row.lines().isEmpty()) {
+            legTable.setItems(FXCollections.observableArrayList(row.lines()));
+        } else {
+            legTable.setPlaceholder(new Label("Single-entry summary record."));
+        }
+
+        VBox detailBox = new VBox(10, grid, lblLegHeader, legTable);
+        VBox.setVgrow(legTable, Priority.ALWAYS);
+
+        ScrollPane scroll = new ScrollPane(detailBox);
         scroll.setFitToWidth(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
@@ -352,6 +416,15 @@ public class GeneralLedgerController implements ScreenLifecycle {
         HBox dock = new HBox(8);
         dock.setAlignment(Pos.CENTER_LEFT);
         dock.setPadding(new Insets(10, 0, 0, 0));
+
+        Button btnFlow = new Button("View Posting Flow (Ctrl+J)");
+        btnFlow.setGraphic(IconFactory.compactIcon("status", 14));
+        btnFlow.getStyleClass().addAll("approved-button", "approved-primary-button");
+        btnFlow.setOnAction(e -> {
+            dialog.close();
+            openPostingFlow(row);
+        });
+        dock.getChildren().add(btnFlow);
 
         if (row.id() != null && "DRAFT".equalsIgnoreCase(row.status())) {
             Button btnPost = new Button("Post to Ledger");
@@ -595,7 +668,8 @@ public class GeneralLedgerController implements ScreenLifecycle {
                                             crHead,
                                             currency.format(je.totalDebit() != null ? je.totalDebit() : BigDecimal.ZERO),
                                             currency.format(je.totalCredit() != null ? je.totalCredit() : BigDecimal.ZERO),
-                                            raw
+                                            raw,
+                                            je.lines() != null ? je.lines() : List.of()
                                     ));
                                 }
                             }
@@ -938,9 +1012,51 @@ public class GeneralLedgerController implements ScreenLifecycle {
         filteredJournalRows.setAll(allJournalRows.stream().filter(row -> {
             if (!typeFilter.equals("All Types") && !row.entryType().equalsIgnoreCase(typeFilter)) return false;
             if (q.isBlank()) return true;
-            String hay = (row.entryNumber() + " " + row.referenceNo() + " " + row.narration() + " " + row.entryType() + " " + row.status()).toLowerCase(Locale.ROOT);
-            return hay.contains(q);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append(row.entryNumber()).append(" ")
+              .append(row.referenceNo() != null ? row.referenceNo() : "").append(" ")
+              .append(row.narration() != null ? row.narration() : "").append(" ")
+              .append(row.entryType() != null ? row.entryType() : "").append(" ")
+              .append(row.status() != null ? row.status() : "").append(" ")
+              .append(row.drHead() != null ? row.drHead() : "").append(" ")
+              .append(row.crHead() != null ? row.crHead() : "").append(" ")
+              .append(row.totalDebit() != null ? row.totalDebit() : "").append(" ")
+              .append(row.totalCredit() != null ? row.totalCredit() : "");
+
+            if (row.lines() != null) {
+                for (GeneralLedgerApiClient.JournalLineDto l : row.lines()) {
+                    sb.append(" ").append(l.accountCode() != null ? l.accountCode() : "")
+                      .append(" ").append(l.accountName() != null ? l.accountName() : "")
+                      .append(" ").append(l.lineNarration() != null ? l.lineNarration() : "");
+                }
+            }
+
+            return sb.toString().toLowerCase(Locale.ROOT).contains(q);
         }).toList());
+    }
+
+    private static String formatMoneyNullable(BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) return "—";
+        return NumberFormat.getCurrencyInstance(Locale.of("en", "IN")).format(amount.doubleValue()).replace("₹", "₹ ");
+    }
+
+    private static <T> TableCell<T, String> styledTableCell(String styleClass, Pos alignment) {
+        return new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(item);
+                    setAlignment(alignment);
+                    getStyleClass().remove(styleClass);
+                    getStyleClass().add(styleClass);
+                }
+            }
+        };
     }
 
     @FXML
@@ -986,8 +1102,28 @@ public class GeneralLedgerController implements ScreenLifecycle {
             String crHead,
             String drAmount,
             String crAmount,
-            double rawAmount
+            double rawAmount,
+            List<GeneralLedgerApiClient.JournalLineDto> lines
     ) {
+        public JournalRow(
+                Long id,
+                String entryNumber,
+                String entryDate,
+                String entryType,
+                String referenceNo,
+                String narration,
+                String totalDebit,
+                String totalCredit,
+                String status,
+                String drHead,
+                String crHead,
+                String drAmount,
+                String crAmount,
+                double rawAmount
+        ) {
+            this(id, entryNumber, entryDate, entryType, referenceNo, narration, totalDebit, totalCredit, status, drHead, crHead, drAmount, crAmount, rawAmount, List.of());
+        }
+
         public JournalRow(
                 String entryNumber,
                 String entryDate,
@@ -1003,7 +1139,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
                 String crAmount,
                 double rawAmount
         ) {
-            this(null, entryNumber, entryDate, entryType, referenceNo, narration, totalDebit, totalCredit, status, drHead, crHead, drAmount, crAmount, rawAmount);
+            this(null, entryNumber, entryDate, entryType, referenceNo, narration, totalDebit, totalCredit, status, drHead, crHead, drAmount, crAmount, rawAmount, List.of());
         }
     }
 

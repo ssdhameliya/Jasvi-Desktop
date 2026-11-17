@@ -295,33 +295,41 @@ public final class CreditDebitNoteInspectionDialog {
                 .add(details.igstAmount() != null ? details.igstAmount() : BigDecimal.ZERO);
         boolean stock = Boolean.TRUE.equals(details.stockReturned());
 
-        VBox cardTotal = makeKpiCard("TOTAL NOTE AMOUNT", money(total), "wallet", "inspection-card-primary");
-        VBox cardTaxable = makeKpiCard("TAXABLE VALUE", money(taxable), "currency", "inspection-card-neutral");
-        VBox cardTax = makeKpiCard(isCreditNote ? "OUTPUT GST REVERSED" : "INPUT TAX REVERSED", money(tax), "tax", "inspection-card-neutral");
-        VBox cardStock = makeKpiCard("STOCK IMPACT", stock ? (isCreditNote ? "RESTOCKED (+)" : "RETURNED (-)") : "NO STOCK CHANGE",
-                "inventory", stock ? "inspection-card-success" : "inspection-card-neutral");
+        // Card 1: Party Details
+        String partyTitle = isCreditNote ? "Customer Details" : "Supplier Details";
+        String partySemantic = isCreditNote ? "customer" : "supplier";
+        VBox card1 = DocumentInspectionScaffold.createSummaryCard(partyTitle, partySemantic,
+                List.of(
+                        new DocumentInspectionScaffold.FieldPair("Party Name", safe(details.partyName()).isBlank() ? "Unknown Party" : details.partyName(), partySemantic, true),
+                        new DocumentInspectionScaffold.FieldPair("Party GSTIN", safe(details.partyGstin()).isBlank() ? "Unregistered" : details.partyGstin(), "tax", false),
+                        new DocumentInspectionScaffold.FieldPair("Original Doc", safe(details.originalDocNo()).isBlank() ? "—" : details.originalDocNo(), "document", false)
+                ));
 
-        HBox strip = new HBox(12, cardTotal, cardTaxable, cardTax, cardStock);
-        strip.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(cardTotal, Priority.ALWAYS);
-        HBox.setHgrow(cardTaxable, Priority.ALWAYS);
-        HBox.setHgrow(cardTax, Priority.ALWAYS);
-        HBox.setHgrow(cardStock, Priority.ALWAYS);
-        return strip;
-    }
+        // Card 2: Note Financials
+        VBox card2 = DocumentInspectionScaffold.createSummaryCard("Note Financials", "currency",
+                List.of(
+                        new DocumentInspectionScaffold.FieldPair("Total Note", money(total), "currency", true),
+                        new DocumentInspectionScaffold.FieldPair("Taxable Value", money(taxable), "currency", false),
+                        new DocumentInspectionScaffold.FieldPair(isCreditNote ? "Output GST" : "Input GST", money(tax), "tax", false)
+                ));
 
-    private static VBox makeKpiCard(String title, String value, String iconSemantic, String styleClass) {
-        Label titleLbl = new Label(title);
-        titleLbl.getStyleClass().add("inspection-kpi-title");
-        titleLbl.setGraphic(IconFactory.compactIcon(iconSemantic, 13));
+        // Card 3: Status & Accounting
+        VBox card3 = DocumentInspectionScaffold.createSummaryCard("Status & Accounting", "status",
+                List.of(
+                        new DocumentInspectionScaffold.FieldPair("Note Status", safe(details.status()).isBlank() ? "ACTIVE" : details.status(), "status", true),
+                        new DocumentInspectionScaffold.FieldPair("Stock Impact", stock ? (isCreditNote ? "Restocked (+)" : "Returned (-)") : "No Stock Change", stock ? "complete" : "inventory", true),
+                        new DocumentInspectionScaffold.FieldPair("GL Journal Ref", details.glEntryId() != null ? "#" + details.glEntryId() : "Pending", "link", false)
+                ));
 
-        Label valLbl = new Label(value);
-        valLbl.getStyleClass().add("inspection-kpi-value");
+        // Card 4: Reason & Timeline
+        VBox card4 = DocumentInspectionScaffold.createSummaryCard("Reason & Audit", "calendar",
+                List.of(
+                        new DocumentInspectionScaffold.FieldPair("Reason Code", safe(details.reasonCode()).isBlank() ? "Standard Reversal" : details.reasonCode(), "return", false),
+                        new DocumentInspectionScaffold.FieldPair("Created By", safe(details.createdBy()).isBlank() ? "Admin" : details.createdBy(), "user", false),
+                        new DocumentInspectionScaffold.FieldPair("Note Date", BusinessClock.formatDate(details.noteDate()), "calendar", false)
+                ));
 
-        VBox card = new VBox(4, titleLbl, valLbl);
-        card.getStyleClass().addAll("inspection-kpi-card", styleClass);
-        card.setPadding(new Insets(10, 14, 10, 14));
-        return card;
+        return DocumentInspectionScaffold.createSummaryStrip(card1, card2, card3, card4);
     }
 
     private static Node buildItemsTabContent(NoteFullDetails details, boolean isCreditNote) {
