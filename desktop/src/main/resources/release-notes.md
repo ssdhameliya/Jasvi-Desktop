@@ -1,3 +1,15 @@
+# What's New in DSE ERP v11.0.72
+
+### Oracle Cloud VM Automatic Post-Deployment Storage Guardian & Retention Engine
+- **Automatic Server JAR Release Pruning (`scripts/linux/deploy-oracle-release.sh`) (Rule 1 & Rule 10)**:
+  - Automatically prunes obsolete versioned server JAR directories under `/srv/dse-erp/<env>/releases/` on both **UAT** and **PROD** immediately after full health verification (`wait_for_health` and `systemctl is-active`) succeeds.
+  - Strictly protects the active `current` release and the `previous` rollback symlink (`rollback-release.sh` target), capping retained releases at the **2 latest versions** (~190 MB cap per environment instead of multi-gigabyte accumulation).
+- **Automatic PreUpgrade Database Backup Rotation (`scripts/linux/deploy-oracle-release.sh`) (Rule 1 & Rule 10)**:
+  - Automatically retains the **2 newest** `DSE-ERP-<ENV>-before-*.pgbackup` pre-upgrade dumps under `$WORKSPACE/Backups/PreUpgrade/` (always preserving the newly created dump from the active deployment) and removes older pre-upgrade dumps, while leaving scheduled weekly server backups untouched.
+  - Executes cleanly via `sudo -n python3` with non-fatal error isolation so permission or filesystem locks can never trigger rollback of a healthy release.
+
+---
+
 # What's New in DSE ERP v11.0.71
 
 ### Universal 95% Responsive Document Inspection, Anti-Truncation Action Dock & Supply-Chain E-Way Bill Transit
