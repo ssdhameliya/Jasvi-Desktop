@@ -211,15 +211,29 @@ public final class GeneralLedgerApiClient {
             BigDecimal totalValuation,
             BigDecimal stockBefore,
             BigDecimal stockAfter,
+            BigDecimal grossRate,
+            BigDecimal discountPercent,
+            BigDecimal discountAmount,
             BigDecimal sellingRate,
             BigDecimal lineRevenue,
             BigDecimal lineProfit,
             BigDecimal profitMarginPercent
     ) {
         public PostingFlowInventoryLine(String itemCode, String description, String movementType,
+                                        BigDecimal quantity, String unit, BigDecimal unitCost, BigDecimal totalValuation,
+                                        BigDecimal stockBefore, BigDecimal stockAfter,
+                                        BigDecimal sellingRate, BigDecimal lineRevenue, BigDecimal lineProfit,
+                                        BigDecimal profitMarginPercent) {
+            this(itemCode, description, movementType, quantity, unit, unitCost, totalValuation,
+                 stockBefore, stockAfter, sellingRate, BigDecimal.ZERO, BigDecimal.ZERO,
+                 sellingRate, lineRevenue, lineProfit, profitMarginPercent);
+        }
+
+        public PostingFlowInventoryLine(String itemCode, String description, String movementType,
                                         BigDecimal quantity, String unit, BigDecimal unitCost, BigDecimal totalValuation) {
             this(itemCode, description, movementType, quantity, unit, unitCost, totalValuation,
-                 null, null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+                 null, null, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
         }
     }
 
@@ -255,8 +269,24 @@ public final class GeneralLedgerApiClient {
             BigDecimal totalTaxableRevenue,
             BigDecimal totalInventoryCost,
             BigDecimal totalOrderProfit,
-            BigDecimal orderProfitMarginPercent
+            BigDecimal orderProfitMarginPercent,
+            BigDecimal totalDiscount,
+            LocalDateTime postedAt,
+            String postedBy,
+            String triggerEvent
     ) {
+        public PostingFlowResponse(String documentType, String documentNo, LocalDate documentDate, String partyName,
+                                   String partyGstin, BigDecimal totalAmount, String postingProfile, String summaryDescription,
+                                   String journalVoucherNo, List<PostingFlowVoucherLine> journalLines, BigDecimal totalDebit,
+                                   BigDecimal totalCredit, boolean isBalanced, List<PostingFlowInventoryLine> inventoryMovements,
+                                   PostingFlowGstImpact gstImpact, BigDecimal totalTaxableRevenue, BigDecimal totalInventoryCost,
+                                   BigDecimal totalOrderProfit, BigDecimal orderProfitMarginPercent) {
+            this(documentType, documentNo, documentDate, partyName, partyGstin, totalAmount, postingProfile, summaryDescription,
+                 journalVoucherNo, journalLines, totalDebit, totalCredit, isBalanced, inventoryMovements, gstImpact,
+                 totalTaxableRevenue, totalInventoryCost, totalOrderProfit, orderProfitMarginPercent,
+                 BigDecimal.ZERO, null, "SYSTEM", "AUTO_POST");
+        }
+
         public PostingFlowResponse(String documentType, String documentNo, LocalDate documentDate, String partyName,
                                    String partyGstin, BigDecimal totalAmount, String postingProfile, String summaryDescription,
                                    String journalVoucherNo, List<PostingFlowVoucherLine> journalLines, BigDecimal totalDebit,
@@ -264,7 +294,8 @@ public final class GeneralLedgerApiClient {
                                    PostingFlowGstImpact gstImpact) {
             this(documentType, documentNo, documentDate, partyName, partyGstin, totalAmount, postingProfile, summaryDescription,
                  journalVoucherNo, journalLines, totalDebit, totalCredit, isBalanced, inventoryMovements, gstImpact,
-                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                 BigDecimal.ZERO, null, "SYSTEM", "AUTO_POST");
         }
     }
 }

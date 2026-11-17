@@ -127,7 +127,15 @@ public class GstComplianceController implements ScreenLifecycle {
             RealtimeSearchSupport.installLocal(txtSearchGstr1, this::filterGstr1Records);
         }
         if (cmbMatchFilter != null) {
-            cmbMatchFilter.setItems(FXCollections.observableArrayList("All Statuses", "MATCHED", "GSTIN_PENDING", "ROUNDING_DIFF"));
+            cmbMatchFilter.setItems(FXCollections.observableArrayList(
+                    "All Statuses",
+                    "ELIGIBLE_PENDING_SETTLEMENT",
+                    "MATCHED & SETTLED",
+                    "MATCHED",
+                    "GSTIN_PENDING",
+                    "RULE_37_REVERSAL_DUE",
+                    "MISSING_IN_BOOKS"
+            ));
             cmbMatchFilter.setValue("All Statuses");
             cmbMatchFilter.valueProperty().addListener((obs, oldVal, newVal) -> filter2bRecords());
         }
@@ -189,17 +197,25 @@ public class GstComplianceController implements ScreenLifecycle {
             colIgst.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().igst()));
             colCgst.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().cgst()));
             colSgst.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().sgst()));
+            colMatchStatus.setMinWidth(195);
             colMatchStatus.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().status()));
             colMatchStatus.setCellFactory(col -> new TableCell<>() {
                 @Override
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
                     setText(empty ? null : item);
-                    getStyleClass().removeAll("pill-success", "pill-warning", "pill-danger");
+                    getStyleClass().removeAll("pill-success", "pill-warning", "pill-danger", "pill-info");
                     if (!empty && item != null) {
-                        if ("MATCHED".equalsIgnoreCase(item)) getStyleClass().add("pill-success");
-                        else if ("GSTIN_PENDING".equalsIgnoreCase(item)) getStyleClass().add("pill-warning");
-                        else getStyleClass().add("pill-danger");
+                        String upper = item.toUpperCase(Locale.ROOT);
+                        if (upper.contains("MATCHED") || upper.contains("SETTLED") || upper.contains("CLAIMED") || upper.contains("AUTO_RECONCILED")) {
+                            getStyleClass().add("pill-success");
+                        } else if (upper.contains("PENDING") || upper.contains("ELIGIBLE")) {
+                            getStyleClass().add("pill-warning");
+                        } else if (upper.contains("REVERSAL") || upper.contains("MISSING") || upper.contains("RISK")) {
+                            getStyleClass().add("pill-danger");
+                        } else {
+                            getStyleClass().add("pill-info");
+                        }
                     }
                 }
             });
@@ -864,17 +880,36 @@ public class GstComplianceController implements ScreenLifecycle {
 
                     double cgstSetoff = Math.min(remOutCgst, inputCgst);
                     remOutCgst -= cgstSetoff;
+                    double remInpCgst = Math.max(0.0, inputCgst - cgstSetoff);
 
                     double sgstSetoff = Math.min(remOutSgst, inputSgst);
                     remOutSgst -= sgstSetoff;
+                    double remInpSgst = Math.max(0.0, inputSgst - sgstSetoff);
+
+                    // Statutory Rule 88A / Section 49(5)(b) & (d) Cross-Utilization:
+                    // After CGST pays CGST, remaining CGST ITC can pay remaining outward IGST liability
+                    double cgstToIgst = 0.0;
+                    if (remOutIgst > 0.009 && remInpCgst > 0.009) {
+                        cgstToIgst = Math.min(remOutIgst, remInpCgst);
+                        remOutIgst -= cgstToIgst;
+                        remInpCgst -= cgstToIgst;
+                    }
+
+                    // After SGST pays SGST, remaining SGST ITC can pay remaining outward IGST liability
+                    double sgstToIgst = 0.0;
+                    if (remOutIgst > 0.009 && remInpSgst > 0.009) {
+                        sgstToIgst = Math.min(remOutIgst, remInpSgst);
+                        remOutIgst -= sgstToIgst;
+                        remInpSgst -= sgstToIgst;
+                    }
 
                     double netCashPayable = remOutIgst + remOutCgst + remOutSgst + rcmTax;
-                    double totalSetoff = igstSetoff + igstToCgst + igstToSgst + cgstSetoff + sgstSetoff;
+                    double totalSetoff = igstSetoff + igstToCgst + igstToSgst + cgstSetoff + sgstSetoff + cgstToIgst + sgstToIgst;
 
                     List<Gstr3bRow> bRows = new ArrayList<>();
-                    bRows.add(new Gstr3bRow("Integrated Tax (IGST)", fmt(outwardIgst), fmt(inputIgst), fmt(igstSetoff), fmt(remOutIgst)));
-                    bRows.add(new Gstr3bRow("Central Tax (CGST)", fmt(outwardCgst), fmt(inputCgst + igstToCgst), fmt(cgstSetoff + igstToCgst), fmt(remOutCgst)));
-                    bRows.add(new Gstr3bRow("State Tax (SGST)", fmt(outwardSgst), fmt(inputSgst + igstToSgst), fmt(sgstSetoff + igstToSgst), fmt(remOutSgst)));
+                    bRows.add(new Gstr3bRow("Integrated Tax (IGST)", fmt(outwardIgst), fmt(inputIgst + cgstToIgst + sgstToIgst), fmt(igstSetoff + cgstToIgst + sgstToIgst), fmt(remOutIgst)));
+                    bRows.add(new Gstr3bRow("Central Tax (CGST)", fmt(outwardCgst), fmt(inputCgst + igstToCgst), fmt(cgstSetoff + igstToCgst + cgstToIgst), fmt(remOutCgst)));
+                    bRows.add(new Gstr3bRow("State Tax (SGST)", fmt(outwardSgst), fmt(inputSgst + igstToSgst), fmt(sgstSetoff + igstToSgst + sgstToIgst), fmt(remOutSgst)));
                     if (rcmTax > 0.009) {
                         bRows.add(new Gstr3bRow("3.1(d) Inward RCM Supplies", fmt(rcmTax), "₹ 0.00", "₹ 0.00", fmt(rcmTax)));
                     }

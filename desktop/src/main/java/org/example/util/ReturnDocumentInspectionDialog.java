@@ -629,7 +629,12 @@ public final class ReturnDocumentInspectionDialog {
         btnEmail.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnEmail.setOnAction(e -> {
             UiTaskExecutor.submitAction("return-prepare-email-" + details.no(), () -> {
-                String recipient = safe(support.returnPartyEmail(details.no()));
+                String recipient = "";
+                try {
+                    recipient = safe(support.returnPartyEmail(details.no()));
+                } catch (Exception ex) {
+                    recipient = "";
+                }
                 Path pdf = ManagedInvoicePdfService.refund(details.no(), isSales);
                 MessageTemplateService.FormattedMessage msg = isSales ?
                         MessageTemplateService.formatSalesReturnEmail(details.no(), details.party(), details.date(), details.total()) :

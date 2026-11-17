@@ -10,6 +10,7 @@ import org.example.api.accounting.GeneralLedgerApiClient;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
@@ -62,9 +63,9 @@ public final class PostingFlowDialog {
         hero.getStyleClass().add("bank-dialog-hero");
         DocumentInspectionScaffold.installDragPhysics(hero, dialog);
 
-        // 6-Card Semantic Metrics Banner
+        // 7-Card Semantic Metrics Banner
         GridPane metrics = new GridPane();
-        metrics.setHgap(12);
+        metrics.setHgap(10);
         metrics.setPadding(new Insets(6, 0, 8, 0));
 
         Label valTotal = new Label("Loading…");
@@ -73,6 +74,8 @@ public final class PostingFlowDialog {
         valRevenue.getStyleClass().addAll("kpi-value", "erp-table-value-colour-purple");
         Label valCost = new Label("Loading…");
         valCost.getStyleClass().addAll("kpi-value", "erp-table-value-colour-orange");
+        Label valDiscount = new Label("Calculating…");
+        valDiscount.getStyleClass().addAll("kpi-value", "erp-table-value-colour-orange");
         Label valProfit = new Label("Calculating…");
         valProfit.getStyleClass().addAll("kpi-value", "erp-table-value-colour-green");
         Label valMargin = new Label("Calculating…");
@@ -83,9 +86,10 @@ public final class PostingFlowDialog {
         metrics.add(metricCard("Document Total", valTotal, "currency"), 0, 0);
         metrics.add(metricCard("Taxable Revenue", valRevenue, "currency"), 1, 0);
         metrics.add(metricCard("Total Cost (COGS)", valCost, "item"), 2, 0);
-        metrics.add(metricCard("Total Order Profit", valProfit, "currency"), 3, 0);
-        metrics.add(metricCard("Gross Margin", valMargin, "status"), 4, 0);
-        metrics.add(metricCard("Ledger Integrity", valBalanced, "complete"), 5, 0);
+        metrics.add(metricCard("Order Discount", valDiscount, "status"), 3, 0);
+        metrics.add(metricCard("Total Order Profit", valProfit, "currency"), 4, 0);
+        metrics.add(metricCard("Gross Margin", valMargin, "status"), 5, 0);
+        metrics.add(metricCard("Ledger Integrity", valBalanced, "complete"), 6, 0);
 
         for (Node child : metrics.getChildren()) {
             GridPane.setHgrow(child, Priority.ALWAYS);
@@ -192,7 +196,17 @@ public final class PostingFlowDialog {
         colUnitCost.setCellFactory(col -> styledCell("erp-table-value-colour-orange", Pos.CENTER_RIGHT));
         IconFactory.applyTableHeaderIcon(colUnitCost, "currency");
 
-        TableColumn<GeneralLedgerApiClient.PostingFlowInventoryLine, String> colRate = new TableColumn<>("Selling / Unit Rate");
+        TableColumn<GeneralLedgerApiClient.PostingFlowInventoryLine, String> colGrossRate = new TableColumn<>("Gross List Rate");
+        colGrossRate.setCellValueFactory(v -> new ReadOnlyStringWrapper(formatMoney(v.getValue().grossRate())));
+        colGrossRate.setCellFactory(col -> styledCell("erp-table-value-colour-purple", Pos.CENTER_RIGHT));
+        IconFactory.applyTableHeaderIcon(colGrossRate, "currency");
+
+        TableColumn<GeneralLedgerApiClient.PostingFlowInventoryLine, String> colDiscount = new TableColumn<>("Discount (% / ₹)");
+        colDiscount.setCellValueFactory(v -> new ReadOnlyStringWrapper(formatDiscount(v.getValue().discountPercent(), v.getValue().discountAmount())));
+        colDiscount.setCellFactory(col -> styledCell("erp-table-value-colour-orange", Pos.CENTER_RIGHT));
+        IconFactory.applyTableHeaderIcon(colDiscount, "status");
+
+        TableColumn<GeneralLedgerApiClient.PostingFlowInventoryLine, String> colRate = new TableColumn<>("Net Selling Rate");
         colRate.setCellValueFactory(v -> new ReadOnlyStringWrapper(formatMoney(v.getValue().sellingRate())));
         colRate.setCellFactory(col -> styledCell("erp-table-value-colour-blue", Pos.CENTER_RIGHT));
         IconFactory.applyTableHeaderIcon(colRate, "currency");
@@ -240,7 +254,7 @@ public final class PostingFlowDialog {
         invTable.getColumns().addAll(
                 colItemCode, colItemDesc, colMovementType,
                 colStockBefore, colQty, colStockAfter,
-                colUnitCost, colRate, colValuation,
+                colUnitCost, colGrossRate, colDiscount, colRate, colValuation,
                 colRevenue, colProfit, colMargin
         );
         DynamicTableLayoutManager.install(invTable);
@@ -339,12 +353,27 @@ public final class PostingFlowDialog {
             String partyGstin = (resp.partyGstin() != null && !resp.partyGstin().isBlank()) ? resp.partyGstin() : "Unregistered";
             String jvDisplay = resp.journalVoucherNo() != null ? resp.journalVoucherNo() : "PROSPECTIVE";
             String profileDisplay = formatProfile(resp.postingProfile());
+            String auditStamp = "";
+            if (resp.postedAt() != null) {
+                String dtFormatted = resp.postedAt().format(DateTimeFormatter.ofPattern(BusinessClock.datePattern() + " " + BusinessClock.timePattern(), Locale.getDefault()));
+                auditStamp = "  •  🕒 Posted: " + dtFormatted + " by " + (resp.postedBy() != null ? resp.postedBy() : "admin");
+            }
 
-            subtitle.setText(documentNo + "  •  " + resp.partyName() + " (" + partyGstin + ")  •  " + resp.documentDate() + "  •  " + profileDisplay + "  •  JV: " + jvDisplay);
+            subtitle.setText(documentNo + "  •  " + resp.partyName() + " (" + partyGstin + ")  •  " + resp.documentDate() + "  •  " + profileDisplay + "  •  JV: " + jvDisplay + auditStamp);
 
             valTotal.setText(formatMoney(resp.totalAmount()));
             valRevenue.setText(formatMoney(resp.totalTaxableRevenue()));
             valCost.setText(formatMoney(resp.totalInventoryCost()));
+
+            if (resp.totalDiscount() != null && resp.totalDiscount().compareTo(BigDecimal.ZERO) > 0) {
+                valDiscount.setText("- " + formatMoney(resp.totalDiscount()));
+                valDiscount.getStyleClass().removeAll("erp-table-value-colour-orange", "erp-table-value-colour-blue");
+                valDiscount.getStyleClass().add("erp-table-value-colour-orange");
+            } else {
+                valDiscount.setText("₹ 0.00");
+                valDiscount.getStyleClass().removeAll("erp-table-value-colour-orange", "erp-table-value-colour-blue");
+                valDiscount.getStyleClass().add("erp-table-value-colour-blue");
+            }
 
             // Total Order Profit styling
             BigDecimal profit = resp.totalOrderProfit();
@@ -450,6 +479,19 @@ public final class PostingFlowDialog {
     private static String formatMargin(BigDecimal margin) {
         if (margin == null || margin.compareTo(BigDecimal.ZERO) == 0) return "0.00 %";
         return String.format(Locale.of("en", "IN"), "%.2f %%", margin.doubleValue());
+    }
+
+    private static String formatDiscount(BigDecimal pct, BigDecimal amt) {
+        boolean hasPct = pct != null && pct.compareTo(BigDecimal.ZERO) > 0;
+        boolean hasAmt = amt != null && amt.compareTo(BigDecimal.ZERO) > 0;
+        if (!hasPct && !hasAmt) return "0.00 %";
+        if (hasPct && hasAmt) {
+            return String.format(Locale.of("en", "IN"), "%.2f %% (-%s)", pct.doubleValue(), formatMoney(amt));
+        }
+        if (hasPct) {
+            return String.format(Locale.of("en", "IN"), "%.2f %%", pct.doubleValue());
+        }
+        return "- " + formatMoney(amt);
     }
 
     private static String formatStock(BigDecimal stock, String unit) {
