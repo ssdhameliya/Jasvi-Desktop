@@ -54,6 +54,7 @@ public final class UpdateService {
         if(checksum.isBlank())throw new SecurityException("The published DSE ERP release must include checksums.txt with a SHA-256 entry for "+asset.name()+".");
 
         Path target=downloadTarget(asset);
+        cleanupDownloadedInstallers(target);
         if(Files.isRegularFile(target)){
             if(cachedInstallerMatches(target,asset.size(),checksum)){
                 LOG.info("UPDATE_CACHE_CHECKSUM_OK installer="+target.getFileName());
@@ -151,10 +152,151 @@ public final class UpdateService {
         try{ChecksumVerifier.verify(target,checksum);return true;}catch(SecurityException mismatch){return false;}
     }
 
+    private static final java.util.regex.Pattern INSTALLER_VERSION_PATTERN =
+            java.util.regex.Pattern.compile("^(?:dse-erp|jasvi)-v?(\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)[0-9a-zA-Z.-]*)?)(?:-[^.]*)?\\.(?:exe|dmg|msi|pkg)(?:\\.part)?$", java.util.regex.Pattern.CASE_INSENSITIVE);
+    private static final java.util.regex.Pattern HELPER_VERSION_PATTERN =
+            java.util.regex.Pattern.compile("^install-dse-erp-v?(\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)[0-9a-zA-Z.-]*)?)\\.(?:ps1|command)$", java.util.regex.Pattern.CASE_INSENSITIVE);
+
     static void purgeCachedInstaller(Path target) throws Exception {
         if(target==null)return;
         Files.deleteIfExists(target);
         Files.deleteIfExists(partialPath(target));
+    }
+
+    /**
+     * Reclaims disk space after a clean application startup/upgrade by removing downloaded
+     * installers and detached update helper scripts for the installed version and any older
+     * versions, while preserving a pending newer installer (> currentVersion) if one was
+     * downloaded for later installation.
+     */
+    public static void cleanupObsoleteAfterStartup(String currentVersion) {
+        if (currentVersion == null || currentVersion.isBlank() || DEFAULT_VERSION.equalsIgnoreCase(currentVersion.trim())) {
+            return;
+        }
+        SemanticVersion current;
+        try {
+            if (!currentVersion.trim().matches("^[vV]?\\d+\\.\\d+\\.\\d+.*")) return;
+            current = SemanticVersion.parse(currentVersion);
+        } catch (Exception ignored) {
+            return;
+        }
+        int removedInstallers = 0;
+        for (Path folder : candidateUpdatesFolders()) {
+            removedInstallers += cleanupInstallersInFolder(folder, null, current);
+        }
+        int removedHelpers = cleanupHelpersInFolder(
+                ConfigManager.getConfigFolder().resolve("Updates").resolve("helpers"), current);
+        if (removedInstallers > 0 || removedHelpers > 0) {
+            LOG.info("UPDATE_CACHE_CLEANUP_OK version=" + current + " removedInstallers=" + removedInstallers + " removedHelpers=" + removedHelpers);
+        }
+    }
+
+    /** Removes all older managed installers in update folders except the active target and its .part file. */
+    public static int cleanupDownloadedInstallers(Path keepInstaller) {
+        int removed = 0;
+        for (Path folder : candidateUpdatesFolders()) {
+            removed += cleanupInstallersInFolder(folder, keepInstaller, null);
+        }
+        if (removed > 0) {
+            LOG.info("UPDATE_PRE_DOWNLOAD_CLEANUP_OK removedInstallers=" + removed);
+        }
+        return removed;
+    }
+
+    static int cleanupInstallersInFolder(Path folder, Path keepInstaller, SemanticVersion maxObsoleteVersion) {
+        if (folder == null || !Files.isDirectory(folder)) return 0;
+        Path keepNormalized = keepInstaller == null ? null : keepInstaller.toAbsolutePath().normalize();
+        Path keepPartialNormalized = keepInstaller == null ? null : partialPath(keepInstaller).toAbsolutePath().normalize();
+        int removed = 0;
+        try (var stream = Files.list(folder)) {
+            for (Path entry : stream.toList()) {
+                if (!Files.isRegularFile(entry)) continue;
+                String name = entry.getFileName().toString();
+                if (!isManagedInstallerArtifact(name)) continue;
+                Path normalized = entry.toAbsolutePath().normalize();
+                if (keepNormalized != null && (normalized.equals(keepNormalized) || normalized.equals(keepPartialNormalized))) {
+                    continue;
+                }
+                if (maxObsoleteVersion != null) {
+                    Optional<SemanticVersion> parsed = extractInstallerVersion(name);
+                    if (parsed.isPresent() && parsed.get().compareTo(maxObsoleteVersion) > 0) {
+                        continue; // Preserve pending newer installer not yet installed
+                    }
+                    if (parsed.isEmpty() && !name.toLowerCase(Locale.ROOT).endsWith(".part")) {
+                        continue; // Never delete unversioned custom offline installers during startup
+                    }
+                }
+                try {
+                    if (Files.deleteIfExists(entry)) removed++;
+                } catch (Exception ex) {
+                    LOG.warning("UPDATE_CACHE_CLEANUP_SKIP file=" + name + " reason=" + message(ex));
+                }
+            }
+        } catch (Exception ex) {
+            LOG.warning("UPDATE_CACHE_CLEANUP_SCAN_FAILED folder=" + folder + " reason=" + message(ex));
+        }
+        return removed;
+    }
+
+    static int cleanupHelpersInFolder(Path helperFolder, SemanticVersion maxObsoleteVersion) {
+        if (helperFolder == null || !Files.isDirectory(helperFolder)) return 0;
+        int removed = 0;
+        try (var stream = Files.list(helperFolder)) {
+            for (Path entry : stream.toList()) {
+                if (!Files.isRegularFile(entry)) continue;
+                String name = entry.getFileName().toString();
+                if (!isManagedHelperScript(name)) continue;
+                if (maxObsoleteVersion != null) {
+                    Optional<SemanticVersion> parsed = extractHelperVersion(name);
+                    if (parsed.isPresent() && parsed.get().compareTo(maxObsoleteVersion) > 0) {
+                        continue;
+                    }
+                }
+                try {
+                    if (Files.deleteIfExists(entry)) removed++;
+                } catch (Exception ex) {
+                    LOG.warning("UPDATE_HELPER_CLEANUP_SKIP file=" + name + " reason=" + message(ex));
+                }
+            }
+        } catch (Exception ex) {
+            LOG.warning("UPDATE_HELPER_CLEANUP_SCAN_FAILED folder=" + helperFolder + " reason=" + message(ex));
+        }
+        return removed;
+    }
+
+    static boolean isManagedInstallerArtifact(String fileName) {
+        if (fileName == null || fileName.isBlank()) return false;
+        String lower = fileName.toLowerCase(Locale.ROOT);
+        if (!lower.startsWith("dse-erp-") && !lower.startsWith("jasvi-")) return false;
+        return lower.endsWith(".exe") || lower.endsWith(".dmg") || lower.endsWith(".msi") || lower.endsWith(".pkg")
+                || lower.endsWith(".exe.part") || lower.endsWith(".dmg.part") || lower.endsWith(".msi.part") || lower.endsWith(".pkg.part");
+    }
+
+    static boolean isManagedHelperScript(String fileName) {
+        if (fileName == null || fileName.isBlank()) return false;
+        String lower = fileName.toLowerCase(Locale.ROOT);
+        return lower.startsWith("install-dse-erp-") && (lower.endsWith(".ps1") || lower.endsWith(".command"));
+    }
+
+    static Optional<SemanticVersion> extractInstallerVersion(String fileName) {
+        if (fileName == null) return Optional.empty();
+        var matcher = INSTALLER_VERSION_PATTERN.matcher(fileName);
+        return matcher.matches() ? Optional.of(SemanticVersion.parse(matcher.group(1))) : Optional.empty();
+    }
+
+    static Optional<SemanticVersion> extractHelperVersion(String fileName) {
+        if (fileName == null) return Optional.empty();
+        var matcher = HELPER_VERSION_PATTERN.matcher(fileName);
+        return matcher.matches() ? Optional.of(SemanticVersion.parse(matcher.group(1))) : Optional.empty();
+    }
+
+    private static Set<Path> candidateUpdatesFolders() {
+        Set<Path> folders = new LinkedHashSet<>();
+        if (WorkspaceManager.isConfigured()) {
+            folders.add(WorkspaceManager.getUpdatesFolder().toAbsolutePath().normalize());
+        }
+        folders.add(Path.of(System.getProperty("user.home"), ".dse-erp", "Updates").toAbsolutePath().normalize());
+        return folders;
     }
 
     private static Path partialPath(Path target){return target.resolveSibling(target.getFileName()+".part");}

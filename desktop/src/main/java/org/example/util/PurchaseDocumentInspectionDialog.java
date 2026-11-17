@@ -1153,20 +1153,28 @@ public final class PurchaseDocumentInspectionDialog {
         btnPostingFlow.setTooltip(new Tooltip("Inspect General Ledger Journal Voucher, Stock Movement & Statutory GST Impact"));
         btnPostingFlow.setOnAction(e -> PostingFlowDialog.show(dialog.getDialogPane(), "PURCHASE", purchase.getInvoiceNo()));
 
+        // 11. E-Way Bill Center
+        Button btnEWayBill = new Button("E-Way Bill Center");
+        btnEWayBill.setGraphic(IconFactory.compactIcon("delivery", 14));
+        btnEWayBill.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnEWayBill.setTooltip(new Tooltip("Open E-Way Bill Center & Live Transit Tracking"));
+        btnEWayBill.setOnAction(e -> {
+            dialog.close();
+            NavigationManager.navigateOrReport("/fxml/pages/EWayBillCenter.fxml");
+        });
+
         boolean isPendingApproval = "PENDING APPROVAL".equalsIgnoreCase(safe(purchase.getDocumentStatus()).trim());
         boolean isAdmin = SessionService.isAdmin();
 
-        dock.getChildren().addAll(btnEdit, btnDuplicate, btnPrint, btnBarcode, btnExcel, btnEmail, btnRecordPayment);
-        if (btnViewReturn != null) dock.getChildren().add(btnViewReturn);
-        if (btnReturn != null) dock.getChildren().add(btnReturn);
-        dock.getChildren().addAll(btnAudit, btnPostingFlow);
-
+        Button btnApprove = null;
+        Button btnReject = null;
         if (isPendingApproval && isAdmin) {
-            Button btnApprove = new Button("Approve Purchase");
+            btnApprove = new Button("Approve Purchase");
             btnApprove.setGraphic(IconFactory.compactIcon("complete", 14));
             btnApprove.getStyleClass().addAll("approved-button", "approved-success-button");
+            Button finalBtnApprove = btnApprove;
             btnApprove.setOnAction(e -> {
-                btnApprove.setDisable(true);
+                finalBtnApprove.setDisable(true);
                 UiTaskExecutor.submitAction("purchase-approve-" + purchase.getId(), () -> {
                     service.approve(purchase.getInvoiceNo());
                     return true;
@@ -1176,21 +1184,22 @@ public final class PurchaseDocumentInspectionDialog {
                     if (onUpdated != null) onUpdated.run();
                     dialog.close();
                 }, ex -> {
-                    btnApprove.setDisable(false);
+                    finalBtnApprove.setDisable(false);
                     AppDialogService.error(dialog.getDialogPane(), "Approval failed", ex.getMessage());
                 });
             });
 
-            Button btnReject = new Button("Reject Purchase");
+            btnReject = new Button("Reject Purchase");
             btnReject.setGraphic(IconFactory.compactIcon("cancel", 14));
             btnReject.getStyleClass().addAll("approved-button", "approved-danger-button");
+            Button finalBtnReject = btnReject;
             btnReject.setOnAction(e -> {
                 OwnedTextInputDialog td = new OwnedTextInputDialog();
                 td.setTitle("Reject Purchase");
                 td.setHeaderText("Reject " + purchase.getInvoiceNo());
                 td.setContentText("Reason:");
                 td.showAndWait().map(String::trim).filter(r -> !r.isBlank()).ifPresent(reason -> {
-                    btnReject.setDisable(true);
+                    finalBtnReject.setDisable(true);
                     UiTaskExecutor.submitAction("purchase-reject-" + purchase.getId(), () -> {
                         service.reject(purchase.getInvoiceNo(), reason);
                         return true;
@@ -1199,24 +1208,40 @@ public final class PurchaseDocumentInspectionDialog {
                         if (onUpdated != null) onUpdated.run();
                         dialog.close();
                     }, ex -> {
-                        btnReject.setDisable(false);
+                        finalBtnReject.setDisable(false);
                         AppDialogService.error(dialog.getDialogPane(), "Rejection failed", ex.getMessage());
                     });
                 });
             });
-
-            dock.getChildren().addAll(btnApprove, btnReject);
         }
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actionsContainer = new HBox(8);
+        actionsContainer.setAlignment(Pos.CENTER_LEFT);
+        actionsContainer.getChildren().addAll(btnEdit, btnDuplicate, btnPrint, btnBarcode, btnExcel, btnEmail, btnRecordPayment);
+        if (btnViewReturn != null) actionsContainer.getChildren().add(btnViewReturn);
+        if (btnReturn != null) actionsContainer.getChildren().add(btnReturn);
+        actionsContainer.getChildren().addAll(btnAudit, btnPostingFlow, btnEWayBill);
+        if (btnApprove != null) actionsContainer.getChildren().add(btnApprove);
+        if (btnReject != null) actionsContainer.getChildren().add(btnReject);
+
+        for (Node node : actionsContainer.getChildren()) {
+            if (node instanceof Region r) r.setMinWidth(Region.USE_PREF_SIZE);
+        }
+
+        ScrollPane scroll = new ScrollPane(actionsContainer);
+        scroll.setFitToHeight(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.getStyleClass().addAll("erp-dock-scroll", "erp-clean-scroll");
+        HBox.setHgrow(scroll, Priority.ALWAYS);
 
         Button btnClose = new Button("Close");
+        btnClose.setMinWidth(Region.USE_PREF_SIZE);
         btnClose.setGraphic(IconFactory.compactIcon("cancel", 14));
         btnClose.getStyleClass().addAll("approved-button", "approved-danger-ghost-button");
         btnClose.setOnAction(e -> dialog.close());
 
-        dock.getChildren().addAll(spacer, btnClose);
+        dock.getChildren().addAll(scroll, btnClose);
         return dock;
     }
 

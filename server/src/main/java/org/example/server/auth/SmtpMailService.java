@@ -235,7 +235,7 @@ public class SmtpMailService {
                     message.setReplyTo(new InternetAddress[]{ new InternetAddress(customFromEmail, fromName) });
                 } catch (Exception ignored) {}
             }
-            message.setRecipient(Message.RecipientType.TO, new InternetAddress(recipient, true));
+            message.setRecipients(Message.RecipientType.TO, parseRecipientAddresses(recipient));
             message.setSubject(subject == null ? companyName() + " document" : subject);
             List<Attachment> files = attachments == null ? List.of() : attachments.stream()
                     .filter(a -> a != null && a.data() != null && a.data().length > 0).toList();
@@ -352,7 +352,7 @@ public class SmtpMailService {
             Session session = mailSession(settings, 15_000, 30_000);
             MimeMessage message = new MimeMessage(session);
             message.setFrom(new InternetAddress(settings.email()));
-            message.setRecipient(Message.RecipientType.TO, new InternetAddress(recipient, true));
+            message.setRecipients(Message.RecipientType.TO, parseRecipientAddresses(recipient));
             message.setSubject(subject == null ? companyName() + " document" : subject);
             List<PathAttachment> files = attachments == null ? List.of() : attachments.stream()
                     .filter(a -> a != null && a.path() != null && Files.isRegularFile(a.path())).toList();
@@ -470,6 +470,24 @@ public class SmtpMailService {
         if (address.endsWith("@outlook.com") || address.endsWith("@hotmail.com") || address.endsWith("@live.com")) return "smtp.office365.com";
         if (address.endsWith("@yahoo.com") || address.endsWith("@yahoo.in")) return "smtp.mail.yahoo.com";
         return "";
+    }
+
+    static InternetAddress[] parseRecipientAddresses(String raw) throws jakarta.mail.internet.AddressException {
+        if (raw == null || raw.isBlank()) {
+            throw new jakarta.mail.internet.AddressException("Recipient email address is required");
+        }
+        java.util.LinkedHashMap<String, InternetAddress> unique = new java.util.LinkedHashMap<>();
+        for (String token : raw.split("[;,]")) {
+            String trimmed = token.trim();
+            if (trimmed.isEmpty()) continue;
+            InternetAddress address = new InternetAddress(trimmed, true);
+            address.validate();
+            unique.putIfAbsent(address.getAddress().toLowerCase(java.util.Locale.ROOT), address);
+        }
+        if (unique.isEmpty()) {
+            throw new jakarta.mail.internet.AddressException("Recipient email address is required");
+        }
+        return unique.values().toArray(InternetAddress[]::new);
     }
 
     private static String masked(String address) {

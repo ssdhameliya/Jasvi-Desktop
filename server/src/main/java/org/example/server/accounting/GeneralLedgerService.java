@@ -1204,7 +1204,7 @@ public class GeneralLedgerService {
             Long dnId = ((Number) dn.get("id")).longValue();
             List<Map<String, Object>> dnLines = jdbc.queryForList("""
                 SELECT dnl.item_code, COALESCE(dnl.item_description, im.description, dnl.item_code) AS descr,
-                       dnl.quantity, COALESCE(im.unit, 'Nos') AS unit, dnl.unit_price,
+                       dnl.quantity, COALESCE(im.unit, 'Nos') AS unit, COALESCE(dnl.unit_cost, 0) AS unit_price,
                        dnl.taxable_value, COALESCE(im.opening_stock, 0) AS current_stock
                 FROM debit_note_line dnl
                 LEFT JOIN item_master im ON im.item_code = dnl.item_code

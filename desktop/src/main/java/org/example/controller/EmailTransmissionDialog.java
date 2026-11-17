@@ -592,15 +592,26 @@ public class EmailTransmissionDialog {
         String subject = txtSubject == null ? "" : txtSubject.getText().trim();
         String body = txtBody == null ? "" : txtBody.getText();
 
-        if (recipient.isBlank() || !recipient.contains("@") || !recipient.contains(".")) {
+        java.util.List<String> validRecipients;
+        try {
+            validRecipients = org.example.service.EmailService.parseRecipientList(recipient);
+            boolean hasDomainDot = validRecipients.stream().allMatch(addr -> {
+                int at = addr.indexOf('@');
+                return at > 0 && addr.indexOf('.', at) > at + 1;
+            });
+            if (!hasDomainDot) {
+                throw new IllegalArgumentException("Invalid email domain");
+            }
+        } catch (IllegalArgumentException invalid) {
             if (errRecipient != null) {
-                errRecipient.setText("Please enter a valid recipient email address (e.g. accounts@example.com).");
+                errRecipient.setText("Please enter valid recipient email address(es), separated by ';' or ',' if multiple.");
                 errRecipient.setVisible(true);
                 errRecipient.setManaged(true);
             }
             if (txtRecipient != null) txtRecipient.requestFocus();
             return;
         }
+        recipient = String.join("; ", validRecipients);
 
         if (subject.isBlank()) {
             if (errSubject != null) {

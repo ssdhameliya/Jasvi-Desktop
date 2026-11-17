@@ -411,7 +411,10 @@ public final class DocumentInspectionScaffold {
         dock.getStyleClass().add("inspection-action-dock");
         if (actions != null) {
             for (Node action : actions) {
-                if (action != null) dock.getChildren().add(action);
+                if (action != null) {
+                    if (action instanceof Region r) r.setMinWidth(Region.USE_PREF_SIZE);
+                    dock.getChildren().add(action);
+                }
             }
         }
         return dock;

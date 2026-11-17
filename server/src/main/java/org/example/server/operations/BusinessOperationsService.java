@@ -442,20 +442,85 @@ public class BusinessOperationsService {
 
  @Transactional(readOnly=true) public List<OperationDtos.StockHistoryDto> stockHistory(String itemCode){
    String sql="""
-     SELECT dse_safe_date(adjustment_date) AS movement_day, adjustment_type AS movement_type, quantity, reason, reference_no, created_by
-     FROM stock_adjustment WHERE item_code=?
+     SELECT dse_safe_date(s.adjustment_date) AS movement_day,
+            s.adjustment_type AS movement_type,
+            s.quantity AS quantity,
+            s.reason AS reason,
+            s.reference_no AS reference_no,
+            COALESCE(s.created_by, 'System') AS user_name,
+            'Physical Audit' AS party_name,
+            COALESCE(i.purchase_price, 0.0) AS rate,
+            COALESCE(i.purchase_price, 0.0) AS unit_cost,
+            COALESCE(s.created_at, s.adjustment_date) AS movement_timestamp
+     FROM stock_adjustment s
+     LEFT JOIN item_master i ON i.item_code = s.item_code
+     WHERE s.item_code = ?
      UNION ALL
-     SELECT dse_safe_date(h.invoice_date), 'SALE', -l.quantity, 'Sales invoice', h.invoice_no, COALESCE(h.salesperson,'System')
-     FROM sales_line l JOIN sales_header h ON h.id=l.sales_id WHERE l.item_code=? AND COALESCE(h.inventory_posted,false)=true AND UPPER(COALESCE(h.document_status,'')) NOT IN ('DELETED','CANCELLED','REJECTED','PENDING APPROVAL')
+     SELECT dse_safe_date(h.invoice_date) AS movement_day,
+            'SALE' AS movement_type,
+            -l.quantity AS quantity,
+            'Sales invoice' AS reason,
+            h.invoice_no AS reference_no,
+            COALESCE(h.salesperson, 'System') AS user_name,
+            COALESCE(h.customer_name_snapshot, p.name, 'Walk-in Customer') AS party_name,
+            COALESCE(l.rate, 0.0) AS rate,
+            COALESCE(i.purchase_price, 0.0) AS unit_cost,
+            COALESCE(h.created_at, h.invoice_date) AS movement_timestamp
+     FROM sales_line l
+     JOIN sales_header h ON h.id = l.sales_id
+     LEFT JOIN party_master p ON p.id = h.customer_id
+     LEFT JOIN item_master i ON i.item_code = l.item_code
+     WHERE l.item_code = ?
+       AND COALESCE(h.inventory_posted, false) = true
+       AND UPPER(COALESCE(h.document_status, '')) NOT IN ('DELETED', 'CANCELLED', 'REJECTED', 'PENDING APPROVAL')
      UNION ALL
-     SELECT dse_safe_date(h.invoice_date), 'PURCHASE', l.quantity, 'Purchase invoice', h.invoice_no, 'System'
-     FROM purchase_line l JOIN purchase_header h ON h.id=l.purchase_id WHERE l.item_code=? AND COALESCE(h.inventory_posted,false)=true AND UPPER(COALESCE(h.document_status,'')) NOT IN ('DELETED','CANCELLED')
+     SELECT dse_safe_date(h.invoice_date) AS movement_day,
+            'PURCHASE' AS movement_type,
+            l.quantity AS quantity,
+            'Purchase invoice' AS reason,
+            h.invoice_no AS reference_no,
+            COALESCE(h.created_by, 'System') AS user_name,
+            COALESCE(h.supplier_name_snapshot, p.name, 'Supplier') AS party_name,
+            COALESCE(l.rate, 0.0) AS rate,
+            COALESCE(i.purchase_price, l.rate, 0.0) AS unit_cost,
+            COALESCE(h.created_at, h.invoice_date) AS movement_timestamp
+     FROM purchase_line l
+     JOIN purchase_header h ON h.id = l.purchase_id
+     LEFT JOIN party_master p ON p.id = h.supplier_id
+     LEFT JOIN item_master i ON i.item_code = l.item_code
+     WHERE l.item_code = ?
+       AND COALESCE(h.inventory_posted, false) = true
+       AND UPPER(COALESCE(h.document_status, '')) NOT IN ('DELETED', 'CANCELLED')
      UNION ALL
-     SELECT dse_safe_date(return_date), return_type, CASE WHEN UPPER(return_type) IN ('SALE RETURN','SALES RETURN') THEN quantity ELSE -quantity END, COALESCE(reason,'Return'), return_no, 'System'
-     FROM return_register WHERE item_code=? AND UPPER(COALESCE(status,'PENDING APPROVAL'))='APPROVED'
-     ORDER BY movement_day DESC
+     SELECT dse_safe_date(r.return_date) AS movement_day,
+            r.return_type AS movement_type,
+            CASE WHEN UPPER(r.return_type) IN ('SALE RETURN', 'SALES RETURN') THEN r.quantity ELSE -r.quantity END AS quantity,
+            COALESCE(r.reason, 'Return') AS reason,
+            r.return_no AS reference_no,
+            'System' AS user_name,
+            COALESCE(p.name, 'Return Entity') AS party_name,
+            CASE WHEN r.quantity > 0 THEN COALESCE(r.amount / r.quantity, 0.0) ELSE 0.0 END AS rate,
+            COALESCE(i.purchase_price, 0.0) AS unit_cost,
+            COALESCE(r.created_at, r.return_date) AS movement_timestamp
+     FROM return_register r
+     LEFT JOIN party_master p ON p.id = r.party_id
+     LEFT JOIN item_master i ON i.item_code = r.item_code
+     WHERE r.item_code = ?
+       AND UPPER(COALESCE(r.status, 'PENDING APPROVAL')) = 'APPROVED'
+     ORDER BY movement_day DESC, movement_timestamp DESC
      """;
-   return jdbc.query(sql,(r,i)->new OperationDtos.StockHistoryDto(String.valueOf(r.getObject(1)),r.getString(2),r.getDouble(3),r.getString(4),r.getString(5),r.getString(6)),itemCode,itemCode,itemCode,itemCode);
+   return jdbc.query(sql, (r, i) -> new OperationDtos.StockHistoryDto(
+       String.valueOf(r.getObject(1)),
+       r.getString(2),
+       r.getDouble(3),
+       r.getString(4),
+       r.getString(5),
+       r.getString(6),
+       r.getString(7),
+       r.getObject(8) != null ? ((Number) r.getObject(8)).doubleValue() : null,
+       r.getObject(9) != null ? ((Number) r.getObject(9)).doubleValue() : null,
+       r.getString(10)
+   ), itemCode, itemCode, itemCode, itemCode);
  }
  @Transactional public void adjustStock(OperationDtos.StockAdjustmentRequest d){
    CurrentUser.requirePermission("INVENTORY.EDIT","Adjust stock");
@@ -668,7 +733,7 @@ public class BusinessOperationsService {
  private Map<Integer,List<OperationDtos.ChargeDto>> saleChargeSummaries(Collection<Integer> ids){Map<Integer,List<OperationDtos.ChargeDto>> out=new HashMap<>();if(ids==null||ids.isEmpty())return out;for(var e:salesCharges.findBySalesIdInOrderBySalesIdAscSequenceNoAscIdAsc(ids)){if(e.getSalesId()==null)continue;out.computeIfAbsent(e.getSalesId(),k->new ArrayList<>()).add(new OperationDtos.ChargeDto(e.getChargeName(),n(e.getAmount()),Boolean.TRUE.equals(e.getTaxable()),n(e.getGstPercent())));}return out;}
  private OperationDtos.SaleDto saleSummaryDto(SalesHeaderEntity h,double quantity,List<OperationDtos.ChargeDto> charges){return saleDto(h,false,quantity,charges==null?List.of():charges);}
  private OperationDtos.SaleDto saleDto(SalesHeaderEntity h,boolean includeLines){List<OperationDtos.LineDto> lines=includeLines?salesLines.findBySalesIdOrderByIdAsc(h.getId()).stream().map(this::line).toList():List.of();double quantity=includeLines?lines.stream().mapToDouble(OperationDtos.LineDto::quantity).sum():saleQuantityTotals(List.of(h.getId())).getOrDefault(h.getId(),0d);List<OperationDtos.ChargeDto> charges=saleChargeSummaries(List.of(h.getId())).getOrDefault(h.getId(),List.of());return saleDto(h,includeLines,quantity,charges);}
- private OperationDtos.SaleDto saleDto(SalesHeaderEntity h,boolean includeLines,double quantity,List<OperationDtos.ChargeDto> charges){List<OperationDtos.LineDto> lines=includeLines?salesLines.findBySalesIdOrderByIdAsc(h.getId()).stream().map(this::line).toList():List.of();List<OperationDtos.ChargeDto> safeCharges=charges==null?List.of():List.copyOf(charges);OperationDtos.ChargeDto first=safeCharges.isEmpty()?null:safeCharges.getFirst();return new OperationDtos.SaleDto(h.getId(),h.getInvoiceNo(),h.getInvoiceDate(),saleParty(h),n(h.getSubtotal()),n(h.getDiscountAmount()),n(h.getGstAmount()),n(h.getTotalAmount()),h.getRemarks(),h.getCreatedAt(),n(h.getEmailSent())!=0,h.getDueDate(),n(h.getPaidAmount()),h.getPaymentStatus(),n(h.getWhatsappSent())!=0,h.getInvoiceType(),h.getSalesperson(),h.getSource(),h.getNotes(),h.getDeliveryAddress(),h.getPaymentTerms(),h.getTransporter(),h.getReferenceNo(),h.getPoDate(),h.getBillingAddress(),h.getGstType(),h.getDoorDelivery(),h.getVehicleNumber(),h.getContactPerson(),h.getTransportNote(),h.getOrderNo(),h.getGstin(),h.getBillingGstin(),h.getDeliveryGstin(),Boolean.TRUE.equals(h.getSameAsBilling()),h.getTransporterGstin(),first==null?h.getChargeType():first.chargeType(),first==null?n(h.getChargeAmount()):first.amount(),h.getContactPersonMobile(),h.getDocumentStatus(),h.getAttachmentPath(),quantity,safeCharges,lines,nv(h.getRowVersion()));}
+ private OperationDtos.SaleDto saleDto(SalesHeaderEntity h,boolean includeLines,double quantity,List<OperationDtos.ChargeDto> charges){List<OperationDtos.LineDto> lines=includeLines?salesLines.findBySalesIdOrderByIdAsc(h.getId()).stream().map(this::line).toList():List.of();List<OperationDtos.ChargeDto> safeCharges=charges==null?List.of():List.copyOf(charges);OperationDtos.ChargeDto first=safeCharges.isEmpty()?null:safeCharges.getFirst();return new OperationDtos.SaleDto(h.getId(),h.getInvoiceNo(),h.getInvoiceDate(),saleParty(h),n(h.getSubtotal()),n(h.getDiscountAmount()),n(h.getGstAmount()),n(h.getTotalAmount()),h.getRemarks(),h.getCreatedAt(),n(h.getEmailSent())!=0,h.getDueDate(),n(h.getPaidAmount()),h.getPaymentStatus(),n(h.getWhatsappSent())!=0,h.getInvoiceType(),h.getSalesperson(),h.getSource(),h.getNotes(),h.getDeliveryAddress(),h.getPaymentTerms(),h.getTransporter(),h.getReferenceNo(),h.getPoDate(),h.getBillingAddress(),h.getGstType(),h.getDoorDelivery(),h.getVehicleNumber(),h.getContactPerson(),h.getTransportNote(),h.getOrderNo(),h.getGstin(),h.getBillingGstin(),h.getDeliveryGstin(),Boolean.TRUE.equals(h.getSameAsBilling()),h.getTransporterGstin(),first==null?h.getChargeType():first.chargeType(),first==null?n(h.getChargeAmount()):first.amount(),h.getContactPersonMobile(),h.getDocumentStatus(),h.getAttachmentPath(),quantity,safeCharges,lines,nv(h.getRowVersion()),h.getEwayBillNo(),h.getEwayBillDate(),h.getDistanceKm());}
  private Map<Integer,Double> recordedPurchasePayments(){return recordedPurchasePayments(purchases.findAll().stream().map(PurchaseHeaderEntity::getId).filter(Objects::nonNull).toList());}
  private Map<Integer,Double> recordedPurchasePayments(Collection<Integer> ids){Map<Integer,Double> out=new HashMap<>();if(ids==null||ids.isEmpty())return out;String csv=idCsv(ids);jdbc.query("SELECT document_id,COALESCE(SUM(amount),0) FROM payment_record WHERE UPPER(document_type)='PURCHASE' AND document_id IN ("+csv+") GROUP BY document_id",r->{out.put(r.getInt(1),r.getDouble(2));});return out;}
  private Map<Integer,Double> purchaseQuantityTotals(){return purchaseQuantityTotals(purchases.findAll().stream().map(PurchaseHeaderEntity::getId).filter(Objects::nonNull).toList());}

@@ -162,10 +162,10 @@ public final class PopupTableWorkspace {
             if (!screens.isEmpty()) screen = screens.get(0);
         }
         Rectangle2D bounds = screen.getVisualBounds();
-        double maxAvailableW = Math.max(760, bounds.getWidth() - 32);
-        double maxAvailableH = Math.max(520, bounds.getHeight() - 48);
-        double targetW = Math.min(maxAvailableW, Math.max(1040, Math.min(1600, bounds.getWidth() * 0.82)));
-        double targetH = Math.min(maxAvailableH, Math.max(560, Math.min(880, bounds.getHeight() * 0.82)));
+        double maxAvailableW = Math.max(760, bounds.getWidth() - 24);
+        double maxAvailableH = Math.max(520, bounds.getHeight() - 32);
+        double targetW = Math.min(maxAvailableW, Math.max(1180, bounds.getWidth() * 0.95));
+        double targetH = Math.min(maxAvailableH, Math.max(680, bounds.getHeight() * 0.94));
 
         DialogPane pane = dialog.getDialogPane();
         pane.setPrefSize(targetW, targetH);
@@ -200,14 +200,14 @@ public final class PopupTableWorkspace {
             if (!screens.isEmpty()) screen = screens.get(0);
         }
         Rectangle2D bounds = screen.getVisualBounds();
-        double maxAvailableW = Math.max(760, bounds.getWidth() - 32);
-        double maxAvailableH = Math.max(520, bounds.getHeight() - 48);
-        double targetW = Math.min(maxAvailableW, Math.max(1200, Math.min(1680, bounds.getWidth() * 0.92)));
+        double maxAvailableW = Math.max(760, bounds.getWidth() - 24);
+        double maxAvailableH = Math.max(520, bounds.getHeight() - 32);
+        double targetW = Math.min(maxAvailableW, Math.max(1200, bounds.getWidth() * 0.95));
 
         // Base chrome: window title (38px) + header (64px) + hero (72px) + toolbar (52px) + table header (38px) + footer (54px) + margins ~ 320px
         int effectiveRows = Math.max(12, expectedRows);
         double contentH = 340.0 + effectiveRows * 40.0;
-        double targetH = Math.min(maxAvailableH, Math.max(680.0, Math.min(940.0, contentH)));
+        double targetH = Math.min(maxAvailableH, Math.max(680.0, Math.min(maxAvailableH, contentH)));
 
         DialogPane pane = dialog.getDialogPane();
         pane.setPrefSize(targetW, targetH);

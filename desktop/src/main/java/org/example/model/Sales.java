@@ -82,6 +82,18 @@ public class Sales {
     private String contactPersonMobile;
     private String documentStatus;
     private String attachmentPath;
+    private String ewayBillNo;
+    private String ewayBillDate;
+    private Integer distanceKm;
+
+    public String getEwayBillNo() { return ewayBillNo; }
+    public void setEwayBillNo(String ewayBillNo) { this.ewayBillNo = ewayBillNo; }
+
+    public String getEwayBillDate() { return ewayBillDate; }
+    public void setEwayBillDate(String ewayBillDate) { this.ewayBillDate = ewayBillDate; }
+
+    public Integer getDistanceKm() { return distanceKm; }
+    public void setDistanceKm(Integer distanceKm) { this.distanceKm = distanceKm; }
 
 
     public int getId() {

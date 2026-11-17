@@ -1081,6 +1081,23 @@
     -fx-border-width: 1 0 0 0;
 }
 
+.erp-dock-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+.erp-dock-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+.erp-dock-scroll .scroll-bar:horizontal {
+    -fx-pref-height: 4px;
+    -fx-opacity: 0.4;
+}
+.erp-dock-scroll .scroll-bar:horizontal:hover {
+    -fx-opacity: 0.8;
+}
+
 .dse-theme-dark .inspection-charges-box {
     -fx-background-color: rgba(30, 41, 59, 0.35);
     -fx-background-radius: 6;
@@ -1485,6 +1502,67 @@
 .dse-theme-light .table-view .table-row-cell:filled:selected .table-cell.erp-table-value-colour-pink { -fx-text-fill: #e11d48; }
 .dse-theme-light .table-view .table-row-cell:filled:selected .table-cell.erp-table-value-colour-teal { -fx-text-fill: #0d9488; }
 .dse-theme-light .table-view .table-row-cell:filled:selected .table-cell.erp-table-value-colour-indigo { -fx-text-fill: #4f46e5; }
+
+/* Universal Tooltip High-Specificity Isolation Fortress */
+.tooltip,
+.erp-tooltip {
+    -fx-background-radius: 7px;
+    -fx-border-radius: 7px;
+    -fx-border-width: 1px;
+    -fx-border-color: rgba(56, 189, 248, 0.40);
+    -fx-font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    -fx-font-size: 11.5px;
+    -fx-font-weight: 600;
+    -fx-padding: 7px 12px;
+    -fx-max-width: 480px;
+    -fx-wrap-text: true;
+    -fx-background-color: #0b1329;
+    -fx-text-fill: #ffffff;
+    -fx-fill: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.60), 12, 0.25, 0, 4);
+}
+.tooltip .label,
+.tooltip .text,
+.tooltip > .text,
+.tooltip Text,
+.erp-tooltip .label,
+.erp-tooltip .text,
+.erp-tooltip > .text,
+.erp-tooltip Text,
+.table-view .tooltip,
+.table-view .table-cell .tooltip,
+.table-view .table-cell .tooltip .label,
+.table-view .table-cell .tooltip .text,
+.table-view .table-cell .tooltip Text,
+.table-view .table-row-cell .table-cell .tooltip,
+.table-view .table-row-cell .table-cell .tooltip .label,
+.table-view .table-row-cell .table-cell .tooltip .text,
+.table-view .table-row-cell .table-cell .tooltip Text,
+.table-view .table-row-cell:selected .table-cell .tooltip,
+.table-view .table-row-cell:selected .table-cell .tooltip .label,
+.table-view .table-row-cell:selected .table-cell .tooltip .text,
+.table-view .table-row-cell:selected .table-cell .tooltip Text,
+.table-cell .tooltip,
+.table-cell .tooltip .label,
+.table-cell .tooltip .text,
+.table-cell .tooltip Text,
+.table-row-cell .tooltip,
+.table-row-cell .tooltip .label,
+.table-row-cell .tooltip .text,
+.table-row-cell .tooltip Text,
+.table-row-cell:selected .tooltip,
+.table-row-cell:selected .tooltip .label,
+.table-row-cell:selected .tooltip .text,
+.table-row-cell:selected .tooltip Text {
+    -fx-text-fill: #ffffff;
+    -fx-fill: #ffffff;
+    -fx-text-background-color: transparent;
+}
+.tooltip > .page-corner,
+.erp-tooltip > .page-corner {
+    -fx-shape: null;
+    -fx-padding: 0;
+}
 
 /* Button palette styling is centrally owned by light-theme.css and dark-theme.css */
 
@@ -2291,4 +2369,32 @@
     -fx-background-radius: 6;
     -fx-padding: 4;
 }
+
+.dse-theme-light .field-value,
+.dse-theme-light .customer-360-detail-cell .field-value {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #0f172a;
+}
+.dse-theme-light .field-value.erp-value-colour-blue { -fx-text-fill: #2563eb !important; }
+.dse-theme-light .field-value.erp-value-colour-green { -fx-text-fill: #15803d !important; }
+.dse-theme-light .field-value.erp-value-colour-orange { -fx-text-fill: #b45309 !important; }
+.dse-theme-light .field-value.erp-value-colour-purple { -fx-text-fill: #7c3aed !important; }
+.dse-theme-light .field-value.erp-value-colour-pink { -fx-text-fill: #cb226d !important; }
+.dse-theme-light .field-value.erp-value-colour-teal { -fx-text-fill: #0f766e !important; }
+.dse-theme-light .field-value.erp-value-colour-indigo { -fx-text-fill: #4f46e5 !important; }
+
+.dse-theme-dark .field-value,
+.dse-theme-dark .customer-360-detail-cell .field-value {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #f8fafc;
+}
+.dse-theme-dark .field-value.erp-value-colour-blue { -fx-text-fill: #93c5fd !important; }
+.dse-theme-dark .field-value.erp-value-colour-green { -fx-text-fill: #4ade80 !important; }
+.dse-theme-dark .field-value.erp-value-colour-orange { -fx-text-fill: #fb923c !important; }
+.dse-theme-dark .field-value.erp-value-colour-purple { -fx-text-fill: #c084fc !important; }
+.dse-theme-dark .field-value.erp-value-colour-pink { -fx-text-fill: #f472b6 !important; }
+.dse-theme-dark .field-value.erp-value-colour-teal { -fx-text-fill: #2dd4bf !important; }
+.dse-theme-dark .field-value.erp-value-colour-indigo { -fx-text-fill: #a5b4fc !important; }
 

@@ -17,4 +17,14 @@ class EmailDeliveryExceptionTest {
         assertTrue(failure.adminMessage().contains("SMTP authentication failed"));
         assertTrue(failure.adminMessage().contains("Google App Password"));
     }
+
+    @Test
+    void parseRecipientAddressesSupportsMultipleDeduplicatedRecipients() throws Exception {
+        var parsed = SmtpMailService.parseRecipientAddresses("accounts@example.com; manager@example.com, ACCOUNTS@example.com ; ");
+        assertEquals(2, parsed.length);
+        assertEquals("accounts@example.com", parsed[0].getAddress());
+        assertEquals("manager@example.com", parsed[1].getAddress());
+        assertThrows(jakarta.mail.internet.AddressException.class,
+                () -> SmtpMailService.parseRecipientAddresses("accounts@example.com; invalid address"));
+    }
 }

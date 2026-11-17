@@ -1,4 +1,44 @@
+# What's New in DSE ERP v11.0.71
+
+### Universal 95% Responsive Document Inspection, Anti-Truncation Action Dock & Supply-Chain E-Way Bill Transit
+- **95% Responsive Modal Geometry (`PopupTableWorkspace.java`) (Rule 7 & Rule 12)**:
+  - Upgraded `applyInspectionSizing` and `applyAdaptiveInspectionSizing` from 82% (hard-capped at `1600×880`) to **95% screen width and 94% screen height**, giving all document inspection modals (Sales, Purchase, Quotations, Sales/Purchase Returns, Credit/Debit Notes, Posting Flow, and Tally Previews) generous workspace area across all monitor resolutions.
+- **Zero-Truncation Action Dock Fortress (`SalesDocumentInspectionDialog`, `PurchaseDocumentInspectionDialog`, `ReturnDocumentInspectionDialog`, `CreditDebitNoteInspectionDialog`, `QuotationDocumentInspectionDialog`, `app-dialog.css`) (Rule 12)**:
+  - Enforced `Region.USE_PREF_SIZE` across all inspection action dock buttons and housed action controls inside a seamless, borderless horizontal scroll container (`.erp-dock-scroll`) with `Close` pinned to the right edge.
+  - Eliminated button label clipping and ellipsis (`Bar...`, `E...`, `C...`) on all screen resolutions and DPI display scales.
+- **Full Supply-Chain E-Way Bill & Clean Register Tables (`SalesListController`, `PurchaseListController`, Inspection Dialogs) (Rule 4, Rule 8, Rule 9 & Rule 11)**:
+  - Kept main register tables clean and spacious by placing E-Way Bill status tracking inside Card 4 ("Logistics & Tax") of the Sales Inspection dialog, adding `"E-Way Bill Center"` quick action buttons to Sales, Purchase, Return, and Credit/Debit Note inspection docks, and exposing `"E-Way Bill & Transit"` in both Sales and Purchase row action menus.
+- **Inventory Stock Movement Ledger 95% Upgrade, Single-Click Open & Full Action Dock (`InventoryController.java`, `ItemStockHistoryDialog.java`) (Rule 4, Rule 7, Rule 8, Rule 11 & Rule 12)**:
+  - Upgraded Stock Movement Ledger from hardcoded `1320×820` to universal **95% width × 94% height** via `PopupTableWorkspace.applyInspectionSizing` and rebalanced column widths (`Activity` 155px, `Linked Reference` 205px, `Realized P&L` 185px) with `USE_PREF_SIZE` pills so zero badges or invoice links ever truncate.
+  - Enabled instant single-click & `Enter` key opening of the Stock Movement Ledger directly from any Inventory Register row.
+  - Added the unified Zero-Truncation Bottom Action Dock with all Inventory actions (`View Item`, `Edit Item`, `Create Sale`, `Create Purchase`, `Adjust Stock`, `Export Excel`, `Export PDF`, `Delete Item`, and right-pinned `Close`).
+
+### Universal Hover Tooltip Contrast Isolation & Zero-Messy Color Hijack
+- **Universal Tooltip CSS Specificity Fortress (`light-theme.css`, `dark-theme.css`, `app-dialog.css`) (Rule 4, Rule 5, Rule 7 & Rule 12)**:
+  - Eliminated contrast degradation and color leakage on cursor hover where ancestor table cell, selected row, or button color classes (`erp-table-value-colour-purple`, `erp-table-value-colour-orange`, `erp-table-value-colour-pink`, `erp-table-value-colour-teal`, `erp-table-value-colour-blue`, `.table-row-cell:selected`) hijacked tooltip text.
+  - Implemented high-specificity compound isolation selectors across all 3 stylesheets (`.table-view .table-cell .tooltip .text`, `.table-row-cell:selected .table-cell .tooltip .label`, etc.) guaranteeing crisp `#ffffff` text fill and transparent text background on a sleek `#0b1329` card.
+  - Added full `.tooltip` design system rules to `app-dialog.css` for 100% theme parity in modal dialogs.
+  - Standardized `IconFactory.createTooltip` and `ProfessionalUiEnhancer.java` with `.erp-tooltip` styling, generous `7px 12px` padding, 480px max-width, and clean text wrapping.
+
+### Universal Top Panel & Detail Cell Contrast Hardening (Customer 360 & Supplier 360)
+- **Root Palette Variable Definitions & High-Specificity Isolation (`dark-theme.css`, `light-theme.css`, `app-dialog.css`) (Rule 4, Rule 5 & Rule 11)**:
+  - Defined canonical `-dse-text-primary`, `-dse-text-secondary`, and `-dse-text-muted` root CSS palette variables to prevent unresolved variable fallbacks to `#000000` black text in dark mode.
+  - Added high-specificity compound rules for `.customer-360-detail-cell .field-value` and `.field-value.erp-value-colour-*` guaranteeing crisp high-contrast visibility ($\ge$ 8.5:1) across all 19 entity profile cards, transaction headers, and inspection dialogs.
+  - Upgraded dark mode `.erp-value-colour-*` tokens to vibrant high-luminance tints (`#93c5fd`, `#4ade80`, `#fb923c`, `#c084fc`, `#f472b6`, `#2dd4bf`, `#a5b4fc`).
+- **Semantic Registry Entity Code Standard (`semantic-registry.properties`)**:
+  - Added explicit `field.customer.code=code`, `field.supplier.code=code`, and `field.party.code=code` definitions so party codes render with the standardized barcode glyph (`fas-barcode`) and indigo semantic styling.
+
+### Universal Multi-Recipient Email Support & Deduplication Parity
+- **Normal Email Popup, Payment Confirmation & Server SMTP Multi-Recipient Support (`EmailTransmissionDialog.java`, `EmailTransmissionDialog.fxml`, `EmailService.java`, `SmtpMailService.java`, `PaymentConfirmationPromptHelper.java`) (Rule 4, Rule 10 & Rule 17)**:
+  - Enabled semicolon (`;`) and comma (`,`) separated multiple recipient email addresses natively across both the **Normal Email Popup** (all 10 invoice/quotation/return/inspection dialogs) and **Direct Quick-Send** actions, matching full parity with the **Payment Confirmation Popup**.
+  - Added strict Jakarta `InternetAddress` validation and case-insensitive deduplication in both `SmtpMailService.parseRecipientAddresses` (Spring Boot server) and `EmailService.parseRecipientAddresses` (Desktop standalone & shared client), preventing `AddressException` crashes and blocking accidental duplicate transmissions.
+
 # What's New in DSE ERP v11.0.70
+
+### Debit Note Posting Flow Column Alignment & Zero Schema Mismatch
+- **Debit Note Line Cost Resolution (`GeneralLedgerService.java`) (Rule 4, Rule 10 & Rule 17)**:
+  - Corrected SQL query in `buildPurchaseReturnPostingFlow` to alias `COALESCE(dnl.unit_cost, 0) AS unit_price` matching the authentic PostgreSQL 16 schema of `debit_note_line` (`unit_cost NUMERIC(15,4)`).
+  - Permanently resolved `SQLState 42703 (undefined_column)` and `UiTaskExecutor` failure (`column dnl.unit_price does not exist`), restoring full 360° journal voucher and stock impact inspection for vendor purchase returns and debit notes.
 
 ### GSTR-2B Full Status Filtering, Anti-Truncation & Rule 88A Cross-ITC Set-Off
 - **GSTR-2B Reconciliation Filters, Status Badging & Zero Truncation (`GstComplianceController.java`) (Rule 4, Rule 7, Rule 11 & Rule 12)**:

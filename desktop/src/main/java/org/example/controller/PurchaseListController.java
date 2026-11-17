@@ -239,7 +239,11 @@ public class PurchaseListController implements ScreenLifecycle{
    Purchase row = requirePurchaseActionTarget(target);
    org.example.util.PostingFlowDialog.show(tablePurchase, "PURCHASE", row.getInvoiceNo());
   });
-  sharedMenu.getItems().setAll(view, postingFlow, linkages, attach, audit, editActionItem, duplicate, pdf, barcode, excel, email, whatsapp, paymentActionItem, returnActionItem, viewReturns, notes, cancelActionItem, deleteActionItem);
+  MenuItem eway = purchaseActionItem("E-Way Bill & Transit", "delivery", () -> {
+   Purchase row = requirePurchaseActionTarget(target);
+   NavigationManager.navigateOrReport("/fxml/pages/EWayBillCenter.fxml");
+  });
+  sharedMenu.getItems().setAll(view, postingFlow, eway, linkages, attach, audit, editActionItem, duplicate, pdf, barcode, excel, email, whatsapp, paymentActionItem, returnActionItem, viewReturns, notes, cancelActionItem, deleteActionItem);
   IconFactory.decorateActionMenu(sharedMenu);
 
   java.util.function.Consumer<Purchase> updateAvailability = current -> {

@@ -226,7 +226,7 @@ public final class IconFactory {
                         button.setAccessibleText(originalText);
                     }
                     if (button.getTooltip() == null) {
-                        button.setTooltip(new Tooltip(originalText));
+                        button.setTooltip(createTooltip(originalText));
                     }
                 } else if (button.getAccessibleText() == null || button.getAccessibleText().isBlank()) {
                     button.setAccessibleText(resolvedSemantic.replace('-', ' '));
@@ -243,7 +243,7 @@ public final class IconFactory {
                 menu.setGraphic(actionIcon("actions", 16));
                 menu.setGraphicTextGap(6);
                 // Geometry belongs to the canonical Light/Dark theme CSS. Java supplies only semantics/behaviour.
-                if (menu.getTooltip() == null) menu.setTooltip(new Tooltip("Open actions"));
+                if (menu.getTooltip() == null) menu.setTooltip(createTooltip("Open actions"));
             }
             decorateMenuItems(menu, actionMenu);
             if (!Boolean.TRUE.equals(menu.getProperties().get("erp.icons.bound"))) {
@@ -257,6 +257,15 @@ public final class IconFactory {
         if (node instanceof Parent parent) {
             for (Node child : parent.getChildrenUnmodifiable()) decorate(child, visited);
         }
+    }
+
+    public static Tooltip createTooltip(String text) {
+        if (text == null || text.isBlank()) return null;
+        Tooltip tip = new Tooltip(text);
+        tip.getStyleClass().add("erp-tooltip");
+        tip.setWrapText(true);
+        tip.setMaxWidth(480);
+        return tip;
     }
 
     private static void decorateLogicalContent(Node node, IdentityHashMap<Node, Boolean> visited) {
@@ -618,6 +627,15 @@ public final class IconFactory {
             item.getProperties().put("erp.icon.decorated", true);
         } else if (item.getGraphic() instanceof FontIcon existingGlyph) {
             String colourName = colour(semantic);
+            String lit = literal(semantic);
+            if (existingGlyph.getIconLiteral() == null || existingGlyph.getIconLiteral().isBlank() || !existingGlyph.getIconLiteral().equals(lit)) {
+                existingGlyph.setIconLiteral(lit);
+            }
+            if (existingGlyph.getIconSize() <= 0) {
+                existingGlyph.setIconSize(16);
+            }
+            String hex = hexColor(colourName);
+            existingGlyph.setIconColor(Color.web(hex));
             existingGlyph.getStyleClass().removeIf(style -> style.startsWith("erp-action-glyph-"));
             if (!existingGlyph.getStyleClass().contains("erp-action-glyph")) {
                 existingGlyph.getStyleClass().add("erp-action-glyph");

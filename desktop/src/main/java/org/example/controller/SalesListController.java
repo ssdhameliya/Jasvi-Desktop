@@ -506,11 +506,15 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             LinkedRecordContext.open("CREDIT_NOTE", null, row.getInvoiceNo(), "APPROVE_RETURN", "SALES_REGISTER");
             NavigationManager.navigateOrReport("/fxml/pages/CreditNoteRegister.fxml");
         });
-        MenuItem postingFlow = salesActionItem("⚡ View Posting Flow (GL/Stock/GST)", "status", () -> {
+        MenuItem postingFlow = salesActionItem("View Posting Flow (GL/Stock/GST)", "status", () -> {
             Sales row = requireSalesActionTarget(target);
             org.example.util.PostingFlowDialog.show(tableSales, "SALE", row.getInvoiceNo());
         });
-        sharedMenu.getItems().setAll(view,postingFlow,linkages,attach,audit,edit,duplicate,print,barcode,excel,email,whatsapp,payment,createReturn,viewReturns,cancel,delete);
+        MenuItem eway = salesActionItem("E-Way Bill & Transit", "delivery", () -> {
+            Sales row = requireSalesActionTarget(target);
+            NavigationManager.navigateOrReport("/fxml/pages/EWayBillCenter.fxml");
+        });
+        sharedMenu.getItems().setAll(view,postingFlow,eway,linkages,attach,audit,edit,duplicate,print,barcode,excel,email,whatsapp,payment,createReturn,viewReturns,cancel,delete);
         IconFactory.decorateActionMenu(sharedMenu);
 
         java.util.function.Consumer<Sales> updateAvailability = current -> {
