@@ -691,15 +691,26 @@ public final class ReturnDocumentInspectionDialog {
         btnPostingFlow.setTooltip(new Tooltip("Inspect Reason-Driven Return Posting, Stock Movement & Statutory GST Impact"));
         btnPostingFlow.setOnAction(e -> PostingFlowDialog.show(dialog.getDialogPane(), isSales ? "SALES_RETURN" : "PURCHASE_RETURN", details.no()));
 
-        dock.getChildren().addAll(btnEditReason, btnOriginal, btnRefund, btnPdf, btnExcel, btnEmail, btnAudit, btnPostingFlow);
+        // 9. E-Way Bill Center
+        Button btnEWayBill = new Button("E-Way Bill Center");
+        btnEWayBill.setGraphic(IconFactory.compactIcon("delivery", 14));
+        btnEWayBill.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnEWayBill.setTooltip(new Tooltip("Open E-Way Bill Center for Return Consignment Transit"));
+        btnEWayBill.setOnAction(e -> {
+            dialog.close();
+            NavigationManager.navigateOrReport("/fxml/pages/EWayBillCenter.fxml");
+        });
 
+        Button btnApprove = null;
+        Button btnReject = null;
         // Approval Buttons if pending
         if (isPending && canApprove) {
-            Button btnApprove = new Button("Approve Return");
+            btnApprove = new Button("Approve Return");
             btnApprove.setGraphic(IconFactory.compactIcon("complete", 14));
             btnApprove.getStyleClass().addAll("approved-button", "approved-success-button");
+            Button finalBtnApprove = btnApprove;
             btnApprove.setOnAction(e -> {
-                btnApprove.setDisable(true);
+                finalBtnApprove.setDisable(true);
                 UiTaskExecutor.submitAction("return-approve-" + details.no(), () -> {
                     ReturnWorkflowService.approve(details.no());
                     return api.details(details.no());
@@ -712,21 +723,22 @@ public final class ReturnDocumentInspectionDialog {
                         renderContent(dialog, host, updatedDetails, isSales, api, support, onUpdated);
                     }
                 }, ex -> {
-                    btnApprove.setDisable(false);
+                    finalBtnApprove.setDisable(false);
                     AppDialogService.error(dialog.getDialogPane(), "Approval failed", ex.getMessage());
                 });
             });
 
-            Button btnReject = new Button("Reject Return");
+            btnReject = new Button("Reject Return");
             btnReject.setGraphic(IconFactory.compactIcon("cancel", 14));
             btnReject.getStyleClass().addAll("approved-button", "approved-danger-button");
+            Button finalBtnReject = btnReject;
             btnReject.setOnAction(e -> {
                 OwnedTextInputDialog td = new OwnedTextInputDialog();
                 td.setTitle("Reject Return");
                 td.setHeaderText("Reject " + details.no());
                 td.setContentText("Reason:");
                 td.showAndWait().map(String::trim).filter(r -> !r.isBlank()).ifPresent(reason -> {
-                    btnReject.setDisable(true);
+                    finalBtnReject.setDisable(true);
                     UiTaskExecutor.submitAction("return-reject-" + details.no(), () -> {
                         ReturnWorkflowService.reject(details.no(), reason);
                         return api.details(details.no());
@@ -739,24 +751,37 @@ public final class ReturnDocumentInspectionDialog {
                             renderContent(dialog, host, updatedDetails, isSales, api, support, onUpdated);
                         }
                     }, ex -> {
-                        btnReject.setDisable(false);
+                        finalBtnReject.setDisable(false);
                         AppDialogService.error(dialog.getDialogPane(), "Rejection failed", ex.getMessage());
                     });
                 });
             });
-
-            dock.getChildren().addAll(btnApprove, btnReject);
         }
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actionsContainer = new HBox(8);
+        actionsContainer.setAlignment(Pos.CENTER_LEFT);
+        actionsContainer.getChildren().addAll(btnEditReason, btnOriginal, btnRefund, btnPdf, btnExcel, btnEmail, btnAudit, btnPostingFlow, btnEWayBill);
+        if (btnApprove != null) actionsContainer.getChildren().add(btnApprove);
+        if (btnReject != null) actionsContainer.getChildren().add(btnReject);
+
+        for (Node node : actionsContainer.getChildren()) {
+            if (node instanceof Region r) r.setMinWidth(Region.USE_PREF_SIZE);
+        }
+
+        ScrollPane scroll = new ScrollPane(actionsContainer);
+        scroll.setFitToHeight(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.getStyleClass().addAll("erp-dock-scroll", "erp-clean-scroll");
+        HBox.setHgrow(scroll, Priority.ALWAYS);
 
         Button btnClose = new Button("Close");
+        btnClose.setMinWidth(Region.USE_PREF_SIZE);
         btnClose.setGraphic(IconFactory.compactIcon("cancel", 14));
         btnClose.getStyleClass().addAll("approved-button", "approved-danger-ghost-button");
         btnClose.setOnAction(e -> dialog.close());
 
-        dock.getChildren().addAll(spacer, btnClose);
+        dock.getChildren().addAll(scroll, btnClose);
         return dock;
     }
 

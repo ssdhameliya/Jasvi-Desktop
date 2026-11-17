@@ -19,6 +19,7 @@ public final class UpdateLifecycle {
             String buildVersion = BuildInfo.version();
             String previous = ConfigManager.get("app.version", "");
             ConfigManager.set("app.version", buildVersion);
+            Thread.ofVirtual().name("update-cache-cleanup").start(() -> UpdateService.cleanupObsoleteAfterStartup(buildVersion));
             if (!previous.isBlank() && SemanticVersion.parse(buildVersion).compareTo(SemanticVersion.parse(previous)) > 0) {
                 boolean sharedClient = ConfigManager.isSharedClient();
                 String detail = sharedClient

@@ -709,10 +709,7 @@ public final class PaymentConfirmationPromptHelper {
                         if (res.sendEmail()) {
                             reporter.stage(currentStage++, totalStages, "Transmitting Email via SMTP...");
                             try {
-                                List<String> emails = Arrays.stream(res.recipientEmail().split("[;,]"))
-                                        .map(String::trim)
-                                        .filter(s -> !s.isBlank())
-                                        .toList();
+                                List<String> emails = EmailService.parseRecipientList(res.recipientEmail());
                                 for (String email : emails) {
                                     EmailService.send(email, res.emailSubject(), res.emailBody(), res.attachmentPdf(), res.signatureImage(), res.senderProfile());
                                     supportApi.communication(new SupportApiClient.CommunicationRequest(

@@ -69,17 +69,45 @@ public final class EmailService {
         resend(recipient, subject, body, attachment, signatureImage, null);
     }
 
+    public static java.util.List<String> parseRecipientList(String raw) {
+        InternetAddress[] parsed = parseRecipientAddresses(raw);
+        return java.util.Arrays.stream(parsed).map(InternetAddress::getAddress).toList();
+    }
+
+    public static InternetAddress[] parseRecipientAddresses(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new IllegalArgumentException("Recipient email address is missing. Update the customer or supplier master record and try again.");
+        }
+        java.util.LinkedHashMap<String, InternetAddress> unique = new java.util.LinkedHashMap<>();
+        for (String token : raw.split("[;,]")) {
+            String trimmed = token.trim();
+            if (trimmed.isEmpty()) continue;
+            try {
+                InternetAddress address = new InternetAddress(trimmed, true);
+                address.validate();
+                unique.putIfAbsent(address.getAddress().toLowerCase(java.util.Locale.ROOT), address);
+            } catch (Exception invalidAddress) {
+                throw new IllegalArgumentException("Invalid recipient email address: " + trimmed, invalidAddress);
+            }
+        }
+        if (unique.isEmpty()) {
+            throw new IllegalArgumentException("Recipient email address is missing. Update the customer or supplier master record and try again.");
+        }
+        return unique.values().toArray(InternetAddress[]::new);
+    }
+
     public static void resend(String recipient, String subject, String body, Path attachment, Path signatureImage, SenderProfile profile) {
         org.example.service.PermissionService.require("COMMUNICATION.RESEND", "re-send a communication");
         if (signatureImage == null && MessageTemplateService.isAttachSignatureToEmail()) {
             signatureImage = MessageTemplateService.getOrCreateSignatureImagePath();
         }
+        String normalizedRecipients = String.join(", ", parseRecipientList(recipient));
         if (ConfigManager.isSharedClient()) {
             SenderProfile effective = profile != null ? profile : defaultSenderProfile();
-            new org.example.api.authority.BusinessEmailClient().resend(recipient, subject, body, attachment, signatureImage, effective.email(), effective.displayName());
+            new org.example.api.authority.BusinessEmailClient().resend(normalizedRecipients, subject, body, attachment, signatureImage, effective.email(), effective.displayName());
             return;
         }
-        send(recipient, subject, body, attachment, signatureImage, profile);
+        send(normalizedRecipients, subject, body, attachment, signatureImage, profile);
     }
 
     public static void send(String recipient, String subject, String body, Path attachment) {
@@ -94,9 +122,11 @@ public final class EmailService {
         if (signatureImage == null && MessageTemplateService.isAttachSignatureToEmail()) {
             signatureImage = MessageTemplateService.getOrCreateSignatureImagePath();
         }
+        InternetAddress[] recipients = parseRecipientAddresses(recipient);
+        String normalizedRecipients = java.util.Arrays.stream(recipients).map(InternetAddress::getAddress).collect(java.util.stream.Collectors.joining(", "));
         SenderProfile effectiveProfile = profile != null ? profile : defaultSenderProfile();
         if (ConfigManager.isSharedClient()) {
-            new org.example.api.authority.BusinessEmailClient().send(recipient, subject, body, attachment, signatureImage, effectiveProfile.email(), effectiveProfile.displayName());
+            new org.example.api.authority.BusinessEmailClient().send(normalizedRecipients, subject, body, attachment, signatureImage, effectiveProfile.email(), effectiveProfile.displayName());
             return;
         }
         String sender = effectiveProfile.email().trim();
@@ -104,14 +134,10 @@ public final class EmailService {
         if (sender.isBlank() || password.isBlank()) {
             throw new IllegalStateException("Email is not configured. Open Settings and enter the sending email address and app password.");
         }
-        if (recipient == null || recipient.isBlank()) {
-            throw new IllegalArgumentException("Recipient email address is missing. Update the customer or supplier master record and try again.");
-        }
         try {
             sender = new InternetAddress(sender, true).getAddress();
-            recipient = new InternetAddress(recipient.trim(), true).getAddress();
         } catch (Exception invalidAddress) {
-            throw new IllegalArgumentException("The sender or recipient email address is not valid.", invalidAddress);
+            throw new IllegalArgumentException("The sender email address is not valid.", invalidAddress);
         }
         if (attachment != null && (!Files.isRegularFile(attachment) || !Files.isReadable(attachment))) {
             throw new IllegalStateException("The PDF attachment could not be read: " + attachment);
@@ -145,7 +171,7 @@ public final class EmailService {
             } catch (Exception ex) {
                 message.setFrom(new InternetAddress(sender));
             }
-            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipient, true));
+            message.setRecipients(Message.RecipientType.TO, recipients);
             message.setSubject(subject);
 
             boolean hasSignatureImage = signatureImage != null && Files.isRegularFile(signatureImage) && Files.isReadable(signatureImage);

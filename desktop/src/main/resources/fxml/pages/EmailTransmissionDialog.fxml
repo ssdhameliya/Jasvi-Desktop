@@ -51,9 +51,9 @@
                     <HBox alignment="CENTER_LEFT" spacing="6">
                         <Label text="Recipient Email Address *" styleClass="field-label,settings-form-label,email-transmission-field-bold"/>
                         <Region HBox.hgrow="ALWAYS"/>
-                        <Label text="Direct delivery target" styleClass="page-subtitle,email-transmission-hint"/>
+                        <Label text="Separate multiple emails with ';' or ','" styleClass="page-subtitle,email-transmission-hint"/>
                     </HBox>
-                    <TextField fx:id="txtRecipient" promptText="name@example.com" styleClass="approved-input"/>
+                    <TextField fx:id="txtRecipient" promptText="accounts@example.com; manager@example.com" styleClass="approved-input"/>
                     <Label fx:id="errRecipient" text="Valid recipient email address is required" visible="false" managed="false" styleClass="validation-message,email-transmission-error"/>
                 </VBox>
 

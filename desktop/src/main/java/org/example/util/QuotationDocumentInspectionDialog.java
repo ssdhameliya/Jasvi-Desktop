@@ -611,17 +611,27 @@ public final class QuotationDocumentInspectionDialog {
                     err -> AppDialogService.error(dialog.getDialogPane(), "Audit record not found", err.getMessage()));
         });
 
-        dock.getChildren().addAll(btnEdit, btnDuplicate, btnPdf, btnExcel, btnEmail, btnFollowUp, btnConvert, btnAudit);
+        HBox actionsContainer = new HBox(8);
+        actionsContainer.setAlignment(Pos.CENTER_LEFT);
+        actionsContainer.getChildren().addAll(btnEdit, btnDuplicate, btnPdf, btnExcel, btnEmail, btnFollowUp, btnConvert, btnAudit);
+        for (Node node : actionsContainer.getChildren()) {
+            if (node instanceof Region r) r.setMinWidth(Region.USE_PREF_SIZE);
+        }
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        ScrollPane scroll = new ScrollPane(actionsContainer);
+        scroll.setFitToHeight(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.getStyleClass().addAll("erp-dock-scroll", "erp-clean-scroll");
+        HBox.setHgrow(scroll, Priority.ALWAYS);
 
         Button btnClose = new Button("Close");
+        btnClose.setMinWidth(Region.USE_PREF_SIZE);
         btnClose.setGraphic(IconFactory.compactIcon("cancel", 14));
         btnClose.getStyleClass().addAll("approved-button", "approved-danger-ghost-button");
         btnClose.setOnAction(e -> dialog.close());
 
-        dock.getChildren().addAll(spacer, btnClose);
+        dock.getChildren().addAll(scroll, btnClose);
         return dock;
     }
 

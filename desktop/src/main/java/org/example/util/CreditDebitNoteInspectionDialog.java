@@ -536,17 +536,37 @@ public final class CreditDebitNoteInspectionDialog {
         btnPostingFlow.setTooltip(new Tooltip("Inspect Credit/Debit Note Double-Entry Voucher & Statutory GST Schedules"));
         btnPostingFlow.setOnAction(e -> PostingFlowDialog.show(dialog.getDialogPane(), isCreditNote ? "CREDIT_NOTE" : "DEBIT_NOTE", details.noteNo()));
 
-        dock.getChildren().addAll(btnEdit, btnBarcode, btnAudit, btnPostingFlow);
+        // 5. E-Way Bill Center
+        Button btnEWayBill = new Button("E-Way Bill Center");
+        btnEWayBill.setGraphic(IconFactory.compactIcon("delivery", 14));
+        btnEWayBill.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnEWayBill.setTooltip(new Tooltip("Open E-Way Bill Center & Transit Tracking"));
+        btnEWayBill.setOnAction(e -> {
+            dialog.close();
+            NavigationManager.navigateOrReport("/fxml/pages/EWayBillCenter.fxml");
+        });
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actionsContainer = new HBox(8);
+        actionsContainer.setAlignment(Pos.CENTER_LEFT);
+        actionsContainer.getChildren().addAll(btnEdit, btnBarcode, btnAudit, btnPostingFlow, btnEWayBill);
+        for (Node node : actionsContainer.getChildren()) {
+            if (node instanceof Region r) r.setMinWidth(Region.USE_PREF_SIZE);
+        }
+
+        ScrollPane scroll = new ScrollPane(actionsContainer);
+        scroll.setFitToHeight(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.getStyleClass().addAll("erp-dock-scroll", "erp-clean-scroll");
+        HBox.setHgrow(scroll, Priority.ALWAYS);
 
         Button btnClose = new Button("Close");
+        btnClose.setMinWidth(Region.USE_PREF_SIZE);
         btnClose.setGraphic(IconFactory.compactIcon("cancel", 14));
-        btnClose.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnClose.getStyleClass().addAll("approved-button", "approved-danger-ghost-button");
         btnClose.setOnAction(e -> dialog.close());
 
-        dock.getChildren().addAll(spacer, btnClose);
+        dock.getChildren().addAll(scroll, btnClose);
         return dock;
     }
 

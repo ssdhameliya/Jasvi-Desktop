@@ -1263,7 +1263,7 @@ public final class ProfessionalUiEnhancer {
             if (isLinkColumn() && !str.isBlank() && !"-".equals(str) && !"—".equals(str)) {
                 getStyleClass().add("erp-table-link-cell");
                 setCursor(Cursor.HAND);
-                setTooltip(new Tooltip(str + " (Click to copy)"));
+                setTooltip(IconFactory.createTooltip(str + " (Click to copy)"));
                 setOnMouseClicked(e -> {
                     if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
                         Clipboard clipboard = Clipboard.getSystemClipboard();

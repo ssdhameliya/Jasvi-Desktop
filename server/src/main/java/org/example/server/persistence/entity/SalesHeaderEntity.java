@@ -41,6 +41,9 @@ public class SalesHeaderEntity {
  @Column(name="delivery_gstin") private String deliveryGstin;
  @Column(name="same_as_billing",nullable=false) private Boolean sameAsBilling = Boolean.TRUE;
  @Column(name="transporter_gstin") private String transporterGstin;
+ @Column(name="eway_bill_no") private String ewayBillNo;
+ @Column(name="eway_bill_date") private String ewayBillDate;
+ @Column(name="distance_km") private Integer distanceKm;
  @Column(name="charge_type") private String chargeType;
  @Column(name="charge_amount") private Double chargeAmount;
  @Column(name="contact_person_mobile") private String contactPersonMobile;
@@ -97,6 +100,9 @@ public class SalesHeaderEntity {
  public String getDeliveryGstin(){return deliveryGstin;} public void setDeliveryGstin(String v){deliveryGstin=v;}
  public Boolean getSameAsBilling(){return sameAsBilling;} public void setSameAsBilling(Boolean v){sameAsBilling=v;}
  public String getTransporterGstin(){return transporterGstin;} public void setTransporterGstin(String v){transporterGstin=v;}
+ public String getEwayBillNo(){return ewayBillNo;} public void setEwayBillNo(String v){ewayBillNo=v;}
+ public String getEwayBillDate(){return ewayBillDate;} public void setEwayBillDate(String v){ewayBillDate=v;}
+ public Integer getDistanceKm(){return distanceKm;} public void setDistanceKm(Integer v){distanceKm=v;}
  public String getChargeType(){return chargeType;} public void setChargeType(String v){chargeType=v;}
  public Double getChargeAmount(){return chargeAmount;} public void setChargeAmount(Double v){chargeAmount=v;}
  public String getContactPersonMobile(){return contactPersonMobile;} public void setContactPersonMobile(String v){contactPersonMobile=v;}

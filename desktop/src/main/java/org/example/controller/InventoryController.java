@@ -48,7 +48,7 @@ public class InventoryController implements ScreenLifecycle {
         if(colActions!=null) IconFactory.applyTableHeaderIcon(colActions, "actions");
         DynamicTableLayoutManager.install(tableItems);
         ProfessionalUiEnhancer.refreshTableDecorations(tableItems);
-        refresh();
+        loadInventorySilently();
     }
 
  private void installKpiIcons(){if(inventoryPageIcon!=null)inventoryPageIcon.getChildren().setAll(IconFactory.icon("inventory",24));setKpiIcon(inventoryTotalIcon,"item");setKpiIcon(inventoryStockIcon,"complete");setKpiIcon(inventoryLowIcon,"reminder");setKpiIcon(inventoryOutIcon,"error");setKpiIcon(inventoryValueIcon,"currency");}
@@ -60,19 +60,40 @@ public class InventoryController implements ScreenLifecycle {
    TableRow<Item> row=new TableRow<>();
    MenuItem view=new MenuItem("View Item",IconFactory.compactIcon("view",16)),
        edit=new MenuItem("Edit Item",IconFactory.compactIcon("edit",16)),
+       createSale=new MenuItem("Create Sale",IconFactory.compactIcon("sale",16)),
+       createPurchase=new MenuItem("Create Purchase",IconFactory.compactIcon("purchase",16)),
        adjust=new MenuItem("Adjust Stock",IconFactory.compactIcon("adjust",16)),
        history=new MenuItem("View Stock History",IconFactory.compactIcon("history",16)),
        delete=new MenuItem("Delete Item",IconFactory.compactIcon("delete",16));
-   ContextMenu menu=new ContextMenu(view,edit,adjust,history,new SeparatorMenuItem(),delete);IconFactory.decorateActionMenu(menu);
+   ContextMenu menu=new ContextMenu(view,edit,new SeparatorMenuItem(),createSale,createPurchase,new SeparatorMenuItem(),adjust,history,new SeparatorMenuItem(),delete);IconFactory.decorateActionMenu(menu);
    view.setOnAction(e->{selectRow(row);showDetails(row.getItem());});
    edit.setOnAction(e->{selectRow(row);openItemDialog(row.getItem());});
+   createSale.setOnAction(e->{selectRow(row);openTransaction(row.getItem(),true);});
+   createPurchase.setOnAction(e->{selectRow(row);openTransaction(row.getItem(),false);});
    adjust.setOnAction(e->{selectRow(row);adjust(row.getItem());});
    history.setOnAction(e->{selectRow(row);history(row.getItem());});
    delete.setOnAction(e->{selectRow(row);deleteItem(row.getItem());});
    row.setOnContextMenuRequested(e->{if(row.isEmpty()){menu.hide();return;}selectRow(row);menu.show(row,e.getScreenX(),e.getScreenY());e.consume();});
-   row.setOnMouseClicked(e->{if(row.isEmpty()||e.getButton()!=MouseButton.PRIMARY||e.getClickCount()!=1||RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(),row))return;selectRow(row);e.consume();});
+   row.setOnMouseClicked(e->{if(row.isEmpty()||e.getButton()!=MouseButton.PRIMARY||e.getClickCount()!=1||RegisterUiSupport.isInteractiveTableTarget(e.getPickResult().getIntersectedNode(),row))return;selectRow(row);history(row.getItem());e.consume();});
    return row;
   });
+  tableItems.setOnKeyPressed(e->{
+   if(e.getCode()==javafx.scene.input.KeyCode.ENTER){
+    Item item=tableItems.getSelectionModel().getSelectedItem();
+    if(item!=null){history(item);e.consume();}
+   }
+  });
+ }
+
+ private void openTransaction(Item item, boolean sale){
+  if(item==null||item.getItemCode()==null||item.getItemCode().isBlank())return;
+  if(sale){
+   ItemTransactionContext.sale(item.getItemCode());
+   org.example.navigation.NavigationManager.navigateOrReport("/fxml/pages/Sale.fxml");
+  }else{
+   ItemTransactionContext.purchase(item.getItemCode());
+   org.example.navigation.NavigationManager.navigateOrReport("/fxml/pages/Purchase.fxml");
+  }
  }
 
  private void selectRow(TableRow<Item> row){tableItems.getSelectionModel().select(row.getItem());tableItems.requestFocus();}
@@ -86,6 +107,9 @@ public class InventoryController implements ScreenLifecycle {
  }
 
  private void deleteItem(Item item){
+  deleteItem(item, null);
+ }
+ private void deleteItem(Item item, Runnable onDeleted){
   if(item==null)return;
   Alert confirm=new OwnedAlert(Alert.AlertType.CONFIRMATION,"Delete item '"+item.getDescription()+"'? This cannot be undone.",ButtonType.YES,ButtonType.NO);
   confirm.setHeaderText("Confirm item deletion");
@@ -93,15 +117,27 @@ public class InventoryController implements ScreenLifecycle {
    UiTaskExecutor.submitAction(
     "inventory-delete-"+item.getItemCode(),
     ()->{service.delete(item);return true;},
-    ignored->{NotificationService.add("Item '"+item.getDescription()+"' was deleted.");org.example.util.AppDialogService.success(tableItems,"Item deleted","Item deleted successfully.");refresh();},
+    ignored->{NotificationService.add("Item '"+item.getDescription()+"' was deleted.");org.example.util.AppDialogService.success(tableItems,"Item deleted","Item deleted successfully.");if(onDeleted!=null)onDeleted.run();refresh();},
     failure->error(asException(failure))
    );
   }
  }
  private TableCell<Item,Double>numberCell(){return new TableCell<>(){protected void updateItem(Double v,boolean e){super.updateItem(v,e);setText(e?null:String.format("%.2f",v));setAlignment(Pos.CENTER_RIGHT);}};}private TableCell<Item,Double>moneyCell(){return new TableCell<>(){protected void updateItem(Double v,boolean e){super.updateItem(v,e);setText(e?null:money.format(v));setAlignment(Pos.CENTER_RIGHT);}};}private TableCell<Item,String>statusCell(){return SemanticTableCells.status("inventory");}
-private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final MenuButton m=new MenuButton();{MenuItem v=new MenuItem("View Item",IconFactory.compactIcon("view",16)),eItem=new MenuItem("Edit Item",IconFactory.compactIcon("edit",16)),a=new MenuItem("Adjust Stock",IconFactory.compactIcon("adjust",16)),h=new MenuItem("View History",IconFactory.compactIcon("history",16));v.setOnAction(e->{Item i=getTableView().getItems().get(getIndex());tableItems.getSelectionModel().select(i);showDetails(i);});eItem.setOnAction(e->openItemDialog(getTableView().getItems().get(getIndex())));a.setOnAction(e->adjust(getTableView().getItems().get(getIndex())));h.setOnAction(e->history(getTableView().getItems().get(getIndex())));m.getItems().addAll(v,eItem,a,h);m.getStyleClass().add("row-actions");m.setGraphic(IconFactory.compactIcon("actions",16));m.setText("Actions");m.setContentDisplay(ContentDisplay.LEFT);m.setGraphicTextGap(6);m.setTooltip(new Tooltip("Actions"));IconFactory.decorateActionMenu(m);}protected void updateItem(Void v,boolean e){super.updateItem(v,e);setGraphic(e?null:m);}});}
+private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final MenuButton m=new MenuButton();{MenuItem v=new MenuItem("View Item",IconFactory.compactIcon("view",16)),eItem=new MenuItem("Edit Item",IconFactory.compactIcon("edit",16)),createSale=new MenuItem("Create Sale",IconFactory.compactIcon("sale",16)),createPurchase=new MenuItem("Create Purchase",IconFactory.compactIcon("purchase",16)),a=new MenuItem("Adjust Stock",IconFactory.compactIcon("adjust",16)),h=new MenuItem("View History",IconFactory.compactIcon("history",16));v.setOnAction(e->{Item i=getTableView().getItems().get(getIndex());tableItems.getSelectionModel().select(i);showDetails(i);});eItem.setOnAction(e->openItemDialog(getTableView().getItems().get(getIndex())));createSale.setOnAction(e->openTransaction(getTableView().getItems().get(getIndex()),true));createPurchase.setOnAction(e->openTransaction(getTableView().getItems().get(getIndex()),false));a.setOnAction(e->adjust(getTableView().getItems().get(getIndex())));h.setOnAction(e->history(getTableView().getItems().get(getIndex())));m.getItems().addAll(v,eItem,new SeparatorMenuItem(),createSale,createPurchase,new SeparatorMenuItem(),a,h);m.getStyleClass().add("row-actions");m.setGraphic(IconFactory.compactIcon("actions",16));m.setText("Actions");m.setContentDisplay(ContentDisplay.LEFT);m.setGraphicTextGap(6);m.setTooltip(new Tooltip("Actions"));IconFactory.decorateActionMenu(m);}protected void updateItem(Void v,boolean e){super.updateItem(v,e);setGraphic(e?null:m);}});}
  @FXML public void refresh(){
-   inventoryRefreshFinish = org.example.util.OperationalUiSupport.beginRefresh(btnRefresh, "Refreshing inventory…");
+   refreshWithFeedback();
+ }
+ public void loadInventorySilently(){
+   loadInventory(false);
+ }
+ @FXML private void refreshWithFeedback(){
+   loadInventory(true);
+ }
+ private void loadInventory(boolean withFeedback){
+   if(withFeedback && btnRefresh!=null){
+     if(inventoryRefreshFinish!=null) return;
+     inventoryRefreshFinish = org.example.util.OperationalUiSupport.beginRefresh(btnRefresh, "Refreshing inventory…");
+   }
    org.example.util.OperationalUiSupport.showLoading(tableItems,"Loading inventory…");
    UiTaskExecutor.submitLatest(
     "inventory-load",
@@ -165,60 +201,30 @@ private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final
   pick.showAndWait().ifPresent(this::adjust);
 } private void adjust(Item item){Dialog<ButtonType>d=new OwnedDialog<>(tableItems);d.setTitle("Stock Adjustment");d.setHeaderText(item.getItemCode()+" • Current "+item.getOpeningStock());d.getDialogPane().getStyleClass().addAll("stock-premium-dialog");d.getDialogPane().setGraphic(IconFactory.icon("stock",30));ComboBox<String>type=new ComboBox<>(FXCollections.observableArrayList("ADD","REMOVE","SET"));type.setValue("ADD");TextField qty=new TextField(),reason=new TextField(),ref=new TextField();GridPane g=new GridPane();g.getStyleClass().add("inventory-stock-adjust-form");g.addRow(0,new Label("Type"),type);g.addRow(1,new Label("Quantity"),qty);g.addRow(2,new Label("Reason"),reason);g.addRow(3,new Label("Reference"),ref);qty.setPromptText("Enter quantity");reason.setPromptText("Required reason");ref.setPromptText("Optional reference");type.setMaxWidth(Double.MAX_VALUE);qty.setMaxWidth(Double.MAX_VALUE);reason.setMaxWidth(Double.MAX_VALUE);ref.setMaxWidth(Double.MAX_VALUE);d.getDialogPane().setContent(g);ButtonType apply=new ButtonType("Apply Adjustment",ButtonBar.ButtonData.OK_DONE);d.getDialogPane().getButtonTypes().addAll(apply,ButtonType.CANCEL);Button applyButton=(Button)d.getDialogPane().lookupButton(apply);applyButton.setGraphic(IconFactory.compactIcon("adjust",16));Button cancelButton=(Button)d.getDialogPane().lookupButton(ButtonType.CANCEL);cancelButton.setGraphic(IconFactory.compactIcon("cancel",16));d.showAndWait().filter(b->b==apply).ifPresent(b->{try{double q=Double.parseDouble(qty.getText());if(q<0||reason.getText().isBlank())throw new IllegalArgumentException("Enter a valid quantity and reason");String user=SessionService.current()==null?"System":SessionService.current().getFullName();var request=new OperationsApiClient.StockAdjustmentRequest(item.getItemCode(),type.getValue(),q,reason.getText(),ref.getText(),user);UiTaskExecutor.submitAction("inventory-adjust-"+item.getItemCode(),()->{operationsApi.adjustStock(request);return true;},ignored->{NotificationService.add("Stock adjusted for "+item.getItemCode());org.example.util.AppDialogService.success(tableItems,"Stock adjusted",item.getItemCode()+" stock was updated successfully.");refresh();},failure->error(asException(failure)));}catch(Exception e){error(e);}});}
  private void history(Item item){
-  UiTaskExecutor.submitLatest(
-   "inventory-history-"+item.getItemCode(),
-   ()->operationsApi.stockHistory(item.getItemCode()),
-   rows->showHistory(item,rows),
-   failure->error(asException(failure))
+  if(item==null)return;
+  org.example.util.ItemStockHistoryDialog.show(
+   tableItems,
+   item,
+   operationsApi,
+   new org.example.util.ItemStockHistoryDialog.ItemActions(
+    this::showDetails,
+    this::openItemDialog,
+    this::adjust,
+    this::deleteItem,
+    this::refresh
+   )
   );
- }
- private void showHistory(Item item,List<OperationsApiClient.StockHistoryEntry> rows){
-  TableView<String[]> t=new TableView<>();
-  String[] names={"Date","Type","Quantity","Reason","Reference","User"};
-  String[] semantics={"calendar","category","quantity","notes","reference","user"};
-  for(int i=0;i<names.length;i++){
-   final int n=i;
-   TableColumn<String[],String> c=new TableColumn<>(names[i]);
-   c.setCellValueFactory(v->new SimpleStringProperty(v.getValue()[n]));
-   IconFactory.applyTableHeaderIcon(c,semantics[i]);
-   if(i==2)c.setCellFactory(column->new TableCell<>(){
-    @Override protected void updateItem(String value,boolean empty){
-     super.updateItem(value,empty);setText(empty?null:value);
-     getStyleClass().removeAll("erp-quantity-positive","erp-quantity-negative","erp-quantity-neutral");
-     if(!empty&&value!=null){
-      if(value.startsWith("+"))getStyleClass().add("erp-quantity-positive");
-      else if(value.startsWith("-"))getStyleClass().add("erp-quantity-negative");
-      else getStyleClass().add("erp-quantity-neutral");
-     }
-    }
-   });
-   t.getColumns().add(c);
-  }
-  for(var r:rows)t.getItems().add(new String[]{s(r.date()),s(r.type()),String.format("%+.2f",r.quantity()),s(r.reason()),s(r.reference()),s(r.user())});
-  PopupTableWorkspace.prepareTable(t,"erp-table-profile-history");
-  t.getStyleClass().addAll("professional-table","entity-table");
-  t.setPrefHeight(410);
-  String unit=s(item.getUnit());
-  String suffix=unit.isBlank()?"":" "+unit;
-  HBox metrics=PopupTableWorkspace.metricStrip(
-   PopupTableWorkspace.metricCard("Current Stock",String.format(Locale.ENGLISH,"%,.2f%s",item.getOpeningStock(),suffix),"inventory"),
-   PopupTableWorkspace.metricCard("Available",String.format(Locale.ENGLISH,"%,.2f%s",item.getAvailableStock(),suffix),"complete")
-  );
-  Label recordCount=PopupTableWorkspace.footerText(t.getItems().size()+" movement record"+(t.getItems().size()==1?"":"s"));
-  VBox content=PopupTableWorkspace.content(metrics,t,recordCount);
-  Dialog<ButtonType>d=new OwnedDialog<>(tableItems);
-  d.setTitle("Stock History - "+item.getItemCode());
-  d.setHeaderText(item.getDescription()+" • Complete stock movement history");
-  PopupTableWorkspace.prepareDialog(d,960);
-  d.getDialogPane().setContent(content);
-  d.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-  Button closeButton=(Button)d.getDialogPane().lookupButton(ButtonType.CLOSE);closeButton.setGraphic(IconFactory.compactIcon("cancel",16));
-  d.showAndWait();
-
  }
  @FXML private void exportExcel(){org.example.service.PermissionService.require("INVENTORY.EXPORT", "Export Inventory");File out=ExportFeedbackManager.resolveWorkspaceExportFile("Inventory", "Stock_Register", "xlsx");if(!ExportFeedbackManager.checkFileWriteable(tableItems, out))return;try(Workbook w=new XSSFWorkbook();FileOutputStream o=new FileOutputStream(out)){Sheet sh=w.createSheet("Stock");String[]h={"Code","Item","Category","HSN","Unit","GST %","In Stock","Available","Minimum","Value","Status"};Row r=sh.createRow(0);for(int i=0;i<h.length;i++)r.createCell(i).setCellValue(h[i]);int n=1;for(Item i:tableItems.getItems()){r=sh.createRow(n++);Object[]v={i.getItemCode(),i.getDescription(),i.getCategory(),i.getHsn(),i.getUnit(),i.getGst(),i.getOpeningStock(),i.getAvailableStock(),i.getMinimumStock(),Math.max(0, i.getAvailableStock())*i.getPurchasePrice(),status(i)};for(int j=0;j<v.length;j++)if(v[j]instanceof Number z)r.createCell(j).setCellValue(z.doubleValue());else r.createCell(j).setCellValue(s(String.valueOf(v[j])));}w.write(o);ExportFeedbackManager.notifyExportSuccess(tableItems, out, "Stock Inventory Register", tableItems.getItems().size());}catch(Exception e){error(e);}}
  private Exception asException(Throwable failure){return failure instanceof Exception e?e:new RuntimeException(failure);}
  private String s(String v){return v==null?"":v;}private void warn(String m){new OwnedAlert(Alert.AlertType.WARNING,m).showAndWait();}private void error(Exception e){e.printStackTrace();new OwnedAlert(Alert.AlertType.ERROR,e.getMessage()==null?"Operation failed":e.getMessage()).showAndWait();}
- @Override public void onScreenShown(boolean reusedFromCache){org.example.util.OperationalUiSupport.focusWorkArea(tableItems);if(reusedFromCache&&ScreenRefreshPolicy.shouldRefresh("inventory",ScreenRefreshPolicy.Mode.WHEN_STALE))refresh();}
- @Override public void onScreenHidden(){UiTaskExecutor.cancelPrefix("inventory-");searchDebouncer.cancel();}
+ @Override public void onScreenShown(boolean reusedFromCache){org.example.util.OperationalUiSupport.focusWorkArea(tableItems);if(reusedFromCache&&ScreenRefreshPolicy.shouldRefresh("inventory",ScreenRefreshPolicy.Mode.WHEN_STALE))loadInventorySilently();}
+ @Override public void onScreenHidden(){
+   UiTaskExecutor.cancelPrefix("inventory-");
+   searchDebouncer.cancel();
+   if(inventoryRefreshFinish!=null){
+     inventoryRefreshFinish.run();
+     inventoryRefreshFinish=null;
+   }
+ }
 }
