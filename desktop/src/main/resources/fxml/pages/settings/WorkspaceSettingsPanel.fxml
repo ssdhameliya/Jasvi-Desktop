@@ -69,6 +69,8 @@
             <VBox spacing="3" GridPane.columnIndex="1"><Label text="Attachments" styleClass="settings-form-label"/><Label fx:id="lblStorageAttachments" text="—" styleClass="workspace-metric-value"/></VBox>
             <VBox spacing="3" GridPane.rowIndex="1"><Label text="Reports / Exports" styleClass="settings-form-label"/><Label fx:id="lblStorageReportsExports" text="—" styleClass="workspace-metric-value"/></VBox>
             <VBox spacing="3" GridPane.columnIndex="1" GridPane.rowIndex="1"><Label text="Logs / Temp" styleClass="settings-form-label"/><Label fx:id="lblStorageLogsTemp" text="—" styleClass="workspace-metric-value"/></VBox>
+            <VBox spacing="3" GridPane.rowIndex="2"><Label text="Backups (Protected)" styleClass="settings-form-label"/><Label fx:id="lblStorageBackups" text="—" styleClass="workspace-metric-value"/></VBox>
+            <VBox spacing="3" GridPane.columnIndex="1" GridPane.rowIndex="2"><Label text="This PC (SharedClient) Cache" styleClass="settings-form-label"/><Label fx:id="lblStorageLocalClient" text="—" styleClass="workspace-metric-value"/></VBox>
         </GridPane>
         <Label fx:id="lblStorageTotal" text="Total managed storage: —" styleClass="settings-form-label"/>
         <Label fx:id="lblLastCleanup" text="Last cleanup: Never run" wrapText="true" styleClass="settings-help-text"/>

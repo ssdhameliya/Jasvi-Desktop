@@ -679,6 +679,11 @@ public class LoginController implements ScreenLifecycle {
                 } catch (Exception ex) {
                     System.err.println("[Login] Asset sync warning: " + ex.getMessage());
                 }
+                try {
+                    org.example.service.LocalClientStorageCleaner.runDailyMaintenanceIfDue();
+                } catch (Exception ex) {
+                    System.err.println("[Login] Local client storage cleanup warning: " + ex.getMessage());
+                }
             });
             return user;
         }, authenticated -> {

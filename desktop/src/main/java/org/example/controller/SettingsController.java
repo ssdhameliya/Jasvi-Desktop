@@ -485,6 +485,8 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private Label lblStorageAttachments;
     @FXML private Label lblStorageReportsExports;
     @FXML private Label lblStorageLogsTemp;
+    @FXML private Label lblStorageBackups;
+    @FXML private Label lblStorageLocalClient;
     @FXML private Label lblStorageTotal;
     @FXML private Label lblLastCleanup;
     @FXML private Label lblTelemetryTargetBadge;
@@ -1882,14 +1884,27 @@ private record AssetPreviewRequest(
     private void previewStorageCleanup() {
         if (!SessionService.isAdmin()) { warn("Storage cleanup can be previewed only by an administrator."); return; }
         UiTaskExecutor.submitAction("settings-storage-cleanup-preview",
-                WorkspaceSettingsService::previewCleanup,
-                result -> {
-                    OwnedAlert alert = new OwnedAlert(Alert.AlertType.INFORMATION,
-                            "Cleanup preview\n\nFiles eligible for deletion: " + result.filesDeleted()
-                                    + "\nLog files eligible for compression: " + result.filesCompressed()
-                                    + "\nPotential space recovery: " + formatBytes(result.bytesReclaimed())
-                                    + "\n\nDocuments, attachments, backups and database files are excluded.",
-                            ButtonType.OK);
+                () -> {
+                    var server = WorkspaceSettingsService.previewCleanup();
+                    var local = WorkspaceSettingsService.previewLocalCleanup(null);
+                    return new Object[]{server, local};
+                },
+                pair -> {
+                    var result = (org.example.api.storage.StorageApiClient.CleanupResult) pair[0];
+                    var local = (org.example.service.LocalClientStorageCleaner.LocalCleanupResult) pair[1];
+                    StringBuilder msg = new StringBuilder();
+                    msg.append("Server (Oracle VM / Active Server):\n")
+                            .append("• Files eligible for deletion: ").append(result.filesDeleted()).append("\n")
+                            .append("• Log files eligible for compression: ").append(result.filesCompressed()).append("\n")
+                            .append("• Potential space recovery: ").append(formatBytes(result.bytesReclaimed()));
+                    if (local.executed()) {
+                        msg.append("\n\nThis PC (SharedClient Local Cache):\n")
+                                .append("• Files eligible for deletion: ").append(local.filesDeleted()).append("\n")
+                                .append("• Log files eligible for compression: ").append(local.filesCompressed()).append("\n")
+                                .append("• Potential space recovery: ").append(formatBytes(local.bytesReclaimed()));
+                    }
+                    msg.append("\n\nDocuments, attachments, backups, Config and database files are strictly protected.");
+                    OwnedAlert alert = new OwnedAlert(Alert.AlertType.INFORMATION, msg.toString(), ButtonType.OK);
                     alert.setHeaderText("Safe storage cleanup preview");
                     alert.showAndWait();
                 },
@@ -1900,21 +1915,40 @@ private record AssetPreviewRequest(
     private void cleanStorageNow() {
         if (!SessionService.isAdmin()) { warn("Storage cleanup can be run only by an administrator."); return; }
         UiTaskExecutor.submitAction("settings-storage-cleanup-confirm-preview",
-                WorkspaceSettingsService::previewCleanup,
-                preview -> {
+                () -> {
+                    var server = WorkspaceSettingsService.previewCleanup();
+                    var local = WorkspaceSettingsService.previewLocalCleanup(null);
+                    return new Object[]{server, local};
+                },
+                pair -> {
+                    var preview = (org.example.api.storage.StorageApiClient.CleanupResult) pair[0];
+                    var localPreview = (org.example.service.LocalClientStorageCleaner.LocalCleanupResult) pair[1];
+                    int totalFiles = preview.filesDeleted() + (localPreview.executed() ? localPreview.filesDeleted() : 0);
+                    int totalCompressed = preview.filesCompressed() + (localPreview.executed() ? localPreview.filesCompressed() : 0);
+                    long totalBytes = preview.bytesReclaimed() + (localPreview.executed() ? localPreview.bytesReclaimed() : 0);
                     ButtonType clean = new ButtonType("Clean Now", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
                     OwnedAlert confirm = new OwnedAlert(Alert.AlertType.CONFIRMATION,
-                            "The current retention policy makes " + preview.filesDeleted() + " files eligible for deletion"
-                                    + (preview.filesCompressed() > 0 ? " and " + preview.filesCompressed() + " old logs eligible for compression" : "")
-                                    + ".\n\nEstimated space recovery: " + formatBytes(preview.bytesReclaimed())
-                                    + "\n\nInvoices, attachments, payment proofs, backups and database records will NOT be touched.",
+                            "The current retention policy makes " + totalFiles + " files eligible for deletion"
+                                    + (totalCompressed > 0 ? " and " + totalCompressed + " old logs eligible for compression" : "")
+                                    + (localPreview.executed() ? " (across Server + This PC SharedClient)" : "")
+                                    + ".\n\nEstimated space recovery: " + formatBytes(totalBytes)
+                                    + "\n\nInvoices, attachments, payment proofs, backups, Config and database records will NOT be touched.",
                             ButtonType.CANCEL, clean);
                     confirm.setHeaderText("Run safe workspace cleanup?");
                     if (confirm.showAndWait().orElse(ButtonType.CANCEL) != clean) return;
                     UiTaskExecutor.submitAction("settings-storage-cleanup-run",
-                            WorkspaceSettingsService::cleanNow,
-                            result -> {
-                                org.example.util.AppDialogService.success(panelWorkspace, "Storage cleanup completed", result.summary());
+                            () -> {
+                                var serverRes = WorkspaceSettingsService.cleanNow();
+                                var localRes = WorkspaceSettingsService.cleanLocalNow(null);
+                                return new Object[]{serverRes, localRes};
+                            },
+                            resPair -> {
+                                var result = (org.example.api.storage.StorageApiClient.CleanupResult) resPair[0];
+                                var localResult = (org.example.service.LocalClientStorageCleaner.LocalCleanupResult) resPair[1];
+                                String summary = localResult.executed()
+                                        ? "Server: " + result.summary() + "\n" + localResult.summary()
+                                        : result.summary();
+                                org.example.util.AppDialogService.success(panelWorkspace, "Storage cleanup completed", summary);
                                 refreshStorageUsage();
                             },
                             error -> showError("Storage cleanup failed: " + safeMessage(error)));
@@ -2082,6 +2116,18 @@ private record AssetPreviewRequest(
         if (lblStorageAttachments != null) lblStorageAttachments.setText(formatBytes(status.attachmentsBytes()));
         if (lblStorageReportsExports != null) lblStorageReportsExports.setText(formatBytes(status.reportsBytes() + status.exportsBytes()));
         if (lblStorageLogsTemp != null) lblStorageLogsTemp.setText(formatBytes(status.logsBytes() + status.tempBytes()));
+        if (lblStorageBackups != null) lblStorageBackups.setText(formatBytes(status.backupsBytes()));
+        if (lblStorageLocalClient != null) {
+            if (ConfigManager.isSharedClient()) {
+                lblStorageLocalClient.setText("Measuring…");
+                UiTaskExecutor.submitLatest("settings-local-storage-usage",
+                        WorkspaceSettingsService::localStorageUsage,
+                        local -> lblStorageLocalClient.setText(formatBytes(local.totalOperationalBytes()) + " (Exports/Logs/Temp)"),
+                        err -> lblStorageLocalClient.setText("Unavailable"));
+            } else {
+                lblStorageLocalClient.setText("Shared with Server (Local)");
+            }
+        }
         if (lblStorageTotal != null) lblStorageTotal.setText("Total managed storage: " + formatBytes(status.totalManagedBytes()));
         if (lblLastCleanup != null) {
             String when = status.lastCleanupAt() == null || status.lastCleanupAt().isBlank() ? "Never run" : status.lastCleanupAt();

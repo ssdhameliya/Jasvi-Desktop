@@ -26,6 +26,9 @@ public final class WorkspaceSettingsService {
     public static StorageApiClient.Status storageStatus() { return new StorageApiClient().status(); }
     public static StorageApiClient.CleanupResult previewCleanup() { return new StorageApiClient().previewCleanup(); }
     public static StorageApiClient.CleanupResult cleanNow() { return new StorageApiClient().cleanNow(); }
+    public static LocalClientStorageCleaner.LocalUsage localStorageUsage() { return LocalClientStorageCleaner.measureLocalUsage(); }
+    public static LocalClientStorageCleaner.LocalCleanupResult previewLocalCleanup(StorageApiClient.Policy policy) { return LocalClientStorageCleaner.cleanup(policy, true); }
+    public static LocalClientStorageCleaner.LocalCleanupResult cleanLocalNow(StorageApiClient.Policy policy) { return LocalClientStorageCleaner.cleanup(policy, false); }
 
     public static WorkspaceManager.ExistingWorkspaceInspection inspectExisting(Path root) { return WorkspaceManager.inspectExisting(root); }
     public static void configureExisting(Path root) throws Exception { WorkspaceManager.configureExisting(root); }

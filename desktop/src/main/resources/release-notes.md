@@ -1,3 +1,15 @@
+# What's New in DSE ERP v11.0.73
+
+### Unified Storage Usage Transparency & Local SharedClient Auto-Cleanup (Desktop-Only)
+- **Backups & Local Workstation Cache Visibility (`WorkspaceSettingsPanel.fxml`, `SettingsController.java`) (Rule 4, Rule 5, Rule 11 & Rule 12)**:
+  - Added dedicated **Backups (Protected)** metric card in Settings $\rightarrow$ Workspace Storage Usage so the server's protected backup footprint transparently reconciles with `Total managed storage`.
+  - Added **This PC (SharedClient) Cache** live size readout in Shared Cloud mode showing local `Exports`, `Logs`, and `Temp` usage on the workstation without blocking the JavaFX UI thread.
+- **Automated Daily Local SharedClient Retention Engine (`LocalClientStorageCleaner.java`, `WorkspaceSettingsService.java`, `LoginController.java`) (Rule 1, Rule 4 & Rule 10)**:
+  - Runs automatically once every 24 hours on a post-login Java 25 virtual thread (and on-demand via **Preview Cleanup** / **Clean Now**) strictly in Shared Cloud mode to prune expired local PC `Exports`, `Exports/Diagnostics`, `Reports`, `Imports/Results`, `Temp`, and compress/prune rotated `Logs` using the exact server retention policy.
+  - Strictly protects `Config/`, `Documents/`, `Attachments/`, `Backups/`, `Database/`, and active log files, with zero changes to the Oracle Cloud VM server.
+
+---
+
 # What's New in DSE ERP v11.0.72
 
 ### Oracle Cloud VM Automatic Post-Deployment Storage Guardian & Retention Engine
