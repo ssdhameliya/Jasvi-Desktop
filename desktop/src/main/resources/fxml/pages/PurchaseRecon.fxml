@@ -16,17 +16,77 @@
    <TableView fx:id="table" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive,erp-purple-selection-table"><columns><TableColumn fx:id="colRef" text="System Ref"/><TableColumn fx:id="colDate" text="Invoice Date"/><TableColumn fx:id="colSupplier" text="Recon Supplier"/><TableColumn fx:id="colInvoice" text="Supplier Invoice"/><TableColumn fx:id="colValue" text="Invoice Value"/><TableColumn fx:id="colLinked" text="Linked Ref"/><TableColumn fx:id="colBalance" text="Balance"/><TableColumn fx:id="colStatus" text="Status"/><TableColumn fx:id="colSource" text="Source"/><TableColumn fx:id="colAction" text="Actions" sortable="false"/></columns></TableView>
    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="table-footer"><Label fx:id="lblPageInfo" text="Showing 0 of 0 records" styleClass="register-record-count"/><Region HBox.hgrow="ALWAYS"/><Button fx:id="btnPrevPage" text="‹ Previous" onAction="#previousPage" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnNextPage" text="Next ›" onAction="#nextPage" styleClass="approved-button,approved-secondary-button"/></HBox>
   </VBox>
-  <VBox fx:id="editorPanel" spacing="9" prefWidth="680" minWidth="560" styleClass="approved-card,recon-editor-panel"><HBox alignment="CENTER_LEFT"><VBox><Label fx:id="lblEditorTitle" text="Purchase Recon Details" styleClass="section-title"/><Label fx:id="lblReference" text="Select a record or create a new one" styleClass="muted-label"/></VBox><Region HBox.hgrow="ALWAYS"/><Button text="Close" onAction="#closeEditor" styleClass="approved-button,approved-secondary-button"/></HBox><Separator/>
-   <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="import-inner-scroll"><VBox spacing="10">
-    <HBox alignment="CENTER_LEFT"><VBox HBox.hgrow="ALWAYS"><Label text="Recon Supplier" styleClass="field-label"/><ComboBox fx:id="cmbSupplier" maxWidth="Infinity"/></VBox><Button fx:id="btnAddSupplier" text="Add Recon Supplier" onAction="#addSupplier" styleClass="approved-button,approved-secondary-button"/></HBox>
-    <GridPane hgap="8" vgap="8"><columnConstraints><ColumnConstraints percentWidth="50"/><ColumnConstraints percentWidth="50"/></columnConstraints><Label text="Supplier Invoice No." styleClass="field-label"/><Label text="Invoice Date" styleClass="field-label" GridPane.columnIndex="1"/><TextField fx:id="txtInvoiceNo" GridPane.rowIndex="1"/><DatePicker fx:id="dpInvoiceDate" GridPane.rowIndex="1" GridPane.columnIndex="1" maxWidth="Infinity"/><Label text="Taxable Value" styleClass="field-label" GridPane.rowIndex="2"/><Label text="Invoice Value" styleClass="field-label" GridPane.rowIndex="2" GridPane.columnIndex="1"/><TextField fx:id="txtTaxable" GridPane.rowIndex="3"/><TextField fx:id="txtInvoiceValue" GridPane.rowIndex="3" GridPane.columnIndex="1"/><Label text="CGST" styleClass="field-label" GridPane.rowIndex="4"/><Label text="SGST / UTGST" styleClass="field-label" GridPane.rowIndex="4" GridPane.columnIndex="1"/><TextField fx:id="txtCgst" GridPane.rowIndex="5"/><TextField fx:id="txtSgst" GridPane.rowIndex="5" GridPane.columnIndex="1"/><Label text="IGST" styleClass="field-label" GridPane.rowIndex="6"/><Label text="Other / Rounding" styleClass="field-label" GridPane.rowIndex="6" GridPane.columnIndex="1"/><TextField fx:id="txtIgst" GridPane.rowIndex="7"/><TextField fx:id="txtOther" GridPane.rowIndex="7" GridPane.columnIndex="1"/></GridPane>
-    <HBox spacing="8" styleClass="approved-highlight-strip"><VBox HBox.hgrow="ALWAYS"><Label text="Linked Amount" wrapText="true" styleClass="metric-label"/><Label fx:id="lblLinked" text="₹ 0.00" styleClass="metric-value"/></VBox><VBox HBox.hgrow="ALWAYS"><Label text="Balance" wrapText="true" styleClass="metric-label"/><Label fx:id="lblBalance" text="₹ 0.00" styleClass="metric-value"/></VBox><VBox HBox.hgrow="ALWAYS"><Label text="Status" wrapText="true" styleClass="metric-label"/><Label fx:id="lblStatus" text="OPEN" styleClass="approved-status"/></VBox></HBox>
-    <Label fx:id="lblTaxWarning" text="" visible="false" managed="false" wrapText="true" styleClass="import-warning-text"/>
-    <Label text="Notes" styleClass="field-label"/><TextArea fx:id="txtNotes" prefRowCount="3" wrapText="true"/>
-    <VBox spacing="7" styleClass="approved-card"><HBox alignment="CENTER_LEFT"><Label text="Attachments" styleClass="section-title"/><Region HBox.hgrow="ALWAYS"/><Label text="Stored on server" styleClass="muted-label"/></HBox><ListView fx:id="listAttachments" prefHeight="105"/><HBox spacing="7"><Button fx:id="btnAttachmentAdd" text="Add" onAction="#addAttachment" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnAttachmentPreview" text="Preview" onAction="#previewAttachment" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnAttachmentDelete" text="Delete" onAction="#deleteAttachment" styleClass="approved-button,approved-danger-button"/></HBox></VBox>
-    <VBox spacing="7" styleClass="approved-card"><HBox alignment="CENTER_LEFT"><Label text="Bank Statement Links" styleClass="section-title"/><Region HBox.hgrow="ALWAYS"/><Label text="Purchase Recon ↔ Bank Statement ↔ Bank Entry" styleClass="muted-label"/></HBox><ListView fx:id="listBankLinks" prefHeight="105"/><HBox spacing="7"><Button fx:id="btnOpenStatement" text="Open Bank Statement" onAction="#openBankStatement" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnOpenBankEntry" text="Open Bank Entry" onAction="#openBankEntry" styleClass="approved-button,approved-secondary-button"/></HBox></VBox>
-   </VBox></ScrollPane>
-   <HBox alignment="CENTER_RIGHT" spacing="8"><Button text="Cancel" onAction="#closeEditor" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnSave" text="Save Purchase Recon" onAction="#saveRecord" styleClass="approved-button,approved-primary-button"/></HBox>
+  <VBox fx:id="editorPanel" spacing="10" styleClass="approved-card,recon-editor-panel">
+   <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+   <!-- Compact Identity + Live Status Strip (No duplicate inner Close button) -->
+   <HBox alignment="CENTER_LEFT" spacing="16" styleClass="approved-highlight-strip">
+    <VBox spacing="1">
+     <Label fx:id="lblEditorTitle" text="Purchase Recon Details" minWidth="-Infinity" styleClass="section-title"/>
+     <Label fx:id="lblReference" text="Select a record or create a new one" minWidth="-Infinity" styleClass="muted-label"/>
+    </VBox>
+    <Region HBox.hgrow="ALWAYS"/>
+    <HBox alignment="CENTER_LEFT" spacing="20">
+     <VBox spacing="1"><Label text="Linked Amount" styleClass="metric-label"/><Label fx:id="lblLinked" text="₹ 0.00" styleClass="metric-value"/></VBox>
+     <VBox spacing="1"><Label text="Balance" styleClass="metric-label"/><Label fx:id="lblBalance" text="₹ 0.00" styleClass="metric-value"/></VBox>
+     <VBox spacing="1"><Label text="Status" styleClass="metric-label"/><Label fx:id="lblStatus" text="OPEN" styleClass="approved-status"/></VBox>
+    </HBox>
+   </HBox>
+
+   <!-- Balanced Content-Adaptive 2-Panel Form (Zero Giant Voids, Zero Ellipsis) -->
+   <HBox spacing="14">
+    <!-- Left Panel (~60%): Core Supplier, Invoice, Financials, Taxes & Compact Notes -->
+    <VBox spacing="10" HBox.hgrow="ALWAYS" styleClass="approved-card">
+     <HBox alignment="BOTTOM_LEFT" spacing="10">
+      <VBox spacing="4" HBox.hgrow="ALWAYS"><Label text="Recon Supplier" styleClass="field-label"/><ComboBox fx:id="cmbSupplier" maxWidth="Infinity" styleClass="approved-input"/></VBox>
+      <Button fx:id="btnAddSupplier" text="Add Recon Supplier" onAction="#addSupplier" minWidth="-Infinity" styleClass="approved-button,approved-secondary-button"/>
+     </HBox>
+
+     <GridPane hgap="12" vgap="8">
+      <columnConstraints><ColumnConstraints percentWidth="50" hgrow="ALWAYS"/><ColumnConstraints percentWidth="50" hgrow="ALWAYS"/></columnConstraints>
+      <VBox spacing="4" GridPane.columnIndex="0" GridPane.rowIndex="0"><Label text="Supplier Invoice No." styleClass="field-label"/><TextField fx:id="txtInvoiceNo" promptText="e.g. SUP/2026/0142" styleClass="approved-input"/></VBox>
+      <VBox spacing="4" GridPane.columnIndex="1" GridPane.rowIndex="0"><Label text="Invoice Date" styleClass="field-label"/><DatePicker fx:id="dpInvoiceDate" maxWidth="Infinity" styleClass="approved-input"/></VBox>
+     </GridPane>
+
+     <GridPane hgap="12" vgap="8">
+      <columnConstraints><ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/><ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/><ColumnConstraints percentWidth="33.34" hgrow="ALWAYS"/></columnConstraints>
+      <VBox spacing="4" GridPane.columnIndex="0" GridPane.rowIndex="0"><Label text="Taxable Value" styleClass="field-label"/><TextField fx:id="txtTaxable" styleClass="approved-input"/></VBox>
+      <VBox spacing="4" GridPane.columnIndex="1" GridPane.rowIndex="0"><Label text="Invoice Value" styleClass="field-label"/><TextField fx:id="txtInvoiceValue" styleClass="approved-input"/></VBox>
+      <VBox spacing="4" GridPane.columnIndex="2" GridPane.rowIndex="0"><Label text="Other / Rounding" styleClass="field-label"/><TextField fx:id="txtOther" styleClass="approved-input"/></VBox>
+
+      <VBox spacing="4" GridPane.columnIndex="0" GridPane.rowIndex="1"><Label text="CGST" styleClass="field-label"/><TextField fx:id="txtCgst" styleClass="approved-input"/></VBox>
+      <VBox spacing="4" GridPane.columnIndex="1" GridPane.rowIndex="1"><Label text="SGST / UTGST" styleClass="field-label"/><TextField fx:id="txtSgst" styleClass="approved-input"/></VBox>
+      <VBox spacing="4" GridPane.columnIndex="2" GridPane.rowIndex="1"><Label text="IGST" styleClass="field-label"/><TextField fx:id="txtIgst" styleClass="approved-input"/></VBox>
+     </GridPane>
+
+     <Label fx:id="lblTaxWarning" text="" visible="false" managed="false" wrapText="true" styleClass="import-warning-text"/>
+
+     <VBox spacing="4">
+      <Label text="Notes" styleClass="field-label"/>
+      <TextArea fx:id="txtNotes" prefRowCount="3" minHeight="72" prefHeight="78" maxHeight="94" wrapText="true" promptText="Optional reconciliation remarks or supplier bill references..."/>
+     </VBox>
+    </VBox>
+
+    <!-- Right Panel (~40%): Proportionate Attachments + Bank Statement Links -->
+    <VBox spacing="10" minWidth="380" prefWidth="420" HBox.hgrow="SOMETIMES">
+     <VBox spacing="8" styleClass="approved-card">
+      <HBox alignment="CENTER_LEFT" spacing="8"><Label text="Attachments" minWidth="-Infinity" styleClass="section-title"/><Region HBox.hgrow="ALWAYS"/><Label text="Stored on server" minWidth="-Infinity" styleClass="muted-label"/></HBox>
+      <ListView fx:id="listAttachments" minHeight="96" prefHeight="110" maxHeight="128"/>
+      <HBox spacing="8"><Button fx:id="btnAttachmentAdd" text="Add" onAction="#addAttachment" minWidth="-Infinity" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnAttachmentPreview" text="Preview" onAction="#previewAttachment" minWidth="-Infinity" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnAttachmentDelete" text="Delete" onAction="#deleteAttachment" minWidth="-Infinity" styleClass="approved-button,approved-danger-button"/></HBox>
+     </VBox>
+
+     <VBox spacing="8" styleClass="approved-card">
+      <HBox alignment="CENTER_LEFT" spacing="8"><Label text="Bank Statement Links" minWidth="-Infinity" styleClass="section-title"/><Region HBox.hgrow="ALWAYS"/><Label text="Linked entries" minWidth="-Infinity" styleClass="muted-label"/></HBox>
+      <ListView fx:id="listBankLinks" minHeight="96" prefHeight="110" maxHeight="128"/>
+      <HBox spacing="8"><Button fx:id="btnOpenStatement" text="Open Bank Statement" onAction="#openBankStatement" minWidth="-Infinity" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnOpenBankEntry" text="Open Bank Entry" onAction="#openBankEntry" minWidth="-Infinity" styleClass="approved-button,approved-secondary-button"/></HBox>
+     </VBox>
+    </VBox>
+   </HBox>
+
+   <!-- Bottom Action Dock -->
+   <HBox alignment="CENTER_RIGHT" spacing="10" styleClass="inspection-action-dock">
+    <Button text="Cancel" onAction="#closeEditor" minWidth="-Infinity" styleClass="approved-button,approved-danger-ghost-button"/>
+    <Button fx:id="btnSave" text="Save Purchase Recon" onAction="#saveRecord" minWidth="-Infinity" styleClass="approved-button,approved-primary-button"/>
+   </HBox>
   </VBox>
  </HBox>
 </VBox>

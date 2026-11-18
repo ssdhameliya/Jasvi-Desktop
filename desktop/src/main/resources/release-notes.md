@@ -1,3 +1,29 @@
+# What's New in DSE ERP v11.0.74
+
+### Zero-Scroll Redesign of Purchase Recon & Recon Supplier Pop-Up Modals
+- **New / Edit Purchase Recon 95% 2-Panel Workspace (`PurchaseRecon.fxml`, `PurchaseReconController.java`) (Rule 5, Rule 11 & Rule 12)**:
+  - Replaced the cramped `680px` single-column scrolling drawer with a wide **95% responsive 2-panel workspace** (`PopupTableWorkspace.applyInspectionSizing`).
+  - Grouped Supplier, Invoice/Date, 3-column Financials & GST Taxes (`Taxable`, `Invoice Value`, `Other/Rounding`, `CGST`, `SGST/UTGST`, `IGST`), and Notes on the left panel, with **Attachments** and **Bank Statement Links** side-by-side on the right panel and a unified Identity + Live Status strip at the top (removing the redundant inner header/Close button).
+  - Upgraded the inline **"Add Recon Supplier"** quick modal to a clean 2-column padded grid.
+- **New / Edit Recon Supplier Wide 2-Column Zero-Scroll Form (`ReconSupplier.fxml`, `ReconSupplierController.java`) (Rule 5, Rule 11 & Rule 12)**:
+  - Converted the narrow `600px` 1-column scrolling list into a spacious **2-column responsive grid** (`~960px+` content-adaptive bounds) so all 9 supplier fields (`Reference`, `Status`, `Trade / Legal Name`, `GSTIN`, `PAN`, `Contact Person`, `Phone`, `Email`, `Notes`) and bottom action buttons fit cleanly on one screen with zero vertical scrolling and zero clipped controls.
+
+### Universal Smart Compact-Digit DatePicker Auto-Formatting (All Screens & Pop-Ups)
+- **Instant Compact Date Conversion (`BusinessClock.java`, `DatePickerFormatter.java`, `ProfessionalUiEnhancer.java`, `AppDialogRenderer.java`) (Rule 4 & Rule 13)**:
+  - Typing compact 8-digit dates such as `18112026`, `11182026`, or `20261118` into **any** DatePicker across all 21 FXML screens and every modal pop-up (`OwnedDialog` / `AppDialogRenderer`) now auto-converts immediately into the active **Company Settings date format** (e.g., `2026-11-18` under `YYYY-MM-DD`, `18/11/2026` under `DD/MM/YYYY`, or `11/18/2026` under `MM/DD/YYYY`).
+  - Supports 6-digit shorthand (`181126` / `111826`) and dot/space separators (`18.11.2026`, `18 11 2026`) on Enter/Tab/blur, uses strict calendar validation (rejecting impossible dates like `31022026` while preserving the prior valid date instead of clearing the field), and honors Settings + OS Locale priority for ambiguous dates (`05062026`).
+
+### Workspace Tab Bar Shortcut Icon Upgrade
+- **Colorful Semantic Keyboard Shortcut Icon (`Dashboard.fxml`, `DashboardController.java`, `light-theme.css`, `dark-theme.css`) (Rule 5, Rule 9 & Rule 11)**:
+  - Replaced the plain-text `[Ctrl+Tab] Switch • [Alt+W] Close • [Ctrl+T] Search` workspace tab hint strip with a compact theme-colored keyboard shortcut icon button that reveals color-coded shortcut pill badges on hover and opens the full Keyboard Shortcuts Reference on click.
+
+### Branded Blue / Green Top Color Accents Across All Inspection Popups
+- **Channel-Aware Top Accent & Tinted Hero Header (`CommunicationInspectionDialog.java`, `GstFullDetailsDialog.java`, `TallyDocumentInspectionDialog.java`, `TallyExportPreviewDialog.java`, `light-theme.css`, `dark-theme.css`, `app-dialog.css`) (Rule 5, Rule 11 & Rule 12)**:
+  - Replaced flat white `.stock-ledger-header` in `CommunicationInspectionDialog` with a full-width 5px channel-colored top gradient accent bar (`.comm-accent-email` Blue / `.comm-accent-whatsapp` Green), channel-tinted hero header banner, semantic kicker, and top-right window close button across Light & Dark themes.
+  - Added canonical `.dse-stage-header-wrap` + `.dse-dialog-accent` top gradient bars to `GstFullDetailsDialog`, `TallyDocumentInspectionDialog`, and `TallyExportPreviewDialog` for 100% visual consistency across every ERP popup modal.
+
+---
+
 # What's New in DSE ERP v11.0.73
 
 ### Unified Storage Usage Transparency & Local SharedClient Auto-Cleanup (Desktop-Only)

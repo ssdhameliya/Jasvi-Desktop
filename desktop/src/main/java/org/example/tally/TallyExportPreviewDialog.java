@@ -75,7 +75,7 @@ public final class TallyExportPreviewDialog {
         double targetH = Math.min(maxH, Math.max(500, Math.min(620, screen.getHeight() * 0.78)));
 
         DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("approved-dialog", "erp-export-preview-dialog");
+        pane.getStyleClass().addAll("dse-dialog-pane", "approved-dialog", "erp-export-preview-dialog");
         pane.getProperties().put("dse.dialog.presented", true);
         pane.setMinWidth(Math.min(720, targetW));
         pane.setMinHeight(Math.min(460, targetH));
@@ -98,11 +98,17 @@ public final class TallyExportPreviewDialog {
         });
 
         VBox root = new VBox(12);
-        root.setPadding(new Insets(16));
+        root.setPadding(new Insets(0, 16, 16, 16));
         root.getStyleClass().addAll("approved-card", "erp-ui-standard");
         VBox.setVgrow(root, Priority.ALWAYS);
 
-        // Header Card
+        // Branded Top Accent Bar & Header Card
+        Region topAccent = new Region();
+        topAccent.setMinHeight(5);
+        topAccent.setPrefHeight(5);
+        topAccent.setMaxHeight(5);
+        topAccent.getStyleClass().add("dse-dialog-accent");
+
         HBox header = new HBox(12);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(10, 14, 10, 14));
@@ -156,9 +162,14 @@ public final class TallyExportPreviewDialog {
             cTotal.setCellFactory(x -> SemanticTableCells.amountString("total"));
 
             tblSummary.getColumns().addAll(cInv, cDate, cVendor, cGstin, cTotal);
-            if (bills != null) tblSummary.getItems().setAll(bills);
+            org.example.util.TablePaginationBar<TallyAutomationApiClient.BillRecordDto> paginationBar =
+                    new org.example.util.TablePaginationBar<>(tblSummary, 25);
+            if (bills != null) paginationBar.setAllItems(bills);
             DynamicTableLayoutManager.install(tblSummary);
-            previewContent = tblSummary;
+            VBox paginatedBox = new VBox(8, tblSummary, paginationBar);
+            VBox.setVgrow(tblSummary, Priority.ALWAYS);
+            VBox.setVgrow(paginatedBox, Priority.ALWAYS);
+            previewContent = paginatedBox;
         } else {
             TextArea txtPayload = new TextArea();
             txtPayload.setEditable(false);
@@ -217,8 +228,11 @@ public final class TallyExportPreviewDialog {
             }
         });
 
+        VBox headerWrap = new VBox(0, topAccent, header);
+        headerWrap.getStyleClass().add("dse-stage-header-wrap");
+
         footer.getChildren().addAll(lblAutoNotice, btnClose, btnDownload);
-        root.getChildren().addAll(header, previewBox, footer);
+        root.getChildren().addAll(headerWrap, previewBox, footer);
         pane.setContent(root);
 
         dialog.showAndWait();

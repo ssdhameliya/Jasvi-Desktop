@@ -81,9 +81,9 @@ public final class SearchableComboBoxHelper {
 
         comboBox.setEditable(true);
 
-        // Ensure string converter matches the display extractor
+        // Ensure string converter matches the display extractor (override JavaFX's default toString converter when extractor is provided)
         StringConverter<T> existingConverter = comboBox.getConverter();
-        if (existingConverter == null) {
+        if (existingConverter == null || textExtractor != null) {
             comboBox.setConverter(createDefaultConverter(comboBox, textExtractor));
         }
 
@@ -98,7 +98,7 @@ public final class SearchableComboBoxHelper {
                     if (!Objects.equals(ed.getText(), display)) {
                         ed.setText(display);
                         if (display != null) {
-                            ed.positionCaret(display.length());
+                            ed.positionCaret(ed.isFocused() ? display.length() : 0);
                         }
                     }
                 } finally {
@@ -361,6 +361,10 @@ public final class SearchableComboBoxHelper {
     }
 
     private static <T> String getDisplayString(ComboBox<T> comboBox, T item, Function<T, String> extractor) {
+        return getDisplayString(comboBox, item, extractor, true);
+    }
+
+    private static <T> String getDisplayString(ComboBox<T> comboBox, T item, Function<T, String> extractor, boolean allowConverter) {
         if (item == null) return "";
         if (extractor != null) {
             try {
@@ -368,7 +372,7 @@ public final class SearchableComboBoxHelper {
                 if (val != null) return val;
             } catch (Exception ignored) {}
         }
-        if (comboBox != null && comboBox.getConverter() != null) {
+        if (allowConverter && comboBox != null && comboBox.getConverter() != null) {
             try {
                 String val = comboBox.getConverter().toString(item);
                 if (val != null && !val.isBlank()) return val;
@@ -387,7 +391,7 @@ public final class SearchableComboBoxHelper {
         return new StringConverter<>() {
             @Override
             public String toString(T object) {
-                return getDisplayString(comboBox, object, extractor);
+                return getDisplayString(comboBox, object, extractor, false);
             }
 
             @Override
@@ -398,13 +402,13 @@ public final class SearchableComboBoxHelper {
                 ObservableList<T> master = (ObservableList<T>) comboBox.getProperties().get(MASTER_ITEMS_PROP);
                 if (master != null) {
                     for (T item : master) {
-                        if (item != null && getDisplayString(comboBox, item, extractor).equalsIgnoreCase(trimmed)) {
+                        if (item != null && getDisplayString(comboBox, item, extractor, false).equalsIgnoreCase(trimmed)) {
                             return item;
                         }
                     }
                 }
                 for (T item : comboBox.getItems()) {
-                    if (item != null && getDisplayString(comboBox, item, extractor).equalsIgnoreCase(trimmed)) {
+                    if (item != null && getDisplayString(comboBox, item, extractor, false).equalsIgnoreCase(trimmed)) {
                         return item;
                     }
                 }

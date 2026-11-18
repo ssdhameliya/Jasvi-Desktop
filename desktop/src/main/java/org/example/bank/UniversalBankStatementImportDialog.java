@@ -45,6 +45,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
     private final ComboBox<BankAccountChoice> cmbBankAccount = new ComboBox<>();
     private final Label lblSelectedFile = new Label("No statement file selected (drag & drop or browse below)");
     private final TableView<UniversalBankStatementParser.AuditRow> table = new TableView<>();
+    private final org.example.util.TablePaginationBar<UniversalBankStatementParser.AuditRow> paginationBar = new org.example.util.TablePaginationBar<>(table, 25);
     private final ObservableList<UniversalBankStatementParser.AuditRow> auditRows = FXCollections.observableArrayList();
     private final javafx.collections.transformation.FilteredList<UniversalBankStatementParser.AuditRow> filteredAuditRows = new javafx.collections.transformation.FilteredList<>(auditRows, p -> true);
     private final ComboBox<String> cmbStatusFilter = new ComboBox<>();
@@ -305,7 +306,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         configureTable();
         VBox.setVgrow(table, Priority.ALWAYS);
 
-        box.getChildren().addAll(top, table);
+        box.getChildren().addAll(top, table, paginationBar);
         return box;
     }
 
@@ -315,7 +316,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
             table.getStyleClass().add("erp-no-row-selection");
         }
         PopupTableWorkspace.prepareTable(table, "erp-table-profile-responsive");
-        table.setItems(filteredAuditRows);
+        paginationBar.bindTo(filteredAuditRows);
 
         // 1. Line / Source Index (#)
         TableColumn<UniversalBankStatementParser.AuditRow, Number> colIdx = new TableColumn<>("#");

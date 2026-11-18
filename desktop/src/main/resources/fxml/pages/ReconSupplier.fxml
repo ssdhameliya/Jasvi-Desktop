@@ -14,9 +14,11 @@
    <HBox alignment="CENTER_LEFT" spacing="8">
     <Label text="Recon Supplier Register" styleClass="section-title"/>
     <Region HBox.hgrow="ALWAYS"/>
-    <StackPane alignment="CENTER_LEFT">
-     <TextField fx:id="txtSearch" promptText="Search reference, name, GSTIN, phone..." prefWidth="330" onAction="#applySearch"/>
-     <StackPane fx:id="searchIcon" mouseTransparent="true"><padding><Insets left="8"/></padding></StackPane>
+    <StackPane prefWidth="340" minWidth="260" maxWidth="380" styleClass="erp-item-search-shell,register-header-search-shell">
+     <TextField fx:id="txtSearch" promptText="Search reference, name, GSTIN, phone..." maxWidth="Infinity" onAction="#applySearch" styleClass="approved-input,erp-item-search,register-header-search-input"/>
+     <StackPane fx:id="searchIcon" mouseTransparent="true" minWidth="24" prefWidth="24" maxWidth="24" minHeight="24" prefHeight="24" maxHeight="24" StackPane.alignment="CENTER_RIGHT" styleClass="erp-item-search-icon-box,register-header-search-icon">
+      <StackPane.margin><Insets right="8"/></StackPane.margin>
+     </StackPane>
     </StackPane>
     <Button fx:id="btnSearch" text="Search" onAction="#applySearch" styleClass="approved-button,approved-secondary-button"/>
     <Button fx:id="btnReset" text="Reset" onAction="#resetFilters" styleClass="approved-button,approved-secondary-button"/>
@@ -44,30 +46,76 @@
     <Button fx:id="btnNextPage" text="Next" onAction="#nextPage" styleClass="approved-button,approved-secondary-button"/>
    </HBox>
   </VBox>
-  <VBox fx:id="editorPanel" spacing="10" prefWidth="600" minWidth="480" styleClass="approved-card,recon-editor-panel"><HBox alignment="CENTER_LEFT"><VBox><Label fx:id="lblEditorTitle" text="New Recon Supplier" styleClass="section-title"/><Label fx:id="lblReference" text="Reference generated on save" styleClass="muted-label"/></VBox><Region HBox.hgrow="ALWAYS"/><Button text="Close" onAction="#cancelEdit" styleClass="approved-button,approved-secondary-button"/></HBox><Separator/>
-   <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="import-inner-scroll">
-    <VBox spacing="9">
-     <Label text="Supplier Reference (Auto-Generated)" styleClass="field-label"/>
-     <TextField fx:id="txtReference" editable="false" promptText="Auto-generated reference"/>
+  <VBox fx:id="editorPanel" spacing="10" styleClass="approved-card,recon-editor-panel">
+   <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+   <!-- Slim Single-Line Reference Strip (Outer AppDialogRenderer header already shows dialog title) -->
+   <HBox alignment="CENTER_LEFT" spacing="12" styleClass="approved-highlight-strip">
+    <Label fx:id="lblEditorTitle" text="New Recon Supplier" minWidth="-Infinity" styleClass="section-title"/>
+    <Region HBox.hgrow="ALWAYS"/>
+    <Label fx:id="lblReference" text="Reference generated on save" minWidth="-Infinity" styleClass="approved-status"/>
+   </HBox>
+
+   <!-- Compact 6-Column, 4-Row Responsive Form Grid (~500px total dialog height, Zero Clipping) -->
+   <GridPane hgap="14" vgap="10">
+    <columnConstraints>
+     <ColumnConstraints percentWidth="16.66" hgrow="ALWAYS"/>
+     <ColumnConstraints percentWidth="16.67" hgrow="ALWAYS"/>
+     <ColumnConstraints percentWidth="16.67" hgrow="ALWAYS"/>
+     <ColumnConstraints percentWidth="16.66" hgrow="ALWAYS"/>
+     <ColumnConstraints percentWidth="16.67" hgrow="ALWAYS"/>
+     <ColumnConstraints percentWidth="16.67" hgrow="ALWAYS"/>
+    </columnConstraints>
+
+    <!-- Row 0: Trade / Legal Name (66%) & Status (34%) -->
+    <VBox spacing="4" GridPane.columnIndex="0" GridPane.rowIndex="0" GridPane.columnSpan="4">
      <Label text="Trade / Legal Name" styleClass="field-label"/>
-     <TextField fx:id="txtName" promptText="Recon supplier name"/>
-     <Label text="GSTIN" styleClass="field-label"/>
-     <TextField fx:id="txtGstin" promptText="GSTIN (unique when present)"/>
-     <Label text="PAN" styleClass="field-label"/>
-     <TextField fx:id="txtPan"/>
-     <Label text="Contact Person" styleClass="field-label"/>
-     <TextField fx:id="txtContact"/>
-     <Label text="Phone" styleClass="field-label"/>
-     <TextField fx:id="txtPhone"/>
-     <Label text="Email" styleClass="field-label"/>
-     <TextField fx:id="txtEmail"/>
-     <Label text="Status" styleClass="field-label"/>
-     <ComboBox fx:id="cmbStatus" maxWidth="Infinity"/>
-     <Label text="Notes" styleClass="field-label"/>
-     <TextArea fx:id="txtNotes" prefRowCount="5" wrapText="true"/>
+     <TextField fx:id="txtName" promptText="Recon supplier name" styleClass="approved-input"/>
     </VBox>
-   </ScrollPane>
-   <HBox alignment="CENTER_RIGHT" spacing="8"><Button text="Cancel" onAction="#cancelEdit" styleClass="approved-button,approved-secondary-button"/><Button fx:id="btnSave" text="Save Recon Supplier" onAction="#saveSupplier" styleClass="approved-button,approved-primary-button"/></HBox>
+    <VBox spacing="4" GridPane.columnIndex="4" GridPane.rowIndex="0" GridPane.columnSpan="2">
+     <Label text="Status" styleClass="field-label"/>
+     <ComboBox fx:id="cmbStatus" maxWidth="Infinity" styleClass="approved-input"/>
+    </VBox>
+
+    <!-- Row 1: Supplier Reference (33%), GSTIN (33%) & PAN (34%) -->
+    <VBox spacing="4" GridPane.columnIndex="0" GridPane.rowIndex="1" GridPane.columnSpan="2">
+     <Label text="Supplier Reference (Auto-Generated)" styleClass="field-label"/>
+     <TextField fx:id="txtReference" editable="false" promptText="Auto-generated reference" styleClass="approved-input"/>
+    </VBox>
+    <VBox spacing="4" GridPane.columnIndex="2" GridPane.rowIndex="1" GridPane.columnSpan="2">
+     <Label text="GSTIN" styleClass="field-label"/>
+     <TextField fx:id="txtGstin" promptText="GSTIN (unique when present)" styleClass="approved-input"/>
+    </VBox>
+    <VBox spacing="4" GridPane.columnIndex="4" GridPane.rowIndex="1" GridPane.columnSpan="2">
+     <Label text="PAN" styleClass="field-label"/>
+     <TextField fx:id="txtPan" promptText="10-character PAN (optional)" styleClass="approved-input"/>
+    </VBox>
+
+    <!-- Row 2: Contact Person (33%), Phone (33%) & Email (34%) -->
+    <VBox spacing="4" GridPane.columnIndex="0" GridPane.rowIndex="2" GridPane.columnSpan="2">
+     <Label text="Contact Person" styleClass="field-label"/>
+     <TextField fx:id="txtContact" promptText="Primary accounts / dispatch contact" styleClass="approved-input"/>
+    </VBox>
+    <VBox spacing="4" GridPane.columnIndex="2" GridPane.rowIndex="2" GridPane.columnSpan="2">
+     <Label text="Phone" styleClass="field-label"/>
+     <TextField fx:id="txtPhone" promptText="Mobile or landline number" styleClass="approved-input"/>
+    </VBox>
+    <VBox spacing="4" GridPane.columnIndex="4" GridPane.rowIndex="2" GridPane.columnSpan="2">
+     <Label text="Email" styleClass="field-label"/>
+     <TextField fx:id="txtEmail" promptText="accounts@supplier.com" styleClass="approved-input"/>
+    </VBox>
+
+    <!-- Row 3: Notes (Full Width, Bounded Crisp Height) -->
+    <VBox spacing="4" GridPane.columnIndex="0" GridPane.rowIndex="3" GridPane.columnSpan="6">
+     <Label text="Notes" styleClass="field-label"/>
+     <TextArea fx:id="txtNotes" prefRowCount="2" minHeight="62" prefHeight="68" maxHeight="84" wrapText="true" promptText="Payment terms, reconciliation remarks, or vendor notes..."/>
+    </VBox>
+   </GridPane>
+
+   <!-- Bottom Action Dock -->
+   <HBox alignment="CENTER_RIGHT" spacing="10" styleClass="inspection-action-dock">
+    <Button text="Cancel" onAction="#cancelEdit" minWidth="-Infinity" styleClass="approved-button,approved-danger-ghost-button"/>
+    <Button fx:id="btnSave" text="Save Recon Supplier" onAction="#saveSupplier" minWidth="-Infinity" styleClass="approved-button,approved-primary-button"/>
+   </HBox>
   </VBox>
  </HBox>
 </VBox>

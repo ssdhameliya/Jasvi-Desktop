@@ -74,7 +74,7 @@ public final class TallyDocumentInspectionDialog {
         dialog.setResizable(true);
 
         DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("approved-dialog", "erp-document-inspection-dialog");
+        pane.getStyleClass().addAll("dse-dialog-pane", "approved-dialog", "erp-document-inspection-dialog");
         pane.getProperties().put("dse.dialog.presented", true);
         PopupTableWorkspace.applyInspectionSizing(dialog, ownerNode);
 
@@ -88,14 +88,21 @@ public final class TallyDocumentInspectionDialog {
         });
 
         VBox root = new VBox(10);
-        root.setPadding(new Insets(12));
+        root.setPadding(new Insets(0, 12, 12, 12));
         root.getStyleClass().addAll("approved-card", "erp-ui-standard");
         VBox.setVgrow(root, Priority.ALWAYS);
 
         DocumentViewerState state = new DocumentViewerState();
 
-        // 1. Header Bar with document meta, financial summary, maximize & close buttons
+        // 1. Branded Top Accent Bar & Header Bar with document meta, financial summary, maximize & close buttons
+        Region topAccent = new Region();
+        topAccent.setMinHeight(5);
+        topAccent.setPrefHeight(5);
+        topAccent.setMaxHeight(5);
+        topAccent.getStyleClass().add("dse-dialog-accent");
         HBox header = buildHeaderBar(dialog, title, subtitle, financialSummary);
+        VBox headerWrap = new VBox(0, topAccent, header);
+        headerWrap.getStyleClass().add("dse-stage-header-wrap");
 
         // 2. Viewer Toolbar (Zoom, Fit, Rotate, Paging)
         HBox toolbar = buildToolbar(state);
@@ -109,7 +116,7 @@ public final class TallyDocumentInspectionDialog {
         state.scrollPane = scrollPane;
         viewerContentArea.getChildren().add(scrollPane);
 
-        root.getChildren().addAll(header, toolbar, viewerContentArea);
+        root.getChildren().addAll(headerWrap, toolbar, viewerContentArea);
         pane.setContent(root);
 
         // Responsive min window bounds

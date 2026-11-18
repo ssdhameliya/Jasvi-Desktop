@@ -3,6 +3,7 @@ package org.example.util;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.ButtonBase;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableCell;
@@ -21,14 +22,18 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ComboBoxBase;
+import javafx.scene.control.Control;
 import javafx.scene.control.ListView;
 import javafx.scene.control.MenuButton;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.skin.ComboBoxListViewSkin;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.AnchorPane;
@@ -292,6 +297,8 @@ public final class ProfessionalUiEnhancer {
         }
         if (node instanceof DialogPane pane) enhanceDialog(pane);
         if (node instanceof PasswordField passwordField) schedulePasswordReveal(passwordField);
+        else if (node instanceof TextField textField) scheduleSearchFieldEnhancement(textField);
+        if (node instanceof DatePicker datePicker) DatePickerFormatter.attach(datePicker);
         if (node instanceof ComboBox<?> combo) enhanceComboBox(combo);
         if (node instanceof MenuButton menuBtn) enhanceMenuButton(menuBtn);
 
@@ -482,6 +489,184 @@ public final class ProfessionalUiEnhancer {
             target.positionCaret(Math.max(0, Math.min(caret, target.getLength())));
         });
 
+    }
+
+    /**
+     * Universally decorates every search TextField (across all FXML pages and Java popups)
+     * with a right-aligned Ikonli search icon and responsive 28% toolbar width cap (260px–420px)
+     * without altering controller TextField references or duplicating explicit search shells.
+     */
+    private static void scheduleSearchFieldEnhancement(TextField field) {
+        if (field == null
+                || field instanceof PasswordField
+                || Boolean.TRUE.equals(field.getProperties().get("erp.search.enhanced"))
+                || Boolean.TRUE.equals(field.getProperties().get("erp.search.pending"))
+                || field.getStyleClass().contains("password-reveal-input")) {
+            return;
+        }
+        if (!isSearchField(field)) return;
+        field.getProperties().put("erp.search.pending", Boolean.TRUE);
+        Platform.runLater(() -> installSearchFieldEnhancement(field));
+    }
+
+    private static boolean isSearchField(TextField field) {
+        if (field == null) return false;
+        Parent p = field.getParent();
+        if (p instanceof ComboBoxBase<?> || p instanceof Spinner<?>) return false;
+        String id = field.getId() == null ? "" : field.getId().toLowerCase(Locale.ROOT);
+        String prompt = field.getPromptText() == null ? "" : field.getPromptText().trim().toLowerCase(Locale.ROOT);
+        if (id.contains("search")) return true;
+        if (prompt.startsWith("search")) return true;
+        for (String cls : field.getStyleClass()) {
+            if (cls != null && cls.toLowerCase(Locale.ROOT).contains("search")) return true;
+        }
+        return false;
+    }
+
+    private static boolean hasExplicitSearchShell(TextField field) {
+        Parent parent = field.getParent();
+        if (parent == null) return false;
+        for (String cls : parent.getStyleClass()) {
+            if (cls != null && (cls.contains("search-shell") || cls.contains("search-box") || cls.equals("erp-auto-search-shell"))) {
+                return true;
+            }
+        }
+        if (parent instanceof StackPane stack && stack.getChildren().size() > 1) {
+            for (Node sibling : stack.getChildren()) {
+                if (sibling == field) continue;
+                String sid = sibling.getId() == null ? "" : sibling.getId().toLowerCase(Locale.ROOT);
+                if (sid.contains("search") || sibling.getStyleClass().stream().anyMatch(c -> c != null && c.toLowerCase(Locale.ROOT).contains("search"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean shouldKeepGenerousSearchWidth(TextField field) {
+        String id = field.getId() == null ? "" : field.getId().toLowerCase(Locale.ROOT);
+        if (id.contains("globalsearch") || id.contains("itemsearch")) return true;
+        for (String cls : field.getStyleClass()) {
+            if (cls != null && (cls.contains("global-search") || cls.contains("erp-item-search"))) return true;
+        }
+        return false;
+    }
+
+    private static void installSearchFieldEnhancement(TextField field) {
+        if (field == null) return;
+        field.getProperties().remove("erp.search.pending");
+        if (Boolean.TRUE.equals(field.getProperties().get("erp.search.enhanced"))) return;
+
+        Parent parent = field.getParent();
+        if (parent instanceof ComboBoxBase<?> || parent instanceof Spinner<?>) return;
+
+        if (hasExplicitSearchShell(field)) {
+            field.getProperties().put("erp.search.enhanced", Boolean.TRUE);
+            if (!shouldKeepGenerousSearchWidth(field) && parent.getParent() instanceof HBox outerHbox && HBox.getHgrow(parent) == Priority.ALWAYS && parent instanceof Region shellRegion) {
+                applyResponsiveToolbarSearchCap(outerHbox, shellRegion);
+            }
+            return;
+        }
+
+        if (!(parent instanceof Pane pane)) return;
+        int index = pane.getChildren().indexOf(field);
+        if (index < 0) return;
+
+        boolean wasHgrowAlways = (pane instanceof HBox) && HBox.getHgrow(field) == Priority.ALWAYS;
+        boolean capToolbarWidth = (pane instanceof HBox) && !shouldKeepGenerousSearchWidth(field)
+                && (wasHgrowAlways || field.getPrefWidth() > 420.0);
+
+        if (!field.getStyleClass().contains("erp-search-input-with-icon")) {
+            field.getStyleClass().add("erp-search-input-with-icon");
+        }
+
+        // Preserve preferred width if explicitly set on compact inputs
+        double origPrefW = field.getPrefWidth();
+        double origMinW = field.getMinWidth();
+        double origMaxW = field.getMaxWidth();
+
+        // JavaFX 25 safe reparenting: remove before attaching to wrapper
+        if (!pane.getChildren().remove(field)) return;
+
+        StackPane wrapper = new StackPane();
+        wrapper.getStyleClass().add("erp-auto-search-shell");
+        copyLayoutConstraints(field, wrapper);
+
+        if (!capToolbarWidth) {
+            if (origPrefW > 0) wrapper.setPrefWidth(origPrefW);
+            if (origMinW > 0) wrapper.setMinWidth(origMinW);
+            if (origMaxW > 0 && origMaxW < Double.MAX_VALUE) wrapper.setMaxWidth(origMaxW);
+            else wrapper.setMaxWidth(Double.MAX_VALUE);
+        }
+
+        field.setMinWidth(0);
+        field.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        field.setMaxWidth(Double.MAX_VALUE);
+
+        StackPane iconBox = new StackPane(IconFactory.compactIcon("search", 15));
+        iconBox.setMouseTransparent(true);
+        iconBox.setMinSize(24, 24);
+        iconBox.setPrefSize(24, 24);
+        iconBox.setMaxSize(24, 24);
+        iconBox.getStyleClass().add("erp-auto-search-icon-box");
+
+        field.getProperties().put("erp.search.enhanced", Boolean.TRUE);
+        wrapper.getProperties().put("erp.search.wrapper", Boolean.TRUE);
+        wrapper.visibleProperty().bind(field.visibleProperty());
+        wrapper.managedProperty().bind(field.managedProperty());
+
+        wrapper.getChildren().addAll(field, iconBox);
+        StackPane.setAlignment(iconBox, Pos.CENTER_RIGHT);
+        StackPane.setMargin(iconBox, new javafx.geometry.Insets(0, 8, 0, 0));
+
+        int insertAt = Math.min(index, pane.getChildren().size());
+        pane.getChildren().add(insertAt, wrapper);
+
+        if (capToolbarWidth && pane instanceof HBox hbox) {
+            applyResponsiveToolbarSearchCap(hbox, wrapper);
+        }
+    }
+
+    private static void applyResponsiveToolbarSearchCap(HBox hbox, Region searchWrapper) {
+        if (hbox == null || searchWrapper == null) return;
+        HBox.setHgrow(searchWrapper, Priority.SOMETIMES);
+        searchWrapper.setMinWidth(260.0);
+
+        javafx.beans.value.ChangeListener<Number> widthAdjuster = (obs, oldW, newW) -> {
+            double total = newW == null ? 0.0 : newW.doubleValue();
+            if (total > 120.0) {
+                double target = Math.max(260.0, Math.min(420.0, total * 0.28));
+                searchWrapper.setPrefWidth(target);
+                searchWrapper.setMaxWidth(target);
+            }
+        };
+        hbox.widthProperty().addListener(widthAdjuster);
+        double initial = hbox.getWidth() > 120.0 ? hbox.getWidth() : 1200.0;
+        double initialTarget = Math.max(260.0, Math.min(420.0, initial * 0.28));
+        searchWrapper.setPrefWidth(initialTarget);
+        searchWrapper.setMaxWidth(initialTarget);
+
+        // Insert a flexible spacer if the toolbar has no other growing spacer so
+        // left filters and right action buttons stay balanced without dead gaps.
+        boolean hasExistingSpacer = hbox.getChildren().stream().anyMatch(child ->
+                child != searchWrapper && child instanceof Region && !(child instanceof Control)
+                        && HBox.getHgrow(child) == Priority.ALWAYS);
+        if (!hasExistingSpacer) {
+            Region spacer = new Region();
+            spacer.setMinWidth(8.0);
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            spacer.getProperties().put("erp.auto.search.spacer", Boolean.TRUE);
+            int wrapperIdx = hbox.getChildren().indexOf(searchWrapper);
+            int firstTrailingBtn = -1;
+            for (int i = Math.max(0, wrapperIdx + 1); i < hbox.getChildren().size(); i++) {
+                if (hbox.getChildren().get(i) instanceof ButtonBase) {
+                    firstTrailingBtn = i;
+                    break;
+                }
+            }
+            int spacerIdx = firstTrailingBtn >= 0 ? firstTrailingBtn : hbox.getChildren().size();
+            hbox.getChildren().add(spacerIdx, spacer);
+        }
     }
 
     private static void copyLayoutConstraints(Node source, Node target) {

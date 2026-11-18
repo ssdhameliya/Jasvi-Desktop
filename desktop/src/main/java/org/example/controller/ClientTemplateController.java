@@ -45,19 +45,31 @@ public class ClientTemplateController implements ScreenLifecycle {
     }
 
     @FXML private StackPane pageIcon;
+    @FXML private StackPane iconClientSelect;
+    @FXML private StackPane iconTrade;
+    @FXML private StackPane iconGstin;
+    @FXML private StackPane iconTaxpayer;
+    @FXML private StackPane iconAddress;
+    @FXML private StackPane iconStatus;
     @FXML private Button btnLockTemplate;
     @FXML private Button btnScreenGuide;
     @FXML private Button btnBackToDirectory;
     @FXML private ComboBox<TallyAutomationApiClient.ClientProfileDto> cmbClientProfile;
+    @FXML private Button btnNewVersion;
     @FXML private Button btnUploadSample;
     @FXML private Button btnViewTemplateDoc;
+    @FXML private Button btnViewFullGst;
     @FXML private Button btnDeleteVersion;
     @FXML private TabPane tabPaneBlueprint;
     @FXML private Tab tabDocumentHeaders;
     @FXML private Tab tabItemColumns;
 
     @FXML private Label lblFirmName;
+    @FXML private Label lblLegalNameSub;
     @FXML private Label lblGstin;
+    @FXML private Label lblStateJurisdiction;
+    @FXML private Label lblTaxpayerType;
+    @FXML private Label lblRegDate;
     @FXML private Label lblAddress;
     @FXML private Label lblGstStatus;
     @FXML private Label lblLockStatus;
@@ -155,6 +167,12 @@ public class ClientTemplateController implements ScreenLifecycle {
     @FXML
     public void initialize() {
         if (pageIcon != null) pageIcon.getChildren().setAll(IconFactory.icon("document", 22));
+        if (iconClientSelect != null) iconClientSelect.getChildren().setAll(IconFactory.compactIcon("customer", 15));
+        if (iconTrade != null) iconTrade.getChildren().setAll(IconFactory.compactIcon("business", 14));
+        if (iconGstin != null) iconGstin.getChildren().setAll(IconFactory.compactIcon("gstin", 14));
+        if (iconTaxpayer != null) iconTaxpayer.getChildren().setAll(IconFactory.compactIcon("tax", 14));
+        if (iconAddress != null) iconAddress.getChildren().setAll(IconFactory.compactIcon("location", 14));
+        if (iconStatus != null) iconStatus.getChildren().setAll(IconFactory.compactIcon("validate", 14));
         if (btnLockTemplate != null) btnLockTemplate.setGraphic(IconFactory.compactIcon("lock", 14));
         if (btnScreenGuide != null) {
             btnScreenGuide.setText("");
@@ -164,8 +182,10 @@ public class ClientTemplateController implements ScreenLifecycle {
             btnScreenGuide.setAccessibleText("Client Template Mapping Guide");
         }
         if (btnBackToDirectory != null) btnBackToDirectory.setGraphic(IconFactory.compactIcon("previous", 14));
+        if (btnNewVersion != null) btnNewVersion.setGraphic(IconFactory.compactIcon("add", 12));
         if (btnUploadSample != null) btnUploadSample.setGraphic(IconFactory.compactIcon("upload", 14));
         if (btnViewTemplateDoc != null) btnViewTemplateDoc.setGraphic(IconFactory.compactIcon("view", 14));
+        if (btnViewFullGst != null) btnViewFullGst.setGraphic(IconFactory.compactIcon("validate", 14));
         if (btnDeleteVersion != null) btnDeleteVersion.setGraphic(IconFactory.compactIcon("delete", 12));
         if (btnAddHeaderField != null) btnAddHeaderField.setGraphic(IconFactory.compactIcon("add", 12));
         if (btnAddColumn != null) btnAddColumn.setGraphic(IconFactory.compactIcon("add", 12));
@@ -177,22 +197,103 @@ public class ClientTemplateController implements ScreenLifecycle {
         setupColumnsBlueprintTable();
     }
 
+    private static String cleanText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static String primaryClientName(TallyAutomationApiClient.ClientProfileDto item) {
+        if (item == null) return "";
+        String trade = cleanText(item.tradeName());
+        String client = cleanText(item.clientName());
+        String legal = cleanText(item.legalName());
+        if (!trade.isBlank()) return trade;
+        if (!client.isBlank()) return client;
+        return legal;
+    }
+
+    private static String formatClientDisplay(TallyAutomationApiClient.ClientProfileDto item) {
+        if (item == null) return "";
+        String name = primaryClientName(item);
+        String gstin = cleanText(item.gstin());
+        String status = cleanText(item.gstStatus());
+        StringBuilder sb = new StringBuilder();
+        sb.append(name.isBlank() ? "Unnamed Client" : name);
+        if (!gstin.isBlank()) {
+            sb.append(" • ").append(gstin);
+        }
+        if (!status.isBlank()) {
+            sb.append(" • ").append(status.toUpperCase(Locale.ROOT));
+        }
+        return sb.toString();
+    }
+
+    private static String formatClientDropdownRow(TallyAutomationApiClient.ClientProfileDto item) {
+        if (item == null) return "";
+        String primary = primaryClientName(item);
+        String legal = cleanText(item.legalName());
+        String gstin = cleanText(item.gstin());
+        String stateCode = cleanText(item.stateCode());
+        String status = cleanText(item.gstStatus());
+        StringBuilder sb = new StringBuilder();
+        sb.append(primary.isBlank() ? "Unnamed Client" : primary);
+        if (!legal.isBlank() && !legal.equalsIgnoreCase(primary)) {
+            sb.append(" (").append(legal).append(")");
+        }
+        sb.append(" — ").append(gstin.isBlank() ? "No GSTIN" : gstin);
+        if (!stateCode.isBlank()) {
+            sb.append(" • State ").append(stateCode);
+        }
+        if (!status.isBlank()) {
+            sb.append(" [").append(status.toUpperCase(Locale.ROOT)).append("]");
+        }
+        return sb.toString();
+    }
+
     private void setupClientProfileSelector() {
         if (cmbClientProfile == null) return;
         cmbClientProfile.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(TallyAutomationApiClient.ClientProfileDto item, boolean empty) {
                 super.updateItem(item, empty);
-                setText(empty || item == null ? null : (item.clientName() + " (" + (item.gstin() != null ? item.gstin() : "No GSTIN") + ")"));
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+                setText(formatClientDropdownRow(item));
+                setGraphic(IconFactory.compactIcon("business", 14));
             }
         });
         cmbClientProfile.setButtonCell(new ListCell<>() {
             @Override
             protected void updateItem(TallyAutomationApiClient.ClientProfileDto item, boolean empty) {
                 super.updateItem(item, empty);
-                setText(empty || item == null ? null : (item.clientName() + " (" + (item.gstin() != null ? item.gstin() : "No GSTIN") + ")"));
+                setText(empty || item == null ? null : formatClientDisplay(item));
             }
         });
+        cmbClientProfile.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(TallyAutomationApiClient.ClientProfileDto item) {
+                return formatClientDisplay(item);
+            }
+
+            @Override
+            public TallyAutomationApiClient.ClientProfileDto fromString(String text) {
+                if (text == null || text.isBlank()) return cmbClientProfile.getValue();
+                String query = text.trim();
+                for (var candidate : cmbClientProfile.getItems()) {
+                    if (candidate == null) continue;
+                    if (formatClientDisplay(candidate).equalsIgnoreCase(query)
+                            || formatClientDropdownRow(candidate).equalsIgnoreCase(query)
+                            || cleanText(candidate.gstin()).equalsIgnoreCase(query)
+                            || primaryClientName(candidate).equalsIgnoreCase(query)) {
+                        return candidate;
+                    }
+                }
+                return cmbClientProfile.getValue();
+            }
+        });
+        SearchableComboBoxHelper.makeSearchable(cmbClientProfile, ClientTemplateController::formatClientDisplay);
         cmbClientProfile.valueProperty().addListener((obs, o, n) -> {
             if (n != null) onClientSelected(n);
         });
@@ -432,11 +533,70 @@ public class ClientTemplateController implements ScreenLifecycle {
 
     private void onClientSelected(TallyAutomationApiClient.ClientProfileDto client) {
         this.activeClient = client;
-        lblFirmName.setText(client.legalName() != null ? client.legalName() : client.clientName());
-        lblGstin.setText(client.gstin() != null ? client.gstin() : "No GSTIN");
-        lblAddress.setText(client.address() != null ? client.address() : "Registered Address");
-        lblGstStatus.setText(client.gstStatus() != null ? client.gstStatus() : "ACTIVE");
-        lblGstStatus.getStyleClass().setAll("status-badge", "ACTIVE".equalsIgnoreCase(client.gstStatus()) ? "status-active" : "status-inactive");
+
+        String primary = primaryClientName(client);
+        String legal = cleanText(client.legalName());
+        lblFirmName.setText(!primary.isBlank() ? primary : "Unnamed Client");
+        if (lblLegalNameSub != null) {
+            boolean showLegal = !legal.isBlank() && !legal.equalsIgnoreCase(primary);
+            lblLegalNameSub.setText(showLegal ? "Legal: " + legal : "");
+            lblLegalNameSub.setVisible(showLegal);
+            lblLegalNameSub.setManaged(showLegal);
+        }
+
+        String gstin = cleanText(client.gstin());
+        lblGstin.setText(!gstin.isBlank() ? gstin : "No GSTIN");
+        if (lblStateJurisdiction != null) {
+            String stateCode = cleanText(client.stateCode());
+            if (stateCode.isBlank() && gstin.length() >= 2 && Character.isDigit(gstin.charAt(0)) && Character.isDigit(gstin.charAt(1))) {
+                stateCode = gstin.substring(0, 2);
+            }
+            String jurisdiction = cleanText(client.stateJurisdiction());
+            if (!stateCode.isBlank() && !jurisdiction.isBlank()) {
+                lblStateJurisdiction.setText("State " + stateCode + " • " + jurisdiction);
+            } else if (!stateCode.isBlank()) {
+                lblStateJurisdiction.setText("State Code: " + stateCode);
+            } else if (!jurisdiction.isBlank()) {
+                lblStateJurisdiction.setText(jurisdiction);
+            } else {
+                lblStateJurisdiction.setText("Jurisdiction: —");
+            }
+        }
+
+        if (lblTaxpayerType != null) {
+            String taxpayer = cleanText(client.taxpayerType());
+            String constitution = cleanText(client.constitutionOfBusiness());
+            if (!taxpayer.isBlank() && !constitution.isBlank()) {
+                lblTaxpayerType.setText(taxpayer + " • " + constitution);
+            } else if (!taxpayer.isBlank()) {
+                lblTaxpayerType.setText(taxpayer);
+            } else if (!constitution.isBlank()) {
+                lblTaxpayerType.setText(constitution);
+            } else {
+                lblTaxpayerType.setText("Registered Taxpayer");
+            }
+        }
+
+        if (lblRegDate != null) {
+            String regDateRaw = cleanText(client.registrationDate());
+            String nature = cleanText(client.natureOfBusiness());
+            if (!regDateRaw.isBlank()) {
+                String formattedDate = BusinessClock.formatDate(regDateRaw);
+                lblRegDate.setText("Reg: " + (formattedDate != null && !formattedDate.isBlank() ? formattedDate : regDateRaw));
+            } else if (!nature.isBlank()) {
+                lblRegDate.setText(nature);
+            } else {
+                lblRegDate.setText("Reg Date: —");
+            }
+        }
+
+        String address = cleanText(client.address());
+        lblAddress.setText(!address.isBlank() ? address : "Address not available");
+
+        String status = cleanText(client.gstStatus());
+        String displayStatus = !status.isBlank() ? status.toUpperCase(Locale.ROOT) : "ACTIVE";
+        lblGstStatus.setText(displayStatus);
+        lblGstStatus.getStyleClass().setAll("status-badge", "ACTIVE".equalsIgnoreCase(displayStatus) ? "status-active" : "status-inactive");
 
         loadTemplatesForClient(client.id());
     }
@@ -488,7 +648,8 @@ public class ClientTemplateController implements ScreenLifecycle {
         renderVersionPills();
 
         if (lblLockStatus != null) {
-            lblLockStatus.setText(t.isLocked() ? "Status: LOCKED (Ready for Bill to Tally)" : "Status: DRAFT (Editable)");
+            lblLockStatus.setText(t.isLocked() ? "LOCKED • Ready" : "DRAFT • Editable");
+            lblLockStatus.setTooltip(new Tooltip(t.isLocked() ? "Template Version Locked (Ready for Bill to Tally)" : "Template Version Draft (Editable)"));
             lblLockStatus.getStyleClass().setAll("lock-status-badge", t.isLocked() ? "erp-badge-emerald" : "erp-badge-amber");
         }
 
@@ -1278,6 +1439,11 @@ public class ClientTemplateController implements ScreenLifecycle {
                     } else if (!list.isEmpty()) {
                         cmbClientProfile.setValue(list.get(0));
                     }
+                    Platform.runLater(() -> {
+                        if (cmbClientProfile != null && cmbClientProfile.getEditor() != null) {
+                            cmbClientProfile.getEditor().positionCaret(0);
+                        }
+                    });
                 },
                 failure -> AppDialogService.error(tableColumnsBlueprint, "Load Clients Error", failure.getMessage())
         );

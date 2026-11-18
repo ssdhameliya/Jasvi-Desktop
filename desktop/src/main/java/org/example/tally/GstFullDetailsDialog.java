@@ -104,7 +104,7 @@ public final class GstFullDetailsDialog {
         dialog.setResizable(true);
 
         DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("approved-dialog", "erp-document-inspection-dialog", "erp-ui-standard");
+        pane.getStyleClass().addAll("dse-dialog-pane", "approved-dialog", "erp-document-inspection-dialog", "erp-ui-standard");
         pane.getProperties().put("dse.dialog.presented", true);
         pane.getButtonTypes().add(ButtonType.CLOSE);
 
@@ -116,13 +116,22 @@ public final class GstFullDetailsDialog {
             }
         });
 
-        VBox root = new VBox(12);
-        root.setPadding(new Insets(14));
-        root.getStyleClass().addAll("approved-card", "erp-ui-standard");
-        VBox.setVgrow(root, Priority.ALWAYS);
+        Region topAccent = new Region();
+        topAccent.setMinHeight(5);
+        topAccent.setPrefHeight(5);
+        topAccent.setMaxHeight(5);
+        topAccent.getStyleClass().add("dse-dialog-accent");
 
         // Header bar with drag capability, minimize, maximize, and close
         HBox header = buildHeader(dialog, legalName, tradeName, gstin, status);
+
+        VBox headerWrap = new VBox(0, topAccent, header);
+        headerWrap.getStyleClass().add("dse-stage-header-wrap");
+
+        VBox root = new VBox(12);
+        root.setPadding(new Insets(0, 14, 14, 14));
+        root.getStyleClass().addAll("approved-card", "erp-ui-standard");
+        VBox.setVgrow(root, Priority.ALWAYS);
 
         // Scrollable content area
         ScrollPane scrollPane = new ScrollPane();
@@ -154,7 +163,7 @@ public final class GstFullDetailsDialog {
         body.getChildren().addAll(factsGrid, addressBox, goodsServicesBox, filingsBox, frequencyBox);
         scrollPane.setContent(body);
 
-        root.getChildren().addAll(header, scrollPane);
+        root.getChildren().addAll(headerWrap, scrollPane);
         pane.setContent(root);
 
         dialog.setOnShown(ev -> {
