@@ -157,19 +157,18 @@ public final class ItemStockHistoryDialog {
         filterBar.setAlignment(Pos.CENTER_LEFT);
         filterBar.getStyleClass().add("stock-filter-bar");
 
-        // 4. Ledger Table View
-        TableView<LedgerRow> table = new TableView<>(tableRows);
+        // 4. Ledger Table View + Universal Pagination Bar (default 25 rows/page)
+        TableView<LedgerRow> table = new TableView<>();
         table.getStyleClass().addAll("professional-table", "entity-table", "stock-ledger-table");
         VBox.setVgrow(table, Priority.ALWAYS);
 
         setupTableColumns(dialog, table, api, supportClient, returnClient);
 
-        // 5. Footer Stats
+        TablePaginationBar<LedgerRow> paginationBar = new TablePaginationBar<>(table, 25);
+
+        // 5. Status Banner + Pagination Footer
         Label lblRecordCount = new Label("Loading movement history…");
         lblRecordCount.getStyleClass().add("stock-ledger-subtitle");
-        HBox footer = new HBox(lblRecordCount);
-        footer.setAlignment(Pos.CENTER_LEFT);
-        footer.setPadding(new Insets(4, 4, 2, 4));
 
         // 6. Data Fetching & Reload Trigger (declared before action dock so Adjust/Edit can refresh live)
         Runnable recomputeAndFilter = () -> {
@@ -205,7 +204,8 @@ public final class ItemStockHistoryDialog {
                     .toList();
 
             tableRows.setAll(filtered);
-            lblRecordCount.setText(String.format("Showing %d of %d movement record%s", filtered.size(), computed.size(), computed.size() == 1 ? "" : "s"));
+            paginationBar.setAllItems(filtered);
+            lblRecordCount.setText(String.format(Locale.ENGLISH, "Filtered %,d of %,d total movement record%s", filtered.size(), computed.size(), computed.size() == 1 ? "" : "s"));
 
             // Refresh KPI Totals based on all loaded rows for this item
             updateKpiMetrics(item, computed, lblOnHandVal, lblInwardVal, lblOutwardVal, lblProfitVal, lblValuationVal);
@@ -246,9 +246,10 @@ public final class ItemStockHistoryDialog {
         HBox actionDock = buildActionDock(dialog, pane, item, tableRows, itemActions, loadData);
 
         // Assemble Content
-        VBox root = new VBox(12, headerHero, kpiStrip, filterBar, table, footer, actionDock);
+        VBox root = new VBox(10, headerHero, kpiStrip, filterBar, table, paginationBar, actionDock);
         root.setPadding(new Insets(16, 20, 14, 20));
         pane.setContent(root);
+        ProfessionalUiEnhancer.enhance(root);
         pane.getButtonTypes().add(ButtonType.CLOSE);
         dialog.setOnShowing(ev -> {
             Node defaultButtonBar = pane.lookup(".button-bar");
@@ -538,7 +539,7 @@ public final class ItemStockHistoryDialog {
         colIndex.setMinWidth(42);
         colIndex.prefWidthProperty().bind(table.widthProperty().multiply(0.03));
 
-        // 2. Date & Time
+        // 2. Date & Time (Single-line: Date + Space + Time per user standard)
         TableColumn<LedgerRow, LedgerRow> colDate = new TableColumn<>("Date & Time");
         colDate.setCellValueFactory(v -> new SimpleObjectProperty<>(v.getValue()));
         colDate.setCellFactory(col -> new TableCell<>() {
@@ -551,16 +552,24 @@ public final class ItemStockHistoryDialog {
                 } else {
                     Label lblDate = new Label(r.date());
                     lblDate.getStyleClass().add("stock-date-main");
-                    Label lblTime = new Label(r.timestamp());
-                    lblTime.getStyleClass().add("stock-date-time");
-                    VBox box = new VBox(2, lblDate, lblTime);
+                    lblDate.setMinWidth(Region.USE_PREF_SIZE);
+                    HBox box;
+                    if (r.timestamp() != null && !r.timestamp().isBlank() && !"—".equals(r.timestamp())) {
+                        Label lblTime = new Label(r.timestamp());
+                        lblTime.getStyleClass().add("stock-date-time");
+                        lblTime.setMinWidth(Region.USE_PREF_SIZE);
+                        box = new HBox(6, lblDate, lblTime);
+                    } else {
+                        box = new HBox(lblDate);
+                    }
                     box.setAlignment(Pos.CENTER_LEFT);
                     setGraphic(box);
+                    setText(null);
                 }
             }
         });
-        colDate.setMinWidth(120);
-        colDate.prefWidthProperty().bind(table.widthProperty().multiply(0.10));
+        colDate.setMinWidth(185);
+        colDate.prefWidthProperty().bind(table.widthProperty().multiply(0.14));
         IconFactory.applyTableHeaderIcon(colDate, "calendar");
 
         // 3. Activity Type
@@ -592,7 +601,7 @@ public final class ItemStockHistoryDialog {
         colType.prefWidthProperty().bind(table.widthProperty().multiply(0.12));
         IconFactory.applyTableHeaderIcon(colType, "category");
 
-        // 4. Linked Reference
+        // 4. Linked Reference (Clean borderless text link — no blue button fill)
         TableColumn<LedgerRow, LedgerRow> colRef = new TableColumn<>("Linked Reference");
         colRef.setCellValueFactory(v -> new SimpleObjectProperty<>(v.getValue()));
         colRef.setCellFactory(col -> new TableCell<>() {
@@ -603,18 +612,22 @@ public final class ItemStockHistoryDialog {
                     setGraphic(null);
                     setText(null);
                 } else {
-                    Button link = new Button(r.reference());
+                    Hyperlink link = new Hyperlink(r.reference());
                     link.setMinWidth(Region.USE_PREF_SIZE);
-                    link.getStyleClass().add("stock-ref-link");
-                    link.setGraphic(IconFactory.compactIcon("reference", 14));
-                    link.setOnAction(e -> handleReferenceClick(dialog, r, api, support, returnApi));
+                    link.getStyleClass().add("erp-inline-doc-link");
+                    link.setTooltip(IconFactory.createTooltip("Inspect linked document " + r.reference()));
+                    link.setOnAction(e -> {
+                        link.setVisited(false);
+                        handleReferenceClick(dialog, r, api, support, returnApi);
+                    });
                     setGraphic(link);
+                    setText(null);
                     setAlignment(Pos.CENTER_LEFT);
                 }
             }
         });
-        colRef.setMinWidth(205);
-        colRef.prefWidthProperty().bind(table.widthProperty().multiply(0.16));
+        colRef.setMinWidth(185);
+        colRef.prefWidthProperty().bind(table.widthProperty().multiply(0.15));
         IconFactory.applyTableHeaderIcon(colRef, "reference");
 
         // 5. Party / Entity

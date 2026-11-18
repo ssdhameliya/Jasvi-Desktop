@@ -61,6 +61,7 @@ public final class AppDialogRenderer {
                 SearchableComboBoxHelper.makeAllSearchable(contentParent);
             }
             SearchableComboBoxHelper.makeAllSearchable(pane);
+            DatePickerFormatter.attachIn(pane);
             DynamicTableLayoutManager.requestLayoutIn(pane);
             if (scene != null && scene.getRoot() != null) {
                 scene.getRoot().applyCss();
@@ -94,6 +95,7 @@ public final class AppDialogRenderer {
                     SearchableComboBoxHelper.makeAllSearchable(contentParent);
                 }
                 SearchableComboBoxHelper.makeAllSearchable(pane);
+                DatePickerFormatter.attachIn(pane);
                 UiDiagnostics.audit(scene.getRoot(), "dialog:" + safe(dialog.getTitle()));
                 reconcileButtonBar(pane);
                 Platform.runLater(() -> reconcileButtonBar(pane));

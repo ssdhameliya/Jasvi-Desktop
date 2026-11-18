@@ -3,8 +3,12 @@ package org.example.util;
 import org.example.config.ConfigManager;
 
 import java.time.*;
+import java.time.chrono.IsoChronology;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.time.format.FormatStyle;
+import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -125,41 +129,176 @@ public final class BusinessClock {
     }
 
     /**
-     * Parses ISO, Indian, UK, Excel and legacy date strings into a LocalDate, returning null if invalid.
+     * Parses a strict 8-digit compact date (e.g. {@code 18112026}, {@code 11182026}, or {@code 20261118})
+     * using active company Settings date format priority, system OS locale tie-breaking, and automatic
+     * unambiguous fallback when day > 12. Returns {@code null} for invalid calendar dates (e.g. {@code 31022026}).
+     */
+    public static LocalDate parseCompactEightDigitDate(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        if (trimmed.length() != 8 || !isAllAsciiDigits(trimmed)) return null;
+        return parseCompactDigits(trimmed, false);
+    }
+
+    /**
+     * Parses ISO, Indian, UK, US, Excel, compact digit-only (8-digit & 6-digit), dot/space separated,
+     * and legacy date strings into a LocalDate using strict calendar validation, returning null if invalid.
      */
     public static LocalDate parseDate(String value) {
         if (value == null || value.isBlank()) return null;
         String text = value.trim();
+        if (isAllAsciiDigits(text)) {
+            return parseCompactDigits(text, true);
+        }
         String candidate = text.length() > 10 && (text.contains(" ") || text.contains("T")) ? text.substring(0, 10) : text;
+        String normalizedText = normalizeNumericSeparators(text);
+        String normalizedCandidate = normalizeNumericSeparators(candidate);
+
+        boolean monthFirst = prefersMonthFirst();
         List<DateTimeFormatter> parsers = new ArrayList<>();
         try {
             String dp = datePattern();
             if (dp != null && !dp.isBlank()) {
-                parsers.add(DateTimeFormatter.ofPattern(dp, Locale.ENGLISH));
+                parsers.add(strictFormatter(dp, Locale.ENGLISH));
             }
         } catch (Exception ignored) {}
+
+        parsers.add(DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT));
+        if (monthFirst) {
+            parsers.addAll(List.of(
+                    strictFormatter("M/d/uuuu", Locale.ENGLISH),
+                    strictFormatter("MM/dd/uuuu", Locale.ENGLISH),
+                    strictFormatter("M-d-uuuu", Locale.ENGLISH),
+                    strictFormatter("MM-dd-uuuu", Locale.ENGLISH),
+                    strictFormatter("d/M/uuuu", Locale.ENGLISH),
+                    strictFormatter("dd/MM/uuuu", Locale.ENGLISH),
+                    strictFormatter("dd-MM-uuuu", Locale.ENGLISH),
+                    strictFormatter("d-M-uuuu", Locale.ENGLISH),
+                    strictFormatter("uuuu/MM/dd", Locale.ENGLISH),
+                    strictFormatter("M/d/uu", Locale.ENGLISH),
+                    strictFormatter("M-d-uu", Locale.ENGLISH),
+                    strictFormatter("d/M/uu", Locale.ENGLISH),
+                    strictFormatter("d-M-uu", Locale.ENGLISH)));
+        } else {
+            parsers.addAll(List.of(
+                    strictFormatter("d/M/uuuu", Locale.ENGLISH),
+                    strictFormatter("dd/MM/uuuu", Locale.ENGLISH),
+                    strictFormatter("dd-MM-uuuu", Locale.ENGLISH),
+                    strictFormatter("d-M-uuuu", Locale.ENGLISH),
+                    strictFormatter("M/d/uuuu", Locale.ENGLISH),
+                    strictFormatter("MM/dd/uuuu", Locale.ENGLISH),
+                    strictFormatter("M-d-uuuu", Locale.ENGLISH),
+                    strictFormatter("MM-dd-uuuu", Locale.ENGLISH),
+                    strictFormatter("uuuu/MM/dd", Locale.ENGLISH),
+                    strictFormatter("d/M/uu", Locale.ENGLISH),
+                    strictFormatter("d-M-uu", Locale.ENGLISH),
+                    strictFormatter("M/d/uu", Locale.ENGLISH),
+                    strictFormatter("M-d-uu", Locale.ENGLISH)));
+        }
         parsers.addAll(List.of(
-                DateTimeFormatter.ISO_LOCAL_DATE,
-                DateTimeFormatter.ofPattern("d/M/uuuu"),
-                DateTimeFormatter.ofPattern("dd/MM/uuuu"),
-                DateTimeFormatter.ofPattern("dd-MM-uuuu"),
-                DateTimeFormatter.ofPattern("d-M-uuuu"),
-                DateTimeFormatter.ofPattern("MM/dd/uuuu"),
-                DateTimeFormatter.ofPattern("M/d/uuuu"),
-                DateTimeFormatter.ofPattern("uuuu/MM/dd"),
-                DateTimeFormatter.ofPattern("dd-MMM-uuuu", Locale.ENGLISH),
-                DateTimeFormatter.ofPattern("d-MMM-uuuu", Locale.ENGLISH),
-                DateTimeFormatter.ofPattern("dd MMM uuuu", Locale.ENGLISH),
-                DateTimeFormatter.ofPattern("d MMM uuuu", Locale.ENGLISH)));
+                strictFormatter("dd-MMM-uuuu", Locale.ENGLISH),
+                strictFormatter("d-MMM-uuuu", Locale.ENGLISH),
+                strictFormatter("dd MMM uuuu", Locale.ENGLISH),
+                strictFormatter("d MMM uuuu", Locale.ENGLISH)));
+
         for (DateTimeFormatter parser : parsers) {
-            try {
-                return LocalDate.parse(candidate, parser);
-            } catch (DateTimeParseException ignored) { }
-            try {
-                return LocalDate.parse(text, parser);
-            } catch (DateTimeParseException ignored) { }
+            for (String sample : List.of(normalizedCandidate, normalizedText, candidate, text)) {
+                try {
+                    return LocalDate.parse(sample, parser);
+                } catch (DateTimeParseException ignored) { }
+            }
         }
         return null;
+    }
+
+    private static DateTimeFormatter strictFormatter(String pattern, Locale locale) {
+        String strictPattern = pattern.replace('y', 'u');
+        return DateTimeFormatter.ofPattern(strictPattern, locale).withResolverStyle(ResolverStyle.STRICT);
+    }
+
+    private static boolean prefersMonthFirst() {
+        String dp = datePattern();
+        if (dp != null && !dp.isBlank()) {
+            char first = dp.charAt(0);
+            if (first == 'M') return true;
+            if (first == 'd') return false;
+        }
+        try {
+            String localShort = DateTimeFormatterBuilder.getLocalizedDateTimePattern(
+                    FormatStyle.SHORT, null, IsoChronology.INSTANCE, Locale.getDefault());
+            int mIdx = localShort.indexOf('M');
+            int dIdx = localShort.indexOf('d');
+            if (mIdx >= 0 && dIdx >= 0) {
+                return mIdx < dIdx;
+            }
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    private static boolean isAllAsciiDigits(String value) {
+        if (value == null || value.isEmpty()) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c < '0' || c > '9') return false;
+        }
+        return true;
+    }
+
+    private static String normalizeNumericSeparators(String value) {
+        if (value == null || value.isBlank()) return "";
+        if (value.matches("\\d{1,4}[.\\s]\\d{1,2}[.\\s]\\d{2,4}")) {
+            return value.replace('.', '-').replace(' ', '-');
+        }
+        return value;
+    }
+
+    private static LocalDate parseCompactDigits(String digits, boolean allowSixDigit) {
+        if (digits == null) return null;
+        boolean monthFirst = prefersMonthFirst();
+        if (digits.length() == 8) {
+            int first4 = Integer.parseInt(digits.substring(0, 4));
+            int a = Integer.parseInt(digits.substring(0, 2));
+            int b = Integer.parseInt(digits.substring(2, 4));
+            int last4 = Integer.parseInt(digits.substring(4, 8));
+            int mYmd = Integer.parseInt(digits.substring(4, 6));
+            int dYmd = Integer.parseInt(digits.substring(6, 8));
+
+            String dp = datePattern();
+            boolean yearFirstSetting = dp != null && !dp.isBlank() && (dp.charAt(0) == 'y' || dp.charAt(0) == 'u');
+
+            LocalDate preferred = monthFirst ? safeDate(last4, a, b) : safeDate(last4, b, a);
+            LocalDate alternate = monthFirst ? safeDate(last4, b, a) : safeDate(last4, a, b);
+            LocalDate ymd = safeDate(first4, mYmd, dYmd);
+
+            if (yearFirstSetting) {
+                if (ymd != null) return ymd;
+                if (preferred != null) return preferred;
+                return alternate;
+            }
+            if (preferred != null) return preferred;
+            if (alternate != null) return alternate;
+            return ymd;
+        }
+        if (allowSixDigit && digits.length() == 6) {
+            int a = Integer.parseInt(digits.substring(0, 2));
+            int b = Integer.parseInt(digits.substring(2, 4));
+            int year = 2000 + Integer.parseInt(digits.substring(4, 6));
+            LocalDate preferred = monthFirst ? safeDate(year, a, b) : safeDate(year, b, a);
+            if (preferred != null) return preferred;
+            return monthFirst ? safeDate(year, b, a) : safeDate(year, a, b);
+        }
+        return null;
+    }
+
+    private static LocalDate safeDate(int year, int month, int day) {
+        if (year < 1900 || year > 2199 || month < 1 || month > 12 || day < 1 || day > 31) {
+            return null;
+        }
+        try {
+            return LocalDate.of(year, month, day);
+        } catch (DateTimeException ignored) {
+            return null;
+        }
     }
 
     public static String timePattern() {

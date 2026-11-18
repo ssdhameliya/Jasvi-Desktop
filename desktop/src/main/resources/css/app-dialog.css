@@ -2398,3 +2398,45 @@
 .dse-theme-dark .field-value.erp-value-colour-teal { -fx-text-fill: #2dd4bf !important; }
 .dse-theme-dark .field-value.erp-value-colour-indigo { -fx-text-fill: #a5b4fc !important; }
 
+/* Communication Inspection Modal — Blue (Email) & Green (WhatsApp) Top Color Authority */
+.dse-theme-light .comm-top-accent.comm-accent-email {
+    -fx-background-color: linear-gradient(to right, #1d4ed8, #2563eb, #0ea5e9);
+}
+.dse-theme-dark .comm-top-accent.comm-accent-email {
+    -fx-background-color: linear-gradient(to right, #2563eb, #3b82f6, #06b6d4);
+}
+.dse-theme-light .comm-top-accent.comm-accent-whatsapp {
+    -fx-background-color: linear-gradient(to right, #15803d, #16a34a, #10b981);
+}
+.dse-theme-dark .comm-top-accent.comm-accent-whatsapp {
+    -fx-background-color: linear-gradient(to right, #16a34a, #22c55e, #10b981);
+}
+.dse-theme-light .comm-hero-banner.comm-hero-email {
+    -fx-background-color: linear-gradient(to right, #eff6ff, #e0f2fe);
+    -fx-border-color: #93c5fd;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 14 20 14 20;
+}
+.dse-theme-dark .comm-hero-banner.comm-hero-email {
+    -fx-background-color: linear-gradient(to right, #172554, #0c4a6e);
+    -fx-border-color: #2563eb;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 14 20 14 20;
+}
+.dse-theme-light .comm-hero-banner.comm-hero-whatsapp {
+    -fx-background-color: linear-gradient(to right, #ecfdf5, #dcfce7);
+    -fx-border-color: #6ee7b7;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 14 20 14 20;
+}
+.dse-theme-dark .comm-hero-banner.comm-hero-whatsapp {
+    -fx-background-color: linear-gradient(to right, #064e3b, #065f46);
+    -fx-border-color: #16a34a;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 14 20 14 20;
+}
+.dse-theme-light .comm-kicker-email { -fx-text-fill: #1d4ed8; -fx-font-size: 10.5px; -fx-font-weight: 800; }
+.dse-theme-dark .comm-kicker-email { -fx-text-fill: #60a5fa; -fx-font-size: 10.5px; -fx-font-weight: 800; }
+.dse-theme-light .comm-kicker-whatsapp { -fx-text-fill: #15803d; -fx-font-size: 10.5px; -fx-font-weight: 800; }
+.dse-theme-dark .comm-kicker-whatsapp { -fx-text-fill: #4ade80; -fx-font-size: 10.5px; -fx-font-weight: 800; }
+

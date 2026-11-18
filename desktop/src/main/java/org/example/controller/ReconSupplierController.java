@@ -480,27 +480,38 @@ public class ReconSupplierController implements ScreenLifecycle {
 
     private void showEditor() {
         closeDetails();
+        javafx.stage.Window owner = table != null && table.getScene() != null ? table.getScene().getWindow() : null;
+        javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
+        double maxW = Math.max(760, screen.getWidth() - 48);
+        double maxH = Math.max(480, screen.getHeight() - 48);
+        double targetW = Math.min(maxW, Math.max(920, screen.getWidth() * 0.72));
+
         if (editorDialog == null) {
             editorDialog = new OwnedDialog<>(table);
             editorDialog.setResizable(true);
             DialogPane pane = editorDialog.getDialogPane();
-            pane.getStyleClass().addAll("approved-dialog", "erp-document-inspection-dialog", "recon-editor-dialog");
-            editorPanel.setPrefWidth(600);
-            editorPanel.setMinWidth(480);
+            pane.getStyleClass().addAll("approved-dialog", "erp-document-inspection-dialog", "recon-editor-dialog", "dse-dialog-workspace", "approved-ui");
             pane.setContent(editorPanel);
             pane.getButtonTypes().add(ButtonType.CLOSE);
-            javafx.scene.Node defaultButtonBar = pane.lookup(".button-bar");
-            if (defaultButtonBar != null) {
-                defaultButtonBar.setVisible(false);
-                defaultButtonBar.setManaged(false);
-            }
+            editorDialog.setOnShowing(ev -> {
+                javafx.scene.Node defaultButtonBar = pane.lookup(".button-bar");
+                if (defaultButtonBar != null) {
+                    defaultButtonBar.setVisible(false);
+                    defaultButtonBar.setManaged(false);
+                }
+            });
         }
         editorDialog.setTitle(editing == null ? "New Recon Supplier" : "Edit Recon Supplier");
-        javafx.stage.Window owner = table != null && table.getScene() != null ? table.getScene().getWindow() : null;
-        javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
-        double maxH = Math.max(460, screen.getHeight() - 48);
+        editorPanel.setMinWidth(Math.min(820, targetW));
+        editorPanel.setPrefWidth(targetW);
+        editorPanel.setMaxWidth(maxW);
+        editorPanel.setPrefHeight(Region.USE_COMPUTED_SIZE);
         editorPanel.setMaxHeight(maxH);
-        editorPanel.setPrefHeight(Math.min(maxH, 680));
+        editorDialog.getDialogPane().setPrefWidth(targetW);
+        editorDialog.getDialogPane().setMaxWidth(maxW);
+        editorDialog.getDialogPane().setPrefHeight(Region.USE_COMPUTED_SIZE);
+        editorDialog.getDialogPane().setMaxHeight(maxH);
+
         if (!editorDialog.isShowing()) {
             editorDialog.show();
             javafx.application.Platform.runLater(() -> {

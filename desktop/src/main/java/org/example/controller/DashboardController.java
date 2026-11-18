@@ -278,6 +278,7 @@ public class DashboardController implements ScreenLifecycle {
 
         navigationManager = new NavigationManager(contentPane);
         org.example.navigation.WorkspaceTabManager.bind(workspaceTabContainer, contentPane);
+        configureWorkspaceShortcutHint();
         initializeSidebarAccordion();
         applySidebarVisibility(loadSidebarVisiblePreference(), false);
 
@@ -917,51 +918,103 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML
     private void showShortcutInfo() {
-        Dialog<ButtonType> dialog = new OwnedDialog<>();
-        dialog.setTitle("Keyboard Shortcuts");
-        dialog.setHeaderText("Quick navigation from anywhere in " + org.example.service.BrandingService.applicationName() + "");
-        dialog.setGraphic(IconFactory.compactIcon("shortcut", 28));
+        Dialog<ButtonType> dialog = new OwnedDialog<>(contentPane);
+        String heading = "Quick navigation from anywhere in " + org.example.service.BrandingService.applicationName();
+        org.example.util.AppDialogRenderer.configureWorkspace(dialog, "info", "Keyboard Shortcuts", heading, "", "");
 
+        // Vibrant Workspace Tab Shortcuts strip right at top
+        Label wsTitle = new Label("Workspace Tab Shortcuts");
+        wsTitle.getStyleClass().add("workspace-shortcut-title");
+        HBox wsHeader = new HBox(7, IconFactory.compactIcon("shortcut", 14), wsTitle);
+        wsHeader.setAlignment(Pos.CENTER_LEFT);
+        HBox wsPills = new HBox(
+                18,
+                workspaceShortcutRow("Ctrl+Tab", "workspace-shortcut-key-switch", "Switch active tab"),
+                workspaceShortcutRow("Alt+W", "workspace-shortcut-key-close", "Close current tab"),
+                workspaceShortcutRow("Ctrl+T", "workspace-shortcut-key-search", "Quick tab search")
+        );
+        wsPills.setAlignment(Pos.CENTER_LEFT);
+        VBox wsStrip = new VBox(8, wsHeader, wsPills);
+        wsStrip.getStyleClass().add("approved-highlight-strip");
 
+        // Clean 2-column responsive Global Shortcuts grid
         GridPane shortcuts = new GridPane();
-        shortcuts.setHgap(18);
+        shortcuts.setHgap(20);
         shortcuts.setVgap(10);
         shortcuts.getStyleClass().add("shortcut-info-grid");
+        javafx.scene.layout.ColumnConstraints cKeyL = new javafx.scene.layout.ColumnConstraints();
+        javafx.scene.layout.ColumnConstraints cNameL = new javafx.scene.layout.ColumnConstraints();
+        cNameL.setHgrow(Priority.ALWAYS);
+        javafx.scene.layout.ColumnConstraints cKeyR = new javafx.scene.layout.ColumnConstraints();
+        javafx.scene.layout.ColumnConstraints cNameR = new javafx.scene.layout.ColumnConstraints();
+        cNameR.setHgrow(Priority.ALWAYS);
+        shortcuts.getColumnConstraints().addAll(cKeyL, cNameL, cKeyR, cNameR);
+
         List<Action> entries = ShortcutRegistry.actions(ShortcutRegistry.Scope.GLOBAL);
-        for (int row = 0; row < entries.size(); row++) {
-            Action action = entries.get(row);
+        int half = (entries.size() + 1) / 2;
+        for (int i = 0; i < entries.size(); i++) {
+            Action action = entries.get(i);
             Label key = new Label(ShortcutRegistry.display(action));
+            key.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
             key.getStyleClass().add("shortcut-info-key");
             Label name = new Label(action.label());
             name.getStyleClass().add("shortcut-info-name");
-            shortcuts.add(key, 0, row);
-            shortcuts.add(name, 1, row);
+            int colOffset = i < half ? 0 : 2;
+            int row = i < half ? i : (i - half);
+            shortcuts.add(key, colOffset, row);
+            shortcuts.add(name, colOffset + 1, row);
         }
+
         Label intro = new Label("Current global shortcuts (configure them in Settings → Keyboard Shortcuts):");
         intro.setWrapText(true);
-        VBox content = new VBox(12, intro, shortcuts);
+        intro.getStyleClass().add("muted-label");
+
+        VBox content = new VBox(10, intro, shortcuts);
         content.getStyleClass().add("shortcut-info-content");
+
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scroll.setPannable(true);
         scroll.getStyleClass().add("shortcut-info-scroll");
-        scroll.setPrefViewportWidth(560);
+        scroll.setMinHeight(340);
+        scroll.setPrefViewportWidth(820);
         scroll.setPrefViewportHeight(520);
-        dialog.getDialogPane().setContent(scroll);
-        dialog.getDialogPane().setPrefWidth(620);
+        scroll.setPrefHeight(420);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        VBox rootContent = new VBox(12, wsStrip, scroll);
+        rootContent.setMinWidth(760);
+        rootContent.setPrefWidth(840);
+        rootContent.setMinHeight(430);
+        rootContent.setPrefHeight(510);
+
+        javafx.stage.Window owner = contentPane != null && contentPane.getScene() != null ? contentPane.getScene().getWindow() : null;
+        javafx.geometry.Rectangle2D screenBounds = org.example.util.WindowUtilsFx.visualBoundsFor(owner);
+        double targetW = Math.min(Math.max(760, screenBounds.getWidth() - 48), 880);
+        double targetH = Math.min(Math.max(480, screenBounds.getHeight() - 64), 640);
+
+        DialogPane pane = dialog.getDialogPane();
+        pane.setContent(rootContent);
+        pane.setMinWidth(Math.min(760, targetW));
+        pane.setPrefWidth(targetW);
+        pane.setMinHeight(Math.min(480, targetH));
+        pane.setPrefHeight(targetH);
+        pane.getButtonTypes().add(ButtonType.CLOSE);
         dialog.setResizable(true);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        dialog.setOnShown(event -> {
-            var window = dialog.getDialogPane().getScene() == null ? null : dialog.getDialogPane().getScene().getWindow();
+        dialog.setOnShown(event -> Platform.runLater(() -> {
+            var window = pane.getScene() == null ? null : pane.getScene().getWindow();
             if (window == null) return;
-            var screen = Screen.getScreensForRectangle(window.getX(), window.getY(), Math.max(1, window.getWidth()), Math.max(1, window.getHeight()))
+            var activeScreen = Screen.getScreensForRectangle(window.getX(), window.getY(), Math.max(1, window.getWidth()), Math.max(1, window.getHeight()))
                     .stream().findFirst().orElse(Screen.getPrimary());
-            double maxHeight = Math.max(420, screen.getVisualBounds().getHeight() * 0.84);
-            window.setHeight(Math.min(window.getHeight(), maxHeight));
+            double maxHeight = Math.max(480, activeScreen.getVisualBounds().getHeight() * 0.84);
+            if (window instanceof javafx.stage.Stage stage) {
+                org.example.util.WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+            }
+            window.setHeight(Math.min(Math.max(window.getHeight(), Math.min(targetH, maxHeight)), maxHeight));
             window.centerOnScreen();
-        });
+        }));
         dialog.showAndWait();
     }
 
@@ -1105,7 +1158,62 @@ public class DashboardController implements ScreenLifecycle {
     @FXML
     private HBox workspaceTabContainer;
 
+    @FXML
+    private Button btnWorkspaceShortcutHint;
+
     private NavigationManager navigationManager;
+
+    private void configureWorkspaceShortcutHint() {
+        if (btnWorkspaceShortcutHint == null) return;
+        btnWorkspaceShortcutHint.getProperties().put("erp-icon-preserve", true);
+        btnWorkspaceShortcutHint.setGraphic(IconFactory.compactIcon("shortcut", 14));
+
+        Label title = new Label("Workspace Tab Shortcuts");
+        title.getStyleClass().add("workspace-shortcut-title");
+        HBox header = new HBox(7, IconFactory.compactIcon("shortcut", 13), title);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("workspace-shortcut-header");
+
+        VBox card = new VBox(
+                7,
+                header,
+                workspaceShortcutRow("Ctrl+Tab", "workspace-shortcut-key-switch", "Switch active tab"),
+                workspaceShortcutRow("Alt+W", "workspace-shortcut-key-close", "Close current tab"),
+                workspaceShortcutRow("Ctrl+T", "workspace-shortcut-key-search", "Quick tab search"),
+                workspaceShortcutFooter("Click icon to open all shortcuts")
+        );
+        card.getStyleClass().add("workspace-shortcut-tooltip-card");
+
+        Tooltip tip = new Tooltip();
+        tip.setGraphic(card);
+        tip.setShowDelay(javafx.util.Duration.millis(120));
+        tip.setShowDuration(javafx.util.Duration.seconds(12));
+        tip.setHideDelay(javafx.util.Duration.millis(150));
+        tip.getStyleClass().addAll("erp-tooltip", "workspace-shortcut-tooltip");
+        btnWorkspaceShortcutHint.setTooltip(tip);
+    }
+
+    private HBox workspaceShortcutRow(String keys, String badgeStyleClass, String description) {
+        Label keyBadge = new Label(keys);
+        keyBadge.getStyleClass().addAll("workspace-shortcut-key", badgeStyleClass);
+        Label desc = new Label(description);
+        desc.getStyleClass().add("workspace-shortcut-desc");
+        HBox row = new HBox(10, keyBadge, desc);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("workspace-shortcut-row");
+        return row;
+    }
+
+    private Label workspaceShortcutFooter(String text) {
+        Label footer = new Label(text);
+        footer.getStyleClass().add("workspace-shortcut-footer");
+        return footer;
+    }
+
+    @FXML
+    private void showWorkspaceShortcuts() {
+        showShortcutInfo();
+    }
 
 
     @FXML

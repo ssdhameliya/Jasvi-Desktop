@@ -25,70 +25,81 @@
                 styleClass="approved-button,approved-secondary-button"/>
     </HBox>
 
-    <!-- 2. PANEL 1: Client Profile & Live GST Data -->
-    <VBox spacing="10" styleClass="approved-card,template-profile-card">
-        <HBox alignment="CENTER_LEFT" spacing="12">
-            <Label text="Select Client:" styleClass="field-label"/>
-            <ComboBox fx:id="cmbClientProfile" promptText="Choose client or vendor..." prefWidth="280" styleClass="approved-input"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnUploadSample" text="Upload Sample Bill" onAction="#handleUploadSample"
-                    styleClass="approved-button,approved-primary-button"/>
-            <Button fx:id="btnViewTemplateDoc" text="View Template Document" onAction="#handleViewTemplateDoc"
-                    styleClass="approved-button,approved-secondary-button"/>
-            <Button fx:id="btnViewFullGst" text="View Full GST Details" onAction="#handleViewFullGst"
-                    styleClass="approved-button,approved-secondary-button"/>
-        </HBox>
+    <!-- 2. PANE 1: Single-Row Client Selector, Template Versions & Action Toolbar -->
+    <HBox alignment="CENTER_LEFT" spacing="8" styleClass="approved-card,template-profile-card,template-toolbar-card">
+        <StackPane fx:id="iconClientSelect" styleClass="metric-icon-small"/>
+        <Label text="Select Client:" minWidth="-Infinity" styleClass="field-label,accent-label-blue"/>
+        <ComboBox fx:id="cmbClientProfile" promptText="Select client or type name / GSTIN..."
+                  minWidth="230" prefWidth="310" maxWidth="390" HBox.hgrow="SOMETIMES" styleClass="approved-input"/>
+        <Separator orientation="VERTICAL" styleClass="template-toolbar-divider"/>
+        <HBox fx:id="boxVersionPills" spacing="6" alignment="CENTER_LEFT"/>
+        <Button fx:id="btnNewVersion" text="New Version" minWidth="-Infinity" onAction="#handleNewVersion"
+                styleClass="approved-button,approved-primary-button,compact-action-button"/>
+        <Button fx:id="btnDeleteVersion" text="Delete Version" minWidth="-Infinity" onAction="#handleDeleteVersion"
+                styleClass="approved-button,btn-danger,compact-action-button"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="btnUploadSample" text="Upload Sample Bill" minWidth="-Infinity" onAction="#handleUploadSample"
+                styleClass="approved-button,approved-primary-button"/>
+        <Button fx:id="btnViewTemplateDoc" text="View Template Document" minWidth="-Infinity" onAction="#handleViewTemplateDoc"
+                styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnViewFullGst" text="View Full GST Details" minWidth="-Infinity" onAction="#handleViewFullGst"
+                styleClass="approved-button,approved-secondary-button"/>
+    </HBox>
 
-        <!-- Live GST Profile Information Grid -->
-        <GridPane hgap="16" vgap="6" styleClass="gst-live-summary-grid">
-            <columnConstraints>
-                <ColumnConstraints percentWidth="30"/>
-                <ColumnConstraints percentWidth="25"/>
-                <ColumnConstraints percentWidth="30"/>
-                <ColumnConstraints percentWidth="15"/>
-            </columnConstraints>
-            <VBox spacing="2" GridPane.columnIndex="0">
-                <HBox spacing="5" alignment="CENTER_LEFT">
-                    <StackPane fx:id="iconTrade" styleClass="metric-icon-small"/>
-                    <Label text="Legal &amp; Trade Name" styleClass="caption-label,accent-label-purple"/>
-                </HBox>
-                <Label fx:id="lblFirmName" text="Select a client above" styleClass="bold-value-label"/>
-            </VBox>
-            <VBox spacing="2" GridPane.columnIndex="1">
-                <HBox spacing="5" alignment="CENTER_LEFT">
-                    <StackPane fx:id="iconGstin" styleClass="metric-icon-small"/>
-                    <Label text="Vendor GSTIN" styleClass="caption-label,accent-label-blue"/>
-                </HBox>
-                <Label fx:id="lblGstin" text="—" styleClass="gstin-badge-text"/>
-            </VBox>
-            <VBox spacing="2" GridPane.columnIndex="2">
-                <HBox spacing="5" alignment="CENTER_LEFT">
-                    <StackPane fx:id="iconAddress" styleClass="metric-icon-small"/>
-                    <Label text="Registered Address" styleClass="caption-label,accent-label-amber"/>
-                </HBox>
-                <Label fx:id="lblAddress" text="—" styleClass="address-summary-text"/>
-            </VBox>
-            <VBox spacing="2" GridPane.columnIndex="3" alignment="CENTER_RIGHT">
-                <HBox spacing="5" alignment="CENTER_RIGHT">
-                    <StackPane fx:id="iconStatus" styleClass="metric-icon-small"/>
-                    <Label text="Live Portal Status" styleClass="caption-label,accent-label-green"/>
-                </HBox>
-                <Label fx:id="lblGstStatus" text="ACTIVE" styleClass="status-badge,status-active"/>
-            </VBox>
-        </GridPane>
+    <!-- 3. PANE 2: Dedicated Colorized GSTIN & Taxpayer Intelligence Strip -->
+    <GridPane hgap="10" vgap="6" styleClass="approved-card,gst-live-summary-grid,template-gst-detail-card">
+        <columnConstraints>
+            <ColumnConstraints percentWidth="22"/>
+            <ColumnConstraints percentWidth="17"/>
+            <ColumnConstraints percentWidth="18"/>
+            <ColumnConstraints percentWidth="29"/>
+            <ColumnConstraints percentWidth="14"/>
+        </columnConstraints>
 
-        <!-- Version Switcher Pills Strip -->
-        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="version-switcher-bar">
-            <Label text="Template Versions:" styleClass="field-label"/>
-            <HBox fx:id="boxVersionPills" spacing="6" alignment="CENTER_LEFT"/>
-            <Button fx:id="btnNewVersion" text="+ New Version" onAction="#handleNewVersion"
-                    styleClass="approved-button,approved-secondary-button,compact-action-button"/>
-            <Button fx:id="btnDeleteVersion" text="✕ Delete Version" onAction="#handleDeleteVersion"
-                    styleClass="approved-button,btn-danger,compact-action-button"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Label fx:id="lblLockStatus" text="Status: DRAFT (Unlocked)" styleClass="lock-status-badge,erp-badge-amber"/>
-        </HBox>
-    </VBox>
+        <VBox spacing="3" GridPane.columnIndex="0" styleClass="template-gst-tile,template-gst-tile-purple">
+            <HBox spacing="6" alignment="CENTER_LEFT">
+                <StackPane fx:id="iconTrade" styleClass="metric-icon-small"/>
+                <Label text="Legal &amp; Trade Name" styleClass="caption-label,accent-label-purple"/>
+            </HBox>
+            <Label fx:id="lblFirmName" text="Select a client above" wrapText="true" styleClass="bold-value-label,template-gst-value-purple"/>
+            <Label fx:id="lblLegalNameSub" text="" wrapText="true" visible="false" managed="false" styleClass="template-gst-subvalue"/>
+        </VBox>
+
+        <VBox spacing="3" GridPane.columnIndex="1" styleClass="template-gst-tile,template-gst-tile-blue">
+            <HBox spacing="6" alignment="CENTER_LEFT">
+                <StackPane fx:id="iconGstin" styleClass="metric-icon-small"/>
+                <Label text="Vendor GSTIN" styleClass="caption-label,accent-label-blue"/>
+            </HBox>
+            <Label fx:id="lblGstin" text="—" wrapText="true" styleClass="gstin-badge-text,template-gst-value-blue"/>
+            <Label fx:id="lblStateJurisdiction" text="—" wrapText="true" styleClass="template-gst-subvalue"/>
+        </VBox>
+
+        <VBox spacing="3" GridPane.columnIndex="2" styleClass="template-gst-tile,template-gst-tile-indigo">
+            <HBox spacing="6" alignment="CENTER_LEFT">
+                <StackPane fx:id="iconTaxpayer" styleClass="metric-icon-small"/>
+                <Label text="Taxpayer Profile" styleClass="caption-label,accent-label-indigo"/>
+            </HBox>
+            <Label fx:id="lblTaxpayerType" text="—" wrapText="true" styleClass="bold-value-label,template-gst-value-indigo"/>
+            <Label fx:id="lblRegDate" text="—" wrapText="true" styleClass="template-gst-subvalue"/>
+        </VBox>
+
+        <VBox spacing="3" GridPane.columnIndex="3" styleClass="template-gst-tile,template-gst-tile-amber">
+            <HBox spacing="6" alignment="CENTER_LEFT">
+                <StackPane fx:id="iconAddress" styleClass="metric-icon-small"/>
+                <Label text="Registered Address" styleClass="caption-label,accent-label-amber"/>
+            </HBox>
+            <Label fx:id="lblAddress" text="—" wrapText="true" styleClass="address-summary-text,template-gst-value-amber"/>
+        </VBox>
+
+        <VBox spacing="5" GridPane.columnIndex="4" alignment="TOP_LEFT" styleClass="template-gst-tile,template-gst-tile-green">
+            <HBox spacing="6" alignment="CENTER_LEFT">
+                <StackPane fx:id="iconStatus" styleClass="metric-icon-small"/>
+                <Label text="Portal &amp; Template" styleClass="caption-label,accent-label-green"/>
+            </HBox>
+            <Label fx:id="lblGstStatus" text="ACTIVE" minWidth="-Infinity" styleClass="status-badge,status-active"/>
+            <Label fx:id="lblLockStatus" text="DRAFT (Editable)" wrapText="true" styleClass="lock-status-badge,erp-badge-amber"/>
+        </VBox>
+    </GridPane>
 
     <!-- 3. Dynamic 2-Tab Blueprint Workspace (Eliminating all cramped scrollbars) -->
     <TabPane fx:id="tabPaneBlueprint" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS" styleClass="approved-tab-pane,erp-tabs">

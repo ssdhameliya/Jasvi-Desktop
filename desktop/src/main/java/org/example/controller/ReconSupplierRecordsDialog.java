@@ -32,6 +32,7 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
     private final ObservableList<PurchaseReconApiClient.ReconDto> filteredRecords = FXCollections.observableArrayList();
 
     private final TableView<PurchaseReconApiClient.ReconDto> table = new TableView<>();
+    private final TablePaginationBar<PurchaseReconApiClient.ReconDto> paginationBar = new TablePaginationBar<>(table, 25);
     private final TextField txtSearch = new TextField();
     private final Label lblShowing = new Label("Showing 0 records");
 
@@ -80,10 +81,9 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
 
         HBox toolbar = buildToolbar();
         configureTable();
-        HBox footer = buildFooter();
 
         VBox.setVgrow(table, Priority.ALWAYS);
-        centerBox.getChildren().addAll(toolbar, table, footer);
+        centerBox.getChildren().addAll(toolbar, table, paginationBar);
         root.setCenter(centerBox);
 
         pane.setContent(root);
@@ -164,7 +164,6 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
     private void configureTable() {
         PopupTableWorkspace.prepareTable(table, "erp-table-profile-responsive");
         table.getStyleClass().add("erp-purple-selection-table");
-        table.setItems(filteredRecords);
         table.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
 
         // System Ref
@@ -320,6 +319,7 @@ public class ReconSupplierRecordsDialog extends OwnedDialog<ButtonType> {
                 }
             }
         }
+        paginationBar.setAllItems(filteredRecords);
         lblShowing.setText("Showing " + filteredRecords.size() + " of " + rawRecords.size() + " records");
     }
 

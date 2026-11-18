@@ -420,7 +420,8 @@ public final class ActivityTimelineDialog {
         // ================= DATA MANAGEMENT =================
         ObservableList<AuditTableRow> masterList = FXCollections.observableArrayList();
         FilteredList<AuditTableRow> filteredList = new FilteredList<>(masterList, p -> true);
-        table.setItems(filteredList);
+        TablePaginationBar<AuditTableRow> paginationBar = new TablePaginationBar<>(table, 25);
+        paginationBar.bindTo(filteredList);
 
         Runnable applyFilter = () -> {
             String q = safe(txtSearch.getText()).trim().toLowerCase(Locale.ROOT);
@@ -546,7 +547,7 @@ public final class ActivityTimelineDialog {
         footer.setAlignment(Pos.CENTER_LEFT);
         footer.setPadding(new Insets(6, 2, 2, 2));
 
-        VBox root = new VBox(10, headerHero, toolbar, table, footer);
+        VBox root = new VBox(10, headerHero, toolbar, table, paginationBar, footer);
         root.setPadding(new Insets(16, 20, 16, 20));
         root.getStyleClass().addAll("document-inspection-content", "erp-ui-standard");
         VBox.setVgrow(root, Priority.ALWAYS);
