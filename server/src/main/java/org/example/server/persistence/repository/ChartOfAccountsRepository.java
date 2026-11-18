@@ -8,5 +8,6 @@ import java.util.Optional;
 public interface ChartOfAccountsRepository extends JpaRepository<ChartOfAccountsEntity, Long> {
     Optional<ChartOfAccountsEntity> findByAccountCode(String accountCode);
     List<ChartOfAccountsEntity> findAllByIsActiveTrueOrderByAccountCodeAsc();
+    List<ChartOfAccountsEntity> findAllByOrderByAccountCodeAsc();
     List<ChartOfAccountsEntity> findByAccountTypeOrderByAccountCodeAsc(String accountType);
 }

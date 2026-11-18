@@ -28,15 +28,34 @@ public final class GeneralLedgerApiClient {
     }
 
     public List<AccountDto> accounts() {
-        return get("/api/accounting/accounts", new TypeReference<List<AccountDto>>() {});
+        return accounts(false);
+    }
+
+    public List<AccountDto> accounts(boolean includeInactive) {
+        String p = "/api/accounting/accounts" + (includeInactive ? "?includeInactive=true" : "");
+        return get(p, new TypeReference<List<AccountDto>>() {});
     }
 
     public AccountDto createAccount(AccountDto dto) {
         return post("/api/accounting/accounts", dto, AccountDto.class);
     }
 
+    public AccountDto updateAccount(Long id, UpdateAccountRequest req) {
+        return put("/api/accounting/accounts/" + id, req, AccountDto.class);
+    }
+
     public List<JournalEntryDto> journalEntries() {
-        return get("/api/accounting/journal-entries", new TypeReference<List<JournalEntryDto>>() {});
+        return journalEntries(null, null, null, null);
+    }
+
+    public List<JournalEntryDto> journalEntries(LocalDate fromDate, LocalDate toDate, String entryType, String status) {
+        StringBuilder p = new StringBuilder("/api/accounting/journal-entries");
+        String sep = "?";
+        if (fromDate != null) { p.append(sep).append("fromDate=").append(enc(fromDate.toString())); sep = "&"; }
+        if (toDate != null) { p.append(sep).append("toDate=").append(enc(toDate.toString())); sep = "&"; }
+        if (entryType != null && !entryType.isBlank()) { p.append(sep).append("entryType=").append(enc(entryType)); sep = "&"; }
+        if (status != null && !status.isBlank()) { p.append(sep).append("status=").append(enc(status)); }
+        return get(p.toString(), new TypeReference<List<JournalEntryDto>>() {});
     }
 
     public JournalEntryDto postJournalEntry(CreateJournalRequest req) {
@@ -48,12 +67,61 @@ public final class GeneralLedgerApiClient {
         return post(p, null, JournalEntryDto.class);
     }
 
+    public JournalEntryDto reverseJournalEntry(Long id, ReverseJournalRequest req) {
+        return post("/api/accounting/journal-entries/" + id + "/reverse", req, JournalEntryDto.class);
+    }
+
     public List<TrialBalanceItemDto> trialBalance() {
-        return get("/api/accounting/trial-balance", new TypeReference<List<TrialBalanceItemDto>>() {});
+        return trialBalance(null, null);
+    }
+
+    public List<TrialBalanceItemDto> trialBalance(LocalDate fromDate, LocalDate toDate) {
+        StringBuilder p = new StringBuilder("/api/accounting/trial-balance");
+        String sep = "?";
+        if (fromDate != null) { p.append(sep).append("fromDate=").append(enc(fromDate.toString())); sep = "&"; }
+        if (toDate != null) { p.append(sep).append("toDate=").append(enc(toDate.toString())); }
+        return get(p.toString(), new TypeReference<List<TrialBalanceItemDto>>() {});
     }
 
     public FinancialStatementDto financialStatements() {
-        return get("/api/accounting/financial-statements", FinancialStatementDto.class);
+        return financialStatements(null, null);
+    }
+
+    public FinancialStatementDto financialStatements(LocalDate fromDate, LocalDate toDate) {
+        StringBuilder p = new StringBuilder("/api/accounting/financial-statements");
+        String sep = "?";
+        if (fromDate != null) { p.append(sep).append("fromDate=").append(enc(fromDate.toString())); sep = "&"; }
+        if (toDate != null) { p.append(sep).append("toDate=").append(enc(toDate.toString())); }
+        return get(p.toString(), FinancialStatementDto.class);
+    }
+
+    public AccountLedgerResponse accountLedger(String accountCode, LocalDate fromDate, LocalDate toDate) {
+        StringBuilder p = new StringBuilder("/api/accounting/account-ledger/").append(enc(accountCode));
+        String sep = "?";
+        if (fromDate != null) { p.append(sep).append("fromDate=").append(enc(fromDate.toString())); sep = "&"; }
+        if (toDate != null) { p.append(sep).append("toDate=").append(enc(toDate.toString())); }
+        return get(p.toString(), AccountLedgerResponse.class);
+    }
+
+    public ProfitAndLossResponse profitAndLoss(LocalDate fromDate, LocalDate toDate) {
+        StringBuilder p = new StringBuilder("/api/accounting/profit-and-loss");
+        String sep = "?";
+        if (fromDate != null) { p.append(sep).append("fromDate=").append(enc(fromDate.toString())); sep = "&"; }
+        if (toDate != null) { p.append(sep).append("toDate=").append(enc(toDate.toString())); }
+        return get(p.toString(), ProfitAndLossResponse.class);
+    }
+
+    public BalanceSheetResponse balanceSheet(LocalDate asOfDate) {
+        String p = "/api/accounting/balance-sheet" + (asOfDate != null ? "?asOfDate=" + enc(asOfDate.toString()) : "");
+        return get(p, BalanceSheetResponse.class);
+    }
+
+    public PeriodLockDto periodLock() {
+        return get("/api/accounting/period-lock", PeriodLockDto.class);
+    }
+
+    public PeriodLockDto setPeriodLock(LocalDate lockedUntil) {
+        return put("/api/accounting/period-lock", new PeriodLockDto(lockedUntil, null, null, lockedUntil != null), PeriodLockDto.class);
     }
 
     public PostingFlowResponse postingFlow(String docType, String docNo) {
@@ -65,6 +133,7 @@ public final class GeneralLedgerApiClient {
     private <T> T get(String p, TypeReference<T> t) { return req("GET", p, null, null, t); }
     private <T> T post(String p, Object b, Class<T> c) { return req("POST", p, b, c, null); }
     private <T> T post(String p, Object b, TypeReference<T> t) { return req("POST", p, b, null, t); }
+    private <T> T put(String p, Object b, Class<T> c) { return req("PUT", p, b, c, null); }
 
     private <T> T req(String method, String path, Object body, Class<T> c, TypeReference<T> t) {
         try {
@@ -190,6 +259,107 @@ public final class GeneralLedgerApiClient {
             BigDecimal totalAssets,
             BigDecimal totalLiabilities,
             BigDecimal totalEquity
+    ) {}
+
+    public record UpdateAccountRequest(
+            String accountName,
+            String accountType,
+            String accountSubtype,
+            BigDecimal openingBalance,
+            Boolean isActive
+    ) {}
+
+    public record ReverseJournalRequest(
+            LocalDate reversalDate,
+            String reason,
+            String postedBy
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record PeriodLockDto(
+            LocalDate lockedUntil,
+            String lockedBy,
+            String updatedAt,
+            boolean active
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record AccountLedgerLineDto(
+            Long journalEntryId,
+            String entryNumber,
+            LocalDate entryDate,
+            String entryType,
+            String referenceType,
+            Long referenceId,
+            String referenceNo,
+            String narration,
+            String lineNarration,
+            BigDecimal debitAmount,
+            BigDecimal creditAmount,
+            BigDecimal runningBalance,
+            String balanceType,
+            String status,
+            String postedBy
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record AccountLedgerResponse(
+            AccountDto account,
+            LocalDate fromDate,
+            LocalDate toDate,
+            BigDecimal openingBalance,
+            BigDecimal totalDebit,
+            BigDecimal totalCredit,
+            BigDecimal closingBalance,
+            String closingBalanceType,
+            List<AccountLedgerLineDto> entries
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record ProfitAndLossLineDto(
+            String accountCode,
+            String accountName,
+            String subtype,
+            BigDecimal amount
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record ProfitAndLossResponse(
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<ProfitAndLossLineDto> revenueLines,
+            List<ProfitAndLossLineDto> directExpenseLines,
+            List<ProfitAndLossLineDto> indirectExpenseLines,
+            BigDecimal totalRevenue,
+            BigDecimal totalDirectExpense,
+            BigDecimal grossProfit,
+            BigDecimal grossMarginPercent,
+            BigDecimal totalIndirectExpense,
+            BigDecimal netProfit,
+            BigDecimal netMarginPercent
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record BalanceSheetLineDto(
+            String accountCode,
+            String accountName,
+            String subtype,
+            BigDecimal balance
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record BalanceSheetResponse(
+            LocalDate asOfDate,
+            List<BalanceSheetLineDto> assetLines,
+            List<BalanceSheetLineDto> liabilityLines,
+            List<BalanceSheetLineDto> equityLines,
+            BigDecimal totalAssets,
+            BigDecimal totalLiabilities,
+            BigDecimal totalEquity,
+            BigDecimal currentPeriodNetProfit,
+            BigDecimal totalLiabilitiesAndEquity,
+            boolean balanced,
+            BigDecimal difference
     ) {}
 
     public record PostingFlowVoucherLine(

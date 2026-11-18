@@ -107,6 +107,100 @@ public class GeneralLedgerDtos {
             BigDecimal totalEquity
     ) {}
 
+    public record UpdateAccountRequest(
+            String accountName,
+            String accountType,
+            String accountSubtype,
+            BigDecimal openingBalance,
+            Boolean isActive
+    ) {}
+
+    public record ReverseJournalRequest(
+            LocalDate reversalDate,
+            String reason,
+            String postedBy
+    ) {}
+
+    public record PeriodLockDto(
+            LocalDate lockedUntil,
+            String lockedBy,
+            String updatedAt,
+            boolean active
+    ) {}
+
+    public record AccountLedgerLineDto(
+            Long journalEntryId,
+            String entryNumber,
+            LocalDate entryDate,
+            String entryType,
+            String referenceType,
+            Long referenceId,
+            String referenceNo,
+            String narration,
+            String lineNarration,
+            BigDecimal debitAmount,
+            BigDecimal creditAmount,
+            BigDecimal runningBalance,
+            String balanceType,
+            String status,
+            String postedBy
+    ) {}
+
+    public record AccountLedgerResponse(
+            AccountDto account,
+            LocalDate fromDate,
+            LocalDate toDate,
+            BigDecimal openingBalance,
+            BigDecimal totalDebit,
+            BigDecimal totalCredit,
+            BigDecimal closingBalance,
+            String closingBalanceType,
+            List<AccountLedgerLineDto> entries
+    ) {}
+
+    public record ProfitAndLossLineDto(
+            String accountCode,
+            String accountName,
+            String subtype,
+            BigDecimal amount
+    ) {}
+
+    public record ProfitAndLossResponse(
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<ProfitAndLossLineDto> revenueLines,
+            List<ProfitAndLossLineDto> directExpenseLines,
+            List<ProfitAndLossLineDto> indirectExpenseLines,
+            BigDecimal totalRevenue,
+            BigDecimal totalDirectExpense,
+            BigDecimal grossProfit,
+            BigDecimal grossMarginPercent,
+            BigDecimal totalIndirectExpense,
+            BigDecimal netProfit,
+            BigDecimal netMarginPercent
+    ) {}
+
+    public record BalanceSheetLineDto(
+            String accountCode,
+            String accountName,
+            String subtype,
+            BigDecimal balance
+    ) {}
+
+    public record BalanceSheetResponse(
+            LocalDate asOfDate,
+            List<BalanceSheetLineDto> assetLines,
+            List<BalanceSheetLineDto> liabilityLines,
+            List<BalanceSheetLineDto> equityLines,
+            BigDecimal totalAssets,
+            BigDecimal totalLiabilities,
+            BigDecimal totalEquity,
+            BigDecimal currentPeriodNetProfit,
+            BigDecimal totalLiabilitiesAndEquity,
+            boolean balanced,
+            BigDecimal difference
+    ) {}
+
     public record PostingFlowVoucherLine(
             String accountCode,
             String accountName,

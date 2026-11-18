@@ -47,7 +47,8 @@ public class AgingAnalysisController implements ScreenLifecycle {
 
     @FXML private SplitPane mainSplit;
     @FXML private TableView<AgingBucketRow> tblAging;
-    @FXML private TableColumn<AgingBucketRow, String> colPartyName, colTotalDue, colCurrent, col31To60, col61To90, colOver90, colRisk, colActions;
+    @FXML private TableColumn<AgingBucketRow, String> colPartyName, colTotalDue, colCurrent, col31To60, col61To90, colOver90, colRisk, colLastReminded, colActions;
+    @FXML private HBox paginationHost;
 
     @FXML private VBox detailDrawer;
     @FXML private Label lblDrawerTitle, lblDrawerSubtitle;
@@ -58,6 +59,7 @@ public class AgingAnalysisController implements ScreenLifecycle {
     private final ObservableList<AgingBucketRow> masterList = FXCollections.observableArrayList();
     private final ObservableList<AgingBucketRow> filteredList = FXCollections.observableArrayList();
     private final NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.of("en", "IN"));
+    private TablePaginationBar<AgingBucketRow> paginationBar;
 
     private boolean isDebtorMode = true;
     private AgingBucketRow selectedRow;
@@ -78,6 +80,11 @@ public class AgingAnalysisController implements ScreenLifecycle {
         btnCreditors.setSelected(false);
 
         configureTableColumns();
+        if (paginationHost != null) {
+            paginationBar = new TablePaginationBar<>(tblAging, 25);
+            HBox.setHgrow(paginationBar, Priority.ALWAYS);
+            paginationHost.getChildren().setAll(paginationBar);
+        }
         DynamicTableLayoutManager.install(tblAging);
 
         cmbRiskFilter.getItems().setAll("All Risk Levels", "NORMAL", "LOW", "MODERATE", "HIGH", "CRITICAL");
@@ -101,12 +108,36 @@ public class AgingAnalysisController implements ScreenLifecycle {
 
         RegisterUiSupport.hideDrawer(detailDrawer, mainSplit, tblAging);
         OperationalUiSupport.installEscapeClose(mainSplit, () -> detailDrawer != null && detailDrawer.isVisible(), this::closeDetails);
+        applyCollectionsFeatureFlag();
         refreshData();
     }
 
     @Override
     public void onScreenShown(boolean reusedFromCache) {
+        applyCollectionsFeatureFlag();
         refreshData();
+    }
+
+    private boolean isCollectionsEnabled() {
+        return ConfigManager.getBoolean("module.collections.enabled", true);
+    }
+
+    private void applyCollectionsFeatureFlag() {
+        boolean enabled = isCollectionsEnabled();
+        if (colLastReminded != null) {
+            colLastReminded.setVisible(enabled && isDebtorMode);
+        }
+        if (btnSendBulkReminder != null) {
+            if (isDebtorMode) {
+                btnSendBulkReminder.setText(enabled ? "Send Collections (WhatsApp / Email)" : "Queue Internal Reminders");
+                btnSendBulkReminder.setTooltip(new Tooltip(enabled
+                        ? "Dispatch WhatsApp/Email overdue reminders with Branded Statement PDF (controlled in Settings -> Module Activation)"
+                        : "External Collections Dispatch is OFF in Settings -> Module Activation. Reminders will be saved internally in Reminder Center only."));
+            } else {
+                btnSendBulkReminder.setText("Generate Payment Schedule");
+                btnSendBulkReminder.setTooltip(new Tooltip("Queue vendor payment follow-up schedule in Reminder Center"));
+            }
+        }
     }
 
     private static String apiUrl(String path) {
@@ -120,8 +151,8 @@ public class AgingAnalysisController implements ScreenLifecycle {
         isDebtorMode = true;
         btnDebtors.setSelected(true);
         btnCreditors.setSelected(false);
-        btnSendBulkReminder.setText("Send Reminders (Overdue Debtors)");
         btnSendBulkReminder.setVisible(true);
+        applyCollectionsFeatureFlag();
         refreshData();
     }
 
@@ -130,7 +161,7 @@ public class AgingAnalysisController implements ScreenLifecycle {
         isDebtorMode = false;
         btnDebtors.setSelected(false);
         btnCreditors.setSelected(true);
-        btnSendBulkReminder.setText("Generate Payment Schedule");
+        applyCollectionsFeatureFlag();
         refreshData();
     }
 
@@ -142,6 +173,37 @@ public class AgingAnalysisController implements ScreenLifecycle {
         col61To90.setCellValueFactory(d -> new SimpleStringProperty(currency.format(d.getValue().bucket61To90)));
         colOver90.setCellValueFactory(d -> new SimpleStringProperty(currency.format(d.getValue().bucket90Plus)));
         colRisk.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().riskLevel));
+        if (colLastReminded != null) {
+            colLastReminded.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().lastRemindedAt == null ? "" : d.getValue().lastRemindedAt));
+            colLastReminded.setCellFactory(col -> new TableCell<>() {
+                @Override
+                protected void updateItem(String val, boolean empty) {
+                    super.updateItem(val, empty);
+                    AgingBucketRow row = (empty || getTableRow() == null) ? null : getTableRow().getItem();
+                    if (empty || row == null) {
+                        setGraphic(null);
+                        setText(null);
+                        return;
+                    }
+                    Label badge = new Label();
+                    badge.getStyleClass().add("aging-reminded-pill");
+                    if (row.lastRemindedAt == null || row.lastRemindedAt.isBlank()) {
+                        badge.setText("Not reminded");
+                        badge.getStyleClass().add("aging-reminded-none");
+                    } else {
+                        String ch = row.lastRemindedChannel != null && !row.lastRemindedChannel.isBlank()
+                                ? " • " + row.lastRemindedChannel : "";
+                        badge.setText(BusinessClock.formatDate(row.lastRemindedAt) + ch);
+                        boolean recent = CollectionDispatchDialog.isWithinCooldown(row.lastRemindedAt, CollectionDispatchDialog.parseCooldownHours());
+                        badge.getStyleClass().add(recent ? "aging-reminded-recent" : "aging-reminded-stale");
+                        badge.setTooltip(new Tooltip("Last dispatched: " + BusinessClock.formatTimestamp(row.lastRemindedAt) + ch));
+                    }
+                    setGraphic(badge);
+                    setText(null);
+                    setAlignment(Pos.CENTER);
+                }
+            });
+        }
 
         colActions.setCellFactory(col -> new TableCell<>() {
             private final MenuButton actionsBtn = new MenuButton("Actions");
@@ -178,7 +240,11 @@ public class AgingAnalysisController implements ScreenLifecycle {
                 });
 
                 actionsBtn.setOnShowing(ev -> {
-                    remindItem.setText(isDebtorMode ? "Send Overdue Notice" : "Record Supplier Payment");
+                    if (isDebtorMode) {
+                        remindItem.setText(isCollectionsEnabled() ? "Send Payment Reminder (WhatsApp / Email)" : "Queue Internal Reminder");
+                    } else {
+                        remindItem.setText("Record Supplier Payment");
+                    }
                 });
 
                 actionsBtn.getItems().addAll(viewItem, remindItem, auditItem);
@@ -187,7 +253,7 @@ public class AgingAnalysisController implements ScreenLifecycle {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                if (empty) {
                     setGraphic(null);
                 } else {
                     setGraphic(actionsBtn);
@@ -196,7 +262,9 @@ public class AgingAnalysisController implements ScreenLifecycle {
             }
         });
 
-        tblAging.setItems(filteredList);
+        if (paginationBar == null) {
+            tblAging.setItems(filteredList);
+        }
     }
 
     @FXML
@@ -243,6 +311,9 @@ public class AgingAnalysisController implements ScreenLifecycle {
         }).toList();
 
         filteredList.setAll(matched);
+        if (paginationBar != null) {
+            paginationBar.setAllItems(matched);
+        }
     }
 
     private void updateKpis(AgingReportResponse report) {
@@ -319,7 +390,14 @@ public class AgingAnalysisController implements ScreenLifecycle {
         int r = 0;
         addAgingDetailRow(grid, r++, "Party / Trade Name", row.partyName, isDebtorMode ? "customer" : "supplier");
         addAgingDetailRow(grid, r++, "Ledger Group", isDebtorMode ? "Sundry Debtors (AR)" : "Sundry Creditors (AP)", "finance");
-        addAgingDetailRow(grid, r++, "Contact Phone", row.phone != null ? row.phone : "Not recorded", "user");
+        addAgingDetailRow(grid, r++, "Contact Phone", row.phone != null && !row.phone.isBlank() ? row.phone : "Not recorded", "user");
+        addAgingDetailRow(grid, r++, "Contact Email", row.email != null && !row.email.isBlank() ? row.email : "Not recorded", "email");
+        if (isCollectionsEnabled() && isDebtorMode) {
+            String remindedText = (row.lastRemindedAt == null || row.lastRemindedAt.isBlank())
+                    ? "Not reminded yet"
+                    : BusinessClock.formatTimestamp(row.lastRemindedAt) + (row.lastRemindedChannel != null ? " via " + row.lastRemindedChannel : "");
+            addAgingDetailRow(grid, r++, "Last Reminded", remindedText, "communication");
+        }
         addAgingDetailRow(grid, r++, "Risk Level", row.riskLevel != null ? row.riskLevel : "Low", "status");
         addAgingDetailRow(grid, r++, "Current (0–30 Days)", currency.format(row.bucket0To30 != null ? row.bucket0To30 : BigDecimal.ZERO), "currency");
         addAgingDetailRow(grid, r++, "Overdue (31–60 Days)", currency.format(row.bucket31To60 != null ? row.bucket31To60 : BigDecimal.ZERO), "calendar");
@@ -401,17 +479,56 @@ public class AgingAnalysisController implements ScreenLifecycle {
         }
     }
 
+    private CollectionDispatchDialog.TargetParty toTargetParty(AgingBucketRow row) {
+        return new CollectionDispatchDialog.TargetParty(
+                row.partyId, row.partyName, row.phone, row.email, row.unpaidInvoiceCount,
+                row.totalOutstanding, row.bucket0To30, row.bucket31To60, row.bucket61To90, row.bucket90Plus,
+                row.riskLevel, row.lastRemindedAt, row.lastRemindedChannel
+        );
+    }
+
+    private org.example.service.AgingStatementPdfService.StatementPayload fetchPartyStatement(Long partyId) {
+        LocalDate asOf = dpAsOfDate != null && dpAsOfDate.getValue() != null ? dpAsOfDate.getValue() : LocalDate.now();
+        String type = isDebtorMode ? "DEBTOR" : "CREDITOR";
+        try {
+            String url = apiUrl("/api/financial/aging/party-statement/" + partyId + "?type=" + type + "&asOfDate=" + asOf);
+            HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(20))
+                    .header("Accept", "application/json")
+                    .GET();
+            ApiSession.authorize(b);
+            HttpResponse<String> resp = ApiRuntime.HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
+                throw new IllegalStateException("Server returned HTTP " + resp.statusCode() + " loading party statement.");
+            }
+            return ApiRuntime.JSON.readValue(resp.body(), org.example.service.AgingStatementPdfService.StatementPayload.class);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while loading party statement", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not load party statement: " + e.getMessage(), e);
+        }
+    }
+
     private void sendReminderForRow(AgingBucketRow row) {
         if (row == null) return;
+        if (isDebtorMode && isCollectionsEnabled()) {
+            CollectionDispatchDialog.showSingle(
+                    tblAging,
+                    toTargetParty(row),
+                    this::fetchPartyStatement,
+                    supportApi,
+                    insightsApi,
+                    this::refreshData
+            );
+            return;
+        }
         String partyName = row.partyName != null ? row.partyName : "Party";
         String totalText = currency.format(row.totalOutstanding != null ? row.totalOutstanding : BigDecimal.ZERO);
         if (isDebtorMode) {
             String priority = (row.bucket90Plus != null && row.bucket90Plus.compareTo(BigDecimal.ZERO) > 0) ? "URGENT" :
                               ((row.bucket61To90 != null && row.bucket61To90.compareTo(BigDecimal.ZERO) > 0) ? "HIGH" : "NORMAL");
-            String notes = "Automated AR payment reminder generated from Aging Analysis for " + partyName + ". Total Outstanding: ₹ " + totalText +
-                           " (Overdue >30d: ₹ " + currency.format((row.bucket31To60 != null ? row.bucket31To60 : BigDecimal.ZERO)
-                           .add(row.bucket61To90 != null ? row.bucket61To90 : BigDecimal.ZERO)
-                           .add(row.bucket90Plus != null ? row.bucket90Plus : BigDecimal.ZERO)) + ")";
+            String notes = "Internal AR payment reminder queued from Aging Analysis for " + partyName + ". Total Outstanding: " + totalText;
             String user = org.example.service.SessionService.current() != null ? org.example.service.SessionService.current().getFullName() : "System";
             var dto = new org.example.api.insights.InsightsApiClient.ReminderDto(
                 null,
@@ -428,25 +545,14 @@ public class AgingAnalysisController implements ScreenLifecycle {
             UiTaskExecutor.submitAction(
                 "aging-reminder-send-" + partyName.hashCode(),
                 () -> {
-                    try {
-                        insightsApi.saveReminder(dto);
-                    } catch (Exception ex) {
-                        java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Reminder api error: " + ex.getMessage());
-                    }
-                    try {
-                        supportApi.communication(new org.example.api.support.SupportApiClient.CommunicationRequest(
-                            "PARTY", 0, "REMINDER", partyName,
-                            "Payment Reminder: Outstanding ₹ " + totalText, "SENT", null, user
-                        ));
-                    } catch (Exception ex) {
-                        java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Communication api error: " + ex.getMessage());
-                    }
-                    org.example.service.NotificationService.add("Payment reminder queued for " + partyName + " (" + totalText + ")");
+                    try { insightsApi.saveReminder(dto); } catch (Exception ignored) {}
+                    org.example.service.NotificationService.add("Internal payment reminder queued for " + partyName + " (" + totalText + ")");
                     return null;
                 },
-                ignored -> AppDialogService.success(tblAging, "Payment Reminder Dispatched",
-                    "Automated reminder for " + totalText + " recorded in Reminder Center and dispatched to " + partyName),
-                failure -> AppDialogService.error(tblAging, "Reminder Failed", "Could not dispatch reminder", failure.getMessage())
+                ignored -> AppDialogService.success(tblAging, "Internal Reminder Queued",
+                    "Internal reminder for " + totalText + " recorded in Reminder Center for " + partyName
+                            + " (External WhatsApp/Email Collections Dispatch is OFF in Settings -> Module Activation)."),
+                failure -> AppDialogService.error(tblAging, "Reminder Failed", "Could not queue reminder", failure.getMessage())
             );
         } else {
             String user = org.example.service.SessionService.current() != null ? org.example.service.SessionService.current().getFullName() : "System";
@@ -485,7 +591,20 @@ public class AgingAnalysisController implements ScreenLifecycle {
             return;
         }
 
-        if (AppDialogService.confirm(tblAging, "Bulk Reminders", "Send Automated Reminders?", "Send payment reminders to " + overdueList.size() + " overdue parties?")) {
+        if (isDebtorMode && isCollectionsEnabled()) {
+            List<CollectionDispatchDialog.TargetParty> targets = overdueList.stream().map(this::toTargetParty).toList();
+            CollectionDispatchDialog.showBulk(
+                    tblAging,
+                    targets,
+                    this::fetchPartyStatement,
+                    supportApi,
+                    insightsApi,
+                    this::refreshData
+            );
+            return;
+        }
+
+        if (AppDialogService.confirm(tblAging, "Bulk Reminders", "Queue Internal Reminders?", "Queue internal follow-up reminders in Reminder Center for " + overdueList.size() + " overdue parties?")) {
             String user = org.example.service.SessionService.current() != null ? org.example.service.SessionService.current().getFullName() : "System";
             UiTaskExecutor.submitAction(
                 "aging-bulk-reminders",
@@ -543,15 +662,20 @@ public class AgingAnalysisController implements ScreenLifecycle {
         public List<AgingBucketRow> rows;
     }
 
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     public static class AgingBucketRow {
         public Long partyId;
         public String partyName;
         public String phone;
+        public String email;
+        public int unpaidInvoiceCount;
         public BigDecimal totalOutstanding = BigDecimal.ZERO;
         public BigDecimal bucket0To30 = BigDecimal.ZERO;
         public BigDecimal bucket31To60 = BigDecimal.ZERO;
         public BigDecimal bucket61To90 = BigDecimal.ZERO;
         public BigDecimal bucket90Plus = BigDecimal.ZERO;
         public String riskLevel;
+        public String lastRemindedAt;
+        public String lastRemindedChannel;
     }
 }

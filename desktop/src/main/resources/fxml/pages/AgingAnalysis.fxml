@@ -17,9 +17,9 @@
           <ToggleButton fx:id="btnDebtors" text="Receivables (Debtors)" onAction="#selectDebtors" styleClass="approved-button,approved-primary-button"/>
           <ToggleButton fx:id="btnCreditors" text="Payables (Creditors)" onAction="#selectCreditors" styleClass="approved-button,approved-secondary-button"/>
           <Separator orientation="VERTICAL"/>
-          <Label text="As of Date:" styleClass="field-caption"/>
-          <DatePicker fx:id="dpAsOfDate" prefWidth="130"/>
-          <Button fx:id="btnRefresh" text="Recalculate" onAction="#refreshData" styleClass="primary-action,approved-button,approved-primary-button"/>
+          <Label text="As of Date:" minWidth="-Infinity" styleClass="field-caption"/>
+          <DatePicker fx:id="dpAsOfDate" minWidth="162" prefWidth="168"/>
+          <Button fx:id="btnRefresh" text="Recalculate" minWidth="-Infinity" onAction="#refreshData" styleClass="primary-action,approved-button,approved-primary-button"/>
         </HBox>
       </HBox>
 
@@ -81,7 +81,7 @@
       <HBox spacing="8" alignment="CENTER_LEFT">
         <TextField fx:id="txtSearch" promptText="Search account name, city, phone..." HBox.hgrow="ALWAYS"/>
         <ComboBox fx:id="cmbRiskFilter" promptText="Filter by Risk" prefWidth="180"/>
-        <Button fx:id="btnSendBulkReminder" text="Send Reminders (Overdue)" onAction="#sendBulkReminders" styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnSendBulkReminder" text="Send Reminders (Overdue)" minWidth="-Infinity" onAction="#sendBulkReminders" styleClass="approved-button,approved-secondary-button"/>
       </HBox>
 
       <SplitPane fx:id="mainSplit" VBox.vgrow="ALWAYS" dividerPositions="1.0" styleClass="register-split-pane">
@@ -94,6 +94,7 @@
             <TableColumn fx:id="col61To90" text="61–90 Days (₹)"/>
             <TableColumn fx:id="colOver90" text="90+ Days (₹)"/>
             <TableColumn fx:id="colRisk" text="Risk Status"/>
+            <TableColumn fx:id="colLastReminded" text="Last Reminder"/>
             <TableColumn fx:id="colActions" text="Actions" sortable="false"/>
           </columns>
           <placeholder>
@@ -133,6 +134,7 @@
           </ScrollPane>
         </VBox>
       </SplitPane>
+      <HBox fx:id="paginationHost" alignment="CENTER_LEFT"/>
     </VBox>
   </center>
 </BorderPane>

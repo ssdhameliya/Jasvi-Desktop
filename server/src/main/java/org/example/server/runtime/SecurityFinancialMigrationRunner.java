@@ -235,7 +235,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_67__client_registry_cloud_workstation_unification",
                     "db/migration/V11_0_67__client_registry_cloud_workstation_unification.sql"),
             new Migration("V11_0_68__payment_and_refund_whatsapp_status",
-                    "db/migration/V11_0_68__payment_and_refund_whatsapp_status.sql")
+                    "db/migration/V11_0_68__payment_and_refund_whatsapp_status.sql"),
+            new Migration("V11_0_75__bank_statement_rules",
+                    "db/migration/V11_0_75__bank_statement_rules.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

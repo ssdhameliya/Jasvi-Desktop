@@ -102,4 +102,70 @@
         </HBox>
     </VBox>
 
+    <Separator/>
+
+    <!-- 6. SMART OVERDUE COLLECTIONS & STATEMENT DISPATCH (OPTION 1) -->
+    <VBox spacing="10" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <Label text="Smart Overdue Collections &amp; Statement Dispatch" styleClass="settings-form-label,bold-label"/>
+                <Label text="Send real WhatsApp &amp; Email payment reminders with auto-generated Branded Party Aging Statement PDFs directly from Aging Analysis." wrapText="true" styleClass="settings-field-hint"/>
+            </VBox>
+            <CheckBox fx:id="chkCollectionsEnabled" text="Enable Collections Dispatch" styleClass="approved-checkbox,ios-toggle-switch"/>
+        </HBox>
+        <HBox spacing="20" alignment="CENTER_LEFT">
+            <CheckBox fx:id="chkCollectionsWhatsapp" text="WhatsApp Dispatch (WAHA)" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <CheckBox fx:id="chkCollectionsEmail" text="Email Dispatch (SMTP)" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <CheckBox fx:id="chkCollectionsAttachPdf" text="Auto-Attach Branded Statement PDF" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <Label text="Cooldown Guard:" minWidth="-Infinity" styleClass="settings-form-label"/>
+            <ComboBox fx:id="cmbCollectionsCooldownHours" prefWidth="128" styleClass="approved-input"/>
+        </HBox>
+        <VBox spacing="4" styleClass="settings-impact-box">
+            <HBox spacing="8" alignment="TOP_LEFT" styleClass="settings-impact-row">
+                <Label text="WHEN ON" minWidth="-Infinity" styleClass="settings-impact-tag-on"/>
+                <Label text="Aging Analysis enables 1-click &amp; bulk WhatsApp/Email dispatch with auto-generated Party Statement PDF, severity templates (30/60/90+ days), Last Reminded badge, and cooldown spam guard. All dispatches log to Communication Center." wrapText="true" HBox.hgrow="ALWAYS" styleClass="settings-impact-text"/>
+            </HBox>
+            <HBox spacing="8" alignment="TOP_LEFT" styleClass="settings-impact-row">
+                <Label text="WHEN OFF" minWidth="-Infinity" styleClass="settings-impact-tag-off"/>
+                <Label text="External WhatsApp &amp; Email collection dispatch is bypassed immediately (zero messages sent to parties); Aging reminders fall back strictly to internal Reminder Center notes. All past Communication Center history remains preserved." wrapText="true" HBox.hgrow="ALWAYS" styleClass="settings-impact-text"/>
+            </HBox>
+            <HBox spacing="8" alignment="TOP_LEFT" styleClass="settings-impact-row">
+                <Label text="IMPACTED" minWidth="-Infinity" styleClass="settings-impact-tag-scope"/>
+                <Label text="AR / AP Aging Analysis • Customer 360 • Communication Center • Reminder Center • Email (SMTP) &amp; WhatsApp (WAHA) Channels" wrapText="true" HBox.hgrow="ALWAYS" styleClass="settings-impact-text"/>
+            </HBox>
+        </VBox>
+    </VBox>
+
+    <Separator/>
+
+    <!-- 7. BANK STATEMENT SMART NARRATION AUTO-RULES ENGINE (OPTION 2) -->
+    <VBox spacing="10" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <Label text="Bank Statement Smart Narration Auto-Rules Engine" styleClass="settings-form-label,bold-label"/>
+                <Label text="Learn recurring bank narrations (rent, UPI handles, payment gateways, bank charges) to auto-suggest or auto-route future statement imports." wrapText="true" styleClass="settings-field-hint"/>
+            </VBox>
+            <CheckBox fx:id="chkBankRulesEnabled" text="Enable Smart Bank Rules" styleClass="approved-checkbox,ios-toggle-switch"/>
+        </HBox>
+        <HBox spacing="20" alignment="CENTER_LEFT">
+            <CheckBox fx:id="chkBankRulesSuggestOnImport" text="Auto-Suggest Matches on Import" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <CheckBox fx:id="chkBankRulesAutoApplyOnImport" text="Allow Auto-Apply Rules on Import" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <CheckBox fx:id="chkBankRulesPromptSave" text="Show &quot;Remember Rule&quot; in Action Dialogs" styleClass="approved-checkbox,ios-toggle-switch"/>
+        </HBox>
+        <VBox spacing="4" styleClass="settings-impact-box">
+            <HBox spacing="8" alignment="TOP_LEFT" styleClass="settings-impact-row">
+                <Label text="WHEN ON" minWidth="-Infinity" styleClass="settings-impact-tag-on"/>
+                <Label text="Bank Statement shows Reconciliation Rules manager, Run Rules action, and &quot;Remember Rule&quot; inside Move to Expense / Bank Entry / Ignore modals. Future statement imports evaluate saved rules with full audit trace." wrapText="true" HBox.hgrow="ALWAYS" styleClass="settings-impact-text"/>
+            </HBox>
+            <HBox spacing="8" alignment="TOP_LEFT" styleClass="settings-impact-row">
+                <Label text="WHEN OFF" minWidth="-Infinity" styleClass="settings-impact-tag-off"/>
+                <Label text="Hides Rules UI in Bank Statement and skips all rule evaluation during CSV/PDF import (100% classic manual reconciliation, zero overhead). Existing saved rules and reconciled entries stay safely preserved in PostgreSQL." wrapText="true" HBox.hgrow="ALWAYS" styleClass="settings-impact-text"/>
+            </HBox>
+            <HBox spacing="8" alignment="TOP_LEFT" styleClass="settings-impact-row">
+                <Label text="IMPACTED" minWidth="-Infinity" styleClass="settings-impact-tag-scope"/>
+                <Label text="Bank Statement • Move to Expense / Bank Entry / Ignore Dialogs • Bank Expense Ledger • Server Bank Reconciliation Import Pipeline" wrapText="true" HBox.hgrow="ALWAYS" styleClass="settings-impact-text"/>
+            </HBox>
+        </VBox>
+    </VBox>
+
 </VBox>

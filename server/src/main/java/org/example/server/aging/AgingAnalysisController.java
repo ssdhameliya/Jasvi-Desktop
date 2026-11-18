@@ -34,6 +34,14 @@ public class AgingAnalysisController {
         return service.getPayablesAging(asOfDate);
     }
 
+    @GetMapping("/party-statement/{partyId}")
+    public AgingAnalysisDtos.PartyStatementDto getPartyStatement(
+            @PathVariable Long partyId,
+            @RequestParam(defaultValue = "DEBTOR") String type,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
+        return service.getPartyStatement(partyId, type, asOfDate);
+    }
+
     @PostMapping("/remind/{partyId}")
     public boolean sendPaymentReminder(@PathVariable Long partyId, @RequestParam(required = false) String user) {
         return service.sendPaymentReminder(partyId, user);

@@ -1,3 +1,30 @@
+# What's New in DSE ERP v11.0.75
+
+### Smart Overdue Collections, Bank Statement Auto-Rules & Settings iPhone-Style Governance
+- **Settings → Module Activation iPhone-Style ON/OFF Governance (`ModulesSettingsPanel.fxml`, `SettingsController.java`) (Rule 5 & Rule 11)**:
+  - Added iPhone-style (`ios-toggle-switch`) master & sub-toggles with built-in **WHEN ON / WHEN OFF / IMPACTED** summary guides for both **Smart Overdue Collections & Statement Dispatch** (`module.collections.*`, including 24h/48h/72h Cooldown Guard) and **Bank Statement Smart Narration Auto-Rules** (`module.bankRules.*`). Changes take effect immediately with zero restart and zero data loss when toggled OFF.
+- **Option 1 — Smart Overdue Collections & Branded Statement PDF Dispatch (`AgingAnalysis.fxml`, `AgingAnalysisController.java`, `CollectionDispatchDialog.java`, `AgingStatementPdfService.java`, `AgingAnalysisService.java`) (Rule 5, Rule 10, Rule 12, Rule 13 & Rule 17)**:
+  - Added live server party statement endpoint (`GET /api/financial/aging/party-statement/{partyId}`) and enriched `AgingAnalysis` with `email`, `Last Reminder` semantic pill column, unclipped `As of Date`, bottom `TablePaginationBar`, and single/bulk WhatsApp + Email dispatch with auto-generated Branded Party Aging Statement PDF, severity-tiered message templates, and cooldown spam guard.
+- **Option 2 — Bank Statement Smart Narration Auto-Rules Engine (`V11_0_75__bank_statement_rules.sql`, `BankReconciliationRuleService.java`, `BankReconciliationRulesDialog.java`, `BankStatement.fxml`, `BankStatementController.java`) (Rule 4, Rule 5, Rule 12 & Rule 17)**:
+  - Added persistent `bank_reconciliation_rules` schema, CRUD + dry-run preview + batch apply REST endpoints, automatic import-time rule evaluation (server-gated by live `application_setting` flags), 95% responsive Rules Manager modal with KPIs, `Rules` & `Run Rules` toolbar buttons, `Rule:` match badges, and 1-click iPhone-style *"Remember rule for future statements"* toggles inside `Move to Expense`, `Move to Bank Entry`, and `Ignore`.
+
+### Complete General Ledger (GL) Financial Accounting Suite Upgrade
+- **Manual Journal, Expense, Contra & Adjustment Vouchers (`ManualJournalDialog.java`, `GeneralLedgerController.java`) (Rule 4, Rule 5, Rule 12 & Rule 13)**:
+  - Replaced the placeholder New Journal alert with a full multi-line double-entry voucher builder supporting `GENERAL`, `EXPENSE`, `CONTRA`, and `ADJUSTMENT` voucher types, compact-digit `DatePickerFormatter` date entry, live `Total Debit == Total Credit` balance verification pill, and both **Save Draft** and **Post Voucher** workflows.
+- **Full Chart of Accounts Management (`ChartOfAccountsDialog.java`, `GeneralLedgerService.java`, `GeneralLedgerController.java`) (Rule 5 & Rule 17)**:
+  - Added **+ New Account** and **Edit Account** modal dialogs with opening balance editing, subtype classification, **Show Inactive** toggle, and server-side safety guards preventing deactivation of system-locked accounts or accounts with non-zero balances.
+- **Tally-Style Account Ledger Statement Drill-Down (`AccountLedgerDialog.java`, `GET /api/accounting/account-ledger/{accountCode}`) (Rule 5, Rule 12 & Rule 13)**:
+  - Double-clicking any account across Chart of Accounts, Trial Balance, Profit & Loss, or Balance Sheet opens a full chronological ledger statement with brought-forward opening balance, running `Dr / Cr` balance, date range filter, double-click jump to `PostingFlowDialog`, and 1-click **Excel** and **PDF** ledger exports.
+- **Dedicated Profit & Loss + Balance Sheet Tabs & Universal Accounting Period Filter (`GeneralLedger.fxml`, `GET /api/accounting/profit-and-loss`, `GET /api/accounting/balance-sheet`) (Rule 5, Rule 6 & Rule 7)**:
+  - Added a universal Accounting Period & Financial Year bar (`All Time`, `Today`, `This Month`, `This Quarter`, `This FY`, `Last FY`, `Custom Range`) driving all KPIs, Journal Vouchers, Trial Balance, Profit & Loss, and Balance Sheet simultaneously while keeping all query parameters optional (`required = false`) for 100% `Jasvi-Admin` backward compatibility.
+  - Added **Tab 4: Profit & Loss** (Revenue, Direct Cost/COGS, Gross Profit %, Indirect Expenses, Net Profit %) and **Tab 5: Balance Sheet** (Assets vs Liabilities + Equity + Current Period Net Profit with live `TALLIED (Assets = L + E)` audit check).
+- **1-Click Audited Voucher Reversal & Admin Accounting Period Lock (`POST /api/accounting/journal-entries/{id}/reverse`, `GET/PUT /api/accounting/period-lock`) (Rule 10 & Rule 17)**:
+  - Added audited contra **Reverse Voucher** support (swapping Debit/Credit legs while marking the original `REVERSED`) and Admin-only **Accounting Period Lock / Books Freeze** centrally enforced in `GeneralLedgerService` across Sales, Purchases, Payments, Returns, Cancellations, and Manual Journals.
+- **Quick Book Views, Pagination, Multi-Leg Drawer & 5-Sheet Excel / PDF Financial Pack (`GeneralLedgerController.java`) (Rule 7, Rule 8 & Rule 9)**:
+  - Added Quick Book filter (`Day Book (Today)`, `Cash & Bank Book`, `GST Ledgers`, `Drafts Only`, `Manual & Reversals`), `TablePaginationBar` on Journal Vouchers, full multi-leg Debit/Credit line breakdown in the detail drawer, Trial Balance grand totals strip with `BALANCED (Dr = Cr)` pill, 5-sheet Excel Financial Pack with `=SUM(...)` totals, and a branded PDF Financial Statement Pack export.
+
+---
+
 # What's New in DSE ERP v11.0.74
 
 ### Zero-Scroll Redesign of Purchase Recon & Recon Supplier Pop-Up Modals

@@ -11,4 +11,5 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntryEntity
     List<JournalEntryEntity> findByEntryDateBetweenOrderByEntryDateDescIdDesc(LocalDate startDate, LocalDate endDate);
     List<JournalEntryEntity> findByReferenceTypeAndReferenceId(String referenceType, Long referenceId);
     List<JournalEntryEntity> findTop100ByOrderByEntryDateDescIdDesc();
+    List<JournalEntryEntity> findTop500ByOrderByEntryDateDescIdDesc();
 }

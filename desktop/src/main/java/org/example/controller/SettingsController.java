@@ -568,6 +568,15 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private CheckBox chkBriefingEmail;
     @FXML private TextField txtBriefingPhone;
     @FXML private CheckBox chkBatchSerialTracking;
+    @FXML private CheckBox chkCollectionsEnabled;
+    @FXML private CheckBox chkCollectionsWhatsapp;
+    @FXML private CheckBox chkCollectionsEmail;
+    @FXML private CheckBox chkCollectionsAttachPdf;
+    @FXML private ComboBox<String> cmbCollectionsCooldownHours;
+    @FXML private CheckBox chkBankRulesEnabled;
+    @FXML private CheckBox chkBankRulesSuggestOnImport;
+    @FXML private CheckBox chkBankRulesAutoApplyOnImport;
+    @FXML private CheckBox chkBankRulesPromptSave;
 
     /* =========================================================
        CONFIGURATION KEYS
@@ -5092,6 +5101,55 @@ private record AssetPreviewRequest(
         if (chkBriefingEmail != null) chkBriefingEmail.setSelected(ConfigManager.getBoolean("module.briefing.email", true));
         if (txtBriefingPhone != null) txtBriefingPhone.setText(ConfigManager.get("module.briefing.phone", ""));
         if (chkBatchSerialTracking != null) chkBatchSerialTracking.setSelected(ConfigManager.getBoolean("module.inventory.batchSerialTracking", true));
+
+        if (cmbCollectionsCooldownHours != null && cmbCollectionsCooldownHours.getItems().isEmpty()) {
+            cmbCollectionsCooldownHours.getItems().setAll("24 Hours", "48 Hours", "72 Hours");
+        }
+        if (chkCollectionsEnabled != null) chkCollectionsEnabled.setSelected(ConfigManager.getBoolean("module.collections.enabled", true));
+        if (chkCollectionsWhatsapp != null) chkCollectionsWhatsapp.setSelected(ConfigManager.getBoolean("module.collections.whatsapp", true));
+        if (chkCollectionsEmail != null) chkCollectionsEmail.setSelected(ConfigManager.getBoolean("module.collections.email", true));
+        if (chkCollectionsAttachPdf != null) chkCollectionsAttachPdf.setSelected(ConfigManager.getBoolean("module.collections.attachStatementPdf", true));
+        if (cmbCollectionsCooldownHours != null) {
+            String hrs = ConfigManager.get("module.collections.cooldownHours", "48").trim();
+            cmbCollectionsCooldownHours.setValue(switch (hrs) {
+                case "24" -> "24 Hours";
+                case "72" -> "72 Hours";
+                default -> "48 Hours";
+            });
+        }
+        if (chkBankRulesEnabled != null) chkBankRulesEnabled.setSelected(ConfigManager.getBoolean("module.bankRules.enabled", true));
+        if (chkBankRulesSuggestOnImport != null) chkBankRulesSuggestOnImport.setSelected(ConfigManager.getBoolean("module.bankRules.suggestOnImport", true));
+        if (chkBankRulesAutoApplyOnImport != null) chkBankRulesAutoApplyOnImport.setSelected(ConfigManager.getBoolean("module.bankRules.autoApplyOnImport", false));
+        if (chkBankRulesPromptSave != null) chkBankRulesPromptSave.setSelected(ConfigManager.getBoolean("module.bankRules.promptSaveOnAction", true));
+
+        bindModuleSubToggleStates();
+    }
+
+    private void bindModuleSubToggleStates() {
+        Runnable syncCollections = () -> {
+            boolean on = chkCollectionsEnabled == null || chkCollectionsEnabled.isSelected();
+            if (chkCollectionsWhatsapp != null) chkCollectionsWhatsapp.setDisable(!on);
+            if (chkCollectionsEmail != null) chkCollectionsEmail.setDisable(!on);
+            if (chkCollectionsAttachPdf != null) chkCollectionsAttachPdf.setDisable(!on);
+            if (cmbCollectionsCooldownHours != null) cmbCollectionsCooldownHours.setDisable(!on);
+        };
+        if (chkCollectionsEnabled != null && !Boolean.TRUE.equals(chkCollectionsEnabled.getProperties().get("sub.bound"))) {
+            chkCollectionsEnabled.getProperties().put("sub.bound", Boolean.TRUE);
+            chkCollectionsEnabled.selectedProperty().addListener((obs, o, n) -> syncCollections.run());
+        }
+        syncCollections.run();
+
+        Runnable syncBankRules = () -> {
+            boolean on = chkBankRulesEnabled == null || chkBankRulesEnabled.isSelected();
+            if (chkBankRulesSuggestOnImport != null) chkBankRulesSuggestOnImport.setDisable(!on);
+            if (chkBankRulesAutoApplyOnImport != null) chkBankRulesAutoApplyOnImport.setDisable(!on);
+            if (chkBankRulesPromptSave != null) chkBankRulesPromptSave.setDisable(!on);
+        };
+        if (chkBankRulesEnabled != null && !Boolean.TRUE.equals(chkBankRulesEnabled.getProperties().get("sub.bound"))) {
+            chkBankRulesEnabled.getProperties().put("sub.bound", Boolean.TRUE);
+            chkBankRulesEnabled.selectedProperty().addListener((obs, o, n) -> syncBankRules.run());
+        }
+        syncBankRules.run();
     }
 
     private void saveModulesSettings() {
@@ -5135,6 +5193,19 @@ private record AssetPreviewRequest(
         if (chkBriefingEmail != null) putSetting("module.briefing.email", String.valueOf(chkBriefingEmail.isSelected()));
         if (txtBriefingPhone != null) putSetting("module.briefing.phone", text(txtBriefingPhone));
         if (chkBatchSerialTracking != null) putSetting("module.inventory.batchSerialTracking", String.valueOf(chkBatchSerialTracking.isSelected()));
+        if (chkCollectionsEnabled != null) putSetting("module.collections.enabled", String.valueOf(chkCollectionsEnabled.isSelected()));
+        if (chkCollectionsWhatsapp != null) putSetting("module.collections.whatsapp", String.valueOf(chkCollectionsWhatsapp.isSelected()));
+        if (chkCollectionsEmail != null) putSetting("module.collections.email", String.valueOf(chkCollectionsEmail.isSelected()));
+        if (chkCollectionsAttachPdf != null) putSetting("module.collections.attachStatementPdf", String.valueOf(chkCollectionsAttachPdf.isSelected()));
+        if (cmbCollectionsCooldownHours != null) {
+            String sel = cmbCollectionsCooldownHours.getValue();
+            String hours = sel != null && sel.startsWith("24") ? "24" : (sel != null && sel.startsWith("72") ? "72" : "48");
+            putSetting("module.collections.cooldownHours", hours);
+        }
+        if (chkBankRulesEnabled != null) putSetting("module.bankRules.enabled", String.valueOf(chkBankRulesEnabled.isSelected()));
+        if (chkBankRulesSuggestOnImport != null) putSetting("module.bankRules.suggestOnImport", String.valueOf(chkBankRulesSuggestOnImport.isSelected()));
+        if (chkBankRulesAutoApplyOnImport != null) putSetting("module.bankRules.autoApplyOnImport", String.valueOf(chkBankRulesAutoApplyOnImport.isSelected()));
+        if (chkBankRulesPromptSave != null) putSetting("module.bankRules.promptSaveOnAction", String.valueOf(chkBankRulesPromptSave.isSelected()));
     }
 
 

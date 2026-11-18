@@ -19334,6 +19334,73 @@
     -fx-font-weight: 600;
 }
 
+/* Module Activation ON/OFF Impact Guide & Smart Collections Badges */
+.settings-impact-box {
+    -fx-background-color: rgba(30, 41, 59, 0.72);
+    -fx-border-color: rgba(148, 163, 184, 0.24);
+    -fx-border-width: 1px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-padding: 8px 12px;
+}
+.settings-impact-row {
+    -fx-padding: 1px 0px;
+}
+.settings-impact-tag-on {
+    -fx-background-color: rgba(16, 185, 129, 0.22);
+    -fx-text-fill: #6ee7b7;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: 800;
+    -fx-padding: 2px 7px;
+    -fx-background-radius: 6px;
+}
+.settings-impact-tag-off {
+    -fx-background-color: rgba(239, 68, 68, 0.22);
+    -fx-text-fill: #fca5a5;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: 800;
+    -fx-padding: 2px 7px;
+    -fx-background-radius: 6px;
+}
+.settings-impact-tag-scope {
+    -fx-background-color: rgba(56, 189, 248, 0.20);
+    -fx-text-fill: #7dd3fc;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: 800;
+    -fx-padding: 2px 7px;
+    -fx-background-radius: 6px;
+}
+.settings-impact-text {
+    -fx-text-fill: #cbd5e1;
+    -fx-font-size: 11.5px;
+}
+.aging-reminded-pill {
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-padding: 2px 8px;
+    -fx-background-radius: 999px;
+}
+.aging-reminded-recent {
+    -fx-background-color: rgba(16, 185, 129, 0.22);
+    -fx-text-fill: #6ee7b7;
+}
+.aging-reminded-stale {
+    -fx-background-color: rgba(245, 158, 11, 0.22);
+    -fx-text-fill: #fcd34d;
+}
+.aging-reminded-none {
+    -fx-background-color: rgba(148, 163, 184, 0.16);
+    -fx-text-fill: #94a3b8;
+}
+.collection-cooldown-banner {
+    -fx-background-color: rgba(245, 158, 11, 0.14);
+    -fx-border-color: rgba(251, 191, 36, 0.38);
+    -fx-border-width: 1px;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-padding: 8px 12px;
+}
+
 /* ========================================================================== */
 /* JASVI 3D GEOMETRIC GLASSMORPHISM DESIGN SYSTEM (DARK THEME)               */
 /* ========================================================================== */
@@ -21197,6 +21264,32 @@
 }
 .erp-auto-search-icon-box .ikonli-font-icon {
     -fx-icon-color: #60a5fa;
+}
+
+/* ==================== GENERAL LEDGER PERIOD BAR, TOTALS STRIP & MULTI-LEG ROWS (DARK THEME) ==================== */
+.gl-period-bar {
+    -fx-padding: 8 12 8 12;
+    -fx-background-color: #162235;
+    -fx-border-color: #2d4365;
+    -fx-border-width: 1;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+.gl-totals-strip {
+    -fx-padding: 10 14 10 14;
+    -fx-background-color: #16253b;
+    -fx-border-color: #2b4570;
+    -fx-border-width: 1;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+.gl-journal-line-row {
+    -fx-padding: 6 10 6 10;
+    -fx-background-color: #111b2c;
+    -fx-border-color: #293952;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
 }
 
 

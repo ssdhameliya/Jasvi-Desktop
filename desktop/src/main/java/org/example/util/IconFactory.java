@@ -1444,7 +1444,10 @@ public final class IconFactory {
         if (value.contains("open github release")) return "github";
         if (value.equals("later")) return "later";
         if (value.equals("schedule")) return "schedule";
-        if (value.contains("run now")) return "run";
+        if (value.contains("run now") || value.contains("run rules")) return "run";
+        if (value.equals("rules") || value.contains("manage rules") || value.contains("auto rules")) return "settings";
+        if (value.contains("post draft") || value.contains("post voucher")) return "complete";
+        if (value.equals("reverse") || value.contains("reverse voucher")) return "rollback";
         if (value.equals("pause")) return "pause";
         if (value.equals("archive")) return "archive";
         if (value.contains("set as default")) return "set-default";
