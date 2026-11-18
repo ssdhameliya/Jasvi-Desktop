@@ -2,7 +2,7 @@ package org.example.server.reconciliation;
 import org.springframework.web.bind.annotation.*; import java.util.*;
 @RestController @RequestMapping("/api/bank-statements")
 public class BankReconciliationController {
- private final BankReconciliationService service; public BankReconciliationController(BankReconciliationService service){this.service=service;}
+ private final BankReconciliationService service; private final BankReconciliationRuleService ruleService; public BankReconciliationController(BankReconciliationService service, BankReconciliationRuleService ruleService){this.service=service;this.ruleService=ruleService;}
  @PostMapping("/imports") public BankReconciliationDtos.ImportResult importStatement(@RequestBody BankReconciliationDtos.ImportRequest r){return service.importStatement(r);}
  @GetMapping("/imports") public List<BankReconciliationDtos.BatchDto> batches(){return service.batches();}
  @GetMapping("/imports/page") public BankReconciliationDtos.BatchPage batchPage(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size,@RequestParam(defaultValue="") String account,@RequestParam(defaultValue="") String status,@RequestParam(defaultValue="") String fromDate,@RequestParam(defaultValue="") String toDate,@RequestParam(defaultValue="") String q){return service.batchPage(page,size,account,status,fromDate,toDate,q);}
@@ -26,4 +26,10 @@ public class BankReconciliationController {
  @PostMapping("/transactions/{id}/reverse") public BankReconciliationDtos.OperationResult reverse(@PathVariable Long id,@RequestParam(required=false) String user){return service.reverse(id,user);}
  @GetMapping("/transactions/{id}/audit") public List<BankReconciliationDtos.AuditDto> audit(@PathVariable Long id){return service.audit(id);}
  @GetMapping("/linkage") public BankReconciliationDtos.DocumentLinkageDto getLinkage(@RequestParam(required=false) String type, @RequestParam(required=false) Integer id, @RequestParam(required=false) String docNo, @RequestParam(required=false) Long transactionId, @RequestParam(required=false) Integer financeId){return service.getLinkage(type, id, docNo, transactionId, financeId);}
+ @GetMapping("/rules") public List<BankReconciliationDtos.RuleDto> listRules(){return ruleService.listRules();}
+ @PostMapping("/rules") public BankReconciliationDtos.RuleDto createRule(@RequestBody BankReconciliationDtos.RuleSaveRequest r){return ruleService.saveRule(null, r);}
+ @PutMapping("/rules/{id}") public BankReconciliationDtos.RuleDto updateRule(@PathVariable Long id, @RequestBody BankReconciliationDtos.RuleSaveRequest r){return ruleService.saveRule(id, r);}
+ @DeleteMapping("/rules/{id}") public Map<String, Object> deleteRule(@PathVariable Long id){ruleService.deleteRule(id); return Map.of("deleted", true, "id", id);}
+ @PostMapping("/imports/{id}/rules/preview") public BankReconciliationDtos.RulePreviewResult previewRules(@PathVariable Long id, @RequestBody(required=false) BankReconciliationDtos.RuleSaveRequest candidate){return ruleService.previewBatch(id, candidate);}
+ @PostMapping("/imports/{id}/rules/apply") public BankReconciliationDtos.RuleApplyResult applyRules(@PathVariable Long id, @RequestParam(required=false) String user){return ruleService.applyRulesToBatch(id, false, user);}
 }

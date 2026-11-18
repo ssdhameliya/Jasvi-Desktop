@@ -39,21 +39,42 @@ public class GeneralLedgerService {
         this.jdbc = jdbc;
     }
 
+    private static final String PERIOD_LOCK_UNTIL_KEY = "accounting.period.lock.until";
+    private static final String PERIOD_LOCK_BY_KEY = "accounting.period.lock.by";
+    private static final String PERIOD_LOCK_AT_KEY = "accounting.period.lock.at";
+
     @Transactional(readOnly = true)
     public List<GeneralLedgerDtos.AccountDto> listAccounts() {
-        return coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc().stream()
-                .map(this::toAccountDto)
-                .toList();
+        return listAccounts(false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GeneralLedgerDtos.AccountDto> listAccounts(boolean includeInactive) {
+        List<ChartOfAccountsEntity> rows = includeInactive
+                ? coaRepository.findAllByOrderByAccountCodeAsc()
+                : coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
+        return rows.stream().map(this::toAccountDto).toList();
     }
 
     public GeneralLedgerDtos.AccountDto createAccount(GeneralLedgerDtos.AccountDto dto) {
+        String code = dto.accountCode() == null ? "" : dto.accountCode().trim();
+        String name = dto.accountName() == null ? "" : dto.accountName().trim();
+        String type = dto.accountType() == null ? "" : dto.accountType().trim().toUpperCase(Locale.ROOT);
+        if (code.isBlank()) throw new IllegalArgumentException("Account code is required.");
+        if (name.isBlank()) throw new IllegalArgumentException("Account name is required.");
+        if (!Set.of("ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE").contains(type)) {
+            throw new IllegalArgumentException("Account type must be ASSET, LIABILITY, EQUITY, REVENUE, or EXPENSE.");
+        }
+        if (coaRepository.findByAccountCode(code).isPresent()) {
+            throw new IllegalArgumentException("Account code already exists: " + code);
+        }
         ChartOfAccountsEntity entity = new ChartOfAccountsEntity();
-        entity.setAccountCode(dto.accountCode());
-        entity.setAccountName(dto.accountName());
-        entity.setAccountType(dto.accountType());
-        entity.setAccountSubtype(dto.accountSubtype());
+        entity.setAccountCode(code);
+        entity.setAccountName(name);
+        entity.setAccountType(type);
+        entity.setAccountSubtype(dto.accountSubtype() == null || dto.accountSubtype().isBlank() ? "GENERAL" : dto.accountSubtype().trim().toUpperCase(Locale.ROOT));
         entity.setParentId(dto.parentId());
-        entity.setCurrency(dto.currency() != null ? dto.currency() : "INR");
+        entity.setCurrency(dto.currency() != null && !dto.currency().isBlank() ? dto.currency().trim() : "INR");
         entity.setOpeningBalance(dto.openingBalance() != null ? dto.openingBalance() : BigDecimal.ZERO);
         entity.setCurrentBalance(entity.getOpeningBalance());
         entity.setIsActive(dto.isActive() != null ? dto.isActive() : true);
@@ -62,10 +83,95 @@ public class GeneralLedgerService {
         return toAccountDto(saved);
     }
 
+    public GeneralLedgerDtos.AccountDto updateAccount(Long id, GeneralLedgerDtos.UpdateAccountRequest req) {
+        ChartOfAccountsEntity entity = coaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + id));
+        if (req.accountName() != null && !req.accountName().isBlank()) {
+            entity.setAccountName(req.accountName().trim());
+        }
+        if (req.accountType() != null && !req.accountType().isBlank()) {
+            String normalized = req.accountType().trim().toUpperCase(Locale.ROOT);
+            if (!Set.of("ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE").contains(normalized)) {
+                throw new IllegalArgumentException("Invalid account type: " + normalized);
+            }
+            if (!Boolean.TRUE.equals(entity.getIsSystem())) {
+                entity.setAccountType(normalized);
+            }
+        }
+        if (req.accountSubtype() != null && !req.accountSubtype().isBlank()) {
+            entity.setAccountSubtype(req.accountSubtype().trim().toUpperCase(Locale.ROOT));
+        }
+        if (req.openingBalance() != null) {
+            BigDecimal oldOpening = entity.getOpeningBalance() != null ? entity.getOpeningBalance() : BigDecimal.ZERO;
+            BigDecimal current = entity.getCurrentBalance() != null ? entity.getCurrentBalance() : BigDecimal.ZERO;
+            BigDecimal delta = req.openingBalance().subtract(oldOpening);
+            entity.setOpeningBalance(req.openingBalance());
+            entity.setCurrentBalance(current.add(delta));
+        }
+        if (req.isActive() != null && !req.isActive()) {
+            if (Boolean.TRUE.equals(entity.getIsSystem())) {
+                throw new IllegalArgumentException("Core system account '" + entity.getAccountCode() + " - " + entity.getAccountName() + "' cannot be deactivated.");
+            }
+            BigDecimal cur = entity.getCurrentBalance() != null ? entity.getCurrentBalance() : BigDecimal.ZERO;
+            if (cur.abs().compareTo(new BigDecimal("0.01")) >= 0) {
+                throw new IllegalArgumentException("Account '" + entity.getAccountCode() + "' has a non-zero balance (" + cur + "). Bring balance to 0.00 before deactivating.");
+            }
+            entity.setIsActive(false);
+        } else if (req.isActive() != null && req.isActive()) {
+            entity.setIsActive(true);
+        }
+        return toAccountDto(coaRepository.save(entity));
+    }
+
+    @Transactional(readOnly = true)
+    public GeneralLedgerDtos.PeriodLockDto getPeriodLock() {
+        try {
+            String val = jdbc.queryForObject("SELECT setting_value FROM application_setting WHERE setting_key = ? LIMIT 1", String.class, PERIOD_LOCK_UNTIL_KEY);
+            if (val == null || val.isBlank()) {
+                return new GeneralLedgerDtos.PeriodLockDto(null, null, null, false);
+            }
+            LocalDate lockedUntil = LocalDate.parse(val.trim().substring(0, 10));
+            String by = jdbc.queryForObject("SELECT setting_value FROM application_setting WHERE setting_key = ? LIMIT 1", String.class, PERIOD_LOCK_BY_KEY);
+            String at = jdbc.queryForObject("SELECT setting_value FROM application_setting WHERE setting_key = ? LIMIT 1", String.class, PERIOD_LOCK_AT_KEY);
+            return new GeneralLedgerDtos.PeriodLockDto(lockedUntil, by, at, true);
+        } catch (Exception ignored) {
+            return new GeneralLedgerDtos.PeriodLockDto(null, null, null, false);
+        }
+    }
+
+    public GeneralLedgerDtos.PeriodLockDto setPeriodLock(LocalDate lockedUntil, String actor) {
+        String safeActor = (actor == null || actor.isBlank()) ? "ADMIN" : actor.trim();
+        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        upsertSetting(PERIOD_LOCK_UNTIL_KEY, lockedUntil == null ? "" : lockedUntil.toString());
+        upsertSetting(PERIOD_LOCK_BY_KEY, safeActor);
+        upsertSetting(PERIOD_LOCK_AT_KEY, nowStr);
+        return new GeneralLedgerDtos.PeriodLockDto(lockedUntil, safeActor, nowStr, lockedUntil != null);
+    }
+
+    private void upsertSetting(String key, String value) {
+        jdbc.update(
+                "INSERT INTO application_setting(setting_key, setting_value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) " +
+                "ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = CURRENT_TIMESTAMP",
+                key, value == null ? "" : value
+        );
+    }
+
+    public void ensurePeriodOpen(LocalDate entryDate) {
+        if (entryDate == null) return;
+        GeneralLedgerDtos.PeriodLockDto lock = getPeriodLock();
+        if (lock.active() && lock.lockedUntil() != null && !entryDate.isAfter(lock.lockedUntil())) {
+            throw new IllegalStateException("Accounting Period Locked: Books are frozen through " + lock.lockedUntil()
+                    + " (locked by " + (lock.lockedBy() != null ? lock.lockedBy() : "Admin")
+                    + "). Posting or modifying entries dated " + entryDate + " is blocked. Unlock period in General Ledger to proceed.");
+        }
+    }
+
     public GeneralLedgerDtos.JournalEntryDto postJournalEntry(GeneralLedgerDtos.CreateJournalRequest req) {
-        if (req.lines() == null || req.lines().isEmpty()) {
+        if (req.lines() == null || req.lines().size() < 2) {
             throw new IllegalArgumentException("Journal entry must contain at least two lines");
         }
+        LocalDate effectiveDate = req.entryDate() != null ? req.entryDate() : LocalDate.now();
+        ensurePeriodOpen(effectiveDate);
 
         BigDecimal sumDebit = BigDecimal.ZERO;
         BigDecimal sumCredit = BigDecimal.ZERO;
@@ -73,8 +179,15 @@ public class GeneralLedgerService {
         for (GeneralLedgerDtos.CreateLineRequest line : req.lines()) {
             BigDecimal d = line.debitAmount() != null ? line.debitAmount() : BigDecimal.ZERO;
             BigDecimal c = line.creditAmount() != null ? line.creditAmount() : BigDecimal.ZERO;
+            if (d.compareTo(BigDecimal.ZERO) < 0 || c.compareTo(BigDecimal.ZERO) < 0) {
+                throw new IllegalArgumentException("Debit and Credit amounts cannot be negative.");
+            }
             sumDebit = sumDebit.add(d);
             sumCredit = sumCredit.add(c);
+        }
+
+        if (sumDebit.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Journal entry total must be greater than zero.");
         }
 
         if (sumDebit.setScale(2, RoundingMode.HALF_UP).compareTo(sumCredit.setScale(2, RoundingMode.HALF_UP)) != 0) {
@@ -84,9 +197,9 @@ public class GeneralLedgerService {
 
         String status = (req.status() != null && !req.status().isBlank()) ? req.status().toUpperCase(Locale.ROOT) : "POSTED";
         JournalEntryEntity entry = new JournalEntryEntity();
-        entry.setEntryNumber(nextJournalVoucherNumber(req.entryDate()));
-        entry.setEntryDate(req.entryDate() != null ? req.entryDate() : LocalDate.now());
-        entry.setEntryType(req.entryType() != null ? req.entryType() : "GENERAL");
+        entry.setEntryNumber(nextJournalVoucherNumber(effectiveDate));
+        entry.setEntryDate(effectiveDate);
+        entry.setEntryType(req.entryType() != null && !req.entryType().isBlank() ? req.entryType().trim().toUpperCase(Locale.ROOT) : "GENERAL");
         entry.setReferenceType(req.referenceType());
         entry.setReferenceId(req.referenceId());
         entry.setReferenceNo(req.referenceNo());
@@ -131,7 +244,7 @@ public class GeneralLedgerService {
             // Update Account Balance if POSTED
             if ("POSTED".equals(status)) {
                 BigDecimal current = account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO;
-                if ("ASSET".equalsIgnoreCase(account.getAccountType()) || "EXPENSE".equalsIgnoreCase(account.getAccountType())) {
+                if (isDebitNormal(account.getAccountType())) {
                     account.setCurrentBalance(current.add(debit).subtract(credit));
                 } else {
                     account.setCurrentBalance(current.add(credit).subtract(debit));
@@ -146,17 +259,21 @@ public class GeneralLedgerService {
     public GeneralLedgerDtos.JournalEntryDto postDraft(Long journalEntryId, String postedBy) {
         JournalEntryEntity entry = journalEntryRepository.findById(journalEntryId)
                 .orElseThrow(() -> new IllegalArgumentException("Journal Entry not found: " + journalEntryId));
-        if ("POSTED".equals(entry.getStatus())) {
+        if ("POSTED".equalsIgnoreCase(entry.getStatus())) {
             return toJournalEntryDto(entry);
         }
+        if ("CANCELLED".equalsIgnoreCase(entry.getStatus()) || "REVERSED".equalsIgnoreCase(entry.getStatus())) {
+            throw new IllegalStateException("Cannot post a " + entry.getStatus() + " voucher.");
+        }
+        ensurePeriodOpen(entry.getEntryDate());
         entry.setStatus("POSTED");
-        entry.setPostedBy(postedBy != null ? postedBy : "SYSTEM");
+        entry.setPostedBy(postedBy != null && !postedBy.isBlank() ? postedBy : "SYSTEM");
         entry.setPostedAt(LocalDateTime.now());
         for (JournalLineEntity line : entry.getLines()) {
             ChartOfAccountsEntity account = coaRepository.findById(line.getAccountId())
                     .orElseThrow(() -> new IllegalArgumentException("Account not found: " + line.getAccountId()));
             BigDecimal current = account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO;
-            if ("ASSET".equalsIgnoreCase(account.getAccountType()) || "EXPENSE".equalsIgnoreCase(account.getAccountType())) {
+            if (isDebitNormal(account.getAccountType())) {
                 account.setCurrentBalance(current.add(line.getDebitAmount()).subtract(line.getCreditAmount()));
             } else {
                 account.setCurrentBalance(current.add(line.getCreditAmount()).subtract(line.getDebitAmount()));
@@ -166,75 +283,422 @@ public class GeneralLedgerService {
         return toJournalEntryDto(journalEntryRepository.save(entry));
     }
 
+    public GeneralLedgerDtos.JournalEntryDto reverseJournalEntry(Long journalEntryId, GeneralLedgerDtos.ReverseJournalRequest req) {
+        JournalEntryEntity original = journalEntryRepository.findById(journalEntryId)
+                .orElseThrow(() -> new IllegalArgumentException("Journal Entry not found: " + journalEntryId));
+        if (!"POSTED".equalsIgnoreCase(original.getStatus())) {
+            throw new IllegalStateException("Only POSTED journal vouchers can be reversed (current status: " + original.getStatus() + ").");
+        }
+        Long existingReversal = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM journal_entry WHERE reference_type = 'JOURNAL_REVERSAL' AND reference_id = ? AND status <> 'CANCELLED'",
+                Long.class, journalEntryId);
+        if (existingReversal != null && existingReversal > 0) {
+            throw new IllegalStateException("Voucher " + original.getEntryNumber() + " has already been reversed.");
+        }
+
+        LocalDate revDate = (req != null && req.reversalDate() != null) ? req.reversalDate() : LocalDate.now();
+        ensurePeriodOpen(revDate);
+
+        String reason = (req != null && req.reason() != null && !req.reason().isBlank()) ? req.reason().trim() : "Accounting Reversal";
+        String actor = (req != null && req.postedBy() != null && !req.postedBy().isBlank()) ? req.postedBy().trim() : "SYSTEM";
+
+        List<GeneralLedgerDtos.CreateLineRequest> mirrorLines = new ArrayList<>();
+        for (JournalLineEntity line : original.getLines()) {
+            mirrorLines.add(new GeneralLedgerDtos.CreateLineRequest(
+                    line.getAccountId(),
+                    null,
+                    line.getCreditAmount() != null ? line.getCreditAmount() : BigDecimal.ZERO,
+                    line.getDebitAmount() != null ? line.getDebitAmount() : BigDecimal.ZERO,
+                    line.getPartyId(),
+                    "Reversal of " + original.getEntryNumber() + (line.getLineNarration() != null && !line.getLineNarration().isBlank() ? " | " + line.getLineNarration() : ""),
+                    line.getCostCenter()
+            ));
+        }
+
+        GeneralLedgerDtos.CreateJournalRequest revReq = new GeneralLedgerDtos.CreateJournalRequest(
+                revDate,
+                "REVERSAL",
+                "JOURNAL_REVERSAL",
+                original.getId(),
+                original.getEntryNumber(),
+                "Reversal of " + original.getEntryNumber() + " — " + reason,
+                actor,
+                "POSTED",
+                mirrorLines
+        );
+        GeneralLedgerDtos.JournalEntryDto reversal = postJournalEntry(revReq);
+        original.setStatus("REVERSED");
+        journalEntryRepository.save(original);
+        return reversal;
+    }
+
     @Transactional(readOnly = true)
     public List<GeneralLedgerDtos.JournalEntryDto> listRecentEntries() {
-        return journalEntryRepository.findTop100ByOrderByEntryDateDescIdDesc().stream()
+        return listEntries(null, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GeneralLedgerDtos.JournalEntryDto> listEntries(LocalDate fromDate, LocalDate toDate, String entryType, String status) {
+        List<JournalEntryEntity> entities;
+        if (fromDate != null || toDate != null) {
+            LocalDate start = fromDate != null ? fromDate : LocalDate.of(2000, 1, 1);
+            LocalDate end = toDate != null ? toDate : LocalDate.of(2099, 12, 31);
+            entities = journalEntryRepository.findByEntryDateBetweenOrderByEntryDateDescIdDesc(start, end);
+        } else {
+            entities = journalEntryRepository.findTop500ByOrderByEntryDateDescIdDesc();
+        }
+        String typeFilter = (entryType == null || entryType.isBlank() || "ALL".equalsIgnoreCase(entryType)) ? null : entryType.trim().toUpperCase(Locale.ROOT);
+        String statusFilter = (status == null || status.isBlank() || "ALL".equalsIgnoreCase(status)) ? null : status.trim().toUpperCase(Locale.ROOT);
+
+        return entities.stream()
+                .filter(e -> typeFilter == null || (e.getEntryType() != null && e.getEntryType().equalsIgnoreCase(typeFilter)))
+                .filter(e -> statusFilter == null || (e.getStatus() != null && e.getStatus().equalsIgnoreCase(statusFilter)))
                 .map(this::toJournalEntryDto)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<GeneralLedgerDtos.TrialBalanceItemDto> getTrialBalance() {
+        return getTrialBalance(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GeneralLedgerDtos.TrialBalanceItemDto> getTrialBalance(LocalDate fromDate, LocalDate toDate) {
         List<ChartOfAccountsEntity> accounts = coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
-        List<GeneralLedgerDtos.TrialBalanceItemDto> tb = new ArrayList<>();
-
-        for (ChartOfAccountsEntity acc : accounts) {
-            BigDecimal current = acc.getCurrentBalance() != null ? acc.getCurrentBalance() : BigDecimal.ZERO;
-            BigDecimal debit = BigDecimal.ZERO;
-            BigDecimal credit = BigDecimal.ZERO;
-
-            if ("ASSET".equalsIgnoreCase(acc.getAccountType()) || "EXPENSE".equalsIgnoreCase(acc.getAccountType())) {
-                if (current.compareTo(BigDecimal.ZERO) >= 0) {
-                    debit = current;
+        if (fromDate == null && toDate == null) {
+            List<GeneralLedgerDtos.TrialBalanceItemDto> tb = new ArrayList<>();
+            for (ChartOfAccountsEntity acc : accounts) {
+                BigDecimal current = acc.getCurrentBalance() != null ? acc.getCurrentBalance() : BigDecimal.ZERO;
+                BigDecimal debit = BigDecimal.ZERO;
+                BigDecimal credit = BigDecimal.ZERO;
+                if (isDebitNormal(acc.getAccountType())) {
+                    if (current.compareTo(BigDecimal.ZERO) >= 0) debit = current;
+                    else credit = current.abs();
                 } else {
-                    credit = current.abs();
+                    if (current.compareTo(BigDecimal.ZERO) >= 0) credit = current;
+                    else debit = current.abs();
                 }
-            } else {
-                if (current.compareTo(BigDecimal.ZERO) >= 0) {
-                    credit = current;
-                } else {
-                    debit = current.abs();
-                }
+                tb.add(new GeneralLedgerDtos.TrialBalanceItemDto(
+                        acc.getAccountCode(), acc.getAccountName(), acc.getAccountType(),
+                        acc.getOpeningBalance(), debit, credit, current
+                ));
             }
+            return tb;
+        }
 
+        LocalDate start = fromDate != null ? fromDate : LocalDate.of(2000, 1, 1);
+        LocalDate end = toDate != null ? toDate : LocalDate.of(2099, 12, 31);
+
+        Map<Long, BigDecimal[]> priorMap = loadAccountMovementSums(null, start.minusDays(1));
+        Map<Long, BigDecimal[]> periodMap = loadAccountMovementSums(start, end);
+
+        List<GeneralLedgerDtos.TrialBalanceItemDto> tb = new ArrayList<>();
+        for (ChartOfAccountsEntity acc : accounts) {
+            BigDecimal baseOpen = acc.getOpeningBalance() != null ? acc.getOpeningBalance() : BigDecimal.ZERO;
+            BigDecimal[] prior = priorMap.getOrDefault(acc.getId(), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            BigDecimal[] period = periodMap.getOrDefault(acc.getId(), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            boolean drNormal = isDebitNormal(acc.getAccountType());
+            BigDecimal opening = drNormal
+                    ? baseOpen.add(prior[0]).subtract(prior[1])
+                    : baseOpen.add(prior[1]).subtract(prior[0]);
+            BigDecimal periodDr = period[0];
+            BigDecimal periodCr = period[1];
+            BigDecimal closing = drNormal
+                    ? opening.add(periodDr).subtract(periodCr)
+                    : opening.add(periodCr).subtract(periodDr);
             tb.add(new GeneralLedgerDtos.TrialBalanceItemDto(
-                    acc.getAccountCode(),
-                    acc.getAccountName(),
-                    acc.getAccountType(),
-                    acc.getOpeningBalance(),
-                    debit,
-                    credit,
-                    current
+                    acc.getAccountCode(), acc.getAccountName(), acc.getAccountType(),
+                    opening, periodDr, periodCr, closing
+            ));
+        }
+        return tb;
+    }
+
+    private Map<Long, BigDecimal[]> loadAccountMovementSums(LocalDate fromDate, LocalDate toDate) {
+        Map<Long, BigDecimal[]> map = new HashMap<>();
+        StringBuilder sql = new StringBuilder(
+                "SELECT jl.account_id, COALESCE(SUM(jl.debit_amount), 0) AS dr, COALESCE(SUM(jl.credit_amount), 0) AS cr " +
+                "FROM journal_line jl JOIN journal_entry je ON je.id = jl.journal_entry_id " +
+                "WHERE UPPER(COALESCE(je.status, '')) IN ('POSTED', 'REVERSED') ");
+        List<Object> params = new ArrayList<>();
+        if (fromDate != null) {
+            sql.append("AND je.entry_date >= ? ");
+            params.add(fromDate);
+        }
+        if (toDate != null) {
+            sql.append("AND je.entry_date <= ? ");
+            params.add(toDate);
+        }
+        sql.append("GROUP BY jl.account_id");
+        List<Map<String, Object>> rows = jdbc.queryForList(sql.toString(), params.toArray());
+        for (Map<String, Object> r : rows) {
+            if (r.get("account_id") == null) continue;
+            Long accId = ((Number) r.get("account_id")).longValue();
+            map.put(accId, new BigDecimal[]{toBigDecimal(r.get("dr")), toBigDecimal(r.get("cr"))});
+        }
+        return map;
+    }
+
+    @Transactional(readOnly = true)
+    public GeneralLedgerDtos.AccountLedgerResponse getAccountLedger(String accountCode, LocalDate fromDate, LocalDate toDate) {
+        ChartOfAccountsEntity account = coaRepository.findByAccountCode(accountCode == null ? "" : accountCode.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountCode));
+        boolean drNormal = isDebitNormal(account.getAccountType());
+
+        BigDecimal baseOpening = account.getOpeningBalance() != null ? account.getOpeningBalance() : BigDecimal.ZERO;
+        BigDecimal opening = baseOpening;
+        if (fromDate != null) {
+            Map<Long, BigDecimal[]> prior = loadAccountMovementSums(null, fromDate.minusDays(1));
+            BigDecimal[] p = prior.getOrDefault(account.getId(), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            opening = drNormal ? baseOpening.add(p[0]).subtract(p[1]) : baseOpening.add(p[1]).subtract(p[0]);
+        }
+
+        StringBuilder sql = new StringBuilder(
+                "SELECT je.id AS je_id, je.entry_number, je.entry_date, je.entry_type, je.reference_type, je.reference_id, " +
+                "je.reference_no, je.narration, jl.line_narration, jl.debit_amount, jl.credit_amount, je.status, je.posted_by " +
+                "FROM journal_line jl JOIN journal_entry je ON je.id = jl.journal_entry_id " +
+                "WHERE jl.account_id = ? AND UPPER(COALESCE(je.status, '')) IN ('POSTED', 'REVERSED') ");
+        List<Object> params = new ArrayList<>();
+        params.add(account.getId());
+        if (fromDate != null) {
+            sql.append("AND je.entry_date >= ? ");
+            params.add(fromDate);
+        }
+        if (toDate != null) {
+            sql.append("AND je.entry_date <= ? ");
+            params.add(toDate);
+        }
+        sql.append("ORDER BY je.entry_date ASC, je.id ASC, jl.line_number ASC");
+
+        List<Map<String, Object>> rows = jdbc.queryForList(sql.toString(), params.toArray());
+        BigDecimal running = opening;
+        BigDecimal totalDr = BigDecimal.ZERO;
+        BigDecimal totalCr = BigDecimal.ZERO;
+        List<GeneralLedgerDtos.AccountLedgerLineDto> lines = new ArrayList<>();
+
+        for (Map<String, Object> r : rows) {
+            BigDecimal dr = toBigDecimal(r.get("debit_amount"));
+            BigDecimal cr = toBigDecimal(r.get("credit_amount"));
+            totalDr = totalDr.add(dr);
+            totalCr = totalCr.add(cr);
+            running = drNormal ? running.add(dr).subtract(cr) : running.add(cr).subtract(dr);
+            String balType = resolveBalanceSide(drNormal, running);
+            LocalDate eDate = parseLocalDate(r.get("entry_date"));
+            Long jeId = r.get("je_id") instanceof Number n ? n.longValue() : null;
+            Long refId = r.get("reference_id") instanceof Number n ? n.longValue() : null;
+            lines.add(new GeneralLedgerDtos.AccountLedgerLineDto(
+                    jeId,
+                    str(r.get("entry_number")),
+                    eDate,
+                    str(r.get("entry_type")),
+                    str(r.get("reference_type")),
+                    refId,
+                    str(r.get("reference_no")),
+                    str(r.get("narration")),
+                    str(r.get("line_narration")),
+                    dr,
+                    cr,
+                    running.abs(),
+                    balType,
+                    str(r.get("status")),
+                    str(r.get("posted_by"))
             ));
         }
 
-        return tb;
+        return new GeneralLedgerDtos.AccountLedgerResponse(
+                toAccountDto(account),
+                fromDate,
+                toDate,
+                opening,
+                totalDr,
+                totalCr,
+                running.abs(),
+                resolveBalanceSide(drNormal, running),
+                lines
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public GeneralLedgerDtos.ProfitAndLossResponse getProfitAndLoss(LocalDate fromDate, LocalDate toDate) {
+        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
+        Map<Long, BigDecimal[]> periodMap = (fromDate != null || toDate != null)
+                ? loadAccountMovementSums(fromDate, toDate)
+                : null;
+
+        List<GeneralLedgerDtos.ProfitAndLossLineDto> revenues = new ArrayList<>();
+        List<GeneralLedgerDtos.ProfitAndLossLineDto> directExpenses = new ArrayList<>();
+        List<GeneralLedgerDtos.ProfitAndLossLineDto> indirectExpenses = new ArrayList<>();
+        BigDecimal totalRev = BigDecimal.ZERO;
+        BigDecimal totalDirect = BigDecimal.ZERO;
+        BigDecimal totalIndirect = BigDecimal.ZERO;
+
+        for (ChartOfAccountsEntity acc : accounts) {
+            String type = acc.getAccountType() == null ? "" : acc.getAccountType().toUpperCase(Locale.ROOT);
+            if (!"REVENUE".equals(type) && !"EXPENSE".equals(type)) continue;
+            BigDecimal amt;
+            if (periodMap != null) {
+                BigDecimal[] m = periodMap.getOrDefault(acc.getId(), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+                amt = "REVENUE".equals(type) ? m[1].subtract(m[0]) : m[0].subtract(m[1]);
+            } else {
+                amt = acc.getCurrentBalance() != null ? acc.getCurrentBalance() : BigDecimal.ZERO;
+            }
+            if (amt.compareTo(BigDecimal.ZERO) == 0) continue;
+            GeneralLedgerDtos.ProfitAndLossLineDto line = new GeneralLedgerDtos.ProfitAndLossLineDto(
+                    acc.getAccountCode(), acc.getAccountName(),
+                    acc.getAccountSubtype() != null ? acc.getAccountSubtype() : "GENERAL", amt);
+            if ("REVENUE".equals(type)) {
+                revenues.add(line);
+                totalRev = totalRev.add(amt);
+            } else if (isDirectExpense(acc)) {
+                directExpenses.add(line);
+                totalDirect = totalDirect.add(amt);
+            } else {
+                indirectExpenses.add(line);
+                totalIndirect = totalIndirect.add(amt);
+            }
+        }
+
+        BigDecimal grossProfit = totalRev.subtract(totalDirect);
+        BigDecimal netProfit = grossProfit.subtract(totalIndirect);
+        BigDecimal grossMargin = totalRev.compareTo(BigDecimal.ZERO) > 0
+                ? grossProfit.multiply(BigDecimal.valueOf(100)).divide(totalRev, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal netMargin = totalRev.compareTo(BigDecimal.ZERO) > 0
+                ? netProfit.multiply(BigDecimal.valueOf(100)).divide(totalRev, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        return new GeneralLedgerDtos.ProfitAndLossResponse(
+                fromDate, toDate, revenues, directExpenses, indirectExpenses,
+                totalRev, totalDirect, grossProfit, grossMargin, totalIndirect, netProfit, netMargin
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public GeneralLedgerDtos.BalanceSheetResponse getBalanceSheet(LocalDate asOfDate) {
+        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
+        Map<Long, BigDecimal[]> upToMap = asOfDate != null ? loadAccountMovementSums(null, asOfDate) : null;
+
+        List<GeneralLedgerDtos.BalanceSheetLineDto> assets = new ArrayList<>();
+        List<GeneralLedgerDtos.BalanceSheetLineDto> liabilities = new ArrayList<>();
+        List<GeneralLedgerDtos.BalanceSheetLineDto> equities = new ArrayList<>();
+        BigDecimal totalAssets = BigDecimal.ZERO;
+        BigDecimal totalLiabilities = BigDecimal.ZERO;
+        BigDecimal totalEquity = BigDecimal.ZERO;
+        BigDecimal totalRev = BigDecimal.ZERO;
+        BigDecimal totalExp = BigDecimal.ZERO;
+
+        for (ChartOfAccountsEntity acc : accounts) {
+            String type = acc.getAccountType() == null ? "" : acc.getAccountType().toUpperCase(Locale.ROOT);
+            BigDecimal bal;
+            if (upToMap != null) {
+                BigDecimal baseOpen = acc.getOpeningBalance() != null ? acc.getOpeningBalance() : BigDecimal.ZERO;
+                BigDecimal[] m = upToMap.getOrDefault(acc.getId(), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+                bal = isDebitNormal(type) ? baseOpen.add(m[0]).subtract(m[1]) : baseOpen.add(m[1]).subtract(m[0]);
+            } else {
+                bal = acc.getCurrentBalance() != null ? acc.getCurrentBalance() : BigDecimal.ZERO;
+            }
+            if (bal.compareTo(BigDecimal.ZERO) == 0 && !Set.of("ASSET", "LIABILITY", "EQUITY").contains(type)) continue;
+            switch (type) {
+                case "ASSET" -> {
+                    if (bal.compareTo(BigDecimal.ZERO) != 0) assets.add(new GeneralLedgerDtos.BalanceSheetLineDto(acc.getAccountCode(), acc.getAccountName(), acc.getAccountSubtype(), bal));
+                    totalAssets = totalAssets.add(bal);
+                }
+                case "LIABILITY" -> {
+                    if (bal.compareTo(BigDecimal.ZERO) != 0) liabilities.add(new GeneralLedgerDtos.BalanceSheetLineDto(acc.getAccountCode(), acc.getAccountName(), acc.getAccountSubtype(), bal));
+                    totalLiabilities = totalLiabilities.add(bal);
+                }
+                case "EQUITY" -> {
+                    if (bal.compareTo(BigDecimal.ZERO) != 0) equities.add(new GeneralLedgerDtos.BalanceSheetLineDto(acc.getAccountCode(), acc.getAccountName(), acc.getAccountSubtype(), bal));
+                    totalEquity = totalEquity.add(bal);
+                }
+                case "REVENUE" -> totalRev = totalRev.add(bal);
+                case "EXPENSE" -> totalExp = totalExp.add(bal);
+            }
+        }
+
+        BigDecimal currentNetProfit = totalRev.subtract(totalExp);
+        BigDecimal totalLiabAndEq = totalLiabilities.add(totalEquity).add(currentNetProfit);
+        BigDecimal diff = totalAssets.subtract(totalLiabAndEq).setScale(2, RoundingMode.HALF_UP);
+        boolean balanced = diff.abs().compareTo(new BigDecimal("0.05")) <= 0;
+
+        return new GeneralLedgerDtos.BalanceSheetResponse(
+                asOfDate, assets, liabilities, equities,
+                totalAssets, totalLiabilities, totalEquity, currentNetProfit,
+                totalLiabAndEq, balanced, diff
+        );
     }
 
     @Transactional(readOnly = true)
     public GeneralLedgerDtos.FinancialStatementDto getFinancialStatements() {
-        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
-        BigDecimal totalRevenue = BigDecimal.ZERO;
-        BigDecimal totalExpense = BigDecimal.ZERO;
-        BigDecimal totalAssets = BigDecimal.ZERO;
-        BigDecimal totalLiabilities = BigDecimal.ZERO;
-        BigDecimal totalEquity = BigDecimal.ZERO;
+        return getFinancialStatements(null, null);
+    }
 
-        for (ChartOfAccountsEntity acc : accounts) {
-            BigDecimal bal = acc.getCurrentBalance() != null ? acc.getCurrentBalance() : BigDecimal.ZERO;
-            switch (acc.getAccountType().toUpperCase()) {
-                case "REVENUE" -> totalRevenue = totalRevenue.add(bal);
-                case "EXPENSE" -> totalExpense = totalExpense.add(bal);
-                case "ASSET" -> totalAssets = totalAssets.add(bal);
-                case "LIABILITY" -> totalLiabilities = totalLiabilities.add(bal);
-                case "EQUITY" -> totalEquity = totalEquity.add(bal);
+    @Transactional(readOnly = true)
+    public GeneralLedgerDtos.FinancialStatementDto getFinancialStatements(LocalDate fromDate, LocalDate toDate) {
+        if (fromDate == null && toDate == null) {
+            List<ChartOfAccountsEntity> accounts = coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
+            BigDecimal totalRevenue = BigDecimal.ZERO;
+            BigDecimal totalExpense = BigDecimal.ZERO;
+            BigDecimal totalAssets = BigDecimal.ZERO;
+            BigDecimal totalLiabilities = BigDecimal.ZERO;
+            BigDecimal totalEquity = BigDecimal.ZERO;
+
+            for (ChartOfAccountsEntity acc : accounts) {
+                BigDecimal bal = acc.getCurrentBalance() != null ? acc.getCurrentBalance() : BigDecimal.ZERO;
+                switch (acc.getAccountType().toUpperCase(Locale.ROOT)) {
+                    case "REVENUE" -> totalRevenue = totalRevenue.add(bal);
+                    case "EXPENSE" -> totalExpense = totalExpense.add(bal);
+                    case "ASSET" -> totalAssets = totalAssets.add(bal);
+                    case "LIABILITY" -> totalLiabilities = totalLiabilities.add(bal);
+                    case "EQUITY" -> totalEquity = totalEquity.add(bal);
+                }
             }
-        }
 
-        BigDecimal netProfit = totalRevenue.subtract(totalExpense);
+            BigDecimal netProfit = totalRevenue.subtract(totalExpense);
+            return new GeneralLedgerDtos.FinancialStatementDto(
+                    totalRevenue, totalExpense, netProfit, totalAssets, totalLiabilities, totalEquity
+            );
+        }
+        GeneralLedgerDtos.ProfitAndLossResponse pl = getProfitAndLoss(fromDate, toDate);
+        GeneralLedgerDtos.BalanceSheetResponse bs = getBalanceSheet(toDate);
+        BigDecimal totalExpense = pl.totalDirectExpense().add(pl.totalIndirectExpense());
         return new GeneralLedgerDtos.FinancialStatementDto(
-                totalRevenue, totalExpense, netProfit, totalAssets, totalLiabilities, totalEquity
+                pl.totalRevenue(), totalExpense, pl.netProfit(),
+                bs.totalAssets(), bs.totalLiabilities(), bs.totalEquity()
         );
+    }
+
+    private static boolean isDebitNormal(String accountType) {
+        return "ASSET".equalsIgnoreCase(accountType) || "EXPENSE".equalsIgnoreCase(accountType);
+    }
+
+    private static String resolveBalanceSide(boolean drNormal, BigDecimal signedBalance) {
+        if (signedBalance == null || signedBalance.compareTo(BigDecimal.ZERO) == 0) return drNormal ? "Dr" : "Cr";
+        if (drNormal) return signedBalance.compareTo(BigDecimal.ZERO) >= 0 ? "Dr" : "Cr";
+        return signedBalance.compareTo(BigDecimal.ZERO) >= 0 ? "Cr" : "Dr";
+    }
+
+    private static boolean isDirectExpense(ChartOfAccountsEntity acc) {
+        String sub = acc.getAccountSubtype() == null ? "" : acc.getAccountSubtype().toUpperCase(Locale.ROOT);
+        String name = acc.getAccountName() == null ? "" : acc.getAccountName().toUpperCase(Locale.ROOT);
+        String code = acc.getAccountCode() == null ? "" : acc.getAccountCode().trim();
+        return sub.contains("COGS") || sub.contains("DIRECT") || sub.contains("PURCHASE")
+                || name.contains("COST OF GOODS") || name.contains("PURCHASE") || name.contains("FREIGHT IN")
+                || code.startsWith("50");
+    }
+
+    private static LocalDate parseLocalDate(Object val) {
+        if (val == null) return null;
+        if (val instanceof LocalDate ld) return ld;
+        String s = val.toString().trim();
+        if (s.length() >= 10) {
+            try { return LocalDate.parse(s.substring(0, 10)); } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    private static String str(Object val) {
+        return val == null ? "" : val.toString();
     }
 
     public Long postSalesInvoice(Long saleId, String invoiceNo, LocalDate invoiceDate, BigDecimal totalAmount,
@@ -282,6 +746,8 @@ public class GeneralLedgerService {
             );
             GeneralLedgerDtos.JournalEntryDto entry = postJournalEntry(req);
             return entry != null ? entry.id() : null;
+        } catch (IllegalStateException locked) {
+            throw locked;
         } catch (Exception e) {
             java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Failed to auto-post sales journal: " + e.getMessage(), e);
             return null;
@@ -331,6 +797,8 @@ public class GeneralLedgerService {
             );
             GeneralLedgerDtos.JournalEntryDto entry = postJournalEntry(req);
             return entry != null ? entry.id() : null;
+        } catch (IllegalStateException locked) {
+            throw locked;
         } catch (Exception e) {
             java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Failed to auto-post purchase journal: " + e.getMessage(), e);
             return null;
@@ -360,6 +828,8 @@ public class GeneralLedgerService {
             );
             GeneralLedgerDtos.JournalEntryDto entry = postJournalEntry(req);
             return entry != null ? entry.id() : null;
+        } catch (IllegalStateException locked) {
+            throw locked;
         } catch (Exception e) {
             java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Failed to auto-post payment receipt journal: " + e.getMessage(), e);
             return null;
@@ -389,6 +859,8 @@ public class GeneralLedgerService {
             );
             GeneralLedgerDtos.JournalEntryDto entry = postJournalEntry(req);
             return entry != null ? entry.id() : null;
+        } catch (IllegalStateException locked) {
+            throw locked;
         } catch (Exception e) {
             java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Failed to auto-post purchase payment journal: " + e.getMessage(), e);
             return null;
@@ -398,11 +870,18 @@ public class GeneralLedgerService {
     public void cancelJournalEntriesForReference(String referenceType, Long referenceId, String user) {
         if (referenceType == null || referenceId == null) return;
         try {
-            List<Long> entryIds = jdbc.query(
-                    "SELECT id FROM journal_entry WHERE reference_type = ? AND reference_id = ? AND status <> 'CANCELLED'",
-                    (rs, idx) -> rs.getLong(1), referenceType, referenceId
+            List<Map<String, Object>> existingEntries = jdbc.queryForList(
+                    "SELECT id, entry_date FROM journal_entry WHERE reference_type = ? AND reference_id = ? AND status <> 'CANCELLED'",
+                    referenceType, referenceId
             );
-            for (Long eId : entryIds) {
+            for (Map<String, Object> existing : existingEntries) {
+                LocalDate eDate = parseLocalDate(existing.get("entry_date"));
+                if (eDate != null) {
+                    ensurePeriodOpen(eDate);
+                }
+            }
+            for (Map<String, Object> existing : existingEntries) {
+                Long eId = ((Number) existing.get("id")).longValue();
                 List<Map<String, Object>> lines = jdbc.queryForList(
                         "SELECT account_id, debit_amount, credit_amount FROM journal_line WHERE journal_entry_id = ?", eId
                 );
@@ -425,6 +904,8 @@ public class GeneralLedgerService {
                 jdbc.update("UPDATE journal_entry SET status = 'CANCELLED', updated_by = ?, updated_at = NOW() WHERE id = ?",
                         user != null ? user : "SYSTEM", eId);
             }
+        } catch (IllegalStateException locked) {
+            throw locked;
         } catch (Exception e) {
             java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Error cancelling journal entry: " + e.getMessage(), e);
         }

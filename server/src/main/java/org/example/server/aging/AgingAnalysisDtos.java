@@ -34,12 +34,16 @@ public final class AgingAnalysisDtos {
             Long partyId,
             String partyName,
             String phone,
+            String email,
+            int unpaidInvoiceCount,
             BigDecimal totalOutstanding,
             BigDecimal bucket0To30,
             BigDecimal bucket31To60,
             BigDecimal bucket61To90,
             BigDecimal bucket90Plus,
-            String riskLevel
+            String riskLevel,
+            String lastRemindedAt,
+            String lastRemindedChannel
     ) {}
 
     public record DesktopAgingReport(
@@ -52,5 +56,32 @@ public final class AgingAnalysisDtos {
             BigDecimal grandBucket61To90,
             BigDecimal grandBucket90Plus,
             List<DesktopAgingRow> rows
+    ) {}
+
+    public record PartyStatementInvoiceDto(
+            String invoiceNo,
+            String invoiceDate,
+            long daysOverdue,
+            String bucketLabel,
+            BigDecimal totalAmount,
+            BigDecimal paidAmount,
+            BigDecimal balanceDue
+    ) {}
+
+    public record PartyStatementDto(
+            Long partyId,
+            String partyName,
+            String partyType,
+            String gstin,
+            String phone,
+            String email,
+            String address,
+            String asOfDate,
+            BigDecimal totalOutstanding,
+            BigDecimal bucket0To30,
+            BigDecimal bucket31To60,
+            BigDecimal bucket61To90,
+            BigDecimal bucket90Plus,
+            List<PartyStatementInvoiceDto> invoices
     ) {}
 }

@@ -53,7 +53,7 @@ import java.util.*;
 public class BankStatementController implements ScreenLifecycle {
     @FXML private StackPane pageIcon,kpiTotalIcon,kpiUnmatchedIcon,kpiSuggestedIcon,kpiMatchedIcon,kpiExpenseIcon,kpiCreditsIcon,kpiDebitsIcon,kpiReconciledIcon,historyIcon;
     @FXML private VBox cardKpiTotal,cardKpiUnmatched,cardKpiSuggested,cardKpiMatched,cardKpiExpense;
-    @FXML private Button btnImport,btnScreenGuide,btnSearch,btnReset,btnRefresh,btnPrevPage,btnNextPage,btnBrowseStatements,btnDeleteStatement,btnCloseHistory,btnHistoryPrev,btnHistoryNext,btnOpenStatement,btnHistoryDelete,btnAutoMatch;
+    @FXML private Button btnImport,btnScreenGuide,btnSearch,btnReset,btnRefresh,btnPrevPage,btnNextPage,btnBrowseStatements,btnDeleteStatement,btnCloseHistory,btnHistoryPrev,btnHistoryNext,btnOpenStatement,btnHistoryDelete,btnAutoMatch,btnManageRules,btnApplyRules;
     @FXML private CheckBox chkSelectAll;
     @FXML private Button btnBulkReview,btnBulkIgnore,btnMoveExpense,btnMoveBankEntry;
     @FXML private ComboBox<BankStatementApiClient.BatchDto> cmbBatch;
@@ -140,7 +140,52 @@ public class BankStatementController implements ScreenLifecycle {
         wireKpiCard(cardKpiSuggested, "SUGGESTED");
         wireKpiCard(cardKpiMatched, "MATCHED");
         wireKpiCard(cardKpiExpense, "EXPENSE");
+        applyBankRulesFeatureFlag();
         loadBatches();
+    }
+
+    private boolean isBankRulesEnabled() {
+        return org.example.config.ConfigManager.getBoolean("module.bankRules.enabled", true);
+    }
+
+    private boolean isBankRulesPromptSaveEnabled() {
+        return isBankRulesEnabled() && org.example.config.ConfigManager.getBoolean("module.bankRules.promptSaveOnAction", true);
+    }
+
+    private void applyBankRulesFeatureFlag() {
+        boolean enabled = isBankRulesEnabled();
+        if (btnManageRules != null) {
+            btnManageRules.setVisible(enabled);
+            btnManageRules.setManaged(enabled);
+        }
+        if (btnApplyRules != null) {
+            btnApplyRules.setVisible(enabled);
+            btnApplyRules.setManaged(enabled);
+        }
+    }
+
+    @FXML private void openRulesManager() {
+        if (!isBankRulesEnabled()) {
+            info("Smart Bank Rules OFF", "Enable Bank Statement Smart Auto-Rules in Settings -> Module Activation.");
+            return;
+        }
+        Long batchId = cmbBatch != null && cmbBatch.getValue() != null ? cmbBatch.getValue().id() : null;
+        UiTaskExecutor.submitLatest(
+                "bank-rules-manager-lookups",
+                () -> new BulkDialogLookups(safeLookup("EXPENSE_CATEGORY"), safeLookup("PAYMENT_MODE")),
+                lookups -> org.example.bank.BankReconciliationRulesDialog.show(
+                        table, api, batchId, batchAccountName(), lookups.categories(), lookups.paymentModes(), user(), this::refresh),
+                this::error
+        );
+    }
+
+    @FXML private void runSmartRules() {
+        if (!isBankRulesEnabled()) {
+            info("Smart Bank Rules OFF", "Enable Bank Statement Smart Auto-Rules in Settings -> Module Activation.");
+            return;
+        }
+        Long batchId = cmbBatch != null && cmbBatch.getValue() != null ? cmbBatch.getValue().id() : null;
+        org.example.bank.BankReconciliationRulesDialog.runRulesWithConfirmation(table, api, batchId, user(), this::refresh);
     }
 
     private void wireKpiCard(VBox card, String statusValue) {
@@ -154,6 +199,7 @@ public class BankStatementController implements ScreenLifecycle {
     }
 
     @Override public void onScreenShown(boolean reusedFromCache) {
+        applyBankRulesFeatureFlag();
         refreshBankAccountMasterAsync();
         org.example.util.OperationalUiSupport.focusWorkArea(table);
         LinkedRecordContext.Target target=LinkedRecordContext.consume("BANK_STATEMENT");
@@ -195,6 +241,8 @@ public class BankStatementController implements ScreenLifecycle {
         if(kpiReconciledIcon!=null) setIcon(kpiReconciledIcon,"status",18);
         setIcon(historyIcon,"history",18);
         if(btnAutoMatch!=null) btnAutoMatch.setGraphic(IconFactory.compactIcon("link",15));
+        if(btnManageRules!=null) { btnManageRules.setGraphic(IconFactory.compactIcon("settings",15)); btnManageRules.setTooltip(new Tooltip("Manage Bank Statement Smart Narration Auto-Rules")); }
+        if(btnApplyRules!=null) { btnApplyRules.setGraphic(IconFactory.compactIcon("reconcile",15)); btnApplyRules.setTooltip(new Tooltip("Evaluate & Apply Active Smart Bank Rules on Current Statement")); }
         if(btnImport!=null) btnImport.setGraphic(IconFactory.compactIcon("import",16));
         if(btnBrowseStatements!=null) btnBrowseStatements.setGraphic(IconFactory.compactIcon("history",15));
         if(btnDeleteStatement!=null) btnDeleteStatement.setGraphic(IconFactory.compactIcon("delete",15));
@@ -287,8 +335,20 @@ public class BankStatementController implements ScreenLifecycle {
         colMatch.setCellFactory(c->new TableCell<>(){
             @Override protected void updateItem(String text,boolean empty){
                 super.updateItem(text,empty); setText(null); setGraphic(null);
-                if(empty||getIndex()<0||getIndex()>=getTableView().getItems().size()||text==null||text.isBlank())return;
+                if(empty||getIndex()<0||getIndex()>=getTableView().getItems().size())return;
                 Row row=getTableView().getItems().get(getIndex());
+                if((text==null||text.isBlank()) && row.dto!=null && safe(row.dto.suggestedMatchType()).startsWith("RULE:")){
+                    String raw=row.dto.suggestedMatchType().substring(5);
+                    String[] parts=raw.split(":",2);
+                    String label="Rule: "+(parts.length==2?parts[1]+" ("+parts[0]+")":raw);
+                    Label pill=new Label(label);
+                    pill.setGraphic(IconFactory.compactIcon("reconcile",13));
+                    pill.getStyleClass().addAll("aging-reminded-pill","aging-reminded-stale");
+                    pill.setTooltip(new Tooltip("Matched by Bank Statement Smart Rule — click Run Rules or take action to apply"));
+                    setGraphic(pill);
+                    return;
+                }
+                if(text==null||text.isBlank())return;
                 String voucher=row.dto==null?null:safe(row.dto.financeVoucherNo());
                 if(voucher!=null&&!voucher.isBlank()&&!voucher.equalsIgnoreCase(text.trim())&&!text.startsWith("Suggested")){
                     HBox box=new HBox(6);
@@ -1120,13 +1180,31 @@ public class BankStatementController implements ScreenLifecycle {
         ComboBox<String> category=new ComboBox<>(FXCollections.observableArrayList(categories));category.setPromptText("Select category *");category.setMaxWidth(Double.MAX_VALUE);
         ComboBox<String> mode=new ComboBox<>(FXCollections.observableArrayList(modes));if(!modes.isEmpty())mode.getSelectionModel().selectFirst();mode.setMaxWidth(Double.MAX_VALUE);
         TextField account=new TextField(batchAccountName());TextArea notes=new TextArea();notes.setPromptText("Optional note applied to all selected transactions");notes.setPrefRowCount(3);notes.setWrapText(true);notes.setMinHeight(84);notes.setPrefHeight(92);notes.getStyleClass().add("input-field");
-        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lCat=new Label("Expense Category *");lCat.setMinWidth(Region.USE_PREF_SIZE);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lCat,category);grid.addRow(1,lAcc,account);grid.addRow(2,lMode,mode);grid.addRow(3,lNote,notes);GridPane.setHgrow(category,Priority.ALWAYS);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(240);
+        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lCat=new Label("Expense Category *");lCat.setMinWidth(Region.USE_PREF_SIZE);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lCat,category);grid.addRow(1,lAcc,account);grid.addRow(2,lMode,mode);grid.addRow(3,lNote,notes);GridPane.setHgrow(category,Priority.ALWAYS);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);
+        CheckBox chkRememberRule=new CheckBox("Remember rule for future statements");chkRememberRule.getStyleClass().addAll("approved-checkbox","ios-toggle-switch");
+        String suggestedPat=org.example.bank.BankReconciliationRulesDialog.suggestNarrationPattern(rows.getFirst().dto.description());
+        TextField txtRulePattern=new TextField(suggestedPat);txtRulePattern.setPromptText("Narration keyword to match");txtRulePattern.getStyleClass().add("approved-input");txtRulePattern.disableProperty().bind(chkRememberRule.selectedProperty().not());
+        ComboBox<String> cmbRuleMode=new ComboBox<>(FXCollections.observableArrayList("SUGGEST","AUTO_APPLY"));cmbRuleMode.setValue("SUGGEST");cmbRuleMode.disableProperty().bind(chkRememberRule.selectedProperty().not());
+        if(isBankRulesPromptSaveEnabled()){
+            Label lRule=new Label("Smart Auto-Rule");lRule.setMinWidth(Region.USE_PREF_SIZE);
+            HBox ruleBox=new HBox(8,txtRulePattern,cmbRuleMode);HBox.setHgrow(txtRulePattern,Priority.ALWAYS);
+            grid.addRow(4,lRule,chkRememberRule);
+            grid.addRow(5,new Label("Match Pattern"),ruleBox);
+        }
+        grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(240);
         dialog.getDialogPane().setContent(grid);org.example.util.SearchableComboBoxHelper.makeAllSearchable(grid);PopupTableWorkspace.prepareDialog(dialog, 680);ButtonType move=new ButtonType("Move "+rows.size()+" Entries",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL,move);
         Node moveButton=dialog.getDialogPane().lookupButton(move);moveButton.addEventFilter(javafx.event.ActionEvent.ACTION,e->{if(category.getValue()==null||category.getValue().isBlank()){e.consume();info("Category required","Select one Expense Category. The same category will be applied to every selected transaction.");}});
         dialog.showAndWait().filter(move::equals).ifPresent(x->{
             List<Long> ids=rows.stream().map(r->r.dto.id()).toList();String performedBy=user();
-            UiTaskExecutor.submitSerial("bank-statement-bulk-expense",()->api.bulkExpense(new BankStatementApiClient.BulkExpenseRequest(ids,category.getValue(),account.getText(),mode.getValue(),notes.getText(),null,performedBy)),
-                    result->{success("Bulk Expense Complete",result.message());refresh();},this::error);
+            boolean saveRule=isBankRulesPromptSaveEnabled()&&chkRememberRule.isSelected()&&!safe(txtRulePattern.getText()).isBlank();
+            String rulePat=safe(txtRulePattern.getText()).trim();String ruleMode=cmbRuleMode.getValue();
+            UiTaskExecutor.submitSerial("bank-statement-bulk-expense",()->{
+                var res=api.bulkExpense(new BankStatementApiClient.BulkExpenseRequest(ids,category.getValue(),account.getText(),mode.getValue(),notes.getText(),null,performedBy));
+                if(saveRule){
+                    try{api.createRule(new BankStatementApiClient.RuleSaveRequest(category.getValue()+" ("+rulePat+")","NARRATION","CONTAINS",rulePat,"DEBIT","EXPENSE",category.getValue(),account.getText(),mode.getValue(),notes.getText(),ruleMode,100,true));}catch(Exception ignored){}
+                }
+                return res;
+            },result->{success("Bulk Expense Complete",result.message()+(saveRule?"\n\nSaved Smart Rule for pattern: \""+rulePat+"\"":""));refresh();},this::error);
         });
     }
 
@@ -1134,12 +1212,31 @@ public class BankStatementController implements ScreenLifecycle {
         Dialog<ButtonType> dialog=new OwnedDialog<>(table);dialog.setTitle("Bulk Move to Bank Entry");dialog.setHeaderText(rows.size()+" selected transactions • Total ₹ "+money(rows.stream().mapToDouble(r->bankAmount(r.dto)).sum()));
         TextField account=new TextField(batchAccountName());ComboBox<String> mode=new ComboBox<>(FXCollections.observableArrayList(modes));if(!modes.isEmpty())mode.getSelectionModel().selectFirst();mode.setMaxWidth(Double.MAX_VALUE);
         TextArea notes=new TextArea();notes.setPromptText("Optional note applied to all selected transactions");notes.setPrefRowCount(3);notes.setWrapText(true);notes.setMinHeight(84);notes.setPrefHeight(92);notes.getStyleClass().add("input-field");
-        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lAcc,account);grid.addRow(1,lMode,mode);grid.addRow(2,lNote,notes);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(210);
+        GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lAcc,account);grid.addRow(1,lMode,mode);grid.addRow(2,lNote,notes);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);
+        CheckBox chkRememberRule=new CheckBox("Remember rule for future statements");chkRememberRule.getStyleClass().addAll("approved-checkbox","ios-toggle-switch");
+        String suggestedPat=org.example.bank.BankReconciliationRulesDialog.suggestNarrationPattern(rows.getFirst().dto.description());
+        TextField txtRulePattern=new TextField(suggestedPat);txtRulePattern.setPromptText("Narration keyword to match");txtRulePattern.getStyleClass().add("approved-input");txtRulePattern.disableProperty().bind(chkRememberRule.selectedProperty().not());
+        ComboBox<String> cmbRuleMode=new ComboBox<>(FXCollections.observableArrayList("SUGGEST","AUTO_APPLY"));cmbRuleMode.setValue("SUGGEST");cmbRuleMode.disableProperty().bind(chkRememberRule.selectedProperty().not());
+        if(isBankRulesPromptSaveEnabled()){
+            Label lRule=new Label("Smart Auto-Rule");lRule.setMinWidth(Region.USE_PREF_SIZE);
+            HBox ruleBox=new HBox(8,txtRulePattern,cmbRuleMode);HBox.setHgrow(txtRulePattern,Priority.ALWAYS);
+            grid.addRow(3,lRule,chkRememberRule);
+            grid.addRow(4,new Label("Match Pattern"),ruleBox);
+        }
+        grid.setMinWidth(580);grid.setPrefWidth(620);grid.setMinHeight(210);
         dialog.getDialogPane().setContent(grid);org.example.util.SearchableComboBoxHelper.makeAllSearchable(grid);PopupTableWorkspace.prepareDialog(dialog, 680);ButtonType move=new ButtonType("Move "+rows.size()+" Entries",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL,move);
         dialog.showAndWait().filter(move::equals).ifPresent(x->{
             List<Long> ids=rows.stream().map(r->r.dto.id()).toList();String performedBy=user();
-            UiTaskExecutor.submitSerial("bank-statement-bulk-bank",()->api.bulkBankEntry(new BankStatementApiClient.BulkBankEntryRequest(ids,account.getText(),mode.getValue(),notes.getText(),performedBy)),
-                    result->{success("Bulk Bank Entry Complete",result.message());refresh();},this::error);
+            boolean saveRule=isBankRulesPromptSaveEnabled()&&chkRememberRule.isSelected()&&!safe(txtRulePattern.getText()).isBlank();
+            String rulePat=safe(txtRulePattern.getText()).trim();String ruleMode=cmbRuleMode.getValue();
+            String dir=rows.getFirst().dto.credit()>0&&rows.getFirst().dto.debit()<=0?"CREDIT":"DEBIT";
+            UiTaskExecutor.submitSerial("bank-statement-bulk-bank",()->{
+                var res=api.bulkBankEntry(new BankStatementApiClient.BulkBankEntryRequest(ids,account.getText(),mode.getValue(),notes.getText(),performedBy));
+                if(saveRule){
+                    try{api.createRule(new BankStatementApiClient.RuleSaveRequest("Bank Entry ("+rulePat+")","NARRATION","CONTAINS",rulePat,dir,"BANK_ENTRY",null,account.getText(),mode.getValue(),notes.getText(),ruleMode,100,true));}catch(Exception ignored){}
+                }
+                return res;
+            },result->{success("Bulk Bank Entry Complete",result.message()+(saveRule?"\n\nSaved Smart Rule for pattern: \""+rulePat+"\"":""));refresh();},this::error);
         });
     }
     private List<String> safeLookup(String code){try{return lookupService.getValuesByCategoryCode(code);}catch(Exception ignored){return List.of();}}
@@ -1151,10 +1248,35 @@ public class BankStatementController implements ScreenLifecycle {
         int skipped=selected.size()-rows.size();
         if(rows.isEmpty()){info(title,"None of the selected transactions can use this action.");return;}
         requiredReason(title,prompt).ifPresent(reason->{
-            Alert confirmation=new OwnedAlert(Alert.AlertType.CONFIRMATION,
-                    "Selected: "+selected.size()+"\nEligible: "+rows.size()+"\nSkipped: "+skipped+"\n\nReason: "+reason);
-            confirmation.setHeaderText(title);
-            confirmation.showAndWait().filter(ButtonType.OK::equals).ifPresent(x->
+            boolean offerIgnoreRule = "IGNORE".equals(action) && isBankRulesPromptSaveEnabled();
+            Dialog<ButtonType> confirmDialog = new OwnedDialog<>(table);
+            confirmDialog.setTitle(title);
+            confirmDialog.setHeaderText("Selected: " + selected.size() + " • Eligible: " + rows.size() + " • Skipped: " + skipped);
+            Label lblReason = new Label("Audit Reason: " + reason);
+            lblReason.setWrapText(true);
+            CheckBox chkIgnoreRule = new CheckBox("Remember ignore rule for future statements");
+            chkIgnoreRule.getStyleClass().addAll("approved-checkbox", "ios-toggle-switch");
+            TextField txtIgnorePat = new TextField(org.example.bank.BankReconciliationRulesDialog.suggestNarrationPattern(rows.getFirst().dto.description()));
+            txtIgnorePat.setPromptText("Narration pattern to auto-ignore");
+            txtIgnorePat.getStyleClass().add("approved-input");
+            txtIgnorePat.disableProperty().bind(chkIgnoreRule.selectedProperty().not());
+            ComboBox<String> cmbIgnoreMode = new ComboBox<>(FXCollections.observableArrayList("SUGGEST", "AUTO_APPLY"));
+            cmbIgnoreMode.setValue("SUGGEST");
+            cmbIgnoreMode.disableProperty().bind(chkIgnoreRule.selectedProperty().not());
+            VBox box = new VBox(10, lblReason);
+            if (offerIgnoreRule) {
+                HBox patRow = new HBox(8, txtIgnorePat, cmbIgnoreMode);
+                HBox.setHgrow(txtIgnorePat, Priority.ALWAYS);
+                box.getChildren().addAll(new Separator(), chkIgnoreRule, patRow);
+            }
+            box.setPadding(new Insets(10));
+            confirmDialog.getDialogPane().setContent(box);
+            confirmDialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+            PopupTableWorkspace.prepareDialog(confirmDialog, 560);
+            confirmDialog.showAndWait().filter(ButtonType.OK::equals).ifPresent(x -> {
+                boolean saveIgnoreRule = offerIgnoreRule && chkIgnoreRule.isSelected() && !safe(txtIgnorePat.getText()).isBlank();
+                String pat = safe(txtIgnorePat.getText()).trim();
+                String mode = cmbIgnoreMode.getValue();
                 UiTaskExecutor.submitAction(
                     "bank-statement-bulk-"+action.toLowerCase(Locale.ROOT),
                     () -> {
@@ -1166,17 +1288,21 @@ public class BankStatementController implements ScreenLifecycle {
                                 completed++;
                             }catch(Exception e){failed++;if(firstFailure.isBlank())firstFailure=safe(e.getMessage());}
                         }
+                        if(saveIgnoreRule){
+                            try{api.createRule(new BankStatementApiClient.RuleSaveRequest("Ignore ("+pat+")","NARRATION","CONTAINS",pat,"BOTH","IGNORE",null,null,null,reason,mode,100,true));}catch(Exception ignored){}
+                        }
                         return new BulkResult(completed,failed,firstFailure);
                     },
                     bulk -> {
                         String result="Updated: "+bulk.completed()+"\nSkipped: "+skipped+"\nFailed: "+bulk.failed();
+                        if(saveIgnoreRule) result+="\n\nSaved Smart Ignore Rule for pattern: \""+pat+"\"";
                         if(!bulk.firstFailure().isBlank())result+="\n\nFirst failure: "+bulk.firstFailure();
                         if(bulk.failed()==0)success(title,result);else new OwnedAlert(Alert.AlertType.WARNING,result).showAndWait();
                         refresh();
                     },
                     this::error
-                )
-            );
+                );
+            });
         });
     }
 

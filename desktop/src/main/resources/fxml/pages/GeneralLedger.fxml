@@ -6,15 +6,18 @@
   <padding><Insets top="14" right="14" bottom="14" left="14"/></padding>
   <top>
     <VBox spacing="10">
-      <HBox alignment="CENTER_LEFT" spacing="12" styleClass="approved-page-header,erp-page-identity-header,approved-card">
+      <HBox alignment="CENTER_LEFT" spacing="10" styleClass="approved-page-header,erp-page-identity-header,approved-card">
         <StackPane fx:id="pageIcon" styleClass="erp-page-header-icon"/>
         <VBox spacing="2">
           <Label text="General Ledger &amp; Financial Accounting" styleClass="screen-title"/>
-          <Label text="Double-entry journals, Chart of Accounts hierarchy, and automated financial statements" wrapText="true" styleClass="screen-subtitle"/>
+          <Label text="Double-entry journals, Chart of Accounts, Account Ledger drill-down, Trial Balance, P&amp;L &amp; Balance Sheet" wrapText="true" styleClass="screen-subtitle"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
+        <Label fx:id="lblPeriodLockBadge" text="Books Open" styleClass="status-pill,status-positive"/>
+        <Button fx:id="btnPeriodLock" text="Period Lock" onAction="#openPeriodLockDialog" styleClass="approved-button,approved-secondary-button"/>
         <Button fx:id="btnNewJournal" text="New Journal Voucher" onAction="#openNewJournalDialog" styleClass="primary-action,approved-button,approved-primary-button"/>
-        <Button fx:id="btnExportLedger" text="Export Statement" onAction="#exportStatement" styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnExportLedger" text="Export Excel" onAction="#exportStatement" styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnExportPdf" text="Export PDF" onAction="#exportPdfFinancialPack" styleClass="approved-button,approved-secondary-button"/>
         <Button fx:id="btnRefreshLedger" text="Refresh" onAction="#refreshJournals" styleClass="approved-button,approved-secondary-button"/>
       </HBox>
 
@@ -60,6 +63,19 @@
           </VBox>
         </HBox>
       </GridPane>
+
+      <HBox spacing="8" alignment="CENTER_LEFT" styleClass="approved-card,gl-period-bar">
+        <Label text="Accounting Period:" styleClass="field-label"/>
+        <ComboBox fx:id="cmbPeriodPreset" prefWidth="150" styleClass="approved-combo"/>
+        <Label text="From Date:" styleClass="field-label"/>
+        <DatePicker fx:id="dpFromDate" promptText="From Date" prefWidth="164"/>
+        <Label text="To Date:" styleClass="field-label"/>
+        <DatePicker fx:id="dpToDate" promptText="To Date" prefWidth="164"/>
+        <Button fx:id="btnApplyPeriod" text="Apply Period" onAction="#applyPeriodFilter" styleClass="approved-button,approved-primary-button"/>
+        <Button fx:id="btnClearPeriod" text="All Time" onAction="#clearPeriodFilter" styleClass="approved-button,approved-secondary-button"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label fx:id="lblActivePeriodInfo" text="Showing: All Time" styleClass="page-subtitle"/>
+      </HBox>
     </VBox>
   </top>
 
@@ -69,31 +85,35 @@
         <Tab text="Journal Vouchers" closable="false">
           <VBox spacing="8" styleClass="approved-card">
             <HBox spacing="8" alignment="CENTER_LEFT">
-              <TextField fx:id="txtJournalSearch" promptText="Search voucher no, narration, reference..." HBox.hgrow="ALWAYS"/>
+              <TextField fx:id="txtJournalSearch" promptText="Search voucher no, account code/name, narration, reference..." HBox.hgrow="ALWAYS"/>
               <ComboBox fx:id="cmbVoucherFilter" promptText="Filter by Type" prefWidth="160"/>
+              <ComboBox fx:id="cmbQuickBookFilter" promptText="Book View" prefWidth="165"/>
               <Button fx:id="btnJournalRefresh" text="Refresh" onAction="#refreshJournals" styleClass="approved-button,approved-secondary-button"/>
             </HBox>
             <SplitPane fx:id="journalSplit" VBox.vgrow="ALWAYS" dividerPositions="1.0" styleClass="register-split-pane">
-              <TableView fx:id="tblJournals" styleClass="approved-table,erp-table-profile-responsive,erp-purple-selection-table">
-                <columns>
-                  <TableColumn fx:id="colEntryNumber" text="Voucher No."/>
-                  <TableColumn fx:id="colEntryDate" text="Date"/>
-                  <TableColumn fx:id="colEntryType" text="Type"/>
-                  <TableColumn fx:id="colReferenceNo" text="Ref Document"/>
-                  <TableColumn fx:id="colNarration" text="Narration"/>
-                  <TableColumn fx:id="colTotalDebit" text="Debit (₹)"/>
-                  <TableColumn fx:id="colTotalCredit" text="Credit (₹)"/>
-                  <TableColumn fx:id="colStatus" text="Status"/>
-                  <TableColumn fx:id="colActions" text="Actions" sortable="false"/>
-                </columns>
-                <placeholder>
-                  <VBox alignment="CENTER" spacing="8">
-                    <Label text="No Journal Entries Found" styleClass="empty-title"/>
-                    <Label text="Post a new journal voucher or record invoices." styleClass="empty-note"/>
-                  </VBox>
-                </placeholder>
-              </TableView>
-              <VBox fx:id="journalDetailDrawer" visible="false" managed="false" spacing="9" prefWidth="400" minWidth="350" maxWidth="450" styleClass="approved-card,detail-drawer">
+              <VBox spacing="6">
+                <TableView fx:id="tblJournals" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive,erp-purple-selection-table">
+                  <columns>
+                    <TableColumn fx:id="colEntryNumber" text="Voucher No."/>
+                    <TableColumn fx:id="colEntryDate" text="Date"/>
+                    <TableColumn fx:id="colEntryType" text="Type"/>
+                    <TableColumn fx:id="colReferenceNo" text="Ref Document"/>
+                    <TableColumn fx:id="colNarration" text="Narration"/>
+                    <TableColumn fx:id="colTotalDebit" text="Debit (₹)"/>
+                    <TableColumn fx:id="colTotalCredit" text="Credit (₹)"/>
+                    <TableColumn fx:id="colStatus" text="Status"/>
+                    <TableColumn fx:id="colActions" text="Actions" sortable="false"/>
+                  </columns>
+                  <placeholder>
+                    <VBox alignment="CENTER" spacing="8">
+                      <Label text="No Journal Entries Found" styleClass="empty-title"/>
+                      <Label text="Post a new manual journal voucher or record invoices." styleClass="empty-note"/>
+                    </VBox>
+                  </placeholder>
+                </TableView>
+                <HBox fx:id="journalPaginationHost" alignment="CENTER_RIGHT"/>
+              </VBox>
+              <VBox fx:id="journalDetailDrawer" visible="false" managed="false" spacing="9" prefWidth="430" minWidth="370" maxWidth="480" styleClass="approved-card,detail-drawer">
                 <HBox alignment="CENTER_LEFT" spacing="8">
                   <VBox HBox.hgrow="ALWAYS">
                     <Label text="Journal Voucher Details" styleClass="section-title"/>
@@ -134,8 +154,8 @@
                   <Label text="Narration" styleClass="meta-label"/>
                   <Label fx:id="lblDrawerNarration" text="-" wrapText="true" styleClass="meta-value"/>
                 </VBox>
-                <VBox spacing="6" styleClass="drawer-summary-card">
-                  <Label text="Double-Entry Breakdown" styleClass="section-title-sm"/>
+                <VBox spacing="6" VBox.vgrow="ALWAYS" styleClass="drawer-summary-card">
+                  <Label text="Double-Entry Breakdown (All Legs)" styleClass="section-title-sm"/>
                   <HBox alignment="CENTER_LEFT">
                     <Label fx:id="lblDrawerDrHead" text="Dr. Account:" styleClass="meta-label"/>
                     <Region HBox.hgrow="ALWAYS"/>
@@ -146,6 +166,9 @@
                     <Region HBox.hgrow="ALWAYS"/>
                     <Label fx:id="lblDrawerCrAmount" text="₹ 0.00" styleClass="meta-value-bold,text-success"/>
                   </HBox>
+                  <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="erp-clean-scroll">
+                    <VBox fx:id="vboxDrawerLines" spacing="4"/>
+                  </ScrollPane>
                   <Separator/>
                   <HBox alignment="CENTER_LEFT">
                     <Label text="Audit Check:" styleClass="meta-label"/>
@@ -153,9 +176,10 @@
                     <Label text="BALANCED (Dr = Cr)" styleClass="status-pill,status-positive"/>
                   </HBox>
                 </VBox>
-                <Region VBox.vgrow="ALWAYS"/>
-                <HBox spacing="8" alignment="CENTER_RIGHT">
-                  <Button fx:id="btnCopyVoucher" text="Copy Voucher No" onAction="#copyVoucherNumber" styleClass="approved-button,approved-secondary-button"/>
+                <HBox spacing="6" alignment="CENTER_RIGHT">
+                  <Button fx:id="btnPostDraft" text="Post Draft" onAction="#postSelectedDraft" visible="false" managed="false" styleClass="approved-button,approved-success-button"/>
+                  <Button fx:id="btnReverseVoucher" text="Reverse" onAction="#reverseSelectedVoucher" styleClass="approved-button,approved-danger-ghost-button"/>
+                  <Button fx:id="btnCopyVoucher" text="Copy No" onAction="#copyVoucherNumber" styleClass="approved-button,approved-secondary-button"/>
                   <Button fx:id="btnOpenLinkedDoc" text="Open Document" onAction="#openLinkedDocument" styleClass="primary-action,approved-button,approved-primary-button"/>
                 </HBox>
               </VBox>
@@ -168,6 +192,10 @@
             <HBox spacing="8" alignment="CENTER_LEFT">
               <TextField fx:id="txtAccountSearch" promptText="Search account code, name, category..." HBox.hgrow="ALWAYS"/>
               <ComboBox fx:id="cmbAccountFilter" promptText="Filter by Category" prefWidth="160"/>
+              <CheckBox fx:id="chkShowInactiveAccounts" text="Show Inactive" onAction="#refreshJournals" styleClass="approved-checkbox"/>
+              <Button fx:id="btnNewAccount" text="New Account" onAction="#openNewAccountDialog" styleClass="approved-button,approved-primary-button"/>
+              <Button fx:id="btnEditAccount" text="Edit Account" onAction="#editSelectedAccount" styleClass="approved-button,approved-secondary-button"/>
+              <Button fx:id="btnViewAccountLedger" text="View Ledger" onAction="#openSelectedAccountLedger" styleClass="approved-button,approved-secondary-button"/>
             </HBox>
             <TableView fx:id="tblAccounts" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive,erp-purple-selection-table">
               <columns>
@@ -183,6 +211,7 @@
                 <VBox alignment="CENTER" spacing="8"><Label text="Chart of Accounts is empty" styleClass="empty-title"/></VBox>
               </placeholder>
             </TableView>
+            <Label text="Tip: Select any account and click 'View Ledger' (or right-click a row) to open its full chronological Account Ledger Statement with running Dr/Cr balance." styleClass="muted-text"/>
           </VBox>
         </Tab>
 
@@ -190,8 +219,8 @@
           <VBox spacing="8" styleClass="approved-card">
             <HBox spacing="8" alignment="CENTER_LEFT">
               <TextField fx:id="txtTbSearch" promptText="Search account head, code, type..." HBox.hgrow="ALWAYS"/>
-              <Region HBox.hgrow="ALWAYS"/>
-              <Button fx:id="btnExportTb" text="Export Statement" onAction="#exportStatement" styleClass="approved-button,approved-secondary-button"/>
+              <Button fx:id="btnTbViewLedger" text="View Ledger" onAction="#openSelectedTbLedger" styleClass="approved-button,approved-secondary-button"/>
+              <Button fx:id="btnExportTb" text="Export Excel" onAction="#exportStatement" styleClass="approved-button,approved-secondary-button"/>
             </HBox>
             <TableView fx:id="tblTrialBalance" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive,erp-purple-selection-table">
               <columns>
@@ -207,6 +236,81 @@
                 <VBox alignment="CENTER" spacing="8"><Label text="No trial balance data" styleClass="empty-title"/></VBox>
               </placeholder>
             </TableView>
+            <HBox spacing="16" alignment="CENTER_LEFT" styleClass="gl-totals-strip">
+              <Label fx:id="lblTbTotalOpening" text="Total Opening: ₹ 0.00" styleClass="comm-section-heading,comm-heading-indigo"/>
+              <Label fx:id="lblTbTotalDebit" text="Total Debit: ₹ 0.00" styleClass="comm-section-heading,comm-heading-blue"/>
+              <Label fx:id="lblTbTotalCredit" text="Total Credit: ₹ 0.00" styleClass="comm-section-heading,comm-heading-success"/>
+              <Label fx:id="lblTbTotalClosing" text="Net Closing: ₹ 0.00" styleClass="comm-section-heading,comm-heading-amber"/>
+              <Region HBox.hgrow="ALWAYS"/>
+              <Label fx:id="lblTbBalancePill" text="BALANCED (Dr = Cr)" styleClass="comm-status-badge,comm-status-sent"/>
+            </HBox>
+          </VBox>
+        </Tab>
+
+        <Tab text="Profit &amp; Loss" closable="false">
+          <VBox spacing="8" styleClass="approved-card">
+            <HBox spacing="12" alignment="CENTER_LEFT" styleClass="gl-totals-strip">
+              <Label fx:id="lblPlRevenue" text="Revenue: ₹ 0.00" styleClass="comm-section-heading,comm-heading-success"/>
+              <Label fx:id="lblPlDirectCost" text="Direct Cost (COGS): ₹ 0.00" styleClass="comm-section-heading,comm-heading-amber"/>
+              <Label fx:id="lblPlGrossProfit" text="Gross Profit: ₹ 0.00 (0.0%)" styleClass="comm-section-heading,comm-heading-blue"/>
+              <Label fx:id="lblPlIndirectCost" text="Indirect Expenses: ₹ 0.00" styleClass="comm-section-heading,comm-heading-danger"/>
+              <Region HBox.hgrow="ALWAYS"/>
+              <Label fx:id="lblPlNetProfit" text="Net Profit: ₹ 0.00 (0.0%)" styleClass="comm-status-badge,comm-status-sent"/>
+            </HBox>
+            <HBox spacing="8" alignment="CENTER_LEFT">
+              <TextField fx:id="txtPlSearch" promptText="Search revenue or expense ledger..." HBox.hgrow="ALWAYS"/>
+              <Button fx:id="btnPlViewLedger" text="View Ledger" onAction="#openSelectedPlLedger" styleClass="approved-button,approved-secondary-button"/>
+            </HBox>
+            <TableView fx:id="tblProfitLoss" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive,erp-purple-selection-table">
+              <columns>
+                <TableColumn fx:id="colPlSection" text="Category"/>
+                <TableColumn fx:id="colPlCode" text="Code"/>
+                <TableColumn fx:id="colPlName" text="Account Head"/>
+                <TableColumn fx:id="colPlSubtype" text="Subtype"/>
+                <TableColumn fx:id="colPlAmount" text="Amount (₹)"/>
+              </columns>
+              <placeholder>
+                <VBox alignment="CENTER" spacing="8"><Label text="No Profit &amp; Loss entries in selected period" styleClass="empty-title"/></VBox>
+              </placeholder>
+            </TableView>
+          </VBox>
+        </Tab>
+
+        <Tab text="Balance Sheet" closable="false">
+          <VBox spacing="8" styleClass="approved-card">
+            <HBox spacing="12" VBox.vgrow="ALWAYS">
+              <VBox spacing="6" HBox.hgrow="ALWAYS" styleClass="entity-table-card">
+                <Label text="Assets (Application of Funds)" styleClass="section-title"/>
+                <TableView fx:id="tblBsAssets" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive,erp-purple-selection-table">
+                  <columns>
+                    <TableColumn fx:id="colBsAssetCode" text="Code"/>
+                    <TableColumn fx:id="colBsAssetName" text="Account Head"/>
+                    <TableColumn fx:id="colBsAssetSubtype" text="Subtype"/>
+                    <TableColumn fx:id="colBsAssetBalance" text="Balance (₹)"/>
+                  </columns>
+                  <placeholder><Label text="No asset balances"/></placeholder>
+                </TableView>
+              </VBox>
+              <VBox spacing="6" HBox.hgrow="ALWAYS" styleClass="entity-table-card">
+                <Label text="Liabilities &amp; Equity (Sources of Funds)" styleClass="section-title"/>
+                <TableView fx:id="tblBsLiabEquity" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive,erp-purple-selection-table">
+                  <columns>
+                    <TableColumn fx:id="colBsLeCode" text="Code"/>
+                    <TableColumn fx:id="colBsLeName" text="Account Head"/>
+                    <TableColumn fx:id="colBsLeType" text="Type"/>
+                    <TableColumn fx:id="colBsLeBalance" text="Balance (₹)"/>
+                  </columns>
+                  <placeholder><Label text="No liability or equity balances"/></placeholder>
+                </TableView>
+              </VBox>
+            </HBox>
+            <HBox spacing="16" alignment="CENTER_LEFT" styleClass="gl-totals-strip">
+              <Label fx:id="lblBsTotalAssets" text="Total Assets: ₹ 0.00" styleClass="comm-section-heading,comm-heading-blue"/>
+              <Label fx:id="lblBsTotalLiab" text="Liabilities: ₹ 0.00" styleClass="comm-section-heading,comm-heading-amber"/>
+              <Label fx:id="lblBsTotalEquity" text="Equity + Net Profit: ₹ 0.00" styleClass="comm-section-heading,comm-heading-indigo"/>
+              <Region HBox.hgrow="ALWAYS"/>
+              <Label fx:id="lblBsTallyPill" text="TALLIED (Assets = L + E)" styleClass="comm-status-badge,comm-status-sent"/>
+            </HBox>
           </VBox>
         </Tab>
       </tabs>

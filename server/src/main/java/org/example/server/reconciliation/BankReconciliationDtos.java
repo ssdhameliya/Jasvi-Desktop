@@ -48,4 +48,9 @@ public final class BankReconciliationDtos {
   }
  }
  public record DocumentLinkageDto(boolean linked,String queryType,String queryRef,List<LinkageItemDto> linkages){}
+ public record RuleDto(Long id,String ruleName,String matchField,String matchOperator,String matchPattern,String direction,String actionType,String targetCategory,String targetAccountName,String targetPaymentMode,String targetNotes,String executionMode,int priority,boolean active,int hitCount,String lastMatchedAt,String createdBy,String createdAt,String updatedAt){}
+ public record RuleSaveRequest(String ruleName,String matchField,String matchOperator,String matchPattern,String direction,String actionType,String targetCategory,String targetAccountName,String targetPaymentMode,String targetNotes,String executionMode,Integer priority,Boolean active){}
+ public record RulePreviewMatchDto(Long transactionId,String transactionDate,String description,String reference,double amount,String direction,String matchedRuleName,String actionType,String targetSummary,String executionMode){}
+ public record RulePreviewResult(boolean enabled,int totalOpenRows,int matchedRows,double matchedTotalAmount,List<RulePreviewMatchDto> matches){}
+ public record RuleApplyResult(boolean enabled,int suggestedCount,int autoAppliedCount,int skippedCount,String message){}
 }

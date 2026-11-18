@@ -33,14 +33,22 @@ import org.example.service.SalesService;
 import org.example.util.*;
 
 import java.text.NumberFormat;
+import java.time.LocalDate;
 import java.util.*;
 import java.io.File;
 import java.io.FileOutputStream;
 import javafx.stage.FileChooser;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.example.service.BrandingService;
 
 public class GeneralLedgerController implements ScreenLifecycle {
 
@@ -48,34 +56,56 @@ public class GeneralLedgerController implements ScreenLifecycle {
     @FXML private StackPane kpiAssetsIcon, kpiLiabilitiesIcon, kpiRevenueIcon, kpiExpenseIcon, kpiProfitIcon;
     @FXML private Label kpiTotalAssets, kpiTotalLiabilities, kpiTotalRevenue, kpiTotalExpense, kpiNetProfit;
 
-    @FXML private Button btnNewJournal, btnExportLedger, btnRefreshLedger;
+    @FXML private Label lblPeriodLockBadge, lblActivePeriodInfo;
+    @FXML private Button btnPeriodLock, btnNewJournal, btnExportLedger, btnExportPdf, btnRefreshLedger;
+    @FXML private ComboBox<String> cmbPeriodPreset;
+    @FXML private DatePicker dpFromDate, dpToDate;
+    @FXML private Button btnApplyPeriod, btnClearPeriod;
     @FXML private TabPane glTabPane;
 
     // Tab 1: Journal Vouchers
     @FXML private TextField txtJournalSearch;
-    @FXML private ComboBox<String> cmbVoucherFilter;
+    @FXML private ComboBox<String> cmbVoucherFilter, cmbQuickBookFilter;
     @FXML private Button btnJournalRefresh;
     @FXML private SplitPane journalSplit;
     @FXML private TableView<JournalRow> tblJournals;
+    @FXML private HBox journalPaginationHost;
     @FXML private TableColumn<JournalRow, String> colEntryNumber, colEntryDate, colEntryType, colReferenceNo, colNarration, colTotalDebit, colTotalCredit, colStatus, colActions;
 
     // Journal Detail Drawer
-    @FXML private VBox journalDetailDrawer;
+    @FXML private VBox journalDetailDrawer, vboxDrawerLines;
     @FXML private Label lblDrawerVoucherNo, lblDrawerDate, lblDrawerType, lblDrawerRef, lblDrawerStatus;
     @FXML private Label lblDrawerNarration, lblDrawerDrHead, lblDrawerDrAmount, lblDrawerCrHead, lblDrawerCrAmount;
-    @FXML private Button btnCopyVoucher, btnOpenLinkedDoc, btnDrawerAudit, btnCloseJournalDrawer;
+    @FXML private Button btnPostDraft, btnReverseVoucher, btnCopyVoucher, btnOpenLinkedDoc, btnDrawerAudit, btnCloseJournalDrawer;
 
     // Tab 2: Chart of Accounts
     @FXML private TextField txtAccountSearch;
     @FXML private ComboBox<String> cmbAccountFilter;
+    @FXML private CheckBox chkShowInactiveAccounts;
+    @FXML private Button btnNewAccount, btnEditAccount, btnViewAccountLedger;
     @FXML private TableView<AccountRow> tblAccounts;
     @FXML private TableColumn<AccountRow, String> colAccountCode, colAccountName, colAccountType, colAccountSubtype, colOpeningBalance, colCurrentBalance, colAccountActive;
 
     // Tab 3: Trial Balance
     @FXML private TextField txtTbSearch;
-    @FXML private Button btnExportTb;
+    @FXML private Button btnTbViewLedger, btnExportTb;
     @FXML private TableView<TbRow> tblTrialBalance;
     @FXML private TableColumn<TbRow, String> colTbCode, colTbName, colTbType, colTbOpening, colTbDebit, colTbCredit, colTbClosing;
+    @FXML private Label lblTbTotalOpening, lblTbTotalDebit, lblTbTotalCredit, lblTbTotalClosing, lblTbBalancePill;
+
+    // Tab 4: Profit & Loss
+    @FXML private Label lblPlRevenue, lblPlDirectCost, lblPlGrossProfit, lblPlIndirectCost, lblPlNetProfit;
+    @FXML private TextField txtPlSearch;
+    @FXML private Button btnPlViewLedger;
+    @FXML private TableView<PlRow> tblProfitLoss;
+    @FXML private TableColumn<PlRow, String> colPlSection, colPlCode, colPlName, colPlSubtype, colPlAmount;
+
+    // Tab 5: Balance Sheet
+    @FXML private TableView<BsRow> tblBsAssets;
+    @FXML private TableColumn<BsRow, String> colBsAssetCode, colBsAssetName, colBsAssetSubtype, colBsAssetBalance;
+    @FXML private TableView<BsRow> tblBsLiabEquity;
+    @FXML private TableColumn<BsRow, String> colBsLeCode, colBsLeName, colBsLeType, colBsLeBalance;
+    @FXML private Label lblBsTotalAssets, lblBsTotalLiab, lblBsTotalEquity, lblBsTallyPill;
 
     private final SalesService salesService = new SalesService();
     private final PurchaseService purchaseService = new PurchaseService();
@@ -86,18 +116,30 @@ public class GeneralLedgerController implements ScreenLifecycle {
 
     private final ObservableList<JournalRow> allJournalRows = FXCollections.observableArrayList();
     private final ObservableList<JournalRow> filteredJournalRows = FXCollections.observableArrayList();
+    private TablePaginationBar<JournalRow> journalPaginationBar;
 
     private final ObservableList<AccountRow> allAccountRows = FXCollections.observableArrayList();
     private final ObservableList<AccountRow> filteredAccountRows = FXCollections.observableArrayList();
+    private List<GeneralLedgerApiClient.AccountDto> cachedAccountDtos = List.of();
 
     private final ObservableList<TbRow> allTbRows = FXCollections.observableArrayList();
     private final ObservableList<TbRow> filteredTbRows = FXCollections.observableArrayList();
 
+    private final ObservableList<PlRow> allPlRows = FXCollections.observableArrayList();
+    private final ObservableList<PlRow> filteredPlRows = FXCollections.observableArrayList();
+
+    private final ObservableList<BsRow> bsAssetRows = FXCollections.observableArrayList();
+    private final ObservableList<BsRow> bsLeRows = FXCollections.observableArrayList();
+
+    private GeneralLedgerApiClient.ProfitAndLossResponse latestPl;
+    private GeneralLedgerApiClient.BalanceSheetResponse latestBs;
+    private GeneralLedgerApiClient.PeriodLockDto latestPeriodLock;
     private JournalRow selectedJournal;
 
     @FXML
     public void initialize() {
         configureIcons();
+        configurePeriodBar();
         configureFilterCombos();
         setupTableColumns();
         installDynamicLayouts();
@@ -112,11 +154,49 @@ public class GeneralLedgerController implements ScreenLifecycle {
         if (txtTbSearch != null) {
             txtTbSearch.textProperty().addListener((obs, oldVal, newVal) -> filterTrialBalance());
         }
+        if (txtPlSearch != null) {
+            txtPlSearch.textProperty().addListener((obs, oldVal, newVal) -> filterProfitLoss());
+        }
 
         RegisterUiSupport.hideDrawer(journalDetailDrawer, journalSplit, tblJournals);
         javafx.application.Platform.runLater(() -> RegisterUiSupport.hideDrawer(journalDetailDrawer, journalSplit, tblJournals));
         OperationalUiSupport.installEscapeClose(journalSplit, () -> journalDetailDrawer != null && journalDetailDrawer.isVisible(), this::closeJournalDetails);
         loadLedgerDataAsync();
+    }
+
+    private void configurePeriodBar() {
+        if (dpFromDate != null) DatePickerFormatter.attach(dpFromDate);
+        if (dpToDate != null) DatePickerFormatter.attach(dpToDate);
+        if (cmbPeriodPreset != null) {
+            cmbPeriodPreset.setItems(FXCollections.observableArrayList(
+                    "All Time", "Today", "This Month", "This Quarter", "This FY", "Last FY", "Custom Range"));
+            cmbPeriodPreset.setValue("All Time");
+            cmbPeriodPreset.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal == null || "Custom Range".equals(newVal)) return;
+                LocalDate today = BusinessClock.today();
+                switch (newVal) {
+                    case "All Time" -> { if (dpFromDate != null) dpFromDate.setValue(null); if (dpToDate != null) dpToDate.setValue(null); }
+                    case "Today" -> { if (dpFromDate != null) dpFromDate.setValue(today); if (dpToDate != null) dpToDate.setValue(today); }
+                    case "This Month" -> { if (dpFromDate != null) dpFromDate.setValue(today.withDayOfMonth(1)); if (dpToDate != null) dpToDate.setValue(today); }
+                    case "This Quarter" -> {
+                        int qStartMonth = ((today.getMonthValue() - 1) / 3) * 3 + 1;
+                        if (dpFromDate != null) dpFromDate.setValue(LocalDate.of(today.getYear(), qStartMonth, 1));
+                        if (dpToDate != null) dpToDate.setValue(today);
+                    }
+                    case "This FY" -> {
+                        int fyYear = today.getMonthValue() >= 4 ? today.getYear() : today.getYear() - 1;
+                        if (dpFromDate != null) dpFromDate.setValue(LocalDate.of(fyYear, 4, 1));
+                        if (dpToDate != null) dpToDate.setValue(LocalDate.of(fyYear + 1, 3, 31));
+                    }
+                    case "Last FY" -> {
+                        int fyYear = (today.getMonthValue() >= 4 ? today.getYear() : today.getYear() - 1) - 1;
+                        if (dpFromDate != null) dpFromDate.setValue(LocalDate.of(fyYear, 4, 1));
+                        if (dpToDate != null) dpToDate.setValue(LocalDate.of(fyYear + 1, 3, 31));
+                    }
+                }
+                loadLedgerDataAsync();
+            });
+        }
     }
 
     private void configureIcons() {
@@ -127,25 +207,43 @@ public class GeneralLedgerController implements ScreenLifecycle {
         if (kpiExpenseIcon != null) kpiExpenseIcon.getChildren().setAll(IconFactory.compactIcon("purchase", 20));
         if (kpiProfitIcon != null) kpiProfitIcon.getChildren().setAll(IconFactory.compactIcon("currency", 20));
 
+        if (btnPeriodLock != null) UiActionIcons.apply(btnPeriodLock, "lock", "Period Lock");
         UiActionIcons.apply(btnNewJournal, ButtonAction.ADD);
         UiActionIcons.apply(btnExportLedger, ButtonAction.EXPORT);
+        if (btnExportPdf != null) UiActionIcons.apply(btnExportPdf, "pdf", "Export PDF");
         UiActionIcons.apply(btnRefreshLedger, ButtonAction.REFRESH);
+        if (btnApplyPeriod != null) UiActionIcons.apply(btnApplyPeriod, "filter", "Apply Period");
+        if (btnClearPeriod != null) UiActionIcons.apply(btnClearPeriod, ButtonAction.REFRESH);
         UiActionIcons.apply(btnJournalRefresh, ButtonAction.REFRESH);
+        if (btnNewAccount != null) UiActionIcons.apply(btnNewAccount, ButtonAction.ADD);
+        if (btnEditAccount != null) UiActionIcons.apply(btnEditAccount, "edit", "Edit Account");
+        if (btnViewAccountLedger != null) UiActionIcons.apply(btnViewAccountLedger, "ledger", "View Ledger");
+        if (btnTbViewLedger != null) UiActionIcons.apply(btnTbViewLedger, "ledger", "View Ledger");
+        if (btnPlViewLedger != null) UiActionIcons.apply(btnPlViewLedger, "ledger", "View Ledger");
         UiActionIcons.apply(btnExportTb, ButtonAction.EXPORT);
         UiActionIcons.apply(btnDrawerAudit, "history", "Audit Trail");
         UiActionIcons.apply(btnCloseJournalDrawer, ButtonAction.CLOSE);
-        UiActionIcons.apply(btnCopyVoucher, "copy", "Copy Voucher No");
+        if (btnPostDraft != null) UiActionIcons.apply(btnPostDraft, "complete", "Post Draft");
+        if (btnReverseVoucher != null) UiActionIcons.apply(btnReverseVoucher, "rollback", "Reverse");
+        UiActionIcons.apply(btnCopyVoucher, "copy", "Copy No");
         UiActionIcons.apply(btnOpenLinkedDoc, "view", "Open Document");
     }
 
     private void configureFilterCombos() {
         if (cmbVoucherFilter != null) {
-            cmbVoucherFilter.setItems(FXCollections.observableArrayList("All Types", "SALES", "PURCHASE", "RECEIPT", "PAYMENT"));
+            cmbVoucherFilter.setItems(FXCollections.observableArrayList(
+                    "All Types", "SALES", "PURCHASE", "RECEIPT", "PAYMENT", "GENERAL", "EXPENSE", "CONTRA", "ADJUSTMENT", "REVERSAL", "CREDIT_NOTE", "DEBIT_NOTE"));
             cmbVoucherFilter.setValue("All Types");
             cmbVoucherFilter.valueProperty().addListener((obs, oldVal, newVal) -> filterJournals());
         }
+        if (cmbQuickBookFilter != null) {
+            cmbQuickBookFilter.setItems(FXCollections.observableArrayList(
+                    "All Vouchers", "Day Book (Today)", "Cash & Bank Book", "GST Ledgers", "Drafts Only", "Manual & Reversals"));
+            cmbQuickBookFilter.setValue("All Vouchers");
+            cmbQuickBookFilter.valueProperty().addListener((obs, oldVal, newVal) -> filterJournals());
+        }
         if (cmbAccountFilter != null) {
-            cmbAccountFilter.setItems(FXCollections.observableArrayList("All Categories", "ASSET", "LIABILITY", "REVENUE", "EXPENSE"));
+            cmbAccountFilter.setItems(FXCollections.observableArrayList("All Categories", "ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"));
             cmbAccountFilter.setValue("All Categories");
             cmbAccountFilter.valueProperty().addListener((obs, oldVal, newVal) -> filterAccounts());
         }
@@ -155,6 +253,9 @@ public class GeneralLedgerController implements ScreenLifecycle {
         if (tblJournals != null) DynamicTableLayoutManager.install(tblJournals);
         if (tblAccounts != null) DynamicTableLayoutManager.install(tblAccounts);
         if (tblTrialBalance != null) DynamicTableLayoutManager.install(tblTrialBalance);
+        if (tblProfitLoss != null) DynamicTableLayoutManager.install(tblProfitLoss);
+        if (tblBsAssets != null) DynamicTableLayoutManager.install(tblBsAssets);
+        if (tblBsLiabEquity != null) DynamicTableLayoutManager.install(tblBsLiabEquity);
     }
 
     private void setupTableColumns() {
@@ -209,6 +310,13 @@ public class GeneralLedgerController implements ScreenLifecycle {
                         if (row != null) openDocument(row);
                     });
 
+                    MenuItem reverseItem = new MenuItem("Reverse Voucher");
+                    reverseItem.setGraphic(IconFactory.compactIcon("rollback", 13));
+                    reverseItem.setOnAction(e -> {
+                        JournalRow row = getTableView().getItems().get(getIndex());
+                        if (row != null) reverseJournal(row);
+                    });
+
                     MenuItem copyItem = new MenuItem("Copy Voucher No");
                     copyItem.setGraphic(IconFactory.compactIcon("copy", 13));
                     copyItem.setOnAction(e -> {
@@ -216,7 +324,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
                         if (row != null) copyVoucher(row);
                     });
 
-                    actionsBtn.getItems().addAll(viewItem, flowItem, auditItem, openItem, copyItem);
+                    actionsBtn.getItems().addAll(viewItem, flowItem, reverseItem, auditItem, openItem, copyItem);
                     IconFactory.decorateActionMenu(actionsBtn);
                 }
 
@@ -234,7 +342,14 @@ public class GeneralLedgerController implements ScreenLifecycle {
                 }
             });
 
-            tblJournals.setItems(filteredJournalRows);
+            if (journalPaginationHost != null) {
+                journalPaginationBar = new TablePaginationBar<>(tblJournals, 25);
+                journalPaginationBar.bindTo(filteredJournalRows);
+                HBox.setHgrow(journalPaginationBar, Priority.ALWAYS);
+                journalPaginationHost.getChildren().setAll(journalPaginationBar);
+            } else {
+                tblJournals.setItems(filteredJournalRows);
+            }
         }
 
         if (tblAccounts != null) {
@@ -257,6 +372,31 @@ public class GeneralLedgerController implements ScreenLifecycle {
             colTbCredit.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().credit()));
             colTbClosing.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().closing()));
             tblTrialBalance.setItems(filteredTbRows);
+        }
+
+        if (tblProfitLoss != null) {
+            colPlSection.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().section()));
+            colPlCode.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().code()));
+            colPlName.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().name()));
+            colPlSubtype.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().subtype()));
+            colPlAmount.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().amount()));
+            tblProfitLoss.setItems(filteredPlRows);
+        }
+
+        if (tblBsAssets != null) {
+            colBsAssetCode.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().code()));
+            colBsAssetName.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().name()));
+            colBsAssetSubtype.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().subtype()));
+            colBsAssetBalance.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().balance()));
+            tblBsAssets.setItems(bsAssetRows);
+        }
+
+        if (tblBsLiabEquity != null) {
+            colBsLeCode.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().code()));
+            colBsLeName.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().name()));
+            colBsLeType.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().subtype()));
+            colBsLeBalance.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().balance()));
+            tblBsLiabEquity.setItems(bsLeRows);
         }
     }
 
@@ -288,6 +428,95 @@ public class GeneralLedgerController implements ScreenLifecycle {
                 return row;
             });
         }
+        if (tblAccounts != null) {
+            tblAccounts.setRowFactory(tv -> {
+                TableRow<AccountRow> row = new TableRow<>();
+                ContextMenu cm = new ContextMenu();
+                MenuItem viewLedger = new MenuItem("View Account Ledger");
+                viewLedger.setGraphic(IconFactory.compactIcon("ledger", 13));
+                viewLedger.setOnAction(e -> {
+                    if (!row.isEmpty()) openAccountLedger(row.getItem().code(), row.getItem().name());
+                });
+                MenuItem editAcc = new MenuItem("Edit Account");
+                editAcc.setGraphic(IconFactory.compactIcon("edit", 13));
+                editAcc.setOnAction(e -> {
+                    if (!row.isEmpty()) {
+                        tblAccounts.getSelectionModel().select(row.getItem());
+                        editSelectedAccount();
+                    }
+                });
+                cm.getItems().addAll(viewLedger, editAcc);
+                row.contextMenuProperty().bind(javafx.beans.binding.Bindings.when(row.emptyProperty()).then((ContextMenu) null).otherwise(cm));
+                return row;
+            });
+        }
+        if (tblTrialBalance != null) {
+            tblTrialBalance.setRowFactory(tv -> {
+                TableRow<TbRow> row = new TableRow<>();
+                ContextMenu cm = new ContextMenu();
+                MenuItem viewLedger = new MenuItem("View Account Ledger");
+                viewLedger.setGraphic(IconFactory.compactIcon("ledger", 13));
+                viewLedger.setOnAction(e -> {
+                    if (!row.isEmpty()) openAccountLedger(row.getItem().code(), row.getItem().name());
+                });
+                cm.getItems().add(viewLedger);
+                row.contextMenuProperty().bind(javafx.beans.binding.Bindings.when(row.emptyProperty()).then((ContextMenu) null).otherwise(cm));
+                return row;
+            });
+        }
+        if (tblProfitLoss != null) {
+            tblProfitLoss.setRowFactory(tv -> {
+                TableRow<PlRow> row = new TableRow<>();
+                ContextMenu cm = new ContextMenu();
+                MenuItem viewLedger = new MenuItem("View Account Ledger");
+                viewLedger.setGraphic(IconFactory.compactIcon("ledger", 13));
+                viewLedger.setOnAction(e -> {
+                    if (!row.isEmpty()) openAccountLedger(row.getItem().code(), row.getItem().name());
+                });
+                cm.getItems().add(viewLedger);
+                row.contextMenuProperty().bind(javafx.beans.binding.Bindings.when(row.emptyProperty()).then((ContextMenu) null).otherwise(cm));
+                return row;
+            });
+        }
+        if (tblBsAssets != null) {
+            tblBsAssets.setRowFactory(tv -> {
+                TableRow<BsRow> row = new TableRow<>();
+                ContextMenu cm = new ContextMenu();
+                MenuItem viewLedger = new MenuItem("View Account Ledger");
+                viewLedger.setGraphic(IconFactory.compactIcon("ledger", 13));
+                viewLedger.setOnAction(e -> {
+                    if (!row.isEmpty() && row.getItem().code() != null && !row.getItem().code().isBlank() && !"-".equals(row.getItem().code())) {
+                        openAccountLedger(row.getItem().code(), row.getItem().name());
+                    }
+                });
+                cm.getItems().add(viewLedger);
+                row.contextMenuProperty().bind(javafx.beans.binding.Bindings.when(row.emptyProperty()).then((ContextMenu) null).otherwise(cm));
+                return row;
+            });
+        }
+        if (tblBsLiabEquity != null) {
+            tblBsLiabEquity.setRowFactory(tv -> {
+                TableRow<BsRow> row = new TableRow<>();
+                ContextMenu cm = new ContextMenu();
+                MenuItem viewLedger = new MenuItem("View Account Ledger");
+                viewLedger.setGraphic(IconFactory.compactIcon("ledger", 13));
+                viewLedger.setOnAction(e -> {
+                    if (!row.isEmpty() && row.getItem().code() != null && !row.getItem().code().isBlank() && !"-".equals(row.getItem().code())) {
+                        openAccountLedger(row.getItem().code(), row.getItem().name());
+                    }
+                });
+                cm.getItems().add(viewLedger);
+                row.contextMenuProperty().bind(javafx.beans.binding.Bindings.when(row.emptyProperty()).then((ContextMenu) null).otherwise(cm));
+                return row;
+            });
+        }
+    }
+
+    private void openAccountLedger(String code, String name) {
+        if (code == null || code.isBlank()) return;
+        AccountLedgerDialog.show(tblJournals, glClient, code, name,
+                dpFromDate != null ? dpFromDate.getValue() : null,
+                dpToDate != null ? dpToDate.getValue() : null);
     }
 
     private void openPostingFlow(JournalRow row) {
@@ -310,6 +539,33 @@ public class GeneralLedgerController implements ScreenLifecycle {
         if (lblDrawerDrAmount != null) lblDrawerDrAmount.setText(row.drAmount());
         if (lblDrawerCrHead != null) lblDrawerCrHead.setText("Cr. " + row.crHead() + ":");
         if (lblDrawerCrAmount != null) lblDrawerCrAmount.setText(row.crAmount());
+        if (btnPostDraft != null) {
+            boolean isDraft = "DRAFT".equalsIgnoreCase(row.status());
+            btnPostDraft.setVisible(isDraft);
+            btnPostDraft.setManaged(isDraft);
+        }
+        if (btnReverseVoucher != null) {
+            boolean canReverse = row.id() != null && "POSTED".equalsIgnoreCase(row.status());
+            btnReverseVoucher.setDisable(!canReverse);
+        }
+        if (vboxDrawerLines != null) {
+            vboxDrawerLines.getChildren().clear();
+            if (row.lines() != null) {
+                for (var l : row.lines()) {
+                    boolean isDr = l.debitAmount() != null && l.debitAmount().compareTo(BigDecimal.ZERO) > 0;
+                    Label lblAcc = new Label((isDr ? "Dr " : "Cr ") + (l.accountCode() != null ? l.accountCode() + " " : "") + (l.accountName() != null ? l.accountName() : ""));
+                    lblAcc.getStyleClass().add("meta-label");
+                    lblAcc.setWrapText(true);
+                    Region sp = new Region();
+                    HBox.setHgrow(sp, Priority.ALWAYS);
+                    Label lblAmt = new Label(formatMoneyNullable(isDr ? l.debitAmount() : l.creditAmount()));
+                    lblAmt.getStyleClass().addAll("meta-value-bold", isDr ? "text-primary" : "text-success");
+                    HBox lineRow = new HBox(6, lblAcc, sp, lblAmt);
+                    lineRow.setAlignment(Pos.CENTER_LEFT);
+                    vboxDrawerLines.getChildren().add(lineRow);
+                }
+            }
+        }
 
         // Centered floating modal inspection pop-up
         OwnedDialog<ButtonType> dialog = new OwnedDialog<>(tblJournals);
@@ -580,12 +836,29 @@ public class GeneralLedgerController implements ScreenLifecycle {
     }
 
     private void loadLedgerDataAsync() {
+        final LocalDate fromDate = dpFromDate != null ? dpFromDate.getValue() : null;
+        final LocalDate toDate = dpToDate != null ? dpToDate.getValue() : null;
+        final boolean includeInactive = chkShowInactiveAccounts != null && chkShowInactiveAccounts.isSelected();
+        if (lblActivePeriodInfo != null) {
+            if (fromDate == null && toDate == null) {
+                lblActivePeriodInfo.setText("Showing: All Time");
+            } else {
+                String f = fromDate != null ? BusinessClock.formatDate(fromDate) : "Beginning";
+                String t = toDate != null ? BusinessClock.formatDate(toDate) : "Today";
+                lblActivePeriodInfo.setText("Period: " + f + " → " + t);
+            }
+        }
+
         UiTaskExecutor.submitLatest(
                 "general-ledger-load",
                 () -> {
                     List<AccountRow> aRows = new ArrayList<>();
+                    List<GeneralLedgerApiClient.AccountDto> rawAccounts = new ArrayList<>();
                     List<TbRow> tRows = new ArrayList<>();
                     List<JournalRow> jRows = new ArrayList<>();
+                    GeneralLedgerApiClient.ProfitAndLossResponse plResp = null;
+                    GeneralLedgerApiClient.BalanceSheetResponse bsResp = null;
+                    GeneralLedgerApiClient.PeriodLockDto lockDto = null;
                     String assetsStr = null;
                     String liabStr = null;
                     String revStr = null;
@@ -595,11 +868,12 @@ public class GeneralLedgerController implements ScreenLifecycle {
                     boolean glEnabled = ConfigManager.getBoolean("module.gl.enabled", true);
                     boolean autoPost = ConfigManager.getBoolean("module.gl.autoPost", true);
 
-                    // 1. Try fetching authentic data from Spring Boot General Ledger API
+                    // 1. Fetch authentic data from Spring Boot General Ledger API
                     if (glEnabled) {
                         try {
-                            List<GeneralLedgerApiClient.AccountDto> accDtos = glClient.accounts();
+                            List<GeneralLedgerApiClient.AccountDto> accDtos = glClient.accounts(includeInactive);
                             if (accDtos != null && !accDtos.isEmpty()) {
+                                rawAccounts.addAll(accDtos);
                                 for (GeneralLedgerApiClient.AccountDto a : accDtos) {
                                     aRows.add(new AccountRow(
                                             a.accountCode(),
@@ -613,7 +887,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
                                 }
                             }
 
-                            List<GeneralLedgerApiClient.TrialBalanceItemDto> tbDtos = glClient.trialBalance();
+                            List<GeneralLedgerApiClient.TrialBalanceItemDto> tbDtos = glClient.trialBalance(fromDate, toDate);
                             if (tbDtos != null && !tbDtos.isEmpty()) {
                                 for (GeneralLedgerApiClient.TrialBalanceItemDto tb : tbDtos) {
                                     tRows.add(new TbRow(
@@ -628,7 +902,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
                                 }
                             }
 
-                            GeneralLedgerApiClient.FinancialStatementDto fs = glClient.financialStatements();
+                            GeneralLedgerApiClient.FinancialStatementDto fs = glClient.financialStatements(fromDate, toDate);
                             if (fs != null) {
                                 if (fs.totalAssets() != null) assetsStr = currency.format(fs.totalAssets());
                                 if (fs.totalLiabilities() != null) liabStr = currency.format(fs.totalLiabilities());
@@ -637,7 +911,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
                                 if (fs.netProfit() != null) profitStr = currency.format(fs.netProfit());
                             }
 
-                            List<GeneralLedgerApiClient.JournalEntryDto> jeDtos = glClient.journalEntries();
+                            List<GeneralLedgerApiClient.JournalEntryDto> jeDtos = glClient.journalEntries(fromDate, toDate, null, null);
                             if (jeDtos != null && !jeDtos.isEmpty()) {
                                 for (GeneralLedgerApiClient.JournalEntryDto je : jeDtos) {
                                     String drHead = "";
@@ -673,6 +947,10 @@ public class GeneralLedgerController implements ScreenLifecycle {
                                     ));
                                 }
                             }
+
+                            try { plResp = glClient.profitAndLoss(fromDate, toDate); } catch (Exception ignored) {}
+                            try { bsResp = glClient.balanceSheet(toDate); } catch (Exception ignored) {}
+                            try { lockDto = glClient.periodLock(); } catch (Exception ignored) {}
                         } catch (Exception ignored) {
                             // Local transaction compilation fallback
                         }
@@ -907,7 +1185,11 @@ public class GeneralLedgerController implements ScreenLifecycle {
                             profitStr,
                             jRows,
                             aRows,
-                            tRows
+                            tRows,
+                            rawAccounts,
+                            plResp,
+                            bsResp,
+                            lockDto
                     );
                 },
                 result -> {
@@ -917,6 +1199,13 @@ public class GeneralLedgerController implements ScreenLifecycle {
                     if (kpiTotalExpense != null) kpiTotalExpense.setText(result.expenses());
                     if (kpiNetProfit != null) kpiNetProfit.setText(result.netProfit());
 
+                    cachedAccountDtos = result.rawAccounts() != null ? result.rawAccounts() : List.of();
+                    latestPl = result.plResp();
+                    latestBs = result.bsResp();
+                    latestPeriodLock = result.lockDto();
+
+                    updatePeriodLockBadge(latestPeriodLock);
+
                     allJournalRows.setAll(result.journalRows());
                     filterJournals();
 
@@ -925,82 +1214,737 @@ public class GeneralLedgerController implements ScreenLifecycle {
 
                     allTbRows.setAll(result.tbRows());
                     filterTrialBalance();
+
+                    populateProfitAndLoss(latestPl);
+                    populateBalanceSheet(latestBs);
                 },
                 ex -> AppDialogService.error(tblJournals, "General Ledger Error", "Unable to load financial statements: " + ex.getMessage())
         );
     }
 
+    private void updatePeriodLockBadge(GeneralLedgerApiClient.PeriodLockDto lock) {
+        if (lblPeriodLockBadge == null) return;
+        lblPeriodLockBadge.getStyleClass().removeAll("status-positive", "status-warning", "status-negative");
+        if (lock != null && lock.lockedUntil() != null) {
+            lblPeriodLockBadge.setText("Books Locked <= " + BusinessClock.formatDate(lock.lockedUntil()));
+            lblPeriodLockBadge.getStyleClass().add("status-warning");
+        } else {
+            lblPeriodLockBadge.setText("Books Open");
+            lblPeriodLockBadge.getStyleClass().add("status-positive");
+        }
+    }
+
+    private void populateProfitAndLoss(GeneralLedgerApiClient.ProfitAndLossResponse pl) {
+        allPlRows.clear();
+        if (pl == null) {
+            if (lblPlRevenue != null) lblPlRevenue.setText("Revenue: ₹ 0.00");
+            if (lblPlDirectCost != null) lblPlDirectCost.setText("Direct Cost (COGS): ₹ 0.00");
+            if (lblPlGrossProfit != null) lblPlGrossProfit.setText("Gross Profit: ₹ 0.00 (0.0%)");
+            if (lblPlIndirectCost != null) lblPlIndirectCost.setText("Indirect Expenses: ₹ 0.00");
+            if (lblPlNetProfit != null) lblPlNetProfit.setText("Net Profit: ₹ 0.00 (0.0%)");
+            filterProfitLoss();
+            return;
+        }
+        BigDecimal rev = nz(pl.totalRevenue());
+        BigDecimal dc = nz(pl.totalDirectExpense());
+        BigDecimal gp = nz(pl.grossProfit());
+        BigDecimal ind = nz(pl.totalIndirectExpense());
+        BigDecimal np = nz(pl.netProfit());
+        double gpPct = rev.compareTo(BigDecimal.ZERO) > 0 ? gp.doubleValue() * 100.0 / rev.doubleValue() : 0.0;
+        double npPct = rev.compareTo(BigDecimal.ZERO) > 0 ? np.doubleValue() * 100.0 / rev.doubleValue() : 0.0;
+
+        if (lblPlRevenue != null) lblPlRevenue.setText("Revenue: " + currency.format(rev));
+        if (lblPlDirectCost != null) lblPlDirectCost.setText("Direct Cost (COGS): " + currency.format(dc));
+        if (lblPlGrossProfit != null) lblPlGrossProfit.setText(String.format(Locale.ROOT, "Gross Profit: %s (%.1f%%)", currency.format(gp), gpPct));
+        if (lblPlIndirectCost != null) lblPlIndirectCost.setText("Indirect Expenses: " + currency.format(ind));
+        if (lblPlNetProfit != null) {
+            lblPlNetProfit.setText(String.format(Locale.ROOT, "%s: %s (%.1f%%)", np.compareTo(BigDecimal.ZERO) >= 0 ? "Net Profit" : "Net Loss", currency.format(np), npPct));
+            lblPlNetProfit.getStyleClass().removeAll("comm-status-sent", "comm-status-failed");
+            lblPlNetProfit.getStyleClass().add(np.compareTo(BigDecimal.ZERO) >= 0 ? "comm-status-sent" : "comm-status-failed");
+        }
+
+        if (pl.revenueLines() != null) {
+            for (var line : pl.revenueLines()) {
+                allPlRows.add(new PlRow("REVENUE", line.accountCode(), line.accountName(), safeStr(line.subtype()), currency.format(nz(line.amount()))));
+            }
+        }
+        if (pl.directExpenseLines() != null) {
+            for (var line : pl.directExpenseLines()) {
+                allPlRows.add(new PlRow("DIRECT COST", line.accountCode(), line.accountName(), safeStr(line.subtype()), currency.format(nz(line.amount()))));
+            }
+        }
+        if (pl.indirectExpenseLines() != null) {
+            for (var line : pl.indirectExpenseLines()) {
+                allPlRows.add(new PlRow("INDIRECT EXPENSE", line.accountCode(), line.accountName(), safeStr(line.subtype()), currency.format(nz(line.amount()))));
+            }
+        }
+        filterProfitLoss();
+    }
+
+    private void populateBalanceSheet(GeneralLedgerApiClient.BalanceSheetResponse bs) {
+        bsAssetRows.clear();
+        bsLeRows.clear();
+        if (bs == null) {
+            if (lblBsTotalAssets != null) lblBsTotalAssets.setText("Total Assets: ₹ 0.00");
+            if (lblBsTotalLiab != null) lblBsTotalLiab.setText("Liabilities: ₹ 0.00");
+            if (lblBsTotalEquity != null) lblBsTotalEquity.setText("Equity + Net Profit: ₹ 0.00");
+            return;
+        }
+        if (bs.assetLines() != null) {
+            for (var a : bs.assetLines()) {
+                bsAssetRows.add(new BsRow(a.accountCode(), a.accountName(), safeStr(a.subtype()), currency.format(nz(a.balance()))));
+            }
+        }
+        if (bs.liabilityLines() != null) {
+            for (var l : bs.liabilityLines()) {
+                bsLeRows.add(new BsRow(l.accountCode(), l.accountName(), "LIABILITY · " + safeStr(l.subtype()), currency.format(nz(l.balance()))));
+            }
+        }
+        if (bs.equityLines() != null) {
+            for (var eq : bs.equityLines()) {
+                bsLeRows.add(new BsRow(eq.accountCode(), eq.accountName(), "EQUITY · " + safeStr(eq.subtype()), currency.format(nz(eq.balance()))));
+            }
+        }
+        BigDecimal currentPl = nz(bs.currentPeriodNetProfit());
+        if (currentPl.compareTo(BigDecimal.ZERO) != 0) {
+            bsLeRows.add(new BsRow("-", "Current Period Net Profit / (Loss)", "RETAINED EARNINGS", currency.format(currentPl)));
+        }
+        BigDecimal totalA = nz(bs.totalAssets());
+        BigDecimal totalL = nz(bs.totalLiabilities());
+        BigDecimal totalE = nz(bs.totalEquity());
+        BigDecimal totalLE = nz(bs.totalLiabilitiesAndEquity());
+        BigDecimal diff = totalA.subtract(totalLE).abs();
+
+        if (lblBsTotalAssets != null) lblBsTotalAssets.setText("Total Assets: " + currency.format(totalA));
+        if (lblBsTotalLiab != null) lblBsTotalLiab.setText("Liabilities: " + currency.format(totalL));
+        if (lblBsTotalEquity != null) lblBsTotalEquity.setText("Equity + Net Profit: " + currency.format(totalE.add(currentPl)));
+        if (lblBsTallyPill != null) {
+            lblBsTallyPill.getStyleClass().removeAll("comm-status-sent", "comm-status-failed");
+            if (diff.compareTo(new BigDecimal("0.05")) <= 0) {
+                lblBsTallyPill.setText("TALLIED (Assets = L + E)");
+                lblBsTallyPill.getStyleClass().add("comm-status-sent");
+            } else {
+                lblBsTallyPill.setText("DIFFERENCE: " + currency.format(diff));
+                lblBsTallyPill.getStyleClass().add("comm-status-failed");
+            }
+        }
+    }
+
+    private void updateTrialBalanceTotals() {
+        BigDecimal totOpen = BigDecimal.ZERO;
+        BigDecimal totDr = BigDecimal.ZERO;
+        BigDecimal totCr = BigDecimal.ZERO;
+        BigDecimal totClose = BigDecimal.ZERO;
+        for (TbRow row : filteredTbRows) {
+            totOpen = totOpen.add(parseMoney(row.opening()));
+            totDr = totDr.add(parseMoney(row.debit()));
+            totCr = totCr.add(parseMoney(row.credit()));
+            totClose = totClose.add(parseMoney(row.closing()));
+        }
+        if (lblTbTotalOpening != null) lblTbTotalOpening.setText("Total Opening: " + currency.format(totOpen));
+        if (lblTbTotalDebit != null) lblTbTotalDebit.setText("Total Debit: " + currency.format(totDr));
+        if (lblTbTotalCredit != null) lblTbTotalCredit.setText("Total Credit: " + currency.format(totCr));
+        if (lblTbTotalClosing != null) lblTbTotalClosing.setText("Net Closing: " + currency.format(totClose));
+        if (lblTbBalancePill != null) {
+            BigDecimal diff = totDr.subtract(totCr).abs();
+            lblTbBalancePill.getStyleClass().removeAll("comm-status-sent", "comm-status-failed");
+            if (diff.compareTo(new BigDecimal("0.05")) <= 0) {
+                lblTbBalancePill.setText("BALANCED (Dr = Cr)");
+                lblTbBalancePill.getStyleClass().add("comm-status-sent");
+            } else {
+                lblTbBalancePill.setText("DIFF: " + currency.format(diff));
+                lblTbBalancePill.getStyleClass().add("comm-status-failed");
+            }
+        }
+    }
+
     @FXML
     public void openNewJournalDialog() {
-        Alert alert = new OwnedAlert(Alert.AlertType.INFORMATION, "Voucher posting dialog opens with double-entry balance validation and narration audit.", ButtonType.OK);
-        alert.setHeaderText("New Journal Voucher");
-        alert.showAndWait();
+        ManualJournalDialog.show(tblJournals, glClient, cachedAccountDtos, this::loadLedgerDataAsync);
+    }
+
+    @FXML
+    public void openNewAccountDialog() {
+        ChartOfAccountsDialog.show(tblAccounts, glClient, null, cachedAccountDtos, this::loadLedgerDataAsync);
+    }
+
+    @FXML
+    public void editSelectedAccount() {
+        AccountRow selected = tblAccounts != null ? tblAccounts.getSelectionModel().getSelectedItem() : null;
+        if (selected == null) {
+            AppDialogService.warning(tblAccounts, "Select Account", "Please select an account row from Chart of Accounts first.");
+            return;
+        }
+        GeneralLedgerApiClient.AccountDto dto = cachedAccountDtos.stream()
+                .filter(a -> selected.code().equalsIgnoreCase(a.accountCode()))
+                .findFirst().orElse(null);
+        if (dto == null) {
+            AppDialogService.warning(tblAccounts, "Account Sync", "Please refresh Chart of Accounts from the server before editing.");
+            return;
+        }
+        ChartOfAccountsDialog.show(tblAccounts, glClient, dto, cachedAccountDtos, this::loadLedgerDataAsync);
+    }
+
+    @FXML
+    public void openSelectedAccountLedger() {
+        AccountRow sel = tblAccounts != null ? tblAccounts.getSelectionModel().getSelectedItem() : null;
+        if (sel == null) {
+            AppDialogService.warning(tblAccounts, "Select Account", "Please select an account to view its Ledger Statement.");
+            return;
+        }
+        openAccountLedger(sel.code(), sel.name());
+    }
+
+    @FXML
+    public void openSelectedTbLedger() {
+        TbRow sel = tblTrialBalance != null ? tblTrialBalance.getSelectionModel().getSelectedItem() : null;
+        if (sel == null) {
+            AppDialogService.warning(tblTrialBalance, "Select Account", "Please select an account row in Trial Balance first.");
+            return;
+        }
+        openAccountLedger(sel.code(), sel.name());
+    }
+
+    @FXML
+    public void openSelectedPlLedger() {
+        PlRow sel = tblProfitLoss != null ? tblProfitLoss.getSelectionModel().getSelectedItem() : null;
+        if (sel == null) {
+            AppDialogService.warning(tblProfitLoss, "Select Account", "Please select a revenue or expense account first.");
+            return;
+        }
+        openAccountLedger(sel.code(), sel.name());
+    }
+
+    @FXML
+    public void postSelectedDraft() {
+        if (selectedJournal == null) return;
+        postDraftJournal(selectedJournal);
+    }
+
+    @FXML
+    public void reverseSelectedVoucher() {
+        if (selectedJournal == null) return;
+        reverseJournal(selectedJournal);
+    }
+
+    private void reverseJournal(JournalRow row) {
+        if (row == null || row.id() == null) {
+            AppDialogService.warning(tblJournals, "Reverse Voucher", "Only server-persisted posted journal entries can be reversed.");
+            return;
+        }
+        if (!"POSTED".equalsIgnoreCase(row.status())) {
+            AppDialogService.warning(tblJournals, "Cannot Reverse", "Only POSTED vouchers can be reversed. Current status: " + row.status());
+            return;
+        }
+        Dialog<ButtonType> dlg = new OwnedDialog<>(tblJournals);
+        dlg.setTitle("Reverse Journal Voucher — " + row.entryNumber());
+        dlg.setResizable(true);
+
+        DialogPane pane = dlg.getDialogPane();
+        pane.getStyleClass().addAll("dse-dialog-pane", "approved-dialog", "comm-inspection-dialog", "erp-responsive-dialog");
+        pane.getProperties().put("dse.dialog.presented", true);
+        pane.setPrefSize(640, 390);
+        pane.setMinWidth(580);
+        pane.setMinHeight(350);
+
+        Region topAccent = new Region();
+        topAccent.setMinHeight(5);
+        topAccent.setPrefHeight(5);
+        topAccent.setMaxHeight(5);
+        topAccent.getStyleClass().addAll("dse-dialog-accent", "comm-top-accent", "comm-accent-email");
+
+        StackPane heroIcon = new StackPane(IconFactory.icon("rollback", 22));
+        heroIcon.getStyleClass().addAll("erp-page-header-icon", "dse-dialog-icon-box");
+
+        Label lblKicker = new Label("GENERAL LEDGER  •  CONTRA REVERSAL");
+        lblKicker.getStyleClass().addAll("comm-hero-kicker", "comm-kicker-email");
+        Label lblTitle = new Label("Reverse Voucher: " + row.entryNumber());
+        lblTitle.getStyleClass().add("stock-ledger-title");
+
+        VBox heroText = new VBox(2, lblKicker, lblTitle);
+        HBox.setHgrow(heroText, Priority.ALWAYS);
+
+        Button btnTopClose = new Button();
+        btnTopClose.setGraphic(IconFactory.compactIcon("cancel", 14));
+        btnTopClose.getStyleClass().addAll("dse-dialog-close", "icon-button");
+        btnTopClose.getProperties().put("erp-icon-preserve", true);
+        btnTopClose.setOnAction(e -> dlg.close());
+
+        HBox headerHero = new HBox(12, heroIcon, heroText, btnTopClose);
+        headerHero.setAlignment(Pos.CENTER_LEFT);
+        headerHero.setPadding(new Insets(12, 18, 12, 18));
+        headerHero.getStyleClass().addAll("comm-hero-banner", "comm-hero-email");
+
+        VBox headerWrap = new VBox(0, topAccent, headerHero);
+        headerWrap.getStyleClass().addAll("dse-stage-header-wrap", "comm-header-wrap");
+
+        Label info = new Label("This creates an audited contra REVERSAL voucher swapping all Debit & Credit legs and marks " + row.entryNumber() + " as REVERSED.");
+        info.setWrapText(true);
+        info.getStyleClass().add("page-subtitle");
+
+        DatePicker dpRevDate = new DatePicker(BusinessClock.today());
+        DatePickerFormatter.attach(dpRevDate);
+        dpRevDate.setPrefWidth(190);
+
+        TextField txtReason = new TextField();
+        txtReason.setPromptText("Audit reason for reversing " + row.entryNumber() + "...");
+        txtReason.getStyleClass().add("approved-input");
+
+        Label lblRevDate = new Label("Reversal Date");
+        lblRevDate.getStyleClass().addAll("field-label", "comm-section-heading");
+        Label lblReason = new Label("Audit Reason");
+        lblReason.getStyleClass().addAll("field-label", "comm-section-heading");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(14);
+        grid.setVgap(12);
+        grid.add(lblRevDate, 0, 0);
+        grid.add(dpRevDate, 1, 0);
+        grid.add(lblReason, 0, 1);
+        grid.add(txtReason, 1, 1);
+        GridPane.setHgrow(txtReason, Priority.ALWAYS);
+
+        VBox formCard = new VBox(12, info, grid);
+        formCard.setPadding(new Insets(16));
+        formCard.getStyleClass().add("comm-detail-card");
+        VBox.setVgrow(formCard, Priority.ALWAYS);
+
+        Button btnConfirm = new Button("Create Reversal Voucher");
+        btnConfirm.setGraphic(IconFactory.compactIcon("rollback", 14));
+        btnConfirm.getStyleClass().addAll("approved-button", "approved-primary-button");
+
+        Button btnCancel = new Button("Cancel");
+        btnCancel.setGraphic(IconFactory.compactIcon("cancel", 14));
+        btnCancel.getStyleClass().addAll("approved-button", "approved-danger-ghost-button");
+        btnCancel.setOnAction(e -> dlg.close());
+
+        btnConfirm.setOnAction(e -> {
+            LocalDate revDate = dpRevDate.getValue() != null ? dpRevDate.getValue() : BusinessClock.today();
+            String reason = txtReason.getText() != null ? txtReason.getText().trim() : "";
+            btnConfirm.setDisable(true);
+            UiTaskExecutor.submitLatest(
+                    "gl-reverse-" + row.id(),
+                    () -> {
+                        org.example.model.AppUser u = org.example.service.SessionService.current();
+                        String username = u != null && u.getUsername() != null ? u.getUsername() : "admin";
+                        return glClient.reverseJournalEntry(row.id(), new GeneralLedgerApiClient.ReverseJournalRequest(revDate, reason, username));
+                    },
+                    created -> {
+                        dlg.close();
+                        AppDialogService.info(tblJournals, "Voucher Reversed",
+                                "Reversal voucher " + (created != null ? created.entryNumber() : "") + " posted successfully.");
+                        closeJournalDetails();
+                        loadLedgerDataAsync();
+                    },
+                    ex -> {
+                        btnConfirm.setDisable(false);
+                        AppDialogService.error(pane, "Reversal Failed", ex.getMessage());
+                    }
+            );
+        });
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actionDock = new HBox(10, btnConfirm, spacer, btnCancel);
+        actionDock.setAlignment(Pos.CENTER_LEFT);
+        actionDock.getStyleClass().add("erp-inspection-action-dock");
+
+        VBox contentBody = new VBox(12, formCard, actionDock);
+        contentBody.setPadding(new Insets(14, 20, 14, 20));
+        VBox.setVgrow(contentBody, Priority.ALWAYS);
+
+        VBox root = new VBox(0, headerWrap, contentBody);
+        root.getStyleClass().addAll("dse-dialog-shell", "dse-dialog-shell-workspace", "comm-inspection-shell");
+        pane.setContent(root);
+        pane.getButtonTypes().add(ButtonType.CLOSE);
+        dlg.setOnShowing(ev -> {
+            Node defaultBar = pane.lookup(".button-bar");
+            if (defaultBar != null) {
+                defaultBar.setVisible(false);
+                defaultBar.setManaged(false);
+            }
+        });
+
+        dlg.showAndWait();
+    }
+
+    @FXML
+    public void openPeriodLockDialog() {
+        Dialog<ButtonType> dlg = new OwnedDialog<>(tblJournals);
+        dlg.setTitle("Accounting Period Lock / Books Freeze");
+        dlg.setResizable(true);
+
+        DialogPane pane = dlg.getDialogPane();
+        pane.getStyleClass().addAll("dse-dialog-pane", "approved-dialog", "comm-inspection-dialog", "erp-responsive-dialog");
+        pane.getProperties().put("dse.dialog.presented", true);
+        pane.setPrefSize(660, 410);
+        pane.setMinWidth(600);
+        pane.setMinHeight(370);
+
+        Region topAccent = new Region();
+        topAccent.setMinHeight(5);
+        topAccent.setPrefHeight(5);
+        topAccent.setMaxHeight(5);
+        topAccent.getStyleClass().addAll("dse-dialog-accent", "comm-top-accent", "comm-accent-email");
+
+        StackPane heroIcon = new StackPane(IconFactory.icon("lock", 22));
+        heroIcon.getStyleClass().addAll("erp-page-header-icon", "dse-dialog-icon-box");
+
+        Label lblKicker = new Label("ACCOUNTING CONTROLS  •  BOOKS FREEZE");
+        lblKicker.getStyleClass().addAll("comm-hero-kicker", "comm-kicker-email");
+        Label lblTitle = new Label("Accounting Period Lock");
+        lblTitle.getStyleClass().add("stock-ledger-title");
+
+        VBox heroText = new VBox(2, lblKicker, lblTitle);
+        HBox.setHgrow(heroText, Priority.ALWAYS);
+
+        Button btnTopClose = new Button();
+        btnTopClose.setGraphic(IconFactory.compactIcon("cancel", 14));
+        btnTopClose.getStyleClass().addAll("dse-dialog-close", "icon-button");
+        btnTopClose.getProperties().put("erp-icon-preserve", true);
+        btnTopClose.setOnAction(e -> dlg.close());
+
+        HBox headerHero = new HBox(12, heroIcon, heroText, btnTopClose);
+        headerHero.setAlignment(Pos.CENTER_LEFT);
+        headerHero.setPadding(new Insets(12, 18, 12, 18));
+        headerHero.getStyleClass().addAll("comm-hero-banner", "comm-hero-email");
+
+        VBox headerWrap = new VBox(0, topAccent, headerHero);
+        headerWrap.getStyleClass().addAll("dse-stage-header-wrap", "comm-header-wrap");
+
+        Label info = new Label("Locking books blocks backdated Sales, Purchases, Payments, Returns, and Manual Journals on or before the Lock Date. Only ADMIN / SUPER_ADMIN can modify this setting.");
+        info.setWrapText(true);
+        info.getStyleClass().add("page-subtitle");
+
+        DatePicker dpLock = new DatePicker(latestPeriodLock != null ? latestPeriodLock.lockedUntil() : null);
+        DatePickerFormatter.attach(dpLock);
+        dpLock.setPromptText("Leave empty to unlock all periods");
+        dpLock.setPrefWidth(210);
+
+        boolean currentlyLocked = latestPeriodLock != null && latestPeriodLock.active() && latestPeriodLock.lockedUntil() != null;
+        String lockMetaText = currentlyLocked
+                ? "Frozen through " + BusinessClock.formatDate(latestPeriodLock.lockedUntil())
+                  + (latestPeriodLock.lockedBy() != null ? " by " + latestPeriodLock.lockedBy() : "")
+                : "Books are currently OPEN (no lock date set)";
+        Label lblCurrentStatus = new Label(lockMetaText);
+        lblCurrentStatus.getStyleClass().addAll("comm-status-badge", currentlyLocked ? "comm-status-failed" : "comm-status-sent");
+
+        Label lblStatusCap = new Label("Current Status");
+        lblStatusCap.getStyleClass().addAll("field-label", "comm-section-heading");
+        Label lblFreezeCap = new Label("Freeze Books Through");
+        lblFreezeCap.getStyleClass().addAll("field-label", "comm-section-heading");
+
+        Button btnUnlock = new Button("Clear Lock Date (Open All)");
+        btnUnlock.setGraphic(IconFactory.compactIcon("refresh", 13));
+        btnUnlock.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnUnlock.setOnAction(e -> dpLock.setValue(null));
+
+        HBox dateRow = new HBox(10, dpLock, btnUnlock);
+        dateRow.setAlignment(Pos.CENTER_LEFT);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(14);
+        grid.add(lblStatusCap, 0, 0);
+        grid.add(lblCurrentStatus, 1, 0);
+        grid.add(lblFreezeCap, 0, 1);
+        grid.add(dateRow, 1, 1);
+
+        VBox formCard = new VBox(14, info, grid);
+        formCard.setPadding(new Insets(16));
+        formCard.getStyleClass().add("comm-detail-card");
+        VBox.setVgrow(formCard, Priority.ALWAYS);
+
+        Button btnSave = new Button("Save Period Lock");
+        btnSave.setGraphic(IconFactory.compactIcon("lock", 14));
+        btnSave.getStyleClass().addAll("approved-button", "approved-primary-button");
+
+        Button btnCancel = new Button("Cancel");
+        btnCancel.setGraphic(IconFactory.compactIcon("cancel", 14));
+        btnCancel.getStyleClass().addAll("approved-button", "approved-danger-ghost-button");
+        btnCancel.setOnAction(e -> dlg.close());
+
+        btnSave.setOnAction(e -> {
+            LocalDate lockDate = dpLock.getValue();
+            btnSave.setDisable(true);
+            UiTaskExecutor.submitLatest(
+                    "gl-period-lock-save",
+                    () -> glClient.setPeriodLock(lockDate),
+                    saved -> {
+                        dlg.close();
+                        latestPeriodLock = saved;
+                        updatePeriodLockBadge(saved);
+                        AppDialogService.info(tblJournals, "Period Lock Updated",
+                                saved != null && saved.lockedUntil() != null
+                                        ? "Books are now frozen for all transactions on or before " + BusinessClock.formatDate(saved.lockedUntil()) + "."
+                                        : "Accounting period lock cleared. Books are now open.");
+                    },
+                    ex -> {
+                        btnSave.setDisable(false);
+                        AppDialogService.error(pane, "Period Lock Error", ex.getMessage());
+                    }
+            );
+        });
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actionDock = new HBox(10, btnSave, spacer, btnCancel);
+        actionDock.setAlignment(Pos.CENTER_LEFT);
+        actionDock.getStyleClass().add("erp-inspection-action-dock");
+
+        VBox contentBody = new VBox(12, formCard, actionDock);
+        contentBody.setPadding(new Insets(14, 20, 14, 20));
+        VBox.setVgrow(contentBody, Priority.ALWAYS);
+
+        VBox root = new VBox(0, headerWrap, contentBody);
+        root.getStyleClass().addAll("dse-dialog-shell", "dse-dialog-shell-workspace", "comm-inspection-shell");
+        pane.setContent(root);
+        pane.getButtonTypes().add(ButtonType.CLOSE);
+        dlg.setOnShowing(ev -> {
+            Node defaultBar = pane.lookup(".button-bar");
+            if (defaultBar != null) {
+                defaultBar.setVisible(false);
+                defaultBar.setManaged(false);
+            }
+        });
+
+        dlg.showAndWait();
+    }
+
+    @FXML
+    public void applyPeriodFilter() {
+        if (cmbPeriodPreset != null) {
+            cmbPeriodPreset.setValue("Custom Range");
+        }
+        loadLedgerDataAsync();
+    }
+
+    @FXML
+    public void clearPeriodFilter() {
+        if (dpFromDate != null) dpFromDate.setValue(null);
+        if (dpToDate != null) dpToDate.setValue(null);
+        if (cmbPeriodPreset != null) cmbPeriodPreset.setValue("All Time");
+        loadLedgerDataAsync();
     }
 
     @FXML
     public void exportStatement() {
-        File file = ExportFeedbackManager.resolveWorkspaceExportFile("GeneralLedger", "Financial_Statement", "xlsx");
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("GeneralLedger", "Financial_Statement_Pack", "xlsx");
         if (!ExportFeedbackManager.checkFileWriteable(tblJournals, file)) return;
 
         try (Workbook workbook = new XSSFWorkbook()) {
+            // Sheet 1: General Ledger
             Sheet s1 = workbook.createSheet("General Ledger");
             Row r0 = s1.createRow(0);
             String[] headers1 = {"Entry #", "Date", "Voucher Type", "Reference", "Narration", "Debit (₹)", "Credit (₹)", "Status"};
             for (int i = 0; i < headers1.length; i++) r0.createCell(i).setCellValue(headers1[i]);
             int rowIdx = 1;
-            for (JournalRow row : tblJournals.getItems()) {
+            for (JournalRow row : filteredJournalRows) {
                 Row r = s1.createRow(rowIdx++);
-                r.createCell(0).setCellValue(row.entryNumber() != null ? row.entryNumber() : "");
-                r.createCell(1).setCellValue(row.entryDate() != null ? row.entryDate() : "");
-                r.createCell(2).setCellValue(row.entryType() != null ? row.entryType() : "");
-                r.createCell(3).setCellValue(row.referenceNo() != null ? row.referenceNo() : "");
-                r.createCell(4).setCellValue(row.narration() != null ? row.narration() : "");
-                r.createCell(5).setCellValue(row.totalDebit() != null ? row.totalDebit() : "");
-                r.createCell(6).setCellValue(row.totalCredit() != null ? row.totalCredit() : "");
-                r.createCell(7).setCellValue(row.status() != null ? row.status() : "");
+                r.createCell(0).setCellValue(safeStr(row.entryNumber()));
+                r.createCell(1).setCellValue(safeStr(row.entryDate()));
+                r.createCell(2).setCellValue(safeStr(row.entryType()));
+                r.createCell(3).setCellValue(safeStr(row.referenceNo()));
+                r.createCell(4).setCellValue(safeStr(row.narration()));
+                r.createCell(5).setCellValue(parseMoney(row.totalDebit()).doubleValue());
+                r.createCell(6).setCellValue(parseMoney(row.totalCredit()).doubleValue());
+                r.createCell(7).setCellValue(safeStr(row.status()));
             }
 
+            // Sheet 2: Chart of Accounts
             Sheet s2 = workbook.createSheet("Chart of Accounts");
             Row r02 = s2.createRow(0);
             String[] headers2 = {"Account Code", "Account Name", "Category", "Subtype", "Opening Balance", "Current Balance", "Active"};
             for (int i = 0; i < headers2.length; i++) r02.createCell(i).setCellValue(headers2[i]);
             rowIdx = 1;
-            for (AccountRow acc : tblAccounts.getItems()) {
+            for (AccountRow acc : filteredAccountRows) {
                 Row r = s2.createRow(rowIdx++);
-                r.createCell(0).setCellValue(acc.code() != null ? acc.code() : "");
-                r.createCell(1).setCellValue(acc.name() != null ? acc.name() : "");
-                r.createCell(2).setCellValue(acc.type() != null ? acc.type() : "");
-                r.createCell(3).setCellValue(acc.subtype() != null ? acc.subtype() : "");
-                r.createCell(4).setCellValue(acc.opening() != null ? acc.opening() : "");
-                r.createCell(5).setCellValue(acc.current() != null ? acc.current() : "");
-                r.createCell(6).setCellValue(acc.active() != null ? acc.active() : "");
+                r.createCell(0).setCellValue(safeStr(acc.code()));
+                r.createCell(1).setCellValue(safeStr(acc.name()));
+                r.createCell(2).setCellValue(safeStr(acc.type()));
+                r.createCell(3).setCellValue(safeStr(acc.subtype()));
+                r.createCell(4).setCellValue(parseMoney(acc.opening()).doubleValue());
+                r.createCell(5).setCellValue(parseMoney(acc.current()).doubleValue());
+                r.createCell(6).setCellValue(safeStr(acc.active()));
             }
 
+            // Sheet 3: Trial Balance with Grand Total SUM formulas
             Sheet s3 = workbook.createSheet("Trial Balance");
             Row r03 = s3.createRow(0);
             String[] headers3 = {"Account Code", "Account Name", "Type", "Opening (₹)", "Debit (₹)", "Credit (₹)", "Closing (₹)"};
             for (int i = 0; i < headers3.length; i++) r03.createCell(i).setCellValue(headers3[i]);
             rowIdx = 1;
-            if (tblTrialBalance != null && tblTrialBalance.getItems() != null) {
-                for (TbRow tb : tblTrialBalance.getItems()) {
-                    Row r = s3.createRow(rowIdx++);
-                    r.createCell(0).setCellValue(tb.code() != null ? tb.code() : "");
-                    r.createCell(1).setCellValue(tb.name() != null ? tb.name() : "");
-                    r.createCell(2).setCellValue(tb.type() != null ? tb.type() : "");
-                    r.createCell(3).setCellValue(tb.opening() != null ? tb.opening() : "");
-                    r.createCell(4).setCellValue(tb.debit() != null ? tb.debit() : "");
-                    r.createCell(5).setCellValue(tb.credit() != null ? tb.credit() : "");
-                    r.createCell(6).setCellValue(tb.closing() != null ? tb.closing() : "");
-                }
+            for (TbRow tb : filteredTbRows) {
+                Row r = s3.createRow(rowIdx++);
+                r.createCell(0).setCellValue(safeStr(tb.code()));
+                r.createCell(1).setCellValue(safeStr(tb.name()));
+                r.createCell(2).setCellValue(safeStr(tb.type()));
+                r.createCell(3).setCellValue(parseMoney(tb.opening()).doubleValue());
+                r.createCell(4).setCellValue(parseMoney(tb.debit()).doubleValue());
+                r.createCell(5).setCellValue(parseMoney(tb.credit()).doubleValue());
+                r.createCell(6).setCellValue(parseMoney(tb.closing()).doubleValue());
+            }
+            if (rowIdx > 1) {
+                Row tot = s3.createRow(rowIdx);
+                tot.createCell(1).setCellValue("GRAND TOTAL");
+                tot.createCell(3).setCellFormula("SUM(D2:D" + rowIdx + ")");
+                tot.createCell(4).setCellFormula("SUM(E2:E" + rowIdx + ")");
+                tot.createCell(5).setCellFormula("SUM(F2:F" + rowIdx + ")");
+                tot.createCell(6).setCellFormula("SUM(G2:G" + rowIdx + ")");
+            }
+
+            // Sheet 4: Profit & Loss
+            Sheet s4 = workbook.createSheet("Profit & Loss");
+            Row r04 = s4.createRow(0);
+            String[] headers4 = {"Section", "Account Code", "Account Name", "Subtype", "Amount (₹)"};
+            for (int i = 0; i < headers4.length; i++) r04.createCell(i).setCellValue(headers4[i]);
+            rowIdx = 1;
+            for (PlRow pl : filteredPlRows) {
+                Row r = s4.createRow(rowIdx++);
+                r.createCell(0).setCellValue(safeStr(pl.section()));
+                r.createCell(1).setCellValue(safeStr(pl.code()));
+                r.createCell(2).setCellValue(safeStr(pl.name()));
+                r.createCell(3).setCellValue(safeStr(pl.subtype()));
+                r.createCell(4).setCellValue(parseMoney(pl.amount()).doubleValue());
+            }
+            if (latestPl != null) {
+                rowIdx++;
+                Row sr1 = s4.createRow(rowIdx++);
+                sr1.createCell(1).setCellValue("Total Revenue");
+                sr1.createCell(4).setCellValue(nz(latestPl.totalRevenue()).doubleValue());
+                Row sr2 = s4.createRow(rowIdx++);
+                sr2.createCell(1).setCellValue("Gross Profit");
+                sr2.createCell(4).setCellValue(nz(latestPl.grossProfit()).doubleValue());
+                Row sr3 = s4.createRow(rowIdx);
+                sr3.createCell(1).setCellValue("Net Profit / (Loss)");
+                sr3.createCell(4).setCellValue(nz(latestPl.netProfit()).doubleValue());
+            }
+
+            // Sheet 5: Balance Sheet
+            Sheet s5 = workbook.createSheet("Balance Sheet");
+            Row r05 = s5.createRow(0);
+            String[] headers5 = {"Side", "Account Code", "Account Name", "Type / Subtype", "Balance (₹)"};
+            for (int i = 0; i < headers5.length; i++) r05.createCell(i).setCellValue(headers5[i]);
+            rowIdx = 1;
+            for (BsRow a : bsAssetRows) {
+                Row r = s5.createRow(rowIdx++);
+                r.createCell(0).setCellValue("ASSET");
+                r.createCell(1).setCellValue(safeStr(a.code()));
+                r.createCell(2).setCellValue(safeStr(a.name()));
+                r.createCell(3).setCellValue(safeStr(a.subtype()));
+                r.createCell(4).setCellValue(parseMoney(a.balance()).doubleValue());
+            }
+            for (BsRow le : bsLeRows) {
+                Row r = s5.createRow(rowIdx++);
+                r.createCell(0).setCellValue("LIAB & EQUITY");
+                r.createCell(1).setCellValue(safeStr(le.code()));
+                r.createCell(2).setCellValue(safeStr(le.name()));
+                r.createCell(3).setCellValue(safeStr(le.subtype()));
+                r.createCell(4).setCellValue(parseMoney(le.balance()).doubleValue());
             }
 
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 workbook.write(fos);
             }
 
-            ExportFeedbackManager.notifyExportSuccess(tblJournals, file, "Financial Statement Workbook Export");
+            ExportFeedbackManager.notifyExportSuccess(tblJournals, file, "Financial Statement 5-Sheet Workbook Export");
         } catch (Exception e) {
-            org.example.util.AppDialogService.error(tblJournals, "Export failed", "Could not write Excel workbook", e.getMessage());
+            AppDialogService.error(tblJournals, "Export failed", "Could not write Excel workbook", e.getMessage());
+        }
+    }
+
+    @FXML
+    public void exportPdfFinancialPack() {
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("GeneralLedger", "Financial_Statement_Pack", "pdf");
+        if (!ExportFeedbackManager.checkFileWriteable(tblJournals, file)) return;
+
+        try (PDDocument doc = new PDDocument()) {
+            PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            String company = BrandingService.companyName();
+            String periodLabel = lblActivePeriodInfo != null ? lblActivePeriodInfo.getText() : "All Time";
+
+            // Page 1: Executive Financial Summary + Profit & Loss
+            PDPage p1 = new PDPage(PDRectangle.A4);
+            doc.addPage(p1);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, p1)) {
+                float y = 800;
+                cs.beginText(); cs.setFont(bold, 15); cs.newLineAtOffset(42, y);
+                cs.showText(sanitizePdf(company + " — Financial Statement Pack")); cs.endText();
+                y -= 18;
+                cs.beginText(); cs.setFont(regular, 10); cs.newLineAtOffset(42, y);
+                cs.showText(sanitizePdf(periodLabel + "   |   Generated: " + BusinessClock.formatDate(BusinessClock.today()))); cs.endText();
+                y -= 26;
+
+                cs.beginText(); cs.setFont(bold, 12); cs.newLineAtOffset(42, y);
+                cs.showText("1. Profit & Loss Summary"); cs.endText();
+                y -= 18;
+                String[] plSummary = {
+                        "Operating Revenue: " + (kpiTotalRevenue != null ? kpiTotalRevenue.getText() : "0.00"),
+                        "Total Expenses: " + (kpiTotalExpense != null ? kpiTotalExpense.getText() : "0.00"),
+                        "Net Profit / Loss: " + (kpiNetProfit != null ? kpiNetProfit.getText() : "0.00")
+                };
+                for (String line : plSummary) {
+                    cs.beginText(); cs.setFont(regular, 10); cs.newLineAtOffset(52, y);
+                    cs.showText(sanitizePdf(line)); cs.endText();
+                    y -= 15;
+                }
+                y -= 10;
+                for (PlRow row : filteredPlRows) {
+                    if (y < 70) break;
+                    cs.beginText(); cs.setFont(regular, 9); cs.newLineAtOffset(42, y);
+                    cs.showText(sanitizePdf(String.format("%-16s %-8s %-38s %16s",
+                            trimTo(row.section(), 15), trimTo(row.code(), 7), trimTo(row.name(), 36), row.amount())));
+                    cs.endText();
+                    y -= 13;
+                }
+
+                y -= 18;
+                if (y > 140) {
+                    cs.beginText(); cs.setFont(bold, 12); cs.newLineAtOffset(42, y);
+                    cs.showText("2. Balance Sheet Snapshot"); cs.endText();
+                    y -= 16;
+                    cs.beginText(); cs.setFont(regular, 10); cs.newLineAtOffset(52, y);
+                    cs.showText(sanitizePdf((lblBsTotalAssets != null ? lblBsTotalAssets.getText() : "") + "   |   "
+                            + (lblBsTotalLiab != null ? lblBsTotalLiab.getText() : "") + "   |   "
+                            + (lblBsTotalEquity != null ? lblBsTotalEquity.getText() : "")));
+                    cs.endText();
+                }
+            }
+
+            // Page 2: Trial Balance
+            PDPage p2 = new PDPage(PDRectangle.A4);
+            doc.addPage(p2);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, p2)) {
+                float y = 800;
+                cs.beginText(); cs.setFont(bold, 13); cs.newLineAtOffset(42, y);
+                cs.showText(sanitizePdf("3. Trial Balance — " + periodLabel)); cs.endText();
+                y -= 20;
+                cs.beginText(); cs.setFont(bold, 9); cs.newLineAtOffset(42, y);
+                cs.showText(String.format("%-8s %-30s %-10s %14s %14s %14s", "Code", "Account Head", "Type", "Debit", "Credit", "Closing"));
+                cs.endText();
+                y -= 14;
+                for (TbRow tb : filteredTbRows) {
+                    if (y < 70) break;
+                    cs.beginText(); cs.setFont(regular, 8.5f); cs.newLineAtOffset(42, y);
+                    cs.showText(sanitizePdf(String.format("%-8s %-30s %-10s %14s %14s %14s",
+                            trimTo(tb.code(), 7), trimTo(tb.name(), 28), trimTo(tb.type(), 9),
+                            tb.debit(), tb.credit(), tb.closing())));
+                    cs.endText();
+                    y -= 13;
+                }
+                y -= 10;
+                cs.beginText(); cs.setFont(bold, 9.5f); cs.newLineAtOffset(42, y);
+                cs.showText(sanitizePdf((lblTbTotalDebit != null ? lblTbTotalDebit.getText() : "") + "   |   "
+                        + (lblTbTotalCredit != null ? lblTbTotalCredit.getText() : "") + "   |   "
+                        + (lblTbBalancePill != null ? lblTbBalancePill.getText() : "")));
+                cs.endText();
+            }
+
+            doc.save(file);
+            ExportFeedbackManager.notifyExportSuccess(tblJournals, file, "Financial Statement Pack PDF");
+        } catch (Exception e) {
+            AppDialogService.error(tblJournals, "PDF Export Failed", "Could not generate Financial Statement PDF", e.getMessage());
         }
     }
 
@@ -1008,27 +1952,46 @@ public class GeneralLedgerController implements ScreenLifecycle {
     public void filterJournals() {
         String q = txtJournalSearch != null && txtJournalSearch.getText() != null ? txtJournalSearch.getText().trim().toLowerCase(Locale.ROOT) : "";
         String typeFilter = cmbVoucherFilter != null && cmbVoucherFilter.getValue() != null ? cmbVoucherFilter.getValue() : "All Types";
+        String bookFilter = cmbQuickBookFilter != null && cmbQuickBookFilter.getValue() != null ? cmbQuickBookFilter.getValue() : "All Vouchers";
+        String todayFormatted = BusinessClock.formatDate(BusinessClock.today());
 
         filteredJournalRows.setAll(allJournalRows.stream().filter(row -> {
-            if (!typeFilter.equals("All Types") && !row.entryType().equalsIgnoreCase(typeFilter)) return false;
+            if (!typeFilter.equals("All Types") && !safeStr(row.entryType()).equalsIgnoreCase(typeFilter)) return false;
+
+            if (!"All Vouchers".equals(bookFilter)) {
+                boolean bookOk = switch (bookFilter) {
+                    case "Day Book (Today)" -> todayFormatted.equalsIgnoreCase(safeStr(row.entryDate()));
+                    case "Cash & Bank Book" -> hasAnyAccountPrefix(row, "1010", "1020")
+                            || "RECEIPT".equalsIgnoreCase(row.entryType())
+                            || "PAYMENT".equalsIgnoreCase(row.entryType())
+                            || "CONTRA".equalsIgnoreCase(row.entryType());
+                    case "GST Ledgers" -> hasAnyAccountPrefix(row, "1081", "1082", "1083", "2081", "2082", "2083");
+                    case "Drafts Only" -> "DRAFT".equalsIgnoreCase(row.status());
+                    case "Manual & Reversals" -> Set.of("GENERAL", "EXPENSE", "CONTRA", "ADJUSTMENT", "REVERSAL")
+                            .contains(safeStr(row.entryType()).toUpperCase(Locale.ROOT));
+                    default -> true;
+                };
+                if (!bookOk) return false;
+            }
+
             if (q.isBlank()) return true;
 
             StringBuilder sb = new StringBuilder();
-            sb.append(row.entryNumber()).append(" ")
-              .append(row.referenceNo() != null ? row.referenceNo() : "").append(" ")
-              .append(row.narration() != null ? row.narration() : "").append(" ")
-              .append(row.entryType() != null ? row.entryType() : "").append(" ")
-              .append(row.status() != null ? row.status() : "").append(" ")
-              .append(row.drHead() != null ? row.drHead() : "").append(" ")
-              .append(row.crHead() != null ? row.crHead() : "").append(" ")
-              .append(row.totalDebit() != null ? row.totalDebit() : "").append(" ")
-              .append(row.totalCredit() != null ? row.totalCredit() : "");
+            sb.append(safeStr(row.entryNumber())).append(" ")
+              .append(safeStr(row.referenceNo())).append(" ")
+              .append(safeStr(row.narration())).append(" ")
+              .append(safeStr(row.entryType())).append(" ")
+              .append(safeStr(row.status())).append(" ")
+              .append(safeStr(row.drHead())).append(" ")
+              .append(safeStr(row.crHead())).append(" ")
+              .append(safeStr(row.totalDebit())).append(" ")
+              .append(safeStr(row.totalCredit()));
 
             if (row.lines() != null) {
                 for (GeneralLedgerApiClient.JournalLineDto l : row.lines()) {
-                    sb.append(" ").append(l.accountCode() != null ? l.accountCode() : "")
-                      .append(" ").append(l.accountName() != null ? l.accountName() : "")
-                      .append(" ").append(l.lineNarration() != null ? l.lineNarration() : "");
+                    sb.append(" ").append(safeStr(l.accountCode()))
+                      .append(" ").append(safeStr(l.accountName()))
+                      .append(" ").append(safeStr(l.lineNarration()));
                 }
             }
 
@@ -1036,9 +1999,50 @@ public class GeneralLedgerController implements ScreenLifecycle {
         }).toList());
     }
 
+    private static boolean hasAnyAccountPrefix(JournalRow row, String... codes) {
+        if (row.lines() != null && !row.lines().isEmpty()) {
+            for (GeneralLedgerApiClient.JournalLineDto l : row.lines()) {
+                String c = safeStr(l.accountCode());
+                for (String target : codes) {
+                    if (c.startsWith(target)) return true;
+                }
+            }
+        }
+        String heads = (safeStr(row.drHead()) + " " + safeStr(row.crHead()));
+        for (String target : codes) {
+            if (heads.contains(target)) return true;
+        }
+        return false;
+    }
+
     private static String formatMoneyNullable(BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) return "—";
         return NumberFormat.getCurrencyInstance(Locale.of("en", "IN")).format(amount.doubleValue()).replace("₹", "₹ ");
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v != null ? v : BigDecimal.ZERO;
+    }
+
+    private static BigDecimal parseMoney(String formatted) {
+        if (formatted == null || formatted.isBlank()) return BigDecimal.ZERO;
+        String cleaned = formatted.replaceAll("[^0-9.\\-]", "");
+        if (cleaned.isBlank() || "-".equals(cleaned)) return BigDecimal.ZERO;
+        try { return new BigDecimal(cleaned); } catch (Exception ignored) { return BigDecimal.ZERO; }
+    }
+
+    private static String safeStr(String s) {
+        return s != null ? s : "";
+    }
+
+    private static String sanitizePdf(String s) {
+        if (s == null) return "";
+        return s.replace("₹", "Rs.").replace("→", "->").replace("·", "-").replaceAll("[^\\x20-\\x7E]", " ");
+    }
+
+    private static String trimTo(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, Math.max(0, max - 2)) + "..";
     }
 
     private static <T> TableCell<T, String> styledTableCell(String styleClass, Pos alignment) {
@@ -1079,6 +2083,17 @@ public class GeneralLedgerController implements ScreenLifecycle {
         filteredTbRows.setAll(allTbRows.stream().filter(row -> {
             if (q.isBlank()) return true;
             String hay = (row.code() + " " + row.name() + " " + row.type()).toLowerCase(Locale.ROOT);
+            return hay.contains(q);
+        }).toList());
+        updateTrialBalanceTotals();
+    }
+
+    @FXML
+    public void filterProfitLoss() {
+        String q = txtPlSearch != null && txtPlSearch.getText() != null ? txtPlSearch.getText().trim().toLowerCase(Locale.ROOT) : "";
+        filteredPlRows.setAll(allPlRows.stream().filter(row -> {
+            if (q.isBlank()) return true;
+            String hay = (row.section() + " " + row.code() + " " + row.name() + " " + row.subtype()).toLowerCase(Locale.ROOT);
             return hay.contains(q);
         }).toList());
     }
@@ -1163,6 +2178,21 @@ public class GeneralLedgerController implements ScreenLifecycle {
             String closing
     ) {}
 
+    public record PlRow(
+            String section,
+            String code,
+            String name,
+            String subtype,
+            String amount
+    ) {}
+
+    public record BsRow(
+            String code,
+            String name,
+            String subtype,
+            String balance
+    ) {}
+
     private record LedgerResult(
             String assets,
             String liabilities,
@@ -1171,6 +2201,10 @@ public class GeneralLedgerController implements ScreenLifecycle {
             String netProfit,
             List<JournalRow> journalRows,
             List<AccountRow> accountRows,
-            List<TbRow> tbRows
+            List<TbRow> tbRows,
+            List<GeneralLedgerApiClient.AccountDto> rawAccounts,
+            GeneralLedgerApiClient.ProfitAndLossResponse plResp,
+            GeneralLedgerApiClient.BalanceSheetResponse bsResp,
+            GeneralLedgerApiClient.PeriodLockDto lockDto
     ) {}
 }

@@ -76,6 +76,8 @@
             <Label fx:id="lblSelected" text="0 selected" minWidth="-Infinity" styleClass="bank-recon-selection-count"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Button fx:id="btnAutoMatch" text="Auto Match Suggestions" minWidth="-Infinity" onAction="#openAutoMatchDialog" styleClass="approved-button,approved-primary-button,bank-direct-action"/>
+            <Button fx:id="btnManageRules" text="Rules" minWidth="-Infinity" onAction="#openRulesManager" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
+            <Button fx:id="btnApplyRules" text="Run Rules" minWidth="-Infinity" onAction="#runSmartRules" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
             <Button fx:id="btnBulkReview" text="Reviewed" minWidth="-Infinity" onAction="#bulkMarkReview" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
             <Button fx:id="btnBulkIgnore" text="Ignore" minWidth="-Infinity" onAction="#bulkIgnore" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
             <Button fx:id="btnMoveExpense" text="Move to Expense" minWidth="-Infinity" onAction="#moveSelectedToExpense" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>

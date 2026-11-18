@@ -77,6 +77,10 @@ public class AgingAnalysisService {
         boolean isDebtor = !"CREDITOR".equalsIgnoreCase(type) && !"PAYABLES".equalsIgnoreCase(type);
         AgingAnalysisDtos.AgingSummaryDto summary = isDebtor ? getReceivablesAging(asOf) : getPayablesAging(asOf);
 
+        Map<Long, String> emailsByParty = loadPartyEmails();
+        Map<Long, Integer> countsByParty = loadUnpaidCounts(isDebtor);
+        Map<Long, String[]> lastReminderByParty = loadLastRemindersByParty();
+
         BigDecimal b0_30 = BigDecimal.ZERO;
         BigDecimal b31_60 = BigDecimal.ZERO;
         BigDecimal b61_90 = BigDecimal.ZERO;
@@ -89,10 +93,18 @@ public class AgingAnalysisService {
                 b31_60 = b31_60.add(p.bucket31To60());
                 b61_90 = b61_90.add(p.bucket61To90());
                 b90Plus = b90Plus.add(p.bucket90Plus());
+                String[] lastRem = lastReminderByParty.get(p.partyId());
                 rows.add(new AgingAnalysisDtos.DesktopAgingRow(
-                        p.partyId(), p.partyName(), p.phone(), p.totalDue(),
+                        p.partyId(),
+                        p.partyName(),
+                        p.phone(),
+                        emailsByParty.getOrDefault(p.partyId(), ""),
+                        countsByParty.getOrDefault(p.partyId(), 0),
+                        p.totalDue(),
                         p.bucket0To30(), p.bucket31To60(), p.bucket61To90(), p.bucket90Plus(),
-                        p.riskLevel()
+                        p.riskLevel(),
+                        lastRem != null ? lastRem[0] : null,
+                        lastRem != null ? lastRem[1] : null
                 ));
             }
         }
@@ -105,6 +117,156 @@ public class AgingAnalysisService {
                 b0_30, b31_60, b61_90, b90Plus,
                 rows
         );
+    }
+
+    public AgingAnalysisDtos.PartyStatementDto getPartyStatement(Long partyId, String type, LocalDate asOfDate) {
+        LocalDate asOf = asOfDate != null ? asOfDate : LocalDate.now();
+        boolean isDebtor = !"CREDITOR".equalsIgnoreCase(type) && !"PAYABLES".equalsIgnoreCase(type);
+
+        List<Map<String, Object>> partyRows = jdbc.query(
+                "SELECT id, COALESCE(name, 'Party'), COALESCE(party_type, ''), COALESCE(gstin, ''), COALESCE(phone, ''), COALESCE(email, ''), COALESCE(address, '') FROM party_master WHERE id = ?",
+                (rs, i) -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("name", rs.getString(2));
+                    m.put("partyType", rs.getString(3));
+                    m.put("gstin", rs.getString(4));
+                    m.put("phone", rs.getString(5));
+                    m.put("email", rs.getString(6));
+                    m.put("address", rs.getString(7));
+                    return m;
+                },
+                partyId
+        );
+        Map<String, Object> pm = partyRows.isEmpty() ? Map.of() : partyRows.getFirst();
+
+        String sql = isDebtor
+                ? """
+                  SELECT COALESCE(s.invoice_no, CAST(s.id AS VARCHAR)), s.invoice_date,
+                         COALESCE(s.total_amount, 0), COALESCE(s.paid_amount, 0),
+                         (COALESCE(s.total_amount, 0) - COALESCE(s.paid_amount, 0)) AS balance
+                  FROM sales_header s
+                  WHERE s.customer_id = ?
+                    AND (COALESCE(s.total_amount, 0) - COALESCE(s.paid_amount, 0)) > 0
+                    AND UPPER(COALESCE(s.document_status, '')) NOT IN ('DELETED', 'CANCELLED', 'REJECTED', 'VOID')
+                  ORDER BY s.invoice_date ASC, s.id ASC
+                  """
+                : """
+                  SELECT COALESCE(p.invoice_no, CAST(p.id AS VARCHAR)), p.invoice_date,
+                         COALESCE(p.total_amount, 0), COALESCE(p.paid_amount, 0),
+                         (COALESCE(p.total_amount, 0) - COALESCE(p.paid_amount, 0)) AS balance
+                  FROM purchase_header p
+                  WHERE p.supplier_id = ?
+                    AND (COALESCE(p.total_amount, 0) - COALESCE(p.paid_amount, 0)) > 0
+                    AND UPPER(COALESCE(p.document_status, '')) NOT IN ('DELETED', 'CANCELLED', 'REJECTED', 'VOID')
+                  ORDER BY p.invoice_date ASC, p.id ASC
+                  """;
+
+        BigDecimal b0_30 = BigDecimal.ZERO;
+        BigDecimal b31_60 = BigDecimal.ZERO;
+        BigDecimal b61_90 = BigDecimal.ZERO;
+        BigDecimal b90Plus = BigDecimal.ZERO;
+        BigDecimal total = BigDecimal.ZERO;
+        List<AgingAnalysisDtos.PartyStatementInvoiceDto> invoices = new ArrayList<>();
+
+        List<Map<String, Object>> invRows = jdbc.query(sql, (rs, idx) -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("invoiceNo", rs.getString(1));
+            m.put("invoiceDate", rs.getString(2));
+            m.put("totalAmount", rs.getBigDecimal(3));
+            m.put("paidAmount", rs.getBigDecimal(4));
+            m.put("balance", rs.getBigDecimal(5));
+            return m;
+        }, partyId);
+
+        for (Map<String, Object> r : invRows) {
+            BigDecimal bal = (BigDecimal) r.get("balance");
+            if (bal == null || bal.compareTo(BigDecimal.ZERO) <= 0) continue;
+            String dateStr = Objects.toString(r.get("invoiceDate"), "");
+            LocalDate invDate = parseDate(dateStr);
+            long days = invDate != null ? Math.max(0L, ChronoUnit.DAYS.between(invDate, asOf)) : 0L;
+            String bucket;
+            if (days <= 30) {
+                bucket = "0-30 Days";
+                b0_30 = b0_30.add(bal);
+            } else if (days <= 60) {
+                bucket = "31-60 Days";
+                b31_60 = b31_60.add(bal);
+            } else if (days <= 90) {
+                bucket = "61-90 Days";
+                b61_90 = b61_90.add(bal);
+            } else {
+                bucket = "90+ Days";
+                b90Plus = b90Plus.add(bal);
+            }
+            total = total.add(bal);
+            invoices.add(new AgingAnalysisDtos.PartyStatementInvoiceDto(
+                    Objects.toString(r.get("invoiceNo"), ""),
+                    dateStr,
+                    days,
+                    bucket,
+                    r.get("totalAmount") != null ? (BigDecimal) r.get("totalAmount") : BigDecimal.ZERO,
+                    r.get("paidAmount") != null ? (BigDecimal) r.get("paidAmount") : BigDecimal.ZERO,
+                    bal
+            ));
+        }
+
+        return new AgingAnalysisDtos.PartyStatementDto(
+                partyId,
+                Objects.toString(pm.get("name"), "Party"),
+                isDebtor ? "DEBTOR" : "CREDITOR",
+                Objects.toString(pm.get("gstin"), ""),
+                Objects.toString(pm.get("phone"), ""),
+                Objects.toString(pm.get("email"), ""),
+                Objects.toString(pm.get("address"), ""),
+                asOf.toString(),
+                total, b0_30, b31_60, b61_90, b90Plus,
+                invoices
+        );
+    }
+
+    private Map<Long, String> loadPartyEmails() {
+        Map<Long, String> out = new HashMap<>();
+        try {
+            jdbc.query("SELECT id, COALESCE(email, '') FROM party_master", (rs, i) -> {
+                out.put(rs.getLong(1), rs.getString(2));
+                return null;
+            });
+        } catch (Exception ignored) {}
+        return out;
+    }
+
+    private Map<Long, Integer> loadUnpaidCounts(boolean isDebtor) {
+        Map<Long, Integer> out = new HashMap<>();
+        String sql = isDebtor
+                ? "SELECT customer_id, COUNT(*) FROM sales_header WHERE (COALESCE(total_amount, 0) - COALESCE(paid_amount, 0)) > 0 AND UPPER(COALESCE(document_status, '')) NOT IN ('DELETED', 'CANCELLED', 'REJECTED', 'VOID') GROUP BY customer_id"
+                : "SELECT supplier_id, COUNT(*) FROM purchase_header WHERE (COALESCE(total_amount, 0) - COALESCE(paid_amount, 0)) > 0 AND UPPER(COALESCE(document_status, '')) NOT IN ('DELETED', 'CANCELLED', 'REJECTED', 'VOID') GROUP BY supplier_id";
+        try {
+            jdbc.query(sql, (rs, i) -> {
+                out.put(rs.getLong(1), rs.getInt(2));
+                return null;
+            });
+        } catch (Exception ignored) {}
+        return out;
+    }
+
+    private Map<Long, String[]> loadLastRemindersByParty() {
+        Map<Long, String[]> out = new HashMap<>();
+        try {
+            jdbc.query("""
+                SELECT entity_id, created_at, channel
+                FROM communication_log
+                WHERE UPPER(COALESCE(entity_type, '')) IN ('PARTY', 'AGING_COLLECTION')
+                  AND UPPER(COALESCE(status, '')) = 'SENT'
+                  AND UPPER(COALESCE(channel, '')) IN ('EMAIL', 'WHATSAPP')
+                  AND entity_id IS NOT NULL AND entity_id > 0
+                ORDER BY id DESC
+                """, (rs, i) -> {
+                long pid = rs.getLong(1);
+                out.putIfAbsent(pid, new String[]{rs.getString(2), rs.getString(3)});
+                return null;
+            });
+        } catch (Exception ignored) {}
+        return out;
     }
 
     @Transactional
