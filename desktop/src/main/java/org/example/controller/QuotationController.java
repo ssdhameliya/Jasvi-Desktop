@@ -61,6 +61,7 @@ public class QuotationController implements org.example.navigation.ScreenLifecyc
         if(colActions!=null) IconFactory.applyTableHeaderIcon(colActions, "actions");
         DynamicTableLayoutManager.install(table);
         ProfessionalUiEnhancer.refreshTableDecorations(table);
+        if(btnNewQuotation!=null){boolean allowed=PermissionService.allowed("QUOTATION.CREATE");btnNewQuotation.setDisable(!allowed);btnNewQuotation.setVisible(allowed);btnNewQuotation.setManaged(allowed);}
         refresh();
     }
     private TableCell<QuoteRow,String> styledTextCell(String styleClass){
@@ -116,7 +117,72 @@ public class QuotationController implements org.example.navigation.ScreenLifecyc
  private boolean all(ComboBox<String> box){String value=box.getValue();return value==null||value.startsWith("All");}
  private void applyStats(QuotationApiClient.Metrics m){if(m==null)return;lblTotalValue.setText(fmt(m.totalValue()));lblTotalCount.setText(m.totalCount()+" quotations");lblPendingValue.setText(fmt(m.pendingValue()));lblPendingCount.setText(m.pendingCount()+" quotations");lblAcceptedValue.setText(fmt(m.acceptedValue()));lblAcceptedCount.setText(m.acceptedCount()+" quotations");lblExpiredValue.setText(fmt(m.expiredValue()));lblExpiredCount.setText(m.expiredCount()+" quotations");lblConversion.setText(String.format("%.1f%%",m.conversionRate()));lblAverage.setText(fmt(m.average()));}
  private void updateCharts(QuotationApiClient.Metrics m){if(m==null||trendChart==null||statusChart==null)return;XYChart.Series<String,Number> series=new XYChart.Series<>();for(var point:m.trend()==null?List.<QuotationApiClient.MetricPoint>of():m.trend())series.getData().add(new XYChart.Data<>(point.label(),point.value()));trendChart.getData().setAll(series);statusChart.getData().setAll((m.statuses()==null?List.<QuotationApiClient.MetricPoint>of():m.statuses()).stream().map(x->new PieChart.Data(x.label(),x.value())).toList());}
-private void setupActions(){colActions.setCellFactory(c->new TableCell<>(){final MenuButton m=new MenuButton("Actions");{add("View","view",e->showDetails(row()));add("Audit Trail","history",e->{QuoteRow q=row();if(q!=null)org.example.util.ActivityTimelineDialog.show(table,"QUOTATION",q.id,q.no.get());});add("Edit","edit",e->edit(row()));add("View / Download PDF","pdf",e->openPdf(row()));add("Save PDF To...","download",e->downloadPdf(row()));add("View / Download Excel","excel",e->openExcel(row()));add("Send Email","email",e->sendEmail(row()));add("Send WhatsApp","whatsapp",e->sendWhatsapp(row()));add("Create Follow Up","reminder",e->followUp(row()));add("Convert to Sale","sale",e->convert(row()));add("Duplicate","copy",e->duplicate(row()));add("Delete","delete",e->delete(row()));m.getStyleClass().add("row-actions");m.setGraphic(IconFactory.compactIcon("actions",16));m.setText("Actions");m.setContentDisplay(ContentDisplay.LEFT);m.setGraphicTextGap(6);m.setTooltip(new Tooltip("Actions"));m.getProperties().put("erp-icon-preserve",true);IconFactory.decorateActionMenu(m);}private QuoteRow row(){int index=getIndex();return index<0||index>=getTableView().getItems().size()?null:getTableView().getItems().get(index);}private void add(String t,String semantic,javafx.event.EventHandler<javafx.event.ActionEvent>h){MenuItem i=new MenuItem(t);i.setGraphic(IconFactory.compactIcon(semantic,16));i.setOnAction(h);m.getItems().add(i);}protected void updateItem(Void v,boolean e){super.updateItem(v,e);setGraphic(e?null:m);setAlignment(Pos.CENTER);}});}
+private void setupActions(){
+    colActions.setCellFactory(c->new TableCell<>(){
+        final MenuButton m=new MenuButton("Actions");
+        final MenuItem miView=new MenuItem("View",IconFactory.compactIcon("view",16));
+        final MenuItem miAudit=new MenuItem("Audit Trail",IconFactory.compactIcon("history",16));
+        final MenuItem miEdit=new MenuItem("Edit",IconFactory.compactIcon("edit",16));
+        final MenuItem miPdf=new MenuItem("View / Download PDF",IconFactory.compactIcon("pdf",16));
+        final MenuItem miDownload=new MenuItem("Save PDF To...",IconFactory.compactIcon("download",16));
+        final MenuItem miExcel=new MenuItem("View / Download Excel",IconFactory.compactIcon("excel",16));
+        final MenuItem miEmail=new MenuItem("Send Email",IconFactory.compactIcon("email",16));
+        final MenuItem miWhatsapp=new MenuItem("Send WhatsApp",IconFactory.compactIcon("whatsapp",16));
+        final MenuItem miFollow=new MenuItem("Create Follow Up",IconFactory.compactIcon("reminder",16));
+        final MenuItem miConvert=new MenuItem("Convert to Sale",IconFactory.compactIcon("sale",16));
+        final MenuItem miDuplicate=new MenuItem("Duplicate",IconFactory.compactIcon("copy",16));
+        final MenuItem miDelete=new MenuItem("Delete",IconFactory.compactIcon("delete",16));
+        {
+            miView.setOnAction(e->showDetails(row()));
+            miAudit.setOnAction(e->{QuoteRow q=row();if(q!=null)org.example.util.ActivityTimelineDialog.show(table,"QUOTATION",q.id,q.no.get());});
+            miEdit.setOnAction(e->edit(row()));
+            miPdf.setOnAction(e->openPdf(row()));
+            miDownload.setOnAction(e->downloadPdf(row()));
+            miExcel.setOnAction(e->openExcel(row()));
+            miEmail.setOnAction(e->sendEmail(row()));
+            miWhatsapp.setOnAction(e->sendWhatsapp(row()));
+            miFollow.setOnAction(e->followUp(row()));
+            miConvert.setOnAction(e->convert(row()));
+            miDuplicate.setOnAction(e->duplicate(row()));
+            miDelete.setOnAction(e->delete(row()));
+            m.getItems().addAll(miView,miAudit,miEdit,miPdf,miDownload,miExcel,miEmail,miWhatsapp,miFollow,miConvert,miDuplicate,miDelete);
+            m.getStyleClass().add("row-actions");
+            m.setGraphic(IconFactory.compactIcon("actions",16));
+            m.setText("Actions");
+            m.setContentDisplay(ContentDisplay.LEFT);
+            m.setGraphicTextGap(6);
+            m.setTooltip(new Tooltip("Actions"));
+            m.getProperties().put("erp-icon-preserve",true);
+            IconFactory.decorateActionMenu(m);
+        }
+        private QuoteRow row(){int index=getIndex();return index<0||index>=getTableView().getItems().size()?null:getTableView().getItems().get(index);}
+        protected void updateItem(Void v,boolean e){
+            super.updateItem(v,e);
+            if(e){
+                setGraphic(null);
+            }else{
+                boolean canEdit=PermissionService.allowed("QUOTATION.EDIT");
+                boolean canExport=PermissionService.allowed("QUOTATION.EXPORT");
+                boolean canEmail=PermissionService.allowedSubSection("QUOTATION","EMAIL");
+                boolean canWhatsapp=PermissionService.allowedSubSection("QUOTATION","WHATSAPP");
+                boolean canConvert=PermissionService.allowedSubSection("QUOTATION","CONVERT_SALE");
+                boolean canDuplicate=PermissionService.allowedSubSection("QUOTATION","DUPLICATE");
+                boolean canDelete=PermissionService.allowed("QUOTATION.DELETE");
+                miEdit.setVisible(canEdit); miEdit.setDisable(!canEdit);
+                miPdf.setVisible(canExport); miPdf.setDisable(!canExport);
+                miDownload.setVisible(canExport); miDownload.setDisable(!canExport);
+                miExcel.setVisible(canExport); miExcel.setDisable(!canExport);
+                miEmail.setVisible(canEmail); miEmail.setDisable(!canEmail);
+                miWhatsapp.setVisible(canWhatsapp); miWhatsapp.setDisable(!canWhatsapp);
+                miConvert.setVisible(canConvert); miConvert.setDisable(!canConvert);
+                miDuplicate.setVisible(canDuplicate); miDuplicate.setDisable(!canDuplicate);
+                miDelete.setVisible(canDelete); miDelete.setDisable(!canDelete);
+                setGraphic(m);
+                setAlignment(Pos.CENTER);
+            }
+        }
+    });
+}
  @FXML private void newQuotation(){QuotationEditorContext.open(null);org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/QuotationEditor.fxml");}
  private void edit(QuoteRow q){if(q==null)return;if(q.converted.get()!=null&&!q.converted.get().isBlank()){info("Converted quotations are read-only. Duplicate the quotation if a new revision is required.");return;}QuotationEditorContext.open(q.id);org.example.navigation.NavigationManager.getInstance().loadPage("/fxml/pages/QuotationEditor.fxml");}
 

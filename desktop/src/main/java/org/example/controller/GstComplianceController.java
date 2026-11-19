@@ -36,6 +36,7 @@ import org.example.navigation.ScreenLifecycle;
 import org.example.service.PurchaseService;
 import org.example.service.SalesService;
 import org.example.service.NotificationService;
+import org.example.service.PermissionService;
 import org.example.util.*;
 
 import java.awt.Desktop;
@@ -143,6 +144,18 @@ public class GstComplianceController implements ScreenLifecycle {
         RegisterUiSupport.hideDrawer(detailDrawer, mainSplit, tblReconciliation);
         Platform.runLater(() -> RegisterUiSupport.hideDrawer(detailDrawer, mainSplit, tblReconciliation));
         OperationalUiSupport.installEscapeClose(mainSplit, () -> detailDrawer != null && detailDrawer.isVisible(), this::closeDetails);
+
+        boolean canImport2b = PermissionService.allowed("GST_COMPLIANCE.IMPORT");
+        if (btnImportGstr2b != null) { btnImportGstr2b.setDisable(!canImport2b); btnImportGstr2b.setVisible(canImport2b); btnImportGstr2b.setManaged(canImport2b); }
+
+        boolean canExportGstr = PermissionService.allowed("GST_COMPLIANCE.EXPORT");
+        if (btnExportGstr1 != null) { btnExportGstr1.setDisable(!canExportGstr); btnExportGstr1.setVisible(canExportGstr); btnExportGstr1.setManaged(canExportGstr); }
+        if (btnTabExportGstr1Json != null) { btnTabExportGstr1Json.setDisable(!canExportGstr); btnTabExportGstr1Json.setVisible(canExportGstr); btnTabExportGstr1Json.setManaged(canExportGstr); }
+        if (btnTabExportGstr1Excel != null) { btnTabExportGstr1Excel.setDisable(!canExportGstr); btnTabExportGstr1Excel.setVisible(canExportGstr); btnTabExportGstr1Excel.setManaged(canExportGstr); }
+
+        boolean canNotify = PermissionService.allowed("GST_COMPLIANCE.NOTIFY");
+        if (btnNotifySupplier != null) { btnNotifySupplier.setDisable(!canNotify); btnNotifySupplier.setVisible(canNotify); btnNotifySupplier.setManaged(canNotify); }
+
         loadGstDataAsync();
     }
 
@@ -519,6 +532,7 @@ public class GstComplianceController implements ScreenLifecycle {
 
     @FXML
     public void notifySupplierAction() {
+        PermissionService.require("GST_COMPLIANCE.NOTIFY", "send supplier discrepancy notice");
         Gstr2bRow target = selectedRow;
         if (target == null && tblReconciliation != null) {
             target = tblReconciliation.getSelectionModel().getSelectedItem();
@@ -1021,6 +1035,7 @@ public class GstComplianceController implements ScreenLifecycle {
 
     @FXML
     public void import2bJson() {
+        PermissionService.require("GST_COMPLIANCE.IMPORT", "import GSTR-2B JSON");
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Import GSTR-2B JSON");
         chooser.getExtensionFilters().addAll(
@@ -1117,6 +1132,7 @@ public class GstComplianceController implements ScreenLifecycle {
 
     @FXML
     public void exportGstr1Json() {
+        PermissionService.require("GST_COMPLIANCE.EXPORT", "export GSTR-1 JSON");
         LocalDate to = dpToDate != null && dpToDate.getValue() != null ? dpToDate.getValue() : BusinessClock.today();
         String period = to.format(DateTimeFormatter.ofPattern("MMyyyy"));
         File file = ExportFeedbackManager.resolveWorkspaceExportFile("GST", "GSTR1_" + period, "json");
@@ -1278,6 +1294,7 @@ public class GstComplianceController implements ScreenLifecycle {
 
     @FXML
     public void exportGstr1Excel() {
+        PermissionService.require("GST_COMPLIANCE.EXPORT", "export GSTR-1 Excel");
         LocalDate to = dpToDate != null && dpToDate.getValue() != null ? dpToDate.getValue() : BusinessClock.today();
         String period = to.format(DateTimeFormatter.ofPattern("MMyyyy"));
         File file = ExportFeedbackManager.resolveWorkspaceExportFile("GST", "GSTR1_Offline_Return_" + period, "xlsx");

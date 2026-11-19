@@ -28,6 +28,7 @@ import org.example.model.Sales;
 import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.ItemService;
+import org.example.service.PermissionService;
 import org.example.service.PurchaseService;
 import org.example.service.SalesService;
 import org.example.util.*;
@@ -157,6 +158,35 @@ public class GeneralLedgerController implements ScreenLifecycle {
         if (txtPlSearch != null) {
             txtPlSearch.textProperty().addListener((obs, oldVal, newVal) -> filterProfitLoss());
         }
+
+        if (btnPeriodLock != null) {
+            boolean canLock = PermissionService.allowed("GENERAL_LEDGER.LOCK_PERIOD");
+            btnPeriodLock.setDisable(!canLock);
+            btnPeriodLock.setVisible(canLock);
+            btnPeriodLock.setManaged(canLock);
+        }
+        if (btnNewJournal != null) {
+            boolean canCreate = PermissionService.allowed("GENERAL_LEDGER.CREATE_JOURNAL");
+            btnNewJournal.setDisable(!canCreate);
+            btnNewJournal.setVisible(canCreate);
+            btnNewJournal.setManaged(canCreate);
+        }
+        if (btnNewAccount != null) {
+            boolean canCreateAcc = PermissionService.allowed("GENERAL_LEDGER.CREATE_ACCOUNT");
+            btnNewAccount.setDisable(!canCreateAcc);
+            btnNewAccount.setVisible(canCreateAcc);
+            btnNewAccount.setManaged(canCreateAcc);
+        }
+        if (btnEditAccount != null) {
+            boolean canEditAcc = PermissionService.allowed("GENERAL_LEDGER.EDIT_ACCOUNT");
+            btnEditAccount.setDisable(!canEditAcc);
+            btnEditAccount.setVisible(canEditAcc);
+            btnEditAccount.setManaged(canEditAcc);
+        }
+        boolean canExport = PermissionService.allowed("GENERAL_LEDGER.EXPORT");
+        if (btnExportLedger != null) { btnExportLedger.setDisable(!canExport); btnExportLedger.setVisible(canExport); btnExportLedger.setManaged(canExport); }
+        if (btnExportPdf != null) { btnExportPdf.setDisable(!canExport); btnExportPdf.setVisible(canExport); btnExportPdf.setManaged(canExport); }
+        if (btnExportTb != null) { btnExportTb.setDisable(!canExport); btnExportTb.setVisible(canExport); btnExportTb.setManaged(canExport); }
 
         RegisterUiSupport.hideDrawer(journalDetailDrawer, journalSplit, tblJournals);
         javafx.application.Platform.runLater(() -> RegisterUiSupport.hideDrawer(journalDetailDrawer, journalSplit, tblJournals));
@@ -1360,16 +1390,19 @@ public class GeneralLedgerController implements ScreenLifecycle {
 
     @FXML
     public void openNewJournalDialog() {
+        PermissionService.require("GENERAL_LEDGER.CREATE_JOURNAL", "create journal voucher");
         ManualJournalDialog.show(tblJournals, glClient, cachedAccountDtos, this::loadLedgerDataAsync);
     }
 
     @FXML
     public void openNewAccountDialog() {
+        PermissionService.require("GENERAL_LEDGER.CREATE_ACCOUNT", "create account");
         ChartOfAccountsDialog.show(tblAccounts, glClient, null, cachedAccountDtos, this::loadLedgerDataAsync);
     }
 
     @FXML
     public void editSelectedAccount() {
+        PermissionService.require("GENERAL_LEDGER.EDIT_ACCOUNT", "edit account");
         AccountRow selected = tblAccounts != null ? tblAccounts.getSelectionModel().getSelectedItem() : null;
         if (selected == null) {
             AppDialogService.warning(tblAccounts, "Select Account", "Please select an account row from Chart of Accounts first.");
@@ -1417,12 +1450,14 @@ public class GeneralLedgerController implements ScreenLifecycle {
 
     @FXML
     public void postSelectedDraft() {
+        PermissionService.require("GENERAL_LEDGER.POST_JOURNAL", "post draft journal voucher");
         if (selectedJournal == null) return;
         postDraftJournal(selectedJournal);
     }
 
     @FXML
     public void reverseSelectedVoucher() {
+        PermissionService.require("GENERAL_LEDGER.REVERSE_JOURNAL", "reverse journal voucher");
         if (selectedJournal == null) return;
         reverseJournal(selectedJournal);
     }
@@ -1570,6 +1605,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
 
     @FXML
     public void openPeriodLockDialog() {
+        PermissionService.require("GENERAL_LEDGER.LOCK_PERIOD", "manage accounting period lock");
         Dialog<ButtonType> dlg = new OwnedDialog<>(tblJournals);
         dlg.setTitle("Accounting Period Lock / Books Freeze");
         dlg.setResizable(true);
@@ -1729,6 +1765,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
 
     @FXML
     public void exportStatement() {
+        PermissionService.require("GENERAL_LEDGER.EXPORT", "export financial statements");
         File file = ExportFeedbackManager.resolveWorkspaceExportFile("GeneralLedger", "Financial_Statement_Pack", "xlsx");
         if (!ExportFeedbackManager.checkFileWriteable(tblJournals, file)) return;
 
@@ -1855,6 +1892,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
 
     @FXML
     public void exportPdfFinancialPack() {
+        PermissionService.require("GENERAL_LEDGER.EXPORT", "export financial pack PDF");
         File file = ExportFeedbackManager.resolveWorkspaceExportFile("GeneralLedger", "Financial_Statement_Pack", "pdf");
         if (!ExportFeedbackManager.checkFileWriteable(tblJournals, file)) return;
 

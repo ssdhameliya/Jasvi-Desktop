@@ -29,6 +29,7 @@ import org.example.api.ApiSession;
 import org.example.config.ConfigManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.BrandedRegisterPdfService;
+import org.example.service.PermissionService;
 import org.example.util.*;
 
 import java.io.File;
@@ -106,6 +107,10 @@ public class FinancialStatementsController implements ScreenLifecycle {
         if (btnDrillDownBs != null) btnDrillDownBs.setGraphic(IconFactory.compactIcon("view", 14));
         if (btnExpandAllPnl != null) btnExpandAllPnl.setGraphic(IconFactory.compactIcon("more", 14));
         if (btnCollapseAllPnl != null) btnCollapseAllPnl.setGraphic(IconFactory.compactIcon("hide", 14));
+
+        boolean canExport = PermissionService.allowed("FINANCIAL_STATEMENTS.EXPORT");
+        if (btnExportPdf != null) { btnExportPdf.setDisable(!canExport); btnExportPdf.setVisible(canExport); btnExportPdf.setManaged(canExport); }
+        if (btnExportExcel != null) { btnExportExcel.setDisable(!canExport); btnExportExcel.setVisible(canExport); btnExportExcel.setManaged(canExport); }
 
         ContextMenu pnlContextMenu = new ContextMenu();
         MenuItem miPnlDrill = new MenuItem("Inspect / Drill-Down Line Item", IconFactory.compactIcon("view", 14));
@@ -646,6 +651,7 @@ public class FinancialStatementsController implements ScreenLifecycle {
         });
 
         btnExportCsv.setOnAction(e -> {
+            PermissionService.require("FINANCIAL_STATEMENTS.EXPORT", "export drill-down CSV");
             File file = ExportFeedbackManager.resolveWorkspaceExportFile("FinancialStatements", "DrillDown_" + category, "csv");
             if (file != null) {
                 try (java.io.PrintWriter pw = new java.io.PrintWriter(file)) {
@@ -717,6 +723,7 @@ public class FinancialStatementsController implements ScreenLifecycle {
 
     @FXML
     public void exportPdf() {
+        PermissionService.require("FINANCIAL_STATEMENTS.EXPORT", "export financial statements PDF");
         File file = ExportFeedbackManager.resolveWorkspaceExportFile("FinancialStatements", "Financial_Statements", "pdf");
         if (file == null) return;
         if (!ExportFeedbackManager.checkFileWriteable(treeTblPnl, file)) return;
@@ -760,6 +767,7 @@ public class FinancialStatementsController implements ScreenLifecycle {
 
     @FXML
     public void exportExcel() {
+        PermissionService.require("FINANCIAL_STATEMENTS.EXPORT", "export financial statements Excel");
         File file = ExportFeedbackManager.resolveWorkspaceExportFile("FinancialStatements", "Financial_Statements", "xlsx");
         if (file == null) return;
         if (!ExportFeedbackManager.checkFileWriteable(treeTblPnl, file)) return;

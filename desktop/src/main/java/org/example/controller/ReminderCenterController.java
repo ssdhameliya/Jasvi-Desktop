@@ -29,6 +29,7 @@ import javafx.scene.layout.VBox;
 import org.example.config.ConfigManager;
 import org.example.api.insights.InsightsApiClient;
 import org.example.service.NotificationService;
+import org.example.service.PermissionService;
 import org.example.service.SessionService;
 import org.example.util.IconFactory;
 import org.example.util.RegisterUiSupport;
@@ -51,6 +52,7 @@ public class ReminderCenterController implements ScreenLifecycle {
             lblDetailPriority, lblDetailStatus, lblDetailNotes;
     @FXML private StackPane openMetricIcon, overdueMetricIcon,
             todayMetricIcon, upcomingMetricIcon, emptyStateIcon;
+    @FXML private Button btnAddReminder;
     @FXML private MenuButton detailMoreActions;
     @FXML private TextField txtSearch;
     @FXML private ComboBox<String> cmbStatus, cmbPriority, cmbPeriod;
@@ -68,6 +70,7 @@ public class ReminderCenterController implements ScreenLifecycle {
     @FXML
     public void initialize() {
         if (reminderPageIcon != null) reminderPageIcon.getChildren().setAll(IconFactory.icon("reminder", 24));
+        if (btnAddReminder != null) btnAddReminder.setDisable(!PermissionService.allowed("REMINDERS.CREATE"));
         configureFilters();
         configureColumns();
         configureTable();
@@ -184,9 +187,11 @@ public class ReminderCenterController implements ScreenLifecycle {
         delete.getStyleClass().add("reminder-danger-menu-item");
 
         boolean completed = row != null && "COMPLETED".equals(row.status.get());
-        snooze.setDisable(row == null || completed);
-        reopen.setDisable(row == null || !completed);
-        delete.setDisable(row == null);
+        boolean canEdit = PermissionService.allowed("REMINDERS.EDIT");
+        boolean canDelete = PermissionService.allowed("REMINDERS.DELETE");
+        snooze.setDisable(!canEdit || row == null || completed);
+        reopen.setDisable(!canEdit || row == null || !completed);
+        delete.setDisable(!canDelete || row == null);
 
         detailMoreActions.getItems().setAll(
                 snooze,
@@ -209,9 +214,10 @@ public class ReminderCenterController implements ScreenLifecycle {
         MenuItem delete = menuItem("Delete", "delete", event -> delete(row.getItem()));
         delete.getStyleClass().add("reminder-danger-menu-item");
 
-        menu.setOnShowing(event -> updateActionAvailability(
-                row.getItem(), complete, snooze, reopen, delete
-        ));
+        menu.setOnShowing(event -> {
+            edit.setDisable(!PermissionService.allowed("REMINDERS.EDIT"));
+            updateActionAvailability(row.getItem(), complete, snooze, reopen, delete);
+        });
 
         menu.getItems().addAll(
                 view,
@@ -269,12 +275,27 @@ public class ReminderCenterController implements ScreenLifecycle {
         applyFilters();
     }
 
-    @FXML private void addReminder() { openEditor(null); }
-    @FXML private void editSelected() { edit(table.getSelectionModel().getSelectedItem()); }
-    @FXML private void completeSelected() { complete(table.getSelectionModel().getSelectedItem()); }
+    @FXML
+    private void addReminder() {
+        PermissionService.require("REMINDERS.CREATE", "create reminder");
+        openEditor(null);
+    }
+
+    @FXML
+    private void editSelected() {
+        PermissionService.require("REMINDERS.EDIT", "modify reminder");
+        edit(table.getSelectionModel().getSelectedItem());
+    }
+
+    @FXML
+    private void completeSelected() {
+        PermissionService.require("REMINDERS.EDIT", "complete reminder");
+        complete(table.getSelectionModel().getSelectedItem());
+    }
 
     private void edit(ReminderRow row) {
         if (row != null) {
+            PermissionService.require("REMINDERS.EDIT", "modify reminder");
             openEditor(row);
         }
     }
@@ -373,12 +394,16 @@ public class ReminderCenterController implements ScreenLifecycle {
     }
 
     private void complete(ReminderRow row) {
-        if (row == null || !confirm("Mark reminder '" + row.title.get() + "' as complete?")) return;
+        if (row == null) return;
+        PermissionService.require("REMINDERS.EDIT", "complete reminder");
+        if (!confirm("Mark reminder '" + row.title.get() + "' as complete?")) return;
         changeStatus(row, "COMPLETED");
     }
 
     private void reopen(ReminderRow row) {
-        if (row == null || !confirm("Reopen reminder '" + row.title.get() + "'?")) return;
+        if (row == null) return;
+        PermissionService.require("REMINDERS.EDIT", "reopen reminder");
+        if (!confirm("Reopen reminder '" + row.title.get() + "'?")) return;
         changeStatus(row, "OPEN");
     }
 
@@ -402,6 +427,7 @@ public class ReminderCenterController implements ScreenLifecycle {
 
     private void snooze(ReminderRow row) {
         if (row == null) return;
+        PermissionService.require("REMINDERS.EDIT", "snooze reminder");
         DatePicker picker = new DatePicker(BusinessClock.today().plusDays(1));
         DatePickerFormatter.attach(picker);
         Dialog<ButtonType> dialog = new OwnedDialog<>();
@@ -431,6 +457,7 @@ public class ReminderCenterController implements ScreenLifecycle {
 
     private void delete(ReminderRow row) {
         if (row == null) return;
+        PermissionService.require("REMINDERS.DELETE", "delete reminder");
         String detail = "Delete reminder '" + row.title.get() + "'?\n\n"
                 + "Reference: " + row.reference.get() + "\n"
                 + "Due date: " + row.due.get() + "\n\nThis action cannot be undone.";
@@ -495,6 +522,7 @@ public class ReminderCenterController implements ScreenLifecycle {
                 MenuItem delete = menuItem("Delete", "delete", event -> delete(row));
                 delete.getStyleClass().add("reminder-danger-menu-item");
 
+                edit.setDisable(!PermissionService.allowed("REMINDERS.EDIT"));
                 updateActionAvailability(row, complete, snooze, reopen, delete);
 
                 actions.getItems().setAll(
@@ -518,10 +546,12 @@ public class ReminderCenterController implements ScreenLifecycle {
             MenuItem delete
     ) {
         boolean completed = row != null && "COMPLETED".equals(row.status.get());
-        complete.setDisable(row == null || completed);
-        snooze.setDisable(row == null || completed);
-        reopen.setDisable(row == null || !completed);
-        delete.setDisable(row == null);
+        boolean canEdit = PermissionService.allowed("REMINDERS.EDIT");
+        boolean canDelete = PermissionService.allowed("REMINDERS.DELETE");
+        complete.setDisable(!canEdit || row == null || completed);
+        snooze.setDisable(!canEdit || row == null || completed);
+        reopen.setDisable(!canEdit || row == null || !completed);
+        delete.setDisable(!canDelete || row == null);
     }
 
     private TableCell<ReminderRow, String> dueDateCell() {

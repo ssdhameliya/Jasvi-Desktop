@@ -21,6 +21,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.example.service.ImportService;
+import org.example.service.PermissionService;
 import org.example.importing.ImportModuleRegistry;
 import org.example.importing.ImportMappingSupport;
 import org.example.importing.ImportTemplateService;
@@ -325,14 +326,38 @@ public class ImportController implements ScreenLifecycle {
         return switch(index){case 1->ImportService.ImportMode.CREATE_ONLY;case 2->ImportService.ImportMode.UPSERT;case 3->ImportService.ImportMode.SKIP_EXISTING;default->ImportService.ImportMode.UPDATE_NON_BLANK;};
     }
 
-    @FXML private void selectItemMaster(){ selectModuleAndContinue("Item Master"); }
-    @FXML private void selectCustomers(){ selectModuleAndContinue("Customers/CRM"); }
-    @FXML private void selectSuppliers(){ selectModuleAndContinue("Suppliers/HRM"); }
-    @FXML private void selectSales(){ selectModuleAndContinue("Sales"); }
-    @FXML private void selectPurchases(){ selectModuleAndContinue("Purchases"); }
-    @FXML private void selectMasterValues(){ selectModuleAndContinue("Master Categories and Values"); }
-    @FXML private void selectPurchaseRecon(){ selectModuleAndContinue("Purchase Recon"); }
-    @FXML private void selectBankStatement(){ selectModuleAndContinue("Bank Statement"); }
+    @FXML private void selectItemMaster(){ 
+        if (!PermissionService.allowedSubSection("IMPORT", "ITEMS")) { showWarning("Permission Denied", "You do not have permission to import Item Master data."); return; }
+        selectModuleAndContinue("Item Master"); 
+    }
+    @FXML private void selectCustomers(){ 
+        if (!PermissionService.allowedSubSection("IMPORT", "CUSTOMERS")) { showWarning("Permission Denied", "You do not have permission to import Customers."); return; }
+        selectModuleAndContinue("Customers/CRM"); 
+    }
+    @FXML private void selectSuppliers(){ 
+        if (!PermissionService.allowedSubSection("IMPORT", "SUPPLIERS")) { showWarning("Permission Denied", "You do not have permission to import Suppliers."); return; }
+        selectModuleAndContinue("Suppliers/HRM"); 
+    }
+    @FXML private void selectSales(){ 
+        if (!PermissionService.allowedSubSection("IMPORT", "SALES")) { showWarning("Permission Denied", "You do not have permission to import Sales invoices."); return; }
+        selectModuleAndContinue("Sales"); 
+    }
+    @FXML private void selectPurchases(){ 
+        if (!PermissionService.allowedSubSection("IMPORT", "PURCHASES")) { showWarning("Permission Denied", "You do not have permission to import Purchase bills."); return; }
+        selectModuleAndContinue("Purchases"); 
+    }
+    @FXML private void selectMasterValues(){ 
+        if (!PermissionService.allowedSubSection("IMPORT", "MASTERS")) { showWarning("Permission Denied", "You do not have permission to import Master categories and values."); return; }
+        selectModuleAndContinue("Master Categories and Values"); 
+    }
+    @FXML private void selectPurchaseRecon(){ 
+        if (!PermissionService.allowedSubSection("IMPORT", "PURCHASES")) { showWarning("Permission Denied", "You do not have permission to import Purchase Recon data."); return; }
+        selectModuleAndContinue("Purchase Recon"); 
+    }
+    @FXML private void selectBankStatement(){ 
+        if (!PermissionService.allowedSubSection("IMPORT", "BANK")) { showWarning("Permission Denied", "You do not have permission to import Bank Statements."); return; }
+        selectModuleAndContinue("Bank Statement"); 
+    }
     private void selectModuleAndContinue(String module){ cmbImportModule.setValue(module); showWizardStep(2); }
     @FXML private void wizardBackToSelect(){ showWizardStep(1); }
     @FXML private void wizardBackToUpload(){ showWizardStep(2); }
@@ -1538,6 +1563,10 @@ public class ImportController implements ScreenLifecycle {
     }
 
     private void runImport() {
+        if (!PermissionService.allowedSubSection("IMPORT", "EXECUTE")) {
+            showWarning("Permission Denied", "You do not have permission to execute and apply data imports.");
+            return;
+        }
 
         if (selectedFile == null) {
 

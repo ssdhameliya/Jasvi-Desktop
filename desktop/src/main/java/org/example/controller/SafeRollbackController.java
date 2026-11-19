@@ -130,7 +130,9 @@ public class SafeRollbackController implements ScreenLifecycle {
                 actions.getItems().clear();
                 if (candidate == null) return;
                 MenuItem rollback = new MenuItem("Roll Back to " + candidate.version(), IconFactory.compactIcon("rollback", 15));
-                rollback.setDisable(!candidate.compatibility().safe());
+                boolean canExec = org.example.service.PermissionService.allowedSubSection("SAFE_ROLLBACK", "EXECUTE");
+                rollback.setDisable(!candidate.compatibility().safe() || !canExec);
+                rollback.setVisible(canExec);
                 rollback.setOnAction(event -> confirmAndRollback(candidate));
                 MenuItem compatibility = new MenuItem("View Compatibility", IconFactory.compactIcon("compatibility", 15));
                 compatibility.setOnAction(event -> info("Compatibility", candidateMessage(candidate)));

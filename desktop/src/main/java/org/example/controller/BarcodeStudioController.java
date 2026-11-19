@@ -38,6 +38,7 @@ import org.example.api.ApiSession;
 import org.example.config.ConfigManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.BrandingService;
+import org.example.service.PermissionService;
 import org.example.shared.barcode.Code128Encoder;
 import org.example.util.*;
 
@@ -84,6 +85,11 @@ public class BarcodeStudioController implements ScreenLifecycle {
 
         configureTableColumns();
         DynamicTableLayoutManager.install(tblItems);
+
+        boolean canPrint = PermissionService.allowed("BARCODE.PRINT");
+        if (btnPrintOrderLabel != null) { btnPrintOrderLabel.setDisable(!canPrint); btnPrintOrderLabel.setVisible(canPrint); btnPrintOrderLabel.setManaged(canPrint); }
+        if (btnPrintThermal != null) { btnPrintThermal.setDisable(!canPrint); btnPrintThermal.setVisible(canPrint); btnPrintThermal.setManaged(canPrint); }
+        if (btnPrintA4 != null) { btnPrintA4.setDisable(!canPrint); btnPrintA4.setVisible(canPrint); btnPrintA4.setManaged(canPrint); }
 
         RealtimeSearchSupport.installLocal(txtSearch, this::applyFilters);
 
@@ -152,6 +158,12 @@ public class BarcodeStudioController implements ScreenLifecycle {
                     BarcodeItemDto row = getTableRow() != null ? getTableRow().getItem() : null;
                     if (row != null) promptAndPrintDispatchSlip(row);
                 });
+
+                boolean canPrint = PermissionService.allowed("BARCODE.PRINT");
+                boolean canDesign = PermissionService.allowed("BARCODE.DESIGN");
+                miPreview.setDisable(!canPrint && !canDesign);
+                miGenerate.setDisable(!canDesign);
+                miDispatch.setDisable(!canPrint);
 
                 menu.getItems().addAll(miPreview, miGenerate, miDispatch);
                 IconFactory.decorateActionMenu(menu);

@@ -793,40 +793,44 @@ public class DashboardController implements ScreenLifecycle {
         protect(btnGstCompliance, "GST_COMPLIANCE.VIEW");
         protect(btnEWayBill, "EWAY_BILL.VIEW");
         protect(btnAutomationCenter, "AUTOMATION.VIEW");
+        if (btnSystemDiagnosticsNav != null) btnSystemDiagnosticsNav.setDisable(!PermissionService.allowed("SYSTEM.VIEW"));
+        if (btnSystemDiagnostics != null) btnSystemDiagnostics.setDisable(!PermissionService.allowed("SYSTEM.VIEW"));
         if (menuRemoteAccess != null) menuRemoteAccess.setVisible(SessionService.isAdmin());
 
         // Sales accordion
         boolean salesAllowed = PermissionService.allowed("SALES.VIEW");
+        boolean salesCreateAllowed = PermissionService.allowed("SALES.CREATE");
         boolean quotationAllowed = PermissionService.allowed("QUOTATION.VIEW");
         boolean creditAllowed = PermissionService.allowed("CREDIT_NOTE.VIEW");
-        if (btnSales != null) btnSales.setDisable(!(salesAllowed || quotationAllowed || creditAllowed));
-        for (Button child : new Button[]{btnSalesRegister, btnCreateSale}) {
-            if (child != null) child.setDisable(!salesAllowed);
-        }
+        if (btnSales != null) btnSales.setDisable(!(salesAllowed || salesCreateAllowed || quotationAllowed || creditAllowed));
+        if (btnSalesRegister != null) btnSalesRegister.setDisable(!salesAllowed);
+        if (btnCreateSale != null) btnCreateSale.setDisable(!salesCreateAllowed);
         if (btnSalesReturn != null) btnSalesReturn.setDisable(!creditAllowed);
         if (btnQuotation != null) btnQuotation.setDisable(!quotationAllowed);
         if (btnCreditNote != null) btnCreditNote.setDisable(!creditAllowed);
 
         // Purchase accordion
         boolean purchaseAllowed = PermissionService.allowed("PURCHASE.VIEW");
+        boolean purchaseCreateAllowed = PermissionService.allowed("PURCHASE.CREATE");
         boolean debitAllowed = PermissionService.allowed("DEBIT_NOTE.VIEW");
-        if (btnPurchase != null) btnPurchase.setDisable(!(purchaseAllowed || debitAllowed));
-        for (Button child : new Button[]{btnPurchaseRegister, btnCreatePurchase}) {
-            if (child != null) child.setDisable(!purchaseAllowed);
-        }
+        if (btnPurchase != null) btnPurchase.setDisable(!(purchaseAllowed || purchaseCreateAllowed || debitAllowed));
+        if (btnPurchaseRegister != null) btnPurchaseRegister.setDisable(!purchaseAllowed);
+        if (btnCreatePurchase != null) btnCreatePurchase.setDisable(!purchaseCreateAllowed);
         if (btnPurchaseReturn != null) btnPurchaseReturn.setDisable(!debitAllowed);
         if (btnDebitNote != null) btnDebitNote.setDisable(!debitAllowed);
 
         // Purchase Recon is a server-backed reconciliation domain with its own permissions.
         // Keep the Bank & Expense parent available when the user can access any child domain.
-        boolean bankAllowed = PermissionService.allowed("BANK_EXPENSE.VIEW");
+        boolean bankEntryAllowed = PermissionService.allowed("BANK_EXPENSE.ENTRY") || PermissionService.allowed("BANK_EXPENSE.VIEW");
+        boolean bankExpenseAllowed = PermissionService.allowed("BANK_EXPENSE.EXPENSE") || PermissionService.allowed("BANK_EXPENSE.VIEW");
+        boolean bankStatementAllowed = PermissionService.allowed("BANK_EXPENSE.STATEMENT") || PermissionService.allowed("BANK_EXPENSE.VIEW");
         boolean purchaseReconAllowed = PermissionService.allowed("PURCHASE_RECON.VIEW");
         boolean reconSupplierAllowed = PermissionService.allowed("RECON_SUPPLIER.VIEW");
         boolean tallyAllowed = PermissionService.allowed("TALLY.VIEW");
-        if (btnBankExpense != null) btnBankExpense.setDisable(!(bankAllowed || purchaseReconAllowed || reconSupplierAllowed));
-        for (Button child : new Button[]{btnBankEntry, btnExpenseEntry, btnBankStatement}) {
-            if (child != null) child.setDisable(!bankAllowed);
-        }
+        if (btnBankExpense != null) btnBankExpense.setDisable(!(bankEntryAllowed || bankExpenseAllowed || bankStatementAllowed || purchaseReconAllowed || reconSupplierAllowed));
+        if (btnBankEntry != null) btnBankEntry.setDisable(!bankEntryAllowed);
+        if (btnExpenseEntry != null) btnExpenseEntry.setDisable(!bankExpenseAllowed);
+        if (btnBankStatement != null) btnBankStatement.setDisable(!bankStatementAllowed);
         if (btnPurchaseRecon != null) btnPurchaseRecon.setDisable(!purchaseReconAllowed);
         if (btnReconSupplier != null) btnReconSupplier.setDisable(!reconSupplierAllowed);
         if (btnBillToTallyNav != null) btnBillToTallyNav.setDisable(!tallyAllowed);
@@ -1705,8 +1709,12 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("profile.fxml") || path.contains("notificationcenter") || path.contains("globalsearch")) return null;
         if (path.contains("dashboardhome")) return "DASHBOARD.VIEW";
         if (path.contains("quotation")) return "QUOTATION.VIEW";
-        if (path.contains("saleslist") || path.contains("salesreturns") || path.endsWith("/sale.fxml")) return "SALES.VIEW";
-        if (path.contains("purchaselist") || path.contains("purchaserurns") || path.contains("purchasereturns") || path.endsWith("/purchase.fxml")) return "PURCHASE.VIEW";
+        if (path.contains("saleslist")) return "SALES.VIEW";
+        if (path.endsWith("/sale.fxml")) return "SALES.CREATE";
+        if (path.contains("salesreturns")) return "CREDIT_NOTE.VIEW";
+        if (path.contains("purchaselist")) return "PURCHASE.VIEW";
+        if (path.endsWith("/purchase.fxml")) return "PURCHASE.CREATE";
+        if (path.contains("purchaserurns") || path.contains("purchasereturns")) return "DEBIT_NOTE.VIEW";
         if (path.contains("itemmaster") || path.contains("inventory")) return "INVENTORY.VIEW";
         if (path.contains("customer.fxml")) return "CUSTOMERS.VIEW";
         if (path.contains("suppliers.fxml")) return "SUPPLIERS.VIEW";
@@ -1723,7 +1731,9 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("documentstudio") || path.contains("pdfdesigner") || path.contains("exceldesigner")) return "DOCUMENT_STUDIO.VIEW";
         if (path.contains("import.fxml")) return "IMPORT.VIEW";
         if (path.contains("communication")) return "COMMUNICATION.VIEW";
-        if (path.contains("bankexpense") || path.contains("bankstatement")) return "BANK_EXPENSE.VIEW";
+        if (path.contains("bankstatement")) return PermissionService.allowed("BANK_EXPENSE.STATEMENT") ? "BANK_EXPENSE.STATEMENT" : "BANK_EXPENSE.VIEW";
+        if (path.contains("bankexpense")) return PermissionService.allowed("BANK_EXPENSE.ENTRY") ? "BANK_EXPENSE.ENTRY" : "BANK_EXPENSE.VIEW";
+        if (path.contains("expenseentry")) return PermissionService.allowed("BANK_EXPENSE.EXPENSE") ? "BANK_EXPENSE.EXPENSE" : "BANK_EXPENSE.VIEW";
         if (path.contains("purchaserecon")) return "PURCHASE_RECON.VIEW";
         if (path.contains("reconsupplier")) return "RECON_SUPPLIER.VIEW";
         if (path.contains("billtotally") || path.contains("clientsdirectory") || path.contains("clienttemplate")) return "TALLY.VIEW";
@@ -1974,6 +1984,10 @@ public class DashboardController implements ScreenLifecycle {
 
     /** Opens authoritative Enterprise System Logs & Application Diagnostics viewer. */
     @FXML private void openSystemDiagnostics() {
+        if (!PermissionService.allowed("SYSTEM.VIEW")) {
+            AppDialogService.warning(shellRoot, "Access Restricted", "Permission Required", "Your role is not authorized to inspect System Diagnostics.");
+            return;
+        }
         Node owner = btnSystemDiagnostics != null ? btnSystemDiagnostics : (btnSystemDiagnosticsNav != null ? btnSystemDiagnosticsNav : shellRoot);
         DiagnosticAutoScanner.markAllInspected();
         applyBadge(lblDiagnosticsBadge, 0);

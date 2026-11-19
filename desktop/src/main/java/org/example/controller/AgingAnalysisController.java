@@ -20,6 +20,7 @@ import org.example.api.ApiRuntime;
 import org.example.api.ApiSession;
 import org.example.config.ConfigManager;
 import org.example.navigation.ScreenLifecycle;
+import org.example.service.PermissionService;
 import org.example.util.*;
 
 import java.math.BigDecimal;
@@ -207,13 +208,15 @@ public class AgingAnalysisController implements ScreenLifecycle {
 
         colActions.setCellFactory(col -> new TableCell<>() {
             private final MenuButton actionsBtn = new MenuButton("Actions");
+            private final MenuItem viewItem = new MenuItem("View Details");
+            private final MenuItem remindItem = new MenuItem();
+            private final MenuItem auditItem = new MenuItem("Audit Trail");
             {
                 actionsBtn.getStyleClass().addAll("table-action-menu", "approved-row-action");
                 actionsBtn.setGraphic(IconFactory.compactIcon("actions", 14));
                 actionsBtn.setContentDisplay(ContentDisplay.LEFT);
                 actionsBtn.setGraphicTextGap(6);
 
-                MenuItem viewItem = new MenuItem("View Details");
                 viewItem.setGraphic(IconFactory.compactIcon("view", 13));
                 viewItem.setOnAction(e -> {
                     AgingBucketRow row = getTableRow().getItem();
@@ -223,14 +226,12 @@ public class AgingAnalysisController implements ScreenLifecycle {
                     }
                 });
 
-                MenuItem remindItem = new MenuItem();
                 remindItem.setGraphic(IconFactory.compactIcon("reminder", 13));
                 remindItem.setOnAction(e -> {
                     AgingBucketRow row = getTableRow().getItem();
                     if (row != null) sendReminderForRow(row);
                 });
 
-                MenuItem auditItem = new MenuItem("Audit Trail");
                 auditItem.setGraphic(IconFactory.compactIcon("history", 13));
                 auditItem.setOnAction(e -> {
                     AgingBucketRow row = getTableRow().getItem();
@@ -256,6 +257,9 @@ public class AgingAnalysisController implements ScreenLifecycle {
                 if (empty) {
                     setGraphic(null);
                 } else {
+                    boolean canRemind = PermissionService.allowed("REMINDERS.CREATE");
+                    remindItem.setVisible(canRemind);
+                    remindItem.setDisable(!canRemind);
                     setGraphic(actionsBtn);
                     setAlignment(Pos.CENTER);
                 }

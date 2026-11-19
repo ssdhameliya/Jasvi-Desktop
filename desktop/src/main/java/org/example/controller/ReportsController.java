@@ -94,6 +94,12 @@ public class ReportsController implements ScreenLifecycle {
         configureSavedReportsTable();
         configureScheduleTable();
 
+        if (btnExport != null && !org.example.service.PermissionService.allowed("REPORTS.EXPORT")) {
+            btnExport.setDisable(true);
+            btnExport.setVisible(false);
+            btnExport.setManaged(false);
+        }
+
         cmbDashboardPeriod.getItems().setAll("Today","Yesterday","This Week","Last Week","This Month","Last Month","This Quarter","Last Quarter","This Financial Year","Last Financial Year","Last 7 Days","Last 30 Days","Custom");
         cmbDashboardPeriod.setValue("This Month");
         applyDashboardPeriod("This Month");

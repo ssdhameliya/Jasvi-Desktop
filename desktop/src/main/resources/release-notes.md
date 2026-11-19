@@ -1,3 +1,26 @@
+# What's New in DSE ERP v11.0.76
+
+### Universal Ecosystem-Wide Granular Permission Governance & Action-Level Gating
+- **Universal Multi-Tier Permission Governance (`PermissionMatrixController.java`, `UserAccessController.java`, `PermissionService.java`, `PermissionCatalog.java`) (Rule 4, Rule 5 & Rule 17)**:
+  - Added full dual-tier permission hierarchy: Super Admin governs Company Administrator (`ADMIN`), while Company Administrator governs operational staff roles (`SALES`, `PURCHASE`, `ACCOUNTANT`, `MANAGER`, custom roles).
+  - Deployed database migrations `V11_0_76`, `V11_0_77`, and `V11_0_78` registering comprehensive granular permission keys for row actions, toolbar buttons, and sub-tabs across all 28 modules and 82 FXML screens.
+- **Screen-Specific Action Gating Across All ERP Domains (Rule 4, Rule 5 & Rule 10)**:
+  - **Sales & Purchase**: Enforced granular gating for `DUPLICATE`, `EMAIL`, `RETURNS_CREATE`, and `CONVERT_INVOICE`.
+  - **Quotations**: Gated `DUPLICATE`, `CONVERT_SALE`, `EMAIL`, and `PRINT`.
+  - **Item Master & Inventory**: Gated `IMPORT.ITEMS`, `INVENTORY.DELETE`, and bulk record deletion.
+  - **Party Master (Customers & Suppliers)**: Gated `IMPORT.CUSTOMERS`, `IMPORT.SUPPLIERS`, `CUSTOMERS.DELETE`, and `SUPPLIERS.DELETE`.
+  - **Bank & Expenses & Bank Statement**: Gated `EXPENSE.CREATE`, `EXPENSE.EDIT`, `EXPENSE.DELETE`, `STATEMENT.IMPORT`, `STATEMENT.RULES_MANAGE`, `STATEMENT.SPLIT`, and `STATEMENT.AUTO_MATCH`.
+  - **General Ledger & Financial Statements**: Gated `LOCK_PERIOD`, `CREATE_JOURNAL`, `POST_JOURNAL`, `REVERSE_JOURNAL`, `CREATE_ACCOUNT`, `EDIT_ACCOUNT`, and drill-down exports.
+  - **GST Compliance & Tally Automation**: Gated `GST_COMPLIANCE.IMPORT`, `GST_COMPLIANCE.EXPORT`, `TALLY.UPLOAD`, `TALLY.DELETE`, `TALLY.PUSH`, and `TALLY.EXPORT`.
+  - **Automation Center & Reminder Center**: Gated `AUTOMATION.SCAN`, `AUTOMATION.REORDER_SCAN`, `AUTOMATION.CREATE_PO`, `REMINDERS.CREATE`, `REMINDERS.EDIT`, and `REMINDERS.DELETE`.
+  - **Communication Center & Purchase Recon**: Gated `COMMUNICATION.EXPORT`, `COMMUNICATION.RESEND`, and `PURCHASE_RECON.EXPORT`.
+  - **User & Role Administration**: Gated `USERS.CREATE`, `USERS.EDIT`, `USERS.RESET_PASSWORD`, `USERS.DELETE`, `USERS.MANAGE_ROLES`, `USERS.MANAGE_PERMISSIONS`, and `USERS.APPROVE_REGISTRATION`.
+- **Dynamic "Special Capabilities" Permission Matrix UI (`PermissionMatrix.fxml`, `PermissionMatrixController.java`) (Rule 5 & Rule 12)**:
+  - Special granular action toggles are grouped cleanly under the "Special Capabilities" column with real-time iOS toggle switches and dropdown action menus.
+  - Changes take effect immediately via live permission cache refresh (`PermissionService.refresh()`) with zero application restart required.
+
+---
+
 # What's New in DSE ERP v11.0.75
 
 ### Smart Overdue Collections, Bank Statement Auto-Rules & Settings iPhone-Style Governance

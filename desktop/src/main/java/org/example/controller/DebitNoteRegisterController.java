@@ -19,6 +19,7 @@ import org.example.config.ConfigManager;
 import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.NotificationService;
+import org.example.service.PermissionService;
 import org.example.service.ReturnWorkflowService;
 import org.example.util.*;
 
@@ -137,6 +138,12 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
 
         RegisterUiSupport.hideDrawer(detailDrawer, mainSplit, tblDebitNotes);
         OperationalUiSupport.installEscapeClose(mainSplit, () -> detailDrawer != null && detailDrawer.isVisible(), this::closeDetails);
+        if (btnNewDebitNote != null) {
+            boolean canCreate = PermissionService.allowed("DEBIT_NOTE.CREATE");
+            btnNewDebitNote.setDisable(!canCreate);
+            btnNewDebitNote.setVisible(canCreate);
+            btnNewDebitNote.setManaged(canCreate);
+        }
         refreshData();
     }
 
@@ -247,9 +254,18 @@ public class DebitNoteRegisterController implements ScreenLifecycle {
                 } else {
                     DebitNoteRow row = getTableRow().getItem();
                     boolean cancelled = row.status != null && ("CANCELLED".equalsIgnoreCase(row.status) || "DELETED".equalsIgnoreCase(row.status));
-                    itemEdit.setDisable(cancelled);
-                    itemCancel.setDisable(cancelled);
-                    itemDelete.setDisable("DELETED".equalsIgnoreCase(row.status));
+                    boolean canEdit = PermissionService.allowed("DEBIT_NOTE.EDIT");
+                    boolean canPrint = PermissionService.allowed("DEBIT_NOTE.PRINT");
+                    boolean canCancel = PermissionService.allowedSubSection("DEBIT_NOTE", "CANCEL");
+                    boolean canDelete = PermissionService.allowed("DEBIT_NOTE.DELETE");
+                    itemEdit.setDisable(cancelled || !canEdit);
+                    itemEdit.setVisible(canEdit);
+                    itemBarcode.setDisable(!canPrint);
+                    itemBarcode.setVisible(canPrint);
+                    itemCancel.setDisable(cancelled || !canCancel);
+                    itemCancel.setVisible(canCancel);
+                    itemDelete.setDisable("DELETED".equalsIgnoreCase(row.status) || !canDelete);
+                    itemDelete.setVisible(canDelete);
                     setGraphic(actions);
                     setAlignment(Pos.CENTER);
                 }

@@ -247,6 +247,15 @@ public class PurchaseListController implements ScreenLifecycle{
   IconFactory.decorateActionMenu(sharedMenu);
 
   java.util.function.Consumer<Purchase> updateAvailability = current -> {
+   boolean canEdit = PermissionService.allowed("PURCHASE.EDIT");
+   boolean canDuplicate = PermissionService.allowed("PURCHASE.DUPLICATE");
+   boolean canReturn = PermissionService.allowed("PURCHASE.RETURN");
+   boolean canCancel = PermissionService.allowed("PURCHASE.CANCEL");
+   boolean canDelete = PermissionService.allowed("PURCHASE.DELETE");
+
+   duplicate.setDisable(!canDuplicate || current == null);
+   duplicate.setVisible(canDuplicate);
+
    if (current == null) {
     editActionItem.setDisable(true); paymentActionItem.setDisable(true); returnActionItem.setDisable(true); cancelActionItem.setDisable(true); deleteActionItem.setDisable(true);
     return;
@@ -254,12 +263,14 @@ public class PurchaseListController implements ScreenLifecycle{
    String status = s(current.getDocumentStatus()).trim().toUpperCase(java.util.Locale.ROOT);
    boolean cancelled = "CANCELLED".equals(status), deleted = "DELETED".equals(status), inactive = cancelled || deleted;
    boolean locked = isFinanciallyLocked(current);
-   editActionItem.setDisable(inactive || locked);
+   editActionItem.setDisable(!canEdit || inactive || locked);
    paymentActionItem.setDisable(inactive || "DRAFT".equals(status) || isApprovalLocked(current));
-   returnActionItem.setDisable(!isReturnEligible(current));
-   cancelActionItem.setDisable(locked || inactive);
-   deleteActionItem.setDisable(locked || deleted);
-   cancelActionItem.setVisible(true); deleteActionItem.setVisible(true);
+   returnActionItem.setDisable(!canReturn || !isReturnEligible(current));
+   returnActionItem.setVisible(canReturn);
+   cancelActionItem.setDisable(!canCancel || locked || inactive);
+   cancelActionItem.setVisible(canCancel);
+   deleteActionItem.setDisable(!canDelete || locked || deleted);
+   deleteActionItem.setVisible(canDelete);
   };
   sharedMenu.setOnHidden(event -> target.set(null));
 

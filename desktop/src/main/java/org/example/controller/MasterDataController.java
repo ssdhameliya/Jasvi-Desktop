@@ -35,6 +35,7 @@ import org.example.model.Lookup;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.LookupService;
 import org.example.service.MasterCategoryService;
+import org.example.service.PermissionService;
 import org.example.theme.ThemeManager;
 import org.example.util.PlatformUiSupport;
 import org.example.util.UiTaskExecutor;
@@ -491,10 +492,24 @@ public class MasterDataController implements ScreenLifecycle {
         );
     }
 
+    private boolean isCategoryPermitted(String categoryName) {
+        if (categoryName == null) return false;
+        String upper = categoryName.toUpperCase(Locale.ROOT);
+        if (upper.contains("CATEGORY") || upper.contains("ITEM_GROUP")) return PermissionService.allowedSubSection("MASTERS", "TAB_CATEGORIES");
+        if (upper.contains("UNIT") || upper.contains("UOM")) return PermissionService.allowedSubSection("MASTERS", "TAB_UNITS");
+        if (upper.contains("MATERIAL")) return PermissionService.allowedSubSection("MASTERS", "TAB_MATERIALS");
+        if (upper.contains("BRAND")) return PermissionService.allowedSubSection("MASTERS", "TAB_BRANDS");
+        if (upper.contains("GST") || upper.contains("TAX")) return PermissionService.allowedSubSection("MASTERS", "TAB_GST");
+        if (upper.contains("DISCOUNT")) return PermissionService.allowedSubSection("MASTERS", "TAB_DISCOUNT");
+        if (upper.contains("PAYMENT") || upper.contains("MODE")) return PermissionService.allowedSubSection("MASTERS", "TAB_PAYMENT_MODES");
+        if (upper.contains("ROLE")) return PermissionService.allowedSubSection("MASTERS", "TAB_ROLES");
+        return PermissionService.allowed("MASTERS.VIEW");
+    }
+
     private void applyCategories(List<MasterCategoryService.Category> rows, String previouslySelected, String requested) {
         categoryByName.clear();
         rows.forEach(row -> categoryByName.put(row.name(), row));
-        List<String> categories = rows.stream().map(MasterCategoryService.Category::name).toList();
+        List<String> categories = rows.stream().map(MasterCategoryService.Category::name).filter(this::isCategoryPermitted).toList();
         allCategories.clear(); allCategories.addAll(categories);
         lstTypes.refresh();
         filterCategories(txtCategorySearch == null ? "" : txtCategorySearch.getText());
@@ -731,11 +746,19 @@ public class MasterDataController implements ScreenLifecycle {
 
     @FXML
     private void addCategory() {
+        if (!PermissionService.allowedSubSection("MASTERS", "CREATE_CATEGORY")) {
+            showWarning("Permission Denied", "You do not have permission to add new Master Categories.");
+            return;
+        }
         editCategory(null);
     }
 
     @FXML
     private void renameCategory() {
+        if (!PermissionService.allowedSubSection("MASTERS", "EDIT_CATEGORY")) {
+            showWarning("Permission Denied", "You do not have permission to rename Master Categories.");
+            return;
+        }
         String selectedCategory = lstTypes.getSelectionModel().getSelectedItem();
         if (selectedCategory == null) { showWarning("Select a Master Category to rename."); return; }
         editCategory(selectedCategory);
@@ -778,6 +801,10 @@ public class MasterDataController implements ScreenLifecycle {
 
     @FXML
     private void deleteCategory() {
+        if (!PermissionService.allowedSubSection("MASTERS", "DELETE_CATEGORY")) {
+            showWarning("Permission Denied", "You do not have permission to delete or deactivate Master Categories.");
+            return;
+        }
         String selectedCategory = lstTypes.getSelectionModel().getSelectedItem();
         if (selectedCategory == null) { showWarning("Select a Master Category first."); return; }
         MasterCategoryService.Category meta = categoryByName.get(selectedCategory);
@@ -852,6 +879,10 @@ public class MasterDataController implements ScreenLifecycle {
 
     @FXML
     private void addLookup() {
+        if (!PermissionService.allowedSubSection("MASTERS", "CREATE_LOOKUP")) {
+            showWarning("Permission Denied", "You do not have permission to add new lookup values.");
+            return;
+        }
 
         String selectedType =
             lstTypes.getSelectionModel().getSelectedItem();
@@ -905,6 +936,10 @@ public class MasterDataController implements ScreenLifecycle {
 
     @FXML
     private void editLookup() {
+        if (!PermissionService.allowedSubSection("MASTERS", "EDIT_LOOKUP")) {
+            showWarning("Permission Denied", "You do not have permission to edit lookup values.");
+            return;
+        }
 
         Lookup selectedLookup =
             tblLookup.getSelectionModel()
@@ -967,6 +1002,10 @@ public class MasterDataController implements ScreenLifecycle {
 
     @FXML
     private void deleteLookup() {
+        if (!PermissionService.allowedSubSection("MASTERS", "DELETE_LOOKUP")) {
+            showWarning("Permission Denied", "You do not have permission to delete or deactivate lookup values.");
+            return;
+        }
         Lookup selectedLookup = tblLookup.getSelectionModel().getSelectedItem();
         if (selectedLookup == null) { showWarning("Select a master record first."); return; }
         boolean activate = !selectedLookup.isActive();
@@ -1042,6 +1081,10 @@ public class MasterDataController implements ScreenLifecycle {
 
     private void showSuccess(String header, String message) {
         org.example.util.AppDialogService.success(tblLookup, header, message);
+    }
+
+    private void showWarning(String header, String message) {
+        showWarning(header != null && !header.isBlank() ? header + ": " + message : message);
     }
 
     private void showWarning(String message) {

@@ -17,6 +17,7 @@ import org.example.api.ApiSession;
 import org.example.config.ConfigManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.NotificationService;
+import org.example.service.PermissionService;
 import org.example.util.*;
 
 import java.io.File;
@@ -126,6 +127,9 @@ public class EWayBillCenterController implements ScreenLifecycle {
 
         colActions.setCellFactory(col -> new TableCell<>() {
             private final MenuButton menu = new MenuButton("Actions");
+            private final MenuItem miVehicle = new MenuItem("Update Vehicle (Part-B)", IconFactory.compactIcon("delivery", 16));
+            private final MenuItem miJson = new MenuItem("Export NIC JSON", IconFactory.compactIcon("download", 16));
+            private final MenuItem miAudit = new MenuItem("Audit Trail", IconFactory.compactIcon("history", 16));
             {
                 menu.getStyleClass().setAll("row-actions", "table-action-menu", "approved-row-action");
                 menu.setGraphic(IconFactory.compactIcon("actions", 16));
@@ -134,19 +138,16 @@ public class EWayBillCenterController implements ScreenLifecycle {
                 menu.setTooltip(new Tooltip("Actions"));
                 menu.getProperties().put("erp-icon-preserve", true);
 
-                MenuItem miVehicle = new MenuItem("Update Vehicle (Part-B)", IconFactory.compactIcon("delivery", 16));
                 miVehicle.setOnAction(e -> {
                     EWayBillSummaryRow row = getTableRow() != null ? getTableRow().getItem() : null;
                     if (row != null) updateVehicle(row);
                 });
 
-                MenuItem miJson = new MenuItem("Export NIC JSON", IconFactory.compactIcon("download", 16));
                 miJson.setOnAction(e -> {
                     EWayBillSummaryRow row = getTableRow() != null ? getTableRow().getItem() : null;
                     if (row != null) exportJson(row);
                 });
 
-                MenuItem miAudit = new MenuItem("Audit Trail", IconFactory.compactIcon("history", 16));
                 miAudit.setOnAction(e -> {
                     EWayBillSummaryRow row = getTableRow() != null ? getTableRow().getItem() : null;
                     if (row != null) {
@@ -164,6 +165,10 @@ public class EWayBillCenterController implements ScreenLifecycle {
                 if (empty || getTableRow() == null || getTableRow().getItem() == null) {
                     setGraphic(null);
                 } else {
+                    boolean canUpdateVehicle = PermissionService.allowedSubSection("EWAY_BILL", "UPDATE_VEHICLE");
+                    boolean canExport = PermissionService.allowed("EWAY_BILL.EXPORT");
+                    miVehicle.setVisible(canUpdateVehicle); miVehicle.setDisable(!canUpdateVehicle);
+                    miJson.setVisible(canExport); miJson.setDisable(!canExport);
                     setGraphic(menu);
                     setAlignment(Pos.CENTER);
                 }

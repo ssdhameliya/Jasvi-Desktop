@@ -51,6 +51,31 @@ public final class PermissionService {
         return legacyAllowed(role, wanted);
     }
 
+    /**
+     * Gating for multi-tab screen sections (e.g. Settings, Masters).
+     * If granular TAB_* keys have been configured for the role, enforces them;
+     * otherwise falls back to parent module VIEW permission for full backward compatibility.
+     */
+    public static boolean allowedSubSection(String module, String subSection) {
+        if (SessionService.current() == null) return false;
+        if (SessionService.isSuperAdmin()) return true;
+        String role = normalizeRole(SessionService.current().getRole());
+        if (SessionService.isAdminRole(role)) return true;
+        if (subSection == null || subSection.isBlank()) return allowed(module + ".VIEW");
+        String specificKey = module + ".TAB_" + subSection.trim().toUpperCase(Locale.ROOT);
+        if (allowed(specificKey)) return true;
+        ensureLoaded(role);
+        String prefix = normalize(module + ".tab");
+        if (cacheLoaded && role.equals(cachedRole) && !cachedAllowed.isEmpty()) {
+            boolean hasSubSectionConfigured = cachedAllowed.stream().anyMatch(k -> k.startsWith(prefix));
+            if (!hasSubSectionConfigured) {
+                return allowed(module + ".VIEW");
+            }
+            return false;
+        }
+        return allowed(module + ".VIEW");
+    }
+
     /** Enforces a desktop-local action such as export, update installation or rollback. */
     public static void require(String permissionKey, String operation) {
         if (!allowed(permissionKey)) {

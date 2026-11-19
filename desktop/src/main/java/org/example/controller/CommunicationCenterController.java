@@ -26,6 +26,7 @@ import org.example.service.BrandingService;
 import org.example.service.EmailService;
 import org.example.service.ManagedInvoicePdfService;
 import org.example.service.MessageTemplateService;
+import org.example.service.PermissionService;
 import org.example.service.PurchaseService;
 import org.example.service.SalesService;
 import org.example.service.SessionService;
@@ -133,8 +134,15 @@ public class CommunicationCenterController implements ScreenLifecycle {
             lblTotalHeading.getProperties().put("erp.icon.explicit", Boolean.TRUE);
         }
 
-        if (btnExportExcel != null) btnExportExcel.setGraphic(IconFactory.compactIcon("excel", 15));
-        if (btnExportPdf != null) btnExportPdf.setGraphic(IconFactory.compactIcon("pdf", 15));
+        boolean canExport = PermissionService.allowed("COMMUNICATION.EXPORT");
+        if (btnExportExcel != null) {
+            btnExportExcel.setGraphic(IconFactory.compactIcon("excel", 15));
+            btnExportExcel.setDisable(!canExport);
+        }
+        if (btnExportPdf != null) {
+            btnExportPdf.setGraphic(IconFactory.compactIcon("pdf", 15));
+            btnExportPdf.setDisable(!canExport);
+        }
         if (btnReset != null) btnReset.setGraphic(IconFactory.compactIcon("cancel", 15));
         if (btnRefresh != null) btnRefresh.setGraphic(IconFactory.compactIcon("refresh", 15));
     }
@@ -642,6 +650,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
 
     @FXML
     private void exportExcel() {
+        PermissionService.require("COMMUNICATION.EXPORT", "export communication logs");
         if (filteredRows.isEmpty()) {
             AppDialogService.warning(table, "No Records", "There are no communication log entries to export.");
             return;
@@ -678,6 +687,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
 
     @FXML
     private void exportPdf() {
+        PermissionService.require("COMMUNICATION.EXPORT", "export communication logs");
         if (filteredRows.isEmpty()) {
             AppDialogService.warning(table, "No Records", "There are no communication log entries to export.");
             return;
