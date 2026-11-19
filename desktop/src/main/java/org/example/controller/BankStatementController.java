@@ -243,9 +243,17 @@ public class BankStatementController implements ScreenLifecycle {
         if(btnAutoMatch!=null) btnAutoMatch.setGraphic(IconFactory.compactIcon("link",15));
         if(btnManageRules!=null) { btnManageRules.setGraphic(IconFactory.compactIcon("settings",15)); btnManageRules.setTooltip(new Tooltip("Manage Bank Statement Smart Narration Auto-Rules")); }
         if(btnApplyRules!=null) { btnApplyRules.setGraphic(IconFactory.compactIcon("reconcile",15)); btnApplyRules.setTooltip(new Tooltip("Evaluate & Apply Active Smart Bank Rules on Current Statement")); }
-        if(btnImport!=null) btnImport.setGraphic(IconFactory.compactIcon("import",16));
+        if(btnImport!=null) {
+            btnImport.setGraphic(IconFactory.compactIcon("import",16));
+            boolean canEntry = PermissionService.allowedSubSection("BANK_EXPENSE", "ENTRY");
+            btnImport.setDisable(!canEntry); btnImport.setVisible(canEntry); btnImport.setManaged(canEntry);
+        }
         if(btnBrowseStatements!=null) btnBrowseStatements.setGraphic(IconFactory.compactIcon("history",15));
-        if(btnDeleteStatement!=null) btnDeleteStatement.setGraphic(IconFactory.compactIcon("delete",15));
+        if(btnDeleteStatement!=null) {
+            btnDeleteStatement.setGraphic(IconFactory.compactIcon("delete",15));
+            boolean canDel = PermissionService.allowed("BANK_EXPENSE.DELETE");
+            btnDeleteStatement.setDisable(!canDel); btnDeleteStatement.setVisible(canDel); btnDeleteStatement.setManaged(canDel);
+        }
         if(btnCloseHistory!=null) btnCloseHistory.setGraphic(IconFactory.compactIcon("cancel",14));
         if(btnOpenStatement!=null) btnOpenStatement.setGraphic(IconFactory.compactIcon("view",15));
         if(btnHistoryDelete!=null) btnHistoryDelete.setGraphic(IconFactory.compactIcon("delete",15));
@@ -399,28 +407,35 @@ public class BankStatementController implements ScreenLifecycle {
         add(m,"View Transaction Details","view",()->viewEdit(row));
         add(m,"View Imported Statement","document",this::viewStatementSource);
         add(m,"View Audit History","history",()->audit(row));
+        boolean canReconcile = PermissionService.allowed("BANK_EXPENSE.RECONCILE");
+        boolean canExpense = PermissionService.allowedSubSection("BANK_EXPENSE", "EXPENSE");
+        boolean canBankEntry = PermissionService.allowedSubSection("BANK_EXPENSE", "ENTRY");
         if(Set.of("UNMATCHED","SUGGESTED","REVIEW").contains(s)){
             section(m,"RECONCILIATION");
-            add(m,s.equals("SUGGESTED")?"Review Suggested Match":"Match Transaction","link",()->match(row));
-            if(row.dto.debit()>0)add(m,"Move to Expense","payment",()->moveToExpense(row));
+            if(canReconcile) add(m,s.equals("SUGGESTED")?"Review Suggested Match":"Match Transaction","link",()->match(row));
+            if(row.dto.debit()>0 && canExpense)add(m,"Move to Expense","payment",()->moveToExpense(row));
             section(m,"STATUS");
             if(!"REVIEW".equals(s)) add(m,"Mark for Review","status",()->markReview(row));
             add(m,"Mark as Ignored","cancel",()->ignore(row));
         } else if("MATCHED".equals(s)){
             section(m,"RECONCILIATION");
             add(m,"View Match / Linked Record","link",()->openLinked(row));
-            if(row.dto.financeEntryId()!=null||"BANK_ENTRY".equals(up(row.dto.linkedTargetType())))
+            if((row.dto.financeEntryId()!=null||"BANK_ENTRY".equals(up(row.dto.linkedTargetType()))) && canBankEntry)
                 add(m,"View Bank Entry","bank",()->openFinance(row,BankExpenseController.Mode.BANK));
-            section(m,"REVERSAL");
-            add(m,"Unmatch / Reverse","return",()->reverse(row));
+            if(canReconcile){
+                section(m,"REVERSAL");
+                add(m,"Unmatch / Reverse","return",()->reverse(row));
+            }
         } else if("EXPENSE".equals(s)){
             section(m,"RECONCILIATION");
-            add(m,"View Expense","payment",()->openFinance(row,BankExpenseController.Mode.EXPENSE));
-            section(m,"REVERSAL");
-            add(m,"Unmatch / Reverse","return",()->reverse(row));
+            if(canExpense) add(m,"View Expense","payment",()->openFinance(row,BankExpenseController.Mode.EXPENSE));
+            if(canReconcile){
+                section(m,"REVERSAL");
+                add(m,"Unmatch / Reverse","return",()->reverse(row));
+            }
         } else if("IGNORED".equals(s)){
             section(m,"STATUS");
-            add(m,"Return to Unmatched","return",()->reverse(row));
+            if(canReconcile) add(m,"Return to Unmatched","return",()->reverse(row));
         }
         IconFactory.decorateActionMenu(m);
         return m;

@@ -24,6 +24,7 @@ import org.example.model.Purchase;
 import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.ItemService;
+import org.example.service.PermissionService;
 import org.example.service.PurchaseService;
 import org.example.util.*;
 
@@ -111,6 +112,16 @@ public class AutomationCenterController implements ScreenLifecycle {
         });
         OperationalUiSupport.installEscapeClose(matchSplit, () -> matchDetailDrawer != null && matchDetailDrawer.isVisible(), this::closeMatchDetails);
         OperationalUiSupport.installEscapeClose(reorderSplit, () -> reorderDetailDrawer != null && reorderDetailDrawer.isVisible(), this::closeReorderDetails);
+
+        boolean canScan = PermissionService.allowed("AUTOMATION.SCAN");
+        if (btnRunScan != null) { btnRunScan.setDisable(!canScan); btnRunScan.setVisible(canScan); btnRunScan.setManaged(canScan); }
+
+        boolean canReorderScan = PermissionService.allowed("AUTOMATION.REORDER_SCAN");
+        if (btnRescanItems != null) { btnRescanItems.setDisable(!canReorderScan); btnRescanItems.setVisible(canReorderScan); btnRescanItems.setManaged(canReorderScan); }
+
+        boolean canCreatePo = PermissionService.allowed("AUTOMATION.CREATE_PO") || PermissionService.allowed("PURCHASE.CREATE");
+        if (btnCreatePurchaseOrder != null) { btnCreatePurchaseOrder.setDisable(!canCreatePo); btnCreatePurchaseOrder.setVisible(canCreatePo); btnCreatePurchaseOrder.setManaged(canCreatePo); }
+
         loadAutomationDataAsync();
     }
 
@@ -262,6 +273,8 @@ public class AutomationCenterController implements ScreenLifecycle {
                         ReorderRow row = getRow();
                         if (row != null) createPurchaseOrderForItem(row);
                     });
+                    boolean canCreatePo = PermissionService.allowed("AUTOMATION.CREATE_PO") || PermissionService.allowed("PURCHASE.CREATE");
+                    createPo.setDisable(!canCreatePo);
                     menu.getItems().addAll(viewItem, auditItem, createPo);
                     IconFactory.decorateActionMenu(menu);
                 }
@@ -789,6 +802,7 @@ public class AutomationCenterController implements ScreenLifecycle {
 
     @FXML
     public void scanReorders() {
+        PermissionService.require("AUTOMATION.REORDER_SCAN", "scan replenishment inventory");
         loadAutomationDataAsync();
         AppDialogService.success(tblReorderSuggestions, "Inventory Scanned", "Real-time safety stock scan completed across catalog items.");
     }

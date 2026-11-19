@@ -17,6 +17,7 @@ import org.example.navigation.ScreenLifecycle;
 import org.example.service.NotificationService;
 import org.example.service.SessionService;
 import org.example.tally.TallyDocumentInspectionDialog;
+import org.example.service.PermissionService;
 import org.example.tally.TallyDocumentParser;
 import org.example.tally.TallyExportPreviewDialog;
 import org.example.util.AppDialogService;
@@ -114,6 +115,20 @@ public class BillToTallyController implements ScreenLifecycle {
         if (btnExportGstPortal != null) btnExportGstPortal.setGraphic(IconFactory.compactIcon("file", 14));
         if (btnExportExcel != null) btnExportExcel.setGraphic(IconFactory.compactIcon("excel", 14));
         if (btnPushTally != null) btnPushTally.setGraphic(IconFactory.compactIcon("send", 14));
+
+        boolean canUpload = PermissionService.allowed("TALLY.UPLOAD");
+        if (btnUploadBills != null) { btnUploadBills.setDisable(!canUpload); btnUploadBills.setVisible(canUpload); btnUploadBills.setManaged(canUpload); }
+
+        boolean canDelete = PermissionService.allowed("TALLY.DELETE");
+        if (btnDeleteBill != null) { btnDeleteBill.setDisable(!canDelete); btnDeleteBill.setVisible(canDelete); btnDeleteBill.setManaged(canDelete); }
+
+        boolean canPush = PermissionService.allowed("TALLY.PUSH");
+        if (btnPushTally != null) { btnPushTally.setDisable(!canPush); btnPushTally.setVisible(canPush); btnPushTally.setManaged(canPush); }
+
+        boolean canExport = PermissionService.allowed("TALLY.EXPORT");
+        if (btnExportJson != null) { btnExportJson.setDisable(!canExport); btnExportJson.setVisible(canExport); btnExportJson.setManaged(canExport); }
+        if (btnExportGstPortal != null) { btnExportGstPortal.setDisable(!canExport); btnExportGstPortal.setVisible(canExport); btnExportGstPortal.setManaged(canExport); }
+        if (btnExportExcel != null) { btnExportExcel.setDisable(!canExport); btnExportExcel.setVisible(canExport); btnExportExcel.setManaged(canExport); }
 
         if (cmbTemplateVersion != null) {
             cmbTemplateVersion.getSelectionModel().selectedItemProperty().addListener((obs, oldV, label) -> {
@@ -768,6 +783,7 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML
     public void handleUploadBills() {
+        PermissionService.require("TALLY.UPLOAD", "upload invoices for Tally automation");
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Select Purchase Bills & Vouchers");
         chooser.getExtensionFilters().addAll(
@@ -874,6 +890,7 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML
     public void handleDeleteBill() {
+        PermissionService.require("TALLY.DELETE", "delete bill");
         var bill = tblBills.getSelectionModel().getSelectedItem();
         if (bill == null || bill.id() == null) {
             AppDialogService.info(tblBills, "Select Voucher", "Please select a bill from the table to delete.");
@@ -929,6 +946,7 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML
     public void handleExportJson() {
+        PermissionService.require("TALLY.EXPORT", "export Tally JSON");
         if (activeBatchId == null || billsList.isEmpty()) {
             AppDialogService.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
@@ -955,6 +973,7 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML
     public void handleExportGstPortal() {
+        PermissionService.require("TALLY.EXPORT", "export GST Portal format");
         if (activeBatchId == null || billsList.isEmpty()) {
             AppDialogService.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
@@ -989,6 +1008,7 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML
     public void handleExportExcel() {
+        PermissionService.require("TALLY.EXPORT", "export Tally Excel");
         if (activeBatchId == null || billsList.isEmpty()) {
             AppDialogService.info(tblBills, "No Batch", "Please upload bills before exporting.");
             return;
@@ -1014,6 +1034,7 @@ public class BillToTallyController implements ScreenLifecycle {
 
     @FXML
     public void handlePushToTally() {
+        PermissionService.require("TALLY.PUSH", "push to TallyPrime");
         if (activeBatchId == null || billsList.isEmpty()) {
             AppDialogService.info(tblBills, "Empty Batch", "No bills available to push to TallyPrime.");
             return;

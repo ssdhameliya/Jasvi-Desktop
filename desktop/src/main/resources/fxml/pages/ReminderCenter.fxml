@@ -20,7 +20,7 @@
         <Region HBox.hgrow="ALWAYS"/>
 
         <Button text="Refresh" onAction="#refresh" styleClass="reminder-secondary-button"/>
-        <Button text="Add Reminder" onAction="#addReminder" styleClass="primary-button,reminder-primary-button"/>
+        <Button fx:id="btnAddReminder" text="Add Reminder" onAction="#addReminder" styleClass="primary-button,reminder-primary-button"/>
     </HBox>
 
     <!-- Summary cards -->

@@ -11,6 +11,10 @@ public class CustomerController extends PartyMasterController implements ScreenL
     @Override protected String displayName(){return "Customer";}
 
     @FXML protected void openCustomer360(){
+        if (!org.example.service.PermissionService.allowedSubSection("CUSTOMERS", "360")) {
+            AppDialogService.warning(tableParties, "Permission Denied", "Action Not Allowed", "You do not have permission to view Customer 360° Profile.");
+            return;
+        }
         Party party=tableParties.getSelectionModel().getSelectedItem();
         if(party==null){AppDialogService.warning(tableParties,"Customer 360°","Select a customer","Select a customer before opening Customer 360°.");return;}
         Customer360Context.select(party);

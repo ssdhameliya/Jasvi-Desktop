@@ -28,6 +28,7 @@ import org.example.api.authority.ServerBackupClient;
 import org.example.backup.BackupManager;
 import org.example.backup.LocalRecoveryManager;
 import org.example.service.NotificationService;
+import org.example.service.PermissionService;
 import org.example.service.SessionService;
 import org.example.util.IconFactory;
 import org.example.util.UiTaskExecutor;
@@ -139,6 +140,25 @@ public class BackupRestoreController implements ScreenLifecycle {
                 btnCopyDatabasePath.setText("Copy Path");
                 btnCopyDatabasePath.setTooltip(new Tooltip("Copy the local database path."));
             }
+        }
+
+        if (btnRestoreSelected != null) {
+            boolean canRestore = PermissionService.allowedSubSection("BACKUP", "RESTORE");
+            btnRestoreSelected.setDisable(!canRestore);
+            btnRestoreSelected.setVisible(canRestore);
+            btnRestoreSelected.setManaged(canRestore);
+        }
+        if (btnLocalRecovery != null) {
+            boolean canRestore = PermissionService.allowedSubSection("BACKUP", "RESTORE");
+            btnLocalRecovery.setDisable(!canRestore);
+            btnLocalRecovery.setVisible(canRestore);
+            btnLocalRecovery.setManaged(canRestore);
+        }
+        if (btnExportRecovery != null) {
+            boolean canExport = PermissionService.allowedSubSection("BACKUP", "EXPORT");
+            btnExportRecovery.setDisable(!canExport);
+            btnExportRecovery.setVisible(canExport);
+            btnExportRecovery.setManaged(canExport);
         }
 
         // Paint the page first. Company-server settings, backup history and database

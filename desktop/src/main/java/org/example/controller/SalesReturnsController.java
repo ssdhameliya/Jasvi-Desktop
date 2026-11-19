@@ -142,13 +142,20 @@ public class SalesReturnsController implements ScreenLifecycle {
                 if(!empty && getIndex()>=0 && getIndex()<getTableView().getItems().size()){
                     Row current=getTableView().getItems().get(getIndex());
                     boolean waiting=isPendingApproval(current), approved=isApproved(current);
+                    boolean canEdit = PermissionService.allowed("SALES.EDIT");
+                    boolean canEmail = PermissionService.allowedSubSection("SALES", "EMAIL");
+                    boolean canCancel = PermissionService.allowedSubSection("SALES", "CANCEL");
+                    boolean canDelete = PermissionService.allowed("SALES.DELETE");
                     for(MenuItem mi:menu.getItems()){
                         if(mi.getText()==null)continue;
-                        if(mi.getText().startsWith("Approve Return"))mi.setDisable(!waiting||!PermissionService.allowed("SALES.APPROVE"));
-                        else if(mi.getText().startsWith("Reject Return"))mi.setDisable(!waiting||!PermissionService.allowed("SALES.APPROVE"));
+                        if(mi.getText().startsWith("Edit Reason")) { mi.setDisable(!canEdit); mi.setVisible(canEdit); }
+                        else if(mi.getText().startsWith("Send Email")) { mi.setDisable(!canEmail); mi.setVisible(canEmail); }
+                        else if(mi.getText().startsWith("Approve Return")) { mi.setDisable(!waiting||!PermissionService.allowed("SALES.APPROVE")); mi.setVisible(PermissionService.allowed("SALES.APPROVE")); }
+                        else if(mi.getText().startsWith("Reject Return")) { mi.setDisable(!waiting||!PermissionService.allowed("SALES.APPROVE")); mi.setVisible(PermissionService.allowed("SALES.APPROVE")); }
                         else if(mi.getText().startsWith("Record Refund")){mi.setDisable(!approved);mi.setText(approved?"Record Refund":"Record Refund (Approval Required)");}
                         else if(mi.getText().startsWith("Quick Apply")){mi.setDisable(!approved||current.refund()>=current.amount()-0.009);}
-                        else if(mi.getText().startsWith("Cancel Return")||mi.getText().startsWith("Delete Return"))mi.setDisable(!canCancelOrDelete(current));
+                        else if(mi.getText().startsWith("Cancel Return")) { mi.setDisable(!canCancelOrDelete(current) || !canCancel); mi.setVisible(canCancel); }
+                        else if(mi.getText().startsWith("Delete Return")) { mi.setDisable(!canCancelOrDelete(current) || !canDelete); mi.setVisible(canDelete); }
                     }
                 }
                 setGraphic(empty ? null : menu);

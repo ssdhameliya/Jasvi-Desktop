@@ -57,12 +57,13 @@ public final class PermissionCatalog {
             entry("SAFE_ROLLBACK", "Safe Rollback", "Administration", "rollback", 94),
             entry("AUTOMATION", "Automation Center", "Administration", "automation", 95),
             entry("AUDIT", "Global Audit Trail", "Administration", "audit", 96),
+            entry("SYSTEM", "System Diagnostics", "Administration", "diagnostic", 99),
             entry("MULTI_BRANCH", "Multi-Branch Support", "Enterprise & Sync", "master", 97),
             entry("OFFLINE_SYNC", "Offline P2P Sync", "Enterprise & Sync", "update", 98)
     );
 
     private static final Set<String> ALWAYS_ACCESSIBLE_MODULES = Set.of(
-            "DASHBOARD", "SETTINGS", "USERS", "APPLICATION_UPDATES", "SAFE_ROLLBACK", "AUDIT"
+            "DASHBOARD", "SETTINGS", "USERS", "APPLICATION_UPDATES", "SAFE_ROLLBACK", "AUDIT", "SYSTEM"
     );
 
     private static final Set<String> CORE_FINANCE_MODULES = Set.of(
@@ -75,7 +76,7 @@ public final class PermissionCatalog {
     private static final Set<String> SALES_MODULES = Set.of(
             "DASHBOARD", "SALES", "QUOTATION", "CUSTOMERS", "COMMUNICATION", "REMINDERS", "REPORTS", "INVENTORY", "CREDIT_NOTE");
     private static final Set<String> ADMINISTRATION_MODULES = Set.of(
-            "USERS", "SETTINGS", "BACKUP", "APPLICATION_UPDATES", "SAFE_ROLLBACK", "AUTOMATION", "AUDIT");
+            "USERS", "SETTINGS", "BACKUP", "APPLICATION_UPDATES", "SAFE_ROLLBACK", "AUTOMATION", "AUDIT", "SYSTEM");
 
     private PermissionCatalog() {}
 
@@ -156,6 +157,20 @@ public final class PermissionCatalog {
         String normalized = normalize(action);
         return switch (normalized) {
             case "EXPORT_PDF" -> "Export PDF";
+            case "LOCK_PERIOD" -> "Lock/Unlock Fiscal Period";
+            case "CREATE_JOURNAL" -> "Create Manual Journal";
+            case "POST_JOURNAL" -> "Post Draft Journal";
+            case "REVERSE_JOURNAL" -> "Reverse Accounting Voucher";
+            case "CREATE_ACCOUNT" -> "Add Chart of Account";
+            case "EDIT_ACCOUNT" -> "Edit Chart of Account";
+            case "NOTIFY" -> "Send Discrepancy Notices";
+            case "UPLOAD" -> "Upload Bill Documents";
+            case "PUSH" -> "Push Directly to Tally";
+            case "SCAN" -> "Run Matching Scan";
+            case "REORDER_SCAN" -> "Run Replenishment Scan";
+            case "CREATE_PO" -> "Auto-Generate Purchase Order";
+            case "RESET_PASSWORD" -> "Reset User Password";
+            case "APPROVE_REGISTRATION" -> "Approve User Registrations";
             case "MANAGE_TEMPLATES" -> "Manage Templates";
             case "MANAGE_ROLES" -> "Manage Roles";
             case "MANAGE_PERMISSIONS" -> "Manage Permissions";
@@ -167,6 +182,55 @@ public final class PermissionCatalog {
             case "GENERATE" -> "Generate";
             case "UPDATE_VEHICLE" -> "Update Vehicle";
             case "REMIND" -> "Send Reminder";
+            case "STATEMENT" -> "Bank Statement Screen";
+            case "ENTRY" -> "Bank Voucher Entry Screen";
+            case "EXPENSE" -> "Expense Register Screen";
+            case "DUPLICATE" -> "Allow Duplicate Record";
+            case "EMAIL" -> "Allow Email Dispatch";
+            case "WHATSAPP" -> "Allow WhatsApp Dispatch";
+            case "RETURN" -> "Allow Create Return";
+            case "CANCEL" -> "Allow Cancel Transaction";
+            case "CONVERT_SALE" -> "Convert Quotation to Sale";
+            case "360" -> "360° Profile Insights";
+            case "ADJUST" -> "Stock Adjustment";
+            case "ITEMS" -> "Import Items & Products";
+            case "CUSTOMERS" -> "Import Customers";
+            case "SUPPLIERS" -> "Import Suppliers";
+            case "SALES" -> "Import Sales Invoices";
+            case "PURCHASES" -> "Import Purchase Bills";
+            case "BANK" -> "Import Bank Statements";
+            case "MASTERS" -> "Import Master Data";
+            case "CREATE_CATEGORY" -> "Add Master Category";
+            case "EDIT_CATEGORY" -> "Rename Master Category";
+            case "DELETE_CATEGORY" -> "Delete Master Category";
+            case "CREATE_LOOKUP" -> "Add Lookup Value";
+            case "EDIT_LOOKUP" -> "Edit Lookup Value";
+            case "DELETE_LOOKUP" -> "Delete Lookup Value";
+            case "SECURITY" -> "Security Audit Logs";
+            case "LOGS" -> "Server Error Logs";
+            case "CACHE_CLEAR" -> "Clear System Cache";
+            case "RESTORE" -> "Restore Database";
+            case "DESIGN" -> "Template Design";
+            case "RESET" -> "Reset Default Templates";
+            case "TAB_COMPANY" -> "Company Profile Tab";
+            case "TAB_EMAIL" -> "Email Setup Tab";
+            case "TAB_WHATSAPP" -> "WhatsApp Setup Tab";
+            case "TAB_PAYMENT" -> "Payment & Bank Tab";
+            case "TAB_INVOICE" -> "Invoice Layout Tab";
+            case "TAB_SECURITY" -> "Security & Passwords Tab";
+            case "TAB_NOTIFICATIONS" -> "Notification Preferences Tab";
+            case "TAB_WORKSPACE" -> "Workspace & Theme Tab";
+            case "TAB_UPDATES" -> "Application Updates Tab";
+            case "TAB_SHORTCUTS" -> "Keyboard Shortcuts Tab";
+            case "TAB_MODULES" -> "Module Entitlements Tab";
+            case "TAB_CATEGORIES" -> "Item Categories Tab";
+            case "TAB_UNITS" -> "Units of Measure Tab";
+            case "TAB_MATERIALS" -> "Materials Tab";
+            case "TAB_BRANDS" -> "Brands Tab";
+            case "TAB_GST" -> "GST Tax Rates Tab";
+            case "TAB_DISCOUNT" -> "Discount Policies Tab";
+            case "TAB_PAYMENT_MODES" -> "Payment Modes Tab";
+            case "TAB_ROLES" -> "Role Descriptions Tab";
             default -> title(normalized.replace('_', ' '));
         };
     }

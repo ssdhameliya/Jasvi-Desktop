@@ -1040,7 +1040,16 @@ public class SettingsController implements ScreenLifecycle {
     }
 
     private void showRequestedSection() {
-        switch (requestedSection) {
+        Section target = requestedSection;
+        if (!org.example.service.PermissionService.allowedSubSection("SETTINGS", target.name())) {
+            for (Section candidate : Section.values()) {
+                if (org.example.service.PermissionService.allowedSubSection("SETTINGS", candidate.name())) {
+                    target = candidate;
+                    break;
+                }
+            }
+        }
+        switch (target) {
             case PAYMENT -> showPayment();
             case INVOICE -> showInvoice();
             case NOTIFICATIONS -> showNotifications();
@@ -1733,6 +1742,9 @@ private record AssetPreviewRequest(
         for (int i = 0; i < tabButtons.length; i++) {
             Button btn = tabButtons[i];
             if (btn == null) continue;
+            boolean permitted = org.example.service.PermissionService.allowedSubSection("SETTINGS", sections[i].name());
+            btn.setVisible(permitted);
+            btn.setManaged(permitted);
             boolean selected = activeSection == sections[i];
             btn.getStyleClass().remove("settings-tab-selected");
             if (selected) {

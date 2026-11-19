@@ -3,6 +3,10 @@ package org.example.controller;
 import org.example.navigation.ScreenLifecycle;
 public class SupplierController extends PartyMasterController implements ScreenLifecycle {
     @javafx.fxml.FXML protected void openSupplier360(){
+        if (!org.example.service.PermissionService.allowedSubSection("SUPPLIERS", "360")) {
+            org.example.util.AppDialogService.warning(tableParties, "Permission Denied", "Action Not Allowed", "You do not have permission to view Supplier 360° Profile.");
+            return;
+        }
         org.example.model.Party p=tableParties.getSelectionModel().getSelectedItem();
         if(p==null){
             org.example.util.AppDialogService.warning(tableParties,"Supplier 360°","Select a supplier","Select a supplier before opening Supplier 360°.");

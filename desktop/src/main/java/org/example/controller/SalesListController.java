@@ -522,13 +522,29 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             String status=missing?"":safe(current.getDocumentStatus()).trim().toUpperCase(java.util.Locale.ROOT);
             boolean inactive=missing||"CANCELLED".equals(status)||"DELETED".equals(status);
             boolean locked=!missing&&isFinanciallyLocked(current);
-            edit.setDisable(inactive||locked);
+
+            boolean canEdit = PermissionService.allowed("SALES.EDIT");
+            boolean canDuplicate = PermissionService.allowed("SALES.DUPLICATE");
+            boolean canEmail = PermissionService.allowed("SALES.EMAIL");
+            boolean canWhatsapp = PermissionService.allowed("SALES.WHATSAPP");
+            boolean canReturn = PermissionService.allowed("SALES.RETURN");
+            boolean canCancel = PermissionService.allowed("SALES.CANCEL");
+            boolean canDelete = PermissionService.allowed("SALES.DELETE");
+
+            edit.setDisable(!canEdit || inactive || locked);
+            duplicate.setDisable(!canDuplicate || missing);
+            duplicate.setVisible(canDuplicate);
+            email.setDisable(!canEmail || missing || inactive);
+            email.setVisible(canEmail);
+            whatsapp.setDisable(!canWhatsapp || missing || inactive);
+            whatsapp.setVisible(canWhatsapp);
             payment.setDisable(inactive||(!missing&&isApprovalLocked(current)));
-            createReturn.setDisable(missing||!isReturnEligible(current));
-            cancel.setDisable(missing||locked||inactive);
-            delete.setDisable(missing||locked||"DELETED".equals(status));
-            cancel.setVisible(true);
-            delete.setVisible(true);
+            createReturn.setDisable(!canReturn || missing || !isReturnEligible(current));
+            createReturn.setVisible(canReturn);
+            cancel.setDisable(!canCancel || missing || locked || inactive);
+            cancel.setVisible(canCancel);
+            delete.setDisable(!canDelete || missing || locked || "DELETED".equals(status));
+            delete.setVisible(canDelete);
         };
         sharedMenu.setOnHidden(event -> target.set(null));
 

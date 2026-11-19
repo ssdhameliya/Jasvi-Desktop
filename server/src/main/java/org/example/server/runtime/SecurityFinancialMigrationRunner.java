@@ -237,7 +237,13 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_68__payment_and_refund_whatsapp_status",
                     "db/migration/V11_0_68__payment_and_refund_whatsapp_status.sql"),
             new Migration("V11_0_75__bank_statement_rules",
-                    "db/migration/V11_0_75__bank_statement_rules.sql")
+                    "db/migration/V11_0_75__bank_statement_rules.sql"),
+            new Migration("V11_0_76__universal_granular_permissions",
+                    "db/migration/V11_0_76__universal_granular_permissions.sql"),
+            new Migration("V11_0_77__universal_complete_screen_actions",
+                    "db/migration/V11_0_77__universal_complete_screen_actions.sql"),
+            new Migration("V11_0_78__universal_remaining_module_actions",
+                    "db/migration/V11_0_78__universal_remaining_module_actions.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

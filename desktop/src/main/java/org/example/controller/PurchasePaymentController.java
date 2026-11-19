@@ -351,7 +351,17 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                 boolean noProof = row == null || row.proofPath() == null || row.proofPath().isBlank();
                 view.setDisable(noProof);
                 boolean bankReconciliation=row!=null&&"BANK_RECONCILIATION".equalsIgnoreCase(row.paymentType());folder.setDisable(noProof||bankReconciliation);
-                edit.setDisable(row == null || bankReconciliation);
+                boolean canEdit = PermissionService.allowed("PURCHASE.EDIT");
+                boolean canEmail = PermissionService.allowedSubSection("PURCHASE", "EMAIL");
+                boolean canWhatsapp = PermissionService.allowedSubSection("PURCHASE", "WHATSAPP");
+                edit.setDisable(row == null || bankReconciliation || !canEdit);
+                edit.setVisible(canEdit);
+                sendDispatch.setDisable(!canEmail || !canWhatsapp);
+                sendDispatch.setVisible(canEmail && canWhatsapp);
+                sendEmail.setDisable(!canEmail);
+                sendEmail.setVisible(canEmail);
+                sendWhatsapp.setDisable(!canWhatsapp);
+                sendWhatsapp.setVisible(canWhatsapp);
                 if (row != null && "SENT".equalsIgnoreCase(row.emailStatus())) {
                     sendEmail.setText("Resend Remittance Advice");
                 } else {

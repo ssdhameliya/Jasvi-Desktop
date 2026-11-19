@@ -21,6 +21,7 @@ import org.example.api.master.MasterApiClient;
 import org.example.service.ItemService;
 import org.example.service.ItemSpreadsheetService;
 import org.example.service.NotificationService;
+import org.example.service.PermissionService;
 import org.example.theme.ThemeManager;
 import org.example.util.PlatformUiSupport;
 import org.example.util.IconFactory;
@@ -190,6 +191,13 @@ public class ItemMasterController implements ScreenLifecycle {
         // Compact icon + text Actions menu. Full row operations remain inside the menu.
         colAction.setCellFactory(tc -> new TableCell<>() {
             private final MenuButton actions = new MenuButton();
+            private final MenuItem create = new MenuItem("Create Item", IconFactory.compactIcon("add", 16));
+            private final MenuItem view = new MenuItem("View Item", IconFactory.compactIcon("view", 16));
+            private final MenuItem edit = new MenuItem("Edit Item", IconFactory.compactIcon("edit", 16));
+            private final MenuItem audit = new MenuItem("Audit Trail", IconFactory.compactIcon("history", 16));
+            private final MenuItem sale = new MenuItem("Create Sale", IconFactory.compactIcon("sale", 16));
+            private final MenuItem purchase = new MenuItem("Create Purchase", IconFactory.compactIcon("purchase", 16));
+            private final MenuItem delete = new MenuItem("Delete Item", IconFactory.compactIcon("delete", 16));
             {
                 actions.getStyleClass().add("table-action-menu");
                 actions.setGraphic(IconFactory.compactIcon("actions", 16));
@@ -199,19 +207,12 @@ public class ItemMasterController implements ScreenLifecycle {
 
                 actions.setTooltip(new Tooltip("Item actions"));
 
-                MenuItem create = new MenuItem("Create Item", IconFactory.compactIcon("add", 16));
                 create.setOnAction(e -> openItemDialog(null));
-                MenuItem view = new MenuItem("View Item", IconFactory.compactIcon("view", 16));
                 view.setOnAction(e -> showDetails(currentItem()));
-                MenuItem edit = new MenuItem("Edit Item", IconFactory.compactIcon("edit", 16));
                 edit.setOnAction(e -> openItemDialog(currentItem()));
-                MenuItem audit = new MenuItem("Audit Trail", IconFactory.compactIcon("history", 16));
                 audit.setOnAction(e -> { Item item=currentItem(); if(item!=null) org.example.util.ActivityTimelineDialog.show(tableItems,"ITEM",item.getId(),item.getItemCode()); });
-                MenuItem sale = new MenuItem("Create Sale", IconFactory.compactIcon("sale", 16));
                 sale.setOnAction(e -> openTransaction(currentItem(), true));
-                MenuItem purchase = new MenuItem("Create Purchase", IconFactory.compactIcon("purchase", 16));
                 purchase.setOnAction(e -> openTransaction(currentItem(), false));
-                MenuItem delete = new MenuItem("Delete Item", IconFactory.compactIcon("delete", 16));
                 delete.setOnAction(e -> deleteItem(currentItem()));
                 actions.getItems().addAll(create, view, edit, audit, new SeparatorMenuItem(), sale, purchase, new SeparatorMenuItem(), delete);
                 IconFactory.decorateActionMenu(actions);
@@ -225,7 +226,21 @@ public class ItemMasterController implements ScreenLifecycle {
 
             @Override protected void updateItem(Void value, boolean empty) {
                 super.updateItem(value, empty);
-                setGraphic(empty ? null : actions);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    boolean canCreate = PermissionService.allowed("INVENTORY.CREATE");
+                    boolean canEdit = PermissionService.allowed("INVENTORY.EDIT");
+                    boolean canDelete = PermissionService.allowed("INVENTORY.DELETE");
+                    boolean canSale = PermissionService.allowed("SALES.CREATE");
+                    boolean canPurchase = PermissionService.allowed("PURCHASE.CREATE");
+                    create.setVisible(canCreate); create.setDisable(!canCreate);
+                    edit.setVisible(canEdit); edit.setDisable(!canEdit);
+                    delete.setVisible(canDelete); delete.setDisable(!canDelete);
+                    sale.setVisible(canSale); sale.setDisable(!canSale);
+                    purchase.setVisible(canPurchase); purchase.setDisable(!canPurchase);
+                    setGraphic(actions);
+                }
             }
         });
 
@@ -348,6 +363,7 @@ public class ItemMasterController implements ScreenLifecycle {
     }
 
     private void deleteItem(Item selected) {
+        PermissionService.require("INVENTORY.DELETE", "delete item");
         if (selected == null) { showWarning("Select an item to delete."); return; }
         boolean confirmed = AppDialogService.destructive(
                 tableItems,
@@ -395,6 +411,10 @@ public class ItemMasterController implements ScreenLifecycle {
 
     @FXML
     private void importItems() {
+        if (!PermissionService.allowed("IMPORT.ITEMS")) {
+            AppDialogService.warning(tableItems, "Permission Denied", "Action Not Allowed", "You do not have permission to import items.");
+            return;
+        }
         ImportScreenContext.select("Item Master");
         NavigationManager.getInstance().loadPage("/fxml/pages/Import.fxml");
     }
@@ -574,7 +594,7 @@ public class ItemMasterController implements ScreenLifecycle {
         if (lblSelectedCount != null) lblSelectedCount.setText(count + " selected");
         if (btnDeleteSelected != null) {
             btnDeleteSelected.setText("Delete Selected (" + count + ")");
-            btnDeleteSelected.setDisable(count == 0);
+            btnDeleteSelected.setDisable(count == 0 || !PermissionService.allowed("INVENTORY.DELETE"));
         }
         int visible = tableItems == null || tableItems.getItems() == null ? 0 : tableItems.getItems().size();
         selectAllVisible.setSelected(visible > 0 && count == visible);
@@ -583,6 +603,7 @@ public class ItemMasterController implements ScreenLifecycle {
 
     @FXML
     private void deleteSelectedItems() {
+        PermissionService.require("INVENTORY.DELETE", "delete items");
         List<String> codes = new ArrayList<>(selectedItemCodes);
         if (codes.isEmpty()) { showWarning("Select one or more visible items to delete."); return; }
 

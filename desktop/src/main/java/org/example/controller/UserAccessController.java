@@ -170,6 +170,7 @@ public class UserAccessController implements ScreenLifecycle {
     }
 
     @FXML private void savePermissions(){
+        PermissionService.require("USERS.MANAGE_PERMISSIONS", "save role permissions");
         String role=cmbPermissionRole.getValue(); if(role==null)return;
         if(org.example.service.SessionService.isAdminRole(role)){warning("Administrator always has full access and does not require manual permission changes.");return;}
         UiTaskExecutor.submitAction("user-access-save-permissions", () -> {
@@ -182,12 +183,33 @@ public class UserAccessController implements ScreenLifecycle {
             org.example.util.AppDialogService.success(permissionTable,"Permissions saved",role+" permissions were updated successfully.");
         }, e -> error("Permissions could not be saved. Reload the role if another administrator changed it first.", e instanceof Exception ex ? ex : new RuntimeException(e)));
     }
-    @FXML private void registrationApprovals(){ DashboardController.navigateFromChildPage("Registration Approvals", "/fxml/pages/RegistrationApprovals.fxml"); }
-    @FXML private void showPermissionMatrix(){ DashboardController.navigateFromChildPage("Permission Matrix", "/fxml/pages/PermissionMatrix.fxml"); }
-    @FXML private void manageRoles(){ openRoleMaster(); }
+    @FXML private void registrationApprovals(){
+        PermissionService.require("USERS.APPROVE_REGISTRATION", "approve user registrations");
+        DashboardController.navigateFromChildPage("Registration Approvals", "/fxml/pages/RegistrationApprovals.fxml");
+    }
+    @FXML private void showPermissionMatrix(){
+        PermissionService.require("USERS.MANAGE_PERMISSIONS", "view permission matrix");
+        DashboardController.navigateFromChildPage("Permission Matrix", "/fxml/pages/PermissionMatrix.fxml");
+    }
+    @FXML private void manageRoles(){
+        PermissionService.require("USERS.MANAGE_ROLES", "manage roles");
+        openRoleMaster();
+    }
 
-    @FXML private void addUser(){openUserDialog(null);} @FXML private void editSelected(){edit(table.getSelectionModel().getSelectedItem());}
-    private void edit(UserRow row){if(row!=null)openUserDialog(row.id);}
+    @FXML private void addUser(){
+        PermissionService.require("USERS.CREATE", "create user");
+        openUserDialog(null);
+    }
+    @FXML private void editSelected(){
+        PermissionService.require("USERS.EDIT", "edit user");
+        edit(table.getSelectionModel().getSelectedItem());
+    }
+    private void edit(UserRow row){
+        if(row!=null) {
+            PermissionService.require("USERS.EDIT", "edit user");
+            openUserDialog(row.id);
+        }
+    }
     private void openUserDialog(Integer userId){
         try{
             UserDialog dialog = new UserDialog(table, userId);
@@ -200,9 +222,13 @@ public class UserAccessController implements ScreenLifecycle {
         catch(Exception e){error("User form could not be opened",e);}
     }
     private void selectSavedUser(int id){UserRow row=users.stream().filter(x->x.id==id).findFirst().orElse(null);if(row!=null){table.getSelectionModel().select(row);table.scrollTo(row);}}
-    @FXML private void resetSelected(){resetPassword(table.getSelectionModel().getSelectedItem());}
+    @FXML private void resetSelected(){
+        PermissionService.require("USERS.RESET_PASSWORD", "reset password");
+        resetPassword(table.getSelectionModel().getSelectedItem());
+    }
     private void resetPassword(UserRow row){
         if(row==null){warning("Select a user first.");return;}
+        PermissionService.require("USERS.RESET_PASSWORD", "reset user password");
         TextInputDialog d=new OwnedTextInputDialog();d.setTitle("Reset Password");d.setHeaderText("Set a temporary password for "+row.user.get());d.setContentText("Temporary password:");
         d.showAndWait().map(String::trim).ifPresent(password->{
             if(password.length()<8||!password.matches(".*[A-Za-z].*")||!password.matches(".*[0-9].*")){
@@ -245,6 +271,7 @@ public class UserAccessController implements ScreenLifecycle {
     }
     private void deleteUser(UserRow row){
         if(row==null)return;
+        PermissionService.require("USERS.DELETE", "delete user");
         if("admin".equalsIgnoreCase(row.user.get())){warning("The primary administrator cannot be deleted.");return;}
         if(SessionService.current()!=null&&SessionService.current().getId()==row.id){
             warning("You cannot delete your own administrator account.");
@@ -260,9 +287,9 @@ public class UserAccessController implements ScreenLifecycle {
         }, e -> error("User could not be deleted", e instanceof Exception ex ? ex : new RuntimeException(e)));
     }
 
-    @FXML private void addRole(){openRoleMaster();}
-    @FXML private void editRole(){openRoleMaster();}
-    @FXML private void deleteRole(){openRoleMaster();}
+    @FXML private void addRole(){ PermissionService.require("USERS.MANAGE_ROLES", "create role"); openRoleMaster(); }
+    @FXML private void editRole(){ PermissionService.require("USERS.MANAGE_ROLES", "edit role"); openRoleMaster(); }
+    @FXML private void deleteRole(){ PermissionService.require("USERS.MANAGE_ROLES", "delete role"); openRoleMaster(); }
     private void openRoleMaster(){ MasterDataController.requestCategory("ROLE"); DashboardController.navigateFromChildPage("Master Data", "/fxml/pages/Masterdata.fxml"); }
 
     private TableCell<UserRow,Void> userActionCell(){return new TableCell<>(){
@@ -273,11 +300,18 @@ public class UserAccessController implements ScreenLifecycle {
             if(empty||getIndex()<0||getIndex()>=getTableView().getItems().size()){setGraphic(null);return;}
             UserRow row=getTableView().getItems().get(getIndex());
             boolean isSelf=SessionService.current()!=null&&SessionService.current().getId()==row.id;
+            boolean canEdit = PermissionService.allowed("USERS.EDIT");
+            boolean canResetPwd = PermissionService.allowed("USERS.RESET_PASSWORD");
+            boolean canDeleteUser = PermissionService.allowed("USERS.DELETE");
+            var miEdit=mi("Edit User","edit",e->edit(row));
+            var miResetPwd=mi("Reset Password","lock",e->resetPassword(row));
             var miLock=mi(row.locked?"Unlock Account":"Lock Account",row.locked?"reopen":"lock",e->toggleLock(row));
             var miDelete=mi("Delete User","delete",e->deleteUser(row));
             var miResetMfa=mi("Reset Authenticator","security",e->resetAuthenticator(row));
-            if(isSelf){
-                miLock.setDisable(true);
+            if(!canEdit) miEdit.setDisable(true);
+            if(!canResetPwd) miResetPwd.setDisable(true);
+            if(isSelf || !canDeleteUser){
+                miLock.setDisable(isSelf);
                 miDelete.setDisable(true);
             }
             if(!row.mfaEnabled){
@@ -285,8 +319,8 @@ public class UserAccessController implements ScreenLifecycle {
             }
             menu.getItems().setAll(
                 mi("View User","view",e->{table.getSelectionModel().select(row);showDetails(row);}),
-                mi("Edit User","edit",e->edit(row)),
-                mi("Reset Password","lock",e->resetPassword(row)),
+                miEdit,
+                miResetPwd,
                 miResetMfa,
                 miLock,
                 mi("View Role Permissions","permission",e->{cmbPermissionRole.setValue(row.roleCode);showPermissionMatrix();}),
@@ -311,7 +345,20 @@ public class UserAccessController implements ScreenLifecycle {
         if(table!=null)table.getSelectionModel().clearSelection();
     }
 
-    private TableCell<RoleRow,Void> roleActionCell(){return new TableCell<>(){final MenuButton menu=createActionMenu();protected void updateItem(Void v,boolean empty){super.updateItem(v,empty);if(empty||getIndex()<0||getIndex()>=getTableView().getItems().size()){setGraphic(null);return;}RoleRow row=getTableView().getItems().get(getIndex());menu.getItems().setAll(mi("Open in Role Master","master",e->openRoleMaster()),mi("Manage Permissions","permission",e->{cmbPermissionRole.setValue(row.code);showPermissionMatrix();}));setGraphic(menu);}};}
+    private TableCell<RoleRow,Void> roleActionCell(){return new TableCell<>(){
+        final MenuButton menu=createActionMenu();
+        protected void updateItem(Void v,boolean empty){
+            super.updateItem(v,empty);
+            if(empty||getIndex()<0||getIndex()>=getTableView().getItems().size()){setGraphic(null);return;}
+            RoleRow row=getTableView().getItems().get(getIndex());
+            var miMaster=mi("Open in Role Master","master",e->openRoleMaster());
+            var miPerms=mi("Manage Permissions","permission",e->{cmbPermissionRole.setValue(row.code);showPermissionMatrix();});
+            miMaster.setDisable(!PermissionService.allowed("USERS.MANAGE_ROLES"));
+            miPerms.setDisable(!PermissionService.allowed("USERS.MANAGE_PERMISSIONS"));
+            menu.getItems().setAll(miMaster,miPerms);
+            setGraphic(menu);
+        }
+    };}
     private MenuButton createActionMenu(){MenuButton m=new MenuButton("Actions");m.setGraphic(IconFactory.compactIcon("actions",15));m.setContentDisplay(ContentDisplay.LEFT);m.setGraphicTextGap(6);m.getStyleClass().add("table-action-menu");IconFactory.decorateActionMenu(m);return m;}
     private MenuItem mi(String text,String icon,javafx.event.EventHandler<javafx.event.ActionEvent>handler){MenuItem i=new MenuItem(text,IconFactory.compactIcon(icon,16));i.setOnAction(handler);return i;}
     private void filter(){String q=txtSearch.getText()==null?"":txtSearch.getText().toLowerCase(Locale.ROOT);filtered.setPredicate(r->{boolean text=q.isBlank()||(r.user.get()+" "+r.fullName+" "+r.email.get()+" "+r.phone.get()+" "+r.department.get()+" "+r.branch.get()).toLowerCase(Locale.ROOT).contains(q);boolean role=cmbRole.getValue()==null||cmbRole.getValue().startsWith("All")||r.role.get().equals(cmbRole.getValue());boolean status=cmbStatus.getValue()==null||cmbStatus.getValue().startsWith("All")||r.status.get().equals(cmbStatus.getValue());boolean branch=cmbBranch.getValue()==null||cmbBranch.getValue().startsWith("All")||r.branch.get().equals(cmbBranch.getValue());return text&&role&&status&&branch;});}

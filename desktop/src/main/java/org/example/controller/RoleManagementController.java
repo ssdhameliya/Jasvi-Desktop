@@ -39,6 +39,7 @@ public class RoleManagementController implements ScreenLifecycle {
             btnSaveRegistrationRole.setGraphic(IconFactory.compactIcon("save",15));
             btnSaveRegistrationRole.setContentDisplay(ContentDisplay.LEFT);
             btnSaveRegistrationRole.setGraphicTextGap(6);
+            btnSaveRegistrationRole.setDisable(!org.example.service.PermissionService.allowed("USERS.MANAGE_ROLES"));
         }
         refresh();
     }
@@ -83,6 +84,7 @@ public class RoleManagementController implements ScreenLifecycle {
     }
 
     @FXML private void saveRegistrationRole(){
+        org.example.service.PermissionService.require("USERS.MANAGE_ROLES", "modify registration role");
         String display=cmbRegistrationRole==null?null:cmbRegistrationRole.getValue();
         String code=display==null?null:registrationRoleCodes.get(display);
         if(code==null||code.isBlank()){
@@ -102,9 +104,9 @@ public class RoleManagementController implements ScreenLifecycle {
     }
 
     @Override public void onScreenHidden(){UiTaskExecutor.cancelPrefix("role-management-");}
-    @FXML private void addRole(){openRoleMaster();}
-    @FXML private void editRole(){openRoleMaster();}
-    @FXML private void deleteRole(){openRoleMaster();}
+    @FXML private void addRole(){org.example.service.PermissionService.require("USERS.MANAGE_ROLES", "create role"); openRoleMaster();}
+    @FXML private void editRole(){org.example.service.PermissionService.require("USERS.MANAGE_ROLES", "edit role"); openRoleMaster();}
+    @FXML private void deleteRole(){org.example.service.PermissionService.require("USERS.MANAGE_ROLES", "delete role"); openRoleMaster();}
     private void openRoleMaster(){MasterDataController.requestCategory("ROLE");DashboardController.navigateFromChildPage("Master Data","/fxml/pages/Masterdata.fxml");}
     @FXML private void openPermissions(){RoleRow x=roleTable.getSelectionModel().getSelectedItem();PermissionMatrixController.requestRole(x==null?null:x.code);DashboardController.navigateFromChildPage("Permission Matrix","/fxml/pages/PermissionMatrix.fxml");}
     @FXML private void back(){DashboardController.navigateFromChildPage("User Access & Permissions","/fxml/pages/UserAccess.fxml");}

@@ -21,6 +21,7 @@ import org.example.model.Party;
 import org.example.service.ItemSpreadsheetService;
 import org.example.service.NotificationService;
 import org.example.service.PartyService;
+import org.example.service.PermissionService;
 import org.example.theme.ThemeManager;
 import org.example.util.PlatformUiSupport;
 import org.example.util.RegisterDetailDrawer;
@@ -181,7 +182,18 @@ public abstract class PartyMasterController implements ScreenLifecycle {
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                setGraphic(empty ? null : actions);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    String module = "CUSTOMER".equalsIgnoreCase(partyType()) ? "CUSTOMERS" : "SUPPLIERS";
+                    boolean canEdit = PermissionService.allowed(module + ".EDIT");
+                    boolean canDelete = PermissionService.allowed(module + ".DELETE");
+                    edit.setVisible(canEdit);
+                    edit.setDisable(!canEdit);
+                    delete.setVisible(canDelete);
+                    delete.setDisable(!canDelete);
+                    setGraphic(actions);
+                }
             }
         });
     }
@@ -219,6 +231,9 @@ public abstract class PartyMasterController implements ScreenLifecycle {
 
             row.setOnContextMenuRequested(event -> {
                 if (row.isEmpty()) { menu.hide(); return; }
+                String mod = "CUSTOMER".equalsIgnoreCase(partyType()) ? "CUSTOMERS" : "SUPPLIERS";
+                edit.setDisable(!PermissionService.allowed(mod + ".EDIT"));
+                delete.setDisable(!PermissionService.allowed(mod + ".DELETE"));
                 selectRow(row);
                 menu.show(row, event.getScreenX(), event.getScreenY());
                 event.consume();
@@ -262,11 +277,21 @@ public abstract class PartyMasterController implements ScreenLifecycle {
 
     @FXML
     protected void newParty() {
+        String module = "CUSTOMER".equalsIgnoreCase(partyType()) ? "CUSTOMERS" : "SUPPLIERS";
+        if (!PermissionService.allowed(module + ".CREATE")) {
+            AppDialogService.warning(tableParties, "Permission Denied", "Action Not Allowed", "You do not have permission to create " + displayName().toLowerCase() + "s.");
+            return;
+        }
         open(null);
     }
 
     @FXML
     protected void editParty() {
+        String module = "CUSTOMER".equalsIgnoreCase(partyType()) ? "CUSTOMERS" : "SUPPLIERS";
+        if (!PermissionService.allowed(module + ".EDIT")) {
+            AppDialogService.warning(tableParties, "Permission Denied", "Action Not Allowed", "You do not have permission to edit " + displayName().toLowerCase() + "s.");
+            return;
+        }
         Party party = tableParties.getSelectionModel().getSelectedItem();
         if (party == null) {
             warning("Select a " + displayName().toLowerCase() + " to edit.");
@@ -278,6 +303,11 @@ public abstract class PartyMasterController implements ScreenLifecycle {
 
     @FXML
     protected void deleteParty() {
+        String module = "CUSTOMER".equalsIgnoreCase(partyType()) ? "CUSTOMERS" : "SUPPLIERS";
+        if (!PermissionService.allowed(module + ".DELETE")) {
+            AppDialogService.warning(tableParties, "Permission Denied", "Action Not Allowed", "You do not have permission to delete " + displayName().toLowerCase() + "s.");
+            return;
+        }
         Party party = tableParties.getSelectionModel().getSelectedItem();
         if (party == null) {
             warning("Select a " + displayName().toLowerCase() + " to delete.");
@@ -328,6 +358,11 @@ public abstract class PartyMasterController implements ScreenLifecycle {
     /** Opens the shared import workspace with Customer or Supplier preselected. */
     @FXML
     protected void importParties() {
+        String importPerm = "CUSTOMER".equalsIgnoreCase(partyType()) ? "IMPORT.CUSTOMERS" : "IMPORT.SUPPLIERS";
+        if (!PermissionService.allowed(importPerm)) {
+            AppDialogService.warning(tableParties, "Permission Denied", "Action Not Allowed", "You do not have permission to import " + displayName().toLowerCase() + "s.");
+            return;
+        }
         ImportScreenContext.select(partyType().equals("CUSTOMER") ? "Customer" : "Supplier");
         NavigationManager.getInstance().loadPage("/fxml/pages/Import.fxml");
     }

@@ -28,6 +28,7 @@ import org.example.service.LookupService;
 import org.example.service.MessageTemplateService;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.EmailService;
+import org.example.service.PermissionService;
 import org.example.service.ManagedInvoicePdfService;
 import org.example.util.PaymentConfirmationPromptHelper;
 import org.example.service.NotificationService;
@@ -325,7 +326,17 @@ public class RecordPaymentController implements ScreenLifecycle {
                 PaymentRow row=row();
                 boolean noProof=row==null||row.receiptPath()==null||row.receiptPath().isBlank();
                 boolean bankReconciliation=row!=null&&"BANK_RECONCILIATION".equalsIgnoreCase(row.paymentType());view.setDisable(noProof);folder.setDisable(noProof||bankReconciliation);
-                edit.setDisable(row==null||bankReconciliation);
+                boolean canEdit = PermissionService.allowed("SALES.EDIT");
+                boolean canEmail = PermissionService.allowedSubSection("SALES", "EMAIL");
+                boolean canWhatsapp = PermissionService.allowedSubSection("SALES", "WHATSAPP");
+                edit.setDisable(row==null||bankReconciliation||!canEdit);
+                edit.setVisible(canEdit);
+                sendDispatch.setDisable(!canEmail || !canWhatsapp);
+                sendDispatch.setVisible(canEmail && canWhatsapp);
+                sendEmail.setDisable(!canEmail);
+                sendEmail.setVisible(canEmail);
+                sendWhatsapp.setDisable(!canWhatsapp);
+                sendWhatsapp.setVisible(canWhatsapp);
                 if (row != null && "SENT".equalsIgnoreCase(row.emailStatus())) {
                     sendEmail.setText("Resend Payment Receipt Email");
                 } else {

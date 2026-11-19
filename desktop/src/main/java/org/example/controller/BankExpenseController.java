@@ -16,8 +16,9 @@ import javafx.stage.FileChooser;
 import org.example.config.ConfigManager;
 import org.example.service.LookupService;
 import org.example.navigation.ScreenLifecycle;
-import org.example.service.NotificationService;
 import org.example.service.FinanceService;
+import org.example.service.NotificationService;
+import org.example.service.PermissionService;
 import org.example.api.operations.OperationsApiClient;
 import org.example.api.bank.BankStatementApiClient;
 import org.example.util.IconFactory;
@@ -132,9 +133,21 @@ public class BankExpenseController implements ScreenLifecycle {
         }
         if (workspaceRow != null && entryFormPanel != null) { workspaceRow.getChildren().remove(entryFormPanel); entryFormPanel.setManaged(true); entryFormPanel.setVisible(true); }
         installDetailDrawer();
-        if(btnBankMode!=null)btnBankMode.setGraphic(IconFactory.compactIcon("bank",15));
-        if(btnExpenseMode!=null)btnExpenseMode.setGraphic(IconFactory.compactIcon("payment",15));
-        if(btnBankRecon!=null)btnBankRecon.setGraphic(IconFactory.compactIcon("link",15));
+        if(btnBankMode!=null) {
+            btnBankMode.setGraphic(IconFactory.compactIcon("bank",15));
+            boolean allowed = PermissionService.allowedSubSection("BANK_EXPENSE", "ENTRY");
+            btnBankMode.setDisable(!allowed); btnBankMode.setVisible(allowed); btnBankMode.setManaged(allowed);
+        }
+        if(btnExpenseMode!=null) {
+            btnExpenseMode.setGraphic(IconFactory.compactIcon("payment",15));
+            boolean allowed = PermissionService.allowedSubSection("BANK_EXPENSE", "EXPENSE");
+            btnExpenseMode.setDisable(!allowed); btnExpenseMode.setVisible(allowed); btnExpenseMode.setManaged(allowed);
+        }
+        if(btnBankRecon!=null) {
+            btnBankRecon.setGraphic(IconFactory.compactIcon("link",15));
+            boolean allowed = PermissionService.allowedSubSection("BANK_EXPENSE", "STATEMENT");
+            btnBankRecon.setDisable(!allowed); btnBankRecon.setVisible(allowed); btnBankRecon.setManaged(allowed);
+        }
         if(financeSearchIcon!=null)financeSearchIcon.getChildren().setAll(IconFactory.compactIcon("search",14));
         if(btnResetFilters!=null)btnResetFilters.setGraphic(IconFactory.compactIcon("reset",14));
         if(btnRefreshEntries!=null)btnRefreshEntries.setGraphic(IconFactory.compactIcon("refresh",14));
@@ -413,7 +426,7 @@ public class BankExpenseController implements ScreenLifecycle {
                 MenuItem view=new MenuItem("View "+noun,IconFactory.compactIcon("view",15));
                 view.setOnAction(e->{table.getSelectionModel().select(row);showEntryDetails(row);});
                 actions.getItems().add(view);
-                if(row.statementTransactionId!=null){
+                if(row.statementTransactionId!=null && PermissionService.allowedSubSection("BANK_EXPENSE", "STATEMENT")){
                     MenuItem statement=new MenuItem("Open Bank Statement",IconFactory.compactIcon("bank",15));
                     statement.setOnAction(e->openBankStatement(row));
                     actions.getItems().add(statement);
@@ -429,14 +442,21 @@ public class BankExpenseController implements ScreenLifecycle {
                     actions.getItems().add(linkedTx);
                 }
                 boolean locked=row.statementTransactionId!=null||row.reconciled;
-                MenuItem edit=new MenuItem(locked?"Edit "+noun+" (Reconciled)":"Edit "+noun,IconFactory.compactIcon("edit",15));
-                edit.setDisable(locked);
-                edit.setOnAction(e->editRow(row));
-                MenuItem del=new MenuItem(locked?"Delete "+noun+" (Reconciled)":"Delete "+noun,IconFactory.compactIcon("delete",15));
-                del.getStyleClass().add("danger-menu-item");
-                del.setDisable(locked);
-                del.setOnAction(e->deleteRow(row));
-                actions.getItems().addAll(edit,del);
+                boolean canEdit=PermissionService.allowed("BANK_EXPENSE.EDIT");
+                boolean canDelete=PermissionService.allowed("BANK_EXPENSE.DELETE");
+                if(canEdit){
+                    MenuItem edit=new MenuItem(locked?"Edit "+noun+" (Reconciled)":"Edit "+noun,IconFactory.compactIcon("edit",15));
+                    edit.setDisable(locked);
+                    edit.setOnAction(e->editRow(row));
+                    actions.getItems().add(edit);
+                }
+                if(canDelete){
+                    MenuItem del=new MenuItem(locked?"Delete "+noun+" (Reconciled)":"Delete "+noun,IconFactory.compactIcon("delete",15));
+                    del.getStyleClass().add("danger-menu-item");
+                    del.setDisable(locked);
+                    del.setOnAction(e->deleteRow(row));
+                    actions.getItems().add(del);
+                }
             }
             @Override protected void updateItem(Void v, boolean empty){
                 super.updateItem(v,empty);
