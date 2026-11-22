@@ -47,6 +47,9 @@ public final class TableClipboardSupport {
      */
     public static boolean copyText(String text) {
         if (text == null || text.isBlank()) return false;
+        if (java.awt.GraphicsEnvironment.isHeadless()) {
+            return false;
+        }
         String clean = text.trim();
 
         // 1. Primary: Win32 CF_UNICODETEXT Global Memory (owner = null guarantees zero lock contention)
