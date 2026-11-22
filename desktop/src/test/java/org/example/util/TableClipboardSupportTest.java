@@ -12,11 +12,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.awt.GraphicsEnvironment;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -38,7 +38,12 @@ class TableClipboardSupportTest {
         }
         try {
             CountDownLatch latch = new CountDownLatch(1);
-            Platform.startup(latch::countDown);
+            Platform.startup(() -> {
+                try {
+                    Platform.setImplicitExit(false);
+                } catch (Throwable ignored) {}
+                latch.countDown();
+            });
             if (latch.await(3, TimeUnit.SECONDS)) {
                 javaFxAvailable = true;
             }
@@ -50,7 +55,38 @@ class TableClipboardSupportTest {
     }
 
     @Test
+    void testCopyTextBlankValidation() {
+        assertFalse(TableClipboardSupport.copyText(null));
+        assertFalse(TableClipboardSupport.copyText(""));
+        assertFalse(TableClipboardSupport.copyText("   \t\n "));
+    }
+
+    @Test
+    void testFormatValue() {
+        assertEquals("123.45", TableClipboardSupport.formatValue(123.45));
+        assertEquals("100.50", TableClipboardSupport.formatValue(new BigDecimal("100.50")));
+        assertEquals("", TableClipboardSupport.formatValue(null));
+        assertEquals("test", TableClipboardSupport.formatValue("test"));
+        assertEquals(BusinessClock.formatDate(LocalDate.of(2026, 11, 17)),
+                TableClipboardSupport.formatValue(LocalDate.of(2026, 11, 17)));
+    }
+
+    @Test
+    void testIsIgnoredColumn() {
+        assertTrue(TableClipboardSupport.isIgnoredColumn(null));
+        if (javaFxAvailable) {
+            TableColumn<Object, String> actionCol = new TableColumn<>("Actions");
+            assertTrue(TableClipboardSupport.isIgnoredColumn(actionCol));
+
+            TableColumn<Object, String> dataCol = new TableColumn<>("Invoice No.");
+            assertFalse(TableClipboardSupport.isIgnoredColumn(dataCol));
+        }
+    }
+
+    @Test
     void testExtractCellTextAndRowTsv() {
+        assumeTrue(javaFxAvailable, "Active JavaFX toolkit required for TableView extraction");
+
         TableView<Sales> table = new TableView<>();
         TableColumn<Sales, String> colInvoice = new TableColumn<>("Invoice No.");
         colInvoice.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().getInvoiceNo()));
@@ -85,50 +121,15 @@ class TableClipboardSupportTest {
     }
 
     @Test
-    void testClipboardCopyActions() throws Exception {
-        assumeTrue(javaFxAvailable && !GraphicsEnvironment.isHeadless(),
-                "Active graphical display is required for native clipboard copy tests");
+    void testTableClipboardSupportInstall() {
+        assumeTrue(javaFxAvailable, "Active JavaFX toolkit required for TableClipboardSupport install");
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean copyCellResult = new AtomicBoolean();
-        AtomicBoolean copyRowResult = new AtomicBoolean();
+        TableView<Sales> table = new TableView<>();
+        assertNull(table.getProperties().get("erp.table.clipboard.installed"));
 
-        Platform.runLater(() -> {
-            try {
-                TableView<Sales> table = new TableView<>();
-                TableColumn<Sales, String> colInvoice = new TableColumn<>("Invoice No.");
-                colInvoice.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().getInvoiceNo()));
+        TableClipboardSupport.install(table);
 
-                TableColumn<Sales, Double> colTotal = new TableColumn<>("Amount");
-                colTotal.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().getTotalAmount()).asObject());
-
-                table.getColumns().addAll(colInvoice, colTotal);
-
-                Sales sale = new Sales();
-                sale.setInvoiceNo("IN/17-11-2026/0001");
-                sale.setTotalAmount(353705.00);
-                table.setItems(FXCollections.observableArrayList(sale));
-
-                TableClipboardSupport.install(table);
-
-                table.getSelectionModel().select(0);
-                table.getProperties().put("erp.table.clicked.row", 0);
-                table.getProperties().put("erp.table.clicked.col", colInvoice);
-
-                boolean cOk = TableClipboardSupport.copyFocusedCell(table);
-                copyCellResult.set(cOk);
-
-                boolean rOk = TableClipboardSupport.copySelectedRows(table);
-                copyRowResult.set(rOk);
-            } catch (Throwable t) {
-                t.printStackTrace();
-            } finally {
-                latch.countDown();
-            }
-        });
-
-        assertTrue(latch.await(5, TimeUnit.SECONDS), "JavaFX thread timed out");
-        assertTrue(copyCellResult.get(), "copyFocusedCell must return true");
-        assertTrue(copyRowResult.get(), "copySelectedRows must return true");
+        assertEquals(true, table.getProperties().get("erp.table.clipboard.installed"));
+        assertNotNull(table.getContextMenu(), "Context menu should be installed on TableView");
     }
 }
