@@ -443,8 +443,24 @@ public final class GeneralLedgerApiClient {
             BigDecimal totalDiscount,
             LocalDateTime postedAt,
             String postedBy,
-            String triggerEvent
+            String triggerEvent,
+            String referenceNo,
+            String paymentStatus,
+            BigDecimal paidAmount
     ) {
+        public PostingFlowResponse(String documentType, String documentNo, LocalDate documentDate, String partyName,
+                                   String partyGstin, BigDecimal totalAmount, String postingProfile, String summaryDescription,
+                                   String journalVoucherNo, List<PostingFlowVoucherLine> journalLines, BigDecimal totalDebit,
+                                   BigDecimal totalCredit, boolean isBalanced, List<PostingFlowInventoryLine> inventoryMovements,
+                                   PostingFlowGstImpact gstImpact, BigDecimal totalTaxableRevenue, BigDecimal totalInventoryCost,
+                                   BigDecimal totalOrderProfit, BigDecimal orderProfitMarginPercent, BigDecimal totalDiscount,
+                                   LocalDateTime postedAt, String postedBy, String triggerEvent) {
+            this(documentType, documentNo, documentDate, partyName, partyGstin, totalAmount, postingProfile, summaryDescription,
+                 journalVoucherNo, journalLines, totalDebit, totalCredit, isBalanced, inventoryMovements, gstImpact,
+                 totalTaxableRevenue, totalInventoryCost, totalOrderProfit, orderProfitMarginPercent, totalDiscount,
+                 postedAt, postedBy, triggerEvent, null, null, null);
+        }
+
         public PostingFlowResponse(String documentType, String documentNo, LocalDate documentDate, String partyName,
                                    String partyGstin, BigDecimal totalAmount, String postingProfile, String summaryDescription,
                                    String journalVoucherNo, List<PostingFlowVoucherLine> journalLines, BigDecimal totalDebit,
@@ -454,7 +470,7 @@ public final class GeneralLedgerApiClient {
             this(documentType, documentNo, documentDate, partyName, partyGstin, totalAmount, postingProfile, summaryDescription,
                  journalVoucherNo, journalLines, totalDebit, totalCredit, isBalanced, inventoryMovements, gstImpact,
                  totalTaxableRevenue, totalInventoryCost, totalOrderProfit, orderProfitMarginPercent,
-                 BigDecimal.ZERO, null, "SYSTEM", "AUTO_POST");
+                 BigDecimal.ZERO, null, "SYSTEM", "AUTO_POST", null, null, null);
         }
 
         public PostingFlowResponse(String documentType, String documentNo, LocalDate documentDate, String partyName,
@@ -465,7 +481,7 @@ public final class GeneralLedgerApiClient {
             this(documentType, documentNo, documentDate, partyName, partyGstin, totalAmount, postingProfile, summaryDescription,
                  journalVoucherNo, journalLines, totalDebit, totalCredit, isBalanced, inventoryMovements, gstImpact,
                  BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                 BigDecimal.ZERO, null, "SYSTEM", "AUTO_POST");
+                 BigDecimal.ZERO, null, "SYSTEM", "AUTO_POST", null, null, null);
         }
     }
 }

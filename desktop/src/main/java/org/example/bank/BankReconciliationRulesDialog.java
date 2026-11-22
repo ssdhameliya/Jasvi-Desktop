@@ -31,13 +31,28 @@ public final class BankReconciliationRulesDialog {
             List<String> paymentModes,
             String performedBy,
             Runnable onBatchChanged) {
+        show(owner, api, activeBatchId, defaultBankAccount, expenseCategories, paymentModes, List.of(), performedBy, onBatchChanged);
+    }
+
+    public static void show(
+            Node owner,
+            BankStatementApiClient api,
+            Long activeBatchId,
+            String defaultBankAccount,
+            List<String> expenseCategories,
+            List<String> paymentModes,
+            List<String> bankAccounts,
+            String performedBy,
+            Runnable onBatchChanged) {
         OwnedDialog<ButtonType> dialog = new OwnedDialog<>(owner);
         dialog.setTitle("Bank Statement Smart Reconciliation Rules");
         dialog.setResizable(true);
 
         DialogPane pane = dialog.getDialogPane();
-        pane.getStyleClass().addAll("approved-dialog", "erp-document-inspection-dialog", "erp-ui-standard");
+        pane.getStyleClass().addAll("approved-dialog", "erp-document-inspection-dialog", "erp-table-workspace-dialog", "erp-wide-workspace-90", "erp-ui-standard");
         pane.getButtonTypes().add(ButtonType.CLOSE);
+        pane.getProperties().put("dse.dialog.wide90", Boolean.TRUE);
+        PopupTableWorkspace.applyWideWorkspace90(dialog, owner);
         dialog.setOnShowing(ev -> {
             Node bar = pane.lookup(".button-bar");
             if (bar != null) {
@@ -110,30 +125,47 @@ public final class BankReconciliationRulesDialog {
 
         TableColumn<BankStatementApiClient.RuleDto, String> colPriority = new TableColumn<>("Priority");
         colPriority.setCellValueFactory(d -> new SimpleStringProperty(String.valueOf(d.getValue().priority())));
+        colPriority.setMinWidth(75);
+        colPriority.prefWidthProperty().bind(table.widthProperty().multiply(0.06));
 
         TableColumn<BankStatementApiClient.RuleDto, String> colName = new TableColumn<>("Rule Name");
         colName.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().ruleName()));
+        colName.setMinWidth(140);
+        colName.prefWidthProperty().bind(table.widthProperty().multiply(0.14));
 
         TableColumn<BankStatementApiClient.RuleDto, String> colPattern = new TableColumn<>("Match Condition");
         colPattern.setCellValueFactory(d -> new SimpleStringProperty(
                 d.getValue().matchField() + " " + d.getValue().matchOperator() + " \"" + d.getValue().matchPattern() + "\" (" + d.getValue().direction() + ")"));
+        colPattern.setMinWidth(260);
+        colPattern.prefWidthProperty().bind(table.widthProperty().multiply(0.28));
 
         TableColumn<BankStatementApiClient.RuleDto, String> colAction = new TableColumn<>("Target Action");
         colAction.setCellValueFactory(d -> new SimpleStringProperty(describeTarget(d.getValue())));
+        colAction.setMinWidth(200);
+        colAction.prefWidthProperty().bind(table.widthProperty().multiply(0.22));
 
         TableColumn<BankStatementApiClient.RuleDto, String> colMode = new TableColumn<>("Mode");
         colMode.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().executionMode()));
+        colMode.setMinWidth(110);
+        colMode.prefWidthProperty().bind(table.widthProperty().multiply(0.10));
 
         TableColumn<BankStatementApiClient.RuleDto, String> colHits = new TableColumn<>("Hits");
         colHits.setCellValueFactory(d -> new SimpleStringProperty(String.valueOf(d.getValue().hitCount())));
+        colHits.setMinWidth(60);
+        colHits.prefWidthProperty().bind(table.widthProperty().multiply(0.05));
 
         TableColumn<BankStatementApiClient.RuleDto, String> colStatus = new TableColumn<>("Status");
         colStatus.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().active() ? "ACTIVE" : "INACTIVE"));
+        colStatus.setMinWidth(85);
+        colStatus.prefWidthProperty().bind(table.widthProperty().multiply(0.07));
 
         TableColumn<BankStatementApiClient.RuleDto, Void> colOps = new TableColumn<>("Actions");
         colOps.setSortable(false);
+        colOps.setMinWidth(110);
+        colOps.prefWidthProperty().bind(table.widthProperty().multiply(0.08));
 
         table.getColumns().setAll(colPriority, colName, colPattern, colAction, colMode, colHits, colStatus, colOps);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         DynamicTableLayoutManager.install(table);
         TablePaginationBar<BankStatementApiClient.RuleDto> pagination = new TablePaginationBar<>(table, 25);
 
@@ -167,27 +199,54 @@ public final class BankReconciliationRulesDialog {
         );
 
         colOps.setCellFactory(col -> new TableCell<>() {
-            final Button btnEdit = new Button("Edit");
-            final Button btnDel = new Button("Delete");
-            final HBox box = new HBox(6, btnEdit, btnDel);
+            final MenuButton btnActions = new MenuButton("Actions");
             {
-                box.setAlignment(Pos.CENTER);
-                btnEdit.setMinWidth(Region.USE_PREF_SIZE);
-                btnEdit.getStyleClass().addAll("approved-button", "approved-secondary-button", "compact-action-button");
-                btnEdit.setGraphic(IconFactory.compactIcon("edit", 12));
-                btnEdit.setOnAction(ev -> {
-                    BankStatementApiClient.RuleDto r = getTableRow() == null ? null : getTableRow().getItem();
-                    if (r != null) {
-                        openRuleEditor(pane, api, activeBatchId, r, defaultBankAccount, expenseCategories, paymentModes, reloadRef[0]);
-                    }
-                });
+                btnActions.getStyleClass().addAll("approved-button", "action-menu-button");
+                IconFactory.decorateActionMenu(btnActions);
+                btnActions.setMinWidth(Region.USE_PREF_SIZE);
+            }
 
-                btnDel.setMinWidth(Region.USE_PREF_SIZE);
-                btnDel.getStyleClass().addAll("approved-button", "approved-danger-button", "compact-action-button");
-                btnDel.setGraphic(IconFactory.compactIcon("delete", 12));
-                btnDel.setOnAction(ev -> {
-                    BankStatementApiClient.RuleDto r = getTableRow() == null ? null : getTableRow().getItem();
-                    if (r == null) return;
+            @Override
+            protected void updateItem(Void v, boolean empty) {
+                super.updateItem(v, empty);
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                    return;
+                }
+                BankStatementApiClient.RuleDto r = getTableRow().getItem();
+                btnActions.getItems().clear();
+
+                MenuItem itemEdit = new MenuItem("Edit Rule");
+                itemEdit.setGraphic(IconFactory.compactIcon("edit", 14));
+                itemEdit.setOnAction(ev -> openRuleEditor(pane, api, activeBatchId, r, defaultBankAccount, expenseCategories, paymentModes, bankAccounts, reloadRef[0]));
+
+                MenuItem itemPreview = new MenuItem("Preview on Statement");
+                itemPreview.setGraphic(IconFactory.compactIcon("view", 14));
+                itemPreview.setDisable(activeBatchId == null || activeBatchId <= 0);
+                itemPreview.setOnAction(ev -> previewRulesOnBatch(pane, api, activeBatchId, new BankStatementApiClient.RuleSaveRequest(
+                        r.ruleName(), r.matchField(), r.matchOperator(), r.matchPattern(), r.direction(),
+                        r.actionType(), r.targetCategory(), r.targetAccountName(), r.targetPaymentMode(),
+                        r.targetNotes(), r.executionMode(), r.priority(), r.active()
+                )));
+
+                MenuItem itemRun = new MenuItem("Run This Rule Now");
+                itemRun.setGraphic(IconFactory.compactIcon("refresh", 14));
+                itemRun.setDisable(activeBatchId == null || activeBatchId <= 0);
+                itemRun.setOnAction(ev -> runSingleRule(pane, api, activeBatchId, r, performedBy, () -> {
+                    reloadRef[0].run();
+                    if (onBatchChanged != null) onBatchChanged.run();
+                }));
+
+                String toggleLabel = r.active() ? "Deactivate Rule" : "Activate Rule";
+                String toggleIcon = r.active() ? "cancel" : "complete";
+                MenuItem itemToggle = new MenuItem(toggleLabel);
+                itemToggle.setGraphic(IconFactory.compactIcon(toggleIcon, 14));
+                itemToggle.setOnAction(ev -> toggleRuleActive(pane, api, r, reloadRef[0]));
+
+                MenuItem itemDel = new MenuItem("Delete Rule");
+                itemDel.setGraphic(IconFactory.compactIcon("delete", 14));
+                itemDel.getStyleClass().add("menu-item-danger");
+                itemDel.setOnAction(ev -> {
                     if (!AppDialogService.destructive(pane, "Delete Rule", "Delete rule '" + r.ruleName() + "'?",
                             "Future bank statements will no longer match this pattern. Past entries remain unaffected.", "Delete Rule")) {
                         return;
@@ -197,16 +256,81 @@ public final class BankReconciliationRulesDialog {
                             ok -> reloadRef[0].run(),
                             err -> AppDialogService.error(pane, "Delete Failed", err.getMessage()));
                 });
-            }
 
-            @Override
-            protected void updateItem(Void v, boolean empty) {
-                super.updateItem(v, empty);
-                setGraphic(empty ? null : box);
+                btnActions.getItems().addAll(itemEdit, itemPreview, itemRun, new SeparatorMenuItem(), itemToggle, new SeparatorMenuItem(), itemDel);
+                IconFactory.decorateActionMenu(btnActions);
+                setGraphic(btnActions);
             }
         });
 
-        btnNew.setOnAction(ev -> openRuleEditor(pane, api, activeBatchId, null, defaultBankAccount, expenseCategories, paymentModes, reloadRef[0]));
+        table.setRowFactory(tv -> {
+            TableRow<BankStatementApiClient.RuleDto> row = new TableRow<>();
+            ContextMenu rowMenu = new ContextMenu();
+            row.setOnMouseClicked(ev -> {
+                if (ev.getClickCount() == 2 && !row.isEmpty()) {
+                    BankStatementApiClient.RuleDto item = row.getItem();
+                    if (item != null) {
+                        openRuleEditor(pane, api, activeBatchId, item, defaultBankAccount, expenseCategories, paymentModes, bankAccounts, reloadRef[0]);
+                    }
+                }
+            });
+
+            row.itemProperty().addListener((obs, oldVal, item) -> {
+                if (item == null) {
+                    row.setContextMenu(null);
+                    return;
+                }
+                rowMenu.getItems().clear();
+
+                MenuItem itemEdit = new MenuItem("Edit Rule");
+                itemEdit.setGraphic(IconFactory.compactIcon("edit", 14));
+                itemEdit.setOnAction(ev -> openRuleEditor(pane, api, activeBatchId, item, defaultBankAccount, expenseCategories, paymentModes, bankAccounts, reloadRef[0]));
+
+                MenuItem itemPreview = new MenuItem("Preview on Statement");
+                itemPreview.setGraphic(IconFactory.compactIcon("view", 14));
+                itemPreview.setDisable(activeBatchId == null || activeBatchId <= 0);
+                itemPreview.setOnAction(ev -> previewRulesOnBatch(pane, api, activeBatchId, new BankStatementApiClient.RuleSaveRequest(
+                        item.ruleName(), item.matchField(), item.matchOperator(), item.matchPattern(), item.direction(),
+                        item.actionType(), item.targetCategory(), item.targetAccountName(), item.targetPaymentMode(),
+                        item.targetNotes(), item.executionMode(), item.priority(), item.active()
+                )));
+
+                MenuItem itemRun = new MenuItem("Run This Rule Now");
+                itemRun.setGraphic(IconFactory.compactIcon("refresh", 14));
+                itemRun.setDisable(activeBatchId == null || activeBatchId <= 0);
+                itemRun.setOnAction(ev -> runSingleRule(pane, api, activeBatchId, item, performedBy, () -> {
+                    reloadRef[0].run();
+                    if (onBatchChanged != null) onBatchChanged.run();
+                }));
+
+                String toggleLabel = item.active() ? "Deactivate Rule" : "Activate Rule";
+                String toggleIcon = item.active() ? "cancel" : "complete";
+                MenuItem itemToggle = new MenuItem(toggleLabel);
+                itemToggle.setGraphic(IconFactory.compactIcon(toggleIcon, 14));
+                itemToggle.setOnAction(ev -> toggleRuleActive(pane, api, item, reloadRef[0]));
+
+                MenuItem itemDel = new MenuItem("Delete Rule");
+                itemDel.setGraphic(IconFactory.compactIcon("delete", 14));
+                itemDel.getStyleClass().add("menu-item-danger");
+                itemDel.setOnAction(ev -> {
+                    if (!AppDialogService.destructive(pane, "Delete Rule", "Delete rule '" + item.ruleName() + "'?",
+                            "Future bank statements will no longer match this pattern. Past entries remain unaffected.", "Delete Rule")) {
+                        return;
+                    }
+                    UiTaskExecutor.submitAction("bank-rule-delete-" + item.id(),
+                            () -> api.deleteRule(item.id()),
+                            ok -> reloadRef[0].run(),
+                            err -> AppDialogService.error(pane, "Delete Failed", err.getMessage()));
+                });
+
+                rowMenu.getItems().addAll(itemEdit, itemPreview, itemRun, new SeparatorMenuItem(), itemToggle, new SeparatorMenuItem(), itemDel);
+                IconFactory.decorateActionMenu(rowMenu);
+                row.setContextMenu(rowMenu);
+            });
+            return row;
+        });
+
+        btnNew.setOnAction(ev -> openRuleEditor(pane, api, activeBatchId, null, defaultBankAccount, expenseCategories, paymentModes, bankAccounts, reloadRef[0]));
         btnTestAll.setOnAction(ev -> previewRulesOnBatch(pane, api, activeBatchId, null));
         btnRunNow.setOnAction(ev -> runRulesWithConfirmation(pane, api, activeBatchId, performedBy, () -> {
             reloadRef[0].run();
@@ -228,13 +352,7 @@ public final class BankReconciliationRulesDialog {
 
         dialog.setOnShown(ev -> {
             if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage stage) {
-                javafx.geometry.Rectangle2D b = WindowUtilsFx.visualBoundsFor(owner);
-                double w = Math.min(b.getWidth() * 0.92, 1140);
-                double h = Math.min(b.getHeight() * 0.88, 700);
-                stage.setMinWidth(Math.min(820, w));
-                stage.setMinHeight(Math.min(500, h));
-                stage.setWidth(w);
-                stage.setHeight(h);
+                stage.getProperties().put("dse.dialog.wide90", Boolean.TRUE);
                 WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
             }
             reloadRef[0].run();
@@ -328,6 +446,7 @@ public final class BankReconciliationRulesDialog {
             String defaultBankAccount,
             List<String> categories,
             List<String> modes,
+            List<String> bankAccounts,
             Runnable onSaved) {
         OwnedDialog<ButtonType> dlg = new OwnedDialog<>(owner);
         dlg.setTitle(existing == null ? "Create Bank Reconciliation Rule" : "Edit Rule — " + existing.ruleName());
@@ -372,8 +491,16 @@ public final class BankReconciliationRulesDialog {
         cmbCategory.setMaxWidth(Double.MAX_VALUE);
         if (existing != null && existing.targetCategory() != null) cmbCategory.setValue(existing.targetCategory());
 
-        TextField txtAccount = new TextField(existing != null && existing.targetAccountName() != null ? existing.targetAccountName() : safe(defaultBankAccount));
-        txtAccount.getStyleClass().add("approved-input");
+        ComboBox<String> cmbAccount = new ComboBox<>(FXCollections.observableArrayList(bankAccounts == null ? List.of() : bankAccounts));
+        cmbAccount.setEditable(true);
+        cmbAccount.setMaxWidth(Double.MAX_VALUE);
+        if (existing != null && existing.targetAccountName() != null && !existing.targetAccountName().isBlank()) {
+            cmbAccount.setValue(existing.targetAccountName());
+        } else if (defaultBankAccount != null && !defaultBankAccount.isBlank()) {
+            cmbAccount.setValue(defaultBankAccount);
+        } else if (!cmbAccount.getItems().isEmpty()) {
+            cmbAccount.getSelectionModel().selectFirst();
+        }
 
         ComboBox<String> cmbPayMode = new ComboBox<>(FXCollections.observableArrayList(modes == null || modes.isEmpty() ? List.of("Bank Transfer", "UPI", "NEFT", "IMPS") : modes));
         cmbPayMode.setEditable(true);
@@ -406,7 +533,7 @@ public final class BankReconciliationRulesDialog {
         grid.addRow(r++, new Label("Direction"), cmbDir);
         grid.addRow(r++, new Label("Target Action"), cmbAction);
         grid.addRow(r++, new Label("Expense Category"), cmbCategory);
-        grid.addRow(r++, new Label("Bank Account"), txtAccount);
+        grid.addRow(r++, new Label("Bank Account"), cmbAccount);
         grid.addRow(r++, new Label("Payment Mode"), cmbPayMode);
         grid.addRow(r++, new Label("Execution Mode"), cmbExecMode);
         grid.addRow(r++, new Label("Priority (Low=First)"), txtPriority);
@@ -423,7 +550,7 @@ public final class BankReconciliationRulesDialog {
             testNode.setDisable(activeBatchId == null || activeBatchId <= 0);
             testNode.addEventFilter(javafx.event.ActionEvent.ACTION, ev -> {
                 ev.consume();
-                var req = buildRequest(txtName, cmbField, cmbOp, txtPattern, cmbDir, cmbAction, cmbCategory, txtAccount, cmbPayMode, txtNotes, cmbExecMode, txtPriority, chkActive);
+                var req = buildRequest(txtName, cmbField, cmbOp, txtPattern, cmbDir, cmbAction, cmbCategory, cmbAccount, cmbPayMode, txtNotes, cmbExecMode, txtPriority, chkActive);
                 previewRulesOnBatch(dlg.getDialogPane(), api, activeBatchId, req);
             });
         }
@@ -443,7 +570,7 @@ public final class BankReconciliationRulesDialog {
 
         PopupTableWorkspace.prepareDialog(dlg, 680);
         dlg.showAndWait().filter(btSave::equals).ifPresent(ok -> {
-            var req = buildRequest(txtName, cmbField, cmbOp, txtPattern, cmbDir, cmbAction, cmbCategory, txtAccount, cmbPayMode, txtNotes, cmbExecMode, txtPriority, chkActive);
+            var req = buildRequest(txtName, cmbField, cmbOp, txtPattern, cmbDir, cmbAction, cmbCategory, cmbAccount, cmbPayMode, txtNotes, cmbExecMode, txtPriority, chkActive);
             UiTaskExecutor.submitAction("bank-rule-save",
                     () -> existing == null ? api.createRule(req) : api.updateRule(existing.id(), req),
                     saved -> {
@@ -453,18 +580,73 @@ public final class BankReconciliationRulesDialog {
         });
     }
 
+    private static void toggleRuleActive(Node owner, BankStatementApiClient api, BankStatementApiClient.RuleDto rule, Runnable onReload) {
+        if (rule == null) return;
+        boolean newActive = !rule.active();
+        var req = new BankStatementApiClient.RuleSaveRequest(
+                rule.ruleName(), rule.matchField(), rule.matchOperator(), rule.matchPattern(), rule.direction(),
+                rule.actionType(), rule.targetCategory(), rule.targetAccountName(), rule.targetPaymentMode(),
+                rule.targetNotes(), rule.executionMode(), rule.priority(), newActive
+        );
+        UiTaskExecutor.submitAction(
+                "bank-rule-toggle-" + rule.id(),
+                () -> api.updateRule(rule.id(), req),
+                ok -> onReload.run(),
+                err -> AppDialogService.error(owner, "Update Status Failed", err.getMessage())
+        );
+    }
+
+    private static void runSingleRule(Node owner, BankStatementApiClient api, Long batchId, BankStatementApiClient.RuleDto rule, String performedBy, Runnable onDone) {
+        if (batchId == null || batchId <= 0 || rule == null) return;
+        var req = new BankStatementApiClient.RuleSaveRequest(
+                rule.ruleName(), rule.matchField(), rule.matchOperator(), rule.matchPattern(), rule.direction(),
+                rule.actionType(), rule.targetCategory(), rule.targetAccountName(), rule.targetPaymentMode(),
+                rule.targetNotes(), rule.executionMode(), rule.priority(), rule.active()
+        );
+        UiTaskExecutor.submitActionWithOverlay(
+                owner,
+                "Previewing Rule '" + rule.ruleName() + "'...",
+                "bank-rule-run-preview-" + rule.id(),
+                () -> api.previewRules(batchId, req),
+                preview -> {
+                    if (preview.matchedRows() == 0) {
+                        AppDialogService.info(owner, "No Matches", "Rule '" + rule.ruleName() + "' did not match any open transactions on this statement.");
+                        return;
+                    }
+                    String msg = "Rule '" + rule.ruleName() + "' matched " + preview.matchedRows() + " open transaction(s) (Total: ₹ "
+                            + String.format(Locale.ENGLISH, "%,.2f", preview.matchedTotalAmount()) + ").\n\nApply now?";
+                    if (!AppDialogService.confirm(owner, "Run Rule", "Apply Rule '" + rule.ruleName() + "'?", msg)) {
+                        return;
+                    }
+                    UiTaskExecutor.submitActionWithOverlay(
+                            owner,
+                            "Applying Rule...",
+                            "bank-rules-apply-" + batchId,
+                            () -> api.applyRules(batchId, performedBy),
+                            res -> {
+                                AppDialogService.success(owner, "Rule Applied", res.message());
+                                if (onDone != null) onDone.run();
+                            },
+                            err -> AppDialogService.error(owner, "Apply Rule Failed", err.getMessage())
+                    );
+                },
+                err -> AppDialogService.error(owner, "Preview Failed", err.getMessage())
+        );
+    }
+
     private static BankStatementApiClient.RuleSaveRequest buildRequest(
             TextField txtName, ComboBox<String> cmbField, ComboBox<String> cmbOp, TextField txtPattern,
             ComboBox<String> cmbDir, ComboBox<String> cmbAction, ComboBox<String> cmbCategory,
-            TextField txtAccount, ComboBox<String> cmbPayMode, TextField txtNotes,
+            ComboBox<String> cmbAccount, ComboBox<String> cmbPayMode, TextField txtNotes,
             ComboBox<String> cmbExecMode, TextField txtPriority, CheckBox chkActive) {
         int prio = 100;
         try { prio = Integer.parseInt(txtPriority.getText().trim()); } catch (Exception ignored) {}
         String cat = cmbCategory.getValue() != null && !cmbCategory.getValue().isBlank() ? cmbCategory.getValue() : cmbCategory.getEditor().getText();
         String mode = cmbPayMode.getValue() != null && !cmbPayMode.getValue().isBlank() ? cmbPayMode.getValue() : cmbPayMode.getEditor().getText();
+        String acct = cmbAccount.getValue() != null && !cmbAccount.getValue().isBlank() ? cmbAccount.getValue() : cmbAccount.getEditor().getText();
         return new BankStatementApiClient.RuleSaveRequest(
                 txtName.getText().trim(), cmbField.getValue(), cmbOp.getValue(), txtPattern.getText().trim(),
-                cmbDir.getValue(), cmbAction.getValue(), cat, txtAccount.getText().trim(), mode,
+                cmbDir.getValue(), cmbAction.getValue(), cat, safe(acct), mode,
                 txtNotes.getText().trim(), cmbExecMode.getValue(), prio, chkActive.isSelected()
         );
     }

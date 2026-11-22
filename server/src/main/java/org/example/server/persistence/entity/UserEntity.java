@@ -28,6 +28,8 @@ public class UserEntity {
     @Column(name = "last_login_utc") private String lastLoginUtc;
     @Column(name = "totp_secret_enc") private String totpSecretEnc;
     @Column(name = "approval_status", nullable = false) private String approvalStatus = "APPROVED";
+    @Column(name = "last_password_reset_utc") private String lastPasswordResetUtc;
+    @Column(name = "force_password_change", nullable = false) private Integer forcePasswordChange = 0;
 
     public Integer getId() { return id; }
     public String getUsername() { return username; }
@@ -47,6 +49,10 @@ public class UserEntity {
     public void setMfaEnabled(boolean mfaEnabled) { this.mfaEnabled = mfaEnabled ? 1 : 0; }
     public void setTotpSecretEnc(String value) { this.totpSecretEnc = value; }
     public void setApprovalStatus(String value) { this.approvalStatus = value == null || value.isBlank() ? "APPROVED" : value.trim().toUpperCase(java.util.Locale.ROOT); }
+    public String getLastPasswordResetUtc() { return lastPasswordResetUtc; }
+    public void setLastPasswordResetUtc(String value) { this.lastPasswordResetUtc = value; }
+    public boolean isForcePasswordChange() { return Integer.valueOf(1).equals(forcePasswordChange); }
+    public void setForcePasswordChange(boolean force) { this.forcePasswordChange = force ? 1 : 0; }
 
     public String getFullName() { return fullName; }
     public String getRoleName() { return role; }

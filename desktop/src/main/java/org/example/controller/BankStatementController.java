@@ -172,9 +172,9 @@ public class BankStatementController implements ScreenLifecycle {
         Long batchId = cmbBatch != null && cmbBatch.getValue() != null ? cmbBatch.getValue().id() : null;
         UiTaskExecutor.submitLatest(
                 "bank-rules-manager-lookups",
-                () -> new BulkDialogLookups(safeLookup("EXPENSE_CATEGORY"), safeLookup("PAYMENT_MODE")),
+                () -> new BulkDialogLookups(safeLookup("EXPENSE_CATEGORY"), safeLookup("PAYMENT_MODE"), readMasterBankAccountNames()),
                 lookups -> org.example.bank.BankReconciliationRulesDialog.show(
-                        table, api, batchId, batchAccountName(), lookups.categories(), lookups.paymentModes(), user(), this::refresh),
+                        table, api, batchId, batchAccountName(), lookups.categories(), lookups.paymentModes(), lookups.bankAccounts(), user(), this::refresh),
                 this::error
         );
     }
@@ -539,20 +539,8 @@ public class BankStatementController implements ScreenLifecycle {
         statementHistoryDialog.setResizable(true);
         statementHistoryDialog.getDialogPane().getStyleClass().addAll("bank-workspace-dialog","bank-statement-history-dialog");
         statementHistoryDialog.getDialogPane().setContent(statementHistoryDrawer);
-
-        Screen screen = Screen.getPrimary();
-        if (statementWorkspace.getScene() != null && statementWorkspace.getScene().getWindow() != null) {
-            Window owner = statementWorkspace.getScene().getWindow();
-            screen = Screen.getScreensForRectangle(owner.getX(), owner.getY(), Math.max(1, owner.getWidth()), Math.max(1, owner.getHeight()))
-                    .stream().findFirst().orElse(Screen.getPrimary());
-        }
-        double usableHeight = Math.max(560, screen.getVisualBounds().getHeight() - 60);
-        double targetHeight = Math.min(780, usableHeight);
-        double usableWidth = Math.max(800, screen.getVisualBounds().getWidth() - 60);
-        double targetWidth = Math.min(1080, usableWidth);
-        statementHistoryDialog.getDialogPane().setPrefSize(targetWidth, targetHeight);
-        statementHistoryDialog.getDialogPane().setMinSize(Math.min(900, targetWidth), Math.min(560, targetHeight));
         statementHistoryDialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        PopupTableWorkspace.applyWideWorkspace90(statementHistoryDialog, statementWorkspace);
         javafx.application.Platform.runLater(() -> {
             Node closeBtn = statementHistoryDialog.getDialogPane().lookupButton(ButtonType.CLOSE);
             if (closeBtn != null) { closeBtn.setVisible(false); closeBtn.setManaged(false); }
@@ -1225,7 +1213,15 @@ public class BankStatementController implements ScreenLifecycle {
 
     private void showBulkBankEntryDialog(List<Row> rows,List<String> modes){
         Dialog<ButtonType> dialog=new OwnedDialog<>(table);dialog.setTitle("Bulk Move to Bank Entry");dialog.setHeaderText(rows.size()+" selected transactions • Total ₹ "+money(rows.stream().mapToDouble(r->bankAmount(r.dto)).sum()));
-        TextField account=new TextField(batchAccountName());ComboBox<String> mode=new ComboBox<>(FXCollections.observableArrayList(modes));if(!modes.isEmpty())mode.getSelectionModel().selectFirst();mode.setMaxWidth(Double.MAX_VALUE);
+        ComboBox<String> account=new ComboBox<>();account.setEditable(true);
+        if(bankAccountOptions.isEmpty())configureBankAccountMaster();
+        List<String> accOptions=bankAccountOptions.stream().map(BankAccountOption::toString).toList();
+        if(!accOptions.isEmpty())account.getItems().addAll(accOptions);
+        String initialAcc=batchAccountName();
+        if(!initialAcc.isBlank()){if(!account.getItems().contains(initialAcc))account.getItems().add(0,initialAcc);account.setValue(initialAcc);}
+        else if(!account.getItems().isEmpty())account.getSelectionModel().selectFirst();
+        account.setMaxWidth(Double.MAX_VALUE);
+        ComboBox<String> mode=new ComboBox<>(FXCollections.observableArrayList(modes));if(!modes.isEmpty())mode.getSelectionModel().selectFirst();mode.setMaxWidth(Double.MAX_VALUE);
         TextArea notes=new TextArea();notes.setPromptText("Optional note applied to all selected transactions");notes.setPrefRowCount(3);notes.setWrapText(true);notes.setMinHeight(84);notes.setPrefHeight(92);notes.getStyleClass().add("input-field");
         GridPane grid=new GridPane();grid.setHgap(14);grid.setVgap(12);ColumnConstraints c0=new ColumnConstraints(180,190,210);c0.setHgrow(Priority.NEVER);ColumnConstraints c1=new ColumnConstraints(340,400,Double.MAX_VALUE);c1.setHgrow(Priority.ALWAYS);grid.getColumnConstraints().setAll(c0,c1);Label lAcc=new Label("Bank Account");lAcc.setMinWidth(Region.USE_PREF_SIZE);Label lMode=new Label("Payment Mode");lMode.setMinWidth(Region.USE_PREF_SIZE);Label lNote=new Label("Common Note");lNote.setMinWidth(Region.USE_PREF_SIZE);grid.addRow(0,lAcc,account);grid.addRow(1,lMode,mode);grid.addRow(2,lNote,notes);GridPane.setHgrow(account,Priority.ALWAYS);GridPane.setHgrow(mode,Priority.ALWAYS);GridPane.setHgrow(notes,Priority.ALWAYS);
         CheckBox chkRememberRule=new CheckBox("Remember rule for future statements");chkRememberRule.getStyleClass().addAll("approved-checkbox","ios-toggle-switch");
@@ -1245,10 +1241,11 @@ public class BankStatementController implements ScreenLifecycle {
             boolean saveRule=isBankRulesPromptSaveEnabled()&&chkRememberRule.isSelected()&&!safe(txtRulePattern.getText()).isBlank();
             String rulePat=safe(txtRulePattern.getText()).trim();String ruleMode=cmbRuleMode.getValue();
             String dir=rows.getFirst().dto.credit()>0&&rows.getFirst().dto.debit()<=0?"CREDIT":"DEBIT";
+            String finalAcc=account.getValue()==null?"":account.getValue().trim();
             UiTaskExecutor.submitSerial("bank-statement-bulk-bank",()->{
-                var res=api.bulkBankEntry(new BankStatementApiClient.BulkBankEntryRequest(ids,account.getText(),mode.getValue(),notes.getText(),performedBy));
+                var res=api.bulkBankEntry(new BankStatementApiClient.BulkBankEntryRequest(ids,finalAcc,mode.getValue(),notes.getText(),performedBy));
                 if(saveRule){
-                    try{api.createRule(new BankStatementApiClient.RuleSaveRequest("Bank Entry ("+rulePat+")","NARRATION","CONTAINS",rulePat,dir,"BANK_ENTRY",null,account.getText(),mode.getValue(),notes.getText(),ruleMode,100,true));}catch(Exception ignored){}
+                    try{api.createRule(new BankStatementApiClient.RuleSaveRequest("Bank Entry ("+rulePat+")","NARRATION","CONTAINS",rulePat,dir,"BANK_ENTRY",null,finalAcc,mode.getValue(),notes.getText(),ruleMode,100,true));}catch(Exception ignored){}
                 }
                 return res;
             },result->{success("Bulk Bank Entry Complete",result.message()+(saveRule?"\n\nSaved Smart Rule for pattern: \""+rulePat+"\"":""));refresh();},this::error);
@@ -1360,39 +1357,48 @@ public class BankStatementController implements ScreenLifecycle {
         TableColumn<CandidateRow,Boolean> selected=new TableColumn<>("Select");
         selected.setCellValueFactory(v->v.getValue().selected);
         selected.setCellFactory(CheckBoxTableCell.forTableColumn(selected));
-        selected.setMinWidth(45); selected.setPrefWidth(45);
+        selected.setMinWidth(75);
+        selected.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.055));
 
         TableColumn<CandidateRow,Number> score=new TableColumn<>("Score");
         score.setCellValueFactory(v->v.getValue().confidence);
-        score.setMinWidth(65); score.setPrefWidth(70);
+        score.setMinWidth(65);
+        score.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.055));
 
         TableColumn<CandidateRow,String> type=new TableColumn<>("Type");
         type.setCellValueFactory(v->v.getValue().type);
-        type.setMinWidth(110); type.setPrefWidth(125);
+        type.setMinWidth(95);
+        type.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.08));
 
         TableColumn<CandidateRow,String> document=new TableColumn<>("Document");
         document.setCellValueFactory(v->v.getValue().document);
-        document.setMinWidth(160); document.setPrefWidth(180);
+        document.setMinWidth(135);
+        document.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.12));
 
         TableColumn<CandidateRow,String> party=new TableColumn<>("Customer / Supplier");
         party.setCellValueFactory(v->v.getValue().party);
-        party.setMinWidth(220); party.setPrefWidth(260);
+        party.setMinWidth(180);
+        party.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.18));
 
         TableColumn<CandidateRow,String> date=new TableColumn<>("Date");
         date.setCellValueFactory(v->v.getValue().date);
-        date.setMinWidth(100); date.setPrefWidth(110);
+        date.setMinWidth(90);
+        date.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.08));
 
         TableColumn<CandidateRow,Number> total=new TableColumn<>("Document Total");
         total.setCellValueFactory(v->v.getValue().total);
-        total.setMinWidth(130); total.setPrefWidth(140);
+        total.setMinWidth(100);
+        total.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.095));
 
         TableColumn<CandidateRow,Number> paid=new TableColumn<>("Paid / Refunded");
         paid.setCellValueFactory(v->v.getValue().paid);
-        paid.setMinWidth(130); paid.setPrefWidth(140);
+        paid.setMinWidth(95);
+        paid.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.095));
 
         TableColumn<CandidateRow,Number> outstanding=new TableColumn<>("Outstanding");
         outstanding.setCellValueFactory(v->v.getValue().outstanding);
-        outstanding.setMinWidth(130); outstanding.setPrefWidth(140);
+        outstanding.setMinWidth(95);
+        outstanding.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.095));
 
         total.setCellFactory(x -> SemanticTableCells.amount("total"));
         paid.setCellFactory(x -> SemanticTableCells.amount("paid"));
@@ -1402,7 +1408,8 @@ public class BankStatementController implements ScreenLifecycle {
         allocation.setCellValueFactory(v->v.getValue().allocation.asObject());
         allocation.setCellFactory(TextFieldTableCell.forTableColumn(new DoubleStringConverter()));
         allocation.setOnEditCommit(e->{double value=e.getNewValue()==null?0:e.getNewValue();e.getRowValue().allocation.set(value);e.getRowValue().selected.set(value>.0001);});
-        allocation.setMinWidth(130); allocation.setPrefWidth(140);
+        allocation.setMinWidth(110);
+        allocation.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.105));
 
         TableColumn<CandidateRow,String> reasonCol=new TableColumn<>("Match Basis");
         reasonCol.setCellValueFactory(v->v.getValue().reason);
@@ -1431,10 +1438,12 @@ public class BankStatementController implements ScreenLifecycle {
                 setAlignment(Pos.CENTER_LEFT);
             }
         });
-        reasonCol.setMinWidth(170); reasonCol.setPrefWidth(220);
+        reasonCol.setMinWidth(140);
+        reasonCol.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.14));
         IconFactory.applyTableHeaderIcon(reasonCol, "notes");
 
         candidatesTable.getColumns().setAll(selected,score,reasonCol,type,document,party,date,total,paid,outstanding,allocation);
+        candidatesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         DynamicTableLayoutManager.install(candidatesTable);
         CheckBox selectAllCandidates=new CheckBox();
         selectAllCandidates.getProperties().put("erp.icon.skip",true);
@@ -1493,11 +1502,8 @@ public class BankStatementController implements ScreenLifecycle {
         help.setWrapText(true);help.getStyleClass().add("bank-dialog-help");
         VBox tableArea=new VBox(7,bank,help,candidatesTable);VBox.setVgrow(candidatesTable,Priority.ALWAYS);
         VBox content=PopupTableWorkspace.content(metrics,tableArea,selectedStatus);
-        Dialog<ButtonType> dialog=new OwnedDialog<>();dialog.setTitle("Match Transaction");dialog.setHeaderText("Review possible matches and allocate the complete bank transaction.");dialog.getDialogPane().setContent(content);
-        double screenW = Screen.getPrimary().getVisualBounds().getWidth();
-        double targetW = Math.max(1480, Math.min(1760, screenW - 48));
-        PopupTableWorkspace.prepareDialog(dialog, targetW);
-        candidatesTable.setPrefWidth(targetW - 32);
+        Dialog<ButtonType> dialog=new OwnedDialog<>(table);dialog.setTitle("Match Transaction");dialog.setHeaderText("Review possible matches and allocate the complete bank transaction.");dialog.getDialogPane().setContent(content);
+        PopupTableWorkspace.applyWideWorkspace90(dialog, table);
         ButtonType refreshType=new ButtonType("Refresh Suggestions",ButtonBar.ButtonData.OTHER);ButtonType confirm=new ButtonType("Confirm Match",ButtonBar.ButtonData.OK_DONE);dialog.getDialogPane().getButtonTypes().addAll(refreshType,ButtonType.CANCEL,confirm);
         Button refreshButton=(Button)dialog.getDialogPane().lookupButton(refreshType);refreshButton.setGraphic(IconFactory.compactIcon("refresh",15));refreshButton.addEventFilter(javafx.event.ActionEvent.ACTION,e->{e.consume();dialog.close();javafx.application.Platform.runLater(()->match(bankRow));});
         dialog.showAndWait().filter(confirm::equals).ifPresent(x->{
@@ -1972,7 +1978,7 @@ public class BankStatementController implements ScreenLifecycle {
         Label footer = PopupTableWorkspace.footerText(targets.size() + " linked records found • Click View on any record to navigate directly to its workspace.");
         VBox content = PopupTableWorkspace.content(metrics, linkedTable, footer);
         dialog.getDialogPane().setContent(content);
-        PopupTableWorkspace.prepareDialog(dialog, 1060);
+        PopupTableWorkspace.applyWideWorkspace90(dialog, table);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.showAndWait();
     }
@@ -2029,25 +2035,26 @@ public class BankStatementController implements ScreenLifecycle {
 
     private void viewEdit(Row row){
         var t=row.dto;
-        GridPane grid=new GridPane(); grid.setHgap(14); grid.setVgap(8); grid.getStyleClass().add("bank-dialog-grid");
+        GridPane grid=new GridPane(); grid.setHgap(20); grid.setVgap(10); grid.getStyleClass().add("bank-dialog-grid");
         int r=0; addDialogRow(grid,r++,"Statement Ref",safe(t.statementReference())); addDialogRow(grid,r++,"Transaction Date",safe(t.transactionDate()));
         addDialogRow(grid,r++,"Reference / Cheque",safe(t.reference())); addDialogRow(grid,r++,"Description / Narration",safe(t.description()));
         addDialogRow(grid,r++,"Debit",money(t.debit())); addDialogRow(grid,r++,"Credit",money(t.credit())); addDialogRow(grid,r++,"Balance",money(t.balance()));
         addDialogRow(grid,r++,"Reconciliation Status",safe(t.status())); addDialogRow(grid,r++,"Match / Link",safe(t.matchLink()).isBlank()?"Not linked yet":safe(t.matchLink()));
         Label evidence=new Label("Original imported bank values are preserved and cannot be overwritten. Add only an ERP note below."); evidence.setWrapText(true); evidence.getStyleClass().add("bank-dialog-help");
-        TextArea note=new TextArea(); note.setPromptText("Add an internal ERP note for this bank transaction..."); note.setPrefRowCount(3); note.setWrapText(true);
+        TextArea note=new TextArea(); note.setPromptText("Add an internal ERP note for this bank transaction..."); note.setPrefRowCount(4); note.setWrapText(true);
         note.setTextFormatter(new TextFormatter<String>(change->change.getControlNewText().length()<=500?change:null));
         Label counter=new Label("0 / 500");counter.getStyleClass().add("bank-note-counter");note.textProperty().addListener((o,a,b)->counter.setText(b.length()+" / 500"));
-        VBox overview=new VBox(10,sectionTitle("Transaction Overview"),grid);overview.getStyleClass().add("bank-dialog-section");
-        Label direction=new Label(t.credit()>0?"Bank Credit":"Bank Debit");Label amount=new Label("₹ "+money(bankAmount(t)));amount.getStyleClass().add("bank-transaction-hero-amount");
-        VBox amountCard=new VBox(6,dialogIcon("bank",38),direction,amount);amountCard.getStyleClass().add("bank-transaction-amount-card");
-        VBox side=new VBox(10,amountCard,metricCard("Account Balance","₹ "+money(t.balance()),"bank"),metricCard("Status",safe(t.status()),"status"));side.setPrefWidth(190);
-        HBox details=new HBox(12,overview,side);HBox.setHgrow(overview,Priority.ALWAYS);
+        VBox overview=new VBox(10,sectionTitle("Transaction Overview"),grid);overview.getStyleClass().add("bank-dialog-section");VBox.setVgrow(overview,Priority.ALWAYS);
+        HBox metrics = PopupTableWorkspace.metricStrip(
+            PopupTableWorkspace.metricCard(t.credit() > 0 ? "Bank Credit" : "Bank Debit", "₹ " + money(bankAmount(t)), t.credit() > 0 ? "credit" : "debit"),
+            PopupTableWorkspace.metricCard("Account Balance", "₹ " + money(t.balance()), "bank"),
+            PopupTableWorkspace.metricCard("Reconciliation Status", safe(t.status()), "status")
+        );
         Region counterSpace=new Region();HBox.setHgrow(counterSpace,Priority.ALWAYS);HBox noteFooter=new HBox(counterSpace,counter);
         VBox noteCard=new VBox(6,new Label("ERP Note (Internal)"),note,noteFooter);noteCard.getStyleClass().add("bank-dialog-section");
-        VBox content=new VBox(12,dialogHero("view","View / Edit Transaction","Detailed information of the imported bank transaction."),details,evidence,noteCard); content.setPadding(new Insets(8));
+        VBox content=new VBox(12,dialogHero("view","View / Edit Transaction","Detailed information of the imported bank transaction."),metrics,overview,evidence,noteCard); content.setPadding(new Insets(10));
         Dialog<ButtonType> d=new OwnedDialog<>(table); d.setTitle("Bank Transaction"); d.setHeaderText(null);d.getDialogPane().getStyleClass().addAll("bank-workspace-dialog","bank-transaction-dialog"); d.getDialogPane().setContent(content);
-        PopupTableWorkspace.prepareDialog(d, 780);
+        PopupTableWorkspace.applyWideWorkspace90(d, table);
         ButtonType save=new ButtonType("Save Note",ButtonBar.ButtonData.OK_DONE); d.getDialogPane().getButtonTypes().addAll(save,ButtonType.CLOSE);
         d.showAndWait().filter(x->x==save).ifPresent(x->{
             String value=note.getText().trim(),performedBy=user();
@@ -2067,15 +2074,30 @@ public class BankStatementController implements ScreenLifecycle {
         GridPane meta=new GridPane();meta.setHgap(14);meta.setVgap(7);meta.getStyleClass().add("bank-dialog-grid");int r=0;
             addDialogRow(meta,r++,"Bank",safe(b.bankName()));addDialogRow(meta,r++,"Account",safe(b.bankAccount()));addDialogRow(meta,r++,"Account Holder",safe(b.accountHolder()));
             addDialogRow(meta,r++,"Statement Period",safe(b.statementFrom())+"  to  "+safe(b.statementTo()));addDialogRow(meta,r++,"Source File",safe(src.fileName()));addDialogRow(meta,r++,"SHA-256",safe(src.fingerprint()));
-            ListView<String> preview=new ListView<>();String[] csvLines=safe(src.csvContent()).split("\\R",-1);for(int i=0;i<csvLines.length;i++)preview.getItems().add(String.format("%4d   %s",i+1,csvLines[i]));preview.setPrefHeight(300);preview.getStyleClass().add("bank-evidence-preview");
+            ListView<String> preview=new ListView<>();
+            String rawCsv=safe(src.csvContent()).trim();
+            if(rawCsv.isBlank()){
+                preview.getItems().add("   1   # No raw statement text stored for this batch.");
+                preview.getItems().add("   2   # Source file: "+safe(src.fileName()));
+                preview.getItems().add("   3   # SHA-256 Fingerprint: "+safe(src.fingerprint()));
+            }else{
+                String[] csvLines=rawCsv.split("\\R",-1);
+                for(int i=0;i<csvLines.length;i++)preview.getItems().add(String.format("%4d   %s",i+1,csvLines[i]));
+            }
+            preview.setPrefHeight(450);
+            preview.setPlaceholder(new Label("No statement evidence available."));
+            preview.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+            preview.getStyleClass().add("bank-evidence-preview");
             Label help=new Label("This is the original imported CSV evidence retained for reconciliation and audit. Bank values are never changed by ERP matching.");help.setWrapText(true);help.getStyleClass().add("bank-dialog-help");
             Button copy=new Button("Copy SHA-256",IconFactory.compactIcon("copy",14));copy.getStyleClass().addAll("approved-button","approved-secondary-button");copy.setOnAction(e->{ClipboardContent cc=new ClipboardContent();cc.putString(safe(src.fingerprint()));Clipboard.getSystemClipboard().setContent(cc);});
             Region titleSpace=new Region();HBox.setHgrow(titleSpace,Priority.ALWAYS);HBox evidenceTitle=new HBox(8,sectionTitle("Imported Statement Evidence"),titleSpace,copy);evidenceTitle.setAlignment(Pos.CENTER_LEFT);
             VBox evidenceCard=new VBox(10,evidenceTitle,meta);evidenceCard.getStyleClass().add("bank-dialog-section");
             VBox previewCard=new VBox(8,new Label("CSV Evidence Preview"),preview);previewCard.getStyleClass().add("bank-dialog-section");
-            VBox content=new VBox(12,dialogHero("document","Statement Source & Evidence","Review the source file and evidence of this imported statement."),evidenceCard,help,previewCard);content.setPadding(new Insets(8));
+            VBox.setVgrow(previewCard, Priority.ALWAYS);
+            VBox.setVgrow(preview, Priority.ALWAYS);
+            VBox content=new VBox(12,dialogHero("document","Statement Source & Evidence","Review the source file and evidence of this imported statement."),evidenceCard,help,previewCard);content.setPadding(new Insets(10));
             Dialog<ButtonType> d=new OwnedDialog<>(table);d.setTitle("Imported Bank Statement");d.setHeaderText(null);d.getDialogPane().getStyleClass().addAll("bank-workspace-dialog","bank-evidence-dialog");d.getDialogPane().setContent(content);d.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-            PopupTableWorkspace.prepareDialog(d, 820);
+            PopupTableWorkspace.applyWideWorkspace90(d, table);
             d.showAndWait();
     }
     private Label sectionTitle(String text){Label l=new Label(text);l.getStyleClass().add("bank-dialog-title");return l;}
@@ -2147,8 +2169,16 @@ public class BankStatementController implements ScreenLifecycle {
     private void success(String h,String t){org.example.util.AppDialogService.success(table,h,t);}
     private void error(Throwable e){Alert a=new OwnedAlert(Alert.AlertType.ERROR,e.getMessage()==null?e.toString():e.getMessage());a.setHeaderText("Bank Statement operation failed");a.showAndWait();}
 
+    private List<String> readMasterBankAccountNames() {
+        return readBankAccountMaster().stream().map(BankAccountOption::toString).toList();
+    }
+
     private record BulkResult(int completed,int failed,String firstFailure) { }
-    private record BulkDialogLookups(List<String> categories,List<String> paymentModes) { }
+    private record BulkDialogLookups(List<String> categories,List<String> paymentModes,List<String> bankAccounts) {
+        BulkDialogLookups(List<String> categories, List<String> paymentModes) {
+            this(categories, paymentModes, List.of());
+        }
+    }
     private record MatchWorkspaceData(List<BankStatementApiClient.CandidateDto> candidates,double roundingTolerance) { }
 
     public static final class Row{
@@ -2458,10 +2488,8 @@ public class BankStatementController implements ScreenLifecycle {
         VBox content = PopupTableWorkspace.content(metrics, tableArea, footer);
 
         dialog.getDialogPane().setContent(content);
-        double screenW = Screen.getPrimary().getVisualBounds().getWidth();
-        double targetW = Math.max(1480, Math.min(1760, screenW - 48));
-        PopupTableWorkspace.prepareDialog(dialog, targetW);
-        autoTable.setPrefWidth(targetW - 32);
+        PopupTableWorkspace.applyWideWorkspace90(dialog, table);
+        autoTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         ButtonType refreshType = new ButtonType("Refresh Suggestions", ButtonBar.ButtonData.OTHER);
         ButtonType confirmType = new ButtonType("Confirm Match", ButtonBar.ButtonData.OK_DONE);

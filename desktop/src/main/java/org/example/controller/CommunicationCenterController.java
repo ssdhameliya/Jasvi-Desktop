@@ -380,13 +380,13 @@ public class CommunicationCenterController implements ScreenLifecycle {
         var rawList = supportApi.communications();
         Map<String, Integer> counts = new HashMap<>();
         for (var r : rawList) {
-            String key = groupKey(r.entityType(), r.entityId(), r.channel());
+            String key = groupKey(r.entityType(), r.entityId(), r.channel(), r.recipient());
             counts.put(key, counts.getOrDefault(key, 0) + 1);
         }
 
         Map<String, Integer> currentIdx = new HashMap<>();
         for (var r : rawList) {
-            String key = groupKey(r.entityType(), r.entityId(), r.channel());
+            String key = groupKey(r.entityType(), r.entityId(), r.channel(), r.recipient());
             int idx = currentIdx.getOrDefault(key, 0) + 1;
             currentIdx.put(key, idx);
             int totalForEntity = counts.getOrDefault(key, 1);
@@ -585,9 +585,9 @@ public class CommunicationCenterController implements ScreenLifecycle {
 
     private void inspectRow(Row row) {
         if (row == null) return;
-        String key = groupKey(row.entityType, row.entityId, row.channel.get());
+        String key = groupKey(row.entityType, row.entityId, row.channel.get(), row.recipient.get());
         List<CommunicationInspectionDialog.CommunicationSnapshot> related = all.stream()
-                .filter(r -> groupKey(r.entityType, r.entityId, r.channel.get()).equals(key))
+                .filter(r -> groupKey(r.entityType, r.entityId, r.channel.get(), r.recipient.get()).equals(key))
                 .map(Row::toSnapshot)
                 .toList();
         Runnable openDocAction = canOpenLinkedDocument(row) ? () -> openLinkedDocument(row) : null;
@@ -901,8 +901,13 @@ public class CommunicationCenterController implements ScreenLifecycle {
         }
     }
 
-    private static String groupKey(String entityType, int entityId, String channel) {
-        return ((entityType == null ? "" : entityType) + "#" + entityId + "#" + (channel == null ? "" : channel)).toUpperCase(Locale.ROOT);
+    private static String groupKey(String entityType, int entityId, String channel, String recipient) {
+        String base = ((entityType == null ? "" : entityType) + "#" + entityId + "#" + (channel == null ? "" : channel)).toUpperCase(Locale.ROOT);
+        if (entityId <= 0) {
+            String cleanRecipient = recipient == null ? "" : recipient.trim().toLowerCase(Locale.ROOT);
+            return base + "#" + cleanRecipient;
+        }
+        return base;
     }
 
     public static final class Row {

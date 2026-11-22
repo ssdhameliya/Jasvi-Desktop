@@ -26,7 +26,8 @@ public final class ApiSession {
         String msg = (reason != null && !reason.isBlank()) ? reason : "Your account was signed in from another computer.";
         SessionRevocationListener listener = revocationListener;
         clear();
-        if (listener != null && revokedNoticeDispatched.compareAndSet(false, true)) {
+        var current = org.example.service.SessionService.current();
+        if (listener != null && current != null && !current.isForcePasswordChange() && revokedNoticeDispatched.compareAndSet(false, true)) {
             listener.onSessionRevoked(msg);
         }
     }

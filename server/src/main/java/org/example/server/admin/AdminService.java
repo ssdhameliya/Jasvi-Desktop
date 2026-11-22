@@ -449,11 +449,26 @@ public class AdminService {
         return new AdminDtos.MfaState(true,"ENROLLMENT_REQUIRED","Authenticator reset. The user must scan a new QR code at the next sign-in.");
     }
 
+    private void requireSuperAdminIfTargetIsAdmin(String targetRole, String targetUsername, String action) {
+        if (!isSuperAdminCaller() && ("ADMIN".equalsIgnoreCase(targetRole) || "SUPER_ADMIN".equalsIgnoreCase(targetRole)
+                || "admin".equalsIgnoreCase(targetUsername) || "superadmin".equalsIgnoreCase(targetUsername))) {
+            throw new SecurityException("Access denied: Only Super Admin can " + action + " an Administrator account.");
+        }
+    }
+
+    private void recordPasswordHistory(int userId, String passwordHash) {
+        try {
+            jdbc.update("INSERT INTO user_password_history(user_id, password_hash, created_at) VALUES(?, ?, CURRENT_TIMESTAMP)", userId, passwordHash);
+            jdbc.update("DELETE FROM user_password_history WHERE user_id=? AND id NOT IN (SELECT id FROM user_password_history WHERE user_id=? ORDER BY id DESC LIMIT 5)", userId, userId);
+        } catch (Exception ignored) {}
+    }
+
     @Transactional
     public void deleteUser(int id) {
         if (id == CurrentUser.require().id()) throw new IllegalArgumentException("You cannot delete your own account");
         String targetRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, id);
         String targetUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, id);
+        requireSuperAdminIfTargetIsAdmin(targetRole, targetUsername, "delete");
         if ("SUPER_ADMIN".equalsIgnoreCase(targetRole) || "superadmin".equalsIgnoreCase(targetUsername)) {
             throw new SecurityException("Super Admin account cannot be deleted");
         }
@@ -469,12 +484,25 @@ public class AdminService {
         validatePassword(password);
         String targetRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, id);
         String targetUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, id);
-        if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(targetRole) || "superadmin".equalsIgnoreCase(targetUsername))) {
-            throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
+        requireSuperAdminIfTargetIsAdmin(targetRole, targetUsername, "reset password for");
+        if (!isSuperAdminCaller()) {
+            String currentHash = jdbc.queryForObject("SELECT password FROM users WHERE id=?", String.class, id);
+            if (currentHash != null && passwords.matches(password, currentHash)) {
+                throw new IllegalArgumentException("New password cannot be identical to user's current password.");
+            }
+            List<String> hist = jdbc.query("SELECT password_hash FROM user_password_history WHERE user_id=? ORDER BY id DESC LIMIT 3", (rs, i) -> rs.getString(1), id);
+            for (String h : hist) {
+                if (h != null && passwords.matches(password, h)) {
+                    throw new IllegalArgumentException("Password security policy: Password cannot be one of the user's last 3 previous passwords.");
+                }
+            }
         }
-        if (jdbc.update("UPDATE users SET password=?,failed_attempts=0,mfa_failed_attempts=0,locked=0,lock_reason='NONE',row_version=row_version+1 WHERE id=?", passwords.encode(password), id) != 1)
+        String encoded = passwords.encode(password);
+        if (jdbc.update("UPDATE users SET password=?,failed_attempts=0,mfa_failed_attempts=0,locked=0,lock_reason='NONE',last_password_reset_utc=?,row_version=row_version+1 WHERE id=?", encoded, BusinessClock.nowUtcText(), id) != 1)
             throw new IllegalArgumentException("User not found");
+        recordPasswordHistory(id, encoded);
         tokens.revokeUser(id);
+        jdbc.update("DELETE FROM login_throttle WHERE throttle_key LIKE ?", "%|" + targetUsername.toLowerCase(java.util.Locale.ROOT));
         jdbc.update("INSERT INTO activity_log(entity_type,entity_id,action,detail,created_by,created_at) VALUES('USER',?,?,?,?,?)",
                 id, "ACCOUNT_UNLOCKED", "Password reset by administrator and sign-in lock cleared", CurrentUser.require().username(), BusinessClock.nowUtcText());
     }
@@ -484,9 +512,7 @@ public class AdminService {
         if (id == CurrentUser.require().id() && locked) throw new IllegalArgumentException("You cannot lock your own account");
         String targetRole = jdbc.queryForObject("SELECT COALESCE(role,'') FROM users WHERE id=?", String.class, id);
         String targetUsername = jdbc.queryForObject("SELECT COALESCE(username,'') FROM users WHERE id=?", String.class, id);
-        if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(targetRole) || "superadmin".equalsIgnoreCase(targetUsername))) {
-            throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
-        }
+        requireSuperAdminIfTargetIsAdmin(targetRole, targetUsername, locked ? "lock" : "unlock");
         jdbc.query("SELECT pg_advisory_xact_lock(?)", (row,index) -> row.getObject(1), USER_AUTHORITY_LOCK);
         jdbc.queryForMap("SELECT id FROM users WHERE id=? FOR UPDATE", id);
         if (locked) ensureActiveAdministratorRemains(id, null, true, true);
@@ -494,7 +520,11 @@ public class AdminService {
                 ? jdbc.update("UPDATE users SET locked=1,lock_reason='ADMIN',row_version=row_version+1 WHERE id=?", id)
                 : jdbc.update("UPDATE users SET locked=0,lock_reason='NONE',failed_attempts=0,mfa_failed_attempts=0,row_version=row_version+1 WHERE id=?", id);
         if (updated != 1) throw new IllegalArgumentException("User not found");
-        if (locked) tokens.revokeUser(id);
+        if (locked) {
+            tokens.revokeUser(id);
+        } else {
+            jdbc.update("DELETE FROM login_throttle WHERE throttle_key LIKE ?", "%|" + targetUsername.toLowerCase(java.util.Locale.ROOT));
+        }
         jdbc.update("INSERT INTO activity_log(entity_type,entity_id,action,detail,created_by,created_at) VALUES('USER',?,?,?,?,?)",
                 id, locked ? "ACCOUNT_LOCKED_BY_ADMIN" : "ACCOUNT_UNLOCKED",
                 locked ? "Account locked by administrator" : "Account unlocked and failed-attempt counters reset",

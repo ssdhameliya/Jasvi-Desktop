@@ -183,9 +183,7 @@ public final class CommunicationInspectionDialog {
         lblDiagHeading.getStyleClass().addAll("comm-section-heading", isFailed ? "comm-heading-danger" : "comm-heading-success");
         lblDiagHeading.setGraphic(IconFactory.compactIcon(isFailed ? "error" : "complete", 15));
 
-        String diagText = !safe(entry.errorMessage()).isBlank()
-                ? entry.errorMessage()
-                : (isFailed ? "Delivery failed with no additional error detail from transport." : "Delivered successfully via " + (isEmail ? "Company SMTP Gateway" : "Business WhatsApp Engine") + ".");
+        String diagText = sanitizeDiagnosticText(entry.errorMessage(), entry.rawRecipient(), isFailed, isEmail);
         Label lblDiagBody = new Label(diagText);
         lblDiagBody.setWrapText(true);
         lblDiagBody.getStyleClass().add(isFailed ? "comm-detail-error-text" : "comm-detail-success-text");
@@ -327,6 +325,36 @@ public final class CommunicationInspectionDialog {
         content.putString(value);
         Clipboard.getSystemClipboard().setContent(content);
         AppDialogService.success(owner, "Copied", feedback);
+    }
+
+    private static String sanitizeDiagnosticText(String raw, String recipient, boolean isFailed, boolean isEmail) {
+        if (raw == null || raw.isBlank()) {
+            return isFailed ? "Delivery failed with no additional error detail from transport."
+                    : "Delivered successfully via " + (isEmail ? "Company SMTP Gateway" : "Business WhatsApp Engine") + ".";
+        }
+
+        String clean = raw.trim();
+        if (clean.contains("No LID for user")) {
+            String targetPhone = (recipient != null && !recipient.isBlank()) ? " (" + recipient.trim() + ")" : "";
+            return "WhatsApp Delivery Failed: The recipient phone number" + targetPhone + " is not registered on WhatsApp or has an invalid number format.\n\n"
+                    + "Diagnostic Root Cause:\n"
+                    + "WhatsApp Web engine rejected the delivery with 'No LID for user'. This occurs when the phone number has invalid digits (e.g. 11 digits instead of 10) or does not have an active WhatsApp account.\n\n"
+                    + "Recommended Action:\n"
+                    + "1. Verify and update the customer's mobile number in Customer Master.\n"
+                    + "2. Click 'Re-send WhatsApp' below to re-transmit.";
+        }
+
+        if (clean.contains(";base64,") || clean.contains("\"data\":\"JVBERi")) {
+            int idx = clean.indexOf("\"data\":\"JVBERi");
+            if (idx > 0) {
+                int endIdx = clean.indexOf("\"", idx + 15);
+                if (endIdx > 0) {
+                    clean = clean.substring(0, idx + 15) + "[...ATTACHMENT BASE64 DATA STRIPPED FOR DISPLAY...]" + clean.substring(endIdx);
+                }
+            }
+        }
+
+        return clean;
     }
 
     private static String safe(String v) {

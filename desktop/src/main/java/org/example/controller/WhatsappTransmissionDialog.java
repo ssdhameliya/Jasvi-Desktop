@@ -86,6 +86,9 @@ public class WhatsappTransmissionDialog {
             org.example.util.UiActionIcons.apply(btnSend, "whatsapp", "Send WhatsApp");
         }
         if (txtRecipientPhone != null) {
+            if (txtRecipientPhone.getParent() instanceof VBox parentBox) {
+                org.example.util.RecipientChipBox.attach(parentBox, txtRecipientPhone, org.example.util.RecipientChipBox.ChannelType.WHATSAPP);
+            }
             txtRecipientPhone.textProperty().addListener((obs, old, val) -> {
                 if (errRecipientPhone != null) {
                     errRecipientPhone.setVisible(false);
@@ -172,11 +175,33 @@ public class WhatsappTransmissionDialog {
     @FXML
     private void send() {
         String rawPhone = txtRecipientPhone.getText() == null ? "" : txtRecipientPhone.getText().trim();
-        String digits = rawPhone.replaceAll("\\D", "");
+        java.util.List<String> validPhones = new java.util.ArrayList<>();
+        String errorMsg = null;
+        for (String part : rawPhone.split("[;,]")) {
+            String trimmedPart = part == null ? "" : part.trim();
+            if (trimmedPart.isEmpty()) continue;
+            String digits = trimmedPart.replaceAll("\\D", "");
+            if (digits.startsWith("0") && digits.length() == 11) {
+                digits = digits.substring(1);
+            }
+            if (digits.length() == 10) {
+                validPhones.add("91" + digits);
+            } else if (digits.length() == 12 && digits.startsWith("91")) {
+                validPhones.add(digits);
+            } else if (digits.length() == 11 && (digits.startsWith("6") || digits.startsWith("7") || digits.startsWith("8") || digits.startsWith("9"))) {
+                errorMsg = "Invalid mobile number '" + trimmedPart + "': Indian mobile numbers must have 10 digits (found 11 digits). Please correct before sending.";
+                break;
+            } else if (digits.length() >= 10 && digits.length() <= 15) {
+                validPhones.add(digits);
+            } else {
+                errorMsg = "Invalid phone number '" + trimmedPart + "'. Please enter a valid 10-digit mobile number.";
+                break;
+            }
+        }
 
-        if (digits.length() < 10) {
+        if (errorMsg != null || validPhones.isEmpty()) {
             if (errRecipientPhone != null) {
-                errRecipientPhone.setText("Please enter a valid mobile number with at least 10 digits");
+                errRecipientPhone.setText(errorMsg != null ? errorMsg : "Please enter valid mobile number(s) with at least 10 digits");
                 errRecipientPhone.setVisible(true);
                 errRecipientPhone.setManaged(true);
             }
@@ -184,7 +209,7 @@ public class WhatsappTransmissionDialog {
             return;
         }
 
-        String finalPhone = digits.length() == 10 ? "91" + digits : digits;
+        String finalPhone = String.join(", ", validPhones);
         String messageBody = txtMessage.getText() == null ? "" : txtMessage.getText().trim();
         Path attachment = draft != null ? draft.attachmentPdf() : null;
 

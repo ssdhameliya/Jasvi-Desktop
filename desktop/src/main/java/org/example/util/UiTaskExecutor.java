@@ -34,19 +34,13 @@ import java.util.function.Consumer;
 public final class UiTaskExecutor {
     private static final AtomicInteger THREAD_ID = new AtomicInteger();
     private static final AtomicLong TASK_ID = new AtomicLong();
-    private static final int READ_THREADS = Math.max(2, Math.min(4,
-            Runtime.getRuntime().availableProcessors() / 2));
-    private static final int ACTION_THREADS = Math.max(2, Math.min(4,
-            Runtime.getRuntime().availableProcessors() / 2));
+    private static final int READ_THREADS = Math.max(8,
+            Runtime.getRuntime().availableProcessors() * 2);
+    private static final int ACTION_THREADS = Math.max(8,
+            Runtime.getRuntime().availableProcessors() * 2);
 
     private static ThreadFactory threadFactory(String prefix) {
-        return runnable -> {
-            Thread thread = new Thread(runnable,
-                    prefix + "-" + THREAD_ID.incrementAndGet());
-            thread.setDaemon(true);
-            thread.setPriority(Thread.NORM_PRIORITY - 1);
-            return thread;
-        };
+        return Thread.ofVirtual().name(prefix + "-", 1).factory();
     }
 
     /**
@@ -420,7 +414,9 @@ public final class UiTaskExecutor {
         return lower.startsWith("login-")
                 || lower.startsWith("registration-")
                 || lower.startsWith("register-")
-                || lower.startsWith("password-reset-");
+                || lower.startsWith("password-reset-")
+                || lower.startsWith("force-password-")
+                || lower.contains("password");
     }
 
     private static boolean isAuthenticationFailure(Throwable error) {

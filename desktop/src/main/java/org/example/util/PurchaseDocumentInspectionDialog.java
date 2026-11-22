@@ -1025,7 +1025,10 @@ public final class PurchaseDocumentInspectionDialog {
                 MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatPurchaseEmail(full);
                 String sigImg = MessageTemplateService.getSignatureImagePath();
                 Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
-                String target = full.getSupplier() == null ? "" : safe(full.getSupplier().getEmail()).trim();
+                String fallbackEmail = full.getSupplier() == null ? "" : safe(full.getSupplier().getEmail()).trim();
+                String fallbackPhone = full.getSupplier() == null ? "" : safe(full.getSupplier().getPhone()).trim();
+                var resolvedRecipients = PartyRecipientResolver.resolveSupplier(full.getSupplier() != null ? full.getSupplier().getId() : 0, fallbackEmail, fallbackPhone);
+                String target = resolvedRecipients.emailString().isBlank() ? fallbackEmail : resolvedRecipients.emailString();
                 return new EmailTransmissionDialog.EmailDraft(
                         "Transmit Purchase Order via Email",
                         "Direct SMTP delivery to supplier billing contact",

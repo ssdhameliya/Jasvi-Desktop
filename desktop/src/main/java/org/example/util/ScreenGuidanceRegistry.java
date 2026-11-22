@@ -260,26 +260,196 @@ public final class ScreenGuidanceRegistry {
             List.of("Ctrl + U : Check Updates")
         ));
 
-        // 10. Modules Settings
+        // 10. Modules Settings (Master Directory)
         register(new ScreenGuidance(
             "SETTINGS_MODULES",
-            "Feature Modules & System Engines",
+            "ERP Feature Modules & Automated Subsystems",
             "modules",
-            "Enable or disable modular ERP subsystems, statutory calculation engines, and advanced automated workflows.",
+            "Master activation center for ERP business subsystems, statutory calculation engines, and autonomous operational automations. Deactivated modules are hidden from navigation with zero runtime overhead.",
             List.of(
-                "Toggle modules: Bank Reconciliation, E-Way Bill Center, GST Compliance, Barcode Studio, Document Studio.",
-                "Enable advanced calculation engines: Auto-Place of Supply, Roundoff Safety, Multi-Currency.",
-                "Configure automated synchronization intervals for client portals and background schedulers."
+                "1. General Ledger: Double-entry journal vouchers, live Trial Balance, and real-time financial statements.",
+                "2. GST Statutory Engine: Automated Place of Supply tax determination, GSTR-1 JSON export, and GSTR-2B ITC fuzzy matching.",
+                "3. Operational Automations: 3-way purchase matching, auto debit notes, safety stock reorder alerts, and customer overdue credit hard stops.",
+                "4. Executive Briefing: Autonomous 8:00 PM evening business summary broadcast via WhatsApp (WAHA) and corporate Email (SMTP).",
+                "5. Warehouse & Batch/Serial: Multi-depot stock partitioning, First-Expired First-Out (FEFO) picking, and serial warranty tracking.",
+                "6. Collections Dispatch: 1-click WhatsApp/Email overdue reminders with auto-generated Branded Party Statement PDFs.",
+                "7. Bank Narration Rules: Smart pattern learning for recurring statement transactions to accelerate bank reconciliation."
             ),
             List.of(
-                "Disabling unused modules simplifies sidebar navigation and accelerates screen loading speeds.",
-                "Core statutory engines ensure 100% compliance with government Goods and Services Tax regulations."
+                "✓ Granular Guidance: Click the circular (ℹ) guidance button on any module card header for detailed flag breakdowns and real-world business examples.",
+                "✓ Performance Isolation: Deactivated modules bypass background polling and event listeners with zero system overhead.",
+                "✓ Safe State Retention: Toggling modules off preserves all historical database records intact in PostgreSQL."
             ),
             List.of(
-                "Disabling an active module does not delete its database records, but hides its menus and screens from users.",
-                "Ensure dependent transactions are settled before disabling secondary billing or inventory modules."
+                "⚠️ Gating & Safeguards: Ensure all open invoices and vouchers are saved before reconfiguring core accounting or tax modules.",
+                "⚠️ Administrative Permission: Only authorized System Administrators can modify module activation flags."
             ),
-            List.of("Ctrl + S : Save Settings")
+            List.of("Ctrl + S : Save Module Configuration")
+        ));
+
+        // 10a. General Ledger & Double-Entry Accounting
+        register(new ScreenGuidance(
+            "SETTINGS_MODULES_GL",
+            "General Ledger & Double-Entry Accounting",
+            "calculator",
+            "Enterprise double-entry financial core providing automated sales/purchase journal vouchers, real-time trial balance balancing, and drill-down financial statements.",
+            List.of(
+                "1. Auto-post Journal Vouchers: Authorizing Tax Invoices or Purchase Bills generates Dr/Cr Journal Vouchers automatically in real time.",
+                "2. Live Trial Balance: Continuous double-entry reconciliation across all 150+ ledgers ensures 0.00 balancing discrepancy.",
+                "3. Financial Reporting: Direct drill-down from Trial Balance to Profit & Loss, Balance Sheet, and ledger statements."
+            ),
+            List.of(
+                "✓ Real-World Example: Tax Invoice #INV-2026-0042 for ₹1,18,000 (Taxable ₹1,00,000 + ₹9,000 CGST + ₹9,000 SGST) to M/s Shailesh Steel automatically posts: Dr. Shailesh Steel A/c ₹1,18,000 | Cr. Sales Revenue ₹1,00,000 | Cr. Output CGST ₹9,000 | Cr. Output SGST ₹9,000.",
+                "✓ When Enabled (ON): Eliminates manual journal entry; sales, purchases, bank receipts, and payments update ledgers immediately.",
+                "✓ Multi-Currency Ready: Supports canonical foreign exchange conversion with auto-calculated realized gain/loss."
+            ),
+            List.of(
+                "⚠️ When Disabled (OFF): Double-entry journal voucher generation is paused. Invoices remain in subledgers without feeding General Ledger.",
+                "⚠️ Settlement Safeguard: Ensure prior accounting periods are closed and audited before modifying core accounting parameters."
+            ),
+            List.of("Save Modules : Apply Changes")
+        ));
+
+        // 10b. GST Statutory Compliance & GSTR-2B
+        register(new ScreenGuidance(
+            "SETTINGS_MODULES_GST",
+            "GST Statutory Compliance & GSTR-2B Auto-Reconciliation",
+            "file-contract",
+            "Statutory taxation engine enforcing Place of Supply tax determination, government GSTR-1 JSON exports, GSTR-2B ITC fuzzy reconciliation, and Sec 194Q/206C TDS/TCS withholding.",
+            List.of(
+                "1. Strict Place of Supply Gating: Validates customer/vendor GSTIN state codes against billing and delivery addresses before invoice generation.",
+                "2. GSTR-2B Auto-Reconciliation: Ingests government portal JSON files and fuzzy-matches supplier invoices by GSTIN, bill number, date, and tax amounts within ₹1 tolerance.",
+                "3. TDS / TCS Withholding: Tracks cumulative purchase/sales turnover thresholds to auto-deduct Section 194Q TDS or Section 206C TCS."
+            ),
+            List.of(
+                "✓ Place of Supply Example: Billing to customer with Gujarat GSTIN (24ABCDE1234F1Z5) automatically enforces CGST (9%) + SGST (9%). Attempting to apply IGST is strictly blocked under GST Section 7/8.",
+                "✓ GSTR-2B Matching Example: Supplier bill of ₹59,000 is matched against portal JSON. Reconciled bills are tagged 'ITC Eligible'; unfiled bills are flagged 'Vendor Default / ITC at Risk'.",
+                "✓ TDS 194Q Example: When cumulative purchases from a supplier exceed ₹50 Lakhs in the financial year, subsequent bills auto-deduct 0.1% TDS (e.g. ₹10 Lakhs billing deducts ₹1,000 TDS for Form 26Q filing).",
+                "✓ When Enabled (ON): 100% statutory compliance, zero tax determination errors, and automated Input Tax Credit (ITC) claim protection."
+            ),
+            List.of(
+                "⚠️ When Disabled (OFF): Place of supply gating is relaxed, risking incorrect IGST/CGST filing notices from government tax authorities.",
+                "⚠️ Government Portal Sync: Always verify government portal JSON format version before importing large GSTR-2B quarterly dumps."
+            ),
+            List.of("Save Modules : Apply Changes")
+        ));
+
+        // 10c. Smart Operational Automations Suite
+        register(new ScreenGuidance(
+            "SETTINGS_MODULES_AUTOMATIONS",
+            "Smart Operational Automations Suite",
+            "cog",
+            "Autonomous operational guardrails automating purchase bill verification, debit note generation, dynamic stock replenishment, and customer overdue credit hard stops.",
+            List.of(
+                "1. Smart 3-Way Matching: Cross-checks Purchase Order (PO), Goods Receipt Note (GRN), and vendor Purchase Bill quantities and unit rates.",
+                "2. Auto-generate draft debit notes: Generates draft debit notes automatically whenever vendor invoice exceeds accepted GRN received quantities.",
+                "3. Dynamic Safety Stock: Continuously monitors supplier lead times and daily average consumption to raise reorder alerts.",
+                "4. Customer Credit Hard Stop: Blocks new sales order and invoice creation (F9) for customers with overdue unpaid balances or credit limit breaches."
+            ),
+            List.of(
+                "✓ 3-Way Match Example: PO ordered 100 kg at ₹400/kg. GRN received 90 kg. Vendor bills 100 kg at ₹420/kg. System flags 10 kg shortfall and +₹20 rate hike, blocking unauthorized payment.",
+                "✓ Debit Note Example: PO ordered 50 bearings; GRN received 45 (5 damaged). Approving bill auto-creates ₹2,500 draft Debit Note against vendor ledger for Short Shipment.",
+                "✓ Credit Hard Stop Example: Customer M/s Apex Fabricators has a 30-day payment term and an unpaid bill of ₹1,15,000 pending for 45 days. Pressing F9 (New Sale) hard-blocks invoice creation until management override or collection.",
+                "✓ Safety Stock Example: Item SKF 6204 has 7-day lead time and 4 units/day usage. Stock hitting 28 units instantly triggers an automated dashboard reorder alert.",
+                "✓ When Enabled (ON): Guarantees zero revenue leakage, prevents short shipment overpayments, and halts bad debt accumulation."
+            ),
+            List.of(
+                "⚠️ When Disabled (OFF): All four automations operate in passive manual mode, relying entirely on operator manual inspection.",
+                "⚠️ Override Authority: Customer credit hard stop can only be overridden by users with 'SALES.CREDIT_OVERRIDE' security permission."
+            ),
+            List.of("Save Modules : Apply Changes")
+        ));
+
+        // 10d. Executive 8:00 PM Daily Briefing
+        register(new ScreenGuidance(
+            "SETTINGS_MODULES_BRIEFING",
+            "Executive 8:00 PM Daily Briefing",
+            "bell",
+            "Autonomous evening financial digest delivered directly to leadership WhatsApp numbers and email inboxes at 8:00 PM IST daily.",
+            List.of(
+                "1. Autonomous Compilation: At 8:00 PM IST every evening, the server compiles today's gross sales, collections received, vendor payments, liquid bank balances, and top overdue accounts.",
+                "2. Multi-Channel Dispatch: Delivers formatted WhatsApp message via WAHA and attached financial digest PDF via corporate SMTP.",
+                "3. Delivery Audit: Every dispatch logs to Communication Center with recipient, timestamp, and SENT/FAILED status."
+            ),
+            List.of(
+                "✓ Real-World Example: Leadership receives instant WhatsApp summary at 8:00 PM: 'Today's Sales: ₹4,82,500 (6 Invoices) | Collections: ₹3,15,000 | Vendor Payouts: ₹1,20,000 | Bank Balance: ₹28,45,200 | Top Overdue: M/s Radhe (₹92k, 42d)'.",
+                "✓ Test Dispatch: Use 'Send Test Briefing Now' button to preview the multi-user broadcast instantly.",
+                "✓ Multi-Recipient Support: Configure multiple comma-separated executive phone numbers and emails."
+            ),
+            List.of(
+                "⚠️ WhatsApp Pairing Requirement: Ensure WAHA session is connected in Settings → WhatsApp for WhatsApp dispatches to deliver.",
+                "⚠️ SMTP Gateway: Verify corporate email credentials under Settings → Email Configuration for PDF delivery."
+            ),
+            List.of("Save Modules : Apply Changes")
+        ));
+
+        // 10e. Warehouse, Batch/FEFO & Serial Registry
+        register(new ScreenGuidance(
+            "SETTINGS_MODULES_BATCH_SERIAL",
+            "Multi-Warehouse, Batch/Expiry (FEFO) & Serial Registry",
+            "warehouse",
+            "Depot-level inventory partitioning, First-Expired First-Out (FEFO) picking enforcement, and equipment serial number warranty management.",
+            List.of(
+                "1. Depot Partitioning: Separates physical stock across multiple factory warehouses, storage sheds, and transit depots.",
+                "2. FEFO Dispatch: Enforces First-Expired First-Out picking for perishable and chemical goods, preventing stock expiration.",
+                "3. Serial Registry: Assigns unique serial numbers to manufactured machines, linking units to warranty terms and service logs."
+            ),
+            List.of(
+                "✓ FEFO Example: Warehouse has Batch A (expiring 15-Dec) and Batch B (expiring 30-Jan). Dispatch packing strictly requires Batch A to be scanned first.",
+                "✓ Serial Example: High-pressure pump JASVI-PUMP-2026-0891 links invoice date to 12-month customer warranty and service history.",
+                "✓ When Enabled (ON): Warehouse registers display depot dropdowns, batch expiry tables, and serial number validation pickers."
+            ),
+            List.of(
+                "⚠️ Mandatory Tracking: When enabled, sales invoices cannot be saved without selecting valid batch numbers or serials for tracked items.",
+                "⚠️ Historical Inventory: Existing unbatched stock should be assigned default batch numbers before enabling strict enforcement."
+            ),
+            List.of("Save Modules : Apply Changes")
+        ));
+
+        // 10f. Smart Overdue Collections & Statement Dispatch
+        register(new ScreenGuidance(
+            "SETTINGS_MODULES_COLLECTIONS",
+            "Smart Overdue Collections & Aging Statement Dispatch",
+            "envelope-open-text",
+            "Aging Analysis 1-click WhatsApp and Email payment reminders with auto-generated Branded Party Aging Statement PDFs and cooldown spam protection.",
+            List.of(
+                "1. Aging Review: In AR Aging Analysis, view overdue buckets (30, 60, 90+ days) and click 1-click WhatsApp/Email dispatch.",
+                "2. PDF Generation: Auto-generates branded Statement of Account PDF with company header, outstanding invoice list, and UPI QR code.",
+                "3. Cooldown Guard: Enforces configured cooldown hours (e.g. 24h) to prevent multiple staff members from spamming the same party."
+            ),
+            List.of(
+                "✓ Real-World Example: Client M/s Royal Polymers is 65 days overdue. 1-click dispatch sends WhatsApp reminder with attached branded PDF statement and logs event in Communication Center with 'Last Reminded' badge update.",
+                "✓ Dynamic Severity: Selects polite, firm, or critical reminder templates based on invoice delinquency tier (30d vs 60d vs 90d+).",
+                "✓ When Enabled (ON): Aging analysis provides 1-click reminders, cooldown protection, and full delivery audit trail."
+            ),
+            List.of(
+                "⚠️ When Disabled (OFF): External messaging is bypassed immediately; reminders fall back strictly to internal Reminder Center notes.",
+                "⚠️ Communication Center: All reminder dispatches are permanently audited with delivery status and recipient phone/email."
+            ),
+            List.of("Save Modules : Apply Changes")
+        ));
+
+        // 10g. Bank Statement Smart Narration Auto-Rules Engine
+        register(new ScreenGuidance(
+            "SETTINGS_MODULES_BANK_RULES",
+            "Bank Statement Smart Narration Auto-Rules Engine",
+            "university",
+            "Rule-based narration pattern matching for recurring bank statement imports (rent, UPI, NEFT, charges) to accelerate bank reconciliation.",
+            List.of(
+                "1. Narration Learning: In Bank Statement, click 'Remember Rule' when reconciling recurring entries (e.g. 'UPI/RENT').",
+                "2. Auto-Suggest: Future statement imports evaluate saved rules and pre-select the appropriate ledger with confidence scores.",
+                "3. Auto-Apply: High-confidence routine entries (e.g. Bank Charges) can be configured to auto-reconcile on import."
+            ),
+            List.of(
+                "✓ Real-World Example: Rule matches 'UPI/RENT/COMMERCIAL'. Importing monthly HDFC bank statement auto-routes the ₹45,000 debit directly to Office Rent Expense A/c with 1-click confirmation.",
+                "✓ When Enabled (ON): Accelerates bank reconciliation from hours to minutes with zero manual typing.",
+                "✓ Audit Trace: Every rule application records rule ID, execution timestamp, and matching score in the statement transaction."
+            ),
+            List.of(
+                "⚠️ When Disabled (OFF): Hides Rules UI in Bank Statement and skips all rule evaluation during CSV/PDF import (100% classic manual reconciliation).",
+                "⚠️ Data Retention: Disabling rules engine leaves all existing rules and past reconciliations safely intact in PostgreSQL."
+            ),
+            List.of("Save Modules : Apply Changes")
         ));
 
         // 11. Showcase Settings

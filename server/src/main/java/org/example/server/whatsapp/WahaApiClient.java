@@ -301,10 +301,13 @@ public class WahaApiClient {
                     messageId = node.path("id").asText(node.path("messageId").asText(""));
                 } catch (Exception ignored) {}
                 return new WahaDtos.SendResponse(true, "Message sent successfully", messageId, session, chatId);
-            } else if (res.statusCode() == 422 && res.body().contains("STARTING")) {
-                return new WahaDtos.SendResponse(false, "WhatsApp sender channel is not paired or ready. Please scan the QR code in Settings > WhatsApp to authenticate with your phone.", "", session, chatId);
+            } else if (res.statusCode() == 422 && (res.body().contains("STARTING") || res.body().contains("does not exist") || res.body().contains("not exist") || res.body().contains("Session not found"))) {
+                try {
+                    startSession(endpoint, apiKey, session);
+                } catch (Exception ignored) {}
+                return new WahaDtos.SendResponse(false, "WhatsApp sender channel is not paired or ready. The session has been auto-initialized in WAHA; please open Settings > WhatsApp to scan the QR code with your phone to connect.", "", session, chatId);
             } else {
-                return new WahaDtos.SendResponse(false, "WAHA error (" + res.statusCode() + "): " + res.body(), "", session, chatId);
+                return new WahaDtos.SendResponse(false, extractCleanErrorMessage(res.statusCode(), res.body(), chatId), "", session, chatId);
             }
         } catch (Exception e) {
             log.error("Failed to send WAHA text to {}: {}", chatId, e.getMessage());
@@ -350,14 +353,80 @@ public class WahaApiClient {
                     messageId = node.path("id").asText(node.path("messageId").asText(""));
                 } catch (Exception ignored) {}
                 return new WahaDtos.SendResponse(true, "Document sent successfully via WhatsApp", messageId, session, chatId);
-            } else if (res.statusCode() == 422 && res.body().contains("STARTING")) {
-                return new WahaDtos.SendResponse(false, "WhatsApp sender channel is not paired or ready. Please scan the QR code in Settings > WhatsApp to authenticate with your phone.", "", session, chatId);
+            } else if (res.statusCode() == 422 && (res.body().contains("STARTING") || res.body().contains("does not exist") || res.body().contains("not exist") || res.body().contains("Session not found"))) {
+                try {
+                    startSession(endpoint, apiKey, session);
+                } catch (Exception ignored) {}
+                return new WahaDtos.SendResponse(false, "WhatsApp sender channel is not paired or ready. The session has been auto-initialized in WAHA; please open Settings > WhatsApp to scan the QR code with your phone to connect.", "", session, chatId);
             } else {
-                return new WahaDtos.SendResponse(false, "WAHA error (" + res.statusCode() + "): " + res.body(), "", session, chatId);
+                return new WahaDtos.SendResponse(false, extractCleanErrorMessage(res.statusCode(), res.body(), chatId), "", session, chatId);
             }
         } catch (Exception e) {
             log.error("Failed to send WAHA file to {}: {}", chatId, e.getMessage());
             return new WahaDtos.SendResponse(false, "Connection error: " + e.getMessage(), "", session, chatId);
         }
+    }
+
+    private String extractCleanErrorMessage(int statusCode, String body, String chatId) {
+        if (body == null || body.isBlank()) {
+            return "WhatsApp engine is not responding (HTTP " + statusCode + "). Please verify that WAHA service is running in Settings > WhatsApp.";
+        }
+
+        // 1. HTTP 301/302/307/308 or redirect to /login (dashboard auth / session unauthenticated)
+        if (statusCode == 301 || statusCode == 302 || statusCode == 307 || statusCode == 308
+                || body.contains("/login") || body.contains("login?next")) {
+            return "WhatsApp is not connected or requires authentication. Please open Settings > WhatsApp to check your connection and scan the QR code with your phone.";
+        }
+
+        // 2. HTTP 401/403: Invalid API key or unauthorized
+        if (statusCode == 401 || statusCode == 403) {
+            return "WhatsApp authentication failed: Invalid or missing WAHA API Key. Please verify your credentials in Settings > WhatsApp.";
+        }
+
+        // 3. HTTP 422: Session starting, stopped, or not paired
+        if (statusCode == 422 && body.contains("STARTING")) {
+            return "WhatsApp sender channel is still initializing. Please wait a moment and try again, or scan the QR code in Settings > WhatsApp.";
+        }
+
+        // 4. Session stopped / not found / does not exist
+        if (body.contains("does not exist") || body.contains("not exist")
+                || body.contains("Session not found") || body.contains("STOPPED") || body.contains("FAILED")) {
+            return "WhatsApp session is not paired or does not exist in the WhatsApp engine. Please open Settings > WhatsApp, start the channel, and scan the QR code with your phone.";
+        }
+
+        // 5. Service unreachable
+        if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
+            return "WhatsApp service is temporarily unreachable (HTTP " + statusCode + "). Please check your WAHA server status in Settings > WhatsApp.";
+        }
+
+        String cleanPhone = chatId != null ? chatId.replace("@c.us", "").replace("@lid", "") : "";
+        try {
+            JsonNode root = json.readTree(body);
+            String exMsg = root.path("exception").path("message").asText("");
+            if (exMsg.isBlank()) {
+                exMsg = root.path("message").asText("");
+            }
+            if (exMsg.contains("No LID for user")) {
+                return "The recipient phone number (" + cleanPhone + ") is not registered on WhatsApp or has an invalid number format. Please verify the mobile number in Customer Master.";
+            }
+            if (exMsg.contains("does not exist") || exMsg.contains("not exist") || exMsg.contains("Session not found") || exMsg.contains("STOPPED")) {
+                return "WhatsApp session is not paired or does not exist in the WhatsApp engine. Please open Settings > WhatsApp, start the channel, and scan the QR code with your phone.";
+            }
+            if (!exMsg.isBlank()) {
+                int nl = exMsg.indexOf('\n');
+                String firstLine = nl > 0 ? exMsg.substring(0, nl).trim() : exMsg.trim();
+                return "WAHA: " + firstLine;
+            }
+        } catch (Exception ignored) {}
+
+        if (body.contains("No LID for user")) {
+            return "The recipient phone number (" + cleanPhone + ") is not registered on WhatsApp or has an invalid number format. Please verify the mobile number in Customer Master.";
+        }
+
+        // Safeguard: Never store or echo multi-megabyte base64 payloads into logs
+        if (body.length() > 300) {
+            return "WAHA error (HTTP " + statusCode + "): " + body.substring(0, 300) + "...";
+        }
+        return "WAHA error (HTTP " + statusCode + "): " + body;
     }
 }

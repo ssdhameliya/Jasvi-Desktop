@@ -78,6 +78,18 @@ class PreAuthMfaSecurityContractTest {
                 "resendLoginMfa issues OTP challenges via DELETE/INSERT, so PostgreSQL cannot run it in a read-only transaction");
     }
 
+    @Test
+    void passwordResetValidatesIdentityAndRegisteredEmail() throws Exception {
+        Path authService = resolveAuthService();
+        String source = Files.readString(authService);
+        assertTrue(source.contains("No active account found for username, email or mobile:"),
+                "requestPasswordReset must explicitly validate that the account exists");
+        assertTrue(source.contains("This account does not have a registered email address on file"),
+                "requestPasswordReset must explicitly validate that the account has an email address");
+        assertTrue(source.contains("maskEmail(recipient)"),
+                "requestPasswordReset must confirm dispatch with a masked registered email");
+    }
+
     private static Path resolveAuthService() {
         Path direct = Path.of("src/main/java/org/example/server/auth/AuthService.java");
         if (Files.exists(direct)) return direct;

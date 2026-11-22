@@ -185,6 +185,9 @@ public class EmailTransmissionDialog {
             });
         }
         if (txtRecipient != null) {
+            if (txtRecipient.getParent() instanceof VBox parentBox) {
+                org.example.util.RecipientChipBox.attach(parentBox, txtRecipient, org.example.util.RecipientChipBox.ChannelType.EMAIL);
+            }
             txtRecipient.textProperty().addListener((obs, old, val) -> {
                 if (errRecipient != null) {
                     errRecipient.setVisible(false);

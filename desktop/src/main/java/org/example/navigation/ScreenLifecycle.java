@@ -11,4 +11,7 @@ public interface ScreenLifecycle {
 
     /** Called immediately before the screen is replaced by another page. */
     default void onScreenHidden() { }
+
+    /** Called when the screen tab is closed or removed from the workspace. */
+    default void onScreenDisposed() { }
 }

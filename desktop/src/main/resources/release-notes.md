@@ -1,3 +1,172 @@
+# What's New in DSE ERP v11.0.77
+
+### Permanent Password Management, Forced Change Lifecycle & Zero-Conflict Login Orchestration (Rule 4, Rule 5, Rule 10, Rule 11 & Rule 12)
+- **Zero-Conflict Action Lifecycle & Stack Decoupling (`LoginController.java`)**:
+  - Eliminated the `IllegalStateException: This action is already in progress` collision caused by invoking `login()` synchronously from inside the modal password update callback while the outer `"login-authentication"` task remained on the execution stack.
+  - Decoupled password dialog completion from login re-submission via `Platform.runLater()`, ensuring clean task teardown and `ACTIVE_ACTIONS` key release before automated sign-in.
+- **Robust Dialog Dismissal & Close Type Registration (`LoginController.java`)**:
+  - Explicitly registered `ButtonType.CLOSE` on `dialog.getDialogPane().getButtonTypes()` with explicit `dialog.setResult(ButtonType.CLOSE)` and `dialog.close()` invocations on cancel and save actions, guaranteeing instant modal dismissal and preventing UI hangs.
+- **Enforced Security Reset & Single-Session Authentication (`AuthService.java`, `UserAccessController.java`, `V11_0_85__add_force_password_change.sql`)**:
+  - Added enterprise `force_password_change` lifecycle ensuring that administrator-generated temporary credentials mandate immediate permanent password selection upon initial workstation access.
+  - Implemented authentic single-session token invalidation and active session throttling safeguards.
+
+### Bank Statement Source Evidence Auto-Reconstruction & Universal Light/Dark Theme Parity (Rule 4, Rule 5, Rule 11 & Rule 12)
+- **Automatic Evidence Reconstruction for Excel Imports (`BankReconciliationService.java`)**:
+  - Statements imported via binary Excel workbooks (`.xls` / `.xlsx`) previously stored an empty `source_csv`, causing the evidence preview dialog to appear empty.
+  - The server now dynamically reconstructs complete, authentic CSV evidence from stored transaction records whenever `source_csv` is blank, persisting it back to `bank_statement_import` for instant future inspections.
+- **Excel Parser Upfront Statement Evidence Generation (`UniversalBankStatementParser.java`)**:
+  - The parser now constructs and persists a standardized CSV representation for all Excel workbook imports (`.xls`, `.xlsx`), guaranteeing evidence persistence across all file formats.
+- **Light & Dark Theme Parity & High-Contrast Code View (`light-theme.css`, `dark-theme.css`, `BankStatementController.java`)**:
+  - Replaced the hardcoded dark navy block in Light Theme with a clean, high-contrast editor surface (`#f8fafc` background, `#1e293b` text, `#dbeafe` selection highlight, `#cbd5e1` border).
+  - Maintained sleek Dark Theme styling (`#07172c` background, `#c8d8eb` text, `#1e3a8a` selection).
+  - Enhanced `BankStatementController` with safe blank-content handling and multi-row selection for easy audit copying.
+
+### Multi-Cadence Executive Briefing Suite, Recipient Chip Management & Enriched Financial Intelligence (Rule 4, Rule 5, Rule 6, Rule 11, Rule 12 & Rule 17)
+- **Enterprise Gmail-Style Recipient Chip Boxes (`ModulesSettingsPanel.fxml`, `SettingsController.java`, `RecipientChipBox.java`)**:
+  - Replaced manual comma-separated text fields for executive mobile numbers and emails with interactive tokenized chip boxes.
+  - Interactive chips with distinct semantic phone (`📱`) and email (`@`) icons and single-click `(X)` removal.
+  - Added dedicated `[x Clear All]` button for rapid one-click recipient management.
+  - Fast auto-splitting for typing (Enter, comma, semicolon) and pasting multi-line or delimited contact lists.
+  - Bidirectional synchronization with underlying configuration properties with zero breaking changes.
+- **Multi-Cadence Scheduling & Custom Fiscal Period Engine (`ExecutiveBriefingScheduler.java`, `ModulesSettingsPanel.fxml`)**:
+  - Expanded executive reporting beyond daily to support **Daily**, **Weekly** (Sundays), **Monthly** (Month-end), **Quarterly** (Quarter-end), **Half-Yearly** (H1/H2-end), and **Yearly** (Fiscal Year-end) cadences.
+  - Added Annual Reporting Cycle customization: supports **Standard Indian Financial Year (01 April – 31 March)** and **Custom 12-Month Periods (User-defined Start Date + 12 Months)** such as Diwali/Samvat (`01 November`) or Calendar Year (`01 January`).
+  - Added cadence-specific on-demand test dispatch (`cmbBriefingTestCadence`) allowing administrators to preview and verify exact numbers for any cadence instantly.
+- **Enriched Financial Intelligence & Bilateral Trading Telemetry (`ExecutiveBriefingScheduler.java`)**:
+  - Added **Net Period Cash Flow**: `Customer Collections Inflow` minus `Vendor Payments Outflow`, colorized as Green Surplus (`+₹X.XX`) or Red Deficit (`-₹X.XX`).
+  - Added **Purchases Booked**: Tracks inward purchase bills (`purchase_header`) alongside sales for a complete 360-degree trading overview.
+  - Added **Pending Vendor Payables (AP Overdue)**: Tracks overdue supplier liabilities alongside customer overdue receivables (AR).
+  - Added **Top 3 Customer Invoices**: Instant visibility of key revenue drivers of the period.
+- **Multi-Tenant White-Labeling & Multi-Environment Isolation Safeguards (`ExecutiveBriefingScheduler.java`, `SupportController.java`, `SupportApiClient.java`)**:
+  - Dynamic, config-driven portal URL (`company.publicPortalUrl`): completely omits web links for client standalone installations by default, preventing external branding leaks.
+  - Dynamic environment watermarking (`⚠️ LOCAL TEST ENVIRONMENT` or `⚠️ UAT PRE-RELEASE`) on non-production dispatches, preventing test emails from being mistaken for live production revenue.
+  - Zero cross-contamination: queries execute strictly against the local workstation database with zero cloud PROD data bleed.
+
+### Autonomous Emergency Security Protocol, Live Incident Banner & Mandatory First-Login Password Change (Rule 4, Rule 5, Rule 11, Rule 12 & Rule 17)
+- **High-Visibility Desktop Login Incident Banner (`Login.fxml`, `LoginController.java`)**:
+  - Implemented an animated, responsive security incident banner on the Desktop Login screen appearing immediately upon the 3rd failed password attempt.
+  - Prominently displays the `#SEC-XXXXXX` incident ticket badge with a 1-click clipboard copy button, Super Admin alert confirmation, and live polling indicator.
+  - Includes a manual `[ 🔄 Check Unlock Status Now ]` button for immediate verification without waiting for the 10-second background cycle.
+  - Dynamically transitions to vibrant theme green (`✅ Account Unlocked by Super Admin! You may now sign in.`) upon account unlock.
+- **Synchronous Ticket ID & Public Live Web Status Page (`AuthDtos.java`, `AuthService.java`, `EmergencyActionController.java`)**:
+  - Returns the active `ticketId` synchronously in `LoginResponse` and `/api/auth/account-status`.
+  - Added public web status endpoint (`GET /api/security/emergency/status?ticket=...`) with auto-refreshing live progress (🔴 LOCKED vs 🟢 UNLOCKED).
+  - Added direct `[ 🔍 Track Live Status Online ]` button to the locked administrator's advisory email and WhatsApp alert.
+- **Rich Responsive HTML Cards & 100% Dynamic Company Branding for Administrator Emails (`EmergencyActionService.java`, `SecurityIncidentNotifier.java`, `EmergencyActionController.java`)**:
+  - Upgraded unlock confirmation email (`notifyAdminUnlocked`) from plain unstyled `<p>` tags to a responsive emerald-green HTML card.
+  - Upgraded temporary password reset email (`notifyAdminPasswordReset`) to an amber/blue card featuring a monospaced credential box and policy guidelines.
+  - Fully decoupled all incident email alerts, subjects, bodies, footers, WhatsApp messages, and public web tracking pages from hardcoded company titles, dynamically resolving `companyName` and `appName` (`company.name + " ERP"`) from live database settings.
+- **Mandatory First-Login Password Change after Temporary Reset (`EmergencyActionService.java`, `UserEntity.java`, `LoginController.java`, `V11_0_85__add_force_password_change.sql`)**:
+  - Added `force_password_change` flag in PostgreSQL `users` table.
+  - When Super Admin issues a temporary password via Option 2, `force_password_change = 1` is enforced.
+  - Upon first sign-in on Desktop, the system intercepts before the dashboard and displays a mandatory modal dialog requiring the administrator to set their permanent password.
+  - Sized and padded modal dialog per Rule 12 (`660x620` adaptive bounds, generous margins, responsive fields, zero clipping).
+  - Synchronized session tokens on password change (`ChangePasswordResponse` re-issues valid active bearer), eliminating `AUTH_TOKEN_REVOKED` and preventing unwanted "Signed off from other device" kick-backs.
+  - Strictly enforces the 3-password history policy (cannot reuse temporary password or any of last 3 previous passwords) before clearing the flag and opening the ERP.
+  - Fixed Attempt 2 false-positive lockout detection so the Incident Banner appears strictly on Attempt 3 when actual lockout occurs.
+
+### Rate-Limiter Throttling Decoupling & Automatic Unlock Clearing (Rule 4, Rule 10, Rule 17)
+- **Decoupled Valid Sign-In from Rate Limiting (`AuthService.java`)**:
+  - Reordered credential verification so authentic users entering valid passwords (`passwordMatches`) are verified, clear their throttle immediately (`clearLoginThrottle`), and log in without being blocked by earlier failed-attempt IP/identity rate limits.
+  - Brute-force protection remains 100% active against invalid password guesses, returning *"Too many sign-in attempts. Try again later."* once threshold is reached.
+- **Automatic Throttle Purge on Administrative & Emergency Unlock (`AdminService.java`, `EmergencyActionService.java`, `V11_0_83__clear_stale_login_throttle.sql`)**:
+  - Whenever an administrator is unlocked or has their password reset via Desktop User Access or via Super Admin's one-click emergency email/WhatsApp action, all active rate-limiting throttle records in `login_throttle` are purged instantly.
+  - Added migration `V11_0_83__clear_stale_login_throttle.sql` to clean any stale lockout records on startup.
+- **Virtual Thread Transaction & Zero-Crash Named Token Engine (`SecurityIncidentNotifier.java`)**:
+  - Wrapped emergency token persistence in an isolated `TransactionTemplate` with `Propagation.REQUIRES_NEW`, eliminating `TransactionRequiredException` inside background virtual threads.
+  - Replaced brittle `String.formatted(...)` with a deterministic named token replacement engine (`{{TICKET_ID}}`, `{{ADMIN_NAME}}`, `{{EMAIL}}`, etc.), completely eliminating `UnknownFormatConversionException` caused by CSS `%` values.
+  - Implemented 4-way independent channel fault isolation so failures or delays in one channel (SMTP or WAHA) never block or cancel the others.
+  - Added migration `V11_0_84__reset_shailesh_account.sql` to guarantee clean account state upon server restart.
+
+### Enterprise Login Attempt Lockout, Password History & Role Hierarchy (Rule 4, Rule 5, Rule 11 & Rule 17)
+- **3-Attempt Lockout & Progressive Warning System (`AuthService.java`, `Login.fxml`)**:
+  - Reduced failed password and failed MFA login attempt lockout threshold from 5 to **3 attempts** for all users.
+  - Interactive, informative error warnings on each failed attempt:
+    - Attempt 1: *"Invalid username or password. 2 attempts remaining before your account is locked."*
+    - Attempt 2: *"Invalid username or password. 1 attempt remaining before your account is locked."*
+    - Attempt 3: Immediate automatic lock with explicit contact guidance (standard sub-users directed to *an Administrator*; Administrator accounts directed to *Super Admin*).
+- **Once-a-Day Self-Service Password Reset Limit (`AuthService.java`, `UserEntity.java`, `V11_0_81__enhanced_login_security_and_password_history.sql`)**:
+  - Implemented rate-limiting on self-service Forgot Password recovery: users can reset their password via email OTP / MFA at most **once per calendar day** (`last_password_reset_utc`).
+  - Attempting multiple resets within the same calendar day alerts the user with contact guidance to request an administrator reset.
+- **Permanent Lockout Escalation on Failed Recovery (`AuthService.java`)**:
+  - If an account was already locked and enters the Forgot Password flow, entering an incorrect OTP or MFA code immediately triggers a permanent lock (`PERMANENT_LOCK`).
+  - Self-service recovery is completely disabled for permanently locked accounts, requiring direct administrative intervention to restore access.
+- **Hierarchical Account Management Governance (`AdminService.java`, `UserAccessController.java`)**:
+  - **Administrator Authority**: Standard administrators can view, unlock, reset passwords, edit, and manage all sub-users across all organizational roles (`SALES`, `PURCHASE`, `ACCOUNTANT`, `WAREHOUSE`, `CASHIER`, etc.).
+  - **Super Admin Sole Authority Over Admins**: Standard administrators cannot edit, lock, unlock, reset passwords, or delete other `ADMIN` or `SUPER_ADMIN` accounts. Any attempt produces an access-denied security violation. Only `SUPER_ADMIN` can unlock, reset, or manage Administrator accounts.
+- **3-Password History Enforcement (`AuthService.java`, `AdminService.java`, `user_password_history`)**:
+  - Added dedicated PostgreSQL table `user_password_history` tracking rolling password hashes per user.
+  - Users changing or resetting passwords cannot reuse their current password or any of their **last 3 previous passwords**.
+- **Super Admin Absolute Privilege & Zero Restrictions (`AuthService.java`, `AdminService.java`)**:
+  - `SUPER_ADMIN` is 100% exempt from the once-a-day reset limit, immune to permanent lockouts, and exempt from password history restrictions, retaining unrestricted administrative control under all conditions.
+
+### Executive 8:00 PM Daily Briefing Automation & Multi-User Dispatch (Rule 4, Rule 5, Rule 11 & Rule 17)
+- **Multi-Recipient WhatsApp & Email Broadcast (`ExecutiveBriefingScheduler.java`, `ModulesSettingsPanel.fxml`, `SettingsController.java`)**:
+  - Replaced the hollow scheduler stub with a fully integrated automated executive performance engine running daily at 8:00 PM IST.
+  - Dynamically calculates authentic real-time financial metrics from PostgreSQL:
+    - Today's Invoiced Sales (invoice count & total ₹).
+    - Customer Collections (receipt count & total ₹).
+    - Vendor Payments (disbursed count & total ₹).
+    - Liquid Balances across all active Bank & Cash accounts.
+    - Critical Overdue Receivables alert (overdue invoice count & outstanding ₹).
+  - Multi-User Broadcast: Dispatches structured WhatsApp notifications (via WAHA) and responsive high-contrast HTML summary cards (via SMTP) to multiple comma-separated mobile numbers and executive email addresses.
+  - Added instant **"⚡ Send Test Briefing Now"** button in Settings → Module Activation with live feedback and permanent audit logging in `communication_log` / Communication Center.
+
+### Universal Table Clipboard & Data Copy (Option 1) (Rule 4, Rule 7 & Rule 12)
+- **Universal Table Cell & Row Copying (`TableClipboardSupport.java`, `DynamicTableLayoutManager.java`)**:
+  - Implemented keyboard accelerator `Ctrl+C` / `Cmd+C` on all 89 `TableView` registers across all 74 desktop screens:
+    - Single cell focus: copies exact cell value (e.g., Invoice No, Customer Name, Code, Amount, GSTIN, Date, Status) directly to the OS system clipboard with a brief visual toast confirmation.
+    - Multiple row selection: exports visible columns as Tab-Separated Values (TSV) for seamless paste into Excel, Google Sheets, or text editors.
+    - Intelligently ignores non-copyable action buttons and checkbox selection columns.
+  - Added fallback right-click context menu options (`Copy Cell`, `Copy Row`) for tables without custom row menus.
+  - 100% zero impact on `Label`s, startup splash screens, titles, or form input fields.
+
+### User Permissions & Access Matrix Modernization, Complete Submenus & Full Action Governance
+- **High-Density Compact Workspace Re-arrangement (`PermissionMatrix.fxml`, `PermissionMatrixController.java`) (Rule 5, Rule 7, Rule 11 & Rule 12)**:
+  - Re-architected top controls into an ultra-compact 2-row layout, reclaiming **~194px of vertical height** and increasing visible table rows by over 55%:
+    - **Row 1 (Identity & Action Ribbon)**: Icon, dynamic title with integrated scope subtitle (`lblHint`), inline Target Role dropdown (`cmbRole`), active role users counter badge (`lblRoleUsers`), and unified action buttons (`Back to Roles`, `Reset Changes`, `Save Permissions`).
+    - **Row 2 (Compact Utility & Filter Ribbon)**: Full-width live search (`txtSearch`), template selector (`cmbTemplate`) with `Apply Template`, horizontal copy role controls (`boxCopyRole`), `Granted Only` toggle switch, live count badge (`lblGrantedSummary`), and semantic legend (`lblLegend`).
+  - Implemented dynamic responsive percentage column sizing (`table.widthProperty().multiply(...)`) across all 9 table columns (Rule 7), preventing horizontal scrollbars and ensuring crisp alignment across all resolutions.
+- **Universal Submenus & Granular Modules Coverage (`V11_0_80__universal_submenus_and_action_permissions.sql`, `PermissionCatalog.java`) (Rule 4, Rule 10 & Rule 17)**:
+  - Deployed database migration `V11_0_80` registering all 36 ERP menus and submenus as first-class manageable modules in `PermissionCatalog.MODULES`:
+    - `SALES_CREATE` (Create Sale), `SALES_RETURNS` (Sales Returns & Credit Notes).
+    - `PURCHASE_CREATE` (Create Purchase), `PURCHASE_RETURNS` (Purchase Returns & Debit Notes).
+    - `ITEM_MASTER` (Item Master & Catalog distinct from inventory stock).
+    - `BANK_ENTRY` (Bank Voucher Entry), `EXPENSE_ENTRY` (Expense Register), `BANK_STATEMENT` (Bank Statement Reconciliation).
+    - `CLIENTS_DIRECTORY` (Tally OCR Clients Directory), `CLIENT_TEMPLATES` (OCR Field Mapping Templates).
+    - `PDF_STUDIO` (PDF Document Studio), `EXCEL_STUDIO` (Excel Document Studio).
+    - `ROLE_MANAGEMENT` (Custom Role Governance), `REGISTRATION_APPROVALS` (Self-Registration Approvals), `PERMISSION_MATRIX` (Access Matrix Administration).
+- **Comprehensive Action-Level Capabilities & Special Permissions (Rule 4, Rule 5 & Rule 17)**:
+  - Seeded and bound complete action-level permissions across all screens under `Special Capabilities`:
+    - **Sales & Purchase**: `PRINT`, `RECORD_PAYMENT`, `PRICE_OVERRIDE`, `DISCOUNT_OVERRIDE`, `SAVE_DRAFT`, `COST_OVERRIDE`, `EMAIL`, `WHATSAPP`.
+    - **Quotations**: `PRINT`, `FOLLOW_UP`, `CONVERT_SALE`, `DUPLICATE`, `EMAIL`, `WHATSAPP`.
+    - **Customer & Supplier CRM**: `MANAGE_CONTACTS` (360° notification preferences), `SEND_STATEMENT`, `SEND_LEDGER`.
+    - **Credit & Debit Notes**: `REFUND_SETTLE` (settle / issue cash refund), `PRINT`.
+    - **Inventory & Items**: `PRINT_BARCODE`, `BULK_IMPORT`, `COST_VIEW`, `ADJUST`.
+    - **Bank Statement**: `IMPORT`, `AUTO_MATCH`, `MANUAL_MATCH`, `BULK_EXPENSE`, `BULK_BANK_ENTRY`, `MANAGE_RULES`, `UNDO_MATCH`.
+    - **Bank & Expense**: `PRINT_VOUCHER`, `CANCEL_ENTRY`, `ATTACHMENT`.
+    - **Tally & Document Studio**: `SYNC_TALLY`, `IMPORT_TALLY`, `DESIGN`, `RESET`, `CLONE`.
+    - **Administration**: `CLONE_ROLE`, `ASSIGN_USERS`, `APPROVE`, `REJECT`, `VERIFY_HASH`.
+  - Propagated backward compatibility inheritance so existing roles automatically inherit child submenu view access without disrupting live users.
+
+### 360° Multi-Contact Notification Preferences & Auto-Populated Recipient Dispatch
+- **Customer 360° & Supplier 360° Granular Notification Preferences (`Customer360Controller.java`, `Supplier360Controller.java`, `party_contact` schema) (Rule 4, Rule 5 & Rule 17)**:
+  - Deployed database migration `V11_0_79__party_contact_notification_preferences.sql` adding `is_email_recipient` and `is_whatsapp_recipient` boolean flags to `party_contact`.
+  - Added modern, theme-styled checkboxes to Add/Edit Contact dialogs in both Customer 360° and Supplier 360°:
+    - `[x] Auto-populate for Email & PDF dispatch (Invoices, Quotations, Orders, Returns)`
+    - `[x] Auto-populate for WhatsApp receipts & advice (Payment Receipts, Advice & Remittance)`
+  - Added colorized semantic status badges `📧 Auto-Email` and `💬 Auto-WA` directly in the Contacts table across both 360° views.
+- **Centralized Multi-Recipient Resolver Engine (`PartyRecipientResolver.java`) (Rule 4, Rule 11 & Rule 12)**:
+  - Added enterprise utility `PartyRecipientResolver` that dynamically aggregates all ticked contact emails and phone numbers for any customer or supplier, deduplicating with the party's master record.
+  - Formats multi-recipient dispatches cleanly into comma-separated lists (`accounts@acme.com, billing@acme.com`), with 100% graceful fallback to master party email/phone when no specific contacts are ticked.
+- **Automated Dispatch Across Payment Advice, Bank Statement Matching & PDF Sending (Rule 4, Rule 10 & Rule 12)**:
+  - **Manual & Bank Reconciliation Payments (`PaymentConfirmationPromptHelper.java`)**: Wired `PartyRecipientResolver` into `openSaleTransmissionDialog`, `openPurchaseTransmissionDialog`, and `openReturnTransmissionDialog`. Recording a payment or allocating a bank statement deposit automatically pre-populates all ticked 360° email and WhatsApp contacts.
+  - **Sales & Purchase Invoices (`SalesDocumentInspectionDialog.java`, `SalesListController.java`, `PurchaseDocumentInspectionDialog.java`, `PurchaseListController.java`)**: PDF email and WhatsApp dispatches automatically pull and transmit to all configured 360° stakeholder contacts.
+  - **Quotations & Estimates (`QuotationDocumentInspectionDialog.java`, `QuotationController.java`)**: Email and WhatsApp transmission drafts pre-populate with all active customer contact recipients.
+  - **WhatsApp Multi-Recipient Dispatch (`WhatsappTransmissionDialog.java`)**: Upgraded recipient parser to validate and normalize comma-separated mobile numbers, allowing single-click broadcast to multiple party contacts.
+
+---
+
 # What's New in DSE ERP v11.0.76
 
 ### Universal Ecosystem-Wide Granular Permission Governance & Action-Level Gating

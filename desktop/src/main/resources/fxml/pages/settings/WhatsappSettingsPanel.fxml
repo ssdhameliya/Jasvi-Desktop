@@ -55,6 +55,11 @@
             <Button fx:id="btnOpenWhatsappTemplatesInline" text="💬 WhatsApp Templates Studio" onAction="#openWhatsappTemplateStudio" styleClass="secondary-button"/>
             <Button fx:id="btnManageWhatsappChannels" text="Manage Channels &amp; Scan QR" onAction="#openWhatsappChannelDialog" styleClass="approved-button,approved-primary-button"/>
         </HBox>
+        <VBox spacing="7">
+            <Label text="Custom Disconnected Error Message (Optional)" styleClass="settings-form-label"/>
+            <TextField fx:id="txtWhatsappDisconnectedMessage" promptText="e.g. WhatsApp is currently disconnected. Please scan QR in Settings > WhatsApp." styleClass="approved-input"/>
+            <Label text="Custom error displayed to users when WhatsApp engine is disconnected or requires pairing." styleClass="settings-help-text"/>
+        </VBox>
     </VBox>
 
     <Separator/>

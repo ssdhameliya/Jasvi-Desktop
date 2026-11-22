@@ -1038,7 +1038,10 @@ public final class SalesDocumentInspectionDialog {
                 MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatSalesEmail(full);
                 String sigImg = MessageTemplateService.getSignatureImagePath();
                 Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
-                String target = full.getCustomer() == null ? "" : safe(full.getCustomer().getEmail()).trim();
+                String fallbackEmail = full.getCustomer() == null ? "" : safe(full.getCustomer().getEmail()).trim();
+                String fallbackPhone = full.getCustomer() == null ? "" : safe(full.getCustomer().getPhone()).trim();
+                var resolvedRecipients = PartyRecipientResolver.resolveCustomer(full.getCustomer() != null ? full.getCustomer().getId() : 0, fallbackEmail, fallbackPhone);
+                String target = resolvedRecipients.emailString().isBlank() ? fallbackEmail : resolvedRecipients.emailString();
                 String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(full.getInvoiceNo(), full.getTotalAmount());
                 return new EmailTransmissionDialog.EmailDraft(
                         "Transmit Tax Invoice via Email",

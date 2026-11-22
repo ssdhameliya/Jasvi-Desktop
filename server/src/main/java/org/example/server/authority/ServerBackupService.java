@@ -15,6 +15,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class ServerBackupService {
@@ -28,6 +30,7 @@ public class ServerBackupService {
     private final String deploymentEnvironment;
     private final String applicationVersion;
     private final JpaNativeRepository db;
+    private final TransactionTemplate tx;
 
     public ServerBackupService(@Value("${dse.workspace.path:}") String workspace,
                                @Value("${spring.datasource.url}") String url,
@@ -37,7 +40,8 @@ public class ServerBackupService {
                                @Value("${dse.backup.enabled:false}") boolean scheduledEnabled,
                                @Value("${dse.deployment.environment:LOCAL}") String deploymentEnvironment,
                                @Value("${dse.app.version:DEV}") String applicationVersion,
-                               JpaNativeRepository db) {
+                               JpaNativeRepository db,
+                               PlatformTransactionManager transactionManager) {
         this.workspaceRoot = (workspace == null || workspace.isBlank() ? Path.of(System.getProperty("user.dir")) : Path.of(workspace))
                 .toAbsolutePath().normalize();
         this.root = workspaceRoot.resolve("Backups").resolve("Server");
@@ -49,6 +53,7 @@ public class ServerBackupService {
         this.deploymentEnvironment = deploymentEnvironment == null ? "LOCAL" : deploymentEnvironment.trim().toUpperCase(Locale.ROOT);
         this.applicationVersion = applicationVersion == null || applicationVersion.isBlank() ? "DEV" : applicationVersion.trim();
         this.db = db;
+        this.tx = new TransactionTemplate(transactionManager);
     }
 
     public synchronized BackupFile create(String source) throws IOException {
@@ -366,8 +371,10 @@ public class ServerBackupService {
         return values.isEmpty()?null:values.getFirst();
     }
 
-    private void saveSchedulerState(String key,String value) {
-        db.update("INSERT INTO backup_scheduler_state(state_key,state_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(state_key) DO UPDATE SET state_value=excluded.state_value,updated_at=CURRENT_TIMESTAMP",key,value);
+    private void saveSchedulerState(String key, String value) {
+        tx.executeWithoutResult(status ->
+            db.update("INSERT INTO backup_scheduler_state(state_key,state_value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(state_key) DO UPDATE SET state_value=excluded.state_value,updated_at=CURRENT_TIMESTAMP", key, value)
+        );
     }
 
     private void purgeTrash() throws IOException {

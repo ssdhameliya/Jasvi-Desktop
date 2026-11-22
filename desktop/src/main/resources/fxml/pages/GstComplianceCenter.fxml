@@ -214,6 +214,7 @@
                       <TableColumn fx:id="colGstr1CdnrVal" text="Note Value (₹)"/>
                       <TableColumn fx:id="colGstr1CdnrTxval" text="Taxable (₹)"/>
                       <TableColumn fx:id="colGstr1CdnrTax" text="Total Tax (₹)"/>
+                      <TableColumn fx:id="colGstr1CdnrActions" text="Actions"/>
                     </columns>
                   </TableView>
                 </Tab>

@@ -109,17 +109,32 @@ public final class WindowUtilsFx {
         double maxH = Math.max(260, screen.getHeight() - margin * 2);
         stage.setMaxWidth(maxW);
         stage.setMaxHeight(maxH);
-        if (stage.getScene() != null && stage.getScene().getRoot() != null) {
+
+        boolean isWide90 = (stage.getScene() != null && stage.getScene().getRoot() != null &&
+                Boolean.TRUE.equals(stage.getScene().getRoot().getProperties().get("dse.dialog.wide90")))
+                || Boolean.TRUE.equals(stage.getProperties().get("dse.dialog.wide90"));
+
+        if (!isWide90 && stage.getScene() != null && stage.getScene().getRoot() != null) {
             stage.getScene().getRoot().applyCss();
             stage.getScene().getRoot().layout();
             stage.sizeToScene();
         }
-        stage.setMinWidth(Math.min(Math.max(640, stage.getMinWidth()), maxW));
-        stage.setMinHeight(Math.min(Math.max(460, stage.getMinHeight()), maxH));
-        if (stage.getWidth() > maxW) stage.setWidth(maxW);
-        if (stage.getHeight() > maxH) stage.setHeight(maxH);
-        if (stage.getWidth() < stage.getMinWidth()) stage.setWidth(stage.getMinWidth());
-        if (stage.getHeight() < stage.getMinHeight()) stage.setHeight(stage.getMinHeight());
+
+        if (isWide90) {
+            double targetW = Math.min(maxW, Math.max(1200, screen.getWidth() * 0.90));
+            double targetH = Math.min(maxH, Math.max(700, screen.getHeight() * 0.90));
+            stage.setMinWidth(Math.min(960, targetW));
+            stage.setMinHeight(Math.min(540, targetH));
+            stage.setWidth(targetW);
+            stage.setHeight(targetH);
+        } else {
+            stage.setMinWidth(Math.min(Math.max(640, stage.getMinWidth()), maxW));
+            stage.setMinHeight(Math.min(Math.max(460, stage.getMinHeight()), maxH));
+            if (stage.getWidth() > maxW) stage.setWidth(maxW);
+            if (stage.getHeight() > maxH) stage.setHeight(maxH);
+            if (stage.getWidth() < stage.getMinWidth()) stage.setWidth(stage.getMinWidth());
+            if (stage.getHeight() < stage.getMinHeight()) stage.setHeight(stage.getMinHeight());
+        }
         centreInside(stage, owner, screen);
     }
 

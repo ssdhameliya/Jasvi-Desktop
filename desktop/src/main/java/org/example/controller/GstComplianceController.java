@@ -27,6 +27,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.example.api.ApiRuntime;
+import org.example.api.ApiSession;
 import org.example.config.ConfigManager;
 import org.example.model.Party;
 import org.example.model.Purchase;
@@ -42,10 +43,14 @@ import org.example.util.*;
 import java.awt.Desktop;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -1045,6 +1050,9 @@ public class GstComplianceController implements ScreenLifecycle {
         File file = chooser.showOpenDialog(tblReconciliation.getScene().getWindow());
         if (file == null) return;
 
+        LocalDate to = dpToDate != null && dpToDate.getValue() != null ? dpToDate.getValue() : BusinessClock.today();
+        String period = to.format(DateTimeFormatter.ofPattern("MMyyyy"));
+
         UiTaskExecutor.submitAction("gst-2b-import", () -> {
             JsonNode root = ApiRuntime.JSON.readTree(file);
             JsonNode b2bNode = null;
@@ -1059,6 +1067,7 @@ public class GstComplianceController implements ScreenLifecycle {
             int importedCount = 0;
             int matchedCount = 0;
             List<Gstr2bRow> newRows = new ArrayList<>();
+            ArrayNode entitiesForServer = ApiRuntime.JSON.createArrayNode();
 
             if (b2bNode != null && b2bNode.isArray()) {
                 for (JsonNode supplierEntry : b2bNode) {
@@ -1112,14 +1121,37 @@ public class GstComplianceController implements ScreenLifecycle {
                                     matched ? "AUTO_RECONCILED" : "CLAIM_PENDING",
                                     totalTax
                             ));
+
+                            ObjectNode entityObj = entitiesForServer.addObject();
+                            entityObj.put("returnPeriod", period);
+                            entityObj.put("supplierGstin", ctin);
+                            entityObj.put("supplierName", tradeName);
+                            entityObj.put("invoiceNo", inum);
+                            entityObj.put("taxableAmount", txval);
+                            entityObj.put("cgstAmount", cgst);
+                            entityObj.put("sgstAmount", sgst);
+                            entityObj.put("igstAmount", igst);
+                            entityObj.put("totalAmount", val);
+                            entityObj.put("matchStatus", matched ? "MATCHED" : "MISSING_IN_BOOKS");
                         }
                     }
                 }
             }
 
-            if (importedCount == 0) {
-                importedCount = Math.max(1, allReconRows.size());
-                matchedCount = importedCount;
+            // Persist imported records to server reconciliation repository
+            if (entitiesForServer.size() > 0) {
+                try {
+                    String json = ApiRuntime.JSON.writeValueAsString(entitiesForServer);
+                    HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(apiUrl("/api/gst/reconciliation/" + period + "/import")))
+                            .timeout(Duration.ofSeconds(20))
+                            .header("Content-Type", "application/json")
+                            .header("Accept", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(json));
+                    ApiSession.authorize(b);
+                    ApiRuntime.HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
+                } catch (Exception ex) {
+                    System.err.println("GSTR-2B server sync notice: " + ex.getMessage());
+                }
             }
 
             return new int[]{importedCount, matchedCount};
@@ -1140,8 +1172,28 @@ public class GstComplianceController implements ScreenLifecycle {
         if (!ExportFeedbackManager.checkFileWriteable(tblReconciliation, file)) return;
 
         UiTaskExecutor.submitAction("gst-1-export", () -> {
+            // First attempt: call server's official statutory JSON generator
+            try {
+                HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(apiUrl("/api/gst/gstr1/" + period + "/json")))
+                        .timeout(Duration.ofSeconds(20))
+                        .header("Accept", "application/json")
+                        .GET();
+                ApiSession.authorize(b);
+                HttpResponse<String> resp = ApiRuntime.HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200 && resp.body() != null && !resp.body().isBlank()) {
+                    JsonNode serverJson = ApiRuntime.JSON.readTree(resp.body());
+                    if (serverJson.has("gstin") || serverJson.has("b2b")) {
+                        ApiRuntime.JSON.writerWithDefaultPrettyPrinter().writeValue(file, serverJson);
+                        return masterGstr1B2b.size() + masterGstr1B2cs.size() + masterGstr1Cdnr.size();
+                    }
+                }
+            } catch (Exception ex) {
+                System.err.println("Notice: Server GSTR-1 JSON generation unavailable, generating locally: " + ex.getMessage());
+            }
+
+            // Robust local generation fallback
             List<Sales> sales = salesService.getAll();
-            String myGstin = ConfigManager.get("company.gstin", "24ABCDE1234F1Z5");
+            String myGstin = ConfigManager.get("company.gstin", "24AABCS1429B1Z1");
 
             ObjectNode root = ApiRuntime.JSON.createObjectNode();
             root.put("gstin", myGstin);
@@ -1151,6 +1203,7 @@ public class GstComplianceController implements ScreenLifecycle {
             double grossTurnover = 0.0;
             ArrayNode b2bArray = root.putArray("b2b");
             ArrayNode b2csArray = root.putArray("b2cs");
+            ArrayNode cdnrArray = root.putArray("cdnr");
             ArrayNode hsnNode = root.putObject("hsn").putArray("data");
             ArrayNode docIssueArray = root.putObject("doc_issue").putArray("doc_det");
 
@@ -1231,63 +1284,131 @@ public class GstComplianceController implements ScreenLifecycle {
                 }
             }
 
-            double b2csTaxable = 0.0;
-            double b2csTax = 0.0;
+            // B2CS with dynamic POS
+            Map<String, double[]> b2csByPos = new LinkedHashMap<>();
             for (Sales s : b2csList) {
                 double t = s.getGstAmount();
                 if (t <= 0 && s.getSubtotal() > 0 && s.getTotalAmount() > s.getSubtotal()) {
                     t = s.getTotalAmount() - s.getSubtotal();
                 }
                 double tx = s.getSubtotal() > 0 ? s.getSubtotal() : (s.getTotalAmount() - t);
-                b2csTaxable += tx;
-                b2csTax += t;
+                String cGstin = s.getCustomer() != null && s.getCustomer().getGstin() != null ? s.getCustomer().getGstin().trim() : "";
+                String pos = cGstin.length() >= 2 ? cGstin.substring(0, 2) : "24";
+                if (pos.equals("24") && s.getBillingGstin() != null && s.getBillingGstin().trim().length() >= 2) {
+                    pos = s.getBillingGstin().trim().substring(0, 2);
+                }
+                if (!pos.matches("\\d{2}")) pos = "24";
+                double rate = tx > 0 ? Math.round((t / tx) * 100.0) : 18.0;
+                String key = pos + "_" + (int) rate;
+                double[] cur = b2csByPos.computeIfAbsent(key, k -> new double[]{0.0, 0.0, 0.0, 0.0, rate});
+                cur[0] += tx;
+                boolean isInter = !pos.equals("24");
+                if (isInter) {
+                    cur[1] += t;
+                } else {
+                    cur[2] += t / 2.0;
+                    cur[3] += t / 2.0;
+                }
             }
-            if (b2csTaxable > 0.01) {
-                double b2csRate = b2csTaxable > 0 ? Math.round((b2csTax / b2csTaxable) * 100.0) : 18.0;
+            for (var entry : b2csByPos.entrySet()) {
+                String[] parts = entry.getKey().split("_");
+                String pos = parts[0];
+                double[] vals = entry.getValue();
                 ObjectNode b2csItem = b2csArray.addObject();
-                b2csItem.put("sply_ty", "INTRA");
-                b2csItem.put("txval", Math.round(b2csTaxable * 100.0) / 100.0);
-                b2csItem.put("rt", b2csRate);
-                b2csItem.put("camt", Math.round((b2csTax / 2.0) * 100.0) / 100.0);
-                b2csItem.put("samt", Math.round((b2csTax / 2.0) * 100.0) / 100.0);
-                b2csItem.put("iamt", 0.0);
+                b2csItem.put("sply_ty", pos.equals("24") ? "INTRA" : "INTER");
+                b2csItem.put("txval", Math.round(vals[0] * 100.0) / 100.0);
+                b2csItem.put("rt", vals[4]);
+                b2csItem.put("iamt", Math.round(vals[1] * 100.0) / 100.0);
+                b2csItem.put("camt", Math.round(vals[2] * 100.0) / 100.0);
+                b2csItem.put("samt", Math.round(vals[3] * 100.0) / 100.0);
                 b2csItem.put("csamt", 0.0);
-                b2csItem.put("pos", "24");
+                b2csItem.put("pos", pos);
             }
 
-            // HSN node
-            ObjectNode hsnObj = hsnNode.addObject();
-            hsnObj.put("num", 1);
-            hsnObj.put("hsn_sc", "8471");
-            hsnObj.put("desc", "Electronic & Computer Hardware");
-            hsnObj.put("uqc", "NOS");
-            hsnObj.put("qty", count);
-            hsnObj.put("val", Math.round(grossTurnover * 100.0) / 100.0);
-            hsnObj.put("txval", Math.round((grossTurnover / 1.18) * 100.0) / 100.0);
-            hsnObj.put("rt", 18.0);
-            hsnObj.put("camt", Math.round(((grossTurnover - (grossTurnover / 1.18)) / 2.0) * 100.0) / 100.0);
-            hsnObj.put("samt", Math.round(((grossTurnover - (grossTurnover / 1.18)) / 2.0) * 100.0) / 100.0);
-            hsnObj.put("iamt", 0.0);
-            hsnObj.put("csamt", 0.0);
+            // Table 9B CDNR in JSON
+            Map<String, List<Gstr1CdnrRow>> cdnrByGstin = new LinkedHashMap<>();
+            for (Gstr1CdnrRow r : masterGstr1Cdnr) {
+                if (r.gstin() != null && r.gstin().length() == 15) {
+                    cdnrByGstin.computeIfAbsent(r.gstin(), k -> new ArrayList<>()).add(r);
+                }
+            }
+            for (var entry : cdnrByGstin.entrySet()) {
+                ObjectNode partyNode = cdnrArray.addObject();
+                partyNode.put("ctin", entry.getKey());
+                ArrayNode ntArray = partyNode.putArray("nt");
+                for (Gstr1CdnrRow r : entry.getValue()) {
+                    ObjectNode ntNode = ntArray.addObject();
+                    ntNode.put("nt_num", r.noteNo());
+                    ntNode.put("nt_dt", r.noteDate());
+                    ntNode.put("ntty", r.noteType());
+                    ntNode.put("inum", r.origInvoiceNo());
+                    ntNode.put("idt", r.noteDate());
+                    double val = parseDouble(r.noteValue());
+                    double txval = parseDouble(r.taxable());
+                    double tax = parseDouble(r.tax());
+                    double rate = parseDouble(r.rate().replace("%", ""));
+                    ntNode.put("val", Math.round(val * 100.0) / 100.0);
+                    ntNode.put("pos", r.pos());
+                    ntNode.put("rchrg", "N");
+                    ArrayNode itms = ntNode.putArray("itms");
+                    ObjectNode itm = itms.addObject();
+                    itm.put("num", 1);
+                    ObjectNode itmDet = itm.putObject("itm_det");
+                    itmDet.put("txval", Math.round(txval * 100.0) / 100.0);
+                    itmDet.put("rt", rate);
+                    boolean isInter = !r.pos().equals("24");
+                    if (isInter) {
+                        itmDet.put("iamt", Math.round(tax * 100.0) / 100.0);
+                        itmDet.put("camt", 0.0);
+                        itmDet.put("samt", 0.0);
+                    } else {
+                        itmDet.put("iamt", 0.0);
+                        itmDet.put("camt", Math.round((tax / 2.0) * 100.0) / 100.0);
+                        itmDet.put("samt", Math.round((tax / 2.0) * 100.0) / 100.0);
+                    }
+                    itmDet.put("csamt", 0.0);
+                }
+            }
+
+            // Real HSN Node from masterGstr1Hsn
+            int hsnNum = 1;
+            for (Gstr1HsnRow hr : masterGstr1Hsn) {
+                ObjectNode hsnObj = hsnNode.addObject();
+                hsnObj.put("num", hsnNum++);
+                hsnObj.put("hsn_sc", hr.hsnCode());
+                hsnObj.put("desc", hr.description());
+                hsnObj.put("uqc", hr.uqc());
+                hsnObj.put("qty", parseLong(hr.qty()));
+                hsnObj.put("val", parseDouble(hr.totalValue()));
+                hsnObj.put("txval", parseDouble(hr.taxable()));
+                hsnObj.put("rt", parseDouble(hr.rate().replace("%", "")));
+                hsnObj.put("iamt", parseDouble(hr.igst()));
+                hsnObj.put("camt", parseDouble(hr.cgst()));
+                hsnObj.put("samt", parseDouble(hr.sgst()));
+                hsnObj.put("csamt", 0.0);
+            }
 
             // Document summary
-            ObjectNode docObj = docIssueArray.addObject();
-            docObj.put("doc_num", 1);
-            ArrayNode docs = docObj.putArray("docs");
-            ObjectNode d = docs.addObject();
-            d.put("num", 1);
-            d.put("from", minInv != null ? minInv : "INV-0001");
-            d.put("to", maxInv != null ? maxInv : "INV-" + count);
-            d.put("totnum", count);
-            d.put("canc", 0);
-            d.put("net_issue", count);
+            int docNum = 1;
+            for (Gstr1DocsRow dr : gstr1DocsRows) {
+                ObjectNode docObj = docIssueArray.addObject();
+                docObj.put("doc_num", docNum++);
+                ArrayNode docs = docObj.putArray("docs");
+                ObjectNode d = docs.addObject();
+                d.put("num", 1);
+                d.put("from", dr.serialFrom());
+                d.put("to", dr.serialTo());
+                d.put("totnum", parseLong(dr.totalCount()));
+                d.put("canc", parseLong(dr.cancelledCount()));
+                d.put("net_issue", parseLong(dr.netIssued()));
+            }
 
             ApiRuntime.JSON.writerWithDefaultPrettyPrinter().writeValue(file, root);
-            return count;
+            return count + masterGstr1Cdnr.size();
         }, cnt -> {
             ExportFeedbackManager.notifyExportSuccess(tblReconciliation, file, "Government GSTR-1 Offline Tool JSON", cnt);
             NotificationService.createNotification(NotificationService.Category.GST, "GSTR-1 JSON Exported",
-                    "Government GSTR-1 JSON return exported for " + period + " (" + cnt + " invoices)", "INFO",
+                    "Government GSTR-1 JSON return exported for " + period + " (" + cnt + " records)", "INFO",
                     "/fxml/pages/GstComplianceCenter.fxml", period);
         }, err -> AppDialogService.error(tblReconciliation, "Export Error", "GST Export Failed", "Failed to generate GSTR-1 JSON: " + err.getMessage()));
     }
@@ -1343,7 +1464,7 @@ public class GstComplianceController implements ScreenLifecycle {
                     row.createCell(6).setCellValue("");
                 }
 
-                // Sheet 3: cdnr
+                // Sheet 3: cdnr (Using authentic dynamic POS and Rate)
                 Sheet cdnrSheet = wb.createSheet("cdnr");
                 Row h9 = cdnrSheet.createRow(0);
                 String[] cdnrHeaders = {"GSTIN/UIN of Recipient", "Receiver Name", "Note Number", "Note Date", "Note Type", "Place Of Supply", "Reverse Charge", "Note Supply Type", "Note Value", "Applicable % of Tax Rate", "Rate", "Taxable Value", "Cess Amount"};
@@ -1356,12 +1477,12 @@ public class GstComplianceController implements ScreenLifecycle {
                     row.createCell(2).setCellValue(r.noteNo());
                     row.createCell(3).setCellValue(r.noteDate());
                     row.createCell(4).setCellValue(r.noteType());
-                    row.createCell(5).setCellValue("24");
+                    row.createCell(5).setCellValue(r.pos());
                     row.createCell(6).setCellValue("N");
                     row.createCell(7).setCellValue("Regular");
                     row.createCell(8).setCellValue(r.noteValue());
                     row.createCell(9).setCellValue("");
-                    row.createCell(10).setCellValue("18%");
+                    row.createCell(10).setCellValue(r.rate());
                     row.createCell(11).setCellValue(r.taxable());
                     row.createCell(12).setCellValue(0.0);
                 }
@@ -1411,7 +1532,7 @@ public class GstComplianceController implements ScreenLifecycle {
                 try (FileOutputStream fos = new FileOutputStream(file)) {
                     wb.write(fos);
                 }
-                return gstr1B2bRows.size() + gstr1B2csRows.size();
+                return gstr1B2bRows.size() + gstr1B2csRows.size() + gstr1CdnrRows.size();
             }
         }, totalCount -> {
             ExportFeedbackManager.notifyExportSuccess(tblReconciliation, file, "Government GSTR-1 Multi-Sheet Excel", totalCount);
@@ -1423,6 +1544,173 @@ public class GstComplianceController implements ScreenLifecycle {
 
     private String fmt(double val) {
         return currency.format(val).replace("₹", "₹ ");
+    }
+
+    private double parseDouble(String s) {
+        if (s == null || s.isBlank()) return 0.0;
+        try {
+            return Double.parseDouble(s.replaceAll("[^0-9.-]", ""));
+        } catch (Exception e) {
+            return 0.0;
+        }
+    }
+
+    private long parseLong(String s) {
+        if (s == null || s.isBlank()) return 0L;
+        try {
+            return Long.parseLong(s.replaceAll("[^0-9-]", ""));
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    private String apiUrl(String path) {
+        String base = ConfigManager.getDataApiBaseUrl();
+        if (base == null || base.isBlank()) base = "http://localhost:58080";
+        if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+        return base + (path.startsWith("/") ? path : "/" + path);
+    }
+
+    private List<CreditNoteEntry> fetchCreditNotes() {
+        List<CreditNoteEntry> notes = new ArrayList<>();
+        try {
+            HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(apiUrl("/api/credit-notes")))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("Accept", "application/json")
+                    .GET();
+            ApiSession.authorize(b);
+            HttpResponse<String> resp = ApiRuntime.HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200 && resp.body() != null && !resp.body().isBlank()) {
+                JsonNode arr = ApiRuntime.JSON.readTree(resp.body());
+                if (arr.isArray()) {
+                    for (JsonNode n : arr) {
+                        String status = n.path("status").asText("");
+                        if ("CANCELLED".equalsIgnoreCase(status) || "VOID".equalsIgnoreCase(status)) continue;
+                        notes.add(new CreditNoteEntry(
+                                n.path("id").asLong(0L),
+                                n.path("creditNoteNo").asText(""),
+                                n.path("noteDate").asText(""),
+                                n.path("originalInvoiceNo").asText(""),
+                                n.path("partyName").asText(""),
+                                n.path("partyGstin").asText(""),
+                                n.path("taxableAmount").asDouble(0.0),
+                                n.path("cgstAmount").asDouble(0.0),
+                                n.path("sgstAmount").asDouble(0.0),
+                                n.path("igstAmount").asDouble(0.0),
+                                n.path("totalAmount").asDouble(0.0),
+                                status
+                        ));
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            try {
+                HttpRequest.Builder b2 = HttpRequest.newBuilder(URI.create(apiUrl("/api/returns?type=sales")))
+                        .timeout(Duration.ofSeconds(10))
+                        .header("Accept", "application/json")
+                        .GET();
+                ApiSession.authorize(b2);
+                HttpResponse<String> resp2 = ApiRuntime.HTTP.send(b2.build(), HttpResponse.BodyHandlers.ofString());
+                if (resp2.statusCode() == 200 && resp2.body() != null) {
+                    JsonNode arr = ApiRuntime.JSON.readTree(resp2.body());
+                    if (arr.isArray()) {
+                        for (JsonNode r : arr) {
+                            String st = r.path("status").asText("");
+                            if ("CANCELLED".equalsIgnoreCase(st) || "REJECTED".equalsIgnoreCase(st)) continue;
+                            double tot = r.path("total").asDouble(0.0);
+                            double tax = tot - (tot / 1.18);
+                            double tx = tot / 1.18;
+                            notes.add(new CreditNoteEntry(
+                                    0L,
+                                    r.path("no").asText(""),
+                                    r.path("date").asText(""),
+                                    r.path("invoice").asText(""),
+                                    r.path("party").asText(""),
+                                    "",
+                                    tx,
+                                    tax / 2.0,
+                                    tax / 2.0,
+                                    0.0,
+                                    tot,
+                                    st
+                            ));
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return notes;
+    }
+
+    private List<DebitNoteEntry> fetchDebitNotes() {
+        List<DebitNoteEntry> notes = new ArrayList<>();
+        try {
+            HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(apiUrl("/api/debit-notes")))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("Accept", "application/json")
+                    .GET();
+            ApiSession.authorize(b);
+            HttpResponse<String> resp = ApiRuntime.HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200 && resp.body() != null && !resp.body().isBlank()) {
+                JsonNode arr = ApiRuntime.JSON.readTree(resp.body());
+                if (arr.isArray()) {
+                    for (JsonNode n : arr) {
+                        String status = n.path("status").asText("");
+                        if ("CANCELLED".equalsIgnoreCase(status) || "VOID".equalsIgnoreCase(status)) continue;
+                        notes.add(new DebitNoteEntry(
+                                n.path("id").asLong(0L),
+                                n.path("debitNoteNo").asText(""),
+                                n.path("noteDate").asText(""),
+                                n.path("originalBillNo").asText(""),
+                                n.path("supplierName").asText(""),
+                                n.path("supplierGstin").asText(""),
+                                n.path("taxableAmount").asDouble(0.0),
+                                n.path("cgstAmount").asDouble(0.0),
+                                n.path("sgstAmount").asDouble(0.0),
+                                n.path("igstAmount").asDouble(0.0),
+                                n.path("totalAmount").asDouble(0.0),
+                                status
+                        ));
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            try {
+                HttpRequest.Builder b2 = HttpRequest.newBuilder(URI.create(apiUrl("/api/returns?type=purchase")))
+                        .timeout(Duration.ofSeconds(10))
+                        .header("Accept", "application/json")
+                        .GET();
+                ApiSession.authorize(b2);
+                HttpResponse<String> resp2 = ApiRuntime.HTTP.send(b2.build(), HttpResponse.BodyHandlers.ofString());
+                if (resp2.statusCode() == 200 && resp2.body() != null) {
+                    JsonNode arr = ApiRuntime.JSON.readTree(resp2.body());
+                    if (arr.isArray()) {
+                        for (JsonNode r : arr) {
+                            String st = r.path("status").asText("");
+                            if ("CANCELLED".equalsIgnoreCase(st) || "REJECTED".equalsIgnoreCase(st)) continue;
+                            double tot = r.path("total").asDouble(0.0);
+                            double tax = tot - (tot / 1.18);
+                            double tx = tot / 1.18;
+                            notes.add(new DebitNoteEntry(
+                                    0L,
+                                    r.path("no").asText(""),
+                                    r.path("date").asText(""),
+                                    r.path("invoice").asText(""),
+                                    r.path("party").asText(""),
+                                    "",
+                                    tx,
+                                    tax / 2.0,
+                                    tax / 2.0,
+                                    0.0,
+                                    tot,
+                                    st
+                            ));
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return notes;
     }
 
     @Override
@@ -1437,9 +1725,55 @@ public class GstComplianceController implements ScreenLifecycle {
     public record Gstr3bRow(String taxHead, String outward, String available, String setOff, String netPayable) {}
     public record Gstr1B2bRow(String gstin, String partyName, String invoiceNo, String invoiceDate, String invoiceValue, String pos, String rate, String taxable, String igst, String cgst, String sgst) {}
     public record Gstr1B2csRow(String supplyType, String pos, String rate, String taxable, String igst, String cgst, String sgst) {}
-    public record Gstr1CdnrRow(String gstin, String partyName, String noteNo, String noteDate, String noteType, String origInvoiceNo, String noteValue, String taxable, String tax) {}
+    public record Gstr1CdnrRow(
+            long id,
+            String gstin,
+            String partyName,
+            String noteNo,
+            String noteDate,
+            String noteType,
+            String origInvoiceNo,
+            String noteValue,
+            String taxable,
+            String tax,
+            String pos,
+            String rate
+    ) {
+        public Gstr1CdnrRow(String gstin, String partyName, String noteNo, String noteDate, String noteType, String origInvoiceNo, String noteValue, String taxable, String tax) {
+            this(0L, gstin, partyName, noteNo, noteDate, noteType, origInvoiceNo, noteValue, taxable, tax, (gstin != null && gstin.length() >= 2) ? gstin.substring(0, 2) : "24", "18%");
+        }
+    }
     public record Gstr1HsnRow(String hsnCode, String description, String uqc, String qty, String totalValue, String taxable, String rate, String igst, String cgst, String sgst) {}
     public record Gstr1DocsRow(String nature, String serialFrom, String serialTo, String totalCount, String cancelledCount, String netIssued) {}
+
+    private static class HsnAgg {
+        final String hsnCode;
+        final String description;
+        final String uqc;
+        final double qty;
+        final double val;
+        final double txval;
+        final double igst;
+        final double cgst;
+        final double sgst;
+        final double rate;
+
+        HsnAgg(String hsnCode, String description, String uqc, double qty, double val, double txval, double igst, double cgst, double sgst, double rate) {
+            this.hsnCode = hsnCode;
+            this.description = description;
+            this.uqc = uqc;
+            this.qty = qty;
+            this.val = val;
+            this.txval = txval;
+            this.igst = igst;
+            this.cgst = cgst;
+            this.sgst = sgst;
+            this.rate = rate;
+        }
+    }
+
+    private record CreditNoteEntry(long id, String creditNoteNo, String noteDate, String originalInvoiceNo, String partyName, String partyGstin, double taxableAmount, double cgstAmount, double sgstAmount, double igstAmount, double totalAmount, String status) {}
+    private record DebitNoteEntry(long id, String debitNoteNo, String noteDate, String originalBillNo, String supplierName, String supplierGstin, double taxableAmount, double cgstAmount, double sgstAmount, double igstAmount, double totalAmount, String status) {}
 
     private record GstCalculationResult(
             String eligibleItc, String itcAtRisk, String valueDiff, String missingBooks, String netCashDue,

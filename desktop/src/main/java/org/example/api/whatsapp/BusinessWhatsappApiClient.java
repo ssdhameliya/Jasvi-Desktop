@@ -138,7 +138,11 @@ public final class BusinessWhatsappApiClient {
     }
 
     // DTO records matching server WahaDtos
-    public record WahaSettingsDto(String endpoint, String apiKey, boolean enabled, Long defaultChannelId) {}
+    public record WahaSettingsDto(String endpoint, String apiKey, boolean enabled, Long defaultChannelId, String disconnectedMessage) {
+        public WahaSettingsDto(String endpoint, String apiKey, boolean enabled, Long defaultChannelId) {
+            this(endpoint, apiKey, enabled, defaultChannelId, "");
+        }
+    }
     public record ChannelDto(Long id, String channelCode, String displayName, String phoneNumber, String sessionName, boolean isDefault, boolean isActive, String connectionStatus, String createdAt, String updatedAt) {}
     public record ChannelSaveRequest(Long id, String channelCode, String displayName, String phoneNumber, String sessionName, Boolean isDefault, Boolean isActive) {}
     public record DocumentSendRequest(String documentType, String documentNumber, Integer documentId, Long channelId, String recipientPhone, String customMessage, Long rowVersion) {}

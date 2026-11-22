@@ -55,6 +55,11 @@ public final class Main {
     private final RuntimeHealthMonitor runtimeHealthMonitor = new RuntimeHealthMonitor();
 
     public void start(Stage stage) {
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            DesktopLog.error("UncaughtException", thread.getName(), throwable == null ? "null" : throwable.getMessage(), throwable);
+            java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.ERROR,
+                    "Uncaught exception on thread " + thread.getName(), throwable);
+        });
         stage.initStyle(StageStyle.DECORATED);
         stage.setResizable(true);
         WorkspaceManager.initialize();

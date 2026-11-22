@@ -913,6 +913,18 @@
 .dse-theme-light .bank-import-metric-skipped { -fx-text-fill: #b45309; }
 .dse-theme-light .bank-import-metric-error { -fx-text-fill: #b91c1c; }
 
+/* Wide 90% Workspace Dialog Styles (Rule 12 Content-Adaptive Zero Truncation) */
+.erp-wide-workspace-90 .dse-dialog-shell,
+.erp-document-inspection-dialog.erp-wide-workspace-90 .dse-dialog-shell,
+.erp-table-workspace-dialog.erp-wide-workspace-90 .dse-dialog-shell {
+    -fx-min-width: 960px;
+    -fx-pref-width: -1;
+    -fx-max-width: 3840px;
+    -fx-min-height: 540px;
+    -fx-pref-height: -1;
+    -fx-max-height: 2400px;
+}
+
 /* Document Inspection Window Pop-up Styles */
 .erp-document-inspection-dialog .dse-dialog-shell {
     -fx-min-width: 960px;

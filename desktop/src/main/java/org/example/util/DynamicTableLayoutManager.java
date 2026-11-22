@@ -80,6 +80,7 @@ public final class DynamicTableLayoutManager {
             table.getStyleClass().add("approved-table");
         }
         ProfessionalUiEnhancer.refreshTableDecorations(table);
+        TableClipboardSupport.install(table);
 
         bindColumns(table);
         bindItems(table, null, table.getItems());

@@ -194,6 +194,7 @@ public final class WorkspaceTabManager {
 
         if (tab.getController() instanceof ScreenLifecycle lifecycle) {
             try { lifecycle.onScreenHidden(); } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
+            try { lifecycle.onScreenDisposed(); } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
         }
 
         openTabs.remove(tab);

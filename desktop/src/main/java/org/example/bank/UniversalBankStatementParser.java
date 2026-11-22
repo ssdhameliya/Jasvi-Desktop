@@ -538,6 +538,15 @@ public final class UniversalBankStatementParser {
         return df.formatCellValue(cell).trim();
     }
 
+    private static String escapeCsvValue(String v) {
+        if (v == null) return "";
+        String s = v.trim();
+        if (s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r")) {
+            return "\"" + s.replace("\"", "\"\"") + "\"";
+        }
+        return s;
+    }
+
     private static double num(Cell cell) {
         if (cell == null)
             return 0;

@@ -20,6 +20,11 @@ public class AuthController {
     @GetMapping("/health")
     public Map<String, Object> health() { return Map.of("status", "UP"); }
 
+    @GetMapping("/account-status")
+    public ResponseEntity<Map<String, Object>> getAccountStatus(@RequestParam("identity") String identity) {
+        return ResponseEntity.ok(auth.getAccountStatus(identity));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<AuthDtos.LoginResponse> login(@RequestBody AuthDtos.LoginRequest request, HttpServletRequest httpRequest) {
         String clientIp = httpRequest == null ? "" : httpRequest.getRemoteAddr();
@@ -72,9 +77,9 @@ public class AuthController {
     }
 
     @PostMapping("/password")
-    public ResponseEntity<AuthDtos.OperationResponse> password(@RequestBody AuthDtos.ChangePasswordRequest request,
-                                                                @AuthenticationPrincipal org.example.server.security.AuthenticatedUser current) {
-        AuthDtos.OperationResponse result = auth.changePassword(request, current);
+    public ResponseEntity<AuthDtos.ChangePasswordResponse> password(@RequestBody AuthDtos.ChangePasswordRequest request,
+                                                                    @AuthenticationPrincipal org.example.server.security.AuthenticatedUser current) {
+        AuthDtos.ChangePasswordResponse result = auth.changePassword(request, current);
         return result.success() ? ResponseEntity.ok(result) : ResponseEntity.badRequest().body(result);
     }
 
@@ -92,6 +97,12 @@ public class AuthController {
 
     @GetMapping("/registration/captcha")
     public AuthDtos.CaptchaResponse registrationCaptcha() { return auth.registrationCaptcha(); }
+
+    @GetMapping("/password-reset/captcha")
+    public AuthDtos.CaptchaResponse passwordResetCaptcha() { return auth.registrationCaptcha(); }
+
+    @GetMapping("/captcha")
+    public AuthDtos.CaptchaResponse captcha() { return auth.registrationCaptcha(); }
 
     @PostMapping("/registration/request")
     public ResponseEntity<AuthDtos.ChallengeResponse> requestRegistrationOtp(@RequestBody AuthDtos.RegistrationOtpRequest request) {
