@@ -4,21 +4,49 @@ import javafx.application.Platform;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.awt.GraphicsEnvironment;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class RecipientChipBoxTest {
 
+    private static boolean javaFxAvailable = false;
+
     @BeforeAll
     static void initJavaFx() {
-        try {
-            Platform.startup(() -> {});
-        } catch (IllegalStateException ignored) {
-            // JavaFX runtime already initialized
+        if (GraphicsEnvironment.isHeadless()) {
+            javaFxAvailable = false;
+            return;
         }
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (os.contains("linux") && (System.getenv("DISPLAY") == null || System.getenv("DISPLAY").isBlank())) {
+            javaFxAvailable = false;
+            return;
+        }
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            Platform.startup(latch::countDown);
+            if (latch.await(3, TimeUnit.SECONDS)) {
+                javaFxAvailable = true;
+            }
+        } catch (IllegalStateException alreadyStarted) {
+            javaFxAvailable = true;
+        } catch (Throwable ignored) {
+            javaFxAvailable = false;
+        }
+    }
+
+    @BeforeEach
+    void verifyDisplayAvailable() {
+        assumeTrue(javaFxAvailable, "Active graphical display required for RecipientChipBox UI widget testing");
     }
 
     @Test
