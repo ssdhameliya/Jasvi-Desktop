@@ -22,8 +22,9 @@ public class SplashController implements ScreenLifecycle {
     @FXML private Label workspaceStatus, postgresStatus, springStatus, schemaStatus, applicationStatus;
     @FXML private Label workspaceTime, postgresTime, springTime, schemaTime, applicationTime;
     @FXML private Label lblBrandMark, lblBrandName, lblBrandTagline, lblBrandQuote, lblStarting;
-    @FXML private ImageView imgBrandLogo, imgBrandMark;
-    @FXML private StackPane brandLogoBox, brandMarkBox;
+    @FXML private Label lblWelcomePrefix, lblCompanyName, lblSplashMarkFallback;
+    @FXML private ImageView imgBrandLogo, imgBrandMark, imgSplashMark;
+    @FXML private StackPane brandLogoBox, brandMarkBox, splashMarkBox;
     @FXML private VBox brandPanel;
 
     private long startedNanos;
@@ -38,6 +39,7 @@ public class SplashController implements ScreenLifecycle {
         versionLabel.setText("Version " + BuildInfo.version());
         BrandImagePresenter.applicationBanner(imgBrandLogo, brandLogoBox);
         BrandImagePresenter.contain(imgBrandMark, brandMarkBox);
+        BrandImagePresenter.contain(imgSplashMark, splashMarkBox);
         applyBranding();
         systemValue.setText(systemMemoryLabel());
         databaseValue.setText("PostgreSQL");
@@ -53,10 +55,13 @@ public class SplashController implements ScreenLifecycle {
     }
 
     private void applyBranding() {
-        if (lblBrandName != null) lblBrandName.setText(BrandingService.applicationName());
+        String appName = BrandingService.applicationName();
+        if (lblBrandName != null) lblBrandName.setText(appName);
         if (lblBrandTagline != null) lblBrandTagline.setText(BrandingService.tagline());
         if (lblBrandQuote != null) lblBrandQuote.setText(BrandingService.loginDescription());
         if (lblStarting != null) lblStarting.setText(BrandingService.startingText());
+        if (lblWelcomePrefix != null) lblWelcomePrefix.setText("Welcome to");
+        if (lblCompanyName != null) lblCompanyName.setText(appName);
         Image logo = BrandingService.applicationBrandImage();
         if (imgBrandLogo != null) {
             boolean bannerAvailable = logo != null && !logo.isError();
@@ -65,15 +70,29 @@ public class SplashController implements ScreenLifecycle {
             imgBrandLogo.setVisible(bannerAvailable);
         }
         Image mark = BrandingService.applicationMarkImage();
+        if (mark == null || mark.isError()) {
+            mark = BrandingService.companyLogo();
+        }
         boolean markAvailable = mark != null && !mark.isError();
+        if (imgSplashMark != null) {
+            imgSplashMark.setImage(markAvailable ? mark : null);
+            imgSplashMark.setManaged(markAvailable);
+            imgSplashMark.setVisible(markAvailable);
+        }
+        if (lblSplashMarkFallback != null) {
+            lblSplashMarkFallback.setManaged(!markAvailable);
+            lblSplashMarkFallback.setVisible(!markAvailable);
+        }
+        Image leftMark = BrandingService.applicationMarkImage();
+        boolean leftMarkAvailable = leftMark != null && !leftMark.isError();
         if (imgBrandMark != null) {
-            imgBrandMark.setImage(markAvailable ? mark : null);
-            imgBrandMark.setManaged(markAvailable);
-            imgBrandMark.setVisible(markAvailable);
+            imgBrandMark.setImage(leftMarkAvailable ? leftMark : null);
+            imgBrandMark.setManaged(leftMarkAvailable);
+            imgBrandMark.setVisible(leftMarkAvailable);
         }
         if (brandMarkBox != null) {
-            brandMarkBox.setManaged(markAvailable);
-            brandMarkBox.setVisible(markAvailable);
+            brandMarkBox.setManaged(leftMarkAvailable);
+            brandMarkBox.setVisible(leftMarkAvailable);
         }
         if (lblBrandMark != null) {
             lblBrandMark.setManaged(false);

@@ -130,6 +130,51 @@ class UiArchitectureContractTest {
         assertTrue(violations.isEmpty(), "Unresolved FXML onAction handlers found:\n" + String.join("\n", violations));
     }
 
+    @Test
+    void profileScreenLifecycleGuaranteesIsolatedTasks() throws Exception {
+        Path controllerPath = Path.of("src/main/java/org/example/controller/ProfileController.java");
+        if (!Files.exists(controllerPath)) {
+            controllerPath = Path.of("desktop/src/main/java/org/example/controller/ProfileController.java");
+        }
+        String source = Files.readString(controllerPath);
+        assertTrue(source.contains("implements ScreenLifecycle"), "ProfileController must implement ScreenLifecycle");
+        assertTrue(source.contains("onScreenShown"), "ProfileController must implement onScreenShown");
+        assertTrue(source.contains("onScreenHidden"), "ProfileController must implement onScreenHidden");
+        assertTrue(source.contains("System.identityHashCode(this)"),
+                "ProfileController must use an instance-isolated task key to prevent sibling screen cancellations");
+    }
+
+    @Test
+    void executiveBriefingMultiCadenceAndRecipientChipBoxContract() throws Exception {
+        Path fxmlPath = Path.of("src/main/resources/fxml/pages/settings/ModulesSettingsPanel.fxml");
+        assertTrue(Files.exists(fxmlPath), "ModulesSettingsPanel.fxml must exist");
+        String fxml = Files.readString(fxmlPath);
+
+        assertTrue(fxml.contains("fx:id=\"vboxBriefingPhone\""), "ModulesSettingsPanel must declare vboxBriefingPhone");
+        assertTrue(fxml.contains("fx:id=\"vboxBriefingEmail\""), "ModulesSettingsPanel must declare vboxBriefingEmail");
+        assertTrue(fxml.contains("fx:id=\"chkCadenceDaily\"") && fxml.contains("ios-toggle-switch"),
+                "ModulesSettingsPanel must declare chkCadenceDaily with ios-toggle-switch styleClass");
+        assertTrue(fxml.contains("fx:id=\"chkCadenceWeekly\""), "ModulesSettingsPanel must declare chkCadenceWeekly");
+        assertTrue(fxml.contains("fx:id=\"chkCadenceMonthly\""), "ModulesSettingsPanel must declare chkCadenceMonthly");
+        assertTrue(fxml.contains("fx:id=\"chkCadenceQuarterly\""), "ModulesSettingsPanel must declare chkCadenceQuarterly");
+        assertTrue(fxml.contains("fx:id=\"chkCadenceHalfYearly\""), "ModulesSettingsPanel must declare chkCadenceHalfYearly");
+        assertTrue(fxml.contains("fx:id=\"chkCadenceYearly\""), "ModulesSettingsPanel must declare chkCadenceYearly");
+        assertTrue(fxml.contains("fx:id=\"cmbBriefingPeriodMode\""), "ModulesSettingsPanel must declare cmbBriefingPeriodMode");
+        assertTrue(fxml.contains("fx:id=\"cmbBriefingCustomStart\""), "ModulesSettingsPanel must declare cmbBriefingCustomStart");
+        assertTrue(fxml.contains("fx:id=\"txtBriefingPortalUrl\""), "ModulesSettingsPanel must declare txtBriefingPortalUrl");
+
+        Path controllerPath = Path.of("src/main/java/org/example/controller/SettingsController.java");
+        assertTrue(Files.exists(controllerPath), "SettingsController.java must exist");
+        String controllerSource = Files.readString(controllerPath);
+
+        assertTrue(controllerSource.contains("RecipientChipBox.attach(vboxBriefingPhone, txtBriefingPhone, org.example.util.RecipientChipBox.ChannelType.WHATSAPP)"),
+                "SettingsController must attach RecipientChipBox for mobile recipients");
+        assertTrue(controllerSource.contains("RecipientChipBox.attach(vboxBriefingEmail, txtBriefingEmails, org.example.util.RecipientChipBox.ChannelType.EMAIL)"),
+                "SettingsController must attach RecipientChipBox for email recipients");
+        assertTrue(controllerSource.contains("triggerExecutiveBriefing(true, targetCadence)"),
+                "SettingsController must dispatch test briefings with target cadence");
+    }
+
     private static org.w3c.dom.Document parse(Path path) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);

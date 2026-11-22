@@ -2273,6 +2273,7 @@ public class DashboardController implements ScreenLifecycle {
     private void logout() {
         if (!org.example.navigation.UnsavedChangesManager.allowExit("sign out")) return;
         stopRecurringTasks();
+        ApiSession.setSessionRevocationListener(null);
         sendClientHeartbeatAsync(0L, true);
         org.example.util.UiTaskExecutor.cancelAllReads();
         org.example.navigation.NavigationManager.clearGlobalCache();

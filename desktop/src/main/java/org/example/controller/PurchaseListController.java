@@ -452,7 +452,10 @@ private void configureDetailsCloseButton(){
   UiTaskExecutor.submitActionWithOverlay(tablePurchase, "Preparing email draft…", "purchase-prepare-email-" + p.getId(), () -> {
    Purchase full = requirePurchase(p);
    if(full.getSupplier() == null) throw new IllegalStateException("No supplier is linked to " + full.getInvoiceNo() + ".");
-   String target = s(full.getSupplier().getEmail()).trim();
+   String fallbackEmail = full.getSupplier() != null ? s(full.getSupplier().getEmail()).trim() : "";
+   String fallbackPhone = full.getSupplier() != null ? s(full.getSupplier().getPhone()).trim() : "";
+   var resolvedRecipients = org.example.util.PartyRecipientResolver.resolveSupplier(full.getSupplier() != null ? full.getSupplier().getId() : 0, fallbackEmail, fallbackPhone);
+   String target = resolvedRecipients.emailString().isBlank() ? fallbackEmail : resolvedRecipients.emailString();
    Path pdf = ManagedInvoicePdfService.purchase(full);
    MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatPurchaseEmail(full);
    String sigImg = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
@@ -508,7 +511,10 @@ private void configureDetailsCloseButton(){
       Purchase full = requirePurchase(p);
       Path pdf = ManagedInvoicePdfService.purchase(full);
       String message = PaymentMessageService.purchaseMessage(full);
-      String phone = s(full.getSupplier() != null ? full.getSupplier().getPhone() : "").replaceAll("\\D", "");
+      String fallbackEmail = full.getSupplier() != null ? s(full.getSupplier().getEmail()).trim() : "";
+      String fallbackPhone = full.getSupplier() != null ? s(full.getSupplier().getPhone()).trim() : "";
+      var resolvedRecipients = org.example.util.PartyRecipientResolver.resolveSupplier(full.getSupplier() != null ? full.getSupplier().getId() : 0, fallbackEmail, fallbackPhone);
+      String phone = resolvedRecipients.phoneString().isBlank() ? fallbackPhone : resolvedRecipients.phoneString();
       return new WhatsappTransmissionDialog.WhatsappDraft(
               "Transmit Purchase Order via WhatsApp",
               "Direct delivery via WhatsApp Business Engine to supplier registered mobile",
@@ -524,21 +530,25 @@ private void configureDetailsCloseButton(){
       if (opt.isEmpty()) return;
       WhatsappTransmissionDialog.WhatsappTransmissionResult result = opt.get();
       LiveOperationDialog.run(tablePurchase, "Sending WhatsApp Purchase Order", "whatsapp", "Connecting to WhatsApp Business Engine...", reporter -> {
-        reporter.stage(1, 3, "Validating recipient " + result.recipientPhone() + "...");
         org.example.api.whatsapp.BusinessWhatsappApiClient wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+        List<String> phones = Arrays.stream(result.recipientPhone().split("[;,]"))
+                .map(String::trim).filter(s -> !s.isBlank()).toList();
+        reporter.stage(1, 3, "Validating " + phones.size() + " recipient(s)...");
         reporter.stage(2, 3, "Transmitting purchase order to WhatsApp...");
-        var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
-            "PURCHASE",
-            p.getInvoiceNo(),
-            p.getId(),
-            null,
-            result.recipientPhone(),
-            result.message(),
-            p.getRowVersion()
-        ));
-        if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
-        reporter.stage(3, 3, "Dispatched via WhatsApp channel " + sendResp.channelCode());
-        support.communication(new SupportApiClient.CommunicationRequest("PURCHASE", p.getId(), "WHATSAPP", result.recipientPhone(), "Purchase Invoice " + p.getInvoiceNo(), "SENT", null, user()));
+        for (String phoneNum : phones) {
+            var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+                "PURCHASE",
+                p.getInvoiceNo(),
+                p.getId(),
+                null,
+                phoneNum,
+                result.message(),
+                p.getRowVersion()
+            ));
+            if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
+            support.communication(new SupportApiClient.CommunicationRequest("PURCHASE", p.getId(), "WHATSAPP", phoneNum, "Purchase Invoice " + p.getInvoiceNo(), "SENT", null, user()));
+        }
+        reporter.stage(3, 3, "Dispatched via WhatsApp to " + phones.size() + " recipient(s)");
       }, () -> {
         refresh();
         info("Purchase Invoice " + p.getInvoiceNo() + " sent successfully via WhatsApp!");

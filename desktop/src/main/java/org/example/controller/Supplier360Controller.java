@@ -60,7 +60,7 @@ public final class Supplier360Controller implements ScreenLifecycle {
             payInvoice, payMode, payReference, payAmount, payNotes;
     @FXML
     private TableColumn<Supplier360ApiClient.ContactRow, String> cName, cDesignation, cDepartment, cMobile, cEmail,
-            cPrimary;
+            cPrimary, cEmailAlert, cWhatsappAlert;
     @FXML
     private TableColumn<Supplier360ApiClient.NoteRow, String> nDate, nBy, nText;
     @FXML
@@ -136,6 +136,14 @@ public final class Supplier360Controller implements ScreenLifecycle {
         cMobile.setCellValueFactory(c -> s(c.getValue().mobile()));
         cEmail.setCellValueFactory(c -> s(c.getValue().email()));
         cPrimary.setCellValueFactory(c -> s(c.getValue().primary() ? "Primary" : ""));
+        if (cEmailAlert != null) {
+            cEmailAlert.setCellValueFactory(c -> s(c.getValue().emailRecipient() ? "Auto-Email" : "—"));
+            cEmailAlert.setCellFactory(c -> org.example.util.SemanticTableCells.status("quotation"));
+        }
+        if (cWhatsappAlert != null) {
+            cWhatsappAlert.setCellValueFactory(c -> s(c.getValue().whatsappRecipient() ? "Auto-WhatsApp" : "—"));
+            cWhatsappAlert.setCellFactory(c -> org.example.util.SemanticTableCells.status("payment"));
+        }
         nDate.setCellValueFactory(c -> s(BusinessClock.formatTimestamp(
                 c.getValue().updatedAt().isBlank() ? c.getValue().createdAt() : c.getValue().updatedAt())));
         nBy.setCellValueFactory(
@@ -313,6 +321,16 @@ public final class Supplier360Controller implements ScreenLifecycle {
                 email = new TextField(current == null ? "" : current.email());
         CheckBox primary = new CheckBox("Primary contact");
         primary.setSelected(current != null && current.primary());
+        CheckBox chkEmail = new CheckBox("Auto-populate for Email & PDF dispatch");
+        chkEmail.setSelected(current != null ? current.emailRecipient() : true);
+        CheckBox chkWhatsapp = new CheckBox("Auto-populate for WhatsApp receipts & advice");
+        chkWhatsapp.setSelected(current != null ? current.whatsappRecipient() : true);
+        primary.selectedProperty().addListener((o, was, isNow) -> {
+            if (isNow) {
+                chkEmail.setSelected(true);
+                chkWhatsapp.setSelected(true);
+            }
+        });
         TextArea notes = new TextArea(current == null ? "" : current.notes());
         notes.setPrefRowCount(3);
         int r = 0;
@@ -322,6 +340,8 @@ public final class Supplier360Controller implements ScreenLifecycle {
         add(g, "Mobile", mobile, r++);
         add(g, "Email", email, r++);
         g.add(primary, 1, r++);
+        g.add(chkEmail, 1, r++);
+        g.add(chkWhatsapp, 1, r++);
         add(g, "Notes", notes, r);
         dlg.getDialogPane().setContent(g);
         styleDialogButtons(dlg);
@@ -329,7 +349,7 @@ public final class Supplier360Controller implements ScreenLifecycle {
                 b -> b == ButtonType.OK
                         ? new Supplier360ApiClient.ContactSave(current == null ? null : current.id(), name.getText(),
                                 designation.getText(), department.getText(), mobile.getText(), email.getText(),
-                                primary.isSelected(), notes.getText(), current == null ? 0 : current.rowVersion())
+                                primary.isSelected(), chkEmail.isSelected(), chkWhatsapp.isSelected(), notes.getText(), current == null ? 0 : current.rowVersion())
                         : null);
         dlg.showAndWait().ifPresent(v -> UiTaskExecutor.submitAction("supplier-360-contact-save",
                 () -> api.saveContact(supplier.getId(), v), x -> {

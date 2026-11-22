@@ -54,6 +54,10 @@ public final class AuthApiClient {
                 new LoginRequest(identity, password), LoginResponse.class);
         if (response == null) return null;
         if (!response.success()) {
+            if (response.incidentTicketId() != null && !response.incidentTicketId().isBlank()) {
+                throw new AccountLockoutException(response.message() == null || response.message().isBlank()
+                        ? "Account locked." : response.message(), response.incidentTicketId());
+            }
             throw new IllegalStateException(response.message() == null || response.message().isBlank()
                     ? "Invalid email/username or password." : response.message());
         }
@@ -154,10 +158,13 @@ public final class AuthApiClient {
     }
 
     public void changePassword(int userId, String currentPassword, String password) {
-        OperationResponse response = post("/api/auth/password", new ChangePasswordRequest(userId, currentPassword, password),
-                OperationResponse.class);
+        ChangePasswordResponse response = post("/api/auth/password", new ChangePasswordRequest(userId, currentPassword, password),
+                ChangePasswordResponse.class);
         if (response == null || !response.success()) {
             throw new IllegalStateException(response == null ? "Password update failed" : response.message());
+        }
+        if (response.accessToken() != null && !response.accessToken().isBlank()) {
+            ApiSession.establish(response.accessToken(), response.expiresAt(), baseUrl());
         }
     }
 
@@ -200,8 +207,12 @@ public final class AuthApiClient {
     }
 
     public ChallengeResponse requestPasswordReset(String identity) {
+        return requestPasswordReset(identity, null, null);
+    }
+
+    public ChallengeResponse requestPasswordReset(String identity, String captchaChallengeId, String captchaAnswer) {
         ChallengeResponse response = post("/api/auth/password-reset/request",
-                new PasswordResetOtpRequest(identity), ChallengeResponse.class);
+                new PasswordResetOtpRequest(identity, captchaChallengeId, captchaAnswer), ChallengeResponse.class);
         if (response == null || !response.success())
             throw new IllegalStateException(response == null ? "Password reset request failed" : response.message());
         return response;
@@ -421,6 +432,7 @@ public final class AuthApiClient {
         result.setAccessLevel(user.accessLevel());
         result.setLocked(user.locked());
         result.setMfaEnabled(user.mfaEnabled());
+        result.setForcePasswordChange(user.forcePasswordChange());
         return result;
     }
 
@@ -472,6 +484,7 @@ public final class AuthApiClient {
     public record LoginMfaEnrollmentResponse(boolean success,String challengeId,String manualSecret,String provisioningUri,String message) {}
     public record UserIdRequest(int userId) {}
     public record ChangePasswordRequest(int userId, String currentPassword, String password) {}
+    public record ChangePasswordResponse(boolean success, String message, String accessToken, String expiresAt) {}
     public record RegisterRequest(String username, String password, String fullName, String email, String role,
                                   boolean mfaEnabled) {}
     public record CaptchaResponse(String challengeId,String question,String expiresIn) {}
@@ -479,13 +492,20 @@ public final class AuthApiClient {
     public record RegistrationEmailVerifyRequest(String challengeId,String otp,String username,String password,String fullName,String email,String role,boolean mfaEnabled) {}
     public record RegistrationMfaSetupResponse(boolean success,Long registrationId,String manualSecret,String provisioningUri,String message) {}
     public record RegistrationMfaCompleteRequest(long registrationId,String otp) {}
-    public record PasswordResetOtpRequest(String identity) {}
+    public record PasswordResetOtpRequest(String identity, String captchaChallengeId, String captchaAnswer) {
+        public PasswordResetOtpRequest(String identity) { this(identity, null, null); }
+    }
     public record PasswordResetCompleteRequest(String challengeId,String otp,String totp,String password) {}
     public record ChallengeResponse(boolean success, String challengeId, String message) {}
     public record LoginMfaChallengeResponse(boolean success, String challengeId, String message,
                                             String maskedDestination) {}
     public record LoginResponse(boolean success, UserPayload user, String message, String accessToken, String expiresAt,
-                                boolean mfaRequired, String challengeId, String maskedDestination) {}
+                                boolean mfaRequired, String challengeId, String maskedDestination, String incidentTicketId) {
+        public LoginResponse(boolean success, UserPayload user, String message, String accessToken, String expiresAt,
+                             boolean mfaRequired, String challengeId, String maskedDestination) {
+            this(success, user, message, accessToken, expiresAt, mfaRequired, challengeId, maskedDestination, null);
+        }
+    }
     public record LoginAttempt(AppUser user, boolean mfaRequired, String challengeId, String maskedDestination,
                                boolean enrollmentRequired, LoginMfaEnrollmentResponse enrollment) {}
     public record OperationResponse(boolean success, String message) {}
@@ -495,7 +515,48 @@ public final class AuthApiClient {
     }
     public record UserPayload(int id, String username, String fullName, String role, Integer roleId,
                               String email, String phone, boolean active, String department, String branch,
-                              String accessLevel, boolean locked, boolean mfaEnabled) {}
+                              String accessLevel, boolean locked, boolean mfaEnabled, boolean forcePasswordChange) {
+        public UserPayload(int id, String username, String fullName, String role, Integer roleId,
+                           String email, String phone, boolean active, String department, String branch,
+                           String accessLevel, boolean locked, boolean mfaEnabled) {
+            this(id, username, fullName, role, roleId, email, phone, active, department, branch, accessLevel, locked, mfaEnabled, false);
+        }
+    }
+
+    public static class AccountLockoutException extends IllegalStateException {
+        private final String ticketId;
+        public AccountLockoutException(String message, String ticketId) {
+            super(message);
+            this.ticketId = ticketId;
+        }
+        public String getTicketId() { return ticketId; }
+    }
 
     public record SessionExtendResponse(boolean success,String message,String accessToken,String expiresAt){}
+    public record AccountStatusResponse(boolean exists, boolean locked, String lockReason, String username,
+                                         String lastPasswordResetUtc, String ticketId, boolean forcePasswordChange) {
+        public AccountStatusResponse(boolean exists, boolean locked, String lockReason, String username, String lastPasswordResetUtc) {
+            this(exists, locked, lockReason, username, lastPasswordResetUtc, "", false);
+        }
+    }
+
+    public AccountStatusResponse getAccountStatus(String identity) {
+        if (identity == null || identity.isBlank()) {
+            return new AccountStatusResponse(false, false, "NONE", "", "", "", false);
+        }
+        try {
+            String encoded = java.net.URLEncoder.encode(identity.trim(), java.nio.charset.StandardCharsets.UTF_8);
+            HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl() + "/api/auth/account-status?identity=" + encoded))
+                    .timeout(REQUEST_TIMEOUT)
+                    .header("Accept", "application/json")
+                    .GET().build();
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return new AccountStatusResponse(false, false, "NONE", "", "", "", false);
+            }
+            return json.readValue(response.body(), AccountStatusResponse.class);
+        } catch (Exception ex) {
+            return new AccountStatusResponse(false, false, "NONE", "", "", "", false);
+        }
+    }
 }

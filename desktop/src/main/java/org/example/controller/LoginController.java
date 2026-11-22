@@ -14,6 +14,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import org.example.model.AppUser;
+import org.example.api.ApiSession;
 import org.example.service.NotificationPreferenceService;
 import org.example.service.SessionService;
 import org.example.service.UserService;
@@ -37,6 +38,7 @@ import org.example.util.WorkflowFocusManager;
 import org.example.update.BuildInfo;
 import org.example.config.ConfigManager;
 import org.example.shared.SecretValueCodec;
+import org.example.api.ApiSession;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -59,23 +61,28 @@ public class LoginController implements ScreenLifecycle {
     private static final String PREF_ROLE = "login.role";
     private static final String PREF_PASSWORD = "login.password.encrypted";
 
-    @FXML private TextField txtUsername, txtOtp, txtResetIdentity, txtResetOtp, txtResetTotp;
+    @FXML private TextField txtUsername, txtOtp, txtResetIdentity, txtResetCaptcha, txtResetOtp, txtResetTotp;
     @FXML private PasswordField txtPassword, txtNewPassword, txtConfirmPassword;
     @FXML private ComboBox<String> cmbRole;
     @FXML private CheckBox chkRemember;
     @FXML private ToggleButton btnTheme;
     @FXML private Label lblClock, lblMessage, lblUsernameError, lblPasswordError, lblRoleError, lblOtpError, lblVersion;
-    @FXML private Label lblResetIdentityError, lblResetOtpError, lblResetTotpError, lblNewPasswordError, lblConfirmPasswordError;
+    @FXML private Label lblResetIdentityError, lblResetCaptchaQuestion, lblResetCaptchaError, lblResetOtpError, lblResetTotpError, lblNewPasswordError, lblConfirmPasswordError;
     @FXML private Label lblBrandMark, lblBrandName, lblBrandTagline, lblBrandDescription, lblBrandQuote;
     @FXML private Label lblFooterCompany, lblFooterPhone, lblFooterEmail, lblFooterWebsite;
     @FXML private ImageView imgBrandLogo, imgBrandMark, imgLoginLogo;
     @FXML private VBox brandPanel;
     @FXML private StackPane brandLogoBox, brandMarkBox, loginLogoBox;
     @FXML private Button btnLogin, btnRegister, btnLicenseActivation, btnEmailSettings, btnForgotPassword, btnResendOtp;
-    @FXML private Button btnSendResetOtp, btnResetPassword, btnBackToLogin;
+    @FXML private Button btnRefreshResetCaptcha, btnSendResetOtp, btnResetPassword, btnBackToLogin;
     @FXML private VBox loginPanel, resetPanel, otpPanel;
+    @FXML private VBox incidentBanner;
+    @FXML private Label lblIncidentIcon, lblIncidentTitle, lblIncidentSubtitle, lblIncidentTicketBadge, lblPollerStatus;
+    @FXML private Button btnCopyTicket, btnCheckUnlockStatus;
+    private String activeIncidentTicketId;
 
     private final UserService users = new UserService();
+    private String resetCaptchaId;
     /** Display label -> normalized Role Master Value identity for the current server. */
     private final Map<String, String> loginRoleCodes = new LinkedHashMap<>();
     private AppUser pendingUser;
@@ -158,6 +165,7 @@ public class LoginController implements ScreenLifecycle {
         btnForgotPassword.getProperties().put("erp.icon.semantic", "reset");
         btnForgotPassword.getProperties().put("erp-icon-preserve", true);
         UiActionIcons.apply(btnSendResetOtp, ButtonAction.EMAIL);
+        if (btnRefreshResetCaptcha != null) UiActionIcons.apply(btnRefreshResetCaptcha, "refresh", "Refresh security code");
         UiActionIcons.apply(btnResetPassword, "save", "Save new password");
         UiActionIcons.apply(btnBackToLogin, ButtonAction.CANCEL);
         // Keyboard-first login: Enter from the password field submits credentials,
@@ -174,6 +182,7 @@ public class LoginController implements ScreenLifecycle {
         installLiveClear(txtPassword, lblPasswordError);
         installLiveClear(txtOtp, lblOtpError);
         installLiveClear(txtResetIdentity, lblResetIdentityError);
+        installLiveClear(txtResetCaptcha, lblResetCaptchaError);
         installLiveClear(txtResetOtp, lblResetOtpError);
         installLiveClear(txtResetTotp, lblResetTotpError);
         installLiveClear(txtNewPassword, lblNewPasswordError);
@@ -356,10 +365,24 @@ public class LoginController implements ScreenLifecycle {
             resetPendingLogin();
             String detail = exception.getMessage() == null || exception.getMessage().isBlank()
                     ? "Login failed." : exception.getMessage();
+            String ticketId = null;
+            if (exception instanceof org.example.api.auth.AuthApiClient.AccountLockoutException ale) {
+                ticketId = ale.getTicketId();
+            }
             if (detail.toLowerCase(java.util.Locale.ROOT).contains("password")
                     || detail.toLowerCase(java.util.Locale.ROOT).contains("locked")
                     || detail.toLowerCase(java.util.Locale.ROOT).contains("attempt")) {
                 showFieldError(txtPassword, lblPasswordError, detail);
+            }
+            boolean isLockedOut = (ticketId != null && !ticketId.isBlank())
+                    || ((detail.toLowerCase(java.util.Locale.ROOT).contains("account has been locked")
+                    || detail.toLowerCase(java.util.Locale.ROOT).contains("account is locked after")
+                    || detail.toLowerCase(java.util.Locale.ROOT).contains("failed attempt 3 of 3")
+                    || detail.toLowerCase(java.util.Locale.ROOT).contains("too many sign-in attempts"))
+                    && !detail.toLowerCase(java.util.Locale.ROOT).contains("remains before"));
+            if (isLockedOut) {
+                showIncidentBanner(ticketId, detail);
+                startLiveUnlockTracker(txtUsername.getText() == null ? "" : txtUsername.getText().trim(), ticketId);
             }
             message(detail, true);
         });
@@ -648,9 +671,29 @@ public class LoginController implements ScreenLifecycle {
     }
 
     private void completeLogin(AppUser user) {
-        setLoginBusy(true, "OPENING ERP...");
+        stopLiveUnlockTracker();
         saveRememberedLogin();
         SessionService.signIn(user);
+        if (user.isForcePasswordChange()) {
+            setLoginBusy(false, null);
+            promptForcedPasswordChange(user);
+            if (!user.isForcePasswordChange()) {
+                javafx.application.Platform.runLater(() -> {
+                    message("Permanent password updated successfully. Signing into Jasvi ERP...", false);
+                    login();
+                });
+            } else {
+                SessionService.clear();
+                ApiSession.clear();
+                setLoginBusy(false, null);
+            }
+            return;
+        }
+        startPostLoginSyncAndOpenDashboard(user);
+    }
+
+    private void startPostLoginSyncAndOpenDashboard(AppUser user) {
+        setLoginBusy(true, "OPENING ERP...");
         UiTaskExecutor.submitAction("login-complete", () -> {
             try {
                 PermissionService.refreshStrict();
@@ -687,18 +730,7 @@ public class LoginController implements ScreenLifecycle {
             });
             return user;
         }, authenticated -> {
-            try {
-                SceneManager.showDashboard();
-            } catch (Exception ex) {
-                System.err.println("[Login] Failed to show dashboard: " + ex.getMessage());
-                ex.printStackTrace();
-                setLoginBusy(false, null);
-                message("Unable to open dashboard: " + (ex.getMessage() == null ? ex.toString() : ex.getMessage()), true);
-                return;
-            }
-            setLoginBusy(false, null);
-            long elapsed = PerformanceMonitor.finish("login-click");
-            if (elapsed >= 0) PerformanceBudgets.record("login", elapsed, PerformanceBudgets.LOGIN_MS);
+            openDashboardSafely();
         }, failure -> {
             if (failure instanceof org.example.api.ApiSession.AuthenticationRequiredException) {
                 SessionService.clear();
@@ -772,7 +804,21 @@ public class LoginController implements ScreenLifecycle {
         resetPendingLogin();
         resetChallengeId = null;
         showResetPanel();
+        refreshResetCaptcha();
         message("Enter your email or username to receive a reset code.", false);
+    }
+
+    @FXML private void refreshResetCaptcha() {
+        clearFieldError(txtResetCaptcha, lblResetCaptchaError);
+        UiTaskExecutor.submitAction("login-password-reset-captcha",
+                users::registrationCaptcha,
+                captcha -> {
+                    resetCaptchaId = captcha.challengeId();
+                    if (lblResetCaptchaQuestion != null) lblResetCaptchaQuestion.setText(captcha.question());
+                    if (txtResetCaptcha != null) txtResetCaptcha.clear();
+                },
+                failure -> message("Unable to load security verification code: " + (failure.getMessage() == null ? "Unknown error" : failure.getMessage()), true)
+        );
     }
 
     @FXML private void sendResetOtp() {
@@ -783,19 +829,29 @@ public class LoginController implements ScreenLifecycle {
             return;
         }
 
+        String captchaAnswer = txtResetCaptcha == null || txtResetCaptcha.getText() == null ? "" : txtResetCaptcha.getText().trim();
+        if (captchaAnswer.isBlank()) {
+            showFieldError(txtResetCaptcha, lblResetCaptchaError, "Security verification code is required.");
+            return;
+        }
+
         if (btnSendResetOtp != null) btnSendResetOtp.setDisable(true);
         message("Sending reset code...", false);
         UiTaskExecutor.submitAction("login-password-reset-request",
-                () -> users.requestPasswordReset(identity),
+                () -> users.requestPasswordReset(identity, resetCaptchaId, captchaAnswer),
                 challenge -> {
                     if (btnSendResetOtp != null) btnSendResetOtp.setDisable(false);
                     resetChallengeId = challenge.challengeId();
-                    message(challenge.message() + ".", false);
+                    String msg = challenge.message() == null ? "Reset code sent." : challenge.message().trim();
+                    if (!msg.endsWith(".")) msg += ".";
+                    message(msg, false);
                     txtResetOtp.requestFocus();
                 }, failure -> {
                     if (btnSendResetOtp != null) btnSendResetOtp.setDisable(false);
                     resetChallengeId = null;
-                    message("Unable to send reset code: " + (failure.getMessage() == null ? "Unknown error" : failure.getMessage()), true);
+                    refreshResetCaptcha();
+                    String errorMsg = failure.getMessage() == null ? "Unable to send reset code. Please try again." : failure.getMessage().trim();
+                    message(errorMsg, true);
                 });
     }
 
@@ -881,8 +937,9 @@ public class LoginController implements ScreenLifecycle {
             resetPanel.setVisible(true);
         }
         WorkflowFocusManager.install(java.util.List.of(
-                txtResetIdentity, btnSendResetOtp, txtResetOtp, txtResetTotp,
-                txtNewPassword, txtConfirmPassword, btnResetPassword, btnBackToLogin
+                txtResetIdentity, txtResetCaptcha, btnRefreshResetCaptcha, btnSendResetOtp,
+                txtResetOtp, txtResetTotp, txtNewPassword, txtConfirmPassword,
+                btnResetPassword, btnBackToLogin
         ));
         txtResetIdentity.requestFocus();
     }
@@ -1012,6 +1069,7 @@ public class LoginController implements ScreenLifecycle {
 
     private void clearResetErrors() {
         clearFieldError(txtResetIdentity, lblResetIdentityError);
+        clearFieldError(txtResetCaptcha, lblResetCaptchaError);
         clearFieldError(txtResetOtp, lblResetOtpError);
         clearFieldError(txtResetTotp, lblResetTotpError);
         clearFieldError(txtNewPassword, lblNewPasswordError);
@@ -1050,7 +1108,7 @@ public class LoginController implements ScreenLifecycle {
         WorkflowFocusManager.excludeFromTab(
                 btnTheme, chkRemember, btnRegister, btnLicenseActivation,
                 btnEmailSettings, btnForgotPassword, btnResendOtp, btnBackToLogin,
-                btnSendResetOtp, btnResetPassword
+                btnRefreshResetCaptcha, btnSendResetOtp, btnResetPassword
         );
     }
 
@@ -1066,6 +1124,280 @@ public class LoginController implements ScreenLifecycle {
 
     @Override
     public void onScreenHidden() {
-        
+        stopLiveUnlockTracker();
+    }
+
+    private void openDashboardSafely() {
+        try {
+            SceneManager.showDashboard();
+        } catch (Exception ex) {
+            System.err.println("[Login] Failed to show dashboard: " + ex.getMessage());
+            ex.printStackTrace();
+            setLoginBusy(false, null);
+            message("Unable to open dashboard: " + (ex.getMessage() == null ? ex.toString() : ex.getMessage()), true);
+            return;
+        }
+        setLoginBusy(false, null);
+        long elapsed = PerformanceMonitor.finish("login-click");
+        if (elapsed >= 0) PerformanceBudgets.record("login", elapsed, PerformanceBudgets.LOGIN_MS);
+    }
+
+    private void promptForcedPasswordChange(AppUser user) {
+        OwnedDialog dialog = new OwnedDialog(btnLogin != null && btnLogin.getScene() != null ? btnLogin.getScene().getWindow() : null);
+        dialog.setTitle("Set Your Permanent Password - Jasvi ERP");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.getDialogPane().setMinWidth(660);
+        dialog.getDialogPane().setPrefWidth(700);
+        dialog.getDialogPane().setMinHeight(600);
+        dialog.getDialogPane().setPrefHeight(660);
+
+        Label heading = new Label("Set Your Permanent Password");
+        heading.getStyleClass().add("auth-eyebrow");
+        Label desc = new Label("Your account was unlocked with temporary credentials. For security, please set your permanent password to continue into the ERP. You cannot reuse this temporary password or any of your last 3 previous passwords.");
+        desc.setWrapText(true);
+        desc.setMaxWidth(620);
+        desc.getStyleClass().add("auth-description");
+
+        PasswordField txtCurr = new PasswordField();
+        txtCurr.setPromptText("Current Temporary Password");
+        txtCurr.setPrefHeight(44);
+        txtCurr.setMaxWidth(Double.MAX_VALUE);
+        txtCurr.getStyleClass().add("auth-input");
+        if (txtPassword.getText() != null && !txtPassword.getText().isBlank()) {
+            txtCurr.setText(txtPassword.getText());
+        }
+
+        PasswordField txtNew = new PasswordField();
+        txtNew.setPromptText("New Password (8+ characters, letters & numbers)");
+        txtNew.setPrefHeight(44);
+        txtNew.setMaxWidth(Double.MAX_VALUE);
+        txtNew.getStyleClass().add("auth-input");
+
+        PasswordField txtConfirm = new PasswordField();
+        txtConfirm.setPromptText("Confirm New Password");
+        txtConfirm.setPrefHeight(44);
+        txtConfirm.setMaxWidth(Double.MAX_VALUE);
+        txtConfirm.getStyleClass().add("auth-input");
+
+        Label lblErr = new Label();
+        lblErr.setWrapText(true);
+        lblErr.setMaxWidth(620);
+        lblErr.getStyleClass().add("field-error");
+        lblErr.setVisible(false);
+        lblErr.setManaged(false);
+
+        Button btnCancel = new Button("Cancel");
+        btnCancel.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnCancel.setPrefHeight(48);
+        btnCancel.setMinWidth(120);
+        btnCancel.setOnAction(ev -> {
+            dialog.setResult(ButtonType.CLOSE);
+            dialog.close();
+            SessionService.clear();
+            ApiSession.clear();
+            setLoginBusy(false, null);
+        });
+
+        Button btnSave = new Button("SET PASSWORD & ENTER ERP");
+        btnSave.getStyleClass().addAll("auth-primary-button", "approved-button");
+        btnSave.setMaxWidth(Double.MAX_VALUE);
+        btnSave.setPrefHeight(48);
+        HBox.setHgrow(btnSave, Priority.ALWAYS);
+        HBox actionRow = new HBox(14, btnCancel, btnSave);
+        actionRow.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+
+        VBox content = new VBox(14,
+                new StackPane(IconFactory.icon("security", 36)),
+                heading, desc,
+                new Label("Current Temporary Password *"), txtCurr,
+                new Label("New Password *"), txtNew,
+                new Label("Confirm New Password *"), txtConfirm,
+                lblErr, actionRow
+        );
+        content.setPadding(new javafx.geometry.Insets(24, 36, 28, 36));
+        content.setPrefWidth(680);
+        content.setMinWidth(640);
+        content.getStyleClass().addAll("auth-card", "dialog-pane");
+
+        btnSave.setOnAction(e -> {
+            String curr = txtCurr.getText() == null ? "" : txtCurr.getText();
+            String n1 = txtNew.getText() == null ? "" : txtNew.getText();
+            String n2 = txtConfirm.getText() == null ? "" : txtConfirm.getText();
+            if (curr.isBlank()) {
+                lblErr.setText("Current temporary password is required.");
+                lblErr.setVisible(true); lblErr.setManaged(true);
+                return;
+            }
+            if (n1.length() < 8 || !n1.matches(".*[A-Za-z].*") || !n1.matches(".*[0-9].*")) {
+                lblErr.setText("Password must be at least 8 characters and contain letters and numbers.");
+                lblErr.setVisible(true); lblErr.setManaged(true);
+                return;
+            }
+            if (!n1.equals(n2)) {
+                lblErr.setText("New passwords do not match.");
+                lblErr.setVisible(true); lblErr.setManaged(true);
+                return;
+            }
+            btnSave.setDisable(true);
+            btnCancel.setDisable(true);
+            btnSave.setText("UPDATING PASSWORD...");
+            lblErr.setVisible(false);
+            lblErr.setManaged(false);
+            UiTaskExecutor.submitAction("force-password-change", () -> {
+                users.changePassword(user.getId(), curr, n1);
+                return true;
+            }, success -> {
+                dialog.setResult(ButtonType.CLOSE);
+                dialog.close();
+                user.setForcePasswordChange(false);
+                hideIncidentBanner();
+                txtPassword.setText(n1);
+            }, ex -> {
+                btnSave.setDisable(false);
+                btnCancel.setDisable(false);
+                btnSave.setText("SET PASSWORD & ENTER ERP");
+                lblErr.setText(ex.getMessage() == null ? "Password update failed." : ex.getMessage());
+                lblErr.setVisible(true); lblErr.setManaged(true);
+            });
+        });
+
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
+
+    @FXML private void copyIncidentTicket() {
+        if (activeIncidentTicketId != null && !activeIncidentTicketId.isBlank()) {
+            ClipboardContent content = new ClipboardContent();
+            content.putString(activeIncidentTicketId);
+            Clipboard.getSystemClipboard().setContent(content);
+            if (btnCopyTicket != null) btnCopyTicket.setText("Copied!");
+        }
+    }
+
+    @FXML private void checkUnlockStatusNow() {
+        String identity = txtUsername.getText() == null ? "" : txtUsername.getText().trim();
+        if (identity.isBlank()) return;
+        UiTaskExecutor.submitAction("manual-status-check", () -> users.getAccountStatus(identity), status -> {
+            if (status != null && status.exists()) {
+                handleAccountStatusUpdate(status);
+            }
+        }, ignored -> {});
+    }
+
+    private void showIncidentBanner(String ticketId, String message) {
+        if (incidentBanner == null) return;
+        this.activeIncidentTicketId = ticketId;
+        incidentBanner.getStyleClass().removeAll("auth-incident-unlocked");
+        if (!incidentBanner.getStyleClass().contains("auth-incident-banner")) {
+            incidentBanner.getStyleClass().add("auth-incident-banner");
+        }
+        if (lblIncidentIcon != null) lblIncidentIcon.setText("🚨");
+        if (lblIncidentTitle != null) lblIncidentTitle.setText("Administrator Account Temporarily Locked");
+        if (lblIncidentSubtitle != null) {
+            lblIncidentSubtitle.setText("Super Admin has been alerted via high-priority Email & WhatsApp.");
+        }
+        if (lblIncidentTicketBadge != null) {
+            lblIncidentTicketBadge.setText(ticketId != null && !ticketId.isBlank() ? "Ticket #" + ticketId : "Ticket #PENDING");
+            lblIncidentTicketBadge.setVisible(true);
+            lblIncidentTicketBadge.setManaged(true);
+        }
+        if (btnCopyTicket != null) {
+            btnCopyTicket.setText("Copy");
+            btnCopyTicket.setVisible(ticketId != null && !ticketId.isBlank());
+            btnCopyTicket.setManaged(ticketId != null && !ticketId.isBlank());
+        }
+        if (lblPollerStatus != null) {
+            lblPollerStatus.setText("⏳ Live Sentinel: Checking unlock status every 10s...");
+        }
+        incidentBanner.setVisible(true);
+        incidentBanner.setManaged(true);
+    }
+
+    private void hideIncidentBanner() {
+        if (incidentBanner == null) return;
+        incidentBanner.setVisible(false);
+        incidentBanner.setManaged(false);
+        activeIncidentTicketId = null;
+    }
+
+    private void handleAccountStatusUpdate(org.example.api.auth.AuthApiClient.AccountStatusResponse status) {
+        if (status == null || !status.exists()) return;
+        if (status.locked()) {
+            if (status.ticketId() != null && !status.ticketId().isBlank()) {
+                this.activeIncidentTicketId = status.ticketId();
+                if (lblIncidentTicketBadge != null) lblIncidentTicketBadge.setText("Ticket #" + status.ticketId());
+                if (btnCopyTicket != null) {
+                    btnCopyTicket.setVisible(true);
+                    btnCopyTicket.setManaged(true);
+                }
+            }
+            if (incidentBanner != null && !incidentBanner.isVisible()) {
+                showIncidentBanner(status.ticketId(), "This account is currently locked.");
+            }
+        } else {
+            // UNLOCKED!
+            stopLiveUnlockTracker();
+            if (incidentBanner != null && incidentBanner.isVisible()) {
+                if (!incidentBanner.getStyleClass().contains("auth-incident-unlocked")) {
+                    incidentBanner.getStyleClass().add("auth-incident-unlocked");
+                }
+                if (lblIncidentIcon != null) lblIncidentIcon.setText("✅");
+                if (lblIncidentTitle != null) lblIncidentTitle.setText("Account Unlocked by Super Admin!");
+                if (lblIncidentSubtitle != null) {
+                    lblIncidentSubtitle.setText(status.forcePasswordChange()
+                            ? "Temporary credentials active. Sign in to set your permanent password."
+                            : "Your account is active. Please enter your password to sign in.");
+                }
+                if (lblPollerStatus != null) lblPollerStatus.setText("Ready for sign in.");
+            }
+            clearFieldError(txtPassword, lblPasswordError);
+            message("✅ Account Unlocked by Super Admin! You may now sign in.", false);
+            if (txtPassword != null) {
+                txtPassword.setDisable(false);
+                txtPassword.requestFocus();
+            }
+        }
+    }
+
+    private volatile boolean trackingUnlock = false;
+    private Thread unlockTrackerThread;
+
+    private synchronized void startLiveUnlockTracker(String identity) {
+        startLiveUnlockTracker(identity, null);
+    }
+
+    private synchronized void startLiveUnlockTracker(String identity, String initialTicketId) {
+        if (identity == null || identity.isBlank()) return;
+        stopLiveUnlockTracker();
+        trackingUnlock = true;
+        unlockTrackerThread = Thread.ofVirtual().name("live-unlock-tracker").start(() -> {
+            int checks = 0;
+            while (trackingUnlock && checks < 60) {
+                try {
+                    Thread.sleep(10000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                if (!trackingUnlock) break;
+                try {
+                    var status = users.getAccountStatus(identity);
+                    if (status != null && status.exists()) {
+                        javafx.application.Platform.runLater(() -> handleAccountStatusUpdate(status));
+                        if (!status.locked()) break;
+                    }
+                } catch (Exception ignored) {}
+                checks++;
+            }
+            trackingUnlock = false;
+        });
+    }
+
+    private synchronized void stopLiveUnlockTracker() {
+        trackingUnlock = false;
+        if (unlockTrackerThread != null) {
+            unlockTrackerThread.interrupt();
+            unlockTrackerThread = null;
+        }
     }
 }

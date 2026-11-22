@@ -234,6 +234,9 @@ public class PaymentTransmissionDialog {
 
         // Validation listeners
         if (txtRecipientEmail != null) {
+            if (txtRecipientEmail.getParent() instanceof VBox parentBox) {
+                org.example.util.RecipientChipBox.attach(parentBox, txtRecipientEmail, org.example.util.RecipientChipBox.ChannelType.EMAIL);
+            }
             txtRecipientEmail.textProperty().addListener((obs, old, val) -> {
                 if (errEmail != null) {
                     errEmail.setVisible(false);
@@ -245,6 +248,9 @@ public class PaymentTransmissionDialog {
             });
         }
         if (txtRecipientPhone != null) {
+            if (txtRecipientPhone.getParent() instanceof VBox parentBox) {
+                org.example.util.RecipientChipBox.attach(parentBox, txtRecipientPhone, org.example.util.RecipientChipBox.ChannelType.WHATSAPP);
+            }
             txtRecipientPhone.textProperty().addListener((obs, old, val) -> {
                 if (errPhone != null) {
                     errPhone.setVisible(false);

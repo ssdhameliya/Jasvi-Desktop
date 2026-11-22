@@ -95,9 +95,11 @@ public final class BrandingService {
 
     public static String startingText() {
         String configured = value("application.startingText", "");
-        if (configured.isBlank() || configured.equalsIgnoreCase("Starting DSE ERP...")
+        if (configured.isBlank() || configured.equalsIgnoreCase("Welcome")
+                || configured.equalsIgnoreCase("Starting...")
+                || configured.equalsIgnoreCase("Starting DSE ERP...")
                 || configured.equalsIgnoreCase("Starting DSE ERP…")) {
-            return "Starting " + applicationName() + "...";
+            return "Welcome to " + applicationName();
         }
         return configured.replace(TECHNICAL_PRODUCT_NAME, applicationName());
     }

@@ -823,7 +823,10 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatSalesEmail(full);
             String sigImg = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
             Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
-            String target = full.getCustomer() == null ? "" : safe(full.getCustomer().getEmail()).trim();
+            String fallbackEmail = full.getCustomer() == null ? "" : safe(full.getCustomer().getEmail()).trim();
+            String fallbackPhone = full.getCustomer() == null ? "" : safe(full.getCustomer().getPhone()).trim();
+            var resolvedRecipients = org.example.util.PartyRecipientResolver.resolveCustomer(full.getCustomer() != null ? full.getCustomer().getId() : 0, fallbackEmail, fallbackPhone);
+            String target = resolvedRecipients.emailString().isBlank() ? fallbackEmail : resolvedRecipients.emailString();
             String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(full.getInvoiceNo(), full.getTotalAmount());
             return new EmailTransmissionDialog.EmailDraft(
                     "Transmit Tax Invoice via Email",
@@ -871,7 +874,10 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             if (full == null) throw new IllegalStateException("Sales invoice " + sale.getInvoiceNo() + " was not found. Refresh the register and try again.");
             Path pdf = ManagedInvoicePdfService.sales(full);
             String message = MessageTemplateService.formatSalesWhatsapp(full);
-            String target = full.getCustomer() == null ? "" : safe(full.getCustomer().getPhone()).trim();
+            String fallbackEmail = full.getCustomer() == null ? "" : safe(full.getCustomer().getEmail()).trim();
+            String fallbackPhone = full.getCustomer() == null ? "" : safe(full.getCustomer().getPhone()).trim();
+            var resolvedRecipients = org.example.util.PartyRecipientResolver.resolveCustomer(full.getCustomer() != null ? full.getCustomer().getId() : 0, fallbackEmail, fallbackPhone);
+            String target = resolvedRecipients.phoneString().isBlank() ? fallbackPhone : resolvedRecipients.phoneString();
             return new WhatsappTransmissionDialog.WhatsappDraft(
                     "Transmit Tax Invoice via WhatsApp",
                     "Direct delivery via WhatsApp Business Engine to customer registered mobile",
@@ -887,14 +893,18 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             if (opt.isEmpty()) return;
             WhatsappTransmissionDialog.WhatsappTransmissionResult result = opt.get();
             LiveOperationDialog.run(tableSales, "Sending WhatsApp Invoice", "whatsapp", "Connecting to WhatsApp Business Engine...", reporter -> {
-                reporter.stage(1, 3, "Validating recipient " + result.recipientPhone() + "...");
                 var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
+                List<String> phones = Arrays.stream(result.recipientPhone().split("[;,]"))
+                        .map(String::trim).filter(s -> !s.isBlank()).toList();
+                reporter.stage(1, 3, "Validating " + phones.size() + " recipient(s)...");
                 reporter.stage(2, 3, "Transmitting tax invoice to WhatsApp...");
-                var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
-                    "SALE", sale.getInvoiceNo(), sale.getId(), null, result.recipientPhone(), result.message(), sale.getRowVersion()
-                ));
-                if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
-                reporter.stage(3, 3, "Dispatched via WhatsApp channel " + sendResp.channelCode());
+                for (String phone : phones) {
+                    var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+                        "SALE", sale.getInvoiceNo(), sale.getId(), null, phone, result.message(), sale.getRowVersion()
+                    ));
+                    if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
+                }
+                reporter.stage(3, 3, "Dispatched via WhatsApp to " + phones.size() + " recipient(s)");
             }, () -> {
                 refresh();
                 info("Sales Invoice " + sale.getInvoiceNo() + " was successfully sent via WhatsApp!");

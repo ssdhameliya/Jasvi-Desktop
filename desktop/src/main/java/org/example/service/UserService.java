@@ -24,6 +24,7 @@ public class UserService {
     public AuthApiClient.RegistrationMfaSetupResponse verifyRegistrationEmail(AppUser user,String challengeId,String otp) { return authApi.verifyRegistrationEmail(user,challengeId,otp); }
     public void completeRegistrationMfa(long registrationId,String otp) { authApi.completeRegistrationMfa(registrationId,otp); }
     public AuthApiClient.ChallengeResponse requestPasswordReset(String identity) { return authApi.requestPasswordReset(identity); }
+    public AuthApiClient.ChallengeResponse requestPasswordReset(String identity, String captchaId, String captchaAnswer) { return authApi.requestPasswordReset(identity, captchaId, captchaAnswer); }
     public void completePasswordReset(String challengeId,String otp,String totp,String password) { authApi.completePasswordReset(challengeId,otp,totp,password); }
     public List<AuthApiClient.RoleOption> loginRoles() { return authApi.loginRoles(); }
     public List<AuthApiClient.RoleOption> registrationRoles() { return authApi.registrationRoles(); }
@@ -31,4 +32,5 @@ public class UserService {
     public void extendSession() { authApi.extendSession(); }
     public void logout() { authApi.logout(); }
     public void logoutIdle() { authApi.logout("AUTO_LOGOUT_IDLE"); }
+    public AuthApiClient.AccountStatusResponse getAccountStatus(String identity) { return authApi.getAccountStatus(identity); }
 }

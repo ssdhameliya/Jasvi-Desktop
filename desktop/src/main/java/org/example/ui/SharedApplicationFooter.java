@@ -34,17 +34,18 @@ public final class SharedApplicationFooter extends HBox {
         getStyleClass().add("universal-app-footer");
         trust.getStyleClass().add("universal-footer-trust");
         company.getStyleClass().add("universal-footer-company");
-        phone.getStyleClass().add("universal-footer-detail");
-        email.getStyleClass().add("universal-footer-detail");
-        website.getStyleClass().add("universal-footer-detail");
+        phone.getStyleClass().addAll("universal-footer-detail", "universal-footer-phone");
+        email.getStyleClass().addAll("universal-footer-detail", "universal-footer-email");
+        website.getStyleClass().addAll("universal-footer-detail", "universal-footer-website");
         clock.getStyleClass().add("universal-footer-clock");
 
+        trust.setGraphic(IconFactory.compactIcon("shield", 13));
         company.setGraphic(IconFactory.compactIcon("identity", 13));
         phone.setGraphic(IconFactory.compactIcon("phone", 13));
         email.setGraphic(IconFactory.compactIcon("email", 13));
         website.setGraphic(IconFactory.compactIcon("link", 13));
         clock.setGraphic(IconFactory.compactIcon("calendar", 13));
-        for (Label label : List.of(company, phone, email, website, clock)) label.setGraphicTextGap(6);
+        for (Label label : List.of(trust, company, phone, email, website, clock)) label.setGraphicTextGap(6);
 
         for (Label label : List.of(trust, company, phone, email, website, clock)) {
             label.setMaxWidth(Double.MAX_VALUE);

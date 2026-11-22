@@ -243,7 +243,21 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_77__universal_complete_screen_actions",
                     "db/migration/V11_0_77__universal_complete_screen_actions.sql"),
             new Migration("V11_0_78__universal_remaining_module_actions",
-                    "db/migration/V11_0_78__universal_remaining_module_actions.sql")
+                    "db/migration/V11_0_78__universal_remaining_module_actions.sql"),
+            new Migration("V11_0_79__party_contact_notification_preferences",
+                    "db/migration/V11_0_79__party_contact_notification_preferences.sql"),
+            new Migration("V11_0_80__universal_submenus_and_action_permissions",
+                    "db/migration/V11_0_80__universal_submenus_and_action_permissions.sql"),
+            new Migration("V11_0_81__enhanced_login_security_and_password_history",
+                    "db/migration/V11_0_81__enhanced_login_security_and_password_history.sql"),
+            new Migration("V11_0_82__emergency_security_tokens",
+                    "db/migration/V11_0_82__emergency_security_tokens.sql"),
+            new Migration("V11_0_83__clear_stale_login_throttle",
+                    "db/migration/V11_0_83__clear_stale_login_throttle.sql"),
+            new Migration("V11_0_84__reset_shailesh_account",
+                    "db/migration/V11_0_84__reset_shailesh_account.sql"),
+            new Migration("V11_0_85__add_force_password_change",
+                    "db/migration/V11_0_85__add_force_password_change.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

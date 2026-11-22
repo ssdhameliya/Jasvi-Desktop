@@ -131,6 +131,7 @@ public final class ProfessionalUiEnhancer {
         applyTableProfile(table);
         decorateColumns(table.getColumns());
         DynamicTableLayoutManager.requestLayout(table);
+        TableClipboardSupport.install(table);
     }
 
     /**

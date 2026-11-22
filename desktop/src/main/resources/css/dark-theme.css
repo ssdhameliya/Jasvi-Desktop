@@ -3912,7 +3912,14 @@
     -fx-background-radius: 12px;
 }
 .permission-control-card {
-    -fx-padding: 10px 12px;
+    -fx-padding: 6px 12px;
+}
+.permission-compact-ribbon {
+    -fx-padding: 6px 12px;
+}
+.permission-role-user-count {
+    -fx-font-size: 11px;
+    -fx-opacity: 0.85;
 }
 .permission-template-button {
     -fx-background-color: rgba(124,58,237,0.14);
@@ -11219,6 +11226,10 @@
     -fx-background-color: #07172c;
     -fx-text-fill: #c8d8eb;
 }
+.bank-evidence-preview .list-cell:filled:selected {
+    -fx-background-color: #1e3a8a;
+    -fx-text-fill: #93c5fd;
+}
 .bank-audit-card {
     -fx-background-radius: 10px;
     -fx-border-radius: 10px;
@@ -12122,12 +12133,36 @@
     -fx-border-color: #2b3b4d transparent transparent transparent;
 }
 .universal-footer-trust {
-    -fx-text-fill: #7dd3fc;
+    -fx-text-fill: #34d399;
+    -fx-font-weight: 700;
 }
 .universal-footer-company {
-    -fx-text-fill: #f8fafc;
+    -fx-text-fill: #60a5fa;
+    -fx-font-weight: 700;
 }
-.universal-footer-detail, .universal-footer-clock, .universal-footer-separator {
+.universal-footer-phone {
+    -fx-text-fill: #2dd4bf;
+    -fx-font-weight: 600;
+}
+.universal-footer-email {
+    -fx-text-fill: #38bdf8;
+    -fx-font-weight: 600;
+}
+.universal-footer-website {
+    -fx-text-fill: #a78bfa;
+    -fx-font-weight: 600;
+}
+.universal-footer-clock {
+    -fx-text-fill: #fbbf24;
+    -fx-font-weight: 700;
+}
+.universal-footer-trust .erp-action-glyph { -fx-icon-color: #34d399; }
+.universal-footer-company .erp-action-glyph { -fx-icon-color: #60a5fa; }
+.universal-footer-phone .erp-action-glyph { -fx-icon-color: #2dd4bf; }
+.universal-footer-email .erp-action-glyph { -fx-icon-color: #38bdf8; }
+.universal-footer-website .erp-action-glyph { -fx-icon-color: #a78bfa; }
+.universal-footer-clock .erp-action-glyph { -fx-icon-color: #fbbf24; }
+.universal-footer-detail, .universal-footer-separator {
     -fx-text-fill: #b5c4d4;
 }
 .auth-unified-card {
@@ -12217,7 +12252,7 @@
     -fx-background-color: #0e1b2b;
     -fx-text-fill: #76889f;
 }
-.universal-footer-company, .universal-footer-detail, .universal-footer-clock {
+.universal-footer-separator {
     -fx-text-fill: #e6f0fb;
 }
 .date-picker > .text-field {
@@ -15297,6 +15332,36 @@
 .dse-startup-splash .splash-info-value {
     -fx-text-fill: #edf4fb;
 }
+.dse-startup-splash .splash-welcome-prefix {
+    -fx-text-fill: #f1f5f9;
+    -fx-font-weight: 800;
+}
+.dse-startup-splash .splash-welcome-company {
+    -fx-text-fill: #60a5fa;
+    -fx-font-weight: 800;
+}
+.dse-startup-splash .splash-brand-mark-card {
+    -fx-background-color: rgba(15, 23, 42, 0.85);
+    -fx-border-color: rgba(96, 165, 250, 0.35);
+    -fx-border-width: 1.5;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-min-width: 58;
+    -fx-max-width: 58;
+    -fx-min-height: 58;
+    -fx-max-height: 58;
+    -fx-alignment: center;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.40), 14, 0.10, 0, 4);
+}
+.dse-startup-splash .splash-brand-mark-card .label {
+    -fx-text-fill: #60a5fa;
+    -fx-font-size: 24px;
+    -fx-font-weight: 800;
+}
+.dse-startup-splash .splash-info-time { -fx-text-fill: #fbbf24; }
+.dse-startup-splash .splash-info-stage { -fx-text-fill: #60a5fa; }
+.dse-startup-splash .splash-info-ram { -fx-text-fill: #34d399; }
+.dse-startup-splash .splash-info-db { -fx-text-fill: #a78bfa; }
 .dse-startup-splash .splash-brand-subtitle,
 .dse-startup-splash .splash-live-status {
     -fx-text-fill: #60a5fa;
@@ -18197,11 +18262,35 @@
 .auth-standard-shell .auth-card, .auth-standard-shell .auth-unified-card {
     -fx-background-color: #111827;
     -fx-border-color: #1f2937;
-    -fx-border-width: 1px;
-    -fx-background-radius: 16px;
-    -fx-border-radius: 16px;
+    -fx-border-width: 1.2px;
+    -fx-background-radius: 18px;
+    -fx-border-radius: 18px;
     -fx-padding: 28px 36px 28px 36px;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.40), 20, 0.15, 0, 8);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 26, 0.15, 0, 8);
+}
+
+.auth-captcha-display-box {
+    -fx-background-color: linear-gradient(to bottom, #1e293b, #0f172a);
+    -fx-border-color: #334155;
+    -fx-border-width: 1.5px;
+    -fx-background-radius: 9px;
+    -fx-border-radius: 9px;
+    -fx-alignment: center;
+    -fx-padding: 6px 14px;
+    -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.4), 4, 0, 0, 1);
+}
+
+.auth-captcha-code {
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-size: 20px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #60a5fa;
+    -fx-letter-spacing: 5px;
+}
+
+.auth-captcha-refresh-btn {
+    -fx-padding: 4px 10px;
+    -fx-font-size: 12px;
 }
 
 .auth-card .combo-box.auth-input > .list-cell {
@@ -18224,6 +18313,90 @@
     -fx-background-color: #2b333f;
     -fx-border-color: #4b5563;
     -fx-text-fill: #f9fafb;
+}
+
+/* Autonomous Emergency Incident Banner (Dark Theme) */
+.auth-incident-banner {
+    -fx-background-color: #291b00;
+    -fx-border-color: #d97706;
+    -fx-border-width: 1.5px;
+    -fx-background-radius: 12px;
+    -fx-border-radius: 12px;
+    -fx-padding: 14px 18px;
+    -fx-effect: dropshadow(gaussian, rgba(217, 119, 6, 0.25), 10, 0, 0, 3);
+}
+
+.auth-incident-banner.auth-incident-unlocked {
+    -fx-background-color: #052e16;
+    -fx-border-color: #22c55e;
+    -fx-effect: dropshadow(gaussian, rgba(34, 197, 94, 0.25), 12, 0, 0, 3);
+}
+
+.auth-incident-icon {
+    -fx-font-size: 24px;
+}
+
+.auth-incident-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #fbbf24;
+}
+
+.auth-incident-unlocked .auth-incident-title {
+    -fx-text-fill: #4ade80;
+}
+
+.auth-incident-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: #fde68a;
+}
+
+.auth-incident-unlocked .auth-incident-subtitle {
+    -fx-text-fill: #86efac;
+}
+
+.auth-ticket-badge {
+    -fx-background-color: #451a03;
+    -fx-text-fill: #fcd34d;
+    -fx-border-color: #b45309;
+    -fx-border-width: 1px;
+    -fx-border-radius: 20px;
+    -fx-background-radius: 20px;
+    -fx-padding: 3px 10px;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+}
+
+.auth-incident-unlocked .auth-ticket-badge {
+    -fx-background-color: #064e3b;
+    -fx-text-fill: #86efac;
+    -fx-border-color: #10b981;
+}
+
+.auth-ticket-copy-btn, .auth-refresh-status-btn {
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-padding: 4px 10px;
+}
+
+.auth-poller-bar {
+    -fx-background-color: rgba(69, 26, 3, 0.5);
+    -fx-background-radius: 6px;
+    -fx-padding: 6px 10px;
+}
+
+.auth-incident-unlocked .auth-poller-bar {
+    -fx-background-color: rgba(6, 78, 59, 0.5);
+}
+
+.auth-poller-text {
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #fcd34d;
+}
+
+.auth-incident-unlocked .auth-poller-text {
+    -fx-text-fill: #86efac;
 }
 
 .metric-trend-pill {
@@ -21292,6 +21465,47 @@
     -fx-border-radius: 8;
 }
 
+/* ==================== RECIPIENT CHIP BOX & ONE-CLICK REMOVAL (DARK THEME) ==================== */
+.recipient-chip-box-container {
+    -fx-spacing: 8;
+}
+.recipient-chips-flow {
+    -fx-alignment: center-left;
+}
+.recipient-input-chip {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-padding: 3 8 3 10;
+    -fx-alignment: center-left;
+}
+.recipient-chip-email {
+    -fx-background-color: #312e81;
+    -fx-border-color: #6366f1;
+}
+.recipient-chip-whatsapp {
+    -fx-background-color: #134e4a;
+    -fx-border-color: #14b8a6;
+}
+.recipient-chip-text {
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #e2e8f0;
+}
+.recipient-chip-remove-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-padding: 2 4 2 4;
+    -fx-cursor: hand;
+}
+.recipient-chip-remove-btn:hover {
+    -fx-background-color: #4f46e5;
+}
+.recipient-clear-all-btn {
+    -fx-padding: 4 10 4 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+}
 
 
 

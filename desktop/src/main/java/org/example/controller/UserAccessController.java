@@ -53,6 +53,7 @@ public class UserAccessController implements ScreenLifecycle {
     @FXML private TableView<UserRow> table;
     @FXML private TableColumn<UserRow,String> colUser,colEmail,colPhone,colRole,colDepartment,colAccess,colBranch,colStatus,colLastLogin,colMfa;
     @FXML private TableColumn<UserRow,Void> colActions;
+    @FXML private Button btnEditSelected;
 
     @FXML private TableView<RoleRow> roleTable;
     @FXML private TableColumn<RoleRow,String> colRoleName,colRoleDescription,colRoleStatus;
@@ -81,6 +82,7 @@ public class UserAccessController implements ScreenLifecycle {
         cmbStatus.getItems().setAll("All Statuses","Active","Inactive","Locked"); cmbStatus.setValue("All Statuses");
         cmbPermissionRole.setConverter(new StringConverter<>() { public String toString(String code){return code==null?"":roleDisplayNames.getOrDefault(code.toUpperCase(Locale.ROOT),code);} public String fromString(String value){return value;} });
         filtered=new FilteredList<>(users,r->true); table.setItems(filtered); roleTable.setItems(roles); permissionTable.setItems(permissions);
+        table.getSelectionModel().selectedItemProperty().addListener((obs, oldV, selected) -> updateSelectionButtons(selected));
         installDetailDrawer();
         txtSearch.textProperty().addListener((o,a,b)->filter()); cmbRole.valueProperty().addListener((o,a,b)->filter());
         cmbStatus.valueProperty().addListener((o,a,b)->filter()); cmbBranch.valueProperty().addListener((o,a,b)->filter());
@@ -206,8 +208,30 @@ public class UserAccessController implements ScreenLifecycle {
     }
     private void edit(UserRow row){
         if(row!=null) {
+            boolean isTargetAdmin = row.role!=null && (SessionService.isAdminRole(row.role.get()) || "admin".equalsIgnoreCase(row.user.get()) || "superadmin".equalsIgnoreCase(row.user.get()));
+            if(isTargetAdmin && !SessionService.isSuperAdmin()){
+                new OwnedAlert(Alert.AlertType.INFORMATION, "Administrator basic details (Name, Email, Phone, Password) must be managed from the 'My Profile' screen.", ButtonType.OK).showAndWait();
+                return;
+            }
             PermissionService.require("USERS.EDIT", "edit user");
             openUserDialog(row.id);
+        }
+    }
+    private void updateSelectionButtons(UserRow selected){
+        if(btnEditSelected==null)return;
+        if(selected==null){
+            btnEditSelected.setDisable(true);
+            btnEditSelected.setTooltip(null);
+            return;
+        }
+        boolean isTargetAdmin = selected.role!=null && (SessionService.isAdminRole(selected.role.get()) || "admin".equalsIgnoreCase(selected.user.get()) || "superadmin".equalsIgnoreCase(selected.user.get()));
+        boolean isSuper = SessionService.isSuperAdmin();
+        boolean canEdit = PermissionService.allowed("USERS.EDIT") && (!isTargetAdmin || isSuper);
+        btnEditSelected.setDisable(!canEdit);
+        if(!canEdit && isTargetAdmin){
+            btnEditSelected.setTooltip(new Tooltip("Administrator basic details must be updated from My Profile screen."));
+        } else {
+            btnEditSelected.setTooltip(null);
         }
     }
     private void openUserDialog(Integer userId){
@@ -228,6 +252,11 @@ public class UserAccessController implements ScreenLifecycle {
     }
     private void resetPassword(UserRow row){
         if(row==null){warning("Select a user first.");return;}
+        boolean isTargetAdmin = SessionService.isAdminRole(row.role.get()) || "admin".equalsIgnoreCase(row.user.get()) || "superadmin".equalsIgnoreCase(row.user.get());
+        if (isTargetAdmin && !SessionService.isSuperAdmin()) {
+            warning("Access denied: Only Super Admin can reset an Administrator account password.");
+            return;
+        }
         PermissionService.require("USERS.RESET_PASSWORD", "reset user password");
         TextInputDialog d=new OwnedTextInputDialog();d.setTitle("Reset Password");d.setHeaderText("Set a temporary password for "+row.user.get());d.setContentText("Temporary password:");
         d.showAndWait().map(String::trim).ifPresent(password->{
@@ -260,6 +289,11 @@ public class UserAccessController implements ScreenLifecycle {
             warning("You cannot lock your own administrator account.");
             return;
         }
+        boolean isTargetAdmin = SessionService.isAdminRole(row.role.get()) || "admin".equalsIgnoreCase(row.user.get()) || "superadmin".equalsIgnoreCase(row.user.get());
+        if (isTargetAdmin && !SessionService.isSuperAdmin()) {
+            warning("Access denied: Only Super Admin can lock or unlock an Administrator account.");
+            return;
+        }
         UiTaskExecutor.submitAction("user-access-toggle-lock", () -> {
             adminApi.setLocked(row.id,!row.locked);
             return !row.locked;
@@ -275,6 +309,11 @@ public class UserAccessController implements ScreenLifecycle {
         if("admin".equalsIgnoreCase(row.user.get())){warning("The primary administrator cannot be deleted.");return;}
         if(SessionService.current()!=null&&SessionService.current().getId()==row.id){
             warning("You cannot delete your own administrator account.");
+            return;
+        }
+        boolean isTargetAdmin = SessionService.isAdminRole(row.role.get()) || "admin".equalsIgnoreCase(row.user.get()) || "superadmin".equalsIgnoreCase(row.user.get());
+        if (isTargetAdmin && !SessionService.isSuperAdmin()) {
+            warning("Access denied: Only Super Admin can delete an Administrator account.");
             return;
         }
         if(!org.example.util.AppDialogService.destructive(table, "Delete User", "Delete user '" + row.user.get() + "'?", "This account will be permanently deactivated and unable to sign in.", "Delete User")) return;
@@ -300,9 +339,11 @@ public class UserAccessController implements ScreenLifecycle {
             if(empty||getIndex()<0||getIndex()>=getTableView().getItems().size()){setGraphic(null);return;}
             UserRow row=getTableView().getItems().get(getIndex());
             boolean isSelf=SessionService.current()!=null&&SessionService.current().getId()==row.id;
-            boolean canEdit = PermissionService.allowed("USERS.EDIT");
-            boolean canResetPwd = PermissionService.allowed("USERS.RESET_PASSWORD");
-            boolean canDeleteUser = PermissionService.allowed("USERS.DELETE");
+            boolean isTargetAdmin = SessionService.isAdminRole(row.role.get()) || "admin".equalsIgnoreCase(row.user.get()) || "superadmin".equalsIgnoreCase(row.user.get());
+            boolean canManageAdmin = !isTargetAdmin || SessionService.isSuperAdmin();
+            boolean canEdit = PermissionService.allowed("USERS.EDIT") && canManageAdmin;
+            boolean canResetPwd = PermissionService.allowed("USERS.RESET_PASSWORD") && canManageAdmin;
+            boolean canDeleteUser = PermissionService.allowed("USERS.DELETE") && canManageAdmin;
             var miEdit=mi("Edit User","edit",e->edit(row));
             var miResetPwd=mi("Reset Password","lock",e->resetPassword(row));
             var miLock=mi(row.locked?"Unlock Account":"Lock Account",row.locked?"reopen":"lock",e->toggleLock(row));
@@ -310,8 +351,8 @@ public class UserAccessController implements ScreenLifecycle {
             var miResetMfa=mi("Reset Authenticator","security",e->resetAuthenticator(row));
             if(!canEdit) miEdit.setDisable(true);
             if(!canResetPwd) miResetPwd.setDisable(true);
-            if(isSelf || !canDeleteUser){
-                miLock.setDisable(isSelf);
+            if(isSelf || !canDeleteUser || !canManageAdmin){
+                miLock.setDisable(isSelf || !canManageAdmin);
                 miDelete.setDisable(true);
             }
             if(!row.mfaEnabled){

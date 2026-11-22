@@ -7,12 +7,21 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<UserEntity, Integer> {
     boolean existsByUsernameIgnoreCase(String username);
     boolean existsByEmailIgnoreCase(String email);
     boolean existsByPhone(String phone);
+
+    @Query("""
+        select u from UserEntity u
+        where upper(u.role) in ('SUPER_ADMIN', 'SUPERADMIN')
+          and u.active = 1
+        order by u.id asc
+        """)
+    List<UserEntity> findActiveSuperAdmins();
 
     @Query("""
         select u from UserEntity u

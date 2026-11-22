@@ -63,6 +63,44 @@ public final class PostingFlowDialog {
         hero.getStyleClass().add("bank-dialog-hero");
         DocumentInspectionScaffold.installDragPhysics(hero, dialog);
 
+        // 5-Phase End-to-End Deal Progression Timeline
+        HBox dealStepper = new HBox(8);
+        dealStepper.setAlignment(Pos.CENTER_LEFT);
+        dealStepper.setPadding(new Insets(2, 0, 4, 0));
+
+        Label valStep1 = new Label("Detecting…");
+        Label badgeStep1 = new Label("Checking Origin");
+        valStep1.getStyleClass().addAll("kpi-value", "erp-table-value-colour-blue");
+        badgeStep1.getStyleClass().addAll("status-badge", "erp-status-summary");
+
+        Label valStep2 = new Label("Loading…");
+        Label badgeStep2 = new Label("Document Verification");
+        valStep2.getStyleClass().addAll("kpi-value", "erp-table-value-colour-blue");
+        badgeStep2.getStyleClass().addAll("status-badge", "erp-status-summary");
+
+        Label valStep3 = new Label("Calculating…");
+        Label badgeStep3 = new Label("Inventory Movement");
+        valStep3.getStyleClass().addAll("kpi-value", "erp-table-value-colour-orange");
+        badgeStep3.getStyleClass().addAll("status-badge", "erp-status-summary");
+
+        Label valStep4 = new Label("Checking…");
+        Label badgeStep4 = new Label("Payment Status");
+        valStep4.getStyleClass().addAll("kpi-value", "erp-table-value-colour-green");
+        badgeStep4.getStyleClass().addAll("status-badge", "erp-status-summary");
+
+        Label valStep5 = new Label("Validating…");
+        Label badgeStep5 = new Label("Ledger & Statutory");
+        valStep5.getStyleClass().addAll("kpi-value", "erp-table-value-colour-purple");
+        badgeStep5.getStyleClass().addAll("status-badge", "erp-status-summary");
+
+        dealStepper.getChildren().addAll(
+                stepperCard("1", "Deal Origin", valStep1, badgeStep1, "document"),
+                stepperCard("2", "Document Execution", valStep2, badgeStep2, "status"),
+                stepperCard("3", "Inventory Movement", valStep3, badgeStep3, "item"),
+                stepperCard("4", "Settlement / Payment", valStep4, badgeStep4, "payment"),
+                stepperCard("5", "Statutory & Ledger", valStep5, badgeStep5, "complete")
+        );
+
         // 7-Card Semantic Metrics Banner
         GridPane metrics = new GridPane();
         metrics.setHgap(10);
@@ -128,7 +166,11 @@ public final class PostingFlowDialog {
 
         Label lblVoucherSummary = new Label("Total Debit: ₹ 0.00  |  Total Credit: ₹ 0.00");
         lblVoucherSummary.getStyleClass().addAll("status-badge", "erp-status-summary");
-        VBox tabJournalContent = new VBox(8, journalTable, lblVoucherSummary);
+        Label lblPartyBalance = new Label("Party Settlement Status: Checking…");
+        lblPartyBalance.getStyleClass().addAll("status-badge", "erp-status-summary");
+        HBox journalFooter = new HBox(12, lblVoucherSummary, lblPartyBalance);
+        journalFooter.setAlignment(Pos.CENTER_LEFT);
+        VBox tabJournalContent = new VBox(8, journalTable, journalFooter);
         VBox.setVgrow(journalTable, Priority.ALWAYS);
         tabJournalContent.setPadding(new Insets(10));
 
@@ -333,7 +375,7 @@ public final class PostingFlowDialog {
         bottomBanner.setPadding(new Insets(8, 12, 8, 12));
         bottomBanner.getStyleClass().add("approved-filter-bar");
 
-        VBox layout = new VBox(10, hero, metrics, tabPane, bottomBanner);
+        VBox layout = new VBox(10, hero, dealStepper, metrics, tabPane, bottomBanner);
         layout.setPadding(new Insets(14));
         VBox.setVgrow(tabPane, Priority.ALWAYS);
         dialog.getDialogPane().setContent(layout);
@@ -398,6 +440,114 @@ public final class PostingFlowDialog {
 
             valBalanced.setText(resp.isBalanced() ? "✓ BALANCED" : "⚠️ UNBALANCED");
 
+            // 5-Phase End-to-End Stepper Dynamic Population
+            String refNo = (resp.referenceNo() != null && !resp.referenceNo().isBlank()) ? resp.referenceNo() : "";
+            boolean isSale = "SALES_INVOICE".equalsIgnoreCase(resp.documentType()) || "SALE".equalsIgnoreCase(resp.documentType());
+            boolean isPurchase = "PURCHASE_BILL".equalsIgnoreCase(resp.documentType()) || "PURCHASE".equalsIgnoreCase(resp.documentType());
+            boolean isReturn = resp.documentType() != null && resp.documentType().contains("RETURN");
+
+            // 1. Step 1: Deal Origin
+            if (isSale) {
+                if (!refNo.isBlank()) {
+                    valStep1.setText(refNo);
+                    badgeStep1.setText("✓ Quotation Approved");
+                    setStepColour(badgeStep1, "erp-table-value-colour-purple");
+                } else {
+                    valStep1.setText("Direct Sale (Spot/B2B)");
+                    badgeStep1.setText("✓ Direct Deal");
+                    setStepColour(badgeStep1, "erp-table-value-colour-blue");
+                }
+            } else if (isPurchase) {
+                if (!refNo.isBlank()) {
+                    valStep1.setText(refNo);
+                    badgeStep1.setText("✓ Purchase Order (PO)");
+                    setStepColour(badgeStep1, "erp-table-value-colour-purple");
+                } else {
+                    valStep1.setText("Direct Procurement");
+                    badgeStep1.setText("✓ Direct Inward");
+                    setStepColour(badgeStep1, "erp-table-value-colour-blue");
+                }
+            } else if (isReturn) {
+                valStep1.setText(!refNo.isBlank() ? "Original: " + refNo : "Source Invoice");
+                badgeStep1.setText("✓ Linked Document");
+                setStepColour(badgeStep1, "erp-table-value-colour-orange");
+            } else {
+                valStep1.setText(!refNo.isBlank() ? refNo : "System Journal");
+                badgeStep1.setText("✓ Financial Entry");
+                setStepColour(badgeStep1, "erp-table-value-colour-blue");
+            }
+
+            // 2. Step 2: Document Execution
+            valStep2.setText(documentNo);
+            if (isSale) {
+                badgeStep2.setText("✓ Tax Invoice (" + formatMoney(resp.totalAmount()) + ")");
+                setStepColour(badgeStep2, "erp-table-value-colour-blue");
+            } else if (isPurchase) {
+                badgeStep2.setText("✓ Purchase Bill (" + formatMoney(resp.totalAmount()) + ")");
+                setStepColour(badgeStep2, "erp-table-value-colour-blue");
+            } else if (isReturn) {
+                badgeStep2.setText("✓ Note Issued (" + formatMoney(resp.totalAmount()) + ")");
+                setStepColour(badgeStep2, "erp-table-value-colour-purple");
+            } else {
+                badgeStep2.setText("✓ Voucher Posted (" + formatMoney(resp.totalAmount()) + ")");
+                setStepColour(badgeStep2, "erp-table-value-colour-blue");
+            }
+
+            // 3. Step 3: Inventory Movement
+            if (resp.inventoryMovements() != null && !resp.inventoryMovements().isEmpty()) {
+                int totalItems = resp.inventoryMovements().size();
+                String itemSummary = totalItems == 1 ? resp.inventoryMovements().getFirst().itemCode() : totalItems + " Warehouse Items";
+                valStep3.setText(itemSummary);
+                if (isSale) {
+                    badgeStep3.setText("✓ Dispatched (-Stock)");
+                    setStepColour(badgeStep3, "erp-table-value-colour-orange");
+                } else if (isPurchase) {
+                    badgeStep3.setText("✓ Received (+Stock)");
+                    setStepColour(badgeStep3, "erp-table-value-colour-green");
+                } else {
+                    badgeStep3.setText("✓ Restocked / Adjusted");
+                    setStepColour(badgeStep3, "erp-table-value-colour-cyan");
+                }
+            } else {
+                valStep3.setText("No Inventory Impact");
+                badgeStep3.setText("✓ Financial / Service");
+                setStepColour(badgeStep3, "erp-table-value-colour-blue");
+            }
+
+            // 4. Step 4: Settlement / Payment
+            String payStatus = (resp.paymentStatus() != null && !resp.paymentStatus().isBlank()) ? resp.paymentStatus() : "SETTLED";
+            BigDecimal paid = resp.paidAmount() != null ? resp.paidAmount() : BigDecimal.ZERO;
+            if ("PAID".equalsIgnoreCase(payStatus) || "SETTLED".equalsIgnoreCase(payStatus)) {
+                valStep4.setText(paid.compareTo(BigDecimal.ZERO) > 0 ? formatMoney(paid) : formatMoney(resp.totalAmount()));
+                badgeStep4.setText("✓ Settled (Balance ₹0.00)");
+                setStepColour(badgeStep4, "erp-table-value-colour-green");
+                lblPartyBalance.setText("Customer Net Outstanding on Document: ₹ 0.00 (Fully Settled & Reconciled)");
+                setStepColour(lblPartyBalance, "erp-table-value-colour-green");
+            } else if ("PARTIAL".equalsIgnoreCase(payStatus)) {
+                BigDecimal bal = resp.totalAmount().subtract(paid).max(BigDecimal.ZERO);
+                valStep4.setText("Paid: " + formatMoney(paid));
+                badgeStep4.setText("⚠️ Bal Due: " + formatMoney(bal));
+                setStepColour(badgeStep4, "erp-table-value-colour-orange");
+                lblPartyBalance.setText("Customer Net Outstanding on Document: " + formatMoney(bal) + " (Partial Settlement Recorded)");
+                setStepColour(lblPartyBalance, "erp-table-value-colour-orange");
+            } else {
+                valStep4.setText("Unpaid (Credit Term)");
+                badgeStep4.setText("⏳ AR Outstanding");
+                setStepColour(badgeStep4, "erp-table-value-colour-orange");
+                lblPartyBalance.setText("Customer Net Outstanding on Document: " + formatMoney(resp.totalAmount()) + " (Awaiting Settlement)");
+                setStepColour(lblPartyBalance, "erp-table-value-colour-orange");
+            }
+
+            // 5. Step 5: Statutory & Ledger Postings
+            valStep5.setText(jvDisplay);
+            if (resp.isBalanced()) {
+                badgeStep5.setText("✓ Ledger Balanced (Dr=Cr)");
+                setStepColour(badgeStep5, "erp-table-value-colour-green");
+            } else {
+                badgeStep5.setText("⚠️ Discrepancy Detected");
+                setStepColour(badgeStep5, "erp-table-value-colour-red");
+            }
+
             summaryText.setText(resp.summaryDescription() != null ? resp.summaryDescription() : "Posting flow processed successfully.");
 
             // Populate Journal Table
@@ -442,6 +592,27 @@ public final class PostingFlowDialog {
         card.setPadding(new Insets(8, 12, 8, 12));
         card.setAlignment(Pos.CENTER_LEFT);
         return card;
+    }
+
+    private static VBox stepperCard(String stepNum, String title, Label valNode, Label badgeNode, String iconSemantic) {
+        Label lblTitle = new Label(stepNum + ". " + title);
+        lblTitle.getStyleClass().add("metric-title");
+        lblTitle.setGraphic(IconFactory.compactIcon(iconSemantic, 14));
+        lblTitle.setGraphicTextGap(6);
+
+        VBox card = new VBox(4, lblTitle, valNode, badgeNode);
+        card.getStyleClass().addAll("approved-card", "metric-card");
+        card.setPadding(new Insets(8, 12, 8, 12));
+        card.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(card, Priority.ALWAYS);
+        card.setMaxWidth(Double.MAX_VALUE);
+        return card;
+    }
+
+    private static void setStepColour(Label lbl, String colourClass) {
+        lbl.getStyleClass().removeAll("erp-table-value-colour-blue", "erp-table-value-colour-green",
+                "erp-table-value-colour-orange", "erp-table-value-colour-purple", "erp-table-value-colour-cyan", "erp-table-value-colour-red");
+        lbl.getStyleClass().add(colourClass);
     }
 
     private static <T> TableCell<T, String> styledCell(String styleClass, Pos alignment) {

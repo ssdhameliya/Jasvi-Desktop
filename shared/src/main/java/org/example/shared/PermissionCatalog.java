@@ -27,18 +27,26 @@ public final class PermissionCatalog {
     private static final Map<String, ModuleMeta> MODULES = Map.ofEntries(
             entry("DASHBOARD", "Dashboard", "Dashboard & Insights", "dashboard", 10),
             entry("SALES", "Sales Register", "Sales", "sales", 20),
-            entry("QUOTATION", "Quotation", "Sales", "quotation", 21),
-            entry("CUSTOMERS", "Customers", "Sales", "customer", 22),
-            entry("COMMUNICATION", "Communication", "Sales", "email", 23),
-            entry("REMINDERS", "Reminders", "Sales", "reminder", 24),
-            entry("CREDIT_NOTE", "Credit Notes", "Sales", "credit_note", 25),
+            entry("SALES_CREATE", "Create Sale", "Sales", "sales", 21),
+            entry("SALES_RETURNS", "Sales Returns", "Sales", "credit_note", 22),
+            entry("QUOTATION", "Quotation", "Sales", "quotation", 23),
+            entry("CUSTOMERS", "Customers", "Sales", "customer", 24),
+            entry("COMMUNICATION", "Communication", "Sales", "email", 25),
+            entry("REMINDERS", "Reminders", "Sales", "reminder", 26),
+            entry("CREDIT_NOTE", "Credit Notes", "Sales", "credit_note", 27),
             entry("PURCHASE", "Purchase Register", "Purchase", "purchase", 30),
-            entry("SUPPLIERS", "Suppliers", "Purchase", "supplier", 31),
-            entry("DEBIT_NOTE", "Debit Notes", "Purchase", "debit_note", 32),
-            entry("INVENTORY", "Inventory / Item Master", "Inventory", "inventory", 40),
+            entry("PURCHASE_CREATE", "Create Purchase", "Purchase", "purchase", 31),
+            entry("PURCHASE_RETURNS", "Purchase Returns", "Purchase", "debit_note", 32),
+            entry("SUPPLIERS", "Suppliers", "Purchase", "supplier", 33),
+            entry("DEBIT_NOTE", "Debit Notes", "Purchase", "debit_note", 34),
+            entry("ITEM_MASTER", "Item Master", "Inventory", "inventory", 39),
+            entry("INVENTORY", "Inventory / Stock", "Inventory", "inventory", 40),
             entry("IMPORT", "Data Import", "Inventory", "import", 41),
             entry("BARCODE", "Barcode Studio", "Inventory", "barcode", 42),
-            entry("BANK_EXPENSE", "Finance & Banking", "Finance & Banking", "bank", 50),
+            entry("BANK_ENTRY", "Bank Voucher Entry", "Finance & Banking", "bank", 48),
+            entry("EXPENSE_ENTRY", "Expense Register", "Finance & Banking", "bank", 49),
+            entry("BANK_STATEMENT", "Bank Statement", "Finance & Banking", "bank", 50),
+            entry("BANK_EXPENSE", "Finance & Banking", "Finance & Banking", "bank", 51),
             entry("GST_COMPLIANCE", "GST Compliance", "Finance & Compliance", "tax", 52),
             entry("EWAY_BILL", "E-Way Bill & E-Invoice", "Finance & Compliance", "eway", 53),
             entry("PURCHASE_RECON", "Purchase Recon (2B)", "Finance & Compliance", "reconcile", 54),
@@ -47,36 +55,43 @@ public final class PermissionCatalog {
             entry("FINANCIAL_STATEMENTS", "Financial Statements (P&L / BS)", "Finance & Compliance", "statement", 57),
             entry("AGING_ANALYSIS", "AR / AP Aging Analysis", "Finance & Compliance", "aging", 58),
             entry("TALLY", "Bill to Tally Automation", "Finance & Compliance", "ledger", 59),
-            entry("MASTERS", "Masters", "Masters", "master", 60),
+            entry("CLIENTS_DIRECTORY", "Clients Directory", "Finance & Compliance", "customer", 60),
+            entry("CLIENT_TEMPLATES", "Client Templates", "Finance & Compliance", "document", 61),
+            entry("MASTERS", "Masters", "Masters", "master", 65),
             entry("REPORTS", "Reports", "Reports", "report", 70),
             entry("DOCUMENT_STUDIO", "Document Studio", "Document Studio", "document", 80),
-            entry("USERS", "User Access", "Administration", "users", 90),
-            entry("SETTINGS", "Settings", "Administration", "settings", 91),
-            entry("BACKUP", "Backup & Restore", "Administration", "backup", 92),
-            entry("APPLICATION_UPDATES", "Application Updates", "Administration", "update", 93),
-            entry("SAFE_ROLLBACK", "Safe Rollback", "Administration", "rollback", 94),
-            entry("AUTOMATION", "Automation Center", "Administration", "automation", 95),
-            entry("AUDIT", "Global Audit Trail", "Administration", "audit", 96),
+            entry("PDF_STUDIO", "PDF Studio", "Document Studio", "document", 81),
+            entry("EXCEL_STUDIO", "Excel Studio", "Document Studio", "excel", 82),
+            entry("ROLE_MANAGEMENT", "Role Management", "Administration", "users", 89),
+            entry("REGISTRATION_APPROVALS", "Registration Approvals", "Administration", "users", 90),
+            entry("PERMISSION_MATRIX", "Permission Matrix", "Administration", "permission", 91),
+            entry("USERS", "User Access", "Administration", "users", 92),
+            entry("SETTINGS", "Settings", "Administration", "settings", 93),
+            entry("BACKUP", "Backup & Restore", "Administration", "backup", 94),
+            entry("APPLICATION_UPDATES", "Application Updates", "Administration", "update", 95),
+            entry("SAFE_ROLLBACK", "Safe Rollback", "Administration", "rollback", 96),
+            entry("AUTOMATION", "Automation Center", "Administration", "automation", 97),
+            entry("AUDIT", "Global Audit Trail", "Administration", "audit", 98),
             entry("SYSTEM", "System Diagnostics", "Administration", "diagnostic", 99),
-            entry("MULTI_BRANCH", "Multi-Branch Support", "Enterprise & Sync", "master", 97),
-            entry("OFFLINE_SYNC", "Offline P2P Sync", "Enterprise & Sync", "update", 98)
+            entry("MULTI_BRANCH", "Multi-Branch Support", "Enterprise & Sync", "master", 100),
+            entry("OFFLINE_SYNC", "Offline P2P Sync", "Enterprise & Sync", "update", 101)
     );
 
     private static final Set<String> ALWAYS_ACCESSIBLE_MODULES = Set.of(
-            "DASHBOARD", "SETTINGS", "USERS", "APPLICATION_UPDATES", "SAFE_ROLLBACK", "AUDIT", "SYSTEM"
+            "DASHBOARD", "SETTINGS", "USERS", "APPLICATION_UPDATES", "SAFE_ROLLBACK", "AUDIT", "SYSTEM", "PERMISSION_MATRIX"
     );
 
     private static final Set<String> CORE_FINANCE_MODULES = Set.of(
-            "DASHBOARD", "SALES", "QUOTATION", "CUSTOMERS", "CREDIT_NOTE", "REMINDERS",
-            "PURCHASE", "SUPPLIERS", "DEBIT_NOTE", "INVENTORY", "BARCODE",
-            "BANK_EXPENSE", "GST_COMPLIANCE", "GENERAL_LEDGER", "FINANCIAL_STATEMENTS",
-            "AGING_ANALYSIS", "MASTERS", "REPORTS"
+            "DASHBOARD", "SALES", "SALES_CREATE", "SALES_RETURNS", "QUOTATION", "CUSTOMERS", "CREDIT_NOTE", "REMINDERS",
+            "PURCHASE", "PURCHASE_CREATE", "PURCHASE_RETURNS", "SUPPLIERS", "DEBIT_NOTE", "ITEM_MASTER", "INVENTORY", "BARCODE",
+            "BANK_ENTRY", "EXPENSE_ENTRY", "BANK_STATEMENT", "BANK_EXPENSE", "GST_COMPLIANCE", "GENERAL_LEDGER", "FINANCIAL_STATEMENTS",
+            "AGING_ANALYSIS", "TALLY", "CLIENTS_DIRECTORY", "CLIENT_TEMPLATES", "MASTERS", "REPORTS"
     );
 
     private static final Set<String> SALES_MODULES = Set.of(
-            "DASHBOARD", "SALES", "QUOTATION", "CUSTOMERS", "COMMUNICATION", "REMINDERS", "REPORTS", "INVENTORY", "CREDIT_NOTE");
+            "DASHBOARD", "SALES", "SALES_CREATE", "SALES_RETURNS", "QUOTATION", "CUSTOMERS", "COMMUNICATION", "REMINDERS", "REPORTS", "INVENTORY", "CREDIT_NOTE");
     private static final Set<String> ADMINISTRATION_MODULES = Set.of(
-            "USERS", "SETTINGS", "BACKUP", "APPLICATION_UPDATES", "SAFE_ROLLBACK", "AUTOMATION", "AUDIT", "SYSTEM");
+            "USERS", "ROLE_MANAGEMENT", "REGISTRATION_APPROVALS", "PERMISSION_MATRIX", "SETTINGS", "BACKUP", "APPLICATION_UPDATES", "SAFE_ROLLBACK", "AUTOMATION", "AUDIT", "SYSTEM");
 
     private PermissionCatalog() {}
 
@@ -122,8 +137,16 @@ public final class PermissionCatalog {
                                 "CLOUD_BACKUP", "WHATSAPP_ROUTING", "BANK_RECON", "TALLY_SYNC", "MULTI_BRANCH", "OFFLINE_SYNC"));
                     }
                     case "CORE_FINANCE", "GST_INVOICE" -> expanded.addAll(CORE_FINANCE_MODULES);
-                    case "PRINT_EXPORT" -> expanded.add("DOCUMENT_STUDIO");
-                    case "DOCUMENT_STUDIO" -> expanded.add("PRINT_EXPORT");
+                    case "PRINT_EXPORT" -> {
+                        expanded.add("DOCUMENT_STUDIO");
+                        expanded.add("PDF_STUDIO");
+                        expanded.add("EXCEL_STUDIO");
+                    }
+                    case "DOCUMENT_STUDIO" -> {
+                        expanded.add("PRINT_EXPORT");
+                        expanded.add("PDF_STUDIO");
+                        expanded.add("EXCEL_STUDIO");
+                    }
                     case "DATA_IMPORTER" -> expanded.add("IMPORT");
                     case "IMPORT" -> expanded.add("DATA_IMPORTER");
                     case "WHATSAPP_ROUTING" -> expanded.add("COMMUNICATION");
@@ -131,13 +154,25 @@ public final class PermissionCatalog {
                     case "BANK_RECON" -> {
                         expanded.add("PURCHASE_RECON");
                         expanded.add("RECON_SUPPLIER");
+                        expanded.add("BANK_STATEMENT");
                     }
                     case "PURCHASE_RECON", "RECON_SUPPLIER" -> expanded.add("BANK_RECON");
+                    case "BANK_EXPENSE" -> {
+                        expanded.add("BANK_ENTRY");
+                        expanded.add("EXPENSE_ENTRY");
+                        expanded.add("BANK_STATEMENT");
+                    }
                     case "TALLY_SYNC" -> {
                         expanded.add("TALLY");
                         expanded.add("AUTOMATION");
+                        expanded.add("CLIENTS_DIRECTORY");
+                        expanded.add("CLIENT_TEMPLATES");
                     }
-                    case "TALLY" -> expanded.add("TALLY_SYNC");
+                    case "TALLY" -> {
+                        expanded.add("TALLY_SYNC");
+                        expanded.add("CLIENTS_DIRECTORY");
+                        expanded.add("CLIENT_TEMPLATES");
+                    }
                     case "CLOUD_BACKUP" -> expanded.add("BACKUP");
                     case "BACKUP" -> expanded.add("CLOUD_BACKUP");
                     case "EWAYBILL", "EWAY" -> expanded.add("EWAY_BILL");
@@ -231,6 +266,38 @@ public final class PermissionCatalog {
             case "TAB_DISCOUNT" -> "Discount Policies Tab";
             case "TAB_PAYMENT_MODES" -> "Payment Modes Tab";
             case "TAB_ROLES" -> "Role Descriptions Tab";
+            case "PRINT" -> "Allow Print Document";
+            case "RECORD_PAYMENT" -> "Allow Record Payment";
+            case "PRICE_OVERRIDE" -> "Allow Price Override";
+            case "DISCOUNT_OVERRIDE" -> "Allow Extra Discount";
+            case "SAVE_DRAFT" -> "Allow Save Draft";
+            case "COST_OVERRIDE" -> "Allow Cost Override";
+            case "FOLLOW_UP" -> "Allow Follow-up Logging";
+            case "MANAGE_CONTACTS" -> "Manage Contacts & Notifications";
+            case "SEND_STATEMENT" -> "Send Account Statement";
+            case "SEND_LEDGER" -> "Send Ledger Statement";
+            case "REFUND_SETTLE" -> "Allow Settle / Refund";
+            case "PRINT_BARCODE" -> "Print Barcode Labels";
+            case "BULK_IMPORT" -> "Quick Import Items";
+            case "COST_VIEW" -> "View Purchase Cost Price";
+            case "AUTO_MATCH" -> "Run Auto-Reconciliation";
+            case "MANUAL_MATCH" -> "Manual Voucher Match";
+            case "BULK_EXPENSE" -> "Bulk Expense Conversion";
+            case "BULK_BANK_ENTRY" -> "Bulk Bank Entry Conversion";
+            case "MANAGE_RULES" -> "Manage Reconciliation Rules";
+            case "UNDO_MATCH" -> "Undo Matched Transactions";
+            case "PRINT_VOUCHER" -> "Print Voucher Slip";
+            case "CANCEL_ENTRY" -> "Cancel Voucher Entry";
+            case "ATTACHMENT" -> "Manage Attachments";
+            case "SYNC_TALLY" -> "Sync with Tally Prime";
+            case "IMPORT_TALLY" -> "Import Master from Tally";
+            case "CLONE" -> "Clone Configuration";
+            case "CLONE_ROLE" -> "Duplicate Role";
+            case "ASSIGN_USERS" -> "Bulk Assign Users";
+            case "REJECT" -> "Reject Registration";
+            case "GENERATE_JSON" -> "Generate JSON Return";
+            case "RECONCILE_2B" -> "Run GSTR-2B Deep Match";
+            case "VERIFY_HASH" -> "Verify Hash Integrity";
             default -> title(normalized.replace('_', ' '));
         };
     }

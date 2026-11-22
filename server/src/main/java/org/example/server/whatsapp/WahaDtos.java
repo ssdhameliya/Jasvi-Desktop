@@ -9,8 +9,13 @@ public final class WahaDtos {
         String endpoint,
         String apiKey,
         boolean enabled,
-        Long defaultChannelId
-    ) {}
+        Long defaultChannelId,
+        String disconnectedMessage
+    ) {
+        public WahaSettingsDto(String endpoint, String apiKey, boolean enabled, Long defaultChannelId) {
+            this(endpoint, apiKey, enabled, defaultChannelId, "");
+        }
+    }
 
     public record ChannelDto(
         Long id,

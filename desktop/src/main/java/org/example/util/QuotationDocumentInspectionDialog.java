@@ -505,12 +505,16 @@ public final class QuotationDocumentInspectionDialog {
                 MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatQuotationEmail(quote.no(), quote.customer(), qDate, quote.amount());
                 String sigImg = MessageTemplateService.getSignatureImagePath();
                 Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
+                String fallbackEmail = quote.email() == null ? "" : quote.email().trim();
+                String fallbackPhone = quote.phone() == null ? "" : quote.phone().trim();
+                var resolvedRecipients = PartyRecipientResolver.resolveCustomer(quote.customerId(), fallbackEmail, fallbackPhone);
+                String targetEmail = resolvedRecipients.emailString().isBlank() ? fallbackEmail : resolvedRecipients.emailString();
                 return new EmailTransmissionDialog.EmailDraft(
                         "Transmit Quotation via Email",
                         "Direct SMTP delivery to customer contact",
                         "Quotation",
                         quote.no(),
-                        quote.email() == null ? "" : quote.email().trim(),
+                        targetEmail,
                         msg.subject(),
                         msg.body(),
                         pdf,

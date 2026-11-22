@@ -252,12 +252,16 @@ private void setupActions(){
    MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatQuotationEmail(q.no.get(), q.customer.get(), qDate, q.amount.get());
    String sigImg = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
    Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
+   String fallbackEmail = q.email == null ? "" : q.email.trim();
+   String fallbackPhone = q.phone == null ? "" : q.phone.trim();
+   var resolvedRecipients = org.example.util.PartyRecipientResolver.resolveCustomer(q.customerId, fallbackEmail, fallbackPhone);
+   String targetEmail = resolvedRecipients.emailString().isBlank() ? fallbackEmail : resolvedRecipients.emailString();
    return new EmailTransmissionDialog.EmailDraft(
            "Transmit Quotation via Email",
            "Direct SMTP delivery to customer contact",
            "Quotation",
            q.no.get(),
-           q.email == null ? "" : q.email.trim(),
+           targetEmail,
            msg.subject(),
            msg.body(),
            pdf,
@@ -303,7 +307,10 @@ private void setupActions(){
    LocalDate qDate=null;
    try{if(q.date!=null&&!q.date.get().isBlank())qDate=LocalDate.parse(q.date.get());}catch(Exception ignored){}
    String message=MessageTemplateService.formatQuotationWhatsapp(q.id,q.no.get(),q.customer.get(),qDate,q.amount.get());
-   String target=q.phone==null?"":q.phone.replaceAll("\\D","");
+   String fallbackEmail = q.email == null ? "" : q.email.trim();
+   String fallbackPhone = q.phone == null ? "" : q.phone.trim();
+   var resolvedRecipients = org.example.util.PartyRecipientResolver.resolveCustomer(q.customerId, fallbackEmail, fallbackPhone);
+   String target = resolvedRecipients.phoneString().isBlank() ? fallbackPhone : resolvedRecipients.phoneString();
    return new WhatsappTransmissionDialog.WhatsappDraft(
            "Transmit Quotation via WhatsApp",
            "Direct delivery via WhatsApp Business Engine to customer registered mobile",
@@ -319,16 +326,20 @@ private void setupActions(){
    if(opt.isEmpty())return;
    WhatsappTransmissionDialog.WhatsappTransmissionResult result=opt.get();
    LiveOperationDialog.run(table,"Sending WhatsApp Quotation","whatsapp","Connecting to WhatsApp Business Engine...",reporter->{
-    reporter.stage(1,3,"Validating recipient "+result.recipientPhone()+"...");
     var wahaApi=new org.example.api.whatsapp.BusinessWhatsappApiClient();
+    List<String> phones = Arrays.stream(result.recipientPhone().split("[;,]"))
+            .map(String::trim).filter(s -> !s.isBlank()).toList();
+    reporter.stage(1,3,"Validating "+phones.size()+" recipient(s)...");
     reporter.stage(2,3,"Transmitting quotation via WhatsApp...");
-    var sendResp=wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
-            "QUOTATION",q.no.get(),q.id,null,result.recipientPhone(),result.message(),q.rowVersion
-    ));
-    if(!sendResp.success())throw new IllegalStateException(sendResp.message());
+    for (String phoneNum : phones) {
+        var sendResp=wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+                "QUOTATION",q.no.get(),q.id,null,phoneNum,result.message(),q.rowVersion
+        ));
+        if(!sendResp.success())throw new IllegalStateException(sendResp.message());
+        comm(q,"WHATSAPP",phoneNum,"SENT",null);
+    }
     quotationApi.markSent(q.id,"WHATSAPP",q.rowVersion);
-    comm(q,"WHATSAPP",result.recipientPhone(),"SENT",null);
-    reporter.stage(3,3,"Dispatched via WhatsApp channel "+sendResp.channelCode());
+    reporter.stage(3,3,"Dispatched via WhatsApp to "+phones.size()+" recipient(s)");
    },()->{
     refresh();
     success("Quotation "+q.no.get()+" sent successfully via WhatsApp!");

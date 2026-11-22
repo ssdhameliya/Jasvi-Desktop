@@ -4,52 +4,43 @@
 <?import javafx.scene.layout.*?>
 <VBox fx:id="root" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="org.example.controller.PermissionMatrixController"
-      spacing="10" styleClass="user-access-page,permission-workspace,approved-ui,erp-screen-root">
-  <padding><Insets top="12" right="14" bottom="12" left="14"/></padding>
+      spacing="8" styleClass="user-access-page,permission-workspace,approved-ui,erp-screen-root">
+  <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
 
-  <HBox alignment="CENTER_LEFT" spacing="12" styleClass="erp-page-identity-header,permission-workspace-header">
+  <!-- Row 1: Unified Page Header, Role Selection, and Actions -->
+  <HBox alignment="CENTER_LEFT" spacing="10" styleClass="erp-page-identity-header,permission-workspace-header">
     <StackPane styleClass="erp-page-header-icon,permission-header-icon"><Label text="▦" styleClass="erp-page-header-symbol"/></StackPane>
-    <VBox spacing="2" HBox.hgrow="ALWAYS">
+    <VBox spacing="1" HBox.hgrow="NEVER">
       <Label text="User Permissions &amp; Access Matrix" styleClass="screen-title"/>
-      <Label text="Full-width iOS toggle workspace  •  Super Admin governs ADMIN  •  Company Admin governs Staff Roles" styleClass="screen-subtitle"/>
+      <Label fx:id="lblHint" text="Super Admin governs ADMIN  •  Company Admin governs Staff Roles" styleClass="screen-subtitle"/>
     </VBox>
+    <HBox alignment="CENTER_LEFT" spacing="8" HBox.hgrow="NEVER">
+      <ComboBox fx:id="cmbRole" promptText="Select Target Role" prefWidth="210" styleClass="approved-input"/>
+      <Label fx:id="lblRoleUsers" text="0 users" styleClass="muted-label,permission-role-user-count"/>
+    </HBox>
+    <Region HBox.hgrow="ALWAYS"/>
     <Button fx:id="btnBack" text="Back to Roles" onAction="#back" styleClass="approved-button,approved-secondary-button"/>
     <Button fx:id="btnReset" text="Reset Changes" onAction="#reset" styleClass="approved-button,approved-secondary-button"/>
     <Button fx:id="btnSave" text="Save Permissions" onAction="#save" styleClass="primary-button,permission-save-button"/>
   </HBox>
 
-  <VBox spacing="8" styleClass="permission-control-card">
-    <HBox alignment="BOTTOM_LEFT" spacing="12">
-      <VBox spacing="4" HBox.hgrow="ALWAYS">
-        <Label text="Target Role" styleClass="field-label"/>
-        <ComboBox fx:id="cmbRole" maxWidth="Infinity" styleClass="approved-input"/>
-      </VBox>
-      <VBox spacing="4" HBox.hgrow="ALWAYS">
-        <Label text="Permission Template" styleClass="field-label"/>
-        <ComboBox fx:id="cmbTemplate" maxWidth="Infinity" promptText="Choose a template" styleClass="approved-input"/>
-      </VBox>
-      <Button fx:id="btnApplyTemplate" text="Apply Template" onAction="#applyTemplate" styleClass="approved-button,permission-template-button"/>
-      <VBox fx:id="boxCopyRole" spacing="4" HBox.hgrow="ALWAYS">
-        <Label text="Copy From Role" styleClass="field-label"/>
-        <ComboBox fx:id="cmbCopyRole" maxWidth="Infinity" styleClass="approved-input"/>
-      </VBox>
+  <!-- Row 2: Compact Utility, Template, Copy & Filter Ribbon -->
+  <HBox alignment="CENTER_LEFT" spacing="8" styleClass="permission-control-card,permission-compact-ribbon">
+    <TextField fx:id="txtSearch" promptText="Search module, screen, action, capability..." HBox.hgrow="ALWAYS" maxWidth="320" styleClass="approved-input,permission-search"/>
+    <ComboBox fx:id="cmbTemplate" prefWidth="170" promptText="Permission Template" styleClass="approved-input"/>
+    <Button fx:id="btnApplyTemplate" text="Apply Template" onAction="#applyTemplate" styleClass="approved-button,permission-template-button"/>
+    <HBox fx:id="boxCopyRole" alignment="CENTER_LEFT" spacing="6">
+      <ComboBox fx:id="cmbCopyRole" prefWidth="150" promptText="Copy From Role" styleClass="approved-input"/>
       <Button fx:id="btnCopyRole" text="Copy" onAction="#copyFromRole" styleClass="approved-button,approved-secondary-button"/>
     </HBox>
-    <HBox alignment="CENTER_LEFT" spacing="12">
-      <TextField fx:id="txtSearch" promptText="Search module, screen, category, or capability..." HBox.hgrow="ALWAYS" styleClass="approved-input,permission-search"/>
-      <CheckBox fx:id="chkGrantedOnly" text="Granted Only" styleClass="permission-granted-filter,ios-toggle-switch"/>
-      <Label fx:id="lblGrantedSummary" text="0 of 0 granted" styleClass="permission-count-badge,badge-success"/>
-      <Label fx:id="lblRoleUsers" text="0 users use this role" styleClass="muted-label"/>
-    </HBox>
-    <Label fx:id="lblHint" text="Select a role" wrapText="true" styleClass="muted-label,permission-hint"/>
-  </VBox>
+    <CheckBox fx:id="chkGrantedOnly" text="Granted Only" styleClass="permission-granted-filter,ios-toggle-switch"/>
+    <Label fx:id="lblGrantedSummary" text="0 of 0 granted" styleClass="permission-count-badge,badge-success"/>
+    <Region HBox.hgrow="ALWAYS"/>
+    <Label fx:id="lblLegend" text="ON granted  •  OFF revoked  •  — not supported" styleClass="muted-label,permission-legend"/>
+  </HBox>
 
-  <VBox spacing="7" VBox.vgrow="ALWAYS" styleClass="permission-matrix-card">
-    <HBox alignment="CENTER_LEFT" spacing="8">
-      <Label text="Permission Matrix" styleClass="section-title"/>
-      <Region HBox.hgrow="ALWAYS"/>
-      <Label fx:id="lblLegend" text="ON granted   •   OFF revoked   •   — not supported" styleClass="muted-label,permission-legend"/>
-    </HBox>
+  <!-- Card 3: Full Height TableView Matrix -->
+  <VBox VBox.vgrow="ALWAYS" styleClass="permission-matrix-card">
     <TableView fx:id="table" editable="true" VBox.vgrow="ALWAYS"
                styleClass="approved-table,permission-matrix-table,erp-table-profile-permission">
       <columns>

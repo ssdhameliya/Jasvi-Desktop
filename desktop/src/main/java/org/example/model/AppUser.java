@@ -15,6 +15,7 @@ public class AppUser {
     private String accessLevel;
     private boolean locked;
     private boolean mfaEnabled;
+    private boolean forcePasswordChange;
 
     public int getId() {
         return id;
@@ -92,4 +93,6 @@ public class AppUser {
     public void setLocked(boolean value) { locked = value; }
     public boolean isMfaEnabled() { return mfaEnabled; }
     public void setMfaEnabled(boolean value) { mfaEnabled = value; }
+    public boolean isForcePasswordChange() { return forcePasswordChange; }
+    public void setForcePasswordChange(boolean value) { forcePasswordChange = value; }
 }

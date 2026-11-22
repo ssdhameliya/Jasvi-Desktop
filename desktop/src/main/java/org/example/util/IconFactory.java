@@ -1487,7 +1487,7 @@ public final class IconFactory {
         if (value.contains("logout") || value.contains("sign out")) return "exit";
         if (value.contains("login") || value.contains("sign in")) return "login";
         if (value.contains("register") || value.contains("create account")) return "register";
-        if (value.contains("test connection") || value.contains("test email")) return "test";
+        if (value.contains("test connection") || value.contains("test email") || value.contains("test briefing") || value.contains("briefing")) return "test";
         if (value.contains("information") || value.contains("guidance") || value.contains("report information") || value.equals("info")) return "info";
         if (value.equals("report center") || value.contains("open report center")) return "report";
         if (value.contains("saved report")) return "save";

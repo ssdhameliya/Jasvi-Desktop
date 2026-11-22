@@ -127,7 +127,8 @@ public class BusinessWhatsappService {
                     .orElse(null);
         }
 
-        return new WahaDtos.WahaSettingsDto(endpoint, apiKey, enabled, defaultChannelId);
+        String disconnectedMessage = getSetting("whatsapp.waha.disconnected_message", "");
+        return new WahaDtos.WahaSettingsDto(endpoint, apiKey, enabled, defaultChannelId, disconnectedMessage);
     }
 
     @Transactional
@@ -136,6 +137,10 @@ public class BusinessWhatsappService {
         updateSetting("whatsapp.waha.endpoint", dto.endpoint());
         updateSetting("whatsapp.waha.api_key", dto.apiKey());
         updateSetting("whatsapp.enabled", String.valueOf(dto.enabled()));
+
+        if (dto.disconnectedMessage() != null) {
+            updateSetting("whatsapp.waha.disconnected_message", dto.disconnectedMessage().trim());
+        }
 
         if (dto.defaultChannelId() != null) {
             updateSetting("whatsapp.default_channel_id", String.valueOf(dto.defaultChannelId()));
@@ -381,10 +386,30 @@ public class BusinessWhatsappService {
         }
 
         // Post-dispatch status handling and communication logging with active transaction
+        if (!response.success()) {
+            String customMsg = getSetting("whatsapp.waha.disconnected_message", "");
+            if (!customMsg.isBlank() && isDisconnectedOrAuthError(response.message())) {
+                response = new WahaDtos.SendResponse(false, customMsg, response.messageId(), response.channelCode(), response.recipientPhone());
+            }
+        }
         recordDocumentCommunicationAudit(req.documentType(), req.documentId(), req.recipientPhone(),
                 req.documentNumber(), response.success(), response.success() ? null : response.message());
 
         return response;
+    }
+
+    private boolean isDisconnectedOrAuthError(String msg) {
+        if (msg == null) return false;
+        String lower = msg.toLowerCase(Locale.ROOT);
+        return lower.contains("not connected")
+                || lower.contains("authentication")
+                || lower.contains("not paired")
+                || lower.contains("session stopped")
+                || lower.contains("session not found")
+                || lower.contains("307")
+                || lower.contains("login")
+                || lower.contains("unreachable")
+                || lower.contains("connection error");
     }
 
     public WahaDtos.SendResponse sendRawFile(String recipientPhone, String filename, String mimetype, byte[] fileBytes, String caption) {
@@ -399,6 +424,12 @@ public class BusinessWhatsappService {
         String chatId = formatChatId(recipientPhone);
         WahaDtos.SendResponse response = wahaClient.sendFile(settings.endpoint(), settings.apiKey(),
                 channel.getSessionName(), chatId, filename, mimetype, fileBytes, caption);
+        if (!response.success()) {
+            String customMsg = getSetting("whatsapp.waha.disconnected_message", "");
+            if (!customMsg.isBlank() && isDisconnectedOrAuthError(response.message())) {
+                response = new WahaDtos.SendResponse(false, customMsg, response.messageId(), channel.getChannelCode(), recipientPhone);
+            }
+        }
         recordDocumentCommunicationAudit("LICENSE", 0, recipientPhone, filename, response.success(), response.success() ? null : response.message());
         return response;
     }
@@ -578,8 +609,14 @@ public class BusinessWhatsappService {
             }
         }
 
-        // If no working channel found, return preferred if available
+        // If no working channel found, auto-initialize preferred in WAHA if missing and return
         if (preferred != null) {
+            String status = liveStatusMap.get(preferred.getSessionName().toLowerCase(Locale.ROOT));
+            if (status == null || "STOPPED".equalsIgnoreCase(status) || "FAILED".equalsIgnoreCase(status)) {
+                try {
+                    wahaClient.startSession(settings.endpoint(), settings.apiKey(), preferred.getSessionName());
+                } catch (Exception ignored) {}
+            }
             return preferred;
         }
 
@@ -613,8 +650,10 @@ public class BusinessWhatsappService {
         }
         if (digits.length() == 10) {
             digits = "91" + digits;
+        } else if (digits.length() == 11 && (digits.startsWith("6") || digits.startsWith("7") || digits.startsWith("8") || digits.startsWith("9"))) {
+            throw new IllegalArgumentException("Invalid mobile number '" + raw.trim() + "': Indian mobile numbers must have 10 digits (or 12 digits with country code 91). Found 11 digits.");
         }
-        if (digits.length() < 10) {
+        if (digits.length() < 10 || digits.length() > 15) {
             throw new IllegalArgumentException("Invalid phone number format: " + raw);
         }
         return digits.endsWith("@c.us") ? digits : digits + "@c.us";

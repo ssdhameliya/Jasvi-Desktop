@@ -1080,6 +1080,9 @@ public class GeneralLedgerService {
                    COALESCE(sh.gst_amount, 0) AS gst_amount,
                    COALESCE(sh.discount_amount, 0) AS discount_amount,
                    COALESCE(sh.gst_type, '') AS gst_type,
+                   COALESCE(sh.reference_no, '') AS reference_no,
+                   COALESCE(sh.payment_status, 'UNPAID') AS payment_status,
+                   COALESCE(sh.paid_amount, 0) AS paid_amount,
                    COALESCE(NULLIF(sh.customer_name_snapshot, ''), pm.name, 'Customer') AS party_name,
                    COALESCE(NULLIF(sh.customer_gstin_snapshot, ''), NULLIF(sh.billing_gstin, ''), NULLIF(sh.gstin, ''), pm.gstin, '') AS party_gstin
             FROM sales_header sh
@@ -1096,6 +1099,9 @@ public class GeneralLedgerService {
         LocalDate date = parseDate(h.get("invoice_date"));
         String partyName = Objects.toString(h.get("party_name"), "Customer");
         String gstin = Objects.toString(h.get("party_gstin"), "");
+        String refNo = Objects.toString(h.get("reference_no"), "");
+        String paymentStatus = Objects.toString(h.get("payment_status"), "UNPAID");
+        BigDecimal paidAmount = toBigDecimal(h.get("paid_amount"));
         BigDecimal total = toBigDecimal(h.get("total_amount"));
         BigDecimal taxable = toBigDecimal(h.get("subtotal"));
         BigDecimal totalTax = toBigDecimal(h.get("gst_amount"));
@@ -1228,7 +1234,8 @@ public class GeneralLedgerService {
                 jvNo, vLines, totDeb, totCred, totDeb.compareTo(totCred) == 0,
                 invLines, gst,
                 orderTaxableRevenue, orderInventoryCost, orderTotalProfit, orderMarginPct,
-                totalDiscountConcession, meta.postedAt(), meta.postedBy(), meta.triggerEvent()
+                totalDiscountConcession, meta.postedAt(), meta.postedBy(), meta.triggerEvent(),
+                refNo, paymentStatus, paidAmount
         );
     }
 
@@ -1240,6 +1247,9 @@ public class GeneralLedgerService {
                    COALESCE(ph.gst_amount, 0) AS gst_amount,
                    COALESCE(ph.discount_amount, 0) AS discount_amount,
                    COALESCE(ph.gst_treatment, ph.gst_type, '') AS gst_type,
+                   COALESCE(ph.reference_no, '') AS reference_no,
+                   COALESCE(ph.payment_status, 'UNPAID') AS payment_status,
+                   COALESCE(ph.paid_amount, 0) AS paid_amount,
                    COALESCE(NULLIF(ph.supplier_name_snapshot, ''), pm.name, 'Supplier') AS party_name,
                    COALESCE(NULLIF(ph.supplier_gstin_snapshot, ''), NULLIF(ph.billing_gstin, ''), pm.gstin, '') AS party_gstin
             FROM purchase_header ph
@@ -1256,6 +1266,9 @@ public class GeneralLedgerService {
         LocalDate date = parseDate(h.get("invoice_date"));
         String partyName = Objects.toString(h.get("party_name"), "Supplier");
         String gstin = Objects.toString(h.get("party_gstin"), "");
+        String refNo = Objects.toString(h.get("reference_no"), "");
+        String paymentStatus = Objects.toString(h.get("payment_status"), "UNPAID");
+        BigDecimal paidAmount = toBigDecimal(h.get("paid_amount"));
         BigDecimal total = toBigDecimal(h.get("total_amount"));
         BigDecimal taxable = toBigDecimal(h.get("subtotal"));
         BigDecimal totalTax = toBigDecimal(h.get("gst_amount"));
@@ -1371,7 +1384,8 @@ public class GeneralLedgerService {
                 jvNo, vLines, totDeb, totCred, totDeb.compareTo(totCred) == 0,
                 invLines, gst,
                 taxable, orderInwardValuation, BigDecimal.ZERO, BigDecimal.ZERO,
-                totalDiscountConcession, meta.postedAt(), meta.postedBy(), meta.triggerEvent()
+                totalDiscountConcession, meta.postedAt(), meta.postedBy(), meta.triggerEvent(),
+                refNo, paymentStatus, paidAmount
         );
     }
 
@@ -1395,6 +1409,7 @@ public class GeneralLedgerService {
         String gstin = "";
         BigDecimal total = BigDecimal.ZERO;
         String reason = "";
+        String origInv = "";
         List<GeneralLedgerDtos.PostingFlowInventoryLine> invLines = new ArrayList<>();
         BigDecimal orderTotalRevClawback = BigDecimal.ZERO;
         BigDecimal orderTotalCostReinstated = BigDecimal.ZERO;
@@ -1406,6 +1421,7 @@ public class GeneralLedgerService {
             partyName = Objects.toString(first.get("party_name"), "Customer");
             gstin = Objects.toString(first.get("party_gstin"), "");
             reason = Objects.toString(first.get("reason"), "");
+            origInv = Objects.toString(first.get("invoice_no"), "");
 
             for (Map<String, Object> r : retRows) {
                 BigDecimal q = toBigDecimal(r.get("quantity"));
@@ -1458,6 +1474,7 @@ public class GeneralLedgerService {
             Map<String, Object> cn = cnRows.getFirst();
             Long cnId = ((Number) cn.get("id")).longValue();
             retNo = Objects.toString(cn.get("credit_note_no"), no);
+            origInv = Objects.toString(cn.get("original_invoice_no"), "");
             date = parseDate(cn.get("note_date"));
             partyName = Objects.toString(cn.get("party_name"), "Customer");
             gstin = Objects.toString(cn.get("party_gstin"), "");
@@ -1614,7 +1631,8 @@ public class GeneralLedgerService {
                 profile, summary, jvNo, vLines, totDeb, totCred, totDeb.compareTo(totCred) == 0,
                 invLines, gst,
                 orderTotalRevClawback, orderTotalCostReinstated, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, meta.postedAt(), meta.postedBy(), meta.triggerEvent()
+                BigDecimal.ZERO, meta.postedAt(), meta.postedBy(), meta.triggerEvent(),
+                origInv, "SETTLED", total
         );
     }
 
@@ -1634,11 +1652,13 @@ public class GeneralLedgerService {
         BigDecimal taxable = BigDecimal.ZERO;
         BigDecimal tax = BigDecimal.ZERO;
         String reason = "";
+        String origBill = "";
         boolean stockMoved = true;
 
         if (!dnRows.isEmpty()) {
             Map<String, Object> dn = dnRows.getFirst();
             dnNo = Objects.toString(dn.get("debit_note_no"), no);
+            origBill = Objects.toString(dn.get("original_bill_no"), "");
             date = parseDate(dn.get("note_date"));
             supplier = Objects.toString(dn.get("supplier_name"), "Supplier");
             gstin = Objects.toString(dn.get("supplier_gstin"), "");
@@ -1833,7 +1853,8 @@ public class GeneralLedgerService {
                 profile, summary, jvNo, vLines, totDeb, totCred, totDeb.compareTo(totCred) == 0,
                 invLines, gst,
                 taxable.negate(), isPhysical ? taxable.negate() : BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, meta.postedAt(), meta.postedBy(), meta.triggerEvent()
+                BigDecimal.ZERO, meta.postedAt(), meta.postedBy(), meta.triggerEvent(),
+                origBill, "SETTLED", total
         );
     }
 
@@ -1892,7 +1913,8 @@ public class GeneralLedgerService {
                 jvNo, vLines, totDeb, totCred, totDeb.compareTo(totCred) == 0,
                 List.of(), gst,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, meta.postedAt(), meta.postedBy(), meta.triggerEvent()
+                BigDecimal.ZERO, meta.postedAt(), meta.postedBy(), meta.triggerEvent(),
+                refNo, "PAID", amount
         );
     }
 

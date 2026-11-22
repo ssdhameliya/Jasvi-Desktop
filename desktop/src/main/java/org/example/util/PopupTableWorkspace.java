@@ -150,6 +150,49 @@ public final class PopupTableWorkspace {
     }
 
     /**
+     * Applies generous 90% screen width and 90% screen height to major operational workspaces
+     * (Smart Narration Rules, Candidate Allocations, Statement Source & Evidence, Transaction Inspection).
+     * Strictly eliminates label, badge, amount, and table column truncation (Rule 12 Zero Truncation Guarantee).
+     */
+    public static void applyWideWorkspace90(Dialog<?> dialog, Node ownerNode) {
+        if (dialog == null) return;
+        Rectangle2D bounds = WindowUtilsFx.visualBoundsFor(ownerNode);
+        double maxAvailableW = Math.max(960, bounds.getWidth() - 24);
+        double maxAvailableH = Math.max(600, bounds.getHeight() - 32);
+        double targetW = Math.min(maxAvailableW, Math.max(1200, bounds.getWidth() * 0.90));
+        double targetH = Math.min(maxAvailableH, Math.max(700, bounds.getHeight() * 0.90));
+
+        DialogPane pane = dialog.getDialogPane();
+        pane.setPrefSize(targetW, targetH);
+        pane.setMaxWidth(maxAvailableW);
+        pane.setMaxHeight(maxAvailableH);
+        pane.setMinWidth(Math.min(960, targetW));
+        pane.setMinHeight(Math.min(540, targetH));
+        pane.getProperties().put("dse.dialog.wide90", Boolean.TRUE);
+
+        if (!pane.getStyleClass().contains("erp-table-workspace-dialog")) {
+            pane.getStyleClass().add("erp-table-workspace-dialog");
+        }
+        if (!pane.getStyleClass().contains("erp-ui-standard")) {
+            pane.getStyleClass().add("erp-ui-standard");
+        }
+        if (!pane.getStyleClass().contains("erp-wide-workspace-90")) {
+            pane.getStyleClass().add("erp-wide-workspace-90");
+        }
+        dialog.setResizable(true);
+
+        dialog.addEventHandler(DialogEvent.DIALOG_SHOWN, event -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                stage.getProperties().put("dse.dialog.wide90", Boolean.TRUE);
+                Window owner = dialog.getOwner() != null ? dialog.getOwner() : (ownerNode != null && ownerNode.getScene() != null ? ownerNode.getScene().getWindow() : null);
+                WindowUtilsFx.fitDialogToOwnerScreen(stage, owner);
+            }
+            AppDialogRenderer.reconcileButtonBar(dialog.getDialogPane());
+            javafx.application.Platform.runLater(() -> AppDialogRenderer.reconcileButtonBar(dialog.getDialogPane()));
+        });
+    }
+
+    /**
      * Sizes core document inspection dialogs (Sale, Purchase, Returns, Quotation)
      * dynamically based on monitor usable bounds and content, ensuring zero clipping or margin waste.
      */
@@ -237,6 +280,7 @@ public final class PopupTableWorkspace {
             table.getStyleClass().add(profileClass);
         }
         DynamicTableLayoutManager.install(table);
+        TableClipboardSupport.install(table);
     }
 
     private static String semanticClass(String semantic) {

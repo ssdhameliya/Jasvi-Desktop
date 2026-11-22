@@ -18,7 +18,14 @@
                 <Label text="General Ledger &amp; Double-Entry Accounting" styleClass="settings-form-label,bold-label"/>
                 <Label text="Master Chart of Accounts, debit/credit journal vouchers, real-time Trial Balance, and Profit &amp; Loss." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkGlEnabled" text="Enable GL Module" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <HBox spacing="10" alignment="CENTER_RIGHT">
+                <Button fx:id="btnGuideGl" contentDisplay="GRAPHIC_ONLY" onAction="#showGlGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
+                    <graphic>
+                        <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                    </graphic>
+                </Button>
+                <CheckBox fx:id="chkGlEnabled" text="Enable GL Module" styleClass="approved-checkbox,ios-toggle-switch"/>
+            </HBox>
         </HBox>
         <HBox spacing="24" alignment="CENTER_LEFT">
             <CheckBox fx:id="chkGlAutoPost" text="Auto-post Journal Vouchers from Sales &amp; Purchases" styleClass="approved-checkbox,ios-toggle-switch"/>
@@ -35,7 +42,14 @@
                 <Label text="GST Statutory Compliance &amp; GSTR-2B Auto-Reconciliation" styleClass="settings-form-label,bold-label"/>
                 <Label text="Automated Place of Supply tax split, GSTR-1 government JSON exports, and GSTR-2B ITC fuzzy reconciliation." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkGstEnabled" text="Enable GST Engine" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <HBox spacing="10" alignment="CENTER_RIGHT">
+                <Button fx:id="btnGuideGst" contentDisplay="GRAPHIC_ONLY" onAction="#showGstGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
+                    <graphic>
+                        <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                    </graphic>
+                </Button>
+                <CheckBox fx:id="chkGstEnabled" text="Enable GST Engine" styleClass="approved-checkbox,ios-toggle-switch"/>
+            </HBox>
         </HBox>
         <HBox spacing="24" alignment="CENTER_LEFT">
             <CheckBox fx:id="chkGstAuto2bMatch" text="Auto-Reconcile GSTR-2B Purchases" styleClass="approved-checkbox,ios-toggle-switch"/>
@@ -53,6 +67,11 @@
                 <Label text="Smart Operational Automations Suite" styleClass="settings-form-label,bold-label"/>
                 <Label text="Automate purchase bill verification against PO/GRN, dynamic stock replenishment, and smart FIFO payment matching." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
+            <Button fx:id="btnGuideAutomations" contentDisplay="GRAPHIC_ONLY" onAction="#showAutomationsGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
+                <graphic>
+                    <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                </graphic>
+            </Button>
         </HBox>
         <GridPane hgap="16" vgap="8">
             <columnConstraints>
@@ -72,21 +91,110 @@
 
     <Separator/>
 
-    <!-- 4. EXECUTIVE 8:00 PM BRIEFING -->
-    <VBox spacing="8" styleClass="settings-subcard">
+    <!-- 4. EXECUTIVE BRIEFING SUITE -->
+    <VBox spacing="10" styleClass="settings-subcard">
         <HBox alignment="CENTER_LEFT" spacing="12">
             <VBox spacing="2" HBox.hgrow="ALWAYS">
-                <Label text="Executive 8:00 PM Daily Briefing" styleClass="settings-form-label,bold-label"/>
-                <Label text="Daily evening summary of sales, customer collections, vendor payments, bank balances, and overdue accounts." wrapText="true" styleClass="settings-field-hint"/>
+                <Label text="Executive Multi-Cadence Performance Briefing" styleClass="settings-form-label,bold-label"/>
+                <Label text="Automated financial summaries of sales, purchases, collections, vendor payments, liquid balances, and overdue accounts." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkDailyBriefing" text="Enable Daily Briefing" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <HBox spacing="10" alignment="CENTER_RIGHT">
+                <Button fx:id="btnTestBriefing" text="Send Test Briefing Now" onAction="#testExecutiveBriefingNow" styleClass="approved-button,erp-semantic-teal"/>
+                <Button fx:id="btnGuideBriefing" contentDisplay="GRAPHIC_ONLY" onAction="#showBriefingGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
+                    <graphic>
+                        <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                    </graphic>
+                </Button>
+                <CheckBox fx:id="chkDailyBriefing" text="Enable Briefing Suite" styleClass="approved-checkbox,ios-toggle-switch"/>
+            </HBox>
         </HBox>
-        <HBox spacing="24" alignment="CENTER_LEFT">
-            <CheckBox fx:id="chkBriefingWa" text="WhatsApp Channel" styleClass="approved-checkbox,ios-toggle-switch"/>
-            <CheckBox fx:id="chkBriefingEmail" text="Email Channel" styleClass="approved-checkbox,ios-toggle-switch"/>
-            <Label text="Mobile No:" styleClass="settings-form-label"/>
-            <TextField fx:id="txtBriefingPhone" promptText="+91 98765 43210" styleClass="approved-input"/>
-        </HBox>
+        <GridPane hgap="16" vgap="10">
+            <columnConstraints>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+            </columnConstraints>
+            <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="0">
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <CheckBox fx:id="chkBriefingWa" text="WhatsApp Channel (WAHA)" styleClass="approved-checkbox,ios-toggle-switch"/>
+                </HBox>
+                <VBox fx:id="vboxBriefingPhone" spacing="2">
+                    <Label text="Executive Mobile Numbers:" styleClass="settings-field-label"/>
+                    <TextField fx:id="txtBriefingPhone" promptText="+91 9009839193, +91 9876543210" styleClass="approved-input"/>
+                </VBox>
+            </VBox>
+            <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="0">
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <CheckBox fx:id="chkBriefingEmail" text="Email Channel (SMTP)" styleClass="approved-checkbox,ios-toggle-switch"/>
+                </HBox>
+                <VBox fx:id="vboxBriefingEmail" spacing="2">
+                    <Label text="Executive Email Addresses:" styleClass="settings-field-label"/>
+                    <TextField fx:id="txtBriefingEmails" promptText="director@jasviindustries.in, accounts@jasviindustries.in" styleClass="approved-input"/>
+                </VBox>
+            </VBox>
+        </GridPane>
+
+        <!-- Multi-Cadence Frequency Selection (iPhone-Style iOS Switches) -->
+        <VBox spacing="8" styleClass="settings-subcard-nested">
+            <Label text="Automated Schedule Cadences (Runs at 8:00 PM IST on Scheduled Days):" styleClass="settings-field-label,bold-label"/>
+            <GridPane hgap="20" vgap="10">
+                <columnConstraints>
+                    <ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/>
+                    <ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/>
+                    <ColumnConstraints percentWidth="33.33" hgrow="ALWAYS"/>
+                </columnConstraints>
+                <HBox spacing="8" alignment="CENTER_LEFT" GridPane.columnIndex="0" GridPane.rowIndex="0">
+                    <CheckBox fx:id="chkCadenceDaily" text="Daily (8:00 PM)" styleClass="approved-checkbox,ios-toggle-switch"/>
+                </HBox>
+                <HBox spacing="8" alignment="CENTER_LEFT" GridPane.columnIndex="1" GridPane.rowIndex="0">
+                    <CheckBox fx:id="chkCadenceWeekly" text="Weekly (Sundays)" styleClass="approved-checkbox,ios-toggle-switch"/>
+                </HBox>
+                <HBox spacing="8" alignment="CENTER_LEFT" GridPane.columnIndex="2" GridPane.rowIndex="0">
+                    <CheckBox fx:id="chkCadenceMonthly" text="Monthly (Month-End)" styleClass="approved-checkbox,ios-toggle-switch"/>
+                </HBox>
+                <HBox spacing="8" alignment="CENTER_LEFT" GridPane.columnIndex="0" GridPane.rowIndex="1">
+                    <CheckBox fx:id="chkCadenceQuarterly" text="Quarterly (Quarter-End)" styleClass="approved-checkbox,ios-toggle-switch"/>
+                </HBox>
+                <HBox spacing="8" alignment="CENTER_LEFT" GridPane.columnIndex="1" GridPane.rowIndex="1">
+                    <CheckBox fx:id="chkCadenceHalfYearly" text="Half-Yearly (H1/H2)" styleClass="approved-checkbox,ios-toggle-switch"/>
+                </HBox>
+                <HBox spacing="8" alignment="CENTER_LEFT" GridPane.columnIndex="2" GridPane.rowIndex="1">
+                    <CheckBox fx:id="chkCadenceYearly" text="Yearly (Annual)" styleClass="approved-checkbox,ios-toggle-switch"/>
+                </HBox>
+            </GridPane>
+        </VBox>
+
+        <!-- Annual Fiscal Period & Portal Configuration -->
+        <GridPane hgap="16" vgap="10">
+            <columnConstraints>
+                <ColumnConstraints percentWidth="35" hgrow="ALWAYS"/>
+                <ColumnConstraints percentWidth="30" hgrow="ALWAYS"/>
+                <ColumnConstraints percentWidth="35" hgrow="ALWAYS"/>
+            </columnConstraints>
+            <VBox spacing="2" GridPane.columnIndex="0" GridPane.rowIndex="0">
+                <Label text="Annual Reporting Cycle:" styleClass="settings-field-label"/>
+                <ComboBox fx:id="cmbBriefingPeriodMode" maxWidth="Infinity" styleClass="approved-combobox"/>
+            </VBox>
+            <VBox fx:id="vboxCustomPeriodStart" spacing="2" GridPane.columnIndex="1" GridPane.rowIndex="0">
+                <Label text="Custom Cycle Start Month &amp; Day:" styleClass="settings-field-label"/>
+                <ComboBox fx:id="cmbBriefingCustomStart" maxWidth="Infinity" styleClass="approved-combobox"/>
+            </VBox>
+            <VBox spacing="2" GridPane.columnIndex="2" GridPane.rowIndex="0">
+                <Label text="Web Portal URL (Optional White-Label):" styleClass="settings-field-label"/>
+                <TextField fx:id="txtBriefingPortalUrl" promptText="e.g. https://erp.jasviindustries.in" styleClass="approved-input"/>
+            </VBox>
+        </GridPane>
+        <Label fx:id="lblActivePeriodNotice" text="Active Annual Period: 01 April to 31 March (Standard Indian Financial Year)" styleClass="settings-field-hint,bold-label"/>
+
+        <VBox spacing="4" styleClass="settings-impact-box">
+            <HBox spacing="8" alignment="TOP_LEFT" styleClass="settings-impact-row">
+                <Label text="SCHEDULE" minWidth="-Infinity" styleClass="settings-impact-tag-on"/>
+                <Label text="Runs automatically at 8:00 PM IST on designated days (Daily, Sundays for Weekly, Month-End for Monthly, Quarter-End, Half-Year End, and Fiscal Year-End). Compiles gross sales, purchases, customer collections, vendor payments, net cash flow, bank balances, and overdue accounts." wrapText="true" HBox.hgrow="ALWAYS" styleClass="settings-impact-text"/>
+            </HBox>
+            <HBox spacing="8" alignment="TOP_LEFT" styleClass="settings-impact-row">
+                <Label text="AUDIT TRACE" minWidth="-Infinity" styleClass="settings-impact-tag-scope"/>
+                <Label text="All dispatched briefings log directly to Communication Center with delivery status (SENT / FAILED). Use 'Send Test Briefing' with your desired cadence to verify multi-user delivery instantly." wrapText="true" HBox.hgrow="ALWAYS" styleClass="settings-impact-text"/>
+            </HBox>
+        </VBox>
     </VBox>
 
     <Separator/>
@@ -98,7 +206,14 @@
                 <Label text="Multi-Warehouse, Batch/Expiry (FEFO) &amp; Serial Registry" styleClass="settings-form-label,bold-label"/>
                 <Label text="Track stock across multiple storage depots, enforce First-Expired First-Out dispatches, and track equipment serial warranties." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkBatchSerialTracking" text="Enable Batch/Serial Tracking" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <HBox spacing="10" alignment="CENTER_RIGHT">
+                <Button fx:id="btnGuideBatchSerial" contentDisplay="GRAPHIC_ONLY" onAction="#showBatchSerialGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
+                    <graphic>
+                        <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                    </graphic>
+                </Button>
+                <CheckBox fx:id="chkBatchSerialTracking" text="Enable Batch/Serial Tracking" styleClass="approved-checkbox,ios-toggle-switch"/>
+            </HBox>
         </HBox>
     </VBox>
 
@@ -111,7 +226,14 @@
                 <Label text="Smart Overdue Collections &amp; Statement Dispatch" styleClass="settings-form-label,bold-label"/>
                 <Label text="Send real WhatsApp &amp; Email payment reminders with auto-generated Branded Party Aging Statement PDFs directly from Aging Analysis." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkCollectionsEnabled" text="Enable Collections Dispatch" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <HBox spacing="10" alignment="CENTER_RIGHT">
+                <Button fx:id="btnGuideCollections" contentDisplay="GRAPHIC_ONLY" onAction="#showCollectionsGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
+                    <graphic>
+                        <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                    </graphic>
+                </Button>
+                <CheckBox fx:id="chkCollectionsEnabled" text="Enable Collections Dispatch" styleClass="approved-checkbox,ios-toggle-switch"/>
+            </HBox>
         </HBox>
         <HBox spacing="20" alignment="CENTER_LEFT">
             <CheckBox fx:id="chkCollectionsWhatsapp" text="WhatsApp Dispatch (WAHA)" styleClass="approved-checkbox,ios-toggle-switch"/>
@@ -145,7 +267,14 @@
                 <Label text="Bank Statement Smart Narration Auto-Rules Engine" styleClass="settings-form-label,bold-label"/>
                 <Label text="Learn recurring bank narrations (rent, UPI handles, payment gateways, bank charges) to auto-suggest or auto-route future statement imports." wrapText="true" styleClass="settings-field-hint"/>
             </VBox>
-            <CheckBox fx:id="chkBankRulesEnabled" text="Enable Smart Bank Rules" styleClass="approved-checkbox,ios-toggle-switch"/>
+            <HBox spacing="10" alignment="CENTER_RIGHT">
+                <Button fx:id="btnGuideBankRules" contentDisplay="GRAPHIC_ONLY" onAction="#showBankRulesGuide" styleClass="settings-action-button,settings-secondary-button,erp-screen-guide-button">
+                    <graphic>
+                        <SVGPath content="M11 9h2V7h-2v2zm1 11c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6z" styleClass="settings-button-icon"/>
+                    </graphic>
+                </Button>
+                <CheckBox fx:id="chkBankRulesEnabled" text="Enable Smart Bank Rules" styleClass="approved-checkbox,ios-toggle-switch"/>
+            </HBox>
         </HBox>
         <HBox spacing="20" alignment="CENTER_LEFT">
             <CheckBox fx:id="chkBankRulesSuggestOnImport" text="Auto-Suggest Matches on Import" styleClass="approved-checkbox,ios-toggle-switch"/>

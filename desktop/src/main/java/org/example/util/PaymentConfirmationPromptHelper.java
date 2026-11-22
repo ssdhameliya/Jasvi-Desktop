@@ -392,8 +392,11 @@ public final class PaymentConfirmationPromptHelper {
 
             String statusBadge = balance <= 0.009 ? "PAID" : "PARTIAL";
 
-            String customerEmail = sale.getCustomer() != null && sale.getCustomer().getEmail() != null ? sale.getCustomer().getEmail().trim() : "";
-            String customerPhone = sale.getCustomer() != null && sale.getCustomer().getPhone() != null ? sale.getCustomer().getPhone().trim() : "";
+            String fallbackEmail = sale.getCustomer() != null && sale.getCustomer().getEmail() != null ? sale.getCustomer().getEmail().trim() : "";
+            String fallbackPhone = sale.getCustomer() != null && sale.getCustomer().getPhone() != null ? sale.getCustomer().getPhone().trim() : "";
+            var resolvedRecipients = PartyRecipientResolver.resolveCustomer(sale.getCustomer() != null ? sale.getCustomer().getId() : 0, fallbackEmail, fallbackPhone);
+            String customerEmail = resolvedRecipients.emailString().isBlank() ? fallbackEmail : resolvedRecipients.emailString();
+            String customerPhone = resolvedRecipients.phoneString().isBlank() ? fallbackPhone : resolvedRecipients.phoneString();
 
             Integer primaryPaymentId = (paymentIds != null && !paymentIds.isEmpty()) ? paymentIds.getFirst() : null;
 
@@ -526,8 +529,11 @@ public final class PaymentConfirmationPromptHelper {
 
             String statusBadge = balance <= 0.009 ? "SETTLED" : "PARTIAL";
 
-            String supplierEmail = purchase.getSupplier() != null && purchase.getSupplier().getEmail() != null ? purchase.getSupplier().getEmail().trim() : "";
-            String supplierPhone = purchase.getSupplier() != null && purchase.getSupplier().getPhone() != null ? purchase.getSupplier().getPhone().trim() : "";
+            String fallbackEmail = purchase.getSupplier() != null && purchase.getSupplier().getEmail() != null ? purchase.getSupplier().getEmail().trim() : "";
+            String fallbackPhone = purchase.getSupplier() != null && purchase.getSupplier().getPhone() != null ? purchase.getSupplier().getPhone().trim() : "";
+            var resolvedRecipients = PartyRecipientResolver.resolveSupplier(purchase.getSupplier() != null ? purchase.getSupplier().getId() : 0, fallbackEmail, fallbackPhone);
+            String supplierEmail = resolvedRecipients.emailString().isBlank() ? fallbackEmail : resolvedRecipients.emailString();
+            String supplierPhone = resolvedRecipients.phoneString().isBlank() ? fallbackPhone : resolvedRecipients.phoneString();
 
             Integer primaryPaymentId = (paymentIds != null && !paymentIds.isEmpty()) ? paymentIds.getFirst() : null;
 

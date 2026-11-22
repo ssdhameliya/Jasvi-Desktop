@@ -297,6 +297,7 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private ToggleButton tglPromptBankMatch;
     @FXML private Label lblPromptBankMatchInfo;
     @FXML private TextField txtWahaEndpoint;
+    @FXML private TextField txtWhatsappDisconnectedMessage;
     @FXML private PasswordField txtWahaApiKey;
     @FXML private CheckBox chkWahaEnabled;
     @FXML private ComboBox<String> cmbActiveWhatsappSender;
@@ -566,7 +567,22 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private CheckBox chkDailyBriefing;
     @FXML private CheckBox chkBriefingWa;
     @FXML private CheckBox chkBriefingEmail;
+    @FXML private VBox vboxBriefingPhone;
+    @FXML private VBox vboxBriefingEmail;
     @FXML private TextField txtBriefingPhone;
+    @FXML private TextField txtBriefingEmails;
+    @FXML private CheckBox chkCadenceDaily;
+    @FXML private CheckBox chkCadenceWeekly;
+    @FXML private CheckBox chkCadenceMonthly;
+    @FXML private CheckBox chkCadenceQuarterly;
+    @FXML private CheckBox chkCadenceHalfYearly;
+    @FXML private CheckBox chkCadenceYearly;
+    @FXML private ComboBox<String> cmbBriefingPeriodMode;
+    @FXML private VBox vboxCustomPeriodStart;
+    @FXML private ComboBox<String> cmbBriefingCustomStart;
+    @FXML private Label lblActivePeriodNotice;
+    @FXML private TextField txtBriefingPortalUrl;
+    @FXML private Button btnTestBriefing;
     @FXML private CheckBox chkBatchSerialTracking;
     @FXML private CheckBox chkCollectionsEnabled;
     @FXML private CheckBox chkCollectionsWhatsapp;
@@ -577,6 +593,13 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private CheckBox chkBankRulesSuggestOnImport;
     @FXML private CheckBox chkBankRulesAutoApplyOnImport;
     @FXML private CheckBox chkBankRulesPromptSave;
+    @FXML private Button btnGuideGl;
+    @FXML private Button btnGuideGst;
+    @FXML private Button btnGuideAutomations;
+    @FXML private Button btnGuideBriefing;
+    @FXML private Button btnGuideBatchSerial;
+    @FXML private Button btnGuideCollections;
+    @FXML private Button btnGuideBankRules;
 
     /* =========================================================
        CONFIGURATION KEYS
@@ -881,7 +904,8 @@ public class SettingsController implements ScreenLifecycle {
                     ConfigManager.get("whatsapp.active_sender_number", ""),
                     ConfigManager.get("whatsapp.channel.sales_name", ""),
                     ConfigManager.get("whatsapp.channel.purchase_name", ""),
-                    ConfigManager.get("whatsapp.channel.quotation_name", ""));
+                    ConfigManager.get("whatsapp.channel.quotation_name", ""),
+                    ConfigManager.get("whatsapp.waha.disconnected_message", ""));
             default -> null;
         };
     }
@@ -1000,6 +1024,7 @@ public class SettingsController implements ScreenLifecycle {
             case WHATSAPP -> {
                 WhatsappSettingsSnapshot value = (WhatsappSettingsSnapshot) snapshot;
                 if (txtWahaEndpoint != null) txtWahaEndpoint.setText(value.wahaEndpoint());
+                if (txtWhatsappDisconnectedMessage != null) txtWhatsappDisconnectedMessage.setText(value.disconnectedMessage());
                 if (chkWahaEnabled != null) chkWahaEnabled.setSelected(value.wahaEnabled());
                 if (cmbActiveWhatsappSender != null) selectComboValue(cmbActiveWhatsappSender, value.activeSender());
                 if (cmbWhatsappSalesChannel != null) selectComboValue(cmbWhatsappSalesChannel, value.salesChannel());
@@ -1029,7 +1054,8 @@ public class SettingsController implements ScreenLifecycle {
                                            String terms, String currency, String timeZone, String dateFormat, String timeFormat) { }
     private record EmailSettingsSnapshot(String email, String password, String host, String port, boolean passwordConfigured, boolean editable, String wahaEndpoint, boolean wahaEnabled) { }
     private record WhatsappSettingsSnapshot(String wahaEndpoint, boolean wahaEnabled, String activeSender,
-                                            String salesChannel, String purchaseChannel, String quotationChannel) { }
+                                            String salesChannel, String purchaseChannel, String quotationChannel,
+                                            String disconnectedMessage) { }
     private record SecuritySettingsSnapshot(String timeout, String warning, String mfaPolicy, String wahaEndpoint, boolean wahaEnabled, String activeSender) { }
     private record StorageRetentionSnapshot(String logs, String reports, String exports, String diagnostics, String importResults,
                                             String temp, boolean compressOldLogs) { }
@@ -3402,9 +3428,12 @@ private record AssetPreviewRequest(
                 String ep = txtWahaEndpoint != null && txtWahaEndpoint.getText() != null && !txtWahaEndpoint.getText().isBlank() ? txtWahaEndpoint.getText().trim() : "http://localhost:3000";
                 if (!ep.startsWith("http://") && !ep.startsWith("https://")) ep = "http://" + ep;
                 boolean on = chkWahaEnabled != null && chkWahaEnabled.isSelected();
+                String discMsg = txtWhatsappDisconnectedMessage != null && txtWhatsappDisconnectedMessage.getText() != null ? txtWhatsappDisconnectedMessage.getText().trim() : "";
+                putSetting("whatsapp.waha.disconnected_message", discMsg);
+                ConfigManager.setWithoutSaving("whatsapp.waha.disconnected_message", discMsg);
                 var api = new org.example.api.whatsapp.BusinessWhatsappApiClient();
                 api.saveSettings(
-                    new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, "", on, null)
+                    new org.example.api.whatsapp.BusinessWhatsappApiClient.WahaSettingsDto(ep, "", on, null, discMsg)
                 );
                 // Also persist department routing mappings to server
                 var channels = api.listChannels();
@@ -4822,6 +4851,14 @@ private record AssetPreviewRequest(
         org.example.util.ScreenGuidanceManager.showGuidance(btnSectionGuide != null ? btnSectionGuide : settingsPageHeader, key);
     }
 
+    @FXML private void showGlGuide() { org.example.util.ScreenGuidanceManager.showGuidance(btnGuideGl != null ? btnGuideGl : settingsPageHeader, "SETTINGS_MODULES_GL"); }
+    @FXML private void showGstGuide() { org.example.util.ScreenGuidanceManager.showGuidance(btnGuideGst != null ? btnGuideGst : settingsPageHeader, "SETTINGS_MODULES_GST"); }
+    @FXML private void showAutomationsGuide() { org.example.util.ScreenGuidanceManager.showGuidance(btnGuideAutomations != null ? btnGuideAutomations : settingsPageHeader, "SETTINGS_MODULES_AUTOMATIONS"); }
+    @FXML private void showBriefingGuide() { org.example.util.ScreenGuidanceManager.showGuidance(btnGuideBriefing != null ? btnGuideBriefing : settingsPageHeader, "SETTINGS_MODULES_BRIEFING"); }
+    @FXML private void showBatchSerialGuide() { org.example.util.ScreenGuidanceManager.showGuidance(btnGuideBatchSerial != null ? btnGuideBatchSerial : settingsPageHeader, "SETTINGS_MODULES_BATCH_SERIAL"); }
+    @FXML private void showCollectionsGuide() { org.example.util.ScreenGuidanceManager.showGuidance(btnGuideCollections != null ? btnGuideCollections : settingsPageHeader, "SETTINGS_MODULES_COLLECTIONS"); }
+    @FXML private void showBankRulesGuide() { org.example.util.ScreenGuidanceManager.showGuidance(btnGuideBankRules != null ? btnGuideBankRules : settingsPageHeader, "SETTINGS_MODULES_BANK_RULES"); }
+
     /* =========================================================
        EMAIL TEST
        ========================================================= */
@@ -5112,6 +5149,110 @@ private record AssetPreviewRequest(
         if (chkBriefingWa != null) chkBriefingWa.setSelected(ConfigManager.getBoolean("module.briefing.whatsapp", true));
         if (chkBriefingEmail != null) chkBriefingEmail.setSelected(ConfigManager.getBoolean("module.briefing.email", true));
         if (txtBriefingPhone != null) txtBriefingPhone.setText(ConfigManager.get("module.briefing.phone", ""));
+        if (txtBriefingEmails != null) txtBriefingEmails.setText(ConfigManager.get("module.briefing.emails", ""));
+
+        if (txtBriefingPhone != null && vboxBriefingPhone != null && !Boolean.TRUE.equals(txtBriefingPhone.getProperties().get("chipbox.attached"))) {
+            txtBriefingPhone.getProperties().put("chipbox.attached", Boolean.TRUE);
+            org.example.util.RecipientChipBox.attach(vboxBriefingPhone, txtBriefingPhone, org.example.util.RecipientChipBox.ChannelType.WHATSAPP);
+        }
+        if (txtBriefingEmails != null && vboxBriefingEmail != null && !Boolean.TRUE.equals(txtBriefingEmails.getProperties().get("chipbox.attached"))) {
+            txtBriefingEmails.getProperties().put("chipbox.attached", Boolean.TRUE);
+            org.example.util.RecipientChipBox.attach(vboxBriefingEmail, txtBriefingEmails, org.example.util.RecipientChipBox.ChannelType.EMAIL);
+        }
+
+        if (chkCadenceDaily != null) chkCadenceDaily.setGraphic(IconFactory.compactIcon("calendar", 14));
+        if (chkCadenceWeekly != null) chkCadenceWeekly.setGraphic(IconFactory.compactIcon("clock", 14));
+        if (chkCadenceMonthly != null) chkCadenceMonthly.setGraphic(IconFactory.compactIcon("document", 14));
+        if (chkCadenceQuarterly != null) chkCadenceQuarterly.setGraphic(IconFactory.compactIcon("analytics", 14));
+        if (chkCadenceHalfYearly != null) chkCadenceHalfYearly.setGraphic(IconFactory.compactIcon("reports", 14));
+        if (chkCadenceYearly != null) chkCadenceYearly.setGraphic(IconFactory.compactIcon("finance", 14));
+
+        String cadences = ConfigManager.get("module.briefing.cadences", "DAILY").toUpperCase(Locale.ROOT);
+        if (chkCadenceDaily != null) chkCadenceDaily.setSelected(cadences.contains("DAILY"));
+        if (chkCadenceWeekly != null) chkCadenceWeekly.setSelected(cadences.contains("WEEKLY"));
+        if (chkCadenceMonthly != null) chkCadenceMonthly.setSelected(cadences.contains("MONTHLY"));
+        if (chkCadenceQuarterly != null) chkCadenceQuarterly.setSelected(cadences.contains("QUARTERLY"));
+        if (chkCadenceHalfYearly != null) chkCadenceHalfYearly.setSelected(cadences.contains("HALF_YEARLY"));
+        if (chkCadenceYearly != null) chkCadenceYearly.setSelected(cadences.contains("YEARLY"));
+
+        if (cmbBriefingPeriodMode != null && cmbBriefingPeriodMode.getItems().isEmpty()) {
+            cmbBriefingPeriodMode.getItems().setAll(
+                    "Standard Indian Financial Year (01 April – 31 March)",
+                    "Custom 12-Month Period (Start Date + 12 Months)"
+            );
+        }
+        String periodMode = ConfigManager.get("module.briefing.period.mode", "INDIAN_FY");
+        if (cmbBriefingPeriodMode != null) {
+            cmbBriefingPeriodMode.setValue("CUSTOM_12M".equalsIgnoreCase(periodMode)
+                    ? "Custom 12-Month Period (Start Date + 12 Months)"
+                    : "Standard Indian Financial Year (01 April – 31 March)");
+        }
+
+        if (cmbBriefingCustomStart != null && cmbBriefingCustomStart.getItems().isEmpty()) {
+            cmbBriefingCustomStart.getItems().setAll(
+                    "01 January (Calendar Year)",
+                    "01 February",
+                    "01 March",
+                    "01 April (Standard Indian FY)",
+                    "01 May",
+                    "01 June",
+                    "01 July",
+                    "01 August",
+                    "01 September",
+                    "01 October",
+                    "01 November (Diwali / Samvat)",
+                    "01 December"
+            );
+        }
+        String customStart = ConfigManager.get("module.briefing.period.custom_start", "11-01");
+        if (cmbBriefingCustomStart != null) {
+            cmbBriefingCustomStart.setValue(switch (customStart) {
+                case "01-01" -> "01 January (Calendar Year)";
+                case "02-01" -> "01 February";
+                case "03-01" -> "01 March";
+                case "04-01" -> "01 April (Standard Indian FY)";
+                case "05-01" -> "01 May";
+                case "06-01" -> "01 June";
+                case "07-01" -> "01 July";
+                case "08-01" -> "01 August";
+                case "09-01" -> "01 September";
+                case "10-01" -> "01 October";
+                case "12-01" -> "01 December";
+                default -> "01 November (Diwali / Samvat)";
+            });
+        }
+
+        Runnable updatePeriodNotice = () -> {
+            boolean isCustom = cmbBriefingPeriodMode != null && cmbBriefingPeriodMode.getValue() != null
+                    && cmbBriefingPeriodMode.getValue().startsWith("Custom");
+            if (vboxCustomPeriodStart != null) {
+                vboxCustomPeriodStart.setVisible(isCustom);
+                vboxCustomPeriodStart.setManaged(isCustom);
+            }
+            if (lblActivePeriodNotice != null) {
+                if (isCustom) {
+                    String sel = cmbBriefingCustomStart != null && cmbBriefingCustomStart.getValue() != null
+                            ? cmbBriefingCustomStart.getValue() : "01 November";
+                    String startDesc = sel.contains("(") ? sel.substring(0, sel.indexOf("(")).trim() : sel;
+                    lblActivePeriodNotice.setText("Active Annual Period: Custom 12-Month Cycle Starting " + startDesc + " (+12 Months)");
+                } else {
+                    lblActivePeriodNotice.setText("Active Annual Period: 01 April to 31 March (Standard Indian Financial Year)");
+                }
+            }
+        };
+        if (cmbBriefingPeriodMode != null && !Boolean.TRUE.equals(cmbBriefingPeriodMode.getProperties().get("sub.bound"))) {
+            cmbBriefingPeriodMode.getProperties().put("sub.bound", Boolean.TRUE);
+            cmbBriefingPeriodMode.valueProperty().addListener((o, oldV, newV) -> updatePeriodNotice.run());
+        }
+        if (cmbBriefingCustomStart != null && !Boolean.TRUE.equals(cmbBriefingCustomStart.getProperties().get("sub.bound"))) {
+            cmbBriefingCustomStart.getProperties().put("sub.bound", Boolean.TRUE);
+            cmbBriefingCustomStart.valueProperty().addListener((o, oldV, newV) -> updatePeriodNotice.run());
+        }
+        updatePeriodNotice.run();
+
+        if (txtBriefingPortalUrl != null) {
+            txtBriefingPortalUrl.setText(ConfigManager.get("company.publicPortalUrl", ""));
+        }
         if (chkBatchSerialTracking != null) chkBatchSerialTracking.setSelected(ConfigManager.getBoolean("module.inventory.batchSerialTracking", true));
 
         if (cmbCollectionsCooldownHours != null && cmbCollectionsCooldownHours.getItems().isEmpty()) {
@@ -5134,7 +5275,36 @@ private record AssetPreviewRequest(
         if (chkBankRulesAutoApplyOnImport != null) chkBankRulesAutoApplyOnImport.setSelected(ConfigManager.getBoolean("module.bankRules.autoApplyOnImport", false));
         if (chkBankRulesPromptSave != null) chkBankRulesPromptSave.setSelected(ConfigManager.getBoolean("module.bankRules.promptSaveOnAction", true));
 
+        setupModuleGuideButtonsAndTooltips();
         bindModuleSubToggleStates();
+    }
+
+    private void setupModuleGuideButtonsAndTooltips() {
+        setupModuleGuideButton(btnGuideGl, "Operational guidance for General Ledger & Accounting");
+        setupModuleGuideButton(btnGuideGst, "Operational guidance for GST Compliance & GSTR-2B");
+        setupModuleGuideButton(btnGuideAutomations, "Operational guidance for Smart Automations Suite");
+        setupModuleGuideButton(btnGuideBriefing, "Operational guidance for Executive Daily Briefing");
+        setupModuleGuideButton(btnGuideBatchSerial, "Operational guidance for Warehouse, Batch & Serial Registry");
+        setupModuleGuideButton(btnGuideCollections, "Operational guidance for Overdue Collections & Aging Dispatch");
+        setupModuleGuideButton(btnGuideBankRules, "Operational guidance for Bank Statement Smart Rules");
+
+        if (chkGlAutoPost != null) chkGlAutoPost.setTooltip(new Tooltip("Auto-posts Dr/Cr Journal Vouchers on invoice creation.\nExample: Tax Invoice ₹1,18,000 auto-posts Dr. Customer ₹1,18,000 | Cr. Sales ₹1,00,000 | Cr. GST ₹18,000."));
+        if (chkGlTrialBalance != null) chkGlTrialBalance.setTooltip(new Tooltip("Maintains live real-time Trial Balance debit/credit equality.\nExample: Every voucher immediately recalculates ledger balances for instant export."));
+        if (chkGstAuto2bMatch != null) chkGstAuto2bMatch.setTooltip(new Tooltip("Auto-reconciles Purchase Bills against government GSTR-2B JSON.\nExample: Fuzzy-matches GSTIN, bill no, and tax amounts within ₹1 tolerance."));
+        if (chkGstPosGating != null) chkGstPosGating.setTooltip(new Tooltip("Strict Place of Supply tax determination gating.\nExample: Blocks IGST on intra-state customer GSTINs to prevent audit penalties."));
+        if (chkTdsEnabled != null) chkTdsEnabled.setTooltip(new Tooltip("Section 194Q & 206C TDS/TCS auto-withholding.\nExample: Deducts 0.1% TDS on cumulative vendor purchases exceeding ₹50 Lakhs in FY."));
+        if (chkThreeWayMatch != null) chkThreeWayMatch.setTooltip(new Tooltip("Smart 3-way matching between PO, GRN, and Purchase Bill.\nExample: Flags quantity variances (short goods) and price hikes before payment authorization."));
+        if (chkAutoDraftDebitNote != null) chkAutoDraftDebitNote.setTooltip(new Tooltip("Auto-drafts debit note for short shipments or damaged items.\nExample: PO 50 units, GRN 45 units -> drafts ₹2,500 Debit Note for 5 missing units."));
+        if (chkStockAutoReorder != null) chkStockAutoReorder.setTooltip(new Tooltip("Dynamic safety stock monitoring with reorder alerts.\nExample: Stock reaches 28 units (7-day buffer) -> triggers dashboard alert and draft PO."));
+        if (chkCreditHardStop != null) chkCreditHardStop.setTooltip(new Tooltip("Blocks sales invoicing when customer has overdue bills or exceeds credit limit.\nExample: Overdue bill of ₹1,15,000 pending > 30 days -> F9 invoice creation is hard-blocked."));
+    }
+
+    private void setupModuleGuideButton(Button btn, String tip) {
+        if (btn == null) return;
+        btn.setText("");
+        btn.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+        btn.setTooltip(new Tooltip(tip));
+        btn.setAccessibleText(tip);
     }
 
     private void bindModuleSubToggleStates() {
@@ -5204,6 +5374,39 @@ private record AssetPreviewRequest(
         if (chkBriefingWa != null) putSetting("module.briefing.whatsapp", String.valueOf(chkBriefingWa.isSelected()));
         if (chkBriefingEmail != null) putSetting("module.briefing.email", String.valueOf(chkBriefingEmail.isSelected()));
         if (txtBriefingPhone != null) putSetting("module.briefing.phone", text(txtBriefingPhone));
+        if (txtBriefingEmails != null) putSetting("module.briefing.emails", text(txtBriefingEmails));
+
+        List<String> activeCadences = new ArrayList<>();
+        if (chkCadenceDaily != null && chkCadenceDaily.isSelected()) activeCadences.add("DAILY");
+        if (chkCadenceWeekly != null && chkCadenceWeekly.isSelected()) activeCadences.add("WEEKLY");
+        if (chkCadenceMonthly != null && chkCadenceMonthly.isSelected()) activeCadences.add("MONTHLY");
+        if (chkCadenceQuarterly != null && chkCadenceQuarterly.isSelected()) activeCadences.add("QUARTERLY");
+        if (chkCadenceHalfYearly != null && chkCadenceHalfYearly.isSelected()) activeCadences.add("HALF_YEARLY");
+        if (chkCadenceYearly != null && chkCadenceYearly.isSelected()) activeCadences.add("YEARLY");
+        putSetting("module.briefing.cadences", activeCadences.isEmpty() ? "DAILY" : String.join(",", activeCadences));
+
+        if (cmbBriefingPeriodMode != null && cmbBriefingPeriodMode.getValue() != null) {
+            boolean isCustom = cmbBriefingPeriodMode.getValue().startsWith("Custom");
+            putSetting("module.briefing.period.mode", isCustom ? "CUSTOM_12M" : "INDIAN_FY");
+        }
+        if (cmbBriefingCustomStart != null && cmbBriefingCustomStart.getValue() != null) {
+            String val = cmbBriefingCustomStart.getValue();
+            String code = val.startsWith("01 Jan") ? "01-01"
+                    : (val.startsWith("01 Feb") ? "02-01"
+                    : (val.startsWith("01 Mar") ? "03-01"
+                    : (val.startsWith("01 Apr") ? "04-01"
+                    : (val.startsWith("01 May") ? "05-01"
+                    : (val.startsWith("01 Jun") ? "06-01"
+                    : (val.startsWith("01 Jul") ? "07-01"
+                    : (val.startsWith("01 Aug") ? "08-01"
+                    : (val.startsWith("01 Sep") ? "09-01"
+                    : (val.startsWith("01 Oct") ? "10-01"
+                    : (val.startsWith("01 Dec") ? "12-01" : "11-01"))))))))));
+            putSetting("module.briefing.period.custom_start", code);
+        }
+        if (txtBriefingPortalUrl != null) {
+            putSetting("company.publicPortalUrl", text(txtBriefingPortalUrl));
+        }
         if (chkBatchSerialTracking != null) putSetting("module.inventory.batchSerialTracking", String.valueOf(chkBatchSerialTracking.isSelected()));
         if (chkCollectionsEnabled != null) putSetting("module.collections.enabled", String.valueOf(chkCollectionsEnabled.isSelected()));
         if (chkCollectionsWhatsapp != null) putSetting("module.collections.whatsapp", String.valueOf(chkCollectionsWhatsapp.isSelected()));
@@ -5218,6 +5421,43 @@ private record AssetPreviewRequest(
         if (chkBankRulesSuggestOnImport != null) putSetting("module.bankRules.suggestOnImport", String.valueOf(chkBankRulesSuggestOnImport.isSelected()));
         if (chkBankRulesAutoApplyOnImport != null) putSetting("module.bankRules.autoApplyOnImport", String.valueOf(chkBankRulesAutoApplyOnImport.isSelected()));
         if (chkBankRulesPromptSave != null) putSetting("module.bankRules.promptSaveOnAction", String.valueOf(chkBankRulesPromptSave.isSelected()));
+    }
+
+    @FXML private void testExecutiveBriefingNow() {
+        saveModulesSettings();
+        String cadence = "DAILY";
+        if (chkCadenceDaily != null && chkCadenceDaily.isSelected()) {
+            cadence = "DAILY";
+        } else if (chkCadenceWeekly != null && chkCadenceWeekly.isSelected()) {
+            cadence = "WEEKLY";
+        } else if (chkCadenceMonthly != null && chkCadenceMonthly.isSelected()) {
+            cadence = "MONTHLY";
+        } else if (chkCadenceQuarterly != null && chkCadenceQuarterly.isSelected()) {
+            cadence = "QUARTERLY";
+        } else if (chkCadenceHalfYearly != null && chkCadenceHalfYearly.isSelected()) {
+            cadence = "HALF_YEARLY";
+        } else if (chkCadenceYearly != null && chkCadenceYearly.isSelected()) {
+            cadence = "YEARLY";
+        }
+        final String targetCadence = cadence;
+        if (btnTestBriefing != null) btnTestBriefing.setDisable(true);
+        org.example.util.UiTaskExecutor.submitAction(
+                "executive-briefing-test",
+                () -> new org.example.api.support.SupportApiClient().triggerExecutiveBriefing(true, targetCadence),
+                res -> {
+                    if (btnTestBriefing != null) btnTestBriefing.setDisable(false);
+                    if (res != null && res.success()) {
+                        new OwnedAlert(Alert.AlertType.INFORMATION, "Executive Briefing (" + targetCadence + ") Test Dispatched!\n\n" + res.message(), ButtonType.OK).showAndWait();
+                    } else {
+                        String msg = res != null ? res.message() : "Unknown response from server";
+                        new OwnedAlert(Alert.AlertType.WARNING, "Executive Briefing Test Result:\n\n" + msg, ButtonType.OK).showAndWait();
+                    }
+                },
+                err -> {
+                    if (btnTestBriefing != null) btnTestBriefing.setDisable(false);
+                    new OwnedAlert(Alert.AlertType.ERROR, "Failed to dispatch executive briefing:\n\n" + err.getMessage(), ButtonType.OK).showAndWait();
+                }
+        );
     }
 
 

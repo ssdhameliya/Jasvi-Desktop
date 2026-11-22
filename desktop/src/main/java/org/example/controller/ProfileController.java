@@ -16,10 +16,11 @@ import java.util.Locale;
 
 public class ProfileController implements ScreenLifecycle {
     @FXML private Label lblInitials,lblName,lblRole,lblStatus,lblUsername,lblAccessLevel,lblLastLogin,lblMfa;
-    @FXML private TextField txtFullName,txtEmail,txtDepartment,txtBranch;
+    @FXML private TextField txtFullName,txtEmail,txtPhone,txtDepartment,txtBranch;
     @FXML private PasswordField txtCurrentPassword,txtNewPassword,txtConfirmPassword;
     @FXML private Button btnSave,btnPassword;
     private final ProfileApiClient api=new ProfileApiClient();
+    private final String taskKey = "profile-load-" + System.identityHashCode(this);
     private long rowVersion;
 
     @FXML public void initialize(){
@@ -27,13 +28,21 @@ public class ProfileController implements ScreenLifecycle {
         loadProfile();
     }
 
+    @Override
+    public void onScreenShown(boolean reusedFromCache) {
+        if (reusedFromCache || (txtFullName != null && (txtFullName.getText() == null || txtFullName.getText().isBlank()))) {
+            loadProfile();
+        }
+    }
+
     private void loadProfile(){
-        UiTaskExecutor.submitLatest("profile-load",api::current,p->{apply(p);setProfileEditingDisabled(false);org.example.navigation.UnsavedChangesManager.markClean(btnSave);},ex->{setProfileEditingDisabled(true);show(Alert.AlertType.ERROR,"Profile could not be loaded",ex.getMessage());});
+        UiTaskExecutor.submitLatest(taskKey,api::current,p->{apply(p);setProfileEditingDisabled(false);org.example.navigation.UnsavedChangesManager.markClean(btnSave);},ex->{setProfileEditingDisabled(true);show(Alert.AlertType.ERROR,"Profile could not be loaded",ex.getMessage());});
     }
 
     private void setProfileEditingDisabled(boolean disabled){
         if(txtFullName!=null)txtFullName.setDisable(disabled);
         if(txtEmail!=null)txtEmail.setDisable(disabled);
+        if(txtPhone!=null)txtPhone.setDisable(disabled);
         if(txtDepartment!=null)txtDepartment.setDisable(disabled);
         if(txtBranch!=null)txtBranch.setDisable(disabled);
         if(btnSave!=null)btnSave.setDisable(disabled);
@@ -41,20 +50,21 @@ public class ProfileController implements ScreenLifecycle {
 
     private void apply(ProfileApiClient.ProfileDto p){
         rowVersion=p.rowVersion();
-        txtFullName.setText(safe(p.fullName()));txtEmail.setText(safe(p.email()));txtDepartment.setText(safe(p.department()));txtBranch.setText(safe(p.branch()));
+        txtFullName.setText(safe(p.fullName()));txtEmail.setText(safe(p.email()));if(txtPhone!=null)txtPhone.setText(safe(p.phone()));txtDepartment.setText(safe(p.department()));txtBranch.setText(safe(p.branch()));
         lblName.setText(safe(p.fullName()).isBlank()?p.username():p.fullName());lblUsername.setText(p.username());lblRole.setText(displayRole(p.role()));lblAccessLevel.setText(safe(p.accessLevel()));
         lblLastLogin.setText(safe(p.lastLogin()).isBlank()?"Never":BusinessClock.formatTimestamp(p.lastLogin()));lblMfa.setText(p.mfaEnabled()?"Enabled":"Not enabled");lblStatus.setText(!p.active()?"Inactive":p.locked()?"Locked":"Active");lblInitials.setText(initials(p.fullName(),p.username()));
     }
 
     @FXML private void saveProfile(){
         String name=txtFullName.getText()==null?"":txtFullName.getText().trim(),email=txtEmail.getText()==null?"":txtEmail.getText().trim();
+        String phone=txtPhone!=null&&txtPhone.getText()!=null?txtPhone.getText().trim():"";
         if(name.isBlank()||!email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")){show(Alert.AlertType.WARNING,"Check profile details","Full name and a valid email address are required.");return;}
         if(btnSave!=null) btnSave.setDisable(true);
         try{
-            ProfileApiClient.ProfileDto p=api.update(new ProfileApiClient.ProfileUpdate(name,email,txtDepartment.getText(),txtBranch.getText(),rowVersion));
+            ProfileApiClient.ProfileDto p=api.update(new ProfileApiClient.ProfileUpdate(name,email,phone,txtDepartment.getText(),txtBranch.getText(),rowVersion));
             apply(p);
             AppUser current=SessionService.current();
-            if(current!=null){current.setFullName(p.fullName());current.setEmail(p.email());current.setDepartment(p.department());current.setBranch(p.branch());}
+            if(current!=null){current.setFullName(p.fullName());current.setEmail(p.email());current.setPhone(p.phone());current.setDepartment(p.department());current.setBranch(p.branch());}
             NotificationService.createPersonalNotification(NotificationService.Category.SECURITY,"Profile updated","Your profile details were updated successfully.","INFO","/fxml/pages/Profile.fxml",p.username());
             org.example.navigation.UnsavedChangesManager.markClean(btnSave);
             show(Alert.AlertType.INFORMATION,"Profile saved","Your profile details have been saved.");
@@ -82,7 +92,7 @@ public class ProfileController implements ScreenLifecycle {
         }
     }
 
-    @Override public void onScreenHidden(){UiTaskExecutor.cancel("profile-load");}
+    @Override public void onScreenHidden(){UiTaskExecutor.cancel(taskKey);}
     private void show(Alert.AlertType t,String h,String m){String text=m==null?"The request could not be completed.":m;if(t==Alert.AlertType.INFORMATION){org.example.util.AppDialogService.success(btnSave,h,text);return;}OwnedAlert a=new OwnedAlert(t,text);a.setHeaderText(h);a.showAndWait();}
     private static String safe(String v){return v==null?"":v;}
     private static String displayRole(String v){return "SALES".equalsIgnoreCase(v)?"Sales":safe(v).toUpperCase(Locale.ROOT);}

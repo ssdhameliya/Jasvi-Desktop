@@ -3912,7 +3912,14 @@
     -fx-background-radius: 12px;
 }
 .permission-control-card {
-    -fx-padding: 10px 12px;
+    -fx-padding: 6px 12px;
+}
+.permission-compact-ribbon {
+    -fx-padding: 6px 12px;
+}
+.permission-role-user-count {
+    -fx-font-size: 11px;
+    -fx-opacity: 0.85;
 }
 .permission-template-button {
     -fx-background-color: rgba(124,58,237,0.14);
@@ -11211,13 +11218,17 @@
 .bank-evidence-preview {
     -fx-font-family: "Consolas";
     -fx-font-size: 12px;
-    -fx-background-color: #0c203b;
-    -fx-control-inner-background: #0c203b;
+    -fx-background-color: #f8fafc;
+    -fx-control-inner-background: #f8fafc;
 }
 .bank-evidence-preview .list-cell {
     -fx-padding: 3px 8px;
-    -fx-background-color: #0c203b;
-    -fx-text-fill: #d6e4f5;
+    -fx-background-color: #f8fafc;
+    -fx-text-fill: #1e293b;
+}
+.bank-evidence-preview .list-cell:filled:selected {
+    -fx-background-color: #dbeafe;
+    -fx-text-fill: #1e40af;
 }
 .bank-audit-card {
     -fx-background-radius: 10px;
@@ -12122,12 +12133,36 @@
     -fx-border-color: #dbe4ee transparent transparent transparent;
 }
 .universal-footer-trust {
-    -fx-text-fill: #0369a1;
+    -fx-text-fill: #059669;
+    -fx-font-weight: 700;
 }
 .universal-footer-company {
-    -fx-text-fill: #0f172a;
+    -fx-text-fill: #2563eb;
+    -fx-font-weight: 700;
 }
-.universal-footer-detail, .universal-footer-clock, .universal-footer-separator {
+.universal-footer-phone {
+    -fx-text-fill: #0d9488;
+    -fx-font-weight: 600;
+}
+.universal-footer-email {
+    -fx-text-fill: #0284c7;
+    -fx-font-weight: 600;
+}
+.universal-footer-website {
+    -fx-text-fill: #7c3aed;
+    -fx-font-weight: 600;
+}
+.universal-footer-clock {
+    -fx-text-fill: #d97706;
+    -fx-font-weight: 700;
+}
+.universal-footer-trust .erp-action-glyph { -fx-icon-color: #059669; }
+.universal-footer-company .erp-action-glyph { -fx-icon-color: #2563eb; }
+.universal-footer-phone .erp-action-glyph { -fx-icon-color: #0d9488; }
+.universal-footer-email .erp-action-glyph { -fx-icon-color: #0284c7; }
+.universal-footer-website .erp-action-glyph { -fx-icon-color: #7c3aed; }
+.universal-footer-clock .erp-action-glyph { -fx-icon-color: #d97706; }
+.universal-footer-detail, .universal-footer-separator {
     -fx-text-fill: #526274;
 }
 .auth-unified-card {
@@ -12217,7 +12252,7 @@
     -fx-background-color: #f8fafc;
     -fx-text-fill: #5d708c;
 }
-.universal-footer-company, .universal-footer-detail, .universal-footer-clock {
+.universal-footer-separator {
     -fx-text-fill: #1f3b56;
 }
 .date-picker > .text-field {
@@ -15297,6 +15332,36 @@
 .dse-startup-splash .splash-info-value {
     -fx-text-fill: #172033;
 }
+.dse-startup-splash .splash-welcome-prefix {
+    -fx-text-fill: #1e293b;
+    -fx-font-weight: 800;
+}
+.dse-startup-splash .splash-welcome-company {
+    -fx-text-fill: #2563eb;
+    -fx-font-weight: 800;
+}
+.dse-startup-splash .splash-brand-mark-card {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #cbd5e1;
+    -fx-border-width: 1.5;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-min-width: 58;
+    -fx-max-width: 58;
+    -fx-min-height: 58;
+    -fx-max-height: 58;
+    -fx-alignment: center;
+    -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.12), 12, 0.08, 0, 4);
+}
+.dse-startup-splash .splash-brand-mark-card .label {
+    -fx-text-fill: #2563eb;
+    -fx-font-size: 24px;
+    -fx-font-weight: 800;
+}
+.dse-startup-splash .splash-info-time { -fx-text-fill: #d97706; }
+.dse-startup-splash .splash-info-stage { -fx-text-fill: #2563eb; }
+.dse-startup-splash .splash-info-ram { -fx-text-fill: #059669; }
+.dse-startup-splash .splash-info-db { -fx-text-fill: #7c3aed; }
 .dse-startup-splash .splash-brand-subtitle,
 .dse-startup-splash .splash-live-status {
     -fx-text-fill: #2563eb;
@@ -18197,11 +18262,35 @@
 .auth-standard-shell .auth-card, .auth-standard-shell .auth-unified-card {
     -fx-background-color: #ffffff;
     -fx-border-color: #e2e8f0;
-    -fx-border-width: 1px;
-    -fx-background-radius: 16px;
-    -fx-border-radius: 16px;
+    -fx-border-width: 1.2px;
+    -fx-background-radius: 18px;
+    -fx-border-radius: 18px;
     -fx-padding: 28px 36px 28px 36px;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.08), 20, 0.10, 0, 6);
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.12), 26, 0.12, 0, 8);
+}
+
+.auth-captcha-display-box {
+    -fx-background-color: linear-gradient(to bottom, #f8fafc, #e2e8f0);
+    -fx-border-color: #cbd5e1;
+    -fx-border-width: 1.5px;
+    -fx-background-radius: 9px;
+    -fx-border-radius: 9px;
+    -fx-alignment: center;
+    -fx-padding: 6px 14px;
+    -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.06), 4, 0, 0, 1);
+}
+
+.auth-captcha-code {
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-size: 20px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #1d4ed8;
+    -fx-letter-spacing: 5px;
+}
+
+.auth-captcha-refresh-btn {
+    -fx-padding: 4px 10px;
+    -fx-font-size: 12px;
 }
 
 .auth-card .combo-box.auth-input > .list-cell {
@@ -18224,6 +18313,90 @@
     -fx-background-color: #e2e8f0;
     -fx-border-color: #94a3b8;
     -fx-text-fill: #0f172a;
+}
+
+/* Autonomous Emergency Incident Banner (Light Theme) */
+.auth-incident-banner {
+    -fx-background-color: #fffbeb;
+    -fx-border-color: #f59e0b;
+    -fx-border-width: 1.5px;
+    -fx-background-radius: 12px;
+    -fx-border-radius: 12px;
+    -fx-padding: 14px 18px;
+    -fx-effect: dropshadow(gaussian, rgba(217, 119, 6, 0.15), 10, 0, 0, 3);
+}
+
+.auth-incident-banner.auth-incident-unlocked {
+    -fx-background-color: #f0fdf4;
+    -fx-border-color: #16a34a;
+    -fx-effect: dropshadow(gaussian, rgba(22, 163, 74, 0.18), 12, 0, 0, 3);
+}
+
+.auth-incident-icon {
+    -fx-font-size: 24px;
+}
+
+.auth-incident-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #92400e;
+}
+
+.auth-incident-unlocked .auth-incident-title {
+    -fx-text-fill: #166534;
+}
+
+.auth-incident-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: #78350f;
+}
+
+.auth-incident-unlocked .auth-incident-subtitle {
+    -fx-text-fill: #15803d;
+}
+
+.auth-ticket-badge {
+    -fx-background-color: #fef3c7;
+    -fx-text-fill: #b45309;
+    -fx-border-color: #fcd34d;
+    -fx-border-width: 1px;
+    -fx-border-radius: 20px;
+    -fx-background-radius: 20px;
+    -fx-padding: 3px 10px;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+}
+
+.auth-incident-unlocked .auth-ticket-badge {
+    -fx-background-color: #dcfce7;
+    -fx-text-fill: #166534;
+    -fx-border-color: #86efac;
+}
+
+.auth-ticket-copy-btn, .auth-refresh-status-btn {
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-padding: 4px 10px;
+}
+
+.auth-poller-bar {
+    -fx-background-color: rgba(254, 243, 199, 0.5);
+    -fx-background-radius: 6px;
+    -fx-padding: 6px 10px;
+}
+
+.auth-incident-unlocked .auth-poller-bar {
+    -fx-background-color: rgba(220, 252, 231, 0.5);
+}
+
+.auth-poller-text {
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #92400e;
+}
+
+.auth-incident-unlocked .auth-poller-text {
+    -fx-text-fill: #166534;
 }
 
 .metric-trend-pill {
@@ -21292,6 +21465,47 @@
     -fx-border-radius: 8;
 }
 
+/* ==================== RECIPIENT CHIP BOX & ONE-CLICK REMOVAL (LIGHT THEME) ==================== */
+.recipient-chip-box-container {
+    -fx-spacing: 8;
+}
+.recipient-chips-flow {
+    -fx-alignment: center-left;
+}
+.recipient-input-chip {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-padding: 3 8 3 10;
+    -fx-alignment: center-left;
+}
+.recipient-chip-email {
+    -fx-background-color: #eef2ff;
+    -fx-border-color: #a5b4fc;
+}
+.recipient-chip-whatsapp {
+    -fx-background-color: #ccfbf1;
+    -fx-border-color: #5eead4;
+}
+.recipient-chip-text {
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #1e293b;
+}
+.recipient-chip-remove-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-padding: 2 4 2 4;
+    -fx-cursor: hand;
+}
+.recipient-chip-remove-btn:hover {
+    -fx-background-color: #cbd5e1;
+}
+.recipient-clear-all-btn {
+    -fx-padding: 4 10 4 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+}
 
 
 

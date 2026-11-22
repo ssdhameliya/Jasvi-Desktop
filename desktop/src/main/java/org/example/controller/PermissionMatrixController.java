@@ -32,7 +32,8 @@ public class PermissionMatrixController implements ScreenLifecycle {
     private static String requestedRole;
     public static void requestRole(String role) { requestedRole = role; }
 
-    @FXML private VBox root, boxCopyRole;
+    @FXML private VBox root;
+    @FXML private HBox boxCopyRole;
     @FXML private ComboBox<String> cmbRole, cmbCopyRole;
     @FXML private ComboBox<PermissionCatalog.Template> cmbTemplate;
     @FXML private TextField txtSearch;
@@ -124,6 +125,16 @@ public class PermissionMatrixController implements ScreenLifecycle {
         configureActionColumn(colExport, "EXPORT", "Export");
         configureActionColumn(colApprove, "APPROVE", "Approve");
         configureSpecialColumn();
+
+        colModule.prefWidthProperty().bind(table.widthProperty().multiply(0.28));
+        colAll.prefWidthProperty().bind(table.widthProperty().multiply(0.08));
+        colView.prefWidthProperty().bind(table.widthProperty().multiply(0.08));
+        colCreate.prefWidthProperty().bind(table.widthProperty().multiply(0.08));
+        colEdit.prefWidthProperty().bind(table.widthProperty().multiply(0.08));
+        colDelete.prefWidthProperty().bind(table.widthProperty().multiply(0.08));
+        colExport.prefWidthProperty().bind(table.widthProperty().multiply(0.08));
+        colApprove.prefWidthProperty().bind(table.widthProperty().multiply(0.08));
+        colSpecial.prefWidthProperty().bind(table.widthProperty().multiply(0.16));
     }
 
     private void configureAllColumn() {
