@@ -257,7 +257,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_84__reset_shailesh_account",
                     "db/migration/V11_0_84__reset_shailesh_account.sql"),
             new Migration("V11_0_85__add_force_password_change",
-                    "db/migration/V11_0_85__add_force_password_change.sql")
+                    "db/migration/V11_0_85__add_force_password_change.sql"),
+            new Migration("V11_0_86__company_template_linking",
+                    "db/migration/V11_0_86__company_template_linking.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

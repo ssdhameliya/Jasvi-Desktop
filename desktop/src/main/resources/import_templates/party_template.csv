@@ -1,2 +1,5 @@
-party_type,party_code,name,contact_person,phone,email,gstin,address,opening_balance,is_active
-CUSTOMER,CUST001,Example Customer,Mr. Example,919999888777,customer@example.com,29ABCDE1234F1Z5,Some Address,0,1
+party_type,party_code,gstin,name,contact_person,phone,email,address,opening_balance,is_active
+CUSTOMER,CUS-0001,24ANXPD3352N1ZK,,,,919999888777,accounts@jasvi.in,,0,1
+CUSTOMER,CUS-0002,,Shree Ganesh Store,Ramesh Bhai,919876543210,ramesh@example.com,Nikol Road Ahmedabad,5000,1
+SUPPLIER,SUP-0001,24BBBBB2222B1Z4,,,,919876500000,purchase@supplier.in,,0,1
+SUPPLIER,SUP-0002,,Local Transport Co,Mahesh Patel,919876511111,transport@example.com,Kathwada GIDC Ahmedabad,0,1

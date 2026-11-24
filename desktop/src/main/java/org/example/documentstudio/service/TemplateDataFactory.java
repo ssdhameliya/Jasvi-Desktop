@@ -92,6 +92,7 @@ public final class TemplateDataFactory {
         put(v, "totals.paidAmount", money(sale.getPaidAmount()));
         put(v, "totals.balanceAmount", money(sale.getBalanceAmount()));
         put(v, "totals.amountInWords", "INR : " + AmountInWordsConverter.indianRupees(sale.getTotalAmount()));
+        put(v, "totals.amountInWordsText", AmountInWordsConverter.indianRupees(sale.getTotalAmount()));
         return new TemplateData(v, images, salesItems(sale), salesCharges(sale), safe(sale.getGstType()));
     }
 
@@ -138,6 +139,7 @@ public final class TemplateDataFactory {
         put(v, "totals.paidAmount", money(purchase.getPaidAmount()));
         put(v, "totals.balanceAmount", money(purchase.getBalanceAmount()));
         put(v, "totals.amountInWords", "INR : " + AmountInWordsConverter.indianRupees(purchase.getTotalAmount()));
+        put(v, "totals.amountInWordsText", AmountInWordsConverter.indianRupees(purchase.getTotalAmount()));
         return new TemplateData(v, images, purchaseItems(purchase), purchaseCharges(purchase), safe(purchase.getGstType()));
     }
 
@@ -189,6 +191,7 @@ public final class TemplateDataFactory {
         put(v, "totals.paidAmount", money(details.refund()));
         put(v, "totals.balanceAmount", money(Math.max(0, details.total() - details.refund())));
         put(v, "totals.amountInWords", "INR : " + AmountInWordsConverter.indianRupees(details.total()));
+        put(v, "totals.amountInWordsText", AmountInWordsConverter.indianRupees(details.total()));
         return new TemplateData(v, images, items, originalPurchase == null ? "GST" : safeOr(originalPurchase.getGstType(), "GST"));
     }
 
@@ -242,6 +245,7 @@ public final class TemplateDataFactory {
         put(v, "totals.paidAmount", money(details.refund()));
         put(v, "totals.balanceAmount", money(Math.max(0, details.total() - details.refund())));
         put(v, "totals.amountInWords", "INR : " + AmountInWordsConverter.indianRupees(details.total()));
+        put(v, "totals.amountInWordsText", AmountInWordsConverter.indianRupees(details.total()));
         return new TemplateData(v, images, items, originalSale == null ? "" : safe(originalSale.getGstType()));
     }
 
@@ -510,6 +514,7 @@ public final class TemplateDataFactory {
         v.put("totals.paidAmount", "0.00");
         v.put("totals.balanceAmount", money(total));
         v.put("totals.amountInWords", "INR : " + AmountInWordsConverter.indianRupees(total));
+        v.put("totals.amountInWordsText", AmountInWordsConverter.indianRupees(total));
     }
 
     private static List<TaxInvoiceItem> sampleItems() {
@@ -543,6 +548,21 @@ public final class TemplateDataFactory {
             images.put("payment.qr", paymentQr);
             images.put("payment.qrImage", paymentQr); // compatibility with pre-10.0 server/image aliases
         }
+        List<String> masterCharges = masterChargeTypes();
+        if (masterCharges != null && !masterCharges.isEmpty()) {
+            put(v, "config.masterChargeTypes", String.join(",", masterCharges));
+        }
+    }
+
+    public static List<String> masterChargeTypes() {
+        try {
+            org.example.api.master.MasterApiClient client = new org.example.api.master.MasterApiClient();
+            var bootstrap = client.salesEntryBootstrap();
+            if (bootstrap != null && bootstrap.chargeTypes() != null && !bootstrap.chargeTypes().isEmpty()) {
+                return bootstrap.chargeTypes();
+            }
+        } catch (Throwable ignored) { }
+        return List.of();
     }
 
     private static void party(Map<String, String> v, Party p, String prefix) {

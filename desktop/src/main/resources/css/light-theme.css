@@ -12592,6 +12592,50 @@
     -fx-background-radius: 9;
     -fx-padding: 6 8 6 8;
 }
+.excel-ribbon-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-max-height: 98px;
+    -fx-pref-height: 98px;
+}
+.excel-ribbon-container {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 4 8 4 8;
+}
+.excel-ribbon-group {
+    -fx-alignment: center;
+    -fx-padding: 2 6 2 6;
+    -fx-border-color: transparent #e2e8f0 transparent transparent;
+    -fx-border-width: 0 1px 0 0;
+}
+.excel-ribbon-group-label {
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #64748b;
+    -fx-padding: 2 0 0 0;
+    -fx-alignment: center;
+}
+.excel-formula-fx {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-font-style: italic;
+    -fx-text-fill: #64748b;
+    -fx-padding: 0 4 0 4;
+}
+.excel-format-painter-active {
+    -fx-background-color: #059669 !important;
+    -fx-text-fill: white !important;
+    -fx-border-color: #047857 !important;
+}
+.format-cells-dialog {
+    -fx-min-width: 520px;
+    -fx-pref-width: 560px;
+}
 .excel-tool-group {
     -fx-alignment: center-left;
     -fx-padding: 0 4 0 0;

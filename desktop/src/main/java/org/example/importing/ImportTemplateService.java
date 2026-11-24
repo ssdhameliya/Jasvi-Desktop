@@ -137,6 +137,8 @@ public final class ImportTemplateService {
             {"GST calculation", "GST is calculated as CGST + SGST (equal halves); IGST applies the full GST rate as IGST. Do not enter tax amounts manually."},
             {"Unlimited Sales & Purchase charges", "Sales and Purchases may use additional_charges with entries separated by semicolons. Each entry is Type|Amount|Taxable|GSTPercent, for example Freight|250|true|18;Packing|100|false|0."},
             {"Multiple attachments", "Use attachment_files for semicolon-separated file paths. Paths may be absolute or relative to the import workbook. The older attachment_file column remains supported."},
+            {"Smart GSTIN Auto-Fetch", "For Customers and Suppliers: enter a valid 15-character GSTIN to auto-fetch Trade Name, Legal Name, and Registered Address live from the GST Portal. When GSTIN is supplied, Name and Address can be left blank."},
+            {"Zero Mock Data Policy", "If GST Portal is unavailable or taxpayer details are not retrieved, rows with blank Names are strictly rejected during pre-validation. Name must be entered manually when offline to prevent mock data."},
             {"Safe process", "Run Validate only first, review the preview and generated result report, then import."},
             {"Identifiers", ImportModuleRegistry.identifierGuidance(module)}
         };
@@ -280,8 +282,11 @@ public final class ImportTemplateService {
     }
 
     public static String getFieldBlankInfo(String field, boolean isRequired) {
-        if (isRequired) return "Mandatory. Cannot be blank; will fail validation if empty.";
         String f = field.toLowerCase(Locale.ROOT);
+        if (f.equals("name")) return "Mandatory if GSTIN is blank. If valid 15-char GSTIN is provided, Name and Address are auto-fetched live from GST Portal.";
+        if (f.equals("gstin")) return "Optional. 15-char statutory GSTIN. If provided, Legal Name & Address are auto-fetched live from GST portal (rejection enforced if portal is unavailable and Name is blank).";
+        if (f.equals("address")) return "Optional. If left blank and valid GSTIN is provided, Registered Address is auto-fetched live from GST Portal.";
+        if (isRequired) return "Mandatory. Cannot be blank; will fail validation if empty.";
         if (f.contains("gst_percent") || f.equals("gst")) return "If blank, default 18% is applied.";
         if (f.equals("gst_type")) return "If blank, default 'GST' is applied.";
         if (f.equals("is_active")) return "If blank, default 'true' is applied.";

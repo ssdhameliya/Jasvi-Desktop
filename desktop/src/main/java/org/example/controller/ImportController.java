@@ -836,11 +836,18 @@ public class ImportController implements ScreenLifecycle {
     }
 
     private boolean requiredMappingsComplete() {
+        String module = cmbImportModule != null ? cmbImportModule.getValue() : null;
+        boolean partyModule = "Customers/CRM".equals(module) || "Suppliers/HRM".equals(module);
+        ComboBox<String> gstinCombo = mappingControls.get("gstin");
+        boolean gstinMapped = partyModule && gstinCombo != null && gstinCombo.getValue() != null && !gstinCombo.getValue().isBlank();
 
         Set<String> requiredFields =
             getRequiredFieldsForModule();
 
         for (String field : requiredFields) {
+            if (partyModule && "name".equals(field) && gstinMapped) {
+                continue;
+            }
 
             ComboBox<String> combo =
                 mappingControls.get(field);

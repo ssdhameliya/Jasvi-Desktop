@@ -2,12 +2,10 @@ package org.example.server.documents;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.example.documentstudio.model.DocumentTemplate;
 import org.example.documentstudio.model.DocumentType;
 import org.example.documentstudio.model.ExcelTemplate;
 import org.example.documentstudio.model.TemplateStatus;
 import org.example.server.authority.ServerResourceService;
-import org.example.server.authority.PdfStudioDefaultAuthorityService;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
@@ -17,84 +15,15 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-/** Resolves the company-server mirrors of the same Document Studio defaults used by desktop. */
+/** Resolves the company-server mirrors of the same Document Studio Excel defaults used by desktop. */
 @Service
 public class CanonicalTemplateStore {
-    private static final String PDF_TYPE = "PDF_STUDIO_V3_TEMPLATE";
     private static final String EXCEL_TYPE = "EXCEL_TEMPLATE";
     private final ServerResourceService resources;
-    private final PdfStudioDefaultAuthorityService defaults;
     private final ObjectMapper json = new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-    public CanonicalTemplateStore(ServerResourceService resources, PdfStudioDefaultAuthorityService defaults) {
+    public CanonicalTemplateStore(ServerResourceService resources) {
         this.resources = resources;
-        this.defaults = defaults;
-    }
-
-    public Optional<PdfSelection> pdf(DocumentType type) throws IOException {
-        Optional<String> authoritative = defaults.activeTemplateKey(type);
-        if (authoritative.isPresent()) return loadPdf(authoritative.get(), type);
-
-        // Legacy recovery only: older releases did not persist the server pointer.
-        // Once an active package is explicitly PUT, the pointer above becomes authoritative.
-        List<PdfSelection> matches = new ArrayList<>();
-        for (var meta : resources.list(PDF_TYPE)) {
-            Path root = null;
-            try {
-                root = extract(resources.get(PDF_TYPE, meta.key()).content(), "pdf-template-");
-                Path workingMeta = root.resolve("template.json");
-                if (!Files.isRegularFile(workingMeta)) { deleteTree(root); continue; }
-                DocumentTemplate working = json.readValue(workingMeta.toFile(), DocumentTemplate.class);
-                if (working.getDocumentType() != type || working.getStatus() != TemplateStatus.ACTIVE
-                        || !working.isDefaultTemplate() || !working.isRuntimeEnabled() || working.getActiveVersion() <= 0) {
-                    deleteTree(root); continue;
-                }
-                Path activeRoot = root.resolve("active");
-                Path activeMeta = activeRoot.resolve("template.json");
-                if (!Files.isRegularFile(activeMeta)) { deleteTree(root); continue; }
-                DocumentTemplate active = json.readValue(activeMeta.toFile(), DocumentTemplate.class);
-                active.setStatus(TemplateStatus.ACTIVE);
-                active.setDefaultTemplate(true);
-                active.setRuntimeEnabled(true);
-                active.setActiveVersion(working.getActiveVersion());
-                active.setPublishedVersion(working.getPublishedVersion());
-                matches.add(new PdfSelection(root, activeRoot, active, safe(working.getUpdatedAt())));
-            } catch (Exception error) {
-                if (root != null) deleteTree(root);
-            }
-        }
-        if (matches.isEmpty()) return Optional.empty();
-        matches.sort(Comparator.comparing(PdfSelection::updatedAt).reversed());
-        PdfSelection selected = matches.getFirst();
-        for (int i=1;i<matches.size();i++) matches.get(i).close();
-        return Optional.of(selected);
-    }
-
-    private Optional<PdfSelection> loadPdf(String key, DocumentType type) {
-        Path root = null;
-        try {
-            root = extract(resources.get(PDF_TYPE, key).content(), "pdf-template-");
-            Path workingMeta = root.resolve("template.json");
-            if (!Files.isRegularFile(workingMeta)) { deleteTree(root); return Optional.empty(); }
-            DocumentTemplate working = json.readValue(workingMeta.toFile(), DocumentTemplate.class);
-            if (working.getDocumentType() != type || working.getStatus() != TemplateStatus.ACTIVE
-                    || !working.isDefaultTemplate() || !working.isRuntimeEnabled() || working.getActiveVersion() <= 0) {
-                deleteTree(root); return Optional.empty();
-            }
-            Path activeRoot = root.resolve("active");
-            Path activeMeta = activeRoot.resolve("template.json");
-            if (!Files.isRegularFile(activeMeta)) { deleteTree(root); return Optional.empty(); }
-            DocumentTemplate active = json.readValue(activeMeta.toFile(), DocumentTemplate.class);
-            active.setStatus(TemplateStatus.ACTIVE);
-            active.setDefaultTemplate(true);
-            active.setRuntimeEnabled(true);
-            active.setActiveVersion(working.getActiveVersion());
-            active.setPublishedVersion(working.getPublishedVersion());
-            return Optional.of(new PdfSelection(root, activeRoot, active, safe(working.getUpdatedAt())));
-        } catch (Exception error) {
-            if (root != null) deleteTree(root);
-            return Optional.empty();
-        }
     }
 
     public Optional<ExcelSelection> excel(DocumentType type) throws IOException {
@@ -148,9 +77,6 @@ public class CanonicalTemplateStore {
     }
     private static String safe(String value) { return value == null ? "" : value; }
 
-    public record PdfSelection(Path archiveRoot, Path activeRoot, DocumentTemplate template, String updatedAt) implements AutoCloseable {
-        @Override public void close() { CanonicalTemplateStore.deleteTree(archiveRoot); }
-    }
     public record ExcelSelection(Path root, ExcelTemplate template, String updatedAt) implements AutoCloseable {
         @Override public void close() { CanonicalTemplateStore.deleteTree(root); }
     }

@@ -20,7 +20,7 @@ maint = text('server/src/main/java/org/example/server/support/StorageMaintenance
 support = text('server/src/main/java/org/example/server/support/SupportService.java')
 fxml = text('desktop/src/main/resources/fxml/pages/settings/WorkspaceSettingsPanel.fxml')
 report = text('server/src/main/java/org/example/server/reporting/ReportScheduleService.java')
-protected = {'desktop/src/main/java/org/example/documentstudio/service/DocumentOutputService.java': '0bb413a5666585af1c67beac15e54bb45112eb8cbc3ffcb36dccf70ea0c837f0', 'desktop/src/main/java/org/example/service/InvoicePdfService.java': 'ddc9bd1120388058ae60742f343553c6c0de2634e885360deef8e31298033fa8', 'desktop/src/main/java/org/example/invoice/service/SalesTaxInvoiceService.java': '27eb0498f015a410b60aa86f71c8bced4e0ff0e45f8a7e0207b7be9a7ce74082'}
+protected = {'desktop/src/main/java/org/example/documentstudio/service/DocumentOutputService.java': '14f76abab37c04f50e8c0728208dd56c0833b34094554e30c5bb9895b681188b', 'desktop/src/main/java/org/example/service/InvoicePdfService.java': '5af8322cdb9e283e2a132fc486676464a5f789d546f6acb418088fbc63d5a642', 'desktop/src/main/java/org/example/invoice/service/SalesTaxInvoiceService.java': '27eb0498f015a410b60aa86f71c8bced4e0ff0e45f8a7e0207b7be9a7ce74082'}
 check('storage-manager-present', 'class WorkspaceStorageManager' in wm)
 check('financial-year-storage', 'financialYear' in wm and '"Sales"' in wm and ('"Purchase"' in wm))
 check('workspace-structure-folders', all((x in ws for x in ['Documents/Sales', 'Reports/Scheduled', 'Exports/Diagnostics', 'Logs/Desktop', 'Logs/Server', 'Logs/PostgreSQL', 'Imports/Results'])))

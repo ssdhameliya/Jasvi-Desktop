@@ -109,7 +109,6 @@
                     <Label fx:id="lblDocumentStudioChevron" mouseTransparent="true" styleClass="nav-chevron" StackPane.alignment="CENTER_RIGHT"/>
                 </StackPane>
                 <VBox fx:id="documentStudioSubmenu" spacing="1" visible="false" managed="false" styleClass="nav-children">
-                    <Button fx:id="btnPdfStudio" text="PDF Studio" onAction="#openPdfStudio" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnExcelStudio" text="Excel Studio" onAction="#openExcelStudio" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                 </VBox>
             </VBox>

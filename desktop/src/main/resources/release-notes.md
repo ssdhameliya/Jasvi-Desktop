@@ -1,4 +1,46 @@
+# What's New in DSE ERP v11.0.78
+
+### Smart GSTIN-First Customer & Supplier Loader with Live GST Portal Auto-Fetch (Rule 4, Rule 10, Rule 11, Rule 16 & Rule 17)
+- **Zero-Manual-Entry Smart Onboarding (`ImportService.java`, `ImportController.java`)**:
+  - Implemented smart dual-mode onboarding: If an import file contains a valid GSTIN, secondary identity fields (`name`, `address`, `contact_person`) are no longer mandatory. The system automatically fetches authentic trade name, legal entity name, and registered office address from the live GST portal via `TallyAutomationApiClient`.
+  - In the import column mapping step, `name` is now conditionally optional when `gstin` is mapped, avoiding false blocking validation errors.
+- **Strict Statutory Validation & Zero Mock Data Rejection Enforcement (`GstinValidator.java`, `ImportService.java`)**:
+  - Enforced 15-character GSTIN structure, valid state code, PAN syntax, and statutory Luhn Modulo 36 checksum verification.
+  - Per Rule 17: If the live GST portal is unreachable, unverified, or returns no valid taxpayer profile and the party name is omitted, the row is **strictly rejected** with diagnostic rejection feedback (`Party Name is blank and Live GST Portal lookup is unavailable / unverified... Rejection enforced (Zero Mock Data)`), completely preventing synthetic or hallucinated mock data.
+- **In-Workbook & Database Duplicate Detection**:
+  - Added automated preflight conflict detection flagging duplicate GSTINs within the same workbook and alerting when a GSTIN is already registered to another existing customer or supplier.
+- **Dynamic 3-Format Template Generation (`ImportTemplateService.java`, `ImportModuleRegistry.java`)**:
+  - Re-ordered customer and supplier template columns (`party_code`, `gstin`, `name`, `contact_person`, `phone`, `email`, `address`, `opening_balance`, `is_active`).
+  - Added header hover tooltips and dynamic dual-mode sample rows across dynamically generated `.xlsx`, `.xls`, and `.csv` files.
+
+### SuperAdmin Company Document Template Linking & 90% Viewport Bounds Redesign (Rule 5, Rule 7, Rule 8, Rule 11 & Rule 12)
+- **Content-Adaptive 90% Modal Bounds & Zero Truncation (`CompanyTemplateLinkDialog.fxml`, `CompanyTemplateLinkDialogController.java`)**:
+  - Redesigned the Company Template Linking modal to occupy 90% of screen width and height (`0.90 * visualBounds`), eliminating all text clipping, ellipsis truncation, or awkward modal sizing.
+  - Cleaned up dropdown selection persistence so selecting or tabbing out never wipes populated selections.
+  - Full Light and Dark theme parity with semantic badge indicators and operation-tagged cards (SALES, PURCHASE, QUOTATION, RETURNS).
+- **Universal Multi-Company Document Mapping (`CompanyTemplateLinkingService.java`, `V11_0_86__company_template_linking.sql`)**:
+  - Backed by PostgreSQL persistence storing active document template associations per company profile.
+
+### Excel Studio Modernization & Centralized Formatting Toolbars (Rule 4, Rule 5, Rule 9, Rule 10 & Rule 11)
+- **Native Excel-Style Formatting Palette (`ExcelDesigner.fxml`, `ExcelDesignerController.java`)**:
+  - Introduced standard formatting controls: Currency (`₹`), Percent (`%`), Comma (`,`), and Format Painter / Format Cell.
+  - Streamlined toolbar visibility to keep high-frequency daily actions prominent and clutter-free.
+  - Centralized semantic icon coverage with complete test compliance (`CentralButtonIconCoverageTest`).
+
 # What's New in DSE ERP v11.0.77
+
+### Complete Removal & Total Decoupling of Legacy PDF Studio (Rule 1, Rule 4, Rule 10, Rule 16 & Rule 17)
+- **Direct BAU Production PDF Flow (`TaxInvoicePdfGenerator`, `ProfessionalDocumentRenderer`, `SalesTaxInvoiceService`)**:
+  - Completely bypassed and eliminated the experimental `PdfStudioRenderer`, `TemplateStorageService`, and secondary PDF template overrides.
+  - Standard enterprise PDF rendering across all operational business channels (Desktop View/Print, Email transmission, WhatsApp auto-send, and Server REST render endpoints) directly and exclusively invokes standard canonical document engines (`TaxInvoicePdfGenerator` and `ProfessionalDocumentRenderer`).
+- **Clean Architectural Decoupling & UI Shell Optimization (`Dashboard.fxml`, `DashboardController.java`, `DocumentStudio.fxml`, `DocumentStudioController.java`)**:
+  - Removed PDF Studio launcher and navigation button from the main Dashboard sidebar submenu.
+  - Document Studio is now exclusively dedicated to Excel templates via `ExcelTemplateStorageService`, defaulting directly to Excel mode.
+  - Cleaned up all PDF Studio shortcuts (`PDF_STUDIO_OPEN`, `PDF_UNDO`, `PDF_REDO`, `PDF_DUPLICATE`, `PDF_DELETE`) and permissions (`PDF_STUDIO`).
+- **Complete Elimination of Dead PDF Studio Codebase (60+ Source & Test Files Removed)**:
+  - Deleted obsolete PDF Designer FXML (`PdfDesigner.fxml`), UI view/canvas hierarchy (`Pdf*View`), geometry policies, universal block engines (`UniversalPdfEngine`, `UniversalLayoutPlanner`, `UniversalBlockResolver`), and extraction services.
+  - Removed server authority controllers (`PdfStudioTemplateController`, `PdfStudioDefaultAuthorityService`) and template stores.
+  - Pruned 22+ obsolete PDF Studio unit tests and audit checks, achieving 100% clean Maven reactor build and release gate compliance (`336 tests, 0 failures, 0 errors`).
 
 ### Permanent Password Management, Forced Change Lifecycle & Zero-Conflict Login Orchestration (Rule 4, Rule 5, Rule 10, Rule 11 & Rule 12)
 - **Zero-Conflict Action Lifecycle & Stack Decoupling (`LoginController.java`)**:

@@ -6,8 +6,6 @@ import org.example.invoice.service.SalesTaxInvoiceService;
 import org.example.util.ProfessionalDocumentRenderer;
 import org.example.config.ConfigManager;
 import org.example.documentstudio.model.DocumentType;
-import org.example.documentstudio.service.PdfTemplateRenderer;
-import org.example.documentstudio.service.TemplateStorageService;
 import org.example.documentstudio.service.DocumentDataService;
 import org.example.documentstudio.service.DocumentOutputService;
 
@@ -62,16 +60,6 @@ public class InvoicePdfService {
             throw new IllegalArgumentException("A valid quotation number is required.");
         }
         Path result = ensureOutputDirectory().resolve("Quotation-" + quotationNo + ".pdf");
-        var customTemplate = TemplateStorageService.defaultFor(DocumentType.QUOTATION);
-        if (customTemplate.isPresent()) {
-            try {
-                PdfTemplateRenderer.render(customTemplate.get(), DocumentDataService.load(DocumentType.QUOTATION, quotationNo), result);
-                validatePdf(result, quotationNo);
-                return result;
-            } catch (Exception templateError) {
-                logTemplateFallback("quotation", quotationNo, templateError);
-            }
-        }
         ProfessionalDocumentRenderer.render(result, ensureLogo(), quotationNo,
             ProfessionalDocumentRenderer.Kind.QUOTATION);
         validatePdf(result, quotationNo);

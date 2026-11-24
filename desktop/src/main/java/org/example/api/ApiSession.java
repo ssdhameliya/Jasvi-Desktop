@@ -64,6 +64,10 @@ public final class ApiSession {
         return accessToken;
     }
 
+    public static String getAuthToken() {
+        return token();
+    }
+
     public static String boundApiBaseUrl() {
         return apiBaseUrl;
     }

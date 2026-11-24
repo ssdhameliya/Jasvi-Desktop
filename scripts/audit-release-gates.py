@@ -23,7 +23,6 @@ CHECKS = [
     "audit-bank-reconciliation-contract.py",
     "audit-reconciliation-navigation-ui-contract.py",
     "audit-business-integrity-contract.py",
-    "audit-pdf-studio-contract.py",
     "audit-corrective-contract.py",
     "audit-sales-payment-compatibility.py",
     "audit-register-login-history-contract.py",

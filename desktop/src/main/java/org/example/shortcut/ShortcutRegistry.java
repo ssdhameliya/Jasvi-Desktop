@@ -29,7 +29,7 @@ public final class ShortcutRegistry {
         SALES("Sales"), PURCHASE("Purchase"), INVENTORY("Inventory & Items"),
         CUSTOMERS("Customers"), SUPPLIERS("Suppliers"), REPORTS("Reports"),
         COMMUNICATION("Communication"), SETTINGS("Settings"),
-        PDF_STUDIO("PDF Studio"), EXCEL_STUDIO("Excel Studio"), MASTER_DATA("Master Data");
+        EXCEL_STUDIO("Excel Studio"), MASTER_DATA("Master Data");
 
         private final String label;
         Scope(String label){this.label=label;}
@@ -94,7 +94,6 @@ public final class ShortcutRegistry {
         COMMUNICATION("nav.communication", "Communication Center", "Reports & Tools", "", Scope.GLOBAL, null),
         EMAIL_CENTER("nav.emailCenter", "Email Center", "Reports & Tools", "", Scope.GLOBAL, null),
         WHATSAPP_CENTER("nav.whatsappCenter", "WhatsApp Activity", "Reports & Tools", "", Scope.GLOBAL, null),
-        PDF_STUDIO_OPEN("nav.pdfStudio", "PDF Studio", "Reports & Tools", "", Scope.GLOBAL, "DOCUMENT_STUDIO.VIEW"),
         EXCEL_STUDIO_OPEN("nav.excelStudio", "Excel Studio", "Reports & Tools", "", Scope.GLOBAL, "DOCUMENT_STUDIO.VIEW"),
         BACKUP_RESTORE("nav.backup", "Backup & Restore", "Reports & Tools", "", Scope.GLOBAL, "BACKUP.VIEW"),
         SAFE_ROLLBACK("nav.safeRollback", "Safe Rollback", "Reports & Tools", "", Scope.GLOBAL, "SAFE_ROLLBACK.VIEW"),
@@ -107,11 +106,6 @@ public final class ShortcutRegistry {
         SETTINGS_WORKSPACE("settings.workspace", "Workspace & Storage", "Settings & Tools", "", Scope.GLOBAL, "SETTINGS.VIEW"),
         SETTINGS_SHORTCUTS("settings.shortcuts", "Keyboard Shortcuts", "Settings & Tools", "", Scope.GLOBAL, "SETTINGS.VIEW"),
         SETTINGS_UPDATES("settings.updates", "Application Updates", "Settings & Tools", "", Scope.GLOBAL, "SETTINGS.VIEW"),
-
-        PDF_UNDO("pdf.undo", "Undo", "PDF Studio", "Shortcut+Z", Scope.PDF_STUDIO, null),
-        PDF_REDO("pdf.redo", "Redo", "PDF Studio", "Shortcut+Y", Scope.PDF_STUDIO, null),
-        PDF_DUPLICATE("pdf.duplicate", "Duplicate Selected", "PDF Studio", "Shortcut+D", Scope.PDF_STUDIO, null),
-        PDF_DELETE("pdf.delete", "Delete Selected", "PDF Studio", "DELETE", Scope.PDF_STUDIO, null),
 
         EXCEL_UNDO("excel.undo", "Undo", "Excel Studio", "Shortcut+Z", Scope.EXCEL_STUDIO, null),
         EXCEL_REDO("excel.redo", "Redo", "Excel Studio", "Shortcut+Y", Scope.EXCEL_STUDIO, null),
@@ -313,7 +307,6 @@ public final class ShortcutRegistry {
     /** True when the configured user scope allows this action in the current page/context. */
     public static boolean scopeActive(Action action,Object eventTarget){
         if(action==null)return false; Scope scope=configuredScope(action); if(scope==Scope.GLOBAL||scope==Scope.CURRENT_SCREEN)return true;
-        if(scope==Scope.PDF_STUDIO)return withinStyle(eventTarget,"pdf-designer-root","pdf-studio-root");
         if(scope==Scope.EXCEL_STUDIO)return withinStyle(eventTarget,"excel-studio-root");
         if(scope==Scope.MASTER_DATA)return withinStyle(eventTarget,"master-data-root")||controllerContains("MasterData");
         String name=currentControllerName();
@@ -338,7 +331,7 @@ public final class ShortcutRegistry {
         return false;
     }
 
-    public static boolean isEditorTarget(Object target){return withinStyle(target,"excel-studio-root","pdf-designer-root","pdf-studio-root")||captureTarget(target);}
+    public static boolean isEditorTarget(Object target){return withinStyle(target,"excel-studio-root")||captureTarget(target);}
     private static boolean captureTarget(Object target){
         if(!(target instanceof Node node))return false;for(Node current=node;current!=null;current=current.getParent())if(Boolean.TRUE.equals(current.getProperties().get("dse.shortcut-capture")))return true;return false;
     }

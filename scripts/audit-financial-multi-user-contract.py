@@ -29,7 +29,6 @@ resource_service = text('server/src/main/java/org/example/server/authority/Serve
 resource_controller = text('server/src/main/java/org/example/server/authority/ServerResourceController.java')
 resource_client = text('desktop/src/main/java/org/example/api/authority/ServerResourceClient.java')
 remote_mirror = text('desktop/src/main/java/org/example/documentstudio/service/RemoteTemplateMirror.java')
-pdf_remote = text('desktop/src/main/java/org/example/documentstudio/service/PdfStudioRemoteStore.java')
 renderer = text('desktop/src/main/java/org/example/util/ProfessionalDocumentRenderer.java')
 renderer_format = text('desktop/src/main/java/org/example/util/ProfessionalDocumentFormatSupport.java')
 return_editor = text('desktop/src/main/java/org/example/service/ReturnEditorService.java')
@@ -77,7 +76,6 @@ need('permissionRowVersion' in user_access and 'savePermissions(role,permissions
 need('expectedChecksum' in resource_service and 'FOR UPDATE' in resource_service and ('ConcurrentEditException' in resource_service), 'server resources do not enforce checksum-based optimistic publish')
 need('expectedChecksum' in resource_controller and 'expectedChecksum' in resource_client, 'resource checksum is not carried end-to-end')
 need('.server.sha256' in remote_mirror and 'expected' in remote_mirror, 'Document Studio mirror does not send previous server checksum')
-need('.server.sha256' in pdf_remote and 'expected' in pdf_remote, 'PDF Studio remote store does not send previous server checksum')
 for token in ('ALTER TABLE quotation_header', 'ADD COLUMN IF NOT EXISTS row_version BIGINT', 'ALTER TABLE users', 'CREATE TABLE IF NOT EXISTS role_permission_revision', 'average_unit_cost TYPE NUMERIC(18,4)', 'unit_cost TYPE NUMERIC(18,4)', 'unit_cost_snapshot TYPE NUMERIC(18,4)'):
     need(token in migration, f'financial hardening migration missing: {token}')
 need('V9_0_47__financial_multi_user_hardening' in runner, 'financial hardening migration is not registered at startup')

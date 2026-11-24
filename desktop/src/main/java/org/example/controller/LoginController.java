@@ -68,11 +68,11 @@ public class LoginController implements ScreenLifecycle {
     @FXML private ToggleButton btnTheme;
     @FXML private Label lblClock, lblMessage, lblUsernameError, lblPasswordError, lblRoleError, lblOtpError, lblVersion;
     @FXML private Label lblResetIdentityError, lblResetCaptchaQuestion, lblResetCaptchaError, lblResetOtpError, lblResetTotpError, lblNewPasswordError, lblConfirmPasswordError;
-    @FXML private Label lblBrandMark, lblBrandName, lblBrandTagline, lblBrandDescription, lblBrandQuote;
+    @FXML private Label lblBrandMark, lblBrandName, lblBrandTagline, lblBrandDescription, lblBrandQuote, lblLoginSectionFallback;
     @FXML private Label lblFooterCompany, lblFooterPhone, lblFooterEmail, lblFooterWebsite;
-    @FXML private ImageView imgBrandLogo, imgBrandMark, imgLoginLogo;
+    @FXML private ImageView imgBrandLogo, imgBrandMark, imgLoginLogo, imgLoginSectionMark;
     @FXML private VBox brandPanel;
-    @FXML private StackPane brandLogoBox, brandMarkBox, loginLogoBox;
+    @FXML private StackPane brandLogoBox, brandMarkBox, loginLogoBox, loginSectionIconBox;
     @FXML private Button btnLogin, btnRegister, btnLicenseActivation, btnEmailSettings, btnForgotPassword, btnResendOtp;
     @FXML private Button btnRefreshResetCaptcha, btnSendResetOtp, btnResetPassword, btnBackToLogin;
     @FXML private VBox loginPanel, resetPanel, otpPanel;
@@ -99,6 +99,7 @@ public class LoginController implements ScreenLifecycle {
         BrandImagePresenter.applicationBanner(imgBrandLogo, brandLogoBox);
         BrandImagePresenter.contain(imgBrandMark, brandMarkBox);
         BrandImagePresenter.applicationBanner(imgLoginLogo, loginLogoBox);
+        BrandImagePresenter.contain(imgLoginSectionMark, loginSectionIconBox);
         applyBranding();
 
         cmbRole.getItems().clear();
@@ -265,6 +266,19 @@ public class LoginController implements ScreenLifecycle {
         if (lblBrandMark != null) {
             lblBrandMark.setManaged(false);
             lblBrandMark.setVisible(false);
+        }
+        if (imgLoginSectionMark != null) {
+            imgLoginSectionMark.setImage(available ? mark : null);
+            imgLoginSectionMark.setManaged(available);
+            imgLoginSectionMark.setVisible(available);
+        }
+        if (lblLoginSectionFallback != null) {
+            if (lblLoginSectionFallback.getGraphic() == null) {
+                lblLoginSectionFallback.setGraphic(org.example.util.IconFactory.compactIcon("security", 24));
+                lblLoginSectionFallback.setText("");
+            }
+            lblLoginSectionFallback.setManaged(!available);
+            lblLoginSectionFallback.setVisible(!available);
         }
     }
 

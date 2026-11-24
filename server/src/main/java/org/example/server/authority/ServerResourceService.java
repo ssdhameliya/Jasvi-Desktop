@@ -18,10 +18,10 @@ public class ServerResourceService {
 
     /** API-facing operations own the transaction boundary and enforce the business permission boundary. */
     @Transactional(readOnly = true)
-    public List<ResourceMeta> apiList(String type) { requireApiRead(type); return list(type); }
+    public List<ResourceMeta> apiList(String type) { requireApiRead(type, null); return list(type); }
 
     @Transactional(readOnly = true)
-    public ResourceFile apiGet(String type,String key) { requireApiRead(type); return get(type,key); }
+    public ResourceFile apiGet(String type,String key) { requireApiRead(type, key); return get(type,key); }
 
     @Transactional
     public ResourceMeta apiPut(String type,String key,String fileName,String contentType,byte[] content,String expectedChecksum) {
@@ -31,11 +31,24 @@ public class ServerResourceService {
     @Transactional
     public void apiDelete(String type,String key) { requireApiWrite(type); delete(type,key); }
 
-    private static void requireApiRead(String type) {
+    public static boolean isPublicBrandingAsset(String type, String key) {
+        String normalized = normalize(type);
+        if (!"BUSINESS_ASSET".equals(normalized) || key == null) return false;
+        String k = key.trim();
+        return "application.markImagePath".equalsIgnoreCase(k)
+                || "application.brandImagePath".equalsIgnoreCase(k)
+                || "company.logoPath".equalsIgnoreCase(k)
+                || "application.mark".equalsIgnoreCase(k)
+                || "application.banner".equalsIgnoreCase(k)
+                || "invoice.header.logo".equalsIgnoreCase(k);
+    }
+
+    private static void requireApiRead(String type, String key) {
+        if (isPublicBrandingAsset(type, key)) return;
         String normalized=normalize(type);
         switch(normalized){
             case "ISSUED_SALES_PDF" -> CurrentUser.requirePermission("SALES.VIEW","View issued sales PDFs");
-            case "EXCEL_TEMPLATE","PDF_STUDIO_V3_TEMPLATE","PDF_STUDIO_V3_ACTIVE" -> CurrentUser.requirePermission("DOCUMENT_STUDIO.VIEW","View document templates");
+            case "EXCEL_TEMPLATE" -> CurrentUser.requirePermission("DOCUMENT_STUDIO.VIEW","View document templates");
             case "BUSINESS_ASSET" -> CurrentUser.require();
             default -> { if(!"ADMIN".equalsIgnoreCase(CurrentUser.require().role()) && !"SUPER_ADMIN".equalsIgnoreCase(CurrentUser.require().role())) throw new SecurityException("Administrator permission is required for this server resource"); }
         }
@@ -46,7 +59,7 @@ public class ServerResourceService {
         if("ISSUED_SALES_PDF".equals(normalized))
             throw new SecurityException("Issued sales PDF snapshots are immutable through the generic resource API");
         switch(normalized){
-            case "EXCEL_TEMPLATE","PDF_STUDIO_V3_TEMPLATE","PDF_STUDIO_V3_ACTIVE" -> {
+            case "EXCEL_TEMPLATE" -> {
                 if(!(CurrentUser.hasPermission("DOCUMENT_STUDIO.EDIT")||CurrentUser.hasPermission("DOCUMENT_STUDIO.MANAGE_TEMPLATES")))
                     throw new SecurityException("Managing document templates requires DOCUMENT_STUDIO.EDIT or DOCUMENT_STUDIO.MANAGE_TEMPLATES permission");
             }

@@ -138,6 +138,11 @@ public final class IconFactory {
      */
     private static void decorate(Node node, IdentityHashMap<Node, Boolean> visited) {
         if (node == null || visited.put(node, Boolean.TRUE) != null) return;
+        // Never traverse the dynamic Excel spreadsheet cell grid; cells and headers own their presentation.
+        if (node instanceof GridPane grid && (grid.getStyleClass().contains("excel-grid")
+                || grid.getStyleClass().contains("excel-cell-grid") || "cellGrid".equals(grid.getId()))) {
+            return;
+        }
         // A custom dialog supplies its own title icon and action presentation.
         // Do not infer icons from button text inside that shell, otherwise
         // labels such as "Mark all read" can become generic ellipsis icons.
@@ -288,6 +293,10 @@ public final class IconFactory {
 
     private static void decorateFieldLabelsOnly(Node node, IdentityHashMap<Node, Boolean> visited) {
         if (node == null || visited.put(node, Boolean.TRUE) != null) return;
+        if (node instanceof GridPane grid && (grid.getStyleClass().contains("excel-grid")
+                || grid.getStyleClass().contains("excel-cell-grid") || "cellGrid".equals(grid.getId()))) {
+            return;
+        }
         if (node instanceof Label label) { decorateFieldLabel(label); decorateOrdinaryValueLabel(label); }
         if (node instanceof ScrollPane scroll) {
             decorateFieldLabelsOnly(scroll.getContent(), visited);
@@ -1098,6 +1107,7 @@ public final class IconFactory {
             case "view" -> "fas-eye";
             case "hide" -> "fas-eye-slash";
             case "edit" -> "fas-tools";
+            case "cut" -> "fas-cut";
             case "delete" -> "fas-trash-alt";
             case "print" -> "fas-print";
             case "download" -> "fas-download";
@@ -1221,7 +1231,7 @@ public final class IconFactory {
         if (registered != null) return registered;
         return switch (semantic) {
             case "amount", "sale", "sales-order", "complete", "add", "import", "whatsapp", "save", "validate", "approve", "publish", "active", "online" -> "green";
-            case "export", "excel", "csv", "telemetry", "cloud" -> "blue";
+            case "cut", "export", "excel", "csv", "telemetry", "cloud" -> "blue";
             case "balance", "purchase", "purchase-order", "goods-receipt", "item", "reminder", "warning", "snooze", "quantity", "tax", "gstin", "discount", "category", "minimum", "source", "reference", "rollback", "package", "set-default", "transporter", "vehicle", "lock" -> "orange";
             case "quotation", "document", "master", "return", "settings", "more", "actions", "status", "reopen", "role", "reset", "notes", "print", "application", "calendar", "audit", "archive", "duplicate", "barcode", "template", "admin", "administrator" -> "purple";
             case "report", "delete", "error", "cancel", "pdf", "debit", "reject", "exit" -> "pink";
@@ -1343,6 +1353,8 @@ public final class IconFactory {
         // Specific actions must win before broad business nouns.
         if (value.startsWith("refresh") || value.contains("refresh ")) return "refresh";
         if (value.contains("telemetry") || value.contains("work hours")) return "telemetry";
+        if (value.contains("palette") || value.contains("show erp palette")) return "view";
+        if (value.contains("hide ◀") || value.contains("hide area") || value.equals("hide")) return "hide";
         if (value.contains("kick active") || value.contains("kick")) return "kick";
         if (value.contains("release workstation") || value.contains("release seat")) return "release";
         if (value.contains("machine hardware id") || value.contains("hardware id")) return "hardware";
@@ -1394,6 +1406,13 @@ public final class IconFactory {
         if (value.contains("charge table")) return "charge";
         if (value.equals("sheet")) return "worksheet";
         if (value.contains("merge & center") || value.equals("merge")) return "merge";
+        if (value.equals("cut")) return "cut";
+        if (value.contains("format painter") || value.contains("painter")) return "paste-format";
+        if (value.contains("format cell") || value.contains("format cells")) return "worksheet";
+        if (value.equals("₹") || value.contains("currency")) return "currency";
+        if (value.equals("%") || value.equals("\\%") || value.contains("percent")) return "tax";
+        if (value.equals(",") || value.contains("comma")) return "reference";
+        if (value.contains("more options") || value.contains("options")) return "actions";
         if (value.equals("paste")) return "paste";
         if (value.equals("reload")) return "reload";
         if (value.equals("bold")) return "bold";
