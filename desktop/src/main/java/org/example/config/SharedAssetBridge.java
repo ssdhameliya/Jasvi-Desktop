@@ -16,6 +16,12 @@ public final class SharedAssetBridge {
             "application.markImagePath"
     );
 
+    public static final List<String> PUBLIC_BRANDING_KEYS = List.of(
+            "application.markImagePath",
+            "application.brandImagePath",
+            "company.logoPath"
+    );
+
     private SharedAssetBridge() {}
 
     public static boolean isAssetKey(String k) {
@@ -126,5 +132,27 @@ public final class SharedAssetBridge {
             }
         }
         ConfigManager.save();
+    }
+
+    public static void syncPublicBranding() {
+        boolean changed = false;
+        for (String key : PUBLIC_BRANDING_KEYS) {
+            try {
+                Path folder = ConfigManager.getConfigurationFolder().resolve("assets");
+                Files.createDirectories(folder);
+                Path target = folder.resolve(key.replaceAll("[^A-Za-z0-9._-]", "_") + ".png");
+                byte[] bytes = new ServerResourceClient().get("BUSINESS_ASSET", key);
+                if (bytes != null && bytes.length > 0) {
+                    Files.write(target, bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                    ConfigManager.setLocalProperty(key, target.toAbsolutePath().toString().replace('\\', '/'));
+                    changed = true;
+                }
+            } catch (Exception ex) {
+                java.lang.System.getLogger("org.example.config").log(java.lang.System.Logger.Level.DEBUG, "Public asset sync error for " + key + ": " + ex.getMessage());
+            }
+        }
+        if (changed) {
+            ConfigManager.save();
+        }
     }
 }

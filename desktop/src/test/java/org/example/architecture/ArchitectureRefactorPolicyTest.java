@@ -5,14 +5,9 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.example.config.SettingsFieldSupport;
 import org.example.document.DocumentLookupPolicy;
 import org.example.document.DocumentChargeDialog;
-import org.example.documentstudio.model.ElementType;
-import org.example.documentstudio.model.TemplateElement;
 import org.example.documentstudio.service.ExcelSelectionPolicy;
 import org.example.documentstudio.service.ExcelDimensionPolicy;
 import org.example.documentstudio.service.ExcelWorkbookHistory;
-import org.example.documentstudio.service.PdfStudioGeometryPolicy;
-import org.example.documentstudio.service.PdfStudioHistory;
-import org.example.documentstudio.service.PdfStudioSelectionPolicy;
 import org.example.importing.ImportMappingSupport;
 import org.example.importing.ImportDocumentPolicy;
 import org.example.importing.ImportMergePolicy;
@@ -97,15 +92,6 @@ class ArchitectureRefactorPolicyTest {
         }
     }
 
-    @Test void pdfHistoryUsesDeepCopiesAndGeometryClamp() {
-        TemplateElement element = TemplateElement.of(ElementType.TEXT, 0, 10, 20, 100, 30); element.setText("before");
-        PdfStudioHistory history = new PdfStudioHistory(3); history.checkpoint(List.of(element));
-        element.setText("after");
-        List<TemplateElement> restored = history.undo(List.of(element));
-        assertEquals("before", restored.getFirst().getText());
-        assertEquals(10, PdfStudioGeometryPolicy.clamp(15, 0, 10));
-    }
-
     @Test void professionalDocumentFormattingIsStable() {
         assertEquals("1,234.50", ProfessionalDocumentFormatSupport.money(1234.5));
         assertEquals("2", ProfessionalDocumentFormatSupport.quantity(2));
@@ -131,15 +117,6 @@ class ArchitectureRefactorPolicyTest {
             assertTrue(ExcelDimensionPolicy.pixelsToRowPoints(30) > 0);
             assertTrue(ExcelDimensionPolicy.estimateAutoRowHeightPoints(sheet, 0, cell -> cell.getStringCellValue()) >= 15);
         }
-    }
-
-    @Test void pdfSelectionPolicyExpandsNestedChildren() {
-        TemplateElement parent = TemplateElement.of(ElementType.BLOCK, 0, 0, 0, 100, 100);
-        TemplateElement child = TemplateElement.of(ElementType.TEXT, 0, 5, 5, 50, 20); child.setParentId(parent.getId());
-        TemplateElement grandchild = TemplateElement.of(ElementType.TEXT, 0, 10, 10, 40, 15); grandchild.setParentId(child.getId());
-        var selected = PdfStudioSelectionPolicy.selectedWithDescendants(List.of(parent.getId()), List.of(parent, child, grandchild));
-        assertEquals(3, selected.size());
-        assertEquals(parent.getId(), PdfStudioSelectionPolicy.single(List.of(parent.getId()), List.of(parent, child)).getId());
     }
 
     @Test void importDocumentTaxDescriptionRemainsStable() {

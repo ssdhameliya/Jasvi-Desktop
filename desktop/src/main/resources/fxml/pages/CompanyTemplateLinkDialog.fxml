@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.example.controller.CompanyTemplateLinkDialogController"
+      spacing="14" styleClass="document-inspection-host,approved-ui">
+    <padding>
+        <Insets top="16" right="20" bottom="16" left="20"/>
+    </padding>
+
+    <!-- Header Strip -->
+    <VBox spacing="4" styleClass="dialog-header-box">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <StackPane prefWidth="36" prefHeight="36" styleClass="approved-page-icon"/>
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label fx:id="lblCompanyTitle" text="Link Document Templates" styleClass="approved-page-title,dialog-title"/>
+                    <Label text="Multi-Tenant Isolated" styleClass="badge-pill,badge-teal"/>
+                </HBox>
+                <Label text="Configure and isolate PDF rendering engines and Excel Studio templates for this company"
+                       styleClass="approved-page-subtitle,dialog-subtitle"/>
+            </VBox>
+        </HBox>
+    </VBox>
+
+    <!-- Top KPI Summary Strip -->
+    <GridPane hgap="12" vgap="0">
+        <columnConstraints>
+            <ColumnConstraints percentWidth="25"/>
+            <ColumnConstraints percentWidth="25"/>
+            <ColumnConstraints percentWidth="25"/>
+            <ColumnConstraints percentWidth="25"/>
+        </columnConstraints>
+
+        <!-- KPI 1: PDF Engine -->
+        <HBox spacing="10" alignment="CENTER_LEFT" styleClass="standard-kpi-card,kpi-blue" GridPane.columnIndex="0">
+            <StackPane styleClass="standard-kpi-icon"/>
+            <VBox spacing="2">
+                <Label text="PDF Rendering Engine" styleClass="metric-label"/>
+                <Label fx:id="lblKpiPdf" text="Flagship GST (Core)" styleClass="metric-value"/>
+                <Label text="High-Res Vector iText 7" styleClass="metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- KPI 2: Excel Studio -->
+        <HBox spacing="10" alignment="CENTER_LEFT" styleClass="standard-kpi-card,kpi-green" GridPane.columnIndex="1">
+            <StackPane styleClass="standard-kpi-icon"/>
+            <VBox spacing="2">
+                <Label text="Excel Studio Templates" styleClass="metric-label"/>
+                <Label fx:id="lblKpiExcel" text="2 Active Workbooks" styleClass="metric-value"/>
+                <Label text="Dynamic POI Mappings" styleClass="metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- KPI 3: Master Safety -->
+        <HBox spacing="10" alignment="CENTER_LEFT" styleClass="standard-kpi-card,kpi-purple" GridPane.columnIndex="2">
+            <StackPane styleClass="standard-kpi-icon"/>
+            <VBox spacing="2">
+                <Label text="Master Tenant Isolation" styleClass="metric-label"/>
+                <Label text="100% Sealed" styleClass="metric-value"/>
+                <Label text="Jasvi Master Untouched" styleClass="metric-note"/>
+            </VBox>
+        </HBox>
+
+        <!-- KPI 4: Operations -->
+        <HBox spacing="10" alignment="CENTER_LEFT" styleClass="standard-kpi-card,kpi-amber" GridPane.columnIndex="3">
+            <StackPane styleClass="standard-kpi-icon"/>
+            <VBox spacing="2">
+                <Label text="Operations Covered" styleClass="metric-label"/>
+                <Label text="4 of 4 Active" styleClass="metric-value"/>
+                <Label text="Sale, PO, Quote, Return" styleClass="metric-note"/>
+            </VBox>
+        </HBox>
+    </GridPane>
+
+    <!-- Scrollable Dual-Channel Content Area -->
+    <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="edge-to-edge,dialog-scroll-pane" prefHeight="420">
+        <VBox spacing="14">
+            <padding>
+                <Insets top="4" right="6" bottom="6" left="2"/>
+            </padding>
+
+            <!-- 1. Sales Tax Invoice -->
+            <VBox spacing="8" styleClass="settings-card">
+                <HBox alignment="CENTER_LEFT" spacing="8">
+                    <Label text="💼 1. Sales Tax Invoice Configuration" styleClass="field-label,email-transmission-field-bold"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Operation: SALES" styleClass="badge-pill,badge-primary"/>
+                </HBox>
+                <HBox spacing="16">
+                    <!-- PDF Selection -->
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT" spacing="6">
+                            <Label text="📄 PDF Rendering Engine (Prints &amp; Downloads)" styleClass="field-caption"/>
+                        </HBox>
+                        <ComboBox fx:id="cmbSalesPdf" maxWidth="Infinity" styleClass="approved-input"/>
+                        <Label fx:id="lblSalesPdfDesc" text="Flagship standard GST tax invoice with full statutory tax schedule"
+                               wrapText="true" styleClass="field-helper-text"/>
+                    </VBox>
+                    <!-- Excel Selection -->
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT" spacing="6">
+                            <Label text="📊 Excel Studio Template (Excel Exports)" styleClass="field-caption"/>
+                        </HBox>
+                        <ComboBox fx:id="cmbSalesExcel" maxWidth="Infinity" styleClass="approved-input"/>
+                        <Label fx:id="lblSalesExcelDesc" text="Custom workbook from Excel Studio with dynamic item tables"
+                               wrapText="true" styleClass="field-helper-text"/>
+                    </VBox>
+                </HBox>
+            </VBox>
+
+            <!-- 2. Purchase Order -->
+            <VBox spacing="8" styleClass="settings-card">
+                <HBox alignment="CENTER_LEFT" spacing="8">
+                    <Label text="📦 2. Purchase Order Configuration" styleClass="field-label,email-transmission-field-bold"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Operation: PURCHASE" styleClass="badge-pill,badge-teal"/>
+                </HBox>
+                <HBox spacing="16">
+                    <!-- PDF Selection -->
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT" spacing="6">
+                            <Label text="📄 PDF Rendering Engine (Dispatched to Suppliers)" styleClass="field-caption"/>
+                        </HBox>
+                        <ComboBox fx:id="cmbPurchasePdf" maxWidth="Infinity" styleClass="approved-input"/>
+                        <Label fx:id="lblPurchasePdfDesc" text="Procurement order layout with delivery instructions"
+                               wrapText="true" styleClass="field-helper-text"/>
+                    </VBox>
+                    <!-- Excel Selection -->
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT" spacing="6">
+                            <Label text="📊 Excel Studio Template (Procurement Intake)" styleClass="field-caption"/>
+                        </HBox>
+                        <ComboBox fx:id="cmbPurchaseExcel" maxWidth="Infinity" styleClass="approved-input"/>
+                        <Label fx:id="lblPurchaseExcelDesc" text="Standard goods receipt and inventory intake workbook"
+                               wrapText="true" styleClass="field-helper-text"/>
+                    </VBox>
+                </HBox>
+            </VBox>
+
+            <!-- 3. Commercial Quotation -->
+            <VBox spacing="8" styleClass="settings-card">
+                <HBox alignment="CENTER_LEFT" spacing="8">
+                    <Label text="📝 3. Commercial Quotation Configuration" styleClass="field-label,email-transmission-field-bold"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Operation: QUOTATION" styleClass="badge-pill,badge-amber"/>
+                </HBox>
+                <HBox spacing="16">
+                    <!-- PDF Selection -->
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT" spacing="6">
+                            <Label text="📄 PDF Rendering Engine (Commercial Proposals)" styleClass="field-caption"/>
+                        </HBox>
+                        <ComboBox fx:id="cmbQuotationPdf" maxWidth="Infinity" styleClass="approved-input"/>
+                        <Label fx:id="lblQuotationPdfDesc" text="Machinery commercial proposal with warranty clauses and milestones"
+                               wrapText="true" styleClass="field-helper-text"/>
+                    </VBox>
+                    <!-- Excel Selection -->
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT" spacing="6">
+                            <Label text="📊 Excel Studio Template (Cost Estimates)" styleClass="field-caption"/>
+                        </HBox>
+                        <ComboBox fx:id="cmbQuotationExcel" maxWidth="Infinity" styleClass="approved-input"/>
+                        <Label fx:id="lblQuotationExcelDesc" text="Standard commercial estimate with itemized pricing"
+                               wrapText="true" styleClass="field-helper-text"/>
+                    </VBox>
+                </HBox>
+            </VBox>
+
+            <!-- 4. Returns (Credit & Debit Notes) -->
+            <VBox spacing="8" styleClass="settings-card">
+                <HBox alignment="CENTER_LEFT" spacing="8">
+                    <Label text="🔄 4. Returns (Credit &amp; Debit Notes) Configuration" styleClass="field-label,email-transmission-field-bold"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Label text="Operation: RETURNS" styleClass="badge-pill,badge-coral"/>
+                </HBox>
+                <HBox spacing="16">
+                    <!-- PDF Selection -->
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT" spacing="6">
+                            <Label text="📄 PDF Rendering Engine (Statutory GST Notes)" styleClass="field-caption"/>
+                        </HBox>
+                        <ComboBox fx:id="cmbReturnsPdf" maxWidth="Infinity" styleClass="approved-input"/>
+                        <Label fx:id="lblReturnsPdfDesc" text="Statutory GST credit and debit adjustment notes cross-referenced to invoice"
+                               wrapText="true" styleClass="field-helper-text"/>
+                    </VBox>
+                    <!-- Excel Selection -->
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT" spacing="6">
+                            <Label text="📊 Excel Studio Template (Credit Register)" styleClass="field-caption"/>
+                        </HBox>
+                        <ComboBox fx:id="cmbReturnsExcel" maxWidth="Infinity" styleClass="approved-input"/>
+                        <Label fx:id="lblReturnsExcelDesc" text="Excel Studio return register with serialized batch adjustments"
+                               wrapText="true" styleClass="field-helper-text"/>
+                    </VBox>
+                </HBox>
+            </VBox>
+        </VBox>
+    </ScrollPane>
+
+    <!-- Information Banner -->
+    <HBox spacing="10" alignment="CENTER_LEFT" styleClass="system-notification-banner,notification-info">
+        <Label text="ℹ️ Company branding (Logo, Address, GSTIN, Bank accounts, Terms, Signature) is dynamically stamped into both PDF and Excel documents from this company's profile. Jasvi Master Core templates remain 100% protected."
+               wrapText="true" styleClass="notification-message"/>
+    </HBox>
+
+    <!-- Footer Actions -->
+    <HBox spacing="12" alignment="CENTER_RIGHT">
+        <Button fx:id="btnResetDefaults" text="Reset to Jasvi Defaults" onAction="#handleResetDefaults"
+                styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnOpenExcelStudio" text="Open Excel Studio" onAction="#handleOpenExcelStudio"
+                styleClass="approved-button,approved-secondary-button"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="btnCancel" text="Cancel" onAction="#handleCancel"
+                styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnSave" text="Save Template Mapping" onAction="#handleSave"
+                styleClass="approved-button,approved-primary-button"/>
+    </HBox>
+</VBox>

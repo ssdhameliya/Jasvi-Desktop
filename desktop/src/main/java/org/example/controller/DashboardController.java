@@ -172,7 +172,6 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private Button btnSystemDiagnosticsNav;
     @FXML private Button btnCommunication;
     @FXML private Button btnDocumentStudio;
-    @FXML private Button btnPdfStudio;
     @FXML private Button btnExcelStudio;
     @FXML private Button btnBackup;
     @FXML private Button btnSafeRollback;
@@ -857,7 +856,7 @@ public class DashboardController implements ScreenLifecycle {
         if (btnGstCompliance != null) btnGstCompliance.setDisable(!gstAllowed);
         if (btnEWayBill != null) btnEWayBill.setDisable(!ewayAllowed);
 
-        inheritGroupPermission(btnDocumentStudio, btnPdfStudio, btnExcelStudio);
+        inheritGroupPermission(btnDocumentStudio, btnExcelStudio);
         // Settings permissions are managed directly by btnSettings; sub-menu buttons removed from side panel.
     }
 
@@ -1039,7 +1038,7 @@ public class DashboardController implements ScreenLifecycle {
         // Shell-owned actions are catalog entries whose product/default scope is global. Users may
         // narrow those actions to a module/screen; configured scope is checked before execution.
         for (Action action : ShortcutRegistry.actions()) {
-            if (action.scope() == ShortcutRegistry.Scope.PDF_STUDIO || action.scope() == ShortcutRegistry.Scope.EXCEL_STUDIO) continue;
+            if (action.scope() == ShortcutRegistry.Scope.EXCEL_STUDIO) continue;
             if (!ShortcutRegistry.matches(event, action)) continue;
             if (!ShortcutRegistry.permitted(action) || !ShortcutRegistry.scopeActive(action, event.getTarget())) continue;
             if (ShortcutRegistry.textInputBlocked(action, event.getTarget())) continue;
@@ -1089,7 +1088,6 @@ public class DashboardController implements ScreenLifecycle {
             case COMMUNICATION -> openCommunication();
             case EMAIL_CENTER -> openEmailCenter();
             case WHATSAPP_CENTER -> openWhatsappCenter();
-            case PDF_STUDIO_OPEN -> openPdfStudio();
             case EXCEL_STUDIO_OPEN -> openExcelStudio();
             case BACKUP_RESTORE -> openBackup();
             case SAFE_ROLLBACK -> openSafeRollback();
@@ -1555,7 +1553,7 @@ public class DashboardController implements ScreenLifecycle {
             return NavGroup.FINANCE;
         if (button == btnGst || button == btnGstCompliance || button == btnEWayBill)
             return NavGroup.GST;
-        if (button == btnDocumentStudio || button == btnPdfStudio || button == btnExcelStudio)
+        if (button == btnDocumentStudio || button == btnExcelStudio)
             return NavGroup.DOCUMENT_STUDIO;
         if (button == btnSettings)
             return NavGroup.NONE;
@@ -1566,7 +1564,7 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("billtotally") || path.contains("clientsdirectory") || path.contains("clienttemplate")) return NavGroup.BILL_TO_TALLY;
         if (path.contains("generalledger") || path.contains("financialstatements") || path.contains("aginganalysis")) return NavGroup.FINANCE;
         if (path.contains("gstcompliance") || path.contains("ewaybill")) return NavGroup.GST;
-        if (path.contains("documentstudio") || path.contains("pdfdesigner") || path.contains("exceldesigner")) return NavGroup.DOCUMENT_STUDIO;
+        if (path.contains("documentstudio") || path.contains("exceldesigner")) return NavGroup.DOCUMENT_STUDIO;
         if (path.contains("settings")) return NavGroup.NONE;
         return NavGroup.NONE;
     }
@@ -1595,7 +1593,6 @@ public class DashboardController implements ScreenLifecycle {
         if (path.contains("ewaybill")) return btnEWayBill;
         if (path.contains("barcodestudio")) return btnBarcodeStudio;
         if (path.contains("exceldesigner")) return btnExcelStudio;
-        if (path.contains("pdfdesigner")) return btnPdfStudio;
         return button;
     }
 
@@ -1622,7 +1619,7 @@ public class DashboardController implements ScreenLifecycle {
                 btnFinance, btnGeneralLedger, btnFinancialStatements, btnAgingAnalysis,
                 btnGst, btnGstCompliance, btnEWayBill,
                 btnImport, btnInventory, btnBarcodeStudio, btnCustomer, btnSupplier, btnReports, btnReminders, btnUserAccess, btnAuditTrail, btnSystemDiagnosticsNav, btnCommunication,
-                btnDocumentStudio, btnPdfStudio, btnExcelStudio, btnSettings, btnSettingsCompany, btnSettingsPayment,
+                btnDocumentStudio, btnExcelStudio, btnSettings, btnSettingsCompany, btnSettingsPayment,
                 btnSettingsInvoice, btnSettingsNotifications, btnSettingsEmail, btnSettingsSecurity, btnSettingsWorkspace,
                 btnSettingsShortcuts, btnSettingsUpdates, btnSettingsModules, btnSettingsShowcase,
                 btnAutomationCenter,
@@ -1888,7 +1885,7 @@ public class DashboardController implements ScreenLifecycle {
             return;
         }
         javafx.application.Platform.runLater(() -> {
-            Button target = title != null && title.toLowerCase(Locale.ROOT).contains("excel") ? c.btnExcelStudio : c.btnPdfStudio;
+            Button target = c.btnExcelStudio;
             c.openPage(target == null ? c.btnDocumentStudio : target, title, fxmlPath);
         });
     }
@@ -1966,11 +1963,7 @@ public class DashboardController implements ScreenLifecycle {
         CommunicationScreenContext.select(null);
         openPage(btnCommunication, "Communication Center", "/fxml/pages/CommunicationCenter.fxml");
     }
-    @FXML private void openDocumentStudio() { openPdfStudio(); }
-    @FXML private void openPdfStudio() {
-        org.example.documentstudio.controller.DocumentStudioContext.selectMode(org.example.documentstudio.controller.DocumentStudioContext.Mode.PDF);
-        openPage(btnPdfStudio, "PDF Studio", "/fxml/pages/DocumentStudio.fxml");
-    }
+    @FXML private void openDocumentStudio() { openExcelStudio(); }
     @FXML private void openExcelStudio() {
         org.example.documentstudio.controller.DocumentStudioContext.selectMode(org.example.documentstudio.controller.DocumentStudioContext.Mode.EXCEL);
         openPage(btnExcelStudio, "Excel Studio", "/fxml/pages/DocumentStudio.fxml");

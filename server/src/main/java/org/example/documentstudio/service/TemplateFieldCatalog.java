@@ -47,7 +47,8 @@ public final class TemplateFieldCatalog {
             text("totals.grandTotal", "Grand Total", "Totals"),
             text("totals.paidAmount", "Paid Amount", "Totals"),
             text("totals.balanceAmount", "Balance Amount", "Totals"),
-            text("totals.amountInWords", "Amount in Words", "Totals")
+            text("totals.amountInWords", "Amount in Words (with INR prefix)", "Totals"),
+            text("totals.amountInWordsText", "Amount in Words (without INR prefix)", "Totals")
     );
 
     private static final List<TemplateFieldDefinition> PURCHASE = List.of(
@@ -324,6 +325,35 @@ public final class TemplateFieldCatalog {
             text("charge.total", "Charge Total Including Tax", "Charges • Repeating")
     );
 
+    private static final List<TemplateFieldDefinition> EXCEL_FIXED_CHARGES = List.of(
+            text("charge[1].name", "Charge 1 Name (Master Fallback)", "Charges • Fixed Slots"),
+            text("charge[1].type", "Charge 1 Type (Alias)", "Charges • Fixed Slots"),
+            text("charge[1].amount", "Charge 1 Amount", "Charges • Fixed Slots"),
+            text("charge[1].gstPercent", "Charge 1 GST %", "Charges • Fixed Slots"),
+            text("charge[1].taxAmount", "Charge 1 Tax Amount", "Charges • Fixed Slots"),
+            text("charge[1].total", "Charge 1 Total Amount", "Charges • Fixed Slots"),
+            text("charge[2].name", "Charge 2 Name (Master Fallback)", "Charges • Fixed Slots"),
+            text("charge[2].type", "Charge 2 Type (Alias)", "Charges • Fixed Slots"),
+            text("charge[2].amount", "Charge 2 Amount", "Charges • Fixed Slots"),
+            text("charge[2].gstPercent", "Charge 2 GST %", "Charges • Fixed Slots"),
+            text("charge[2].taxAmount", "Charge 2 Tax Amount", "Charges • Fixed Slots"),
+            text("charge[2].total", "Charge 2 Total Amount", "Charges • Fixed Slots")
+    );
+
+    private static final List<TemplateFieldDefinition> EXCEL_TAX_EXTRA = List.of(
+            text("tax.cgstRate", "CGST Rate %", "Tax • In-Place"),
+            text("tax.sgstRate", "SGST Rate %", "Tax • In-Place"),
+            text("tax.igstRate", "IGST Rate %", "Tax • In-Place"),
+            text("tax.gstRate", "Total GST Rate %", "Tax • In-Place"),
+            text("tax.cgstLabel", "CGST Label (e.g. CGST @ 9% / 6%)", "Tax • In-Place"),
+            text("tax.sgstLabel", "SGST Label (e.g. SGST @ 9% / 6%)", "Tax • In-Place"),
+            text("tax.igstLabel", "IGST Label (e.g. IGST @ 18% / 12%)", "Tax • In-Place"),
+            text("tax.primaryLabel", "Tax Row 1 Label (Auto CGST/IGST)", "Tax • In-Place"),
+            text("tax.primaryAmount", "Tax Row 1 Amount", "Tax • In-Place"),
+            text("tax.secondaryLabel", "Tax Row 2 Label (Auto SGST)", "Tax • In-Place"),
+            text("tax.secondaryAmount", "Tax Row 2 Amount", "Tax • In-Place")
+    );
+
     private static final List<TemplateFieldDefinition> EXCEL_TOTALS_EXTRA = List.of(
             text("totals.chargesAmount", "Total Additional Charges (Before Tax)", "Totals • Charges"),
             text("totals.chargeTaxAmount", "Total Tax on Additional Charges", "Totals • Charges"),
@@ -361,9 +391,10 @@ public final class TemplateFieldCatalog {
                 ? combine(base, SALES_EXCEL_EXTRA) : base;
         // Keep Excel-only rounding fields out of PDF Studio and only show them for document types that expose invoice totals.
         if (base.stream().anyMatch(field -> field.key().equals("totals.grandTotal")))
-            documentSpecific = combine(documentSpecific, EXCEL_TOTALS_EXTRA);
-        if (supportsItemRows(type) && supportsChargeRows(type)) return combine(documentSpecific, EXCEL_ITEMS, EXCEL_CHARGES);
+            documentSpecific = combine(documentSpecific, EXCEL_TOTALS_EXTRA, EXCEL_TAX_EXTRA);
+        if (supportsItemRows(type) && supportsChargeRows(type)) return combine(documentSpecific, EXCEL_ITEMS, EXCEL_CHARGES, EXCEL_FIXED_CHARGES);
         if (supportsItemRows(type)) return combine(documentSpecific, EXCEL_ITEMS);
+        if (supportsChargeRows(type)) return combine(documentSpecific, EXCEL_CHARGES, EXCEL_FIXED_CHARGES);
         return documentSpecific;
     }
 

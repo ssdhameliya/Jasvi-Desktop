@@ -4,8 +4,6 @@ import org.example.config.ConfigManager;
 import org.example.documentstudio.model.DocumentType;
 import org.example.documentstudio.service.ExcelTemplateRenderer;
 import org.example.documentstudio.service.ExcelTemplateStorageService;
-import org.example.documentstudio.service.PdfStudioRenderer;
-import org.example.documentstudio.service.TemplateStorageService;
 import org.example.invoice.pdf.TaxInvoicePdfGenerator;
 import org.example.server.authority.ServerResourceService;
 import org.example.server.audit.AuditService;
@@ -137,62 +135,17 @@ public class CanonicalDocumentService {
 
     private String renderSalesPdf(org.example.server.operations.OperationDtos.SaleDto sale, Map<String, String> config,
             Assets assets, Path output) throws Exception {
-        String studioFailure = null;
-        try (var selected = templates.pdf(DocumentType.SALES_INVOICE).orElse(null)) {
-            if (selected != null) {
-                try {
-                    var data = dataFactory.sales(sale, config, assets.templateImages());
-                    ConfigManager.withValues(config, () -> {
-                        TemplateStorageService.withRoot(selected.activeRoot(),
-                                () -> PdfStudioRenderer.render(selected.template(), data, output));
-                        return output;
-                    });
-                    validate(output, Format.PDF, sale.invoiceNo());
-                    return "PDF_STUDIO:" + safeTemplate(selected.template().getId()) + ":v"
-                            + selected.template().getActiveVersion();
-                } catch (Exception failure) {
-                    studioFailure = rootMessage(failure);
-                    Files.deleteIfExists(output);
-                    auditRequired(sale.id(), "PDF_STUDIO_FALLBACK", sale.invoiceNo() + " • " + studioFailure);
-                }
-            }
-        } catch (Exception failure) {
-            studioFailure = rootMessage(failure);
-            Files.deleteIfExists(output);
-            auditRequired(sale.id(), "PDF_STUDIO_FALLBACK", sale.invoiceNo() + " • " + studioFailure);
-        }
         ConfigManager.withValues(config, () -> {
             TaxInvoicePdfGenerator.generate(dataFactory.salesBuiltIn(sale, config, assets.logo, assets.signature), output,
                     TaxInvoicePdfGenerator.Presentation.FULL);
             return output;
         });
         validate(output, Format.PDF, sale.invoiceNo());
-        return studioFailure == null ? "STANDARD:NO_ACTIVE_STUDIO" : "STANDARD:FALLBACK";
+        return "STANDARD:FULL";
     }
 
     private void renderPurchasePdf(org.example.server.operations.OperationDtos.PurchaseDto purchase,
             Map<String, String> config, Assets assets, Path output) throws Exception {
-        String studioFailure = null;
-        try (var selected = templates.pdf(DocumentType.PURCHASE_INVOICE).orElse(null)) {
-            if (selected != null) {
-                try {
-                    var data = dataFactory.purchase(purchase, config, assets.templateImages());
-                    TemplateStorageService.withRoot(selected.activeRoot(),
-                            () -> PdfStudioRenderer.render(selected.template(), data, output));
-                    validate(output, Format.PDF, purchase.invoiceNo());
-                    return;
-                } catch (Exception failure) {
-                    studioFailure = rootMessage(failure);
-                    Files.deleteIfExists(output);
-                    audit.log("PURCHASE", purchase.id(), "PDF_STUDIO_FALLBACK",
-                            purchase.invoiceNo() + " • " + studioFailure);
-                }
-            }
-        } catch (Exception failure) {
-            studioFailure = rootMessage(failure);
-            Files.deleteIfExists(output);
-            audit.log("PURCHASE", purchase.id(), "PDF_STUDIO_FALLBACK", purchase.invoiceNo() + " • " + studioFailure);
-        }
         ConfigManager.withValues(config, () -> {
             ProfessionalDocumentRenderer.render(output, assets.logo, dataFactory.professionalPurchase(purchase, config),
                     ProfessionalDocumentRenderer.Kind.PURCHASE_INVOICE);
@@ -204,26 +157,6 @@ public class CanonicalDocumentService {
     private void renderQuotationPdf(org.example.server.quotation.QuotationDtos.QuoteDto quote,
             List<org.example.server.quotation.QuotationDtos.LineDto> lines,
             Map<String, String> config, Assets assets, Path output) throws Exception {
-        String studioFailure = null;
-        try (var selected = templates.pdf(DocumentType.QUOTATION).orElse(null)) {
-            if (selected != null) {
-                try {
-                    var data = dataFactory.quotation(quote, lines, config, assets.templateImages());
-                    TemplateStorageService.withRoot(selected.activeRoot(),
-                            () -> PdfStudioRenderer.render(selected.template(), data, output));
-                    validate(output, Format.PDF, quote.no());
-                    return;
-                } catch (Exception failure) {
-                    studioFailure = rootMessage(failure);
-                    Files.deleteIfExists(output);
-                    audit.log("QUOTATION", quote.id(), "PDF_STUDIO_FALLBACK", quote.no() + " • " + studioFailure);
-                }
-            }
-        } catch (Exception failure) {
-            studioFailure = rootMessage(failure);
-            Files.deleteIfExists(output);
-            audit.log("QUOTATION", quote.id(), "PDF_STUDIO_FALLBACK", quote.no() + " • " + studioFailure);
-        }
         ConfigManager.withValues(config, () -> {
             ProfessionalDocumentRenderer.render(output, assets.logo,
                     dataFactory.professionalQuotation(quote, lines, config),
@@ -238,28 +171,6 @@ public class CanonicalDocumentService {
         DocumentType dt = sales ? DocumentType.SALES_RETURN : DocumentType.PURCHASE_RETURN;
         ProfessionalDocumentRenderer.Kind kind = sales ? ProfessionalDocumentRenderer.Kind.SALES_REFUND
                 : ProfessionalDocumentRenderer.Kind.PURCHASE_REFUND;
-        String entity = sales ? "SALES_RETURN" : "PURCHASE_RETURN";
-        String studioFailure = null;
-        try (var selected = templates.pdf(dt).orElse(null)) {
-            if (selected != null) {
-                try {
-                    var data = sales ? dataFactory.salesReturn(ret, config, assets.templateImages())
-                            : dataFactory.purchaseReturn(ret, config, assets.templateImages());
-                    TemplateStorageService.withRoot(selected.activeRoot(),
-                            () -> PdfStudioRenderer.render(selected.template(), data, output));
-                    validate(output, Format.PDF, ret.no());
-                    return;
-                } catch (Exception failure) {
-                    studioFailure = rootMessage(failure);
-                    Files.deleteIfExists(output);
-                    audit.log(entity, 0, "PDF_STUDIO_FALLBACK", ret.no() + " • " + studioFailure);
-                }
-            }
-        } catch (Exception failure) {
-            studioFailure = rootMessage(failure);
-            Files.deleteIfExists(output);
-            audit.log(entity, 0, "PDF_STUDIO_FALLBACK", ret.no() + " • " + studioFailure);
-        }
         ConfigManager.withValues(config, () -> {
             ProfessionalDocumentRenderer.render(output, assets.logo,
                     sales ? dataFactory.professionalSalesReturn(ret, config)

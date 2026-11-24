@@ -432,6 +432,13 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) showClientLicenseDialog(item);
                 });
 
+                MenuItem miLinkTemplates = new MenuItem("Link Document Templates");
+                miLinkTemplates.setGraphic(IconFactory.compactIcon("document", 13));
+                miLinkTemplates.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    if (item != null) showCompanyTemplateLinkDialog(item);
+                });
+
                 MenuItem miRenew = new MenuItem("Renew (+1 Year)");
                 miRenew.setGraphic(IconFactory.compactIcon("refresh", 13));
                 miRenew.setOnAction(e -> {
@@ -502,7 +509,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                     if (item != null) handleRevokeClient(item);
                 });
 
-                actionsBtn.getItems().addAll(miLiveUsers, miRelease, miKickUsers, miEditAccess, miRenew, miRenewCustom, miCopyToken, miExport, miEmail, miWhatsApp, miDispatchAll, miTestUrl, new SeparatorMenuItem(), miRevoke);
+                actionsBtn.getItems().addAll(miLiveUsers, miRelease, miKickUsers, miEditAccess, miLinkTemplates, miRenew, miRenewCustom, miCopyToken, miExport, miEmail, miWhatsApp, miDispatchAll, miTestUrl, new SeparatorMenuItem(), miRevoke);
                 IconFactory.decorateActionMenu(actionsBtn);
             }
 
@@ -3467,6 +3474,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         Button btnRenew = createActionButton("Renew License (+1 Year)", "refresh", "approved-indigo-button", () -> { dialog.close(); handleRenewClient(client, 365); });
         Button btnCustomRenew = createActionButton("Custom Renewal Days...", "calendar", "approved-purple-button", () -> { dialog.close(); promptCustomRenewal(client); });
         Button btnEditPlan = createActionButton("Edit Plan & Modules", "edit", "approved-orange-button", () -> { dialog.close(); showClientLicenseDialog(client); });
+        Button btnLinkTemplates = createActionButton("Link Document Templates", "document", "approved-teal-button", () -> { dialog.close(); showCompanyTemplateLinkDialog(client); });
 
         Button btnKick = createActionButton("Kick Active Sessions", "delete", "approved-coral-button", () -> { dialog.close(); handleKickAllClientSessions(client); });
         Button btnCopy = createActionButton("Copy Machine Hardware ID", "copy", "approved-slate-button", () -> copyMachineId(rawMachine));
@@ -3474,7 +3482,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         Button btnEmail = createActionButton("Send via Email", "email", "approved-sky-button", () -> sendEmail(client));
         Button btnRevoke = createActionButton("Revoke / Suspend License", "delete", "approved-danger-button", () -> { dialog.close(); handleRevokeClient(client); });
 
-        for (Button b : List.of(btnTelemetry, btnRelease, btnRenew, btnCustomRenew, btnEditPlan, btnKick, btnCopy, btnWhatsApp, btnEmail, btnRevoke)) {
+        for (Button b : List.of(btnTelemetry, btnRelease, btnRenew, btnCustomRenew, btnEditPlan, btnLinkTemplates, btnKick, btnCopy, btnWhatsApp, btnEmail, btnRevoke)) {
             b.setMaxWidth(Double.MAX_VALUE);
             b.setPrefHeight(34);
         }
@@ -3492,12 +3500,60 @@ public class ClientRegistryController implements ScreenLifecycle {
         actionsGrid.add(btnEmail, 1, 3);
 
         actionsGrid.add(btnEditPlan, 0, 4);
-        actionsGrid.add(btnRevoke, 1, 4);
+        actionsGrid.add(btnLinkTemplates, 1, 4);
+
+        actionsGrid.add(btnRevoke, 0, 5);
 
         root.getChildren().addAll(hero, grid, lblActionsHeader, actionsGrid);
         dialog.getDialogPane().setContent(root);
         PopupTableWorkspace.prepareDialog(dialog, 900);
         dialog.showAndWait();
+    }
+
+    private void showCompanyTemplateLinkDialog(Map<String, Object> client) {
+        if (client == null) return;
+        try {
+            Long id = 1L;
+            Object rawId = client.get("id");
+            if (rawId instanceof Number n) id = n.longValue();
+            else if (rawId != null) {
+                try { id = Long.parseLong(rawId.toString()); } catch (Exception ignored) {}
+            }
+            String name = String.valueOf(client.getOrDefault("company_name", client.getOrDefault("client_name", "Company #" + id)));
+
+            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(org.example.util.ResourceLocator.require("/fxml/pages/CompanyTemplateLinkDialog.fxml"));
+            javafx.scene.Parent root = loader.load();
+            org.example.util.ProfessionalUiEnhancer.enhance(root);
+            CompanyTemplateLinkDialogController controller = loader.getController();
+            controller.init(id, name, this::handleRefresh);
+
+            Dialog<Void> dialog = new OwnedDialog<>(tableClients);
+            dialog.setTitle("Link Document Templates - " + name);
+            dialog.getDialogPane().setContent(root);
+            dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+            javafx.scene.Node closeBtn = dialog.getDialogPane().lookupButton(ButtonType.CLOSE);
+            if (closeBtn != null) {
+                closeBtn.setVisible(false);
+                closeBtn.setManaged(false);
+            }
+
+            // 90% responsive screen geometry per Rule 12 Content-Adaptive Bounds
+            javafx.stage.Window ownerWindow = tableClients.getScene() != null ? tableClients.getScene().getWindow() : null;
+            double targetW = 1060;
+            double targetH = 740;
+            if (ownerWindow != null) {
+                targetW = Math.max(980, ownerWindow.getWidth() * 0.90);
+                targetH = Math.max(660, ownerWindow.getHeight() * 0.90);
+            }
+            dialog.getDialogPane().setPrefSize(targetW, targetH);
+            dialog.getDialogPane().setMinSize(920, 600);
+            dialog.setResizable(true);
+
+            dialog.showAndWait();
+        } catch (Exception ex) {
+            log.error("Failed to open CompanyTemplateLinkDialog", ex);
+            AppDialogService.error(tableClients, "Dialog Error", "Unable to load Template Linking Studio: " + ex.getMessage());
+        }
     }
 
     private void openLeadInspectionDialog(Map<String, Object> lead) {

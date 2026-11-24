@@ -157,6 +157,30 @@ class CanonicalExcelTemplateRendererTest {
         ), List.of(), "GST");
     }
 
+    @Test
+    void serverRendererPopulatesFixedSlotsAndAdaptiveTax() throws Exception {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Invoice");
+            Row r0 = sheet.createRow(0);
+            r0.createCell(0).setCellValue("{{charge[1].name}}");
+            r0.createCell(1).setCellValue("{{charge[1].amount}}");
+            r0.createCell(2).setCellValue("{{tax.primaryLabel}}");
+            r0.createCell(3).setCellValue("{{tax.primaryAmount}}");
+
+            TemplateData data = new TemplateData(
+                    Map.of("config.masterChargeTypes", "Freight,Packing"),
+                    Map.of(),
+                    List.of(new TaxInvoiceItem(1, "1111", "Item", "", 1, "NOS", 100, 0, 18)),
+                    List.of(), "GST");
+
+            ExcelTemplateRenderer.fillWorkbook(workbook, data, List.of());
+            assertEquals("Freight", sheet.getRow(0).getCell(0).getStringCellValue());
+            assertEquals(0.00, sheet.getRow(0).getCell(1).getNumericCellValue(), 0.001);
+            assertEquals("CGST @ 9%", sheet.getRow(0).getCell(2).getStringCellValue());
+            assertEquals(9.00, sheet.getRow(0).getCell(3).getNumericCellValue(), 0.001);
+        }
+    }
+
     private static boolean hasMergedRegion(Sheet sheet, int firstRow, int lastRow, int firstCol, int lastCol) {
         for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
             CellRangeAddress region = sheet.getMergedRegion(i);

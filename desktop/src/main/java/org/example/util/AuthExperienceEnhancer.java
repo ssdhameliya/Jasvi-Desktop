@@ -27,6 +27,7 @@ public final class AuthExperienceEnhancer {
     }
     private static void install(Node node, String semantic, double size) {
         if (!(node instanceof StackPane pane) || Boolean.TRUE.equals(pane.getProperties().get("erp.auth.icon"))) return;
+        if (pane.getStyleClass().contains("splash-brand-mark-card") || pane.lookup("#imgSplashMark") != null || pane.lookup("#imgLoginSectionMark") != null) return;
         pane.getProperties().put("erp.auth.icon", true);
         pane.getChildren().removeIf(child -> child instanceof Label);
         pane.getChildren().add(IconFactory.icon(semantic, size));

@@ -61,7 +61,6 @@ public final class SettingsShortcutSupport {
 
     public static List<ShortcutRegistry.Scope> scopesForAction(Action action) {
         if (action == null) return List.of(ShortcutRegistry.Scope.GLOBAL);
-        if (action.scope() == ShortcutRegistry.Scope.PDF_STUDIO) return List.of(ShortcutRegistry.Scope.PDF_STUDIO);
         if (action.scope() == ShortcutRegistry.Scope.EXCEL_STUDIO) return List.of(ShortcutRegistry.Scope.EXCEL_STUDIO);
         if (action.scope() == ShortcutRegistry.Scope.MASTER_DATA) return List.of(ShortcutRegistry.Scope.MASTER_DATA);
         return Arrays.asList(ShortcutRegistry.Scope.values());
@@ -87,7 +86,6 @@ public final class SettingsShortcutSupport {
             case REPORTS -> "Runs only in Reports.";
             case COMMUNICATION -> "Runs only in Communication screens.";
             case SETTINGS -> "Runs only inside Settings.";
-            case PDF_STUDIO -> "Runs only while PDF Studio owns the keyboard context.";
             case EXCEL_STUDIO -> "Runs only while Excel Studio owns the keyboard context.";
             case MASTER_DATA -> "Runs only inside the Master Data workspace.";
         };

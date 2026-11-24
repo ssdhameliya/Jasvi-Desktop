@@ -160,6 +160,12 @@ public final class Main {
             // select an already-configured workspace again.
             if (!WorkspaceManager.isSetupComplete())
                 WorkspaceManager.markSetupComplete();
+            if (ConfigManager.isSharedClient()) {
+                try {
+                    org.example.config.SharedAssetBridge.syncPublicBranding();
+                    SceneManager.refreshSplashBranding();
+                } catch (Exception ignored) {}
+            }
             SceneManager.updateSplashStage(5, "Finalizing " + BrandingService.applicationName() + "...");
             SceneManager.markSplashReady("Services ready. Opening " + BrandingService.applicationName() + "...");
         } catch (Exception exception) {

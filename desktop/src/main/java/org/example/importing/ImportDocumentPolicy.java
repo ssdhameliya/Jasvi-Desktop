@@ -19,10 +19,9 @@ public final class ImportDocumentPolicy {
 
     public static void requireReference(Map<String, String> formats, String key, String value,
                                         LocalDate documentDate, String label) {
-        String format = formats == null ? null : formats.get(key);
-        if (format == null || format.isBlank()) {
-            throw new IllegalStateException(label + " format is not configured in REFERENCE FORMAT (" + key + ")");
-        }
+        if (formats == null || formats.isEmpty()) return;
+        String format = formats.get(key);
+        if (format == null || format.isBlank()) return;
         if (!ReferenceFormatRules.matches(format, value, documentDate)) {
             throw new IllegalArgumentException(label + " '" + value + "' does not match " + key + " format " + format);
         }

@@ -8,6 +8,7 @@ import org.example.documentstudio.model.ExcelTemplate;
 import org.example.documentstudio.model.TemplateData;
 import org.example.documentstudio.model.TemplateCharge;
 import org.example.invoice.calculation.InvoiceTaxCalculator;
+import org.example.invoice.calculation.AmountInWordsConverter;
 import org.example.invoice.model.InvoiceTotals;
 import org.example.invoice.model.TaxInvoiceCharge;
 import org.example.invoice.model.TaxInvoiceItem;
@@ -21,8 +22,8 @@ import java.util.regex.Pattern;
 
 /** Renders ERP data into a user-created Excel template while preserving workbook formatting. */
 public final class ExcelTemplateRenderer {
-    private static final Pattern TOKEN = Pattern.compile("\\{\\{\\s*([A-Za-z0-9_.-]+)\\s*}}");
-    private static final Pattern WHOLE_TOKEN = Pattern.compile("^\\s*\\{\\{\\s*([A-Za-z0-9_.-]+)\\s*}}\\s*$");
+    private static final Pattern TOKEN = Pattern.compile("\\{\\{\\s*([A-Za-z0-9_.\\[\\]-]+)\\s*}}");
+    private static final Pattern WHOLE_TOKEN = Pattern.compile("^\\s*\\{\\{\\s*([A-Za-z0-9_.\\[\\]-]+)\\s*}}\\s*$");
     private static final Pattern A1_REFERENCE = Pattern.compile("(?<![A-Za-z0-9_])(?:(?:'[^']+'|[A-Za-z_][A-Za-z0-9_.]*)!)?(\\$?)([A-Za-z]{1,3})(\\$?)([0-9]+)(?![A-Za-z0-9_])");
     private static final Pattern FORMULA_STRING_LITERAL = Pattern.compile("\"(?:[^\"]|\"\")*\"");
 
@@ -173,10 +174,86 @@ public final class ExcelTemplateRenderer {
             values.put("totals.preRoundTotal", money(preRound));
             values.put("totals.roundOff", money(totals.roundOff()));
             values.put("totals.roundedGrandTotal", money(totals.grandTotal()));
+            values.put("totals.amountInWords", "INR : " + AmountInWordsConverter.indianRupees(totals.grandTotal()));
+            values.put("totals.amountInWordsText", AmountInWordsConverter.indianRupees(totals.grandTotal()));
+
+            double effectiveGstRate = data.items().stream()
+                    .mapToDouble(TaxInvoiceItem::getGstPercent)
+                    .filter(r -> r > 0)
+                    .findFirst()
+                    .orElse(18.0);
+            double nominalFullRate = DocumentCalculationEngine.percent(effectiveGstRate);
+            double nominalHalfRate = nominalFullRate / 2.0;
+            values.put("tax.gstRate", number(nominalFullRate));
+            values.put("tax.cgstRate", number(nominalHalfRate));
+            values.put("tax.sgstRate", number(nominalHalfRate));
+            values.put("tax.igstRate", number(nominalFullRate));
+            values.put("tax.cgstLabel", "CGST @ " + number(nominalHalfRate) + "%");
+            values.put("tax.sgstLabel", "SGST @ " + number(nominalHalfRate) + "%");
+            values.put("tax.igstLabel", "IGST @ " + number(nominalFullRate) + "%");
+            values.put("tax.primaryLabel", interstate ? ("IGST @ " + number(nominalFullRate) + "%") : ("CGST @ " + number(nominalHalfRate) + "%"));
+            values.put("tax.primaryAmount", interstate ? money(totals.igst()) : money(totals.cgst()));
+            values.put("tax.secondaryLabel", interstate ? "" : ("SGST @ " + number(nominalHalfRate) + "%"));
+            values.put("tax.secondaryAmount", interstate ? "0.00" : money(totals.sgst()));
+
+            List<String> masterTypes = fetchMasterChargeTypes(data);
+            Set<String> usedTypes = new LinkedHashSet<>();
+            for (int slot = 1; slot <= 2; slot++) {
+                String prefix = "charge[" + slot + "].";
+                if (slot <= safeCharges.size()) {
+                    ChargeData c = safeCharges.get(slot - 1);
+                    String name = safe(c.type()).trim();
+                    if (name.isBlank()) name = "Charges " + slot;
+                    usedTypes.add(name.toLowerCase(Locale.ROOT));
+                    values.put(prefix + "name", name);
+                    values.put(prefix + "type", name);
+                    values.put(prefix + "amount", money(c.amount()));
+                    values.put(prefix + "gstPercent", number(c.gstPercent()));
+                    values.put(prefix + "taxAmount", money(c.taxAmount()));
+                    values.put(prefix + "total", money(c.total()));
+                } else {
+                    String fallbackName = masterTypes.stream()
+                            .filter(t -> t != null && !t.isBlank() && !usedTypes.contains(t.trim().toLowerCase(Locale.ROOT)))
+                            .findFirst()
+                            .orElse("Charges " + slot);
+                    usedTypes.add(fallbackName.toLowerCase(Locale.ROOT));
+                    values.put(prefix + "name", fallbackName);
+                    values.put(prefix + "type", fallbackName);
+                    values.put(prefix + "amount", "0.00");
+                    values.put(prefix + "gstPercent", "0");
+                    values.put(prefix + "taxAmount", "0.00");
+                    values.put(prefix + "total", "0.00");
+                }
+            }
+
             return Map.copyOf(values);
         } catch (Exception ignored) {
             return Map.of();
         }
+    }
+
+    private static List<String> fetchMasterChargeTypes(TemplateData data) {
+        if (data != null && data.values() != null) {
+            String fromValues = data.values().get("config.masterChargeTypes");
+            if (fromValues != null && !fromValues.isBlank()) {
+                List<String> list = Arrays.stream(fromValues.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isBlank())
+                        .toList();
+                if (!list.isEmpty()) return list;
+            }
+        }
+        try {
+            Class<?> clazz = Class.forName("org.example.api.master.MasterApiClient");
+            Object client = clazz.getDeclaredConstructor().newInstance();
+            Object bootstrap = clazz.getMethod("salesEntryBootstrap").invoke(client);
+            if (bootstrap != null) {
+                @SuppressWarnings("unchecked")
+                List<String> types = (List<String>) bootstrap.getClass().getMethod("chargeTypes").invoke(bootstrap);
+                if (types != null && !types.isEmpty()) return types;
+            }
+        } catch (Throwable ignored) { }
+        return List.of();
     }
 
 
@@ -197,22 +274,187 @@ public final class ExcelTemplateRenderer {
     }
 
     private static void addImage(Workbook workbook, Sheet sheet, Cell cell, Path image) throws IOException {
-        byte[] bytes = Files.readAllBytes(image);
-        int pictureType = pictureType(image);
-        if (pictureType < 0) throw new IOException("Only PNG and JPEG images are supported for Excel image placeholders.");
-        int pictureIndex = workbook.addPicture(bytes, pictureType);
+        PreparedImage prepared = prepareImage(image);
+        int pictureIndex = workbook.addPicture(prepared.bytes(), prepared.pictureType());
         Drawing<?> drawing = sheet.createDrawingPatriarch();
         CreationHelper helper = workbook.getCreationHelper();
         ClientAnchor anchor = helper.createClientAnchor();
         int row1 = cell.getRowIndex(), col1 = cell.getColumnIndex();
         CellRangeAddress merged = mergedAt(sheet, row1, col1);
-        anchor.setRow1(row1); anchor.setCol1(col1);
-        anchor.setRow2(merged == null ? Math.min(1048575, row1 + 4) : merged.getLastRow() + 1);
-        anchor.setCol2(merged == null ? Math.min(16383, col1 + 3) : merged.getLastColumn() + 1);
+
+        int startRow = row1;
+        int startCol = col1;
+        int endRow = merged == null ? Math.min(Math.max(sheet.getLastRowNum(), row1), row1 + 3) : merged.getLastRow();
+        int endCol = merged == null ? Math.min(16383, col1 + 2) : merged.getLastColumn();
+
+        // Calculate available bounding box in EMUs across the target cell / merged region
+        int totalWidthEmu = 0;
+        for (int c = startCol; c <= endCol; c++) {
+            totalWidthEmu += org.apache.poi.util.Units.columnWidthToEMU(sheet.getColumnWidth(c));
+        }
+
+        int totalHeightEmu = 0;
+        for (int r = startRow; r <= endRow; r++) {
+            Row rRow = sheet.getRow(r);
+            float hPt = rRow == null ? sheet.getDefaultRowHeightInPoints() : rRow.getHeightInPoints();
+            totalHeightEmu += org.apache.poi.util.Units.toEMU(hPt);
+        }
+
+        // Apply a safe border clearance inset (2 pixels) so the picture canvas never touches or covers cell borders
+        int insetEmu = org.apache.poi.util.Units.pixelToEMU(2);
+        int usableWidthEmu = Math.max(insetEmu, totalWidthEmu - 2 * insetEmu);
+        int usableHeightEmu = Math.max(insetEmu, totalHeightEmu - 2 * insetEmu);
+
+        int imgWidth = Math.max(1, prepared.width());
+        int imgHeight = Math.max(1, prepared.height());
+
+        double imgAspect = (double) imgWidth / (double) imgHeight;
+        double boxAspect = (double) usableWidthEmu / (double) usableHeightEmu;
+
+        int drawWidthEmu = usableWidthEmu;
+        int drawHeightEmu = usableHeightEmu;
+
+        if (imgAspect > boxAspect) {
+            drawWidthEmu = usableWidthEmu;
+            drawHeightEmu = Math.max(1, (int) Math.round(usableWidthEmu / imgAspect));
+        } else {
+            drawHeightEmu = usableHeightEmu;
+            drawWidthEmu = Math.max(1, (int) Math.round(usableHeightEmu * imgAspect));
+        }
+
+        int offsetX = insetEmu + Math.max(0, (usableWidthEmu - drawWidthEmu) / 2);
+        int offsetY = insetEmu + Math.max(0, (usableHeightEmu - drawHeightEmu) / 2);
+
+        // Map X EMU offsets into (anchorCol1, anchorDx1) and (anchorCol2, anchorDx2)
+        int curX = 0;
+        int anchorCol1 = startCol;
+        int anchorDx1 = 0;
+        for (int c = startCol; c <= endCol; c++) {
+            int colW = org.apache.poi.util.Units.columnWidthToEMU(sheet.getColumnWidth(c));
+            if (curX + colW > offsetX || c == endCol) {
+                anchorCol1 = c;
+                anchorDx1 = Math.max(0, offsetX - curX);
+                break;
+            }
+            curX += colW;
+        }
+
+        int targetRightX = offsetX + drawWidthEmu;
+        curX = 0;
+        int anchorCol2 = startCol;
+        int anchorDx2 = 0;
+        for (int c = startCol; c <= endCol; c++) {
+            int colW = org.apache.poi.util.Units.columnWidthToEMU(sheet.getColumnWidth(c));
+            if (curX + colW >= targetRightX || c == endCol) {
+                anchorCol2 = c;
+                anchorDx2 = Math.min(colW, Math.max(0, targetRightX - curX));
+                break;
+            }
+            curX += colW;
+        }
+
+        // Map Y EMU offsets into (anchorRow1, anchorDy1) and (anchorRow2, anchorDy2)
+        int curY = 0;
+        int anchorRow1 = startRow;
+        int anchorDy1 = 0;
+        for (int r = startRow; r <= endRow; r++) {
+            Row rRow = sheet.getRow(r);
+            float hPt = rRow == null ? sheet.getDefaultRowHeightInPoints() : rRow.getHeightInPoints();
+            int rowH = org.apache.poi.util.Units.toEMU(hPt);
+            if (curY + rowH > offsetY || r == endRow) {
+                anchorRow1 = r;
+                anchorDy1 = Math.max(0, offsetY - curY);
+                break;
+            }
+            curY += rowH;
+        }
+
+        int targetBottomY = offsetY + drawHeightEmu;
+        curY = 0;
+        int anchorRow2 = startRow;
+        int anchorDy2 = 0;
+        for (int r = startRow; r <= endRow; r++) {
+            Row rRow = sheet.getRow(r);
+            float hPt = rRow == null ? sheet.getDefaultRowHeightInPoints() : rRow.getHeightInPoints();
+            int rowH = org.apache.poi.util.Units.toEMU(hPt);
+            if (curY + rowH >= targetBottomY || r == endRow) {
+                anchorRow2 = r;
+                anchorDy2 = Math.min(rowH, Math.max(0, targetBottomY - curY));
+                break;
+            }
+            curY += rowH;
+        }
+
+        anchor.setCol1(anchorCol1);
+        anchor.setDx1(anchorDx1);
+        anchor.setRow1(anchorRow1);
+        anchor.setDy1(anchorDy1);
+
+        anchor.setCol2(anchorCol2);
+        anchor.setDx2(anchorDx2);
+        anchor.setRow2(anchorRow2);
+        anchor.setDy2(anchorDy2);
+
         anchor.setAnchorType(ClientAnchor.AnchorType.MOVE_AND_RESIZE);
-        Picture picture = drawing.createPicture(anchor, pictureIndex);
-        if (merged == null) {
-            try { picture.resize(1.0); } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
+        drawing.createPicture(anchor, pictureIndex);
+    }
+
+    private record PreparedImage(byte[] bytes, int pictureType, int width, int height) {}
+
+    private static PreparedImage prepareImage(Path image) throws IOException {
+        byte[] original = Files.readAllBytes(image);
+        int picType = pictureType(image);
+        if (picType < 0) throw new IOException("Only PNG and JPEG images are supported for Excel image placeholders.");
+
+        try {
+            java.awt.image.BufferedImage src = javax.imageio.ImageIO.read(image.toFile());
+            if (src == null) return new PreparedImage(original, picType, 300, 150);
+
+            int w = src.getWidth();
+            int h = src.getHeight();
+
+            // Detect scanned physical paper background: sample 4 corners
+            java.awt.image.BufferedImage argb = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            java.awt.Graphics2D g2 = argb.createGraphics();
+            g2.drawImage(src, 0, 0, null);
+            g2.dispose();
+
+            int[] corners = {
+                argb.getRGB(0, 0),
+                argb.getRGB(w - 1, 0),
+                argb.getRGB(0, h - 1),
+                argb.getRGB(w - 1, h - 1)
+            };
+            boolean isOpaqueWhitePaper = true;
+            for (int c : corners) {
+                int a = (c >> 24) & 0xff;
+                int r = (c >> 16) & 0xff;
+                int g = (c >> 8) & 0xff;
+                int b = c & 0xff;
+                if (a < 50) { isOpaqueWhitePaper = false; break; }
+                if (r < 230 || g < 230 || b < 230) { isOpaqueWhitePaper = false; break; }
+            }
+
+            if (isOpaqueWhitePaper) {
+                for (int y = 0; y < h; y++) {
+                    for (int x = 0; x < w; x++) {
+                        int p = argb.getRGB(x, y);
+                        int r = (p >> 16) & 0xff;
+                        int g = (p >> 8) & 0xff;
+                        int b = p & 0xff;
+                        if (r >= 235 && g >= 235 && b >= 235) {
+                            argb.setRGB(x, y, 0x00FFFFFF);
+                        }
+                    }
+                }
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                javax.imageio.ImageIO.write(argb, "PNG", baos);
+                return new PreparedImage(baos.toByteArray(), Workbook.PICTURE_TYPE_PNG, w, h);
+            }
+
+            return new PreparedImage(original, picType, w, h);
+        } catch (Throwable error) {
+            return new PreparedImage(original, picType, 300, 150);
         }
     }
 
@@ -751,11 +993,16 @@ public final class ExcelTemplateRenderer {
     private static boolean isNumericExcelField(String key){
         if(key==null)return false;
         if(key.startsWith("item.")||key.startsWith("charge."))return true;
+        if(key.matches("charge\\[\\d+]\\.(amount|gstPercent|taxAmount|total)"))return true;
+        if(key.equals("tax.cgstRate")||key.equals("tax.sgstRate")||key.equals("tax.igstRate")||key.equals("tax.gstRate")||key.equals("tax.primaryAmount")||key.equals("tax.secondaryAmount"))return true;
         return key.startsWith("totals.") && !key.equals("totals.amountInWords");
     }
 
     private static boolean requiresTwoDecimalMoneyFormat(String key){
-        return key!=null&&key.startsWith("totals.")&&!key.equals("totals.amountInWords");
+        if(key==null)return false;
+        if(key.matches("charge\\[\\d+]\\.(amount|taxAmount|total)"))return true;
+        if(key.equals("tax.primaryAmount")||key.equals("tax.secondaryAmount"))return true;
+        return key.startsWith("totals.")&&!key.equals("totals.amountInWords");
     }
 
     private static void ensureTwoDecimalMoneyFormat(Cell cell){

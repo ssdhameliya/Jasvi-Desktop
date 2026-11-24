@@ -43,6 +43,14 @@ public class SecurityConfig {
                                 "/api/license/self-register", "/api/license/check-lead", "/api/license/super/kick-client",
                                 "/api/security/emergency/action", "/api/security/emergency/status", "/api/auth/account-status")
                         .permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/authority/resources/BUSINESS_ASSET/application.markImagePath",
+                                "/api/authority/resources/BUSINESS_ASSET/application.brandImagePath",
+                                "/api/authority/resources/BUSINESS_ASSET/company.logoPath",
+                                "/api/authority/resources/BUSINESS_ASSET/application.mark",
+                                "/api/authority/resources/BUSINESS_ASSET/application.banner",
+                                "/api/authority/resources/BUSINESS_ASSET/invoice.header.logo")
+                        .permitAll()
                         .requestMatchers("/api/auth/effective-permissions", "/api/auth/session",
                                 "/api/admin/diagnostics/**", "/api/admin/showcase/**", "/api/sync/v1/**")
                         .authenticated()
@@ -172,10 +180,6 @@ public class SecurityConfig {
                         .hasAnyAuthority("ROLE_ADMIN", "COMMUNICATION.RESEND")
                         .requestMatchers(HttpMethod.POST, "/api/authority/email")
                         .hasAnyAuthority("ROLE_ADMIN", "COMMUNICATION.CREATE")
-                        .requestMatchers(HttpMethod.PUT, "/api/pdf-studio/templates/**")
-                        .hasAnyAuthority("ROLE_ADMIN", "DOCUMENT_STUDIO.EDIT", "DOCUMENT_STUDIO.MANAGE_TEMPLATES")
-                        .requestMatchers(HttpMethod.DELETE, "/api/pdf-studio/templates/**")
-                        .hasAnyAuthority("ROLE_ADMIN", "DOCUMENT_STUDIO.EDIT", "DOCUMENT_STUDIO.MANAGE_TEMPLATES")
                         .requestMatchers(HttpMethod.GET, "/api/authority/resources/EXCEL_TEMPLATE/**")
                         .hasAnyAuthority("ROLE_ADMIN", "DOCUMENT_STUDIO.VIEW")
                         .requestMatchers(HttpMethod.PUT, "/api/authority/resources/EXCEL_TEMPLATE/**")

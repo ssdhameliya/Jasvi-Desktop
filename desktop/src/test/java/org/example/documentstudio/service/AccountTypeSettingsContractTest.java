@@ -25,22 +25,15 @@ class AccountTypeSettingsContractTest {
     }
 
     @Test
-    void accountTypeIsAvailableToBothExcelAndPdfStudio() {
+    void accountTypeIsAvailableToExcelStudio() {
         List<String> excel = TemplateFieldCatalog.excelFieldsFor(DocumentType.SALES_INVOICE).stream()
                 .map(TemplateFieldDefinition::key).toList();
-        List<String> pdf = TemplateFieldCatalog.pdfFieldsFor(DocumentType.SALES_INVOICE).stream()
-                .map(TemplateFieldDefinition::key).toList();
-
         assertTrue(excel.contains("payment.accountType"), "Excel Studio must expose payment.accountType");
-        assertTrue(pdf.contains("payment.accountType"), "PDF Studio must expose payment.accountType");
     }
 
     @Test
     void templateDataFactorySynchronizesConfiguredAccountType() throws Exception {
         String source = Files.readString(Path.of("src/main/java/org/example/documentstudio/service/TemplateDataFactory.java"));
         assertTrue(source.contains("put(v, \"payment.accountType\", ConfigManager.get(\"payment.accountType\", \"\"))"));
-        TemplateFieldDefinition field = TemplateFieldCatalog.findPdf(DocumentType.SALES_INVOICE, "payment.accountType");
-        assertTrue(field != null && field.aliases().stream().anyMatch(a -> a.equalsIgnoreCase("Account Type")),
-                "PDF auto-map aliases must come from the central TemplateFieldCatalog");
     }
 }

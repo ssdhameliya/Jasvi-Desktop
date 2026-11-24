@@ -113,10 +113,12 @@ public final class SearchableComboBoxHelper {
         if (editor != null) {
             // Keep prompt text synchronized between ComboBox and its editable TextField
             if (comboBox.getPromptText() != null && !comboBox.getPromptText().isBlank()) {
-                editor.setPromptText(comboBox.getPromptText());
+                if (!editor.promptTextProperty().isBound()) {
+                    editor.setPromptText(comboBox.getPromptText());
+                }
             }
             comboBox.promptTextProperty().addListener((obs, oldPrompt, newPrompt) -> {
-                if (editor != null && newPrompt != null) {
+                if (editor != null && newPrompt != null && !editor.promptTextProperty().isBound()) {
                     editor.setPromptText(newPrompt);
                 }
             });

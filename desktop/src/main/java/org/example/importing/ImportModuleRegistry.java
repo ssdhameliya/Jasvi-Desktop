@@ -21,10 +21,10 @@ public final class ImportModuleRegistry {
         "discount_percent", "purchase_price", "selling_price", "remarks", "opening_stock", "minimum_stock", "location"
     );
     private static final List<String> CUSTOMER_FIELDS = List.of(
-        "party_code", "name", "contact_person", "phone", "email", "gstin", "address", "opening_balance", "is_active"
+        "party_code", "gstin", "name", "contact_person", "phone", "email", "address", "opening_balance", "is_active"
     );
     private static final List<String> SUPPLIER_FIELDS = List.of(
-        "party_code", "name", "contact_person", "phone", "email", "gstin", "address", "opening_balance", "is_active"
+        "party_code", "gstin", "name", "contact_person", "phone", "email", "address", "opening_balance", "is_active"
     );
     private static final List<String> PURCHASE_DOCUMENT_FIELDS = List.of(
         "invoice_no", "invoice_date", "party_code", "item_code", "quantity", "rate", "gst_percent", "gst_type",
@@ -120,7 +120,7 @@ public final class ImportModuleRegistry {
 
     public static String identifierGuidance(String module) {
         return switch (module == null ? "" : module) {
-            case "Customers/CRM", "Suppliers/HRM" -> "party_code identifies the record to create, update or skip.";
+            case "Customers/CRM", "Suppliers/HRM" -> "party_code identifies the record. If valid GSTIN is supplied, Name and Address are auto-fetched from Live GST Portal. If portal is unavailable, Name is strictly required to prevent mock data.";
             case "Sales", "Purchases" -> "invoice_no groups all item rows into one document; existing posted documents are protected.";
             case "Master Categories and Values" -> "category_code + value_code identify a reusable master value.";
             case "Purchase Recon" -> "Recon Supplier is matched by GSTIN first, then normalized name; Supplier Invoice No. + financial year protects against duplicate Purchase Recon records.";
@@ -130,6 +130,18 @@ public final class ImportModuleRegistry {
     }
 
     public static List<List<String>> exampleRows(String module) {
+        if ("Customers/CRM".equals(module)) {
+            return List.of(
+                List.of(org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 1, BusinessClock.today()), "24ANXPD3352N1ZK", "", "", "9876543210", "accounts@jasvi.in", "", "0", "true"),
+                List.of(org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 2, BusinessClock.today()), "", "ABC Enterprises", "Ravi Patel", "9876543211", "accounts@abc.example", "Ahmedabad, Gujarat", "5000", "true")
+            );
+        }
+        if ("Suppliers/HRM".equals(module)) {
+            return List.of(
+                List.of(org.example.shared.ReferenceFormatRules.format("SUP-XXXX", 1, BusinessClock.today()), "24BBBBB2222B1Z4", "", "", "9876500000", "purchase@supplier.in", "", "0", "true"),
+                List.of(org.example.shared.ReferenceFormatRules.format("SUP-XXXX", 2, BusinessClock.today()), "", "Steel Supplier Ltd", "Amit Shah", "9876500001", "orders@supplier.example", "Rajkot, Gujarat", "0", "true")
+            );
+        }
         if ("Sales".equals(module)) {
             return List.of(
                 List.of("SAL-GST-0001", BusinessClock.formatDate(BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 1, BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "2", "1500", "18", "GST", "15 Days", "0", "Sample intra-state sale with optional charges", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "Insurance|75|true|18;Handling|50|false|0", ""),
@@ -147,8 +159,8 @@ public final class ImportModuleRegistry {
 
     private static List<String> exampleRow(String module) {
         return switch (module == null ? "" : module) {
-            case "Customers/CRM" -> List.of(org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 1, BusinessClock.today()), "ABC Enterprises", "Ravi Patel", "9876543210", "accounts@example.com", "24AAAAA1111A1Z5", "Ahmedabad, Gujarat", "0", "true");
-            case "Suppliers/HRM" -> List.of(org.example.shared.ReferenceFormatRules.format("SUP-XXXX", 1, BusinessClock.today()), "Steel Supplier Ltd", "Amit Shah", "9876500000", "sales@supplier.example", "24BBBBB2222B1Z4", "Rajkot, Gujarat", "0", "true");
+            case "Customers/CRM" -> List.of(org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 1, BusinessClock.today()), "24ANXPD3352N1ZK", "", "", "9876543210", "accounts@jasvi.in", "", "0", "true");
+            case "Suppliers/HRM" -> List.of(org.example.shared.ReferenceFormatRules.format("SUP-XXXX", 1, BusinessClock.today()), "24BBBBB2222B1Z4", "", "", "9876500000", "sales@supplier.example", "", "0", "true");
             case "Sales" -> List.of("SAL-0001", "2026-07-28", org.example.shared.ReferenceFormatRules.format("CUS-XXXX", 1, BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "2", "1500", "18", "GST", "15 Days", "0", "Sample sales invoice", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "");
             case "Purchases" -> List.of("PUR-0001", "2026-07-28", org.example.shared.ReferenceFormatRules.format("SUP-XXXX", 1, BusinessClock.today()), org.example.shared.ReferenceFormatRules.format("ITEM-XXXX", 1, BusinessClock.today()), "10", "1200", "18", "GST", "15 Days", "0", "Sample purchase invoice", "Freight", "250", "true", "18", "Packing", "100", "false", "0", "");
             case "Purchase Recon" -> List.of("Shree Ram Engineering Works", "24APCPJ0791E1Z9", "25/26/61", BusinessClock.formatDate(BusinessClock.today()), "10620.00", "955.80", "955.80", "0.00", "12532.00");

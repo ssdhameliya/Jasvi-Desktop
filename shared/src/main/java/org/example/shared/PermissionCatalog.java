@@ -60,7 +60,6 @@ public final class PermissionCatalog {
             entry("MASTERS", "Masters", "Masters", "master", 65),
             entry("REPORTS", "Reports", "Reports", "report", 70),
             entry("DOCUMENT_STUDIO", "Document Studio", "Document Studio", "document", 80),
-            entry("PDF_STUDIO", "PDF Studio", "Document Studio", "document", 81),
             entry("EXCEL_STUDIO", "Excel Studio", "Document Studio", "excel", 82),
             entry("ROLE_MANAGEMENT", "Role Management", "Administration", "users", 89),
             entry("REGISTRATION_APPROVALS", "Registration Approvals", "Administration", "users", 90),
@@ -139,12 +138,10 @@ public final class PermissionCatalog {
                     case "CORE_FINANCE", "GST_INVOICE" -> expanded.addAll(CORE_FINANCE_MODULES);
                     case "PRINT_EXPORT" -> {
                         expanded.add("DOCUMENT_STUDIO");
-                        expanded.add("PDF_STUDIO");
                         expanded.add("EXCEL_STUDIO");
                     }
                     case "DOCUMENT_STUDIO" -> {
                         expanded.add("PRINT_EXPORT");
-                        expanded.add("PDF_STUDIO");
                         expanded.add("EXCEL_STUDIO");
                     }
                     case "DATA_IMPORTER" -> expanded.add("IMPORT");

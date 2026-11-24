@@ -22,7 +22,7 @@
   <center>
     <StackPane styleClass="auth-content,auth-unified-content,splash-auth-content">
       <VBox maxWidth="720" spacing="12" alignment="CENTER" styleClass="auth-card,auth-unified-card,splash-auth-card">
-        <StackPane fx:id="splashMarkBox" styleClass="auth-section-icon,splash-section-icon,splash-brand-mark-card">
+        <StackPane fx:id="splashMarkBox" styleClass="splash-section-icon,splash-brand-mark-card">
           <ImageView fx:id="imgSplashMark" preserveRatio="true" fitWidth="44" fitHeight="44" smooth="true" managed="false" visible="false"/>
           <Label fx:id="lblSplashMarkFallback" text="◆" styleClass="auth-logo-mark,splash-section-mark-fallback"/>
         </StackPane>

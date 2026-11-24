@@ -32,18 +32,6 @@ public final class DocumentOutputService {
         DocumentFlowRegistry.Flow flow = DocumentFlowRegistry.flow(type)
                 .orElseThrow(() -> new IllegalArgumentException(type + " is not connected to automatic document output."));
         Path output = ensureOutputDirectory().resolve(flow.outputPrefix() + safeFileName(documentNo) + ".pdf");
-
-        var custom = TemplateStorageService.defaultFor(type);
-        if (custom.isPresent()) {
-            try {
-                PdfTemplateRenderer.render(custom.get(), DocumentDataService.load(type, documentNo), output);
-                validatePdf(output, documentNo);
-                return output;
-            } catch (Exception templateError) {
-                logFallback(type, documentNo, templateError);
-            }
-        }
-
         ProfessionalDocumentRenderer.render(output, ensureLogo(), documentNo, flow.fallbackKind());
         validatePdf(output, documentNo);
         return output;
@@ -63,17 +51,6 @@ public final class DocumentOutputService {
             Files.write(output, new CanonicalDocumentClient().render(DocumentType.SALES_INVOICE, invoice.getInvoiceNo(), "PDF"));
             validatePdf(output, invoice.getInvoiceNo());
             return output;
-        }
-        var custom = TemplateStorageService.defaultFor(DocumentType.SALES_INVOICE);
-        if (custom.isPresent()) {
-            Path output = ensureOutputDirectory().resolve("Sales-Tax-Invoice-" + safeFileName(invoice.getInvoiceNo()) + ".pdf");
-            try {
-                PdfTemplateRenderer.render(custom.get(), TemplateDataFactory.fromSales(invoice), output);
-                validatePdf(output, invoice.getInvoiceNo());
-                return output;
-            } catch (Exception templateError) {
-                logFallback(DocumentType.SALES_INVOICE, invoice.getInvoiceNo(), templateError);
-            }
         }
         Path builtIn = SalesTaxInvoiceService.generate(invoice);
         validatePdf(builtIn, invoice.getInvoiceNo());

@@ -80,6 +80,10 @@ public class SplashController implements ScreenLifecycle {
             imgSplashMark.setVisible(markAvailable);
         }
         if (lblSplashMarkFallback != null) {
+            if (lblSplashMarkFallback.getGraphic() == null) {
+                lblSplashMarkFallback.setGraphic(org.example.util.IconFactory.compactIcon("dashboard", 24));
+                lblSplashMarkFallback.setText("");
+            }
             lblSplashMarkFallback.setManaged(!markAvailable);
             lblSplashMarkFallback.setVisible(!markAvailable);
         }

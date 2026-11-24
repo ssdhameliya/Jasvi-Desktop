@@ -23,7 +23,6 @@ bootstrap = text('desktop/src/main/java/org/example/api/runtime/RuntimeBootstrap
 pom = text('pom.xml')
 app = text('desktop/src/main/resources/app-version.properties')
 update = text('desktop/src/main/java/org/example/update/UpdateService.java')
-pdf_audit = text('scripts/audit-pdf-studio-contract.py')
 manifest = text('runtime/runtime-manifest.properties')
 req('masterData.valuesByCategoryCode(QUOTATION_SOURCE_CODE)' in qsvc and 'activeQuotationSources()' in qsvc, 'Quotation Source must use canonical Master category-code authority')
 req('return activeQuotationSources();' in qsvc and 'canonical=activeQuotationSources()' in qsvc, 'Quotation dropdown and save validation must use one canonical source authority')
@@ -36,7 +35,6 @@ req('asException(' not in sales, 'Sales deep-link async failure path must use th
 req('DeepLinkSupport.highlight(tableSales,sale)' in sales, 'linked Sale row must receive exact row highlight')
 req('txtInvoice.setText(found.getInvoiceNo())' in sales and 'reloadPage(true);' in sales and 'batchFilterUpdate' in sales, 'off-page linked Sale must batch filter changes and reload the register once around the exact invoice')
 req('LinkedRecordContext.open("SALE",null,q.converted.get()' in qctl, 'Quotation must publish converted Sale reference into linked-record context')
-req("req(runtime_manifest_path.exists(), 'runtime identity manifest must be tracked in every release source handoff')" in pdf_audit, 'PDF Studio CI contract must require the tracked runtime identity manifest')
 req('".dse-erp", "dev-server-cache"' in bootstrap and 'Files.copy(built, staging, StandardCopyOption.REPLACE_EXISTING)' in bootstrap, 'IntelliJ backend must execute from an external project-specific cache, never directly from Maven target')
 req('cleanupOrphanDevelopmentServers(root)' in bootstrap and 'hasLiveOwningParent(handle)' in bootstrap, 'development bootstrap must clean only orphaned project-owned backend processes')
 for prop in ('spring.datasource.hikari.maximum-pool-size=10', 'spring.datasource.hikari.minimum-idle=2', 'spring.datasource.hikari.validation-timeout=3000', 'spring.datasource.hikari.max-lifetime=900000', 'spring.datasource.hikari.keepalive-time=120000', 'spring.datasource.hikari.data-source-properties.tcpKeepAlive=true'):

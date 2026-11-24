@@ -12,17 +12,11 @@
             <HBox alignment="CENTER_LEFT" spacing="12" styleClass="doc-studio-hero,universal-doc-hero,erp-page-identity-header">
                 <StackPane fx:id="documentStudioPageIcon" styleClass="erp-page-header-icon"/>
                 <VBox spacing="4" HBox.hgrow="ALWAYS">
-                    <Label fx:id="lblStudioTitle" text="PDF Studio" styleClass="doc-studio-title"/>
-                    <Label fx:id="lblStudioSubtitle" text="Create, map and automate PDF business documents from one protected workspace."
+                    <Label fx:id="lblStudioTitle" text="Excel Studio" styleClass="doc-studio-title"/>
+                    <Label fx:id="lblStudioSubtitle" text="Design, map and automate Excel business documents and reports."
                            wrapText="true" styleClass="doc-studio-subtitle"/>
                 </VBox>
-                <HBox fx:id="pdfActions" spacing="7" alignment="CENTER_RIGHT">
-                    <Button text="Import PDF" onAction="#importPdf" styleClass="approved-button,approved-primary-button,doc-studio-entry-button"/>
-                    <Button text="Import Template" onAction="#importTemplatePackage" styleClass="approved-button,approved-secondary-button,doc-studio-entry-button"/>
-                    <Button text="Blank PDF" onAction="#createBlank" styleClass="approved-button,approved-secondary-button,doc-studio-entry-button"/>
-                    <Button text="ERP Template" onAction="#createErpTemplate" styleClass="approved-button,approved-secondary-button,doc-studio-entry-button"/>
-                </HBox>
-                <HBox fx:id="excelActions" spacing="7" alignment="CENTER_RIGHT" visible="false" managed="false">
+                <HBox fx:id="excelActions" spacing="7" alignment="CENTER_RIGHT">
                     <Button text="Upload Excel" onAction="#importExcel" styleClass="approved-button,approved-primary-button,doc-studio-entry-button"/>
                     <Button text="New Excel Template" onAction="#createExcelTemplate" styleClass="approved-button,approved-secondary-button,doc-studio-entry-button"/>
                 </HBox>
@@ -78,13 +72,9 @@
                 <StackPane minHeight="400" styleClass="doc-studio-library">
                     <FlowPane fx:id="cards" hgap="14" vgap="14" prefWrapLength="1280"/>
                     <VBox fx:id="emptyState" alignment="CENTER" spacing="9" visible="false" managed="false" styleClass="doc-studio-empty">
-                        <Label fx:id="lblEmptyTitle" text="No PDF templates yet" styleClass="doc-studio-empty-title"/>
-                        <Label fx:id="lblEmptyText" text="Import an existing PDF, create a blank document, or start an ERP template." styleClass="doc-studio-empty-text"/>
-                        <HBox fx:id="pdfEmptyActions" spacing="8" alignment="CENTER">
-                            <Button text="Import PDF" onAction="#importPdf" styleClass="approved-button,approved-primary-button"/>
-                            <Button text="ERP Template" onAction="#createErpTemplate" styleClass="approved-button,approved-secondary-button"/>
-                        </HBox>
-                        <HBox fx:id="excelEmptyActions" spacing="8" alignment="CENTER" visible="false" managed="false">
+                        <Label fx:id="lblEmptyTitle" text="No Excel templates yet" styleClass="doc-studio-empty-title"/>
+                        <Label fx:id="lblEmptyText" text="Upload an existing .xlsx workbook or create a new Excel template." styleClass="doc-studio-empty-text"/>
+                        <HBox fx:id="excelEmptyActions" spacing="8" alignment="CENTER">
                             <Button text="Upload Excel" onAction="#importExcel" styleClass="approved-button,approved-primary-button"/>
                             <Button text="New Excel Template" onAction="#createExcelTemplate" styleClass="approved-button,approved-secondary-button"/>
                         </HBox>

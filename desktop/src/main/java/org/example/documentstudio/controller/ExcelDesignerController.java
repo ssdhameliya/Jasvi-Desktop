@@ -3,11 +3,14 @@ package org.example.documentstudio.controller;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.Group;
 import javafx.scene.control.*;
 import javafx.scene.Cursor;
+import javafx.util.StringConverter;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.KeyCode;
@@ -41,7 +44,9 @@ import org.example.documentstudio.service.ExcelStudioHelpService;
 import org.example.documentstudio.service.TemplateFieldCatalog;
 import org.example.util.IconFactory;
 import org.example.util.AppDialogService;
+import org.example.util.AppDialogRenderer;
 import org.example.util.ExportFeedbackManager;
+import org.example.util.UiTaskExecutor;
 import org.example.shortcut.ShortcutRegistry;
 import org.example.shortcut.ShortcutRegistry.Action;
 import org.example.navigation.UnsavedChangesManager;
@@ -67,10 +72,12 @@ import java.util.function.Predicate;
  * Workbook history is kept in memory so formatting, structure and mapping operations can undo/redo.
  */
 public class ExcelDesignerController {
-    private static final int VISIBLE_ROWS = 100;
-    private static final int VISIBLE_COLS = 26; // A..Z
+    private static final int MAX_GRID_ROWS = 100;
+    private static final int MAX_GRID_COLS = 26; // A..Z
+    private int visibleRows = 45;
+    private int visibleCols = 12;
     private static final int HISTORY_LIMIT = 60;
-    private static final Pattern ERP_TOKEN = Pattern.compile("\\{\\{\\s*([A-Za-z0-9_.-]+)\\s*}}");
+    private static final Pattern ERP_TOKEN = Pattern.compile("\\{\\{\\s*([A-Za-z0-9_.\\[\\]-]+)\\s*}}");
     private boolean dirty;
     private static final Pattern GRAND_TOTAL_LABEL = Pattern.compile("(?i).*\\b(grand\\s*total|net\\s*total|invoice\\s*total|total\\s*amount|amount\\s*payable)\\b.*");
     private static final List<String> FONT_NAMES = List.of("Aptos", "Calibri", "Arial", "Segoe UI", "Times New Roman", "Courier New");
@@ -81,6 +88,8 @@ public class ExcelDesignerController {
     @FXML private StackPane pageIcon;
     @FXML private Label lblName, lblType, lblVersion, lblCell, lblFormulaCell, lblFontColorState, lblFillColorState, lblBorderState, lblMergeState, lblMappingSummary, lblPreviewRecord;
     @FXML private Button btnUndo, btnRedo, btnBold, btnItalic, btnUnderline, btnAlignLeft, btnAlignCenter, btnAlignRight, btnWrap, btnNoFill, btnInsertItemRow, btnInsertChargeRow, btnCopyFormat, btnPasteFormat;
+    @FXML private Button btnCut, btnFormatPainter, btnFormatCells, btnCurrency, btnPercent, btnComma;
+    private boolean formatPainterActive;
     @FXML private MenuButton btnBorders;
     @FXML private SplitMenuButton btnMerge;
     @FXML private ColorPicker pickerFontColor, pickerFillColor;
@@ -91,6 +100,10 @@ public class ExcelDesignerController {
     @FXML private TextField txtFieldSearch, txtRange, txtFormula;
     @FXML private GridPane cellGrid;
     @FXML private HBox boxRecordPreview;
+    @FXML private VBox sidebarPalette;
+    @FXML private Button btnShowPalette, btnHidePalette;
+    @FXML private ComboBox<String> cmbZoom;
+    @FXML private Group gridZoomGroup;
 
     private ExcelTemplate template;
     private Workbook workbook;
@@ -113,6 +126,11 @@ public class ExcelDesignerController {
     private final Map<String, List<String>> mappedFieldAddresses = new LinkedHashMap<>();
     private final List<String> unknownWorkbookTokens = new ArrayList<>();
     private TemplateData selectedPreviewData;
+    private Set<String> imageFieldKeys = Set.of();
+    private boolean lastDarkTheme;
+    private final Set<String> highlightedKeys = new HashSet<>();
+    private final Set<Integer> highlightedCols = new HashSet<>();
+    private final Set<Integer> highlightedRows = new HashSet<>();
 
     private record CellSnapshot(CellType type, String text, double number, boolean bool, String formula, CellStyle style) { }
     private record FormatClipboard(int rows,int cols,List<List<CellStyle>> styles) { }
@@ -142,13 +160,24 @@ public class ExcelDesignerController {
             pickerFontColor.setValue(Color.BLACK);
             pickerFillColor.setValue(Color.TRANSPARENT);
 
+            if (cmbZoom != null) {
+                cmbZoom.setItems(FXCollections.observableArrayList("75%", "85%", "100%", "125%"));
+                cmbZoom.setValue("100%");
+            }
+            imageFieldKeys = TemplateFieldCatalog.excelFieldsFor(template.getDocumentType()).stream()
+                    .filter(TemplateFieldDefinition::image)
+                    .map(TemplateFieldDefinition::key)
+                    .collect(java.util.stream.Collectors.toSet());
+
+            installThemeListener();
+
             configureFieldPalette();
             configureRepeatingRowTools();
             configureRecordPreview();
             txtFieldSearch.textProperty().addListener((o,a,b) -> filterFields(b));
             root.addEventFilter(KeyEvent.KEY_PRESSED, this::handleGlobalShortcut);
-            renderSheet();
             IconFactory.decorate(root);
+            renderSheet();
             Platform.runLater(() -> {
                 preserveAllButtonLabels(root);
                 UnsavedChangesManager.installGuard(root, this::allowNavigationAway);
@@ -164,12 +193,72 @@ public class ExcelDesignerController {
         if (btnUndo != null) btnUndo.setGraphic(IconFactory.compactIcon("undo", 14));
         if (btnRedo != null) btnRedo.setGraphic(IconFactory.compactIcon("redo", 14));
         if (btnCopyFormat != null) btnCopyFormat.setGraphic(IconFactory.compactIcon("copy", 14));
-        if (btnPasteFormat != null) btnPasteFormat.setGraphic(IconFactory.compactIcon("check", 14));
+        if (btnPasteFormat != null) btnPasteFormat.setGraphic(IconFactory.compactIcon("paste", 14));
+        if (btnCut != null) btnCut.setGraphic(IconFactory.compactIcon("cut", 14));
+        if (btnFormatPainter != null) btnFormatPainter.setGraphic(IconFactory.compactIcon("paste-format", 14));
+        if (btnFormatCells != null) btnFormatCells.setGraphic(IconFactory.compactIcon("worksheet", 14));
+        if (btnCurrency != null) btnCurrency.setGraphic(IconFactory.compactIcon("currency", 14));
+        if (btnPercent != null) btnPercent.setGraphic(IconFactory.compactIcon("tax", 14));
+        if (btnComma != null) btnComma.setGraphic(IconFactory.compactIcon("reference", 14));
+        if (btnHidePalette != null) btnHidePalette.setGraphic(IconFactory.compactIcon("back", 12));
+        if (btnShowPalette != null) btnShowPalette.setGraphic(IconFactory.compactIcon("forward", 12));
+
+        if (btnFormatPainter != null) btnFormatPainter.setTooltip(new Tooltip("Format Painter: Copy cell format and paint to another cell (1-click)"));
+        if (btnFormatCells != null) btnFormatCells.setTooltip(new Tooltip("Format Cells (Ctrl+1): Configure number, alignment, font, and borders"));
+        if (btnCut != null) btnCut.setTooltip(new Tooltip("Cut (Ctrl+X): Cut cell contents to clipboard"));
+        if (btnCurrency != null) btnCurrency.setTooltip(new Tooltip("Currency: Apply ₹ format"));
+        if (btnPercent != null) btnPercent.setTooltip(new Tooltip("Percentage: Apply % format"));
+        if (btnComma != null) btnComma.setTooltip(new Tooltip("Comma Style: Apply thousand separator format"));
+    }
+
+    @FXML private void togglePalette() {
+        if (sidebarPalette == null) return;
+        boolean show = !sidebarPalette.isVisible();
+        sidebarPalette.setVisible(show);
+        sidebarPalette.setManaged(show);
+        if (btnShowPalette != null) {
+            btnShowPalette.setVisible(!show);
+            btnShowPalette.setManaged(!show);
+        }
+    }
+
+    @FXML private void zoomChanged() {
+        if (cmbZoom == null || cellGrid == null) return;
+        String val = cmbZoom.getValue();
+        if (val == null) return;
+        double factor = switch (val) {
+            case "75%" -> 0.75;
+            case "85%" -> 0.85;
+            case "125%" -> 1.25;
+            default -> 1.0;
+        };
+        cellGrid.setScaleX(factor);
+        cellGrid.setScaleY(factor);
+    }
+
+    private void installThemeListener() {
+        lastDarkTheme = darkThemeActive();
+        root.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                newScene.getStylesheets().addListener((javafx.collections.ListChangeListener<String>) change -> {
+                    boolean currentDark = darkThemeActive();
+                    if (currentDark != lastDarkTheme) {
+                        lastDarkTheme = currentDark;
+                        Platform.runLater(() -> {
+                            if (workbook != null) renderSheet();
+                        });
+                    }
+                });
+            }
+        });
     }
 
     /** Prevent HBox layout pressure or display scaling from clipping any Excel Studio button label. */
     private void preserveAllButtonLabels(Node node) {
         if (node == null) return;
+        if (node == cellGrid || (node instanceof GridPane grid && (grid.getStyleClass().contains("excel-grid") || "cellGrid".equals(grid.getId())))) {
+            return;
+        }
         if (node instanceof ButtonBase button && button.getText() != null && !button.getText().isBlank()) {
             button.setMinWidth(Region.USE_PREF_SIZE);
         }
@@ -178,6 +267,12 @@ public class ExcelDesignerController {
 
     private void handleGlobalShortcut(KeyEvent event) {
         if (event == null || event.isConsumed()) return;
+        if (event.isControlDown() && event.getCode() == KeyCode.DIGIT1) {
+            showFormatCellsDialog(); event.consume(); return;
+        }
+        if (event.getCode() == KeyCode.ESCAPE && formatPainterActive) {
+            cancelFormatPainter(); event.consume(); return;
+        }
         if (ShortcutRegistry.matches(event, Action.EXCEL_REDO_ALT) || ShortcutRegistry.matches(event, Action.EXCEL_REDO)) {
             redo(); event.consume(); return;
         }
@@ -271,6 +366,32 @@ public class ExcelDesignerController {
                 .toList());
     }
 
+    private void computeSheetDimensions(Sheet sheet) {
+        if (sheet == null) {
+            visibleRows = 35;
+            visibleCols = 12;
+            return;
+        }
+        int maxRow = 0;
+        int maxCol = 0;
+        for (Row r : sheet) {
+            if (r.getRowNum() > maxRow) maxRow = r.getRowNum();
+            for (Cell c : r) {
+                if (c.getCellType() != CellType.BLANK && c.getColumnIndex() > maxCol) {
+                    maxCol = c.getColumnIndex();
+                }
+            }
+        }
+        int numMerged = sheet.getNumMergedRegions();
+        for (int i = 0; i < numMerged; i++) {
+            CellRangeAddress reg = sheet.getMergedRegion(i);
+            if (reg.getLastRow() > maxRow) maxRow = reg.getLastRow();
+            if (reg.getLastColumn() > maxCol) maxCol = reg.getLastColumn();
+        }
+        visibleRows = Math.min(Math.max(maxRow + 8, 35), MAX_GRID_ROWS);
+        visibleCols = Math.min(Math.max(maxCol + 3, 10), MAX_GRID_COLS);
+    }
+
     private void renderSheet() {
         if (workbook == null || cmbSheet.getValue() == null) return;
         if (!restoringHistory) saveVisibleCells(false);
@@ -293,25 +414,41 @@ public class ExcelDesignerController {
 
         Sheet sheet = activeSheet();
         renderedSheetName = sheet.getSheetName();
+        computeSheetDimensions(sheet);
+
+        CellRangeAddress[][] mergedIndex = new CellRangeAddress[visibleRows][visibleCols];
+        int numMerged = sheet.getNumMergedRegions();
+        for (int i = 0; i < numMerged; i++) {
+            CellRangeAddress reg = sheet.getMergedRegion(i);
+            int rStart = Math.max(0, reg.getFirstRow());
+            int rEnd = Math.min(visibleRows - 1, reg.getLastRow());
+            int cStart = Math.max(0, reg.getFirstColumn());
+            int cEnd = Math.min(visibleCols - 1, reg.getLastColumn());
+            for (int r = rStart; r <= rEnd; r++) {
+                for (int c = cStart; c <= cEnd; c++) {
+                    mergedIndex[r][c] = reg;
+                }
+            }
+        }
 
         ColumnConstraints rowHeaderColumn = fixedColumn(54);
         cellGrid.getColumnConstraints().add(rowHeaderColumn);
-        for (int c = 0; c < VISIBLE_COLS; c++) cellGrid.getColumnConstraints().add(fixedColumn(ExcelDimensionPolicy.columnWidthPixels(sheet, c)));
+        for (int c = 0; c < visibleCols; c++) cellGrid.getColumnConstraints().add(fixedColumn(ExcelDimensionPolicy.columnWidthPixels(sheet, c)));
         cellGrid.getRowConstraints().add(fixedRow(28));
-        for (int r = 0; r < VISIBLE_ROWS; r++) cellGrid.getRowConstraints().add(fixedRow(ExcelDimensionPolicy.rowHeightPixels(sheet, r)));
+        for (int r = 0; r < visibleRows; r++) cellGrid.getRowConstraints().add(fixedRow(ExcelDimensionPolicy.rowHeightPixels(sheet, r)));
 
         Label corner = new Label("");
         corner.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         corner.getStyleClass().add("excel-grid-header");
         corner.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.PRIMARY) {
-                setSelection(new CellRangeAddress(0, VISIBLE_ROWS - 1, 0, VISIBLE_COLS - 1), 0, 0);
+                setSelection(new CellRangeAddress(0, visibleRows - 1, 0, visibleCols - 1), 0, 0);
                 requestEditorFocus(0, 0);
             }
         });
         cellGrid.add(corner, 0, 0);
 
-        for (int c = 0; c < VISIBLE_COLS; c++) {
+        for (int c = 0; c < visibleCols; c++) {
             Label h = new Label(columnName(c));
             h.setAlignment(Pos.CENTER);
             h.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -322,7 +459,7 @@ public class ExcelDesignerController {
             cellGrid.add(h, c + 1, 0);
         }
 
-        for (int r = 0; r < VISIBLE_ROWS; r++) {
+        for (int r = 0; r < visibleRows; r++) {
             Label rh = new Label(Integer.toString(r + 1));
             rh.setAlignment(Pos.CENTER_RIGHT);
             rh.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -333,8 +470,8 @@ public class ExcelDesignerController {
             cellGrid.add(rh, 0, r + 1);
 
             Row row = sheet.getRow(r);
-            for (int c = 0; c < VISIBLE_COLS; c++) {
-                CellRangeAddress merged = mergedRegionAt(sheet, r, c);
+            for (int c = 0; c < visibleCols; c++) {
+                CellRangeAddress merged = mergedIndex[r][c];
                 if (merged != null && (merged.getFirstRow() != r || merged.getFirstColumn() != c)) continue;
 
                 Cell cell = row == null ? null : row.getCell(c);
@@ -358,6 +495,9 @@ public class ExcelDesignerController {
                     if (e.isShiftDown()) extendSelectionTo(visualRegion);
                     else setSelection(visualRegion, rowIndex, colIndex);
                     adoptFocusedEditor(editor, rowIndex, colIndex);
+                    if (formatPainterActive) {
+                        applyFormatPainter();
+                    }
                 });
                 editor.setOnMouseClicked(e -> {
                     if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() >= 2) beginEdit(editor, false, null);
@@ -385,15 +525,15 @@ public class ExcelDesignerController {
                 editorBaseStyles.put(key, editor.getStyle());
                 cellGrid.add(editor, colIndex + 1, rowIndex + 1);
                 if (visualRegion.getNumberOfCells() > 1) {
-                    GridPane.setColumnSpan(editor, Math.min(VISIBLE_COLS - 1, visualRegion.getLastColumn()) - visualRegion.getFirstColumn() + 1);
-                    GridPane.setRowSpan(editor, Math.min(VISIBLE_ROWS - 1, visualRegion.getLastRow()) - visualRegion.getFirstRow() + 1);
+                    GridPane.setColumnSpan(editor, Math.min(visibleCols - 1, visualRegion.getLastColumn()) - visualRegion.getFirstColumn() + 1);
+                    GridPane.setRowSpan(editor, Math.min(visibleRows - 1, visualRegion.getLastRow()) - visualRegion.getFirstRow() + 1);
                     editor.getStyleClass().add("excel-cell-merged");
                 }
             }
         }
 
-        int rr = restoreRow < 0 ? 0 : Math.min(restoreRow, VISIBLE_ROWS - 1);
-        int cc = restoreCol < 0 ? 0 : Math.min(restoreCol, VISIBLE_COLS - 1);
+        int rr = restoreRow < 0 ? 0 : Math.min(restoreRow, visibleRows - 1);
+        int cc = restoreCol < 0 ? 0 : Math.min(restoreCol, visibleCols - 1);
         focusedRow = rr;
         focusedCol = cc;
         if (restoreAnchorRow >= 0 && restoreAnchorCol >= 0 && restoreEndRow >= 0 && restoreEndCol >= 0) {
@@ -492,8 +632,8 @@ public class ExcelDesignerController {
         int activeRow=clampRow(focusedRow<0?0:focusedRow);
         if(extend&&selectionAnchorCol>=0){
             int anchor=selectionAnchorCol;
-            setSelection(new CellRangeAddress(0,VISIBLE_ROWS-1,Math.min(anchor,col),Math.max(anchor,col)),activeRow,col);
-        }else setSelection(new CellRangeAddress(0,VISIBLE_ROWS-1,col,col),activeRow,col);
+            setSelection(new CellRangeAddress(0,visibleRows-1,Math.min(anchor,col),Math.max(anchor,col)),activeRow,col);
+        }else setSelection(new CellRangeAddress(0,visibleRows-1,col,col),activeRow,col);
         requestEditorFocus(activeRow,col);
     }
 
@@ -501,8 +641,8 @@ public class ExcelDesignerController {
         int activeCol=clampCol(focusedCol<0?0:focusedCol);
         if(extend&&selectionAnchorRow>=0){
             int anchor=selectionAnchorRow;
-            setSelection(new CellRangeAddress(Math.min(anchor,row),Math.max(anchor,row),0,VISIBLE_COLS-1),row,activeCol);
-        }else setSelection(new CellRangeAddress(row,row,0,VISIBLE_COLS-1),row,activeCol);
+            setSelection(new CellRangeAddress(Math.min(anchor,row),Math.max(anchor,row),0,visibleCols-1),row,activeCol);
+        }else setSelection(new CellRangeAddress(row,row,0,visibleCols-1),row,activeCol);
         requestEditorFocus(row,activeCol);
     }
 
@@ -526,6 +666,9 @@ public class ExcelDesignerController {
 
     private void handleCellKeyPressed(TextField editor, int row, int col, KeyEvent event) {
         if (!editor.isEditable()) {
+            if (event.isControlDown() && event.getCode() == KeyCode.DIGIT1) { showFormatCellsDialog(); event.consume(); return; }
+            if (event.isControlDown() && event.getCode() == KeyCode.X) { cutCell(); event.consume(); return; }
+            if (event.getCode() == KeyCode.ESCAPE && formatPainterActive) { cancelFormatPainter(); event.consume(); return; }
             if (ShortcutRegistry.matches(event, Action.EXCEL_COPY)) { copyCell(); event.consume(); return; }
             if (ShortcutRegistry.matches(event, Action.EXCEL_PASTE)) { pasteCell(); event.consume(); return; }
             // Undo/redo are handled once at the Excel Studio root so they are not executed twice.
@@ -694,26 +837,70 @@ public class ExcelDesignerController {
 
     private void refreshSelectionUi() {
         CellRangeAddress range = currentRange();
-        for (var entry : editors.entrySet()) {
-            TextField editor = entry.getValue();
-            editor.getStyleClass().removeAll("excel-cell-selected", "excel-cell-range-selected");
-            String base=editorBaseStyles.getOrDefault(entry.getKey(),editor.getStyle()==null?"":editor.getStyle());
-            editor.setStyle(base);
-            CellRangeAddress visualRegion = editorRegions.get(entry.getKey());
-            if (visualRegion == null || !intersects(visualRegion, range)) continue;
-            editor.getStyleClass().add("excel-cell-range-selected");
-            boolean active=visualRegion.isInRange(focusedRow, focusedCol);
-            if(active)editor.getStyleClass().add("excel-cell-selected");
-            applySelectionOverlay(editor,visualRegion,range,active);
+
+        for (String key : highlightedKeys) {
+            TextField editor = editors.get(key);
+            if (editor != null) {
+                editor.getStyleClass().removeAll("excel-cell-selected", "excel-cell-range-selected");
+                editor.setStyle(editorBaseStyles.getOrDefault(key, ""));
+            }
         }
-        for(var entry:columnHeaders.entrySet()){
-            entry.getValue().getStyleClass().remove("excel-grid-header-selected");
-            if(entry.getKey()>=range.getFirstColumn()&&entry.getKey()<=range.getLastColumn())entry.getValue().getStyleClass().add("excel-grid-header-selected");
+        highlightedKeys.clear();
+
+        int rStart = Math.max(0, range.getFirstRow());
+        int rEnd = Math.min(visibleRows - 1, range.getLastRow());
+        int cStart = Math.max(0, range.getFirstColumn());
+        int cEnd = Math.min(visibleCols - 1, range.getLastColumn());
+
+        for (int r = rStart; r <= rEnd; r++) {
+            for (int c = cStart; c <= cEnd; c++) {
+                String key = r + ":" + c;
+                TextField editor = editors.get(key);
+                if (editor == null) {
+                    CellRangeAddress merged = editorRegions.get(key);
+                    if (merged != null) {
+                        key = merged.getFirstRow() + ":" + merged.getFirstColumn();
+                        editor = editors.get(key);
+                    }
+                }
+                if (editor == null || highlightedKeys.contains(key)) continue;
+                CellRangeAddress visualRegion = editorRegions.get(key);
+                if (visualRegion == null || !intersects(visualRegion, range)) continue;
+
+                highlightedKeys.add(key);
+                editor.getStyleClass().add("excel-cell-range-selected");
+                boolean active = visualRegion.isInRange(focusedRow, focusedCol);
+                if (active) editor.getStyleClass().add("excel-cell-selected");
+                applySelectionOverlay(editor, visualRegion, range, active);
+            }
         }
-        for(var entry:rowHeaders.entrySet()){
-            entry.getValue().getStyleClass().remove("excel-grid-row-header-selected");
-            if(entry.getKey()>=range.getFirstRow()&&entry.getKey()<=range.getLastRow())entry.getValue().getStyleClass().add("excel-grid-row-header-selected");
+
+        for (int c : highlightedCols) {
+            Label h = columnHeaders.get(c);
+            if (h != null) h.getStyleClass().remove("excel-grid-header-selected");
         }
+        highlightedCols.clear();
+        for (int c = cStart; c <= cEnd; c++) {
+            Label h = columnHeaders.get(c);
+            if (h != null) {
+                h.getStyleClass().add("excel-grid-header-selected");
+                highlightedCols.add(c);
+            }
+        }
+
+        for (int r : highlightedRows) {
+            Label rh = rowHeaders.get(r);
+            if (rh != null) rh.getStyleClass().remove("excel-grid-row-header-selected");
+        }
+        highlightedRows.clear();
+        for (int r = rStart; r <= rEnd; r++) {
+            Label rh = rowHeaders.get(r);
+            if (rh != null) {
+                rh.getStyleClass().add("excel-grid-row-header-selected");
+                highlightedRows.add(r);
+            }
+        }
+
         String address = columnName(Math.max(0, focusedCol)) + (Math.max(0, focusedRow) + 1);
         lblCell.setText(address);
         if (lblFormulaCell != null) lblFormulaCell.setText(address);
@@ -756,8 +943,8 @@ public class ExcelDesignerController {
         return null;
     }
 
-    private int clampRow(int row) { return ExcelSelectionPolicy.clamp(row, VISIBLE_ROWS); }
-    private int clampCol(int col) { return ExcelSelectionPolicy.clamp(col, VISIBLE_COLS); }
+    private int clampRow(int row) { return ExcelSelectionPolicy.clamp(row, visibleRows); }
+    private int clampCol(int col) { return ExcelSelectionPolicy.clamp(col, visibleCols); }
 
     private void clearSelectedCells() {
         if (focusedRow < 0) return;
@@ -808,8 +995,13 @@ public class ExcelDesignerController {
         if(txtRange==null)return;
         try{
             CellRangeAddress range=CellRangeAddress.valueOf(txtRange.getText().trim().toUpperCase(Locale.ROOT));
-            if(range.getFirstRow()<0||range.getFirstColumn()<0||range.getLastRow()>=VISIBLE_ROWS||range.getLastColumn()>=VISIBLE_COLS)
-                throw new IllegalArgumentException("Excel Studio currently displays A1:Z100.");
+            if(range.getFirstRow()<0||range.getFirstColumn()<0||range.getLastRow()>=MAX_GRID_ROWS||range.getLastColumn()>=MAX_GRID_COLS)
+                throw new IllegalArgumentException("Excel Studio currently displays up to Z100.");
+            if(range.getLastRow()>=visibleRows||range.getLastColumn()>=visibleCols){
+                visibleRows=Math.min(Math.max(visibleRows,range.getLastRow()+5),MAX_GRID_ROWS);
+                visibleCols=Math.min(Math.max(visibleCols,range.getLastColumn()+3),MAX_GRID_COLS);
+                renderSheet();
+            }
             setSelection(range,range.getFirstRow(),range.getFirstColumn());
             requestEditorFocus(range.getFirstRow(),range.getFirstColumn());
         }catch(Exception e){AppDialogService.info(root,"Invalid range","Excel Studio","Enter a visible cell or range such as A1 or A1:D4 (up to Z100).");}
@@ -1001,7 +1193,11 @@ public class ExcelDesignerController {
 
     private void placeRepeatingRow(String[] values){
         commitActiveEdit();recordUndoPoint();
-        for(int c=0;c<Math.min(values.length,VISIBLE_COLS);c++){TextField editor=editors.get(focusedRow+":"+c);if(editor!=null)editor.setText(values[c]);}
+        if (values.length > visibleCols) {
+            visibleCols = Math.min(Math.max(visibleCols, values.length + 2), MAX_GRID_COLS);
+            renderSheet();
+        }
+        for(int c=0;c<Math.min(values.length,visibleCols);c++){TextField editor=editors.get(focusedRow+":"+c);if(editor!=null)editor.setText(values[c]);}
         saveVisibleCells(false);syncFormulaBar();refreshMappingUi();
     }
 
@@ -1208,8 +1404,28 @@ public class ExcelDesignerController {
     @FXML private void copyCell(){if(focusedRow<0)return;commitActiveEdit();saveVisibleCells(false);Cell cell=cellAt(editorSheet(),focusedRow,focusedCol,false);if(cell==null){clipboardCell=null;return;}CellStyle style=workbook.createCellStyle();style.cloneStyleFrom(cell.getCellStyle());clipboardCell=new CellSnapshot(cell.getCellType(),cell.getCellType()==CellType.STRING?cell.getStringCellValue():"",cell.getCellType()==CellType.NUMERIC?cell.getNumericCellValue():0,cell.getCellType()==CellType.BOOLEAN&&cell.getBooleanCellValue(),cell.getCellType()==CellType.FORMULA?cell.getCellFormula():"",style);}
     @FXML private void pasteCell(){if(focusedRow<0||clipboardCell==null)return;commitActiveEdit();recordUndoPoint();Cell target=cellAt(editorSheet(),focusedRow,focusedCol,true);target.setCellStyle(clipboardCell.style());switch(clipboardCell.type()){case STRING->target.setCellValue(clipboardCell.text());case NUMERIC->target.setCellValue(clipboardCell.number());case BOOLEAN->target.setCellValue(clipboardCell.bool());case FORMULA->target.setCellFormula(clipboardCell.formula());default->target.setBlank();}renderSheet();}
 
+    @FXML private void cutCell(){
+        if(focusedRow<0)return;
+        copyCell();
+        commitActiveEdit();saveVisibleCells(false);recordUndoPoint();
+        CellRangeAddress range=currentRange();
+        Sheet sheet=editorSheet();
+        for(int r=range.getFirstRow();r<=range.getLastRow();r++)for(int c=range.getFirstColumn();c<=range.getLastColumn();c++){
+            Cell cell=cellAt(sheet,r,c,false);
+            if(cell!=null)cell.setBlank();
+            TextField ed=editors.get(r+":"+c);
+            if(ed!=null)ed.setText("");
+        }
+        syncFormulaBar();
+        AppDialogService.success(root,"Cell cut","Cell cut to clipboard. Select a destination cell and choose Paste.");
+    }
+
     /** Copies only cell formatting (font/fill/borders/alignment/wrap/number format), never values or formulas. */
     @FXML private void copyFormat(){
+        copyFormatInternal(true);
+    }
+
+    private void copyFormatInternal(boolean showDialog){
         if(focusedRow<0||workbook==null)return;
         commitActiveEdit();saveVisibleCells(false);
         CellRangeAddress source=currentRange();
@@ -1224,7 +1440,44 @@ public class ExcelDesignerController {
         }
         formatClipboard=new FormatClipboard(source.getLastRow()-source.getFirstRow()+1,source.getLastColumn()-source.getFirstColumn()+1,List.copyOf(styles));
         updateFormatClipboardButtons();
-        AppDialogService.success(root,"Format copied","Select the destination cell or range, then choose Paste Format. Values and formulas will not be changed.");
+        if(showDialog){
+            AppDialogService.success(root,"Format copied","Select the destination cell or range, then choose Paste Format. Values and formulas will not be changed.");
+        }
+    }
+
+    /** Toggles the 1-click Format Painter. Copies formatting from source cell and arms painter cursor to paint onto destination cell. */
+    @FXML private void toggleFormatPainter(){
+        if(focusedRow<0||workbook==null)return;
+        if(formatPainterActive){
+            cancelFormatPainter();
+            return;
+        }
+        copyFormatInternal(false);
+        if(formatClipboard!=null){
+            formatPainterActive=true;
+            if(btnFormatPainter!=null&&!btnFormatPainter.getStyleClass().contains("excel-format-painter-active")){
+                btnFormatPainter.getStyleClass().add("excel-format-painter-active");
+            }
+            if(cellGrid!=null){
+                cellGrid.setCursor(Cursor.CROSSHAIR);
+            }
+        }
+    }
+
+    private void applyFormatPainter(){
+        if(!formatPainterActive)return;
+        pasteFormat();
+        cancelFormatPainter();
+    }
+
+    private void cancelFormatPainter(){
+        formatPainterActive=false;
+        if(btnFormatPainter!=null){
+            btnFormatPainter.getStyleClass().remove("excel-format-painter-active");
+        }
+        if(cellGrid!=null){
+            cellGrid.setCursor(Cursor.DEFAULT);
+        }
     }
 
     /** Applies the copied format to the current target selection. Multi-cell source patterns tile across a larger target. */
@@ -1243,6 +1496,136 @@ public class ExcelDesignerController {
             cellAt(editorSheet(),r,c,true).setCellStyle(pasted);
         }
         refreshVisibleStyles(target);refreshSelectionUi();
+    }
+
+    @FXML private void applyCurrencyFormat(){applyNumberFormat("₹ #,##0.00");}
+    @FXML private void applyPercentFormat(){applyNumberFormat("0.00%");}
+    @FXML private void applyCommaFormat(){applyNumberFormat("#,##0.00");}
+    private void applyNumberFormat(String format){
+        if(format==null||format.isBlank()||workbook==null||focusedRow<0)return;
+        applyStyleToRange(cell->{CellStyle style=cloneStyle(cell);style.setDataFormat(workbook.createDataFormat().getFormat(format));cell.setCellStyle(style);});
+        if(cmbNumberFormat!=null)cmbNumberFormat.setValue(format);
+    }
+
+    @FXML private void showFormatCellsDialog(){
+        if(focusedRow<0||workbook==null)return;
+        commitActiveEdit();saveVisibleCells(false);
+        CellRangeAddress range=currentRange();
+        Cell sampleCell=cellAt(editorSheet(),focusedRow,focusedCol,false);
+        CellStyle currentStyle=sampleCell!=null?sampleCell.getCellStyle():workbook.getCellStyleAt(0);
+        Font currentFont=sampleCell!=null?workbook.getFontAt(currentStyle.getFontIndex()):workbook.getFontAt(0);
+
+        Dialog<ButtonType> dialog=new Dialog<>();
+        dialog.setTitle("Format Cells");
+        dialog.setHeaderText("Format Cells: "+rangeText(range));
+        if(root.getScene()!=null&&root.getScene().getWindow()!=null){
+            dialog.initOwner(root.getScene().getWindow());
+        }
+
+        DialogPane pane=dialog.getDialogPane();
+        pane.getStyleClass().addAll("approved-card","format-cells-dialog");
+        pane.getButtonTypes().addAll(ButtonType.OK,ButtonType.CANCEL);
+
+        GridPane grid=new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(16,20,16,20));
+
+        Label lblNum=new Label("Number Format:");
+        lblNum.getStyleClass().add("field-label");
+        ComboBox<String> cmbCategory=new ComboBox<>();
+        cmbCategory.getItems().addAll("General","0","0.00","#,##0.00","₹ #,##0.00","0.00%","dd-mm-yyyy","dd-mmm-yyyy");
+        cmbCategory.setValue(currentStyle.getDataFormatString()!=null?currentStyle.getDataFormatString():"General");
+        cmbCategory.setPrefWidth(200);
+
+        Label lblAlign=new Label("Text Alignment:");
+        lblAlign.getStyleClass().add("field-label");
+        ComboBox<String> cmbHAlign=new ComboBox<>();
+        cmbHAlign.getItems().addAll("General","Left","Center","Right");
+        cmbHAlign.setValue(switch(currentStyle.getAlignment()){case LEFT->"Left";case CENTER->"Center";case RIGHT->"Right";default->"General";});
+        CheckBox chkWrap=new CheckBox("Wrap Text");
+        chkWrap.setSelected(currentStyle.getWrapText());
+
+        Label lblFontGroup=new Label("Font & Style:");
+        lblFontGroup.getStyleClass().add("field-label");
+        ComboBox<String> cmbFonts=new ComboBox<>();
+        cmbFonts.getItems().addAll(FONT_NAMES);
+        cmbFonts.setValue(currentFont!=null&&currentFont.getFontName()!=null?currentFont.getFontName():"Calibri");
+        ComboBox<Integer> cmbSizes=new ComboBox<>();
+        cmbSizes.getItems().addAll(FONT_SIZES);
+        cmbSizes.setValue(currentFont!=null?(int)currentFont.getFontHeightInPoints():11);
+        CheckBox chkBold=new CheckBox("Bold");
+        chkBold.setSelected(currentFont!=null&&currentFont.getBold());
+        CheckBox chkItalic=new CheckBox("Italic");
+        chkItalic.setSelected(currentFont!=null&&currentFont.getItalic());
+        CheckBox chkUnderline=new CheckBox("Underline");
+        chkUnderline.setSelected(currentFont!=null&&currentFont.getUnderline()!=FontUnderline.NONE.getByteValue());
+
+        Label lblBorderGroup=new Label("Borders:");
+        lblBorderGroup.getStyleClass().add("field-label");
+        ComboBox<String> cmbBordersChoice=new ComboBox<>();
+        cmbBordersChoice.getItems().addAll("Keep Existing","All Borders","Outside Borders","No Border");
+        cmbBordersChoice.setValue("Keep Existing");
+
+        grid.add(lblNum,0,0);
+        grid.add(cmbCategory,1,0);
+
+        grid.add(lblAlign,0,1);
+        HBox alignBox=new HBox(10,cmbHAlign,chkWrap);
+        alignBox.setAlignment(Pos.CENTER_LEFT);
+        grid.add(alignBox,1,1);
+
+        grid.add(lblFontGroup,0,2);
+        HBox fontBox=new HBox(8,cmbFonts,cmbSizes,chkBold,chkItalic,chkUnderline);
+        fontBox.setAlignment(Pos.CENTER_LEFT);
+        grid.add(fontBox,1,2);
+
+        grid.add(lblBorderGroup,0,3);
+        grid.add(cmbBordersChoice,1,3);
+
+        pane.setContent(grid);
+        AppDialogRenderer.install(dialog);
+        AppDialogRenderer.configureWorkspace(dialog,"worksheet","Format Cells","Format Cells: "+rangeText(range),"Configure cell formatting and number formats",null);
+
+        dialog.showAndWait().ifPresent(response->{
+            if(response==ButtonType.OK){
+                recordUndoPoint();
+                applyStyleToRange(cell->{
+                    CellStyle style=cloneStyle(cell);
+                    String fmt=cmbCategory.getValue();
+                    if(fmt!=null&&!fmt.isBlank()){
+                        style.setDataFormat(workbook.createDataFormat().getFormat(fmt));
+                    }
+                    String align=cmbHAlign.getValue();
+                    if("Left".equals(align))style.setAlignment(HorizontalAlignment.LEFT);
+                    else if("Center".equals(align))style.setAlignment(HorizontalAlignment.CENTER);
+                    else if("Right".equals(align))style.setAlignment(HorizontalAlignment.RIGHT);
+                    else if("General".equals(align))style.setAlignment(HorizontalAlignment.GENERAL);
+                    style.setWrapText(chkWrap.isSelected());
+
+                    Font font=cloneFont(workbook.getFontAt(style.getFontIndex()));
+                    if(cmbFonts.getValue()!=null)font.setFontName(cmbFonts.getValue());
+                    if(cmbSizes.getValue()!=null)font.setFontHeightInPoints(cmbSizes.getValue().shortValue());
+                    font.setBold(chkBold.isSelected());
+                    font.setItalic(chkItalic.isSelected());
+                    font.setUnderline(chkUnderline.isSelected()?FontUnderline.SINGLE.getByteValue():FontUnderline.NONE.getByteValue());
+                    style.setFont(font);
+
+                    String border=cmbBordersChoice.getValue();
+                    if("All Borders".equals(border)){
+                        setBorder(style,true,true,true,true);
+                    }else if("No Border".equals(border)){
+                        style.setBorderTop(BorderStyle.NONE);
+                        style.setBorderRight(BorderStyle.NONE);
+                        style.setBorderBottom(BorderStyle.NONE);
+                        style.setBorderLeft(BorderStyle.NONE);
+                    }
+                    cell.setCellStyle(style);
+                });
+                renderSheet();
+                setSelection(range,range.getFirstRow(),range.getFirstColumn());
+            }
+        });
     }
 
     private void updateFormatClipboardButtons(){
@@ -1342,6 +1725,32 @@ public class ExcelDesignerController {
         cmbPreviewRecord.setVisible(erp);cmbPreviewRecord.setManaged(erp);
         if(lblPreviewRecord!=null)lblPreviewRecord.setText("Preview "+template.getDocumentType().label());
         if(!erp)return;
+
+        cmbPreviewRecord.setConverter(new StringConverter<>() {
+            @Override public String toString(DocumentSample sample) {
+                return sample == null ? "" : (sample.label() != null && !sample.label().isBlank() ? sample.label() : sample.id());
+            }
+            @Override public DocumentSample fromString(String string) {
+                if (string == null || string.isBlank()) return null;
+                return cmbPreviewRecord.getItems().stream()
+                        .filter(s -> string.equals(s.label()) || string.equals(s.id()) || string.equals(s.toString()))
+                        .findFirst()
+                        .orElse(null);
+            }
+        });
+        cmbPreviewRecord.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(DocumentSample item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : (item.label() != null ? item.label() : item.id()));
+            }
+        });
+        cmbPreviewRecord.setButtonCell(new ListCell<>() {
+            @Override protected void updateItem(DocumentSample item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : (item.label() != null ? item.label() : item.id()));
+            }
+        });
+
         cmbPreviewRecord.valueProperty().addListener((o,a,b)->loadSelectedPreviewRecord(b));
         reloadPreviewRecords();
     }
@@ -1350,50 +1759,76 @@ public class ExcelDesignerController {
         if(cmbPreviewRecord==null||template==null)return;
         DocumentType type=template.getDocumentType();
         selectedPreviewData=null;
-        try{
-            if(!DocumentDataService.supportsRealData(type)){
-                cmbPreviewRecord.getItems().clear();
-                cmbPreviewRecord.setValue(null);
-                cmbPreviewRecord.setDisable(true);
-                cmbPreviewRecord.setPromptText("Sample preview • no live connector");
-                selectedPreviewData=DocumentDataService.sample(type);
-                refreshMappingUi();
-                return;
-            }
-            cmbPreviewRecord.setDisable(false);
-            List<DocumentSample> records=DocumentDataService.listSamples(type);
-            String currentId=cmbPreviewRecord.getValue()==null?null:cmbPreviewRecord.getValue().id();
-            cmbPreviewRecord.getItems().setAll(records);
-            DocumentSample keep=currentId==null?null:records.stream().filter(record->currentId.equals(record.id())).findFirst().orElse(null);
-            if(keep!=null)cmbPreviewRecord.setValue(keep);
-            else if(!records.isEmpty())cmbPreviewRecord.getSelectionModel().selectFirst();
-            else{cmbPreviewRecord.setValue(null);cmbPreviewRecord.setPromptText("No live "+type.label()+" records");refreshMappingUi();}
-        }catch(Exception error){
-            selectedPreviewData=null;
+        if(!DocumentDataService.supportsRealData(type)){
             cmbPreviewRecord.getItems().clear();
             cmbPreviewRecord.setValue(null);
-            cmbPreviewRecord.setPromptText("Live records unavailable");
+            cmbPreviewRecord.setDisable(true);
+            cmbPreviewRecord.setPromptText("Sample preview • no live connector");
+            selectedPreviewData=DocumentDataService.sample(type);
             refreshMappingUi();
-            System.err.println("[ExcelStudio] "+type.label()+" preview list could not be loaded: "+rootMessage(error));
+            return;
         }
+        cmbPreviewRecord.setDisable(true);
+        cmbPreviewRecord.setPromptText("Loading live " + type.label() + " records...");
+        UiTaskExecutor.submitLatest("excel-preview-records",
+            () -> DocumentDataService.listSamples(type),
+            records -> {
+                cmbPreviewRecord.setDisable(false);
+                Object rawVal = cmbPreviewRecord.getValue();
+                String currentId = rawVal instanceof DocumentSample ds ? ds.id() : null;
+                cmbPreviewRecord.getItems().setAll(records);
+                DocumentSample keep = currentId == null ? null : records.stream().filter(record -> currentId.equals(record.id())).findFirst().orElse(null);
+                if (keep != null) cmbPreviewRecord.setValue(keep);
+                else if (!records.isEmpty()) cmbPreviewRecord.getSelectionModel().selectFirst();
+                else {
+                    cmbPreviewRecord.setValue(null);
+                    cmbPreviewRecord.setPromptText("No live " + type.label() + " records");
+                    refreshMappingUi();
+                }
+            },
+            error -> {
+                cmbPreviewRecord.setDisable(false);
+                selectedPreviewData = null;
+                cmbPreviewRecord.getItems().clear();
+                cmbPreviewRecord.setValue(null);
+                cmbPreviewRecord.setPromptText("Live records unavailable");
+                refreshMappingUi();
+                System.err.println("[ExcelStudio] " + type.label() + " preview list could not be loaded: " + rootMessage(error));
+            }
+        );
     }
 
-    private void loadSelectedPreviewRecord(DocumentSample sample){
+    private void loadSelectedPreviewRecord(Object raw){
         selectedPreviewData=null;
         if(template==null){refreshMappingUi();return;}
         DocumentType type=template.getDocumentType();
-        if(sample!=null&&sample.id()!=null&&!sample.id().isBlank())try{
-            selectedPreviewData=DocumentDataService.load(type,sample.id());
-        }catch(Exception error){System.err.println("[ExcelStudio] "+type.label()+" preview record could not be loaded: "+rootMessage(error));}
-        else if(!DocumentDataService.supportsRealData(type))selectedPreviewData=DocumentDataService.sample(type);
-        refreshMappingUi();
+        DocumentSample sample = raw instanceof DocumentSample s ? s : null;
+        if(sample!=null&&sample.id()!=null&&!sample.id().isBlank()){
+            UiTaskExecutor.submitLatest("excel-preview-record-load",
+                () -> DocumentDataService.load(type, sample.id()),
+                loaded -> {
+                    selectedPreviewData = loaded;
+                    refreshMappingUi();
+                },
+                error -> {
+                    System.err.println("[ExcelStudio] " + type.label() + " preview record could not be loaded: " + rootMessage(error));
+                    refreshMappingUi();
+                }
+            );
+        } else if(!DocumentDataService.supportsRealData(type)){
+            selectedPreviewData=DocumentDataService.sample(type);
+            refreshMappingUi();
+        } else {
+            refreshMappingUi();
+        }
     }
 
     private TemplateData previewDataForValidation(boolean activatingDefault) throws IOException{
         if(template==null||template.getDocumentType()==null)throw new IOException("Excel template document type is missing.");
         DocumentType type=template.getDocumentType();
         if(DocumentDataService.supportsRealData(type)){
-            DocumentSample sample=cmbPreviewRecord==null?null:cmbPreviewRecord.getValue();
+            Object raw = cmbPreviewRecord == null ? null : cmbPreviewRecord.getValue();
+            DocumentSample sample = raw instanceof DocumentSample s ? s : null;
             if(sample==null||sample.id()==null||sample.id().isBlank())
                 throw new IOException((activatingDefault?"A real ":"Select a real ")+type.label()+" record "+(activatingDefault?"is required before making this template default.":"before previewing this template.")+" Reload the record list after creating a record if necessary.");
             try{
@@ -1930,18 +2365,39 @@ public class ExcelDesignerController {
             }
             editor.setStyle(css.toString());
             editor.setAlignment(switch(style.getAlignment()){case CENTER->Pos.CENTER;case RIGHT->Pos.CENTER_RIGHT;default->Pos.CENTER_LEFT;});
-            String text=cellText(cell);
-            if(text!=null)TemplateFieldCatalog.excelFieldsFor(template.getDocumentType()).stream().filter(TemplateFieldDefinition::image).filter(f->text.contains("{{"+f.key()+"}}" )).findFirst().ifPresent(f->editor.getStyleClass().add("excel-cell-image-placeholder"));
+            String text = cellText(cell);
+            if (text != null && text.contains("{{") && !imageFieldKeys.isEmpty()) {
+                for (String imgKey : imageFieldKeys) {
+                    if (text.contains("{{" + imgKey + "}}")) {
+                        editor.getStyleClass().add("excel-cell-image-placeholder");
+                        break;
+                    }
+                }
+            }
         }catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
     }
 
     private Color accessibleWorkbookText(PaintState fontPaint,PaintState fillPaint){
         Color background=!fillPaint.empty()?fillPaint.color():(darkThemeActive()?Color.web("#0f1d2e"):Color.WHITE);
         Color requested=!fontPaint.empty()?fontPaint.color():(darkThemeActive()?Color.web("#edf5ff"):Color.web("#172033"));
+        if(darkThemeActive()){
+            if(luminance(requested)<0.25&&luminance(background)<0.3){
+                return Color.web("#edf5ff");
+            }
+        }
         if(contrastRatio(requested,background)>=3.0)return requested;
         return contrastRatio(Color.WHITE,background)>=contrastRatio(Color.BLACK,background)?Color.WHITE:Color.BLACK;
     }
-    private boolean darkThemeActive(){return ThemeManager.getCurrentTheme()==ThemeManager.Theme.DARK;}
+    private boolean darkThemeActive(){
+        if(root!=null&&root.getScene()!=null){
+            for(String sheet:root.getScene().getStylesheets()){
+                if(sheet.contains("dark-theme.css"))return true;
+                if(sheet.contains("light-theme.css"))return false;
+            }
+            if(root.getScene().getRoot()!=null&&root.getScene().getRoot().getStyleClass().contains("dse-theme-dark"))return true;
+        }
+        return ThemeManager.getCurrentTheme()==ThemeManager.Theme.DARK;
+    }
     private double contrastRatio(Color a,Color b){double la=luminance(a),lb=luminance(b);return (Math.max(la,lb)+0.05)/(Math.min(la,lb)+0.05);}
     private double luminance(Color color){return 0.2126*linear(color.getRed())+0.7152*linear(color.getGreen())+0.0722*linear(color.getBlue());}
     private double linear(double value){return value<=0.03928?value/12.92:Math.pow((value+0.055)/1.055,2.4);}
@@ -1957,7 +2413,10 @@ public class ExcelDesignerController {
             color=xssfColorToFx(xssfColor);
         }
         if(color==null){short index=switch(side){case "top"->style.getTopBorderColor();case "right"->style.getRightBorderColor();case "bottom"->style.getBottomBorderColor();default->style.getLeftBorderColor();};color=indexedColorToFx(index);}
-        return toCss(color==null?Color.BLACK:color);
+        if(color==null||(color.getRed()<0.1&&color.getGreen()<0.1&&color.getBlue()<0.1)){
+            color=darkThemeActive()?Color.web("#385170"):Color.web("#1e293b");
+        }
+        return toCss(color);
     }
 
     private String toCss(Color color){return String.format(Locale.ROOT,"#%02x%02x%02x",Math.round(color.getRed()*255),Math.round(color.getGreen()*255),Math.round(color.getBlue()*255));}

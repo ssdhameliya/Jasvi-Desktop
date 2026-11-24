@@ -232,36 +232,14 @@ public class TallyAutomationService {
             found = true;
         }
 
-        // 3. Fallback synthesis for any valid Indian GSTIN to guarantee non-empty auto-fill
-        if (legalName.isBlank()) {
-            legalName = "Registered Taxpayer (" + pan + ")";
+        if (!found) {
+            // Strictly enforce Rule 17 (Zero Mock Data): Never synthesize mock/placeholder names or addresses.
+            return new TallyAutomationDtos.GstPortalProfileDto(
+                    cleanGstin, "", "", "", "NOT_FOUND", type, stateCode,
+                    registrationDate, constitution, stateJurisdiction, centerJurisdiction, natureOfBusiness,
+                    filings, false, hsnGoodsServices, aadhaarAuth, ekyc, natureOfBusinessActivities
+            );
         }
-        if (tradeName.isBlank()) {
-            tradeName = "Enterprise Business (" + stateName + ")";
-        }
-        if (address.isBlank()) {
-            address = "Commercial Industrial Estate, " + stateName + " - " + stateCode + "0001";
-        }
-        if (registrationDate.isBlank()) {
-            registrationDate = "01/07/2017";
-        }
-        if (stateJurisdiction.isBlank()) {
-            stateJurisdiction = "State - " + stateName + ", Division 1, Ward 1";
-        }
-        if (centerJurisdiction.isBlank()) {
-            centerJurisdiction = "State - CBIC, Commissionerate " + stateName + ", Range I";
-        }
-        if (natureOfBusiness.isBlank()) {
-            natureOfBusiness = "Manufacturer / Trading";
-        }
-        if (natureOfBusinessActivities.isBlank()) {
-            natureOfBusinessActivities = "1. Retail Business, 2. Wholesale, 3. Supplier of Services";
-        }
-        if (hsnGoodsServices.isBlank()) {
-            hsnGoodsServices = "8481:TAPS, COCKS, VALVES AND SIMILAR APPLIANCES|7318:SCREWS, BOLTS, NUTS, FASTENERS|9988:Manufacturing & business support services";
-        }
-
-        found = true;
 
         return new TallyAutomationDtos.GstPortalProfileDto(
                 cleanGstin, legalName, tradeName, address, status, type, stateCode,

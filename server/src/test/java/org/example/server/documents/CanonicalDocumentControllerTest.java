@@ -38,7 +38,6 @@ class CanonicalDocumentControllerTest {
         String source = Files.readString(Path.of("src/main/java/org/example/server/documents/CanonicalDocumentService.java"));
         assertTrue(source.contains("CurrentUser.requirePermission(\"SALES.VIEW\""));
         assertTrue(source.contains("CurrentUser.requirePermission(\"PURCHASE.VIEW\""));
-        assertTrue(source.contains("templates.pdf(DocumentType.SALES_INVOICE)"));
         assertTrue(source.contains("TaxInvoicePdfGenerator.generate"), "Sales PDF must keep the standard BAU fallback");
         assertFalse(source.contains("PdfLifecycleWatermark"), "Canonical Sales PDF must never add a lifecycle watermark");
         assertTrue(source.contains("templates.excel(type)"));

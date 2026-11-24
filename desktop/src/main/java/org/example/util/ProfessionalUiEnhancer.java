@@ -95,6 +95,7 @@ public final class ProfessionalUiEnhancer {
 
     private static void refreshInteractivePresentation(Node node, IdentityHashMap<Node, Boolean> visited) {
         if (node == null || visited.put(node, Boolean.TRUE) != null) return;
+        if (node.getStyleClass().contains("excel-grid") || node.getStyleClass().contains("excel-cell-grid")) return;
         if (node instanceof ButtonBase button) {
             UiDesignSystem.decorate(button);
             IconFactory.decorate(button);
@@ -288,6 +289,7 @@ public final class ProfessionalUiEnhancer {
      */
     private static void walk(Node node, IdentityHashMap<Node, Boolean> visited) {
         if (node == null || visited.put(node, Boolean.TRUE) != null) return;
+        if (node.getStyleClass().contains("excel-grid") || node.getStyleClass().contains("excel-cell-grid")) return;
         UiDesignSystem.decorate(node);
         ResponsiveKpiLayoutManager.install(node);
         if (node instanceof TableView<?> table) enhanceTable(table);

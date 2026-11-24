@@ -24,7 +24,10 @@
     <center>
         <StackPane styleClass="auth-content,auth-unified-content">
             <VBox maxWidth="720" spacing="14" alignment="CENTER" styleClass="auth-card,auth-unified-card">
-                <StackPane styleClass="auth-section-icon,auth-login-section-icon"><Label text="⌾"/></StackPane>
+                <StackPane fx:id="loginSectionIconBox" styleClass="auth-section-icon,auth-login-section-icon">
+                    <ImageView fx:id="imgLoginSectionMark" preserveRatio="true" fitWidth="44" fitHeight="44" smooth="true" managed="false" visible="false"/>
+                    <Label fx:id="lblLoginSectionFallback" text="⌾" styleClass="auth-logo-mark"/>
+                </StackPane>
                 <Label text="Welcome Back" styleClass="auth-eyebrow"/>
                 <Label text="Sign in to your account" styleClass="auth-title"/>
                 <Label fx:id="lblBrandDescription" text="Role-aware secure access" styleClass="auth-description"/>
