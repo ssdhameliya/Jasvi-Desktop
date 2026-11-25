@@ -164,17 +164,25 @@ public final class TeamChatApiClient {
         req("POST", "/api/chat/channels/" + channelId + "/typing", new TypingRequest(typing), Map.class, null);
     }
 
-    public void consumeEventStream(Consumer<ChatStreamEvent> onEvent, BooleanSupplier keepRunning) throws Exception {
+    public void consumeEventStream(Consumer<ChatStreamEvent> onEvent, BooleanSupplier keepRunning,
+                                   Consumer<InputStream> onStreamOpened) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(baseUrl() + "/api/chat/stream"))
-                .timeout(Duration.ofHours(12))
+                .timeout(Duration.ofMinutes(35))
                 .header("Accept", "text/event-stream")
                 .GET();
         ApiSession.authorize(b);
         HttpResponse<InputStream> response = http.send(b.build(), HttpResponse.BodyHandlers.ofInputStream());
+        if (response.statusCode() == 401 || response.statusCode() == 403) {
+            try { response.body().close(); } catch (Exception ignored) {}
+            throw new IllegalStateException("Chat SSE unauthorized (HTTP " + response.statusCode() + ")");
+        }
         if (response.statusCode() / 100 != 2) {
+            try { response.body().close(); } catch (Exception ignored) {}
             throw new IllegalStateException("Chat SSE stream refused (HTTP " + response.statusCode() + ")");
         }
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+        InputStream stream = response.body();
+        if (onStreamOpened != null) onStreamOpened.accept(stream);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
             StringBuilder dataBuf = new StringBuilder();
             String line;
             while (keepRunning.getAsBoolean() && (line = reader.readLine()) != null) {

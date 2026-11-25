@@ -99,6 +99,32 @@ class TeamChatBackendContractTest {
                 () -> svc.sendWithAttachments(new AuthenticatedUser(1, "admin", "ADMIN"), 5L, "hi", null, null, null, List.of(exe)));
     }
 
+    @Test
+    void unchangedHeartbeatDoesNotBroadcastPresenceStorm() throws Exception {
+        UserRepository userRepo = mock(UserRepository.class);
+        ChatPresenceRepository presRepo = mock(ChatPresenceRepository.class);
+        ChatChannelRepository chRepo = mock(ChatChannelRepository.class);
+        ChatChannelMemberRepository memRepo = mock(ChatChannelMemberRepository.class);
+        ChatMessageRepository msgRepo = mock(ChatMessageRepository.class);
+        ChatAttachmentRepository attRepo = mock(ChatAttachmentRepository.class);
+        TeamChatSseBroker broker = mock(TeamChatSseBroker.class);
+
+        UserEntity admin = user(1, "admin", "ADMIN");
+        when(userRepo.findById(1)).thenReturn(Optional.of(admin));
+        ChatPresenceEntity active = new ChatPresenceEntity();
+        active.setUserId(1);
+        active.setStatus("ONLINE");
+        active.setLastHeartbeatUtc(java.time.Instant.now().toString());
+        when(presRepo.findById(1)).thenReturn(Optional.of(active));
+        when(presRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        TeamChatService svc = new TeamChatService(userRepo, presRepo, chRepo, memRepo, msgRepo, attRepo,
+                broker, tempWorkspace.toString());
+        TeamChatDtos.PresenceDto dto = svc.heartbeat(new AuthenticatedUser(1, "admin", "ADMIN"));
+        assertEquals("ONLINE", dto.status());
+        verify(broker, never()).broadcastAll(any());
+    }
+
     private static UserEntity user(int id, String username, String role) throws Exception {
         UserEntity u = new UserEntity();
         Field f = UserEntity.class.getDeclaredField("id");

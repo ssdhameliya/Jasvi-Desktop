@@ -1,3 +1,11 @@
+# What's New in DSE ERP v11.0.81
+
+### Team Chat Stability, SSE Keepalive & HikariCP Contention Fix (Rule 4, Rule 10 & Rule 16)
+- **Eliminated `PRESENCE` & `/directory` Storm (`TeamChatService.java`, `TeamChatManager.java`)**:
+  - Updated 25-second presence heartbeats so SSE `PRESENCE` broadcasts occur only on actual status/note changes, patched presence updates in-memory on the desktop without full `/directory` re-fetches, debounced message-triggered directory syncs, and guarded concurrent membership/presence inserts idempotently.
+- **Non-Blocking Async SSE Broker, Keepalive & Clean Disconnect (`TeamChatSseBroker.java`, `SecurityConfig.java`, `TeamChatApiClient.java`)**:
+  - Dispatched SSE events asynchronously off Tomcat HTTP request threads on Java 25 virtual threads, added 20-second `: keepalive` SSE frames for reverse-proxy/Caddy stability, capped per-user SSE connections, permitted `DispatcherType.ASYNC` in `SecurityConfig`, and added `401/403` stop + exponential backoff + immediate stream close on logout.
+
 # What's New in DSE ERP v11.0.80
 
 ### MS Teams Live Presence & Facebook Messenger-Style Multi-Window Team Chat (Rule 4, Rule 5, Rule 9, Rule 10, Rule 12, Rule 13 & Rule 17)
