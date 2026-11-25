@@ -57,7 +57,38 @@ public final class FinancialStatementsDtos {
             BigDecimal quickRatio,
             BigDecimal dsoDays,
             BigDecimal dpoDays,
-            BigDecimal workingCapital
+            BigDecimal workingCapital,
+            BigDecimal returnOnEquityPct,
+            BigDecimal debtToEquityRatio
+    ) {
+        public FinancialRatiosDto(BigDecimal grossMarginPct, BigDecimal netMarginPct, BigDecimal operatingMarginPct,
+                                  BigDecimal currentRatio, BigDecimal quickRatio, BigDecimal dsoDays,
+                                  BigDecimal dpoDays, BigDecimal workingCapital) {
+            this(grossMarginPct, netMarginPct, operatingMarginPct, currentRatio, quickRatio, dsoDays, dpoDays,
+                 workingCapital, BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+    }
+
+    public record CashFlowStatementDto(
+            BigDecimal netProfit,
+            BigDecimal openingCash,
+            BigDecimal operatingCashFlow,
+            BigDecimal investingCashFlow,
+            BigDecimal financingCashFlow,
+            BigDecimal netCashChange,
+            BigDecimal closingCash,
+            List<FinancialAccountRow> lines
+    ) {}
+
+    public record PriorComparisonDto(
+            String priorFromDate,
+            String priorToDate,
+            BigDecimal priorRevenue,
+            BigDecimal priorCogs,
+            BigDecimal priorGrossProfit,
+            BigDecimal priorNetProfit,
+            BigDecimal revenueVariancePct,
+            BigDecimal netProfitVariancePct
     ) {}
 
     public record DesktopProfitAndLossDto(
@@ -108,8 +139,16 @@ public final class FinancialStatementsDtos {
             TradingAccountDto trading,
             DesktopProfitAndLossDto pnl,
             DesktopBalanceSheetDto balanceSheet,
-            FinancialRatiosDto ratios
-    ) {}
+            FinancialRatiosDto ratios,
+            CashFlowStatementDto cashFlow,
+            PriorComparisonDto comparison
+    ) {
+        public ThreeTierFinancialStatementDto(String fromDate, String toDate, String engineMode,
+                                              TradingAccountDto trading, DesktopProfitAndLossDto pnl,
+                                              DesktopBalanceSheetDto balanceSheet, FinancialRatiosDto ratios) {
+            this(fromDate, toDate, engineMode, trading, pnl, balanceSheet, ratios, null, null);
+        }
+    }
 
     public record DrillDownRowDto(
             Long id,

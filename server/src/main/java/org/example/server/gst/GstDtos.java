@@ -28,6 +28,16 @@ public class GstDtos {
             Long rowVersion
     ) {}
 
+    public record GstGlUtilizationResultDto(
+            String returnPeriod,
+            Long journalEntryId,
+            String entryNumber,
+            BigDecimal outputTaxCleared,
+            BigDecimal inputCreditUtilized,
+            BigDecimal netCashLiability,
+            String message
+    ) {}
+
     public record Gstr3bSummaryDto(
             String returnPeriod,
             BigDecimal outwardTaxable,

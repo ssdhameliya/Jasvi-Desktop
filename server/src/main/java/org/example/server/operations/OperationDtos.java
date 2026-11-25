@@ -26,7 +26,11 @@ public final class OperationDtos {
   public Boolean emailSent(){ return Boolean.TRUE.equals(emailSent); }
   public Boolean sameAsBilling(){ return !Boolean.FALSE.equals(sameAsBilling); }
  }
- public record FinanceDto(Integer id,String voucherNo,String voucherType,String voucherDate,Integer partyId,String category,String referenceNo,double amount,String paymentMode,String notes,String accountName,String billPath,boolean reconciled,Long statementTransactionId,String linkedTargetType,Integer linkedTargetId,String linkedDocumentNo,long rowVersion){}
+ public record FinanceDto(Integer id,String voucherNo,String voucherType,String voucherDate,Integer partyId,String category,String referenceNo,double amount,String paymentMode,String notes,String accountName,String billPath,boolean reconciled,Long statementTransactionId,String statementReference,String linkedTargetType,Integer linkedTargetId,String linkedDocumentNo,long rowVersion){
+  public FinanceDto(Integer id,String voucherNo,String voucherType,String voucherDate,Integer partyId,String category,String referenceNo,double amount,String paymentMode,String notes,String accountName,String billPath,boolean reconciled,Long statementTransactionId,String linkedTargetType,Integer linkedTargetId,String linkedDocumentNo,long rowVersion){
+   this(id,voucherNo,voucherType,voucherDate,partyId,category,referenceNo,amount,paymentMode,notes,accountName,billPath,reconciled,statementTransactionId,null,linkedTargetType,linkedTargetId,linkedDocumentNo,rowVersion);
+  }
+ }
  public record FinanceMetrics(double bankBalance,double credits,double debits,long bankEntries,long depositCount,long withdrawalCount,double expenseMonth,double expenseYear,long expenseEntries,String topExpenseCategory,double topExpenseAmount,long pendingReconcile,double pendingReconcileAmount){}
  public record StockHistoryDto(String date,String type,double quantity,String reason,String reference,String user,String partyName,Double rate,Double unitCost,String timestamp){
   public StockHistoryDto(String date,String type,double quantity,String reason,String reference,String user){

@@ -193,6 +193,8 @@ public final class PermissionCatalog {
             case "CREATE_JOURNAL" -> "Create Manual Journal";
             case "POST_JOURNAL" -> "Post Draft Journal";
             case "REVERSE_JOURNAL" -> "Reverse Accounting Voucher";
+            case "CLOSE_YEAR" -> "Close Fiscal Year";
+            case "POST_GL" -> "Post Tax Offset to GL";
             case "CREATE_ACCOUNT" -> "Add Chart of Account";
             case "EDIT_ACCOUNT" -> "Edit Chart of Account";
             case "NOTIFY" -> "Send Discrepancy Notices";
@@ -335,10 +337,10 @@ public final class PermissionCatalog {
             return Set.of("VIEW", "CREATE", "EDIT", "EXPORT", "RECONCILE", "APPROVE").contains(action);
         }
         if ("GST_COMPLIANCE".equals(module)) {
-            return Set.of("VIEW", "EXPORT", "RECONCILE").contains(action);
+            return Set.of("VIEW", "EXPORT", "RECONCILE", "POST_GL").contains(action);
         }
         if ("GENERAL_LEDGER".equals(module)) {
-            return Set.of("VIEW", "CREATE", "POST", "EXPORT").contains(action);
+            return Set.of("VIEW", "CREATE_JOURNAL", "POST_JOURNAL", "REVERSE_JOURNAL", "CREATE_ACCOUNT", "EDIT_ACCOUNT", "EXPORT").contains(action);
         }
         return !"DELETE".equals(action) || Set.of("SALES", "PURCHASE", "QUOTATION", "CUSTOMERS", "SUPPLIERS", "INVENTORY", "MASTERS").contains(module);
     }

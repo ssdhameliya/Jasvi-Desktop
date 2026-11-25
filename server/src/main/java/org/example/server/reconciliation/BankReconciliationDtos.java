@@ -32,7 +32,11 @@ public final class BankReconciliationDtos {
  public record AllocationRequest(String targetType,Integer targetId,double amount){}
  public record MatchRequest(String user,List<AllocationRequest> allocations){}
  public record ExpenseRequest(String category,String accountName,String paymentMode,String notes,String billPath,String user){}
- public record BankEntryRequest(String accountName,String paymentMode,String notes,String user){}
+ public record BankEntryRequest(String accountName,String paymentMode,String notes,String user,String category,Integer partyId,String contraAccountName){
+  public BankEntryRequest(String accountName,String paymentMode,String notes,String user){
+   this(accountName,paymentMode,notes,user,null,null,null);
+  }
+ }
  public record BulkExpenseRequest(List<Long> transactionIds,String category,String accountName,String paymentMode,String notes,String billPath,String user){}
  public record BulkBankEntryRequest(List<Long> transactionIds,String accountName,String paymentMode,String notes,String user){}
  public record BulkOperationResult(boolean success,String message,String status,int processed,List<Integer> financeEntryIds){}
@@ -41,7 +45,13 @@ public final class BankReconciliationDtos {
  public record OperationResult(boolean success,String message,String status,Integer financeEntryId){}
  public record BatchDeleteResult(boolean success,String message,long deletedBatchId,int deletedTransactions,int reversedTransactions){}
  public record AuditDto(Long id,String eventType,String detail,String previousStatus,String newStatus,String performedBy,String createdAt){}
- public record Metrics(int total,int unmatched,int suggested,int matched,int expenses,int ignored,int review,double totalCredits,double totalDebits,int reconciled,double reconciledPercent,String batchStatus){}
+ public record Metrics(int total,int unmatched,int suggested,int matched,int expenses,int ignored,int review,double totalCredits,double totalDebits,int reconciled,double reconciledPercent,String batchStatus,double openingBalance,double bankClosingBalance,double calculatedClosingBalance,double balanceVariance,boolean balanceVerified){
+  public Metrics(int total,int unmatched,int suggested,int matched,int expenses,int ignored,int review,double totalCredits,double totalDebits,int reconciled,double reconciledPercent,String batchStatus){
+   this(total,unmatched,suggested,matched,expenses,ignored,review,totalCredits,totalDebits,reconciled,reconciledPercent,batchStatus,0d,0d,totalCredits-totalDebits,0d,false);
+  }
+ }
+ public record BrsLineItemDto(Long id,String statementReference,String transactionDate,String reference,String description,String status,double debit,double credit){}
+ public record BrsSummaryDto(String scopeLabel,String bankName,String bankAccount,String periodFrom,String periodTo,String asOfDate,double openingBalance,double statementClosingBalance,double totalCredits,double totalDebits,double calculatedClosingBalance,double balanceVariance,double matchedCredits,double matchedDebits,double expenseDebits,double ignoredCredits,double ignoredDebits,double pendingCredits,double pendingDebits,double impliedBooksBalance,double netReconciliationDiff,int totalCount,int reconciledCount,int pendingCount,List<BrsLineItemDto> unclearedCredits,List<BrsLineItemDto> unclearedDebits){}
  public record LinkageItemDto(Long statementTransactionId,String statementReference,String bankName,String bankAccount,String transactionDate,String originalReference,double debitAmount,double creditAmount,Integer financeEntryId,String financeVoucherNo,String financeVoucherType,String targetType,Integer targetId,String documentNo,Integer paymentRecordId,String paymentReference,String settledBy,double allocatedAmount,String status){
   public LinkageItemDto(Long statementTransactionId,String statementReference,String bankName,String bankAccount,String transactionDate,String originalReference,double debitAmount,double creditAmount,Integer financeEntryId,String financeVoucherNo,String financeVoucherType,String targetType,Integer targetId,String documentNo,double allocatedAmount,String status){
    this(statementTransactionId,statementReference,bankName,bankAccount,transactionDate,originalReference,debitAmount,creditAmount,financeEntryId,financeVoucherNo,financeVoucherType,targetType,targetId,documentNo,null,null,null,allocatedAmount,status);

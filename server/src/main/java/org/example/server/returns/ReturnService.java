@@ -2,11 +2,14 @@ package org.example.server.returns;
 
 import org.example.shared.DocumentCalculationEngine;
 
+import org.example.server.accounting.GeneralLedgerService;
 import org.example.server.audit.AuditService;
 import org.example.server.operations.BusinessOperationsService;
 import org.example.server.persistence.JpaNativeRepository;
 import org.example.server.security.CurrentUser;
 import org.example.server.util.BusinessClock;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,17 +31,29 @@ public class ReturnService {
     private final BusinessOperationsService operations;
     private final AuditService audit;
     private final org.example.server.creditdebit.CreditDebitNoteService creditDebitNoteService;
+    private final ObjectProvider<GeneralLedgerService> glProvider;
     private final int settlementDays;
 
     public ReturnService(JpaNativeRepository jdbc,
                          BusinessOperationsService operations,
                          AuditService audit,
                          org.example.server.creditdebit.CreditDebitNoteService creditDebitNoteService,
+                         int settlementDays) {
+        this(jdbc, operations, audit, creditDebitNoteService, null, settlementDays);
+    }
+
+    @Autowired
+    public ReturnService(JpaNativeRepository jdbc,
+                         BusinessOperationsService operations,
+                         AuditService audit,
+                         org.example.server.creditdebit.CreditDebitNoteService creditDebitNoteService,
+                         ObjectProvider<GeneralLedgerService> glProvider,
                          @Value("${dse.return.settlement-days:7}") int settlementDays) {
         this.jdbc = jdbc;
         this.operations = operations;
         this.audit = audit;
         this.creditDebitNoteService = creditDebitNoteService;
+        this.glProvider = glProvider;
         this.settlementDays = Math.max(0, Math.min(settlementDays, 365));
     }
 
@@ -345,6 +360,15 @@ public class ReturnService {
             no, date, d.amount(), mode, clean(d.reference()), clean(d.bankAccount()), clean(d.refundedParty()), clean(d.notes()), clean(d.refundType()) == null ? "PARTIAL" : clean(d.refundType()), CurrentUser.require().username(), BusinessClock.nowUtcText());
         syncRefundState(no);
         if (id == null) throw new IllegalStateException("Refund id was not returned after saving.");
+        if (glProvider != null && glProvider.getIfAvailable() != null) {
+            ReturnOrigin origin = origin(no);
+            boolean isSales = "SALES RETURN".equalsIgnoreCase(origin.type());
+            Integer partyId = null;
+            try { partyId = sourcePartyId(isSales, origin.invoice()); } catch (Exception ignored) {}
+            glProvider.getIfAvailable().postReturnRefundVoucher(
+                    id, no, isSales, date, BigDecimal.valueOf(d.amount()), BigDecimal.ZERO,
+                    mode, partyId, clean(d.refundedParty()), CurrentUser.require().username());
+        }
         audit.log(returnEntityType(no), returnAuditId(no), "REFUND_RECORDED", no + " • " + String.format(Locale.ROOT, "%.2f", d.amount()));
         return id;
     }
@@ -369,6 +393,9 @@ public class ReturnService {
         String current = currentStateForUpdate(no);
         if (!"APPROVED".equals(current)) {
             throw new IllegalStateException("Only approved returns / credit notes can be applied to outstanding invoices.");
+        }
+        if (glProvider != null && glProvider.getIfAvailable() != null) {
+            glProvider.getIfAvailable().ensurePeriodOpen(BusinessClock.today());
         }
         double totalCredit = total(no);
         double alreadyRefunded = refundTotal(no);
@@ -482,7 +509,11 @@ public class ReturnService {
         assertUnrefunded(no);
         if ("DELETED".equals(state)) return;
         ReturnOrigin origin = origin(no);
-        if ("APPROVED".equals(state)) reverseApprovedStock(no, "SALES RETURN".equalsIgnoreCase(origin.type()));
+        boolean isSales = "SALES RETURN".equalsIgnoreCase(origin.type());
+        if ("APPROVED".equals(state)) {
+            reverseApprovedStock(no, isSales);
+            cancelLinkedFinancialNotesAndGl(no, isSales);
+        }
         jdbc.update("UPDATE return_register SET status='DELETED',refund_status='N/A',settlement_due_date=NULL,updated_at=? WHERE return_no=?", BusinessClock.nowUtcText(), no);
         audit.log(returnEntityType(no), returnAuditId(no), "DELETED", no);
     }
@@ -496,9 +527,39 @@ public class ReturnService {
         if ("CANCELLED".equals(state)) throw new IllegalStateException("This Return is already cancelled.");
         if ("REJECTED".equals(state)) throw new IllegalStateException("Rejected Returns are final. Delete the audit row only if policy allows it.");
         ReturnOrigin origin = origin(no);
-        if ("APPROVED".equals(state)) reverseApprovedStock(no, "SALES RETURN".equalsIgnoreCase(origin.type()));
+        boolean isSales = "SALES RETURN".equalsIgnoreCase(origin.type());
+        if ("APPROVED".equals(state)) {
+            reverseApprovedStock(no, isSales);
+            cancelLinkedFinancialNotesAndGl(no, isSales);
+        }
         jdbc.update("UPDATE return_register SET status='CANCELLED',refund_status='N/A',settlement_due_date=NULL,updated_at=? WHERE return_no=?", BusinessClock.nowUtcText(), no);
         audit.log(returnEntityType(no), returnAuditId(no), "CANCELLED", no);
+    }
+
+    private void cancelLinkedFinancialNotesAndGl(String returnNo, boolean isSales) {
+        if (glProvider != null && glProvider.getIfAvailable() != null) {
+            glProvider.getIfAvailable().ensurePeriodOpen(BusinessClock.today());
+        }
+        String actor = CurrentUser.isSet() ? CurrentUser.require().username() : "SYSTEM";
+        try {
+            if (isSales) {
+                List<Long> cnIds = jdbc.query(
+                        "SELECT id FROM credit_note_header WHERE UPPER(COALESCE(status,'')) <> 'CANCELLED' AND COALESCE(notes,'') LIKE ?",
+                        (rs, i) -> rs.getLong(1), "%Return " + returnNo + "%");
+                for (Long cnId : cnIds) {
+                    creditDebitNoteService.cancelCreditNote(cnId, actor);
+                }
+            } else {
+                List<Long> dnIds = jdbc.query(
+                        "SELECT id FROM debit_note_header WHERE UPPER(COALESCE(status,'')) <> 'CANCELLED' AND COALESCE(notes,'') LIKE ?",
+                        (rs, i) -> rs.getLong(1), "%Return " + returnNo + "%");
+                for (Long dnId : dnIds) {
+                    creditDebitNoteService.cancelDebitNote(dnId, actor);
+                }
+            }
+        } catch (IllegalStateException locked) {
+            throw locked;
+        } catch (Exception ignored) {}
     }
 
     private void requireNoOpenReturn(String type, String invoice) {
@@ -660,6 +721,8 @@ public class ReturnService {
                     audit.log("PURCHASE_RETURN", returnAuditId(no), "DEBIT_NOTE_LINKED", no + " • Generated Debit Note " + created.debitNoteNo());
                 }
             }
+        } catch (IllegalStateException locked) {
+            throw locked;
         } catch (Exception ex) {
             java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Failed to auto-generate Credit/Debit note for approved return " + no + ": " + ex.getMessage(), ex);
         }

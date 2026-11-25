@@ -529,31 +529,35 @@ private void configureDetailsCloseButton(){
       Optional<WhatsappTransmissionDialog.WhatsappTransmissionResult> opt = WhatsappTransmissionDialog.show(tablePurchase, draft);
       if (opt.isEmpty()) return;
       WhatsappTransmissionDialog.WhatsappTransmissionResult result = opt.get();
+      final boolean[] serverAuditLogged = {false};
       LiveOperationDialog.run(tablePurchase, "Sending WhatsApp Purchase Order", "whatsapp", "Connecting to WhatsApp Business Engine...", reporter -> {
         org.example.api.whatsapp.BusinessWhatsappApiClient wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
         List<String> phones = Arrays.stream(result.recipientPhone().split("[;,]"))
-                .map(String::trim).filter(s -> !s.isBlank()).toList();
+                .map(String::trim).filter(s -> !s.isBlank()).distinct().toList();
+        String targetPhones = String.join(", ", phones);
         reporter.stage(1, 3, "Validating " + phones.size() + " recipient(s)...");
         reporter.stage(2, 3, "Transmitting purchase order to WhatsApp...");
-        for (String phoneNum : phones) {
-            var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
-                "PURCHASE",
-                p.getInvoiceNo(),
-                p.getId(),
-                null,
-                phoneNum,
-                result.message(),
-                p.getRowVersion()
-            ));
-            if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
-            support.communication(new SupportApiClient.CommunicationRequest("PURCHASE", p.getId(), "WHATSAPP", phoneNum, "Purchase Invoice " + p.getInvoiceNo(), "SENT", null, user()));
-        }
+        var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+            "PURCHASE",
+            p.getInvoiceNo(),
+            p.getId(),
+            null,
+            targetPhones,
+            result.message(),
+            p.getRowVersion()
+        ));
+        serverAuditLogged[0] = true;
+        if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
         reporter.stage(3, 3, "Dispatched via WhatsApp to " + phones.size() + " recipient(s)");
       }, () -> {
         refresh();
         info("Purchase Invoice " + p.getInvoiceNo() + " sent successfully via WhatsApp!");
       }, failure -> {
-        support.communication(new SupportApiClient.CommunicationRequest("PURCHASE", p.getId(), "WHATSAPP", result.recipientPhone(), "Purchase Invoice " + p.getInvoiceNo(), "FAILED", "Error sending WhatsApp: " + rootMessage(failure), user()));
+        if (!serverAuditLogged[0]) {
+          support.communication(new SupportApiClient.CommunicationRequest("PURCHASE", p.getId(), "WHATSAPP", result.recipientPhone(), "Purchase Invoice " + p.getInvoiceNo(), "FAILED", "Error sending WhatsApp: " + rootMessage(failure), user()));
+        } else {
+          refresh();
+        }
         error(failure);
       });
     }, failure -> error(new IllegalStateException("Failed to prepare WhatsApp draft:\n\n" + rootMessage(failure), failure)));

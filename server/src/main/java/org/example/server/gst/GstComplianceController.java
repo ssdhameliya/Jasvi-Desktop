@@ -54,4 +54,11 @@ public class GstComplianceController {
     public ObjectNode getGstr1Json(@PathVariable String period) {
         return gstr1Service.generateGovernmentJson(period);
     }
+
+    @PostMapping("/gstr3b/{period}/post-utilization")
+    public GstDtos.GstGlUtilizationResultDto postGstr3bUtilization(@PathVariable String period) {
+        org.example.server.security.CurrentUser.requirePermission("GST_COMPLIANCE.POST_GL", "Post GST ITC utilization to General Ledger");
+        String actor = org.example.server.security.CurrentUser.require().username();
+        return service.postMonthlyGstUtilization(period, actor);
+    }
 }

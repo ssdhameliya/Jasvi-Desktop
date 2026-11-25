@@ -1,6 +1,9 @@
 package org.example.server.financialstatements;
 
+import org.example.server.insights.CashPositionService;
 import org.example.server.persistence.JpaNativeRepository;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,9 +18,16 @@ import java.util.*;
 public class FinancialStatementsService {
 
     private final JpaNativeRepository jdbc;
+    private final ObjectProvider<CashPositionService> cashPositionProvider;
 
     public FinancialStatementsService(JpaNativeRepository jdbc) {
+        this(jdbc, null);
+    }
+
+    @Autowired
+    public FinancialStatementsService(JpaNativeRepository jdbc, ObjectProvider<CashPositionService> cashPositionProvider) {
         this.jdbc = jdbc;
+        this.cashPositionProvider = cashPositionProvider;
     }
 
     // =========================================================================
@@ -33,7 +43,9 @@ public class FinancialStatementsService {
                    COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN (l.credit_amount - l.debit_amount) ELSE 0 END), 0) as balance
             FROM chart_of_accounts c
             LEFT JOIN journal_line l ON l.account_id = c.id
-            LEFT JOIN journal_entry e ON e.id = l.journal_entry_id AND e.entry_date BETWEEN ? AND ? AND e.status = 'POSTED'
+            LEFT JOIN journal_entry e ON e.id = l.journal_entry_id
+                 AND e.entry_date BETWEEN ? AND ?
+                 AND UPPER(COALESCE(e.status, '')) IN ('POSTED', 'REVERSED')
             WHERE c.account_type IN ('REVENUE', 'EXPENSE')
             GROUP BY c.id, c.account_code, c.account_name, c.account_type, c.account_subtype
             ORDER BY c.account_code ASC
@@ -59,7 +71,7 @@ public class FinancialStatementsService {
                 }
             } else if ("EXPENSE".equalsIgnoreCase(line.category())) {
                 BigDecimal expVal = amt.negate();
-                if ("COGS".equalsIgnoreCase(line.subcategory()) || "DIRECT".equalsIgnoreCase(line.subcategory())) {
+                if (isDirectCogs(line.subcategory(), line.accountCode(), line.accountName())) {
                     if (expVal.compareTo(BigDecimal.ZERO) != 0) {
                         cogsLines.add(new FinancialStatementsDtos.StatementLineDto(
                                 line.accountId(), line.accountCode(), line.accountName(), line.category(), line.subcategory(), expVal
@@ -105,7 +117,9 @@ public class FinancialStatementsService {
                    ), 0) as balance
             FROM chart_of_accounts c
             LEFT JOIN journal_line l ON l.account_id = c.id
-            LEFT JOIN journal_entry e ON e.id = l.journal_entry_id AND e.entry_date <= ? AND e.status = 'POSTED'
+            LEFT JOIN journal_entry e ON e.id = l.journal_entry_id
+                 AND e.entry_date <= ?
+                 AND UPPER(COALESCE(e.status, '')) IN ('POSTED', 'REVERSED')
             WHERE c.account_type IN ('ASSET', 'LIABILITY', 'EQUITY')
             GROUP BY c.id, c.account_code, c.account_name, c.account_type, c.account_subtype, c.opening_balance
             ORDER BY c.account_code ASC
@@ -130,14 +144,14 @@ public class FinancialStatementsService {
 
             if ("ASSET".equalsIgnoreCase(line.category())) {
                 totalAssets = totalAssets.add(amt);
-                if ("FIXED".equalsIgnoreCase(line.subcategory()) || "NON_CURRENT".equalsIgnoreCase(line.subcategory())) {
+                if (isNonCurrentAsset(line.subcategory(), line.accountCode())) {
                     nonCurrentAssetLines.add(line);
                 } else {
                     currentAssetLines.add(line);
                 }
             } else if ("LIABILITY".equalsIgnoreCase(line.category())) {
                 totalLiabilities = totalLiabilities.add(amt);
-                if ("LONG_TERM".equalsIgnoreCase(line.subcategory()) || "NON_CURRENT".equalsIgnoreCase(line.subcategory())) {
+                if (isNonCurrentLiability(line.subcategory(), line.accountCode())) {
                     nonCurrentLiabilityLines.add(line);
                 } else {
                     currentLiabilityLines.add(line);
@@ -160,7 +174,9 @@ public class FinancialStatementsService {
                 ), 0)
                 FROM chart_of_accounts c
                 JOIN journal_line l ON l.account_id = c.id
-                JOIN journal_entry e ON e.id = l.journal_entry_id AND e.entry_date <= ? AND e.status = 'POSTED'
+                JOIN journal_entry e ON e.id = l.journal_entry_id
+                     AND e.entry_date <= ?
+                     AND UPPER(COALESCE(e.status, '')) IN ('POSTED', 'REVERSED')
                 WHERE c.account_type IN ('REVENUE', 'EXPENSE')
                 """, BigDecimal.class, asOf);
         } catch (Exception ignored) {}
@@ -179,7 +195,7 @@ public class FinancialStatementsService {
     }
 
     // =========================================================================
-    // 2. LIVE OPERATIONAL DUAL-ENGINE (REAL-TIME REGISTERS & INVENTORY)
+    // 2. DUAL-ENGINE THREE-TIER STATEMENTS (CANONICAL GL & LIVE OPERATIONAL)
     // =========================================================================
 
     public FinancialStatementsDtos.ThreeTierFinancialStatementDto getThreeTierStatements(LocalDate fromDate, LocalDate toDate, String engine) {
@@ -189,94 +205,175 @@ public class FinancialStatementsService {
         String endStr = end.toString();
         long daysInPeriod = Math.max(1, ChronoUnit.DAYS.between(start, end) + 1);
 
-        boolean useGl = "GENERAL_LEDGER".equalsIgnoreCase(engine) || "GL".equalsIgnoreCase(engine);
+        boolean useGl = engine != null && (
+                "CANONICAL_GL".equalsIgnoreCase(engine.trim())
+                        || "GENERAL_LEDGER".equalsIgnoreCase(engine.trim())
+                        || "GL".equalsIgnoreCase(engine.trim())
+        );
 
-        // 1. Net Sales from sales_header
-        BigDecimal grossSales = BigDecimal.ZERO;
-        try {
-            grossSales = jdbc.queryForObject("""
-                SELECT COALESCE(SUM(total_amount - gst_amount), 0)
+        if (useGl) {
+            return buildCanonicalGlThreeTier(start, end, daysInPeriod);
+        }
+        return buildOperationalThreeTier(start, end, daysInPeriod);
+    }
+
+    private FinancialStatementsDtos.ThreeTierFinancialStatementDto buildCanonicalGlThreeTier(LocalDate start, LocalDate end, long daysInPeriod) {
+        String startStr = start.toString();
+        String endStr = end.toString();
+
+        FinancialStatementsDtos.ProfitAndLossDto glPnl = getProfitAndLoss(start, end);
+        FinancialStatementsDtos.BalanceSheetDto glBs = getBalanceSheet(end);
+
+        BigDecimal salesReturns = glPnl.revenueLines().stream()
+                .filter(l -> "4100".equals(l.accountCode()) || "SALES_RETURN".equalsIgnoreCase(l.subcategory()))
+                .map(l -> l.amount().negate().max(BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal grossSales = glPnl.grossRevenue().add(salesReturns);
+        BigDecimal netSales = glPnl.grossRevenue();
+
+        BigDecimal purchaseReturns = glPnl.cogsLines().stream()
+                .filter(l -> "5100".equals(l.accountCode()))
+                .map(l -> l.amount().negate().max(BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal grossPurchases = glPnl.cogs().add(purchaseReturns);
+        BigDecimal directExpenses = glPnl.cogsLines().stream()
+                .filter(l -> !"5020".equals(l.accountCode()) && !"5100".equals(l.accountCode()))
+                .map(FinancialStatementsDtos.StatementLineDto::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal netPurchases = grossPurchases.subtract(purchaseReturns);
+        BigDecimal closingStock = glBs.currentAssetLines().stream()
+                .filter(l -> "1060".equals(l.accountCode()) || "1030".equals(l.accountCode()))
+                .map(FinancialStatementsDtos.StatementLineDto::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (closingStock.compareTo(BigDecimal.ZERO) == 0) {
+            closingStock = loadClosingStockValuation();
+        }
+        BigDecimal openingStock = loadOpeningStockValuation();
+
+        BigDecimal grossProfit = glPnl.grossProfit();
+        BigDecimal grossMarginPct = netSales.compareTo(BigDecimal.ZERO) > 0
+                ? grossProfit.multiply(new BigDecimal(100)).divide(netSales, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal netProfit = glPnl.netProfit();
+        BigDecimal netMarginPct = netSales.compareTo(BigDecimal.ZERO) > 0
+                ? netProfit.multiply(new BigDecimal(100)).divide(netSales, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal opMarginPct = netSales.compareTo(BigDecimal.ZERO) > 0
+                ? glPnl.operatingProfit().multiply(new BigDecimal(100)).divide(netSales, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        List<FinancialStatementsDtos.FinancialAccountRow> tradingLines = new ArrayList<>();
+        for (var l : glPnl.revenueLines()) {
+            tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "REVENUE", l.amount()));
+        }
+        for (var l : glPnl.cogsLines()) {
+            tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "DIRECT_COST", l.amount()));
+        }
+        FinancialStatementsDtos.TradingAccountDto tradingDto = new FinancialStatementsDtos.TradingAccountDto(
+                grossSales, salesReturns, netSales, openingStock, grossPurchases, purchaseReturns,
+                netPurchases, directExpenses, closingStock, glPnl.cogs(), grossProfit, grossMarginPct, tradingLines
+        );
+
+        List<FinancialStatementsDtos.FinancialAccountRow> revRows = glPnl.revenueLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), l.subcategory(), l.amount()))
+                .toList();
+        List<FinancialStatementsDtos.FinancialAccountRow> cogsRows = glPnl.cogsLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), l.subcategory(), l.amount()))
+                .toList();
+        List<FinancialStatementsDtos.FinancialAccountRow> expRows = glPnl.expenseLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), l.subcategory(), l.amount()))
+                .toList();
+
+        FinancialStatementsDtos.DesktopProfitAndLossDto pnlDto = new FinancialStatementsDtos.DesktopProfitAndLossDto(
+                startStr, endStr, netSales, glPnl.cogs(), grossProfit, glPnl.operatingExpenses(), netProfit,
+                revRows, cogsRows, expRows
+        );
+
+        List<FinancialStatementsDtos.FinancialAccountRow> curAssets = glBs.currentAssetLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "CURRENT_ASSET", l.amount())).toList();
+        List<FinancialStatementsDtos.FinancialAccountRow> nonCurAssets = glBs.nonCurrentAssetLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "NON_CURRENT_ASSET", l.amount())).toList();
+        List<FinancialStatementsDtos.FinancialAccountRow> curLiab = glBs.currentLiabilityLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "CURRENT_LIABILITY", l.amount())).toList();
+        List<FinancialStatementsDtos.FinancialAccountRow> nonCurLiab = glBs.nonCurrentLiabilityLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "NON_CURRENT_LIABILITY", l.amount())).toList();
+        List<FinancialStatementsDtos.FinancialAccountRow> eqRows = glBs.equityLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "EQUITY", l.amount())).toList();
+
+        FinancialStatementsDtos.DesktopBalanceSheetDto bsDto = new FinancialStatementsDtos.DesktopBalanceSheetDto(
+                endStr, glBs.totalAssets(), glBs.totalLiabilities(), glBs.totalEquity(),
+                curAssets, nonCurAssets, curLiab, nonCurLiab, eqRows
+        );
+
+        BigDecimal totCurAssets = curAssets.stream().map(FinancialStatementsDtos.FinancialAccountRow::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totCurLiab = curLiab.stream().map(FinancialStatementsDtos.FinancialAccountRow::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal debtors = glBs.currentAssetLines().stream()
+                .filter(l -> "1040".equals(l.accountCode()) || "1100".equals(l.accountCode()))
+                .map(FinancialStatementsDtos.StatementLineDto::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal creditors = glBs.currentLiabilityLines().stream()
+                .filter(l -> "2010".equals(l.accountCode()) || "2100".equals(l.accountCode()))
+                .map(FinancialStatementsDtos.StatementLineDto::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal cashEnd = glBs.currentAssetLines().stream()
+                .filter(l -> "1010".equals(l.accountCode()) || "1020".equals(l.accountCode()))
+                .map(FinancialStatementsDtos.StatementLineDto::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        FinancialStatementsDtos.FinancialRatiosDto ratiosDto = buildRatios(
+                grossMarginPct, netMarginPct, opMarginPct,
+                totCurAssets, totCurLiab, closingStock, debtors, creditors, netSales, netPurchases,
+                daysInPeriod, netProfit, glBs.totalLiabilities(), glBs.totalEquity()
+        );
+        FinancialStatementsDtos.CashFlowStatementDto cashFlow = buildCashFlow(start, end, netProfit, cashEnd, glBs);
+        FinancialStatementsDtos.PriorComparisonDto comparison = buildPriorComparison(start, end, daysInPeriod, netSales, netProfit, true);
+
+        return new FinancialStatementsDtos.ThreeTierFinancialStatementDto(
+                startStr, endStr, "GENERAL_LEDGER", tradingDto, pnlDto, bsDto, ratiosDto, cashFlow, comparison
+        );
+    }
+
+    private FinancialStatementsDtos.ThreeTierFinancialStatementDto buildOperationalThreeTier(LocalDate start, LocalDate end, long daysInPeriod) {
+        String startStr = start.toString();
+        String endStr = end.toString();
+
+        BigDecimal grossSales = queryScalar("""
+                SELECT COALESCE(SUM(total_amount - COALESCE(gst_amount, 0)), 0)
                 FROM sales_header
-                WHERE UPPER(COALESCE(document_status, '')) NOT IN ('CANCELLED', 'DELETED')
+                WHERE UPPER(COALESCE(document_status, '')) NOT IN ('CANCELLED', 'DELETED', 'REJECTED', 'VOID')
                   AND dse_safe_date(invoice_date) BETWEEN ? AND ?
-                """, BigDecimal.class, start, end);
-        } catch (Exception ignored) {}
-
-        BigDecimal salesReturns = BigDecimal.ZERO;
-        try {
-            salesReturns = jdbc.queryForObject("""
+                """, start, end);
+        BigDecimal salesReturns = queryScalar("""
                 SELECT COALESCE(SUM(taxable_amount), 0)
                 FROM credit_note_header
                 WHERE UPPER(COALESCE(status, '')) <> 'CANCELLED'
                   AND note_date BETWEEN ? AND ?
-                """, BigDecimal.class, start, end);
-        } catch (Exception ignored) {}
-
+                """, start, end);
         BigDecimal netSales = grossSales.subtract(salesReturns).max(BigDecimal.ZERO);
 
-        // 2. Purchases from purchase_header
-        BigDecimal grossPurchases = BigDecimal.ZERO;
-        try {
-            grossPurchases = jdbc.queryForObject("""
-                SELECT COALESCE(SUM(total_amount - gst_amount), 0)
+        BigDecimal grossPurchases = queryScalar("""
+                SELECT COALESCE(SUM(total_amount - COALESCE(gst_amount, 0)), 0)
                 FROM purchase_header
-                WHERE UPPER(COALESCE(document_status, '')) NOT IN ('CANCELLED', 'DELETED')
+                WHERE UPPER(COALESCE(document_status, '')) NOT IN ('CANCELLED', 'DELETED', 'REJECTED', 'VOID')
                   AND dse_safe_date(invoice_date) BETWEEN ? AND ?
-                """, BigDecimal.class, start, end);
-        } catch (Exception ignored) {}
-
-        BigDecimal purchaseReturns = BigDecimal.ZERO;
-        try {
-            purchaseReturns = jdbc.queryForObject("""
+                """, start, end);
+        BigDecimal purchaseReturns = queryScalar("""
                 SELECT COALESCE(SUM(taxable_amount), 0)
                 FROM debit_note_header
                 WHERE UPPER(COALESCE(status, '')) <> 'CANCELLED'
                   AND note_date BETWEEN ? AND ?
-                """, BigDecimal.class, start, end);
-        } catch (Exception ignored) {}
-
+                """, start, end);
         BigDecimal netPurchases = grossPurchases.subtract(purchaseReturns).max(BigDecimal.ZERO);
 
-        // 3. Direct Inward Expenses from finance_register
-        BigDecimal directExpenses = BigDecimal.ZERO;
-        try {
-            directExpenses = jdbc.queryForObject("""
+        BigDecimal directExpenses = queryScalar("""
                 SELECT COALESCE(SUM(amount), 0)
                 FROM finance_register
                 WHERE UPPER(COALESCE(voucher_type, '')) = 'EXPENSE'
                   AND UPPER(COALESCE(category, '')) IN ('FREIGHT INWARD', 'CARRIAGE INWARD', 'DIRECT EXPENSE', 'LABOUR', 'MANUFACTURING', 'PACKING')
                   AND dse_safe_date(voucher_date) BETWEEN ? AND ?
-                """, BigDecimal.class, start, end);
-        } catch (Exception ignored) {}
+                """, start, end);
 
-        // 4. Closing Inventory Valuation
-        BigDecimal closingStock = BigDecimal.ZERO;
-        try {
-            closingStock = jdbc.queryForObject("""
-                SELECT COALESCE(SUM(COALESCE(s.quantity, i.opening_stock, 0) * COALESCE(s.average_unit_cost, i.purchase_price, 0)), 0)
-                FROM item_master i
-                LEFT JOIN inventory_cost_state s ON s.item_code = i.item_code
-                WHERE COALESCE(i.is_active::text, '1') IN ('1', 'true', 't')
-                  AND COALESCE(s.quantity, i.opening_stock, 0) > 0
-                """, BigDecimal.class);
-        } catch (Exception ignored) {}
+        BigDecimal closingStock = loadClosingStockValuation();
+        BigDecimal openingStock = loadOpeningStockValuation();
 
-        BigDecimal openingStock = BigDecimal.ZERO;
-        try {
-            openingStock = jdbc.queryForObject("""
-                SELECT COALESCE(SUM(COALESCE(i.opening_stock, 0) * COALESCE(i.purchase_price, 0)), 0)
-                FROM item_master i
-                WHERE COALESCE(i.is_active::text, '1') IN ('1', 'true', 't')
-                  AND COALESCE(i.opening_stock, 0) > 0
-                """, BigDecimal.class);
-        } catch (Exception ignored) {}
-        if (openingStock == null) openingStock = BigDecimal.ZERO;
-
-        // 5. Cost of Goods Sold (COGS)
-        BigDecimal cogs = openingStock.add(netPurchases).add(directExpenses).subtract(closingStock);
-        if (cogs.compareTo(BigDecimal.ZERO) < 0) {
-            cogs = BigDecimal.ZERO;
-        }
+        BigDecimal cogs = openingStock.add(netPurchases).add(directExpenses).subtract(closingStock).max(BigDecimal.ZERO);
         BigDecimal grossProfit = netSales.subtract(cogs);
         BigDecimal grossMarginPct = netSales.compareTo(BigDecimal.ZERO) > 0
                 ? grossProfit.multiply(new BigDecimal(100)).divide(netSales, 2, RoundingMode.HALF_UP)
@@ -285,27 +382,25 @@ public class FinancialStatementsService {
         List<FinancialStatementsDtos.FinancialAccountRow> tradingLines = new ArrayList<>();
         tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("4010", "Gross Sales Revenue", "SALES", grossSales));
         if (salesReturns.compareTo(BigDecimal.ZERO) > 0) {
-            tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("4020", "Less: Sales Returns (Credit Notes)", "SALES_RETURN", salesReturns.negate()));
+            tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("4100", "Less: Sales Returns (Credit Notes)", "SALES_RETURN", salesReturns.negate()));
         }
-        tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("5010", "Opening Inventory Stock", "OPENING_STOCK", openingStock));
+        tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("1060-OP", "Opening Inventory Stock", "OPENING_STOCK", openingStock));
         tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("5020", "Gross Purchases", "PURCHASES", grossPurchases));
         if (purchaseReturns.compareTo(BigDecimal.ZERO) > 0) {
-            tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("5030", "Less: Purchase Returns (Debit Notes)", "PURCHASE_RETURN", purchaseReturns.negate()));
+            tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("5100", "Less: Purchase Returns (Debit Notes)", "PURCHASE_RETURN", purchaseReturns.negate()));
         }
         if (directExpenses.compareTo(BigDecimal.ZERO) > 0) {
-            tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("5040", "Direct Inward & Manufacturing Expenses", "DIRECT_EXPENSE", directExpenses));
+            tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("5030", "Direct Inward & Manufacturing Expenses", "DIRECT_EXPENSE", directExpenses));
         }
-        tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("5090", "Less: Closing Inventory Stock", "CLOSING_STOCK", closingStock.negate()));
+        tradingLines.add(new FinancialStatementsDtos.FinancialAccountRow("1060-CL", "Less: Closing Inventory Stock", "CLOSING_STOCK", closingStock.negate()));
 
         FinancialStatementsDtos.TradingAccountDto tradingDto = new FinancialStatementsDtos.TradingAccountDto(
                 grossSales, salesReturns, netSales, openingStock, grossPurchases, purchaseReturns,
                 netPurchases, directExpenses, closingStock, cogs, grossProfit, grossMarginPct, tradingLines
         );
 
-        // 6. Operating Overheads & Indirect Expenses
         List<FinancialStatementsDtos.FinancialAccountRow> expenseLines = new ArrayList<>();
         BigDecimal totalOperatingExpenses = BigDecimal.ZERO;
-
         try {
             List<Map<String, Object>> expRows = jdbc.queryForList("""
                 SELECT COALESCE(NULLIF(TRIM(category), ''), 'General Overhead') as cat,
@@ -317,30 +412,20 @@ public class FinancialStatementsService {
                 GROUP BY 1
                 ORDER BY tot DESC
                 """, start, end);
-
-            int expCode = 6010;
+            int expCode = 5080;
             for (Map<String, Object> r : expRows) {
-                String catName = String.valueOf(r.get("cat"));
                 BigDecimal amt = toBigDecimal(r.get("tot"));
                 if (amt.compareTo(BigDecimal.ZERO) > 0) {
                     expenseLines.add(new FinancialStatementsDtos.FinancialAccountRow(
-                            String.valueOf(expCode++), catName, "OPERATING_EXPENSE", amt
-                    ));
+                            String.valueOf(expCode++), String.valueOf(r.get("cat")), "OPERATING_EXPENSE", amt));
                     totalOperatingExpenses = totalOperatingExpenses.add(amt);
                 }
             }
         } catch (Exception ignored) {}
 
-        // Fallback default overhead line if empty
-        if (expenseLines.isEmpty() && totalOperatingExpenses.compareTo(BigDecimal.ZERO) == 0) {
-            expenseLines.add(new FinancialStatementsDtos.FinancialAccountRow("6010", "Administrative & Office Expenses", "OPERATING_EXPENSE", BigDecimal.ZERO));
-        }
-
-        // 7. Other Operating Income
         List<FinancialStatementsDtos.FinancialAccountRow> revenueLines = new ArrayList<>();
-        revenueLines.add(new FinancialStatementsDtos.FinancialAccountRow("4000", "Net Sales & Operating Revenue", "REVENUE", netSales));
+        revenueLines.add(new FinancialStatementsDtos.FinancialAccountRow("4010", "Net Sales & Operating Revenue", "REVENUE", netSales));
         BigDecimal otherIncome = BigDecimal.ZERO;
-
         try {
             List<Map<String, Object>> incRows = jdbc.queryForList("""
                 SELECT COALESCE(NULLIF(TRIM(category), ''), 'Other Income') as cat,
@@ -352,157 +437,237 @@ public class FinancialStatementsService {
                 GROUP BY 1
                 ORDER BY tot DESC
                 """, start, end);
-
-            int incCode = 4110;
+            int incCode = 4090;
             for (Map<String, Object> r : incRows) {
-                String catName = String.valueOf(r.get("cat"));
                 BigDecimal amt = toBigDecimal(r.get("tot"));
                 if (amt.compareTo(BigDecimal.ZERO) > 0) {
                     revenueLines.add(new FinancialStatementsDtos.FinancialAccountRow(
-                            String.valueOf(incCode++), catName, "OTHER_INCOME", amt
-                    ));
+                            String.valueOf(incCode++), String.valueOf(r.get("cat")), "OTHER_INCOME", amt));
                     otherIncome = otherIncome.add(amt);
                 }
             }
         } catch (Exception ignored) {}
 
-        List<FinancialStatementsDtos.FinancialAccountRow> cogsLines = new ArrayList<>();
-        cogsLines.add(new FinancialStatementsDtos.FinancialAccountRow("5000", "Cost of Goods Sold (COGS)", "COGS", cogs));
-
+        List<FinancialStatementsDtos.FinancialAccountRow> cogsLines = List.of(
+                new FinancialStatementsDtos.FinancialAccountRow("5010", "Cost of Goods Sold (COGS)", "COGS", cogs)
+        );
         BigDecimal netProfit = grossProfit.subtract(totalOperatingExpenses).add(otherIncome);
         BigDecimal netMarginPct = netSales.compareTo(BigDecimal.ZERO) > 0
-                ? netProfit.multiply(new BigDecimal(100)).divide(netSales, 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
+                ? netProfit.multiply(new BigDecimal(100)).divide(netSales, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
         BigDecimal opProfit = grossProfit.subtract(totalOperatingExpenses);
         BigDecimal opMarginPct = netSales.compareTo(BigDecimal.ZERO) > 0
-                ? opProfit.multiply(new BigDecimal(100)).divide(netSales, 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
+                ? opProfit.multiply(new BigDecimal(100)).divide(netSales, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
 
         FinancialStatementsDtos.DesktopProfitAndLossDto pnlDto = new FinancialStatementsDtos.DesktopProfitAndLossDto(
                 startStr, endStr, netSales.add(otherIncome), cogs, grossProfit, totalOperatingExpenses, netProfit,
                 revenueLines, cogsLines, expenseLines
         );
 
-        // 8. Balance Sheet (Live Operational)
-        BigDecimal debtors = BigDecimal.ZERO;
-        try {
-            debtors = jdbc.queryForObject("""
+        // Authentic Balance Sheet — ZERO fake hardcoded figures
+        BigDecimal debtors = queryScalar("""
                 SELECT COALESCE(SUM(total_amount - COALESCE(paid_amount, 0)), 0)
                 FROM sales_header
-                WHERE UPPER(COALESCE(document_status, '')) NOT IN ('CANCELLED', 'DELETED')
+                WHERE UPPER(COALESCE(document_status, '')) NOT IN ('CANCELLED', 'DELETED', 'REJECTED', 'VOID')
                   AND (total_amount - COALESCE(paid_amount, 0)) > 0.01
-                """, BigDecimal.class);
-        } catch (Exception ignored) {}
-
-        BigDecimal creditors = BigDecimal.ZERO;
-        try {
-            creditors = jdbc.queryForObject("""
+                """);
+        BigDecimal creditors = queryScalar("""
                 SELECT COALESCE(SUM(total_amount - COALESCE(paid_amount, 0)), 0)
                 FROM purchase_header
-                WHERE UPPER(COALESCE(document_status, '')) NOT IN ('CANCELLED', 'DELETED')
+                WHERE UPPER(COALESCE(document_status, '')) NOT IN ('CANCELLED', 'DELETED', 'REJECTED', 'VOID')
                   AND (total_amount - COALESCE(paid_amount, 0)) > 0.01
-                """, BigDecimal.class);
-        } catch (Exception ignored) {}
+                """);
 
-        BigDecimal cashAndBank = BigDecimal.ZERO;
-        try {
-            cashAndBank = jdbc.queryForObject("""
-                SELECT COALESCE(SUM(
-                    CASE
-                        WHEN UPPER(COALESCE(voucher_type, '')) = 'BANK DEPOSIT' THEN amount
-                        WHEN UPPER(COALESCE(voucher_type, '')) IN ('BANK WITHDRAWAL', 'EXPENSE') THEN -amount
-                        ELSE 0
-                    END
-                ), 0)
-                FROM finance_register
-                WHERE dse_safe_date(voucher_date) <= ?
-                """, BigDecimal.class, end);
-            if (cashAndBank == null || cashAndBank.compareTo(BigDecimal.ZERO) < 0) {
-                cashAndBank = new BigDecimal("50000.00");
-            }
-        } catch (Exception ignored) {
-            cashAndBank = new BigDecimal("50000.00");
-        }
+        CashPositionService cashSvc = cashPositionProvider != null ? cashPositionProvider.getIfAvailable() : null;
+        BigDecimal cashAndBank = cashSvc != null
+                ? BigDecimal.valueOf(cashSvc.cashPosition()).setScale(2, RoundingMode.HALF_UP)
+                : queryCoaBalanceSum(end, List.of("1010", "1020"));
+
+        BigDecimal netGstPayable = computeNetGstPosition();
 
         List<FinancialStatementsDtos.FinancialAccountRow> currentAssets = new ArrayList<>();
-        currentAssets.add(new FinancialStatementsDtos.FinancialAccountRow("1010", "Cash & Bank Balances", "CURRENT_ASSET", cashAndBank));
-        currentAssets.add(new FinancialStatementsDtos.FinancialAccountRow("1020", "Sundry Debtors (Trade Receivables)", "CURRENT_ASSET", debtors));
-        currentAssets.add(new FinancialStatementsDtos.FinancialAccountRow("1030", "Closing Inventory Stock", "CURRENT_ASSET", closingStock));
+        currentAssets.add(new FinancialStatementsDtos.FinancialAccountRow("1020", "Cash & Bank Balances", "CURRENT_ASSET", cashAndBank));
+        currentAssets.add(new FinancialStatementsDtos.FinancialAccountRow("1040", "Sundry Debtors (Trade Receivables)", "CURRENT_ASSET", debtors));
+        currentAssets.add(new FinancialStatementsDtos.FinancialAccountRow("1060", "Closing Inventory Stock", "CURRENT_ASSET", closingStock));
+        if (netGstPayable.compareTo(BigDecimal.ZERO) < 0) {
+            currentAssets.add(new FinancialStatementsDtos.FinancialAccountRow("1081", "Input GST Tax Credit (Net ITC)", "CURRENT_ASSET", netGstPayable.abs()));
+        }
+        BigDecimal totalCurrentAssets = currentAssets.stream()
+                .map(FinancialStatementsDtos.FinancialAccountRow::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalCurrentAssets = cashAndBank.add(debtors).add(closingStock);
-
-        List<FinancialStatementsDtos.FinancialAccountRow> nonCurrentAssets = new ArrayList<>();
-        nonCurrentAssets.add(new FinancialStatementsDtos.FinancialAccountRow("1510", "Plant, Equipment & Office Assets", "NON_CURRENT_ASSET", new BigDecimal("150000.00")));
-        BigDecimal totalNonCurrentAssets = new BigDecimal("150000.00");
+        FinancialStatementsDtos.BalanceSheetDto glBs = getBalanceSheet(end);
+        List<FinancialStatementsDtos.FinancialAccountRow> nonCurrentAssets = glBs.nonCurrentAssetLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "NON_CURRENT_ASSET", l.amount()))
+                .toList();
+        BigDecimal totalNonCurrentAssets = nonCurrentAssets.stream()
+                .map(FinancialStatementsDtos.FinancialAccountRow::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalAssets = totalCurrentAssets.add(totalNonCurrentAssets);
 
         List<FinancialStatementsDtos.FinancialAccountRow> currentLiabilities = new ArrayList<>();
         currentLiabilities.add(new FinancialStatementsDtos.FinancialAccountRow("2010", "Sundry Creditors (Trade Payables)", "CURRENT_LIABILITY", creditors));
-        currentLiabilities.add(new FinancialStatementsDtos.FinancialAccountRow("2020", "Duties & Taxes (GST Net Payable)", "CURRENT_LIABILITY", new BigDecimal("12500.00")));
-        BigDecimal totalCurrentLiabilities = creditors.add(new BigDecimal("12500.00"));
+        if (netGstPayable.compareTo(BigDecimal.ZERO) >= 0) {
+            currentLiabilities.add(new FinancialStatementsDtos.FinancialAccountRow("2081", "Duties & Taxes (Net GST Payable)", "CURRENT_LIABILITY", netGstPayable));
+        }
+        BigDecimal totalCurrentLiabilities = currentLiabilities.stream()
+                .map(FinancialStatementsDtos.FinancialAccountRow::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        List<FinancialStatementsDtos.FinancialAccountRow> nonCurrentLiabilities = new ArrayList<>();
-        nonCurrentLiabilities.add(new FinancialStatementsDtos.FinancialAccountRow("2510", "Long-term Borrowings & Loans", "NON_CURRENT_LIABILITY", new BigDecimal("50000.00")));
-        BigDecimal totalNonCurrentLiabilities = new BigDecimal("50000.00");
-
+        List<FinancialStatementsDtos.FinancialAccountRow> nonCurrentLiabilities = glBs.nonCurrentLiabilityLines().stream()
+                .map(l -> new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "NON_CURRENT_LIABILITY", l.amount()))
+                .toList();
+        BigDecimal totalNonCurrentLiabilities = nonCurrentLiabilities.stream()
+                .map(FinancialStatementsDtos.FinancialAccountRow::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalLiab = totalCurrentLiabilities.add(totalNonCurrentLiabilities);
 
-        // Equity with equilibrium preservation
         List<FinancialStatementsDtos.FinancialAccountRow> equityAccounts = new ArrayList<>();
-        BigDecimal capital = totalAssets.subtract(totalLiab).subtract(netProfit);
-        if (capital.compareTo(BigDecimal.ZERO) < 0) capital = new BigDecimal("100000.00");
-
-        equityAccounts.add(new FinancialStatementsDtos.FinancialAccountRow("3010", "Proprietor / Shareholder Capital", "EQUITY", capital));
-        equityAccounts.add(new FinancialStatementsDtos.FinancialAccountRow("3020", "Current Period Net Profit / (Loss)", "EQUITY", netProfit));
-
-        BigDecimal balancingReserves = totalAssets.subtract(totalLiab).subtract(capital).subtract(netProfit);
-        if (balancingReserves.compareTo(BigDecimal.ZERO) != 0) {
-            equityAccounts.add(new FinancialStatementsDtos.FinancialAccountRow("3090", "Retained Earnings & Reserves", "EQUITY", balancingReserves));
+        BigDecimal glEqSum = BigDecimal.ZERO;
+        for (var l : glBs.equityLines()) {
+            if ("3990".equals(l.accountCode())) continue;
+            equityAccounts.add(new FinancialStatementsDtos.FinancialAccountRow(l.accountCode(), l.accountName(), "EQUITY", l.amount()));
+            glEqSum = glEqSum.add(l.amount());
         }
-
-        BigDecimal totalEquity = totalAssets.subtract(totalLiab);
+        equityAccounts.add(new FinancialStatementsDtos.FinancialAccountRow("3020", "Current Period Net Profit / (Loss)", "EQUITY", netProfit));
+        BigDecimal totalEquity = glEqSum.add(netProfit);
 
         FinancialStatementsDtos.DesktopBalanceSheetDto bsDto = new FinancialStatementsDtos.DesktopBalanceSheetDto(
                 endStr, totalAssets, totalLiab, totalEquity,
                 currentAssets, nonCurrentAssets, currentLiabilities, nonCurrentLiabilities, equityAccounts
         );
 
-        // 9. Executive Financial Ratios
+        FinancialStatementsDtos.FinancialRatiosDto ratiosDto = buildRatios(
+                grossMarginPct, netMarginPct, opMarginPct,
+                totalCurrentAssets, totalCurrentLiabilities, closingStock, debtors, creditors,
+                netSales, netPurchases, daysInPeriod, netProfit, totalLiab, totalEquity
+        );
+        FinancialStatementsDtos.CashFlowStatementDto cashFlow = buildCashFlow(start, end, netProfit, cashAndBank, glBs);
+        FinancialStatementsDtos.PriorComparisonDto comparison = buildPriorComparison(start, end, daysInPeriod, netSales, netProfit, false);
+
+        return new FinancialStatementsDtos.ThreeTierFinancialStatementDto(
+                startStr, endStr, "OPERATIONAL",
+                tradingDto, pnlDto, bsDto, ratiosDto, cashFlow, comparison
+        );
+    }
+
+    private FinancialStatementsDtos.FinancialRatiosDto buildRatios(
+            BigDecimal grossMarginPct, BigDecimal netMarginPct, BigDecimal opMarginPct,
+            BigDecimal totalCurrentAssets, BigDecimal totalCurrentLiabilities, BigDecimal closingStock,
+            BigDecimal debtors, BigDecimal creditors, BigDecimal netSales, BigDecimal netPurchases,
+            long daysInPeriod, BigDecimal netProfit, BigDecimal totalLiab, BigDecimal totalEquity) {
         BigDecimal curRatio = totalCurrentLiabilities.compareTo(BigDecimal.ZERO) > 0
                 ? totalCurrentAssets.divide(totalCurrentLiabilities, 2, RoundingMode.HALF_UP)
-                : BigDecimal.valueOf(1.0);
+                : BigDecimal.ZERO;
         BigDecimal qkRatio = totalCurrentLiabilities.compareTo(BigDecimal.ZERO) > 0
                 ? totalCurrentAssets.subtract(closingStock).max(BigDecimal.ZERO).divide(totalCurrentLiabilities, 2, RoundingMode.HALF_UP)
-                : BigDecimal.valueOf(1.0);
-
+                : BigDecimal.ZERO;
         BigDecimal dso = netSales.compareTo(BigDecimal.ZERO) > 0
                 ? debtors.multiply(BigDecimal.valueOf(daysInPeriod)).divide(netSales, 1, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
         BigDecimal dpo = netPurchases.compareTo(BigDecimal.ZERO) > 0
                 ? creditors.multiply(BigDecimal.valueOf(daysInPeriod)).divide(netPurchases, 1, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
-
         BigDecimal workingCapital = totalCurrentAssets.subtract(totalCurrentLiabilities);
-
-        FinancialStatementsDtos.FinancialRatiosDto ratiosDto = new FinancialStatementsDtos.FinancialRatiosDto(
-                grossMarginPct, netMarginPct, opMarginPct, curRatio, qkRatio, dso, dpo, workingCapital
+        BigDecimal roePct = totalEquity.compareTo(BigDecimal.ZERO) > 0
+                ? netProfit.multiply(new BigDecimal(100)).divide(totalEquity, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal debtToEquity = totalEquity.compareTo(BigDecimal.ZERO) > 0
+                ? totalLiab.divide(totalEquity, 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        return new FinancialStatementsDtos.FinancialRatiosDto(
+                grossMarginPct, netMarginPct, opMarginPct, curRatio, qkRatio, dso, dpo,
+                workingCapital, roePct, debtToEquity
         );
+    }
 
-        return new FinancialStatementsDtos.ThreeTierFinancialStatementDto(
-                startStr, endStr, useGl ? "GENERAL_LEDGER" : "OPERATIONAL",
-                tradingDto, pnlDto, bsDto, ratiosDto
+    private FinancialStatementsDtos.CashFlowStatementDto buildCashFlow(
+            LocalDate start, LocalDate end, BigDecimal netProfit, BigDecimal closingCash,
+            FinancialStatementsDtos.BalanceSheetDto endBs) {
+        FinancialStatementsDtos.BalanceSheetDto startBs = getBalanceSheet(start.minusDays(1));
+        BigDecimal cashStart = startBs.currentAssetLines().stream()
+                .filter(l -> "1010".equals(l.accountCode()) || "1020".equals(l.accountCode()))
+                .map(FinancialStatementsDtos.StatementLineDto::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal endAr = sumLinesByCode(endBs.currentAssetLines(), Set.of("1040", "1100"));
+        BigDecimal startAr = sumLinesByCode(startBs.currentAssetLines(), Set.of("1040", "1100"));
+        BigDecimal deltaAr = endAr.subtract(startAr); // increase in AR uses cash
+
+        BigDecimal endInv = sumLinesByCode(endBs.currentAssetLines(), Set.of("1060", "1030"));
+        BigDecimal startInv = sumLinesByCode(startBs.currentAssetLines(), Set.of("1060", "1030"));
+        BigDecimal deltaInv = endInv.subtract(startInv); // increase in inventory uses cash
+
+        BigDecimal endAp = sumLinesByCode(endBs.currentLiabilityLines(), Set.of("2010", "2100"));
+        BigDecimal startAp = sumLinesByCode(startBs.currentLiabilityLines(), Set.of("2010", "2100"));
+        BigDecimal deltaAp = endAp.subtract(startAp); // increase in AP provides cash
+
+        BigDecimal operatingCashFlow = netProfit.subtract(deltaAr).subtract(deltaInv).add(deltaAp);
+
+        BigDecimal endFixed = endBs.nonCurrentAssetLines().stream()
+                .map(FinancialStatementsDtos.StatementLineDto::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal startFixed = startBs.nonCurrentAssetLines().stream()
+                .map(FinancialStatementsDtos.StatementLineDto::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal investingCashFlow = startFixed.subtract(endFixed); // asset purchases are negative
+
+        BigDecimal endLoans = endBs.nonCurrentLiabilityLines().stream()
+                .map(FinancialStatementsDtos.StatementLineDto::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal startLoans = startBs.nonCurrentLiabilityLines().stream()
+                .map(FinancialStatementsDtos.StatementLineDto::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal endCap = sumLinesByCode(endBs.equityLines(), Set.of("3010", "3030"));
+        BigDecimal startCap = sumLinesByCode(startBs.equityLines(), Set.of("3010", "3030"));
+        BigDecimal financingCashFlow = endLoans.subtract(startLoans).add(endCap.subtract(startCap));
+
+        BigDecimal netCashChange = operatingCashFlow.add(investingCashFlow).add(financingCashFlow);
+        List<FinancialStatementsDtos.FinancialAccountRow> cfLines = List.of(
+                new FinancialStatementsDtos.FinancialAccountRow("CF-NP", "Net Profit Before Working Capital Adjustments", "OPERATING", netProfit),
+                new FinancialStatementsDtos.FinancialAccountRow("CF-AR", "(Increase) / Decrease in Trade Receivables", "OPERATING", deltaAr.negate()),
+                new FinancialStatementsDtos.FinancialAccountRow("CF-INV", "(Increase) / Decrease in Inventory", "OPERATING", deltaInv.negate()),
+                new FinancialStatementsDtos.FinancialAccountRow("CF-AP", "Increase / (Decrease) in Trade Payables", "OPERATING", deltaAp),
+                new FinancialStatementsDtos.FinancialAccountRow("CF-OP", "Net Cash Flow from Operating Activities", "OPERATING_TOTAL", operatingCashFlow),
+                new FinancialStatementsDtos.FinancialAccountRow("CF-INVST", "Net Cash Flow from Investing Activities (Fixed Assets)", "INVESTING", investingCashFlow),
+                new FinancialStatementsDtos.FinancialAccountRow("CF-FIN", "Net Cash Flow from Financing Activities (Borrowings & Capital)", "FINANCING", financingCashFlow)
+        );
+        return new FinancialStatementsDtos.CashFlowStatementDto(
+                netProfit, cashStart, operatingCashFlow, investingCashFlow, financingCashFlow, netCashChange, closingCash, cfLines
+        );
+    }
+
+    private FinancialStatementsDtos.PriorComparisonDto buildPriorComparison(
+            LocalDate start, LocalDate end, long daysInPeriod, BigDecimal curSales, BigDecimal curProfit, boolean useGl) {
+        LocalDate priorEnd = start.minusDays(1);
+        LocalDate priorStart = priorEnd.minusDays(daysInPeriod - 1);
+        BigDecimal prevSales;
+        BigDecimal prevCogs;
+        BigDecimal prevGross;
+        BigDecimal prevNet;
+        if (useGl) {
+            FinancialStatementsDtos.ProfitAndLossDto p = getProfitAndLoss(priorStart, priorEnd);
+            prevSales = p.grossRevenue();
+            prevCogs = p.cogs();
+            prevGross = p.grossProfit();
+            prevNet = p.netProfit();
+        } else {
+            BigDecimal gSales = queryScalar("SELECT COALESCE(SUM(total_amount - COALESCE(gst_amount, 0)), 0) FROM sales_header WHERE UPPER(COALESCE(document_status,'')) NOT IN ('CANCELLED','DELETED','REJECTED','VOID') AND dse_safe_date(invoice_date) BETWEEN ? AND ?", priorStart, priorEnd);
+            BigDecimal sRet = queryScalar("SELECT COALESCE(SUM(taxable_amount), 0) FROM credit_note_header WHERE UPPER(COALESCE(status,'')) <> 'CANCELLED' AND note_date BETWEEN ? AND ?", priorStart, priorEnd);
+            prevSales = gSales.subtract(sRet).max(BigDecimal.ZERO);
+            BigDecimal gPur = queryScalar("SELECT COALESCE(SUM(total_amount - COALESCE(gst_amount, 0)), 0) FROM purchase_header WHERE UPPER(COALESCE(document_status,'')) NOT IN ('CANCELLED','DELETED','REJECTED','VOID') AND dse_safe_date(invoice_date) BETWEEN ? AND ?", priorStart, priorEnd);
+            BigDecimal pRet = queryScalar("SELECT COALESCE(SUM(taxable_amount), 0) FROM debit_note_header WHERE UPPER(COALESCE(status,'')) <> 'CANCELLED' AND note_date BETWEEN ? AND ?", priorStart, priorEnd);
+            prevCogs = gPur.subtract(pRet).max(BigDecimal.ZERO);
+            prevGross = prevSales.subtract(prevCogs);
+            BigDecimal exp = queryScalar("SELECT COALESCE(SUM(amount), 0) FROM finance_register WHERE UPPER(COALESCE(voucher_type,'')) = 'EXPENSE' AND dse_safe_date(voucher_date) BETWEEN ? AND ?", priorStart, priorEnd);
+            prevNet = prevGross.subtract(exp);
+        }
+        BigDecimal revVar = prevSales.compareTo(BigDecimal.ZERO) > 0
+                ? curSales.subtract(prevSales).multiply(new BigDecimal(100)).divide(prevSales, 1, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        BigDecimal profVar = prevNet.abs().compareTo(BigDecimal.ZERO) > 0
+                ? curProfit.subtract(prevNet).multiply(new BigDecimal(100)).divide(prevNet.abs(), 1, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        return new FinancialStatementsDtos.PriorComparisonDto(
+                priorStart.toString(), priorEnd.toString(), prevSales, prevCogs, prevGross, prevNet, revVar, profVar
         );
     }
 
     public FinancialStatementsDtos.DesktopProfitAndLossDto getDesktopProfitAndLoss(LocalDate fromDate, LocalDate toDate) {
-        FinancialStatementsDtos.ThreeTierFinancialStatementDto threeTier = getThreeTierStatements(fromDate, toDate, "OPERATIONAL");
-        return threeTier.pnl();
+        return getThreeTierStatements(fromDate, toDate, "OPERATIONAL").pnl();
     }
 
     public FinancialStatementsDtos.DesktopBalanceSheetDto getDesktopBalanceSheet(LocalDate asOfDate) {
         LocalDate start = asOfDate != null ? asOfDate.withDayOfMonth(1) : LocalDate.now().withDayOfMonth(1);
-        FinancialStatementsDtos.ThreeTierFinancialStatementDto threeTier = getThreeTierStatements(start, asOfDate, "OPERATIONAL");
-        return threeTier.balanceSheet();
+        return getThreeTierStatements(start, asOfDate, "OPERATIONAL").balanceSheet();
     }
 
     // =========================================================================
@@ -512,7 +677,6 @@ public class FinancialStatementsService {
     public FinancialStatementsDtos.DrillDownResponseDto getDrillDown(String category, LocalDate fromDate, LocalDate toDate) {
         LocalDate start = fromDate != null ? fromDate : LocalDate.now().withDayOfMonth(1);
         LocalDate end = toDate != null ? toDate : LocalDate.now();
-        String startStr = start.toString();
         String endStr = end.toString();
         String cat = category != null ? category.trim().toUpperCase(Locale.ROOT) : "SALES";
 
@@ -529,11 +693,10 @@ public class FinancialStatementsService {
                            s.total_amount, s.gst_amount, s.subtotal, s.payment_status
                     FROM sales_header s
                     LEFT JOIN party_master p ON p.id = s.customer_id
-                    WHERE UPPER(COALESCE(s.document_status, '')) NOT IN ('CANCELLED', 'DELETED')
+                    WHERE UPPER(COALESCE(s.document_status, '')) NOT IN ('CANCELLED', 'DELETED', 'REJECTED', 'VOID')
                       AND dse_safe_date(s.invoice_date) BETWEEN ? AND ?
                     ORDER BY dse_safe_date(s.invoice_date) DESC, s.id DESC
                     """, start, end);
-
                 for (Map<String, Object> s : sList) {
                     BigDecimal tot = toBigDecimal(s.get("total_amount"));
                     BigDecimal gst = toBigDecimal(s.get("gst_amount"));
@@ -541,17 +704,13 @@ public class FinancialStatementsService {
                     BigDecimal tx = sub.compareTo(BigDecimal.ZERO) > 0 ? sub : tot.subtract(gst);
                     total = total.add(tx);
                     rows.add(new FinancialStatementsDtos.DrillDownRowDto(
-                            ((Number) s.get("id")).longValue(),
-                            String.valueOf(s.get("invoice_no")),
-                            String.valueOf(s.get("invoice_date")),
-                            String.valueOf(s.get("party")),
-                            "Tax Invoice",
-                            tx, gst, tot,
-                            String.valueOf(s.get("payment_status"))
+                            ((Number) s.get("id")).longValue(), String.valueOf(s.get("invoice_no")),
+                            String.valueOf(s.get("invoice_date")), String.valueOf(s.get("party")),
+                            "Tax Invoice", tx, gst, tot, String.valueOf(s.get("payment_status"))
                     ));
                 }
             }
-            case "PURCHASES", "PURCHASE" -> {
+            case "PURCHASES", "PURCHASE", "COGS", "DIRECT" -> {
                 title = "Purchase Register Bills Drill-Down (" + start + " to " + end + ")";
                 List<Map<String, Object>> pList = jdbc.queryForList("""
                     SELECT p.id, p.invoice_no, p.invoice_date,
@@ -559,11 +718,10 @@ public class FinancialStatementsService {
                            p.total_amount, p.gst_amount, p.subtotal, p.payment_status
                     FROM purchase_header p
                     LEFT JOIN party_master pm ON pm.id = p.supplier_id
-                    WHERE UPPER(COALESCE(p.document_status, '')) NOT IN ('CANCELLED', 'DELETED')
+                    WHERE UPPER(COALESCE(p.document_status, '')) NOT IN ('CANCELLED', 'DELETED', 'REJECTED', 'VOID')
                       AND dse_safe_date(p.invoice_date) BETWEEN ? AND ?
                     ORDER BY dse_safe_date(p.invoice_date) DESC, p.id DESC
                     """, start, end);
-
                 for (Map<String, Object> p : pList) {
                     BigDecimal tot = toBigDecimal(p.get("total_amount"));
                     BigDecimal gst = toBigDecimal(p.get("gst_amount"));
@@ -571,17 +729,13 @@ public class FinancialStatementsService {
                     BigDecimal tx = sub.compareTo(BigDecimal.ZERO) > 0 ? sub : tot.subtract(gst);
                     total = total.add(tx);
                     rows.add(new FinancialStatementsDtos.DrillDownRowDto(
-                            ((Number) p.get("id")).longValue(),
-                            String.valueOf(p.get("invoice_no")),
-                            String.valueOf(p.get("invoice_date")),
-                            String.valueOf(p.get("party")),
-                            "Purchase Bill",
-                            tx, gst, tot,
-                            String.valueOf(p.get("payment_status"))
+                            ((Number) p.get("id")).longValue(), String.valueOf(p.get("invoice_no")),
+                            String.valueOf(p.get("invoice_date")), String.valueOf(p.get("party")),
+                            "Purchase Bill", tx, gst, tot, String.valueOf(p.get("payment_status"))
                     ));
                 }
             }
-            case "CLOSING_STOCK", "INVENTORY" -> {
+            case "CLOSING_STOCK", "INVENTORY", "OPENING_STOCK" -> {
                 title = "Inventory Valuation Breakdown";
                 List<Map<String, Object>> iList = jdbc.queryForList("""
                     SELECT i.id, i.item_code, i.description,
@@ -593,20 +747,15 @@ public class FinancialStatementsService {
                       AND COALESCE(s.quantity, i.opening_stock, 0) > 0
                     ORDER BY 4 DESC
                     """);
-
                 for (Map<String, Object> i : iList) {
                     BigDecimal qty = toBigDecimal(i.get("qty"));
                     BigDecimal cost = toBigDecimal(i.get("cost"));
                     BigDecimal val = qty.multiply(cost).setScale(2, RoundingMode.HALF_UP);
                     total = total.add(val);
                     rows.add(new FinancialStatementsDtos.DrillDownRowDto(
-                            ((Number) i.get("id")).longValue(),
-                            String.valueOf(i.get("item_code")),
-                            endStr,
-                            String.valueOf(i.get("description")),
-                            "Stock Qty: " + qty + " @ ₹" + cost,
-                            val, BigDecimal.ZERO, val,
-                            "IN STOCK"
+                            ((Number) i.get("id")).longValue(), String.valueOf(i.get("item_code")),
+                            endStr, String.valueOf(i.get("description")),
+                            "Stock Qty: " + qty + " @ ₹" + cost, val, BigDecimal.ZERO, val, "IN STOCK"
                     ));
                 }
             }
@@ -618,23 +767,18 @@ public class FinancialStatementsService {
                            s.total_amount, s.paid_amount, (s.total_amount - COALESCE(s.paid_amount, 0)) as bal
                     FROM sales_header s
                     LEFT JOIN party_master p ON p.id = s.customer_id
-                    WHERE UPPER(COALESCE(s.document_status, '')) NOT IN ('CANCELLED', 'DELETED')
+                    WHERE UPPER(COALESCE(s.document_status, '')) NOT IN ('CANCELLED', 'DELETED', 'REJECTED', 'VOID')
                       AND (s.total_amount - COALESCE(s.paid_amount, 0)) > 0.01
                     ORDER BY 7 DESC
                     """);
-
                 for (Map<String, Object> d : dList) {
                     BigDecimal tot = toBigDecimal(d.get("total_amount"));
                     BigDecimal bal = toBigDecimal(d.get("bal"));
                     total = total.add(bal);
                     rows.add(new FinancialStatementsDtos.DrillDownRowDto(
-                            ((Number) d.get("id")).longValue(),
-                            String.valueOf(d.get("invoice_no")),
-                            String.valueOf(d.get("invoice_date")),
-                            String.valueOf(d.get("party")),
-                            "Total: ₹" + tot + " | Outstanding",
-                            bal, BigDecimal.ZERO, bal,
-                            "UNPAID"
+                            ((Number) d.get("id")).longValue(), String.valueOf(d.get("invoice_no")),
+                            String.valueOf(d.get("invoice_date")), String.valueOf(d.get("party")),
+                            "Total: ₹" + tot + " | Outstanding", bal, BigDecimal.ZERO, bal, "UNPAID"
                     ));
                 }
             }
@@ -646,28 +790,79 @@ public class FinancialStatementsService {
                            p.total_amount, p.paid_amount, (p.total_amount - COALESCE(p.paid_amount, 0)) as bal
                     FROM purchase_header p
                     LEFT JOIN party_master pm ON pm.id = p.supplier_id
-                    WHERE UPPER(COALESCE(p.document_status, '')) NOT IN ('CANCELLED', 'DELETED')
+                    WHERE UPPER(COALESCE(p.document_status, '')) NOT IN ('CANCELLED', 'DELETED', 'REJECTED', 'VOID')
                       AND (p.total_amount - COALESCE(p.paid_amount, 0)) > 0.01
                     ORDER BY 7 DESC
                     """);
-
                 for (Map<String, Object> c : cList) {
                     BigDecimal tot = toBigDecimal(c.get("total_amount"));
                     BigDecimal bal = toBigDecimal(c.get("bal"));
                     total = total.add(bal);
                     rows.add(new FinancialStatementsDtos.DrillDownRowDto(
-                            ((Number) c.get("id")).longValue(),
-                            String.valueOf(c.get("invoice_no")),
-                            String.valueOf(c.get("invoice_date")),
-                            String.valueOf(c.get("party")),
-                            "Total: ₹" + tot + " | Outstanding",
-                            bal, BigDecimal.ZERO, bal,
-                            "UNPAID"
+                            ((Number) c.get("id")).longValue(), String.valueOf(c.get("invoice_no")),
+                            String.valueOf(c.get("invoice_date")), String.valueOf(c.get("party")),
+                            "Total: ₹" + tot + " | Outstanding", bal, BigDecimal.ZERO, bal, "UNPAID"
                     ));
                 }
             }
+            case "CASH_BANK" -> {
+                title = "Cash & Bank Movements (" + start + " to " + end + ")";
+                List<Map<String, Object>> fList = jdbc.queryForList("""
+                    SELECT f.id, COALESCE(f.voucher_no, CAST(f.id AS VARCHAR)) as ref_no, f.voucher_date,
+                           COALESCE(f.account_name, f.category, 'Cash/Bank') as party,
+                           COALESCE(f.voucher_type, '') as vtype, COALESCE(f.notes, '') as notes, f.amount
+                    FROM finance_register f
+                    WHERE dse_safe_date(f.voucher_date) BETWEEN ? AND ?
+                    ORDER BY dse_safe_date(f.voucher_date) DESC, f.id DESC
+                    """, start, end);
+                for (Map<String, Object> f : fList) {
+                    BigDecimal amt = toBigDecimal(f.get("amount"));
+                    String vt = String.valueOf(f.get("vtype"));
+                    BigDecimal signed = vt.toUpperCase(Locale.ROOT).contains("DEPOSIT") ? amt : amt.negate();
+                    total = total.add(signed);
+                    rows.add(new FinancialStatementsDtos.DrillDownRowDto(
+                            ((Number) f.get("id")).longValue(), String.valueOf(f.get("ref_no")),
+                            String.valueOf(f.get("voucher_date")), String.valueOf(f.get("party")),
+                            vt + " " + String.valueOf(f.get("notes")), amt, BigDecimal.ZERO, signed, vt
+                    ));
+                }
+                List<Map<String, Object>> payList = jdbc.queryForList("""
+                    SELECT p.id, COALESCE(p.payment_reference, p.reference_no, CAST(p.id AS VARCHAR)) as ref_no,
+                           p.payment_date::TEXT as dt, COALESCE(p.received_from, p.payment_mode, 'Payment') as party,
+                           p.document_type, p.payment_mode, p.amount
+                    FROM payment_record p
+                    WHERE dse_safe_date(p.payment_date::TEXT) BETWEEN ? AND ?
+                    ORDER BY p.id DESC LIMIT 200
+                    """, start, end);
+                for (Map<String, Object> p : payList) {
+                    BigDecimal amt = toBigDecimal(p.get("amount"));
+                    boolean inflow = "SALE".equalsIgnoreCase(String.valueOf(p.get("document_type")));
+                    BigDecimal signed = inflow ? amt : amt.negate();
+                    total = total.add(signed);
+                    rows.add(new FinancialStatementsDtos.DrillDownRowDto(
+                            ((Number) p.get("id")).longValue(), String.valueOf(p.get("ref_no")),
+                            String.valueOf(p.get("dt")), String.valueOf(p.get("party")),
+                            (inflow ? "Receipt via " : "Payout via ") + p.get("payment_mode"),
+                            amt, BigDecimal.ZERO, signed, inflow ? "RECEIPT" : "PAYMENT"
+                    ));
+                }
+            }
+            case "GST", "DUTIES_TAXES" -> {
+                title = "GST Tax Ledgers Drill-Down (Up to " + end + ")";
+                populateGlCodeDrillDown(rows, Set.of("1081", "1082", "1083", "2081", "2082", "2083", "2085"), start, end);
+                total = rows.stream().map(FinancialStatementsDtos.DrillDownRowDto::totalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+            }
+            case "FIXED_ASSETS", "BORROWINGS", "CAPITAL", "EQUITY" -> {
+                title = cat.replace('_', ' ') + " Ledger Movements (" + start + " to " + end + ")";
+                Set<String> codes = switch (cat) {
+                    case "FIXED_ASSETS" -> Set.of("1510");
+                    case "BORROWINGS" -> Set.of("2510");
+                    default -> Set.of("3010", "3030", "3999");
+                };
+                populateGlCodeDrillDown(rows, codes, LocalDate.of(2000, 1, 1), end);
+                total = rows.stream().map(FinancialStatementsDtos.DrillDownRowDto::totalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+            }
             default -> {
-                // Specific expense category or default expense drill-down
                 title = "Expense Vouchers (" + category + ") (" + start + " to " + end + ")";
                 List<Map<String, Object>> eList = jdbc.queryForList("""
                     SELECT f.id, f.voucher_no, f.voucher_date,
@@ -680,24 +875,134 @@ public class FinancialStatementsService {
                       AND dse_safe_date(f.voucher_date) BETWEEN ? AND ?
                     ORDER BY dse_safe_date(f.voucher_date) DESC, f.id DESC
                     """, cat.equals("EXPENSES") ? "ALL" : cat, cat, start, end);
-
                 for (Map<String, Object> e : eList) {
                     BigDecimal amt = toBigDecimal(e.get("amount"));
                     total = total.add(amt);
                     rows.add(new FinancialStatementsDtos.DrillDownRowDto(
-                            ((Number) e.get("id")).longValue(),
-                            String.valueOf(e.get("voucher_no")),
-                            String.valueOf(e.get("voucher_date")),
-                            String.valueOf(e.get("payee")),
-                            String.valueOf(e.get("category")),
-                            amt, BigDecimal.ZERO, amt,
-                            String.valueOf(e.get("payment_mode"))
+                            ((Number) e.get("id")).longValue(), String.valueOf(e.get("voucher_no")),
+                            String.valueOf(e.get("voucher_date")), String.valueOf(e.get("payee")),
+                            String.valueOf(e.get("category")), amt, BigDecimal.ZERO, amt, String.valueOf(e.get("payment_mode"))
                     ));
                 }
             }
         }
 
         return new FinancialStatementsDtos.DrillDownResponseDto(cat, title, total, rows.size(), rows);
+    }
+
+    private void populateGlCodeDrillDown(List<FinancialStatementsDtos.DrillDownRowDto> rows, Set<String> codes, LocalDate from, LocalDate to) {
+        if (codes.isEmpty()) return;
+        String placeholders = String.join(",", Collections.nCopies(codes.size(), "?"));
+        List<Object> args = new ArrayList<>(codes);
+        args.add(from);
+        args.add(to);
+        List<Map<String, Object>> list = jdbc.queryForList("""
+            SELECT je.id, je.entry_number, je.entry_date::TEXT as dt,
+                   ca.account_code || ' - ' || ca.account_name as acc,
+                   COALESCE(jl.line_narration, je.narration, '') as descr,
+                   jl.debit_amount, jl.credit_amount, je.status
+            FROM journal_line jl
+            JOIN journal_entry je ON je.id = jl.journal_entry_id
+            JOIN chart_of_accounts ca ON ca.id = jl.account_id
+            WHERE ca.account_code IN (""" + placeholders + """
+            )
+              AND je.entry_date BETWEEN ? AND ?
+              AND UPPER(COALESCE(je.status, '')) IN ('POSTED', 'REVERSED')
+            ORDER BY je.entry_date DESC, je.id DESC
+            """, args.toArray());
+        for (Map<String, Object> m : list) {
+            BigDecimal dr = toBigDecimal(m.get("debit_amount"));
+            BigDecimal cr = toBigDecimal(m.get("credit_amount"));
+            rows.add(new FinancialStatementsDtos.DrillDownRowDto(
+                    ((Number) m.get("id")).longValue(), String.valueOf(m.get("entry_number")),
+                    String.valueOf(m.get("dt")), String.valueOf(m.get("acc")),
+                    String.valueOf(m.get("descr")), dr, cr, cr.subtract(dr), String.valueOf(m.get("status"))
+            ));
+        }
+    }
+
+    private BigDecimal computeNetGstPosition() {
+        BigDecimal outSales = queryScalar("SELECT COALESCE(SUM(COALESCE(gst_amount, 0)), 0) FROM sales_header WHERE UPPER(COALESCE(document_status,'')) NOT IN ('CANCELLED','DELETED','REJECTED','VOID')");
+        BigDecimal outCn = queryScalar("SELECT COALESCE(SUM(COALESCE(cgst_amount,0)+COALESCE(sgst_amount,0)+COALESCE(igst_amount,0)), 0) FROM credit_note_header WHERE UPPER(COALESCE(status,'')) <> 'CANCELLED'");
+        BigDecimal inPur = queryScalar("SELECT COALESCE(SUM(COALESCE(gst_amount, 0)), 0) FROM purchase_header WHERE UPPER(COALESCE(document_status,'')) NOT IN ('CANCELLED','DELETED','REJECTED','VOID')");
+        BigDecimal inDn = queryScalar("SELECT COALESCE(SUM(COALESCE(cgst_amount,0)+COALESCE(sgst_amount,0)+COALESCE(igst_amount,0)), 0) FROM debit_note_header WHERE UPPER(COALESCE(status,'')) <> 'CANCELLED'");
+        return outSales.subtract(outCn).subtract(inPur.subtract(inDn)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal loadClosingStockValuation() {
+        return queryScalar("""
+                SELECT COALESCE(SUM(COALESCE(s.quantity, i.opening_stock, 0) * COALESCE(s.average_unit_cost, i.purchase_price, 0)), 0)
+                FROM item_master i
+                LEFT JOIN inventory_cost_state s ON s.item_code = i.item_code
+                WHERE COALESCE(i.is_active::text, '1') IN ('1', 'true', 't')
+                  AND COALESCE(s.quantity, i.opening_stock, 0) > 0
+                """);
+    }
+
+    private BigDecimal loadOpeningStockValuation() {
+        return queryScalar("""
+                SELECT COALESCE(SUM(COALESCE(i.opening_stock, 0) * COALESCE(i.purchase_price, 0)), 0)
+                FROM item_master i
+                WHERE COALESCE(i.is_active::text, '1') IN ('1', 'true', 't')
+                  AND COALESCE(i.opening_stock, 0) > 0
+                """);
+    }
+
+    private BigDecimal queryCoaBalanceSum(LocalDate asOf, List<String> codes) {
+        if (codes == null || codes.isEmpty()) return BigDecimal.ZERO;
+        String placeholders = String.join(",", Collections.nCopies(codes.size(), "?"));
+        List<Object> args = new ArrayList<>();
+        args.add(asOf);
+        args.addAll(codes);
+        return queryScalar("""
+            SELECT COALESCE(SUM(c.opening_balance + COALESCE(sub.mv, 0)), 0)
+            FROM chart_of_accounts c
+            LEFT JOIN (
+                SELECT l.account_id, SUM(CASE WHEN ca.account_type IN ('ASSET','EXPENSE') THEN l.debit_amount - l.credit_amount ELSE l.credit_amount - l.debit_amount END) as mv
+                FROM journal_line l
+                JOIN journal_entry e ON e.id = l.journal_entry_id
+                JOIN chart_of_accounts ca ON ca.id = l.account_id
+                WHERE e.entry_date <= ? AND UPPER(COALESCE(e.status,'')) IN ('POSTED','REVERSED')
+                GROUP BY l.account_id
+            ) sub ON sub.account_id = c.id
+            WHERE c.account_code IN (""" + placeholders + ")", args.toArray());
+    }
+
+    private BigDecimal queryScalar(String sql, Object... args) {
+        try {
+            BigDecimal val = jdbc.queryForObject(sql, BigDecimal.class, args);
+            return val != null ? val.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        } catch (Exception ignored) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private static BigDecimal sumLinesByCode(List<FinancialStatementsDtos.StatementLineDto> lines, Set<String> codes) {
+        return lines.stream()
+                .filter(l -> l.accountCode() != null && codes.contains(l.accountCode()))
+                .map(FinancialStatementsDtos.StatementLineDto::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private static boolean isDirectCogs(String subtype, String code, String name) {
+        String sub = subtype == null ? "" : subtype.toUpperCase(Locale.ROOT);
+        String nm = name == null ? "" : name.toUpperCase(Locale.ROOT);
+        String cd = code == null ? "" : code.trim();
+        return sub.contains("COGS") || sub.contains("DIRECT") || sub.contains("PURCHASE")
+                || nm.contains("COST OF GOODS") || nm.contains("PURCHASE") || nm.contains("FREIGHT IN")
+                || cd.startsWith("501") || cd.startsWith("502") || cd.startsWith("503") || cd.equals("5100");
+    }
+
+    private static boolean isNonCurrentAsset(String subtype, String code) {
+        String sub = subtype == null ? "" : subtype.toUpperCase(Locale.ROOT);
+        String cd = code == null ? "" : code.trim();
+        return sub.contains("FIXED") || sub.contains("NON_CURRENT") || cd.startsWith("15");
+    }
+
+    private static boolean isNonCurrentLiability(String subtype, String code) {
+        String sub = subtype == null ? "" : subtype.toUpperCase(Locale.ROOT);
+        String cd = code == null ? "" : code.trim();
+        return sub.contains("LONG_TERM") || sub.contains("NON_CURRENT") || cd.startsWith("25");
     }
 
     private static BigDecimal toBigDecimal(Object v) {

@@ -402,8 +402,14 @@ public final class UniversalBankStatementParser {
 
             if (desc.isBlank())
                 desc = "Bank Transaction";
-            if (ref.isBlank())
-                ref = "REF-" + sourceIdx;
+            if (ref.isBlank() || org.example.shared.BankNarrationParser.isSyntheticRef(ref)) {
+                var parsedNarration = org.example.shared.BankNarrationParser.parse(desc, ref);
+                if (parsedNarration.hasUtrOrRef()) {
+                    ref = parsedNarration.utrOrRef();
+                } else if (!ref.trim().toUpperCase(Locale.ROOT).matches("^REF-\\d+$")) {
+                    ref = "REF-" + sourceIdx;
+                }
+            }
 
             String valDateStr = (valDateCol >= 0 && valDateCol != dateCol) ? cellStr(row.getCell(valDateCol)) : dateStr;
             if (valDateStr.isBlank())

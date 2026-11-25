@@ -11,6 +11,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TreeTableColumn;
+import javafx.scene.control.TreeTableView;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -197,6 +199,16 @@ public final class DynamicTableLayoutManager {
                         } else {
                             layoutNow(table);
                             requestLayout(table);
+                        }
+                    }
+                }
+                for (Node node : root.lookupAll(".tree-table-view")) {
+                    if (node instanceof TreeTableView<?> treeTable) {
+                        if (!Boolean.TRUE.equals(treeTable.getProperties().get(INSTALLED))) {
+                            install(treeTable);
+                        } else {
+                            layoutNow(treeTable);
+                            requestLayout(treeTable);
                         }
                     }
                 }
@@ -496,6 +508,7 @@ public final class DynamicTableLayoutManager {
         else if (key.contains("select")) semanticFloor = 48.0;
         else if (isLongTextSemantic(semantic, heading)) semanticFloor = 86.0;
         else if (key.contains("gst") || key.contains("tax")) semanticFloor = 140.0;
+        else if (key.contains("recipient")) semanticFloor = 225.0;
         else if (key.contains("invoice") || key.contains("reference") || key.contains("document")
                 || key.contains("account") || key.contains("email")) semanticFloor = 145.0;
         else if (key.contains("return")) semanticFloor = 118.0;
@@ -515,6 +528,7 @@ public final class DynamicTableLayoutManager {
         if (key.contains("quantity") || key.contains("qty") || key.contains("discount") || key.contains("disc")) return 82.0;
         if (isLongTextSemantic(semantic, heading)) return 115.0;
         if (key.contains("gst") || key.contains("tax")) return 110.0;
+        if (key.contains("recipient")) return 175.0;
         if (key.contains("invoice") || key.contains("document") || key.contains("reference")) return 110.0;
         if (key.contains("date") || key.contains("due")) return 95.0;
         if (key.contains("mobile") || key.contains("phone")) return 95.0;
@@ -603,6 +617,7 @@ public final class DynamicTableLayoutManager {
     private static double flexWeight(String semantic, String heading) {
         String key = semantic + " " + heading.toLowerCase(Locale.ROOT);
         if (isLongTextSemantic(semantic, heading)) return 3.0;
+        if (key.contains("recipient")) return 2.4;
         if (key.contains("email") || key.contains("invoice") || key.contains("reference")
                 || key.contains("document") || key.contains("code") || key.contains("account")) return 1.8;
         if (key.contains("actions") || key.contains("select")) return 0.65;
@@ -626,4 +641,147 @@ public final class DynamicTableLayoutManager {
     }
 
     private record ColumnProfile(double floor, double weight) { }
+
+    /** Installs the shared viewport-fill policy once on a TreeTableView. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static void install(TreeTableView<?> table) {
+        if (table == null) return;
+        if (Boolean.TRUE.equals(table.getProperties().get(INSTALLED))) {
+            requestLayout(table);
+            return;
+        }
+        table.getProperties().put(INSTALLED, true);
+        table.setColumnResizePolicy(TreeTableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        if (table.getFixedCellSize() <= 0) {
+            table.setFixedCellSize(38.0);
+        }
+        if (!table.getStyleClass().contains("erp-table-standard")) {
+            table.getStyleClass().add("erp-table-standard");
+        }
+        if (!table.getStyleClass().contains("approved-table")) {
+            table.getStyleClass().add("approved-table");
+        }
+        for (TreeTableColumn<?, ?> col : leafTreeColumns(table.getColumns())) {
+            prepareTreeColumn(col);
+            if (!Boolean.TRUE.equals(col.getProperties().get(COLUMN_BOUND))) {
+                col.getProperties().put(COLUMN_BOUND, true);
+                col.visibleProperty().addListener((obs, o, n) -> {
+                    table.getProperties().remove(LAST_AVAILABLE);
+                    requestLayout(table);
+                });
+                col.textProperty().addListener((obs, o, n) -> {
+                    col.getProperties().remove(HEADER_MINIMUM);
+                    requestLayout(table);
+                });
+            }
+        }
+        table.widthProperty().addListener((obs, oldValue, newValue) -> {
+            if (newValue == null || oldValue == null || Math.abs(newValue.doubleValue() - oldValue.doubleValue()) < 0.5) return;
+            layoutNow(table);
+            requestLayout(table);
+        });
+        table.rootProperty().addListener((obs, o, n) -> {
+            table.getProperties().remove(LAST_AVAILABLE);
+            requestLayout(table);
+        });
+        table.sceneProperty().addListener((obs, o, n) -> {
+            if (n != null) requestLayout(table);
+        });
+        table.visibleProperty().addListener((obs, o, n) -> {
+            if (Boolean.TRUE.equals(n)) requestLayout(table);
+        });
+        layoutNow(table);
+        requestLayout(table);
+    }
+
+    public static void requestLayout(TreeTableView<?> table) {
+        if (table == null) return;
+        Platform.runLater(() -> layoutNow(table));
+    }
+
+    public static void layoutNow(TreeTableView<?> table) {
+        if (table == null) return;
+        List<TreeTableColumn<?, ?>> columns = new ArrayList<>(table.getVisibleLeafColumns());
+        if (columns.isEmpty()) return;
+
+        double available = treeViewportWidth(table);
+        if (!Double.isFinite(available) || available < 80) return;
+        Object prior = table.getProperties().get(LAST_AVAILABLE);
+        double priorAvailable = prior instanceof Number n ? n.doubleValue() : -1;
+        if (priorAvailable > 0 && Math.abs(priorAvailable - available) <= LAYOUT_TOLERANCE) return;
+        table.getProperties().put(LAST_AVAILABLE, available);
+
+        List<ColumnProfile> profiles = new ArrayList<>(columns.size());
+        double floorTotal = 0;
+        double weightTotal = 0;
+        for (TreeTableColumn<?, ?> column : columns) {
+            prepareTreeColumn(column);
+            String heading = column.getText() == null ? "" : column.getText().trim();
+            String resolved = UiSemanticRegistry.headerSemantic(heading);
+            String semantic = resolved == null ? "" : resolved.toLowerCase(Locale.ROOT);
+            Font headerFont = Font.font(Font.getDefault().getFamily(), FontWeight.EXTRA_BOLD, 11.5);
+            double longestToken = longestHeaderTokenWidth(heading, headerFont);
+            double fullWidth = textWidth(heading, headerFont);
+            double textTarget = heading.contains(" ") ? Math.max(longestToken + 42.0, Math.min(fullWidth + 36.0, 140.0)) : (longestToken + 54.0);
+            double floor = Math.max(readableMinimum(semantic, heading), textTarget);
+            double colMin = column.getMinWidth();
+            if (colMin > ABSOLUTE_MIN_COLUMN && Double.isFinite(colMin)) floor = Math.max(floor, colMin);
+            ColumnProfile p = new ColumnProfile(floor, flexWeight(semantic, heading));
+            profiles.add(p);
+            floorTotal += p.floor();
+            weightTotal += p.weight();
+        }
+
+        double[] widths = floorTotal <= available
+                ? allocateFromFloors(profiles, available, floorTotal, weightTotal)
+                : allocateFromFloors(profiles, available, floorTotal, weightTotal);
+        closeResidual(widths, available, profiles);
+
+        for (int i = 0; i < columns.size(); i++) {
+            double width = Math.max(ABSOLUTE_MIN_COLUMN, widths[i]);
+            TreeTableColumn<?, ?> column = columns.get(i);
+            if (column.prefWidthProperty().isBound()) column.prefWidthProperty().unbind();
+            if (Math.abs(column.getPrefWidth() - width) > 0.5) column.setPrefWidth(width);
+            double min = Math.max(ABSOLUTE_MIN_COLUMN, Math.min(width, profiles.get(i).floor()));
+            if (column.minWidthProperty().isBound()) column.minWidthProperty().unbind();
+            if (column.getMinWidth() < min) column.setMinWidth(min);
+        }
+    }
+
+    private static void prepareTreeColumn(TreeTableColumn<?, ?> column) {
+        if (column == null || !column.getColumns().isEmpty()) return;
+        if (column.prefWidthProperty().isBound()) column.prefWidthProperty().unbind();
+        if (column.minWidthProperty().isBound()) column.minWidthProperty().unbind();
+        if (column.getMinWidth() <= 10.0) column.setMinWidth(ABSOLUTE_MIN_COLUMN);
+        column.setMaxWidth(Double.MAX_VALUE);
+        column.setResizable(true);
+    }
+
+    private static double treeViewportWidth(TreeTableView<?> table) {
+        double width = table.getWidth();
+        if (!Double.isFinite(width) || width < 80) {
+            if (table.getParent() instanceof javafx.scene.layout.Region p && p.getWidth() >= 80) {
+                width = p.getWidth() - p.getInsets().getLeft() - p.getInsets().getRight();
+            } else if (table.getScene() != null && table.getScene().getWidth() >= 80) {
+                width = table.getScene().getWidth() - 48.0;
+            }
+        }
+        if (!Double.isFinite(width) || width < 1) return width;
+        Insets insets = table.getInsets();
+        return Math.max(1, width - insets.getLeft() - insets.getRight() - 18.0);
+    }
+
+    private static List<TreeTableColumn<?, ?>> leafTreeColumns(List<? extends TreeTableColumn<?, ?>> roots) {
+        List<TreeTableColumn<?, ?>> result = new ArrayList<>();
+        for (TreeTableColumn<?, ?> root : roots) collectTreeLeaf(root, result);
+        return result;
+    }
+
+    private static void collectTreeLeaf(TreeTableColumn<?, ?> col, List<TreeTableColumn<?, ?>> result) {
+        if (col.getColumns().isEmpty()) {
+            result.add(col);
+            return;
+        }
+        for (TreeTableColumn<?, ?> child : col.getColumns()) collectTreeLeaf(child, result);
+    }
 }

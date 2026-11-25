@@ -341,61 +341,158 @@ public class BusinessWhatsappService {
             throw new IllegalStateException("WhatsApp integration is currently disabled in Settings.");
         }
 
+        List<PhoneTarget> targets = parsePhoneTargets(req.recipientPhone());
+        String normalizedRecipients = targets.stream().map(PhoneTarget::displayPhone).reduce((a, b) -> a + ", " + b).orElse("");
         WhatsappSenderChannelEntity channel = resolveChannelForDocument(req.documentType(), req.channelId());
-        String chatId = formatChatId(req.recipientPhone());
 
         String companyName = getSetting("company.name", "Jasvi Industries");
         String canonicalType = mapDocumentType(req.documentType());
 
-        WahaDtos.SendResponse response;
+        CanonicalDocumentService.Rendered rendered = null;
+        String filename = null;
+        String caption = null;
+        byte[] sigBytes = null;
+        String plainText = null;
+        String prepError = null;
         try {
             if (canonicalType != null && req.documentNumber() != null && !req.documentNumber().isBlank()) {
-                // Render document PDF
-                var rendered = canonicalDocs.render(canonicalType, req.documentNumber().trim(), "pdf");
-                String filename = rendered.fileName() != null && !rendered.fileName().isBlank()
+                rendered = canonicalDocs.render(canonicalType, req.documentNumber().trim(), "pdf");
+                filename = rendered.fileName() != null && !rendered.fileName().isBlank()
                         ? rendered.fileName()
                         : (req.documentNumber().trim() + ".pdf");
-
-                String caption = (req.customMessage() != null && !req.customMessage().isBlank())
+                caption = (req.customMessage() != null && !req.customMessage().isBlank())
                         ? req.customMessage()
                         : ("Dear Customer,\n\nPlease find attached your " + canonicalType.replace('_', ' ') +
                         " #" + req.documentNumber().trim() + " from " + companyName + ".\n\nThank you for your business!");
-
-                response = wahaClient.sendFile(settings.endpoint(), settings.apiKey(),
-                        channel.getSessionName(), chatId, filename, "application/pdf", rendered.bytes(), caption);
-                if (response.success() && "true".equalsIgnoreCase(getSetting("email.signature.attachToWhatsapp", "false"))) {
+                if ("true".equalsIgnoreCase(getSetting("email.signature.attachToWhatsapp", "false"))) {
                     try {
                         String sigPath = getSetting("email.signature.image", "");
                         if (!sigPath.isBlank() && java.nio.file.Files.isRegularFile(java.nio.file.Path.of(sigPath))) {
-                            byte[] sigBytes = java.nio.file.Files.readAllBytes(java.nio.file.Path.of(sigPath));
-                            wahaClient.sendFile(settings.endpoint(), settings.apiKey(), channel.getSessionName(), chatId, "Signature.png", "image/png", sigBytes, "Authorized Signature");
+                            sigBytes = java.nio.file.Files.readAllBytes(java.nio.file.Path.of(sigPath));
                         }
                     } catch (Exception ignored) {}
                 }
             } else {
-                // Plain text message dispatch
-                String text = (req.customMessage() != null && !req.customMessage().isBlank())
+                plainText = (req.customMessage() != null && !req.customMessage().isBlank())
                         ? req.customMessage()
                         : ("Notification from " + companyName);
-                response = wahaClient.sendText(settings.endpoint(), settings.apiKey(),
-                        channel.getSessionName(), chatId, text);
             }
         } catch (Exception e) {
-            log.error("Failed to render or dispatch WhatsApp document: {}", e.getMessage(), e);
-            response = new WahaDtos.SendResponse(false, "Failed to send: " + e.getMessage(), "", channel.getChannelCode(), req.recipientPhone());
+            log.error("Failed to render WhatsApp document: {}", e.getMessage(), e);
+            prepError = "Failed to send: " + e.getMessage();
         }
 
-        // Post-dispatch status handling and communication logging with active transaction
-        if (!response.success()) {
-            String customMsg = getSetting("whatsapp.waha.disconnected_message", "");
-            if (!customMsg.isBlank() && isDisconnectedOrAuthError(response.message())) {
-                response = new WahaDtos.SendResponse(false, customMsg, response.messageId(), response.channelCode(), response.recipientPhone());
-            }
+        WahaDtos.SendResponse response;
+        boolean anySent = false;
+        if (prepError != null) {
+            response = new WahaDtos.SendResponse(false, normalizeErrorMessage(prepError), "", channel.getChannelCode(), normalizedRecipients);
+        } else {
+            final CanonicalDocumentService.Rendered docPayload = rendered;
+            final String finalFilename = filename;
+            final String finalCaption = caption;
+            final byte[] finalSigBytes = sigBytes;
+            final String finalText = plainText;
+            DispatchAggregate aggregate = dispatchToTargets(targets, channel, normalizedRecipients, target -> {
+                if (docPayload != null) {
+                    WahaDtos.SendResponse r = wahaClient.sendFile(settings.endpoint(), settings.apiKey(),
+                            channel.getSessionName(), target.chatId(), finalFilename, "application/pdf", docPayload.bytes(), finalCaption);
+                    if (r.success() && finalSigBytes != null) {
+                        try {
+                            wahaClient.sendFile(settings.endpoint(), settings.apiKey(),
+                                    channel.getSessionName(), target.chatId(), "Signature.png", "image/png", finalSigBytes, "Authorized Signature");
+                        } catch (Exception ignored) {}
+                    }
+                    return r;
+                }
+                return wahaClient.sendText(settings.endpoint(), settings.apiKey(),
+                        channel.getSessionName(), target.chatId(), finalText);
+            });
+            anySent = aggregate.anySent();
+            response = aggregate.response();
         }
-        recordDocumentCommunicationAudit(req.documentType(), req.documentId(), req.recipientPhone(),
-                req.documentNumber(), response.success(), response.success() ? null : response.message());
+
+        String auditSubject = formatDocumentAuditSubject(req.dispatchLabel(), req.documentNumber(), req.customMessage());
+        recordDocumentCommunicationAuditWithSubject(req.documentType(), req.documentId(), normalizedRecipients,
+                auditSubject, response.success(), response.success() ? null : response.message(), anySent);
 
         return response;
+    }
+
+    private String normalizeErrorMessage(String msg) {
+        if (msg == null || msg.isBlank()) return msg;
+        String customMsg = getSetting("whatsapp.waha.disconnected_message", "");
+        if (!customMsg.isBlank() && isDisconnectedOrAuthError(msg)) {
+            return customMsg;
+        }
+        return msg;
+    }
+
+    private record PhoneTarget(String displayPhone, String chatId) {}
+
+    private record DispatchAggregate(WahaDtos.SendResponse response, boolean anySent) {}
+
+    @FunctionalInterface
+    private interface TargetSender {
+        WahaDtos.SendResponse send(PhoneTarget target) throws Exception;
+    }
+
+    private DispatchAggregate dispatchToTargets(
+            List<PhoneTarget> targets,
+            WhatsappSenderChannelEntity channel,
+            String normalizedRecipients,
+            TargetSender sender) {
+        List<String> sentPhones = new ArrayList<>();
+        List<String> failedDetails = new ArrayList<>();
+        String firstMessageId = "";
+        String singleSuccessMsg = "";
+        String singleErrorMsg = "";
+
+        for (PhoneTarget target : targets) {
+            WahaDtos.SendResponse singleResp;
+            try {
+                singleResp = sender.send(target);
+            } catch (Exception e) {
+                log.error("Failed to dispatch WhatsApp to {}: {}", target.displayPhone(), e.getMessage(), e);
+                singleResp = new WahaDtos.SendResponse(false, "Failed to send: " + e.getMessage(), "", channel.getChannelCode(), target.displayPhone());
+            }
+            if (singleResp != null && singleResp.success()) {
+                sentPhones.add(target.displayPhone());
+                if (firstMessageId.isBlank() && singleResp.messageId() != null) {
+                    firstMessageId = singleResp.messageId();
+                }
+                if (singleSuccessMsg.isBlank() && singleResp.message() != null) {
+                    singleSuccessMsg = singleResp.message();
+                }
+            } else {
+                String rawErr = singleResp != null && singleResp.message() != null && !singleResp.message().isBlank()
+                        ? singleResp.message()
+                        : "WhatsApp delivery failed";
+                String effectiveErr = normalizeErrorMessage(rawErr);
+                if (singleErrorMsg.isBlank()) singleErrorMsg = effectiveErr;
+                failedDetails.add(target.displayPhone() + ": " + effectiveErr);
+            }
+        }
+
+        boolean anySent = !sentPhones.isEmpty();
+        boolean allSuccess = failedDetails.isEmpty() && anySent;
+        String finalMsg;
+        if (allSuccess) {
+            finalMsg = targets.size() == 1
+                    ? (singleSuccessMsg.isBlank() ? "Sent via " + channel.getDisplayName() : singleSuccessMsg)
+                    : "Delivered to " + sentPhones.size() + " recipients via " + channel.getDisplayName();
+        } else if (targets.size() == 1) {
+            finalMsg = singleErrorMsg;
+        } else if (anySent) {
+            finalMsg = "Delivered to " + sentPhones.size() + "/" + targets.size() + " (" + String.join(", ", sentPhones)
+                    + "). Failed for: " + String.join("; ", failedDetails);
+        } else {
+            finalMsg = String.join("; ", failedDetails);
+        }
+
+        return new DispatchAggregate(
+                new WahaDtos.SendResponse(allSuccess, finalMsg, firstMessageId, channel.getChannelCode(), normalizedRecipients),
+                anySent
+        );
     }
 
     private boolean isDisconnectedOrAuthError(String msg) {
@@ -437,6 +534,26 @@ public class BusinessWhatsappService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordDocumentCommunicationAudit(String entityType, Integer entityId, String recipientPhone,
                                                  String docNumber, boolean success, String errorMessage) {
+        recordDocumentCommunicationAudit(entityType, entityId, recipientPhone, docNumber, success, errorMessage, success);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordDocumentCommunicationAudit(String entityType, Integer entityId, String recipientPhone,
+                                                 String docNumber, boolean success, String errorMessage, boolean markDocumentSent) {
+        recordDocumentCommunicationAuditWithSubject(
+                entityType,
+                entityId,
+                recipientPhone,
+                "WhatsApp: " + (docNumber != null ? docNumber : "Direct Message"),
+                success,
+                errorMessage,
+                markDocumentSent
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordDocumentCommunicationAuditWithSubject(String entityType, Integer entityId, String recipientPhone,
+                                                            String subject, boolean success, String errorMessage, boolean markDocumentSent) {
         try {
             requiresNewTx.executeWithoutResult(txStatus -> {
                 String status = success ? "SENT" : "FAILED";
@@ -449,10 +566,10 @@ public class BusinessWhatsappService {
                 jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
                                 "VALUES (?, ?, 'WHATSAPP', ?, ?, ?, ?, ?, ?)",
                         resolvedType, resolvedId, recipientPhone,
-                        "WhatsApp: " + (docNumber != null ? docNumber : "Direct Message"),
+                        subject,
                         status, errorMessage, username, BusinessClock.nowUtcText());
 
-                if (success && resolvedId > 0) {
+                if (markDocumentSent && resolvedId > 0) {
                     if ("SALE".equalsIgnoreCase(resolvedType) || "SALES_INVOICE".equalsIgnoreCase(resolvedType)) {
                         jdbc.update("UPDATE sales_header SET whatsapp_sent = 1 WHERE id = ?", resolvedId);
                     } else if ("QUOTATION".equalsIgnoreCase(resolvedType)) {
@@ -465,6 +582,28 @@ public class BusinessWhatsappService {
         }
     }
 
+    static String formatDocumentAuditSubject(String dispatchLabel, String docNumber, String customMessage) {
+        String docRef = (docNumber != null && !docNumber.isBlank()) ? docNumber.trim() : "Direct Message";
+        String label = dispatchLabel == null ? "" : dispatchLabel.trim();
+        if (label.isBlank() && customMessage != null && !customMessage.isBlank()) {
+            String lower = customMessage.toLowerCase(Locale.ROOT);
+            if (lower.contains("payment receipt") || lower.contains("payment confirmation")) label = "Payment Receipt";
+            else if (lower.contains("remittance advice") || lower.contains("payment remittance")) label = "Remittance Advice";
+            else if (lower.contains("refund settlement") || lower.contains("refund advice")) label = "Refund Advice";
+        }
+        String lowerLabel = label.toLowerCase(Locale.ROOT);
+        if (!label.isBlank()
+                && !lowerLabel.equals("tax invoice")
+                && !lowerLabel.equals("sales invoice")
+                && !lowerLabel.equals("purchase order")
+                && !lowerLabel.equals("quotation")
+                && !lowerLabel.equals("document")
+                && !lowerLabel.equals("communication")) {
+            return "WhatsApp (" + label + "): " + docRef;
+        }
+        return "WhatsApp: " + docRef;
+    }
+
     public WahaDtos.SendResponse sendText(WahaDtos.TextSendRequest req) {
         if (req == null) throw new IllegalArgumentException("Request cannot be null");
         WahaDtos.WahaSettingsDto settings = getSettings();
@@ -472,13 +611,16 @@ public class BusinessWhatsappService {
             throw new IllegalStateException("WhatsApp integration is currently disabled in Settings.");
         }
 
+        List<PhoneTarget> targets = parsePhoneTargets(req.recipientPhone());
+        String normalizedRecipients = targets.stream().map(PhoneTarget::displayPhone).reduce((a, b) -> a + ", " + b).orElse("");
         WhatsappSenderChannelEntity channel = resolveChannelForDocument(null, req.channelId());
-        String chatId = formatChatId(req.recipientPhone());
 
-        WahaDtos.SendResponse response = wahaClient.sendText(settings.endpoint(), settings.apiKey(),
-                channel.getSessionName(), chatId, req.message());
+        DispatchAggregate aggregate = dispatchToTargets(targets, channel, normalizedRecipients, target ->
+                wahaClient.sendText(settings.endpoint(), settings.apiKey(),
+                        channel.getSessionName(), target.chatId(), req.message()));
+        WahaDtos.SendResponse response = aggregate.response();
 
-        recordTextCommunicationAudit(req.recipientPhone(), response.success(), response.success() ? null : response.message());
+        recordTextCommunicationAudit(normalizedRecipients, response.success(), response.success() ? null : response.message());
 
         return response;
     }
@@ -638,6 +780,33 @@ public class BusinessWhatsappService {
         fallback.setIsDefault(true);
         fallback.setIsActive(true);
         return fallback;
+    }
+
+    public static List<String> parseRecipientPhones(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        Set<String> unique = new LinkedHashSet<>();
+        for (String token : raw.split("[;,]")) {
+            String trimmed = token == null ? "" : token.trim();
+            if (!trimmed.isEmpty()) {
+                unique.add(trimmed);
+            }
+        }
+        return List.copyOf(unique);
+    }
+
+    private static List<PhoneTarget> parsePhoneTargets(String raw) {
+        List<String> tokens = parseRecipientPhones(raw);
+        if (tokens.isEmpty()) {
+            throw new IllegalArgumentException("Recipient phone number is required");
+        }
+        Map<String, PhoneTarget> uniqueByChatId = new LinkedHashMap<>();
+        for (String phone : tokens) {
+            String chatId = formatChatId(phone);
+            uniqueByChatId.putIfAbsent(chatId, new PhoneTarget(phone, chatId));
+        }
+        return List.copyOf(uniqueByChatId.values());
     }
 
     public static String formatChatId(String raw) {

@@ -255,8 +255,11 @@ public class BankExpenseController implements ScreenLifecycle {
         LinkedRecordContext.Target linkedTarget=LinkedRecordContext.consume("FINANCE");
         if(linkedTarget==null) linkedTarget=LinkedRecordContext.consume("EXPENSE_ENTRY");
         if(linkedTarget==null) linkedTarget=LinkedRecordContext.consume("BANK_ENTRY");
+        String linkedSearchQuery = null;
         if(linkedTarget!=null && linkedTarget.recordId()!=null){
             requestedLinkedEntryId=linkedTarget.recordId().intValue();
+        } else if(linkedTarget!=null && !linkedTarget.documentNo().isBlank()){
+            linkedSearchQuery = linkedTarget.documentNo().trim();
         }
         if(requestedLinkedEntryId!=null){
             activeDeepLinkEntryId=requestedLinkedEntryId;
@@ -270,6 +273,11 @@ public class BankExpenseController implements ScreenLifecycle {
             applyMode(requested);
         } else if (reusedFromCache) {
             loadMetrics();
+            applyFilters();
+        }
+        if (linkedSearchQuery != null && searchField != null) {
+            searchField.setText(linkedSearchQuery);
+            currentPage = 0;
             applyFilters();
         }
         applyRequestedExpensePrefill();
@@ -371,7 +379,9 @@ public class BankExpenseController implements ScreenLifecycle {
                 EntryRow row=getTableView().getItems().get(getIndex());
                 boolean hasDoc = hasLinkedErp(row) && row.linkedDocumentNo != null && !row.linkedDocumentNo.isBlank();
                 boolean hasBank = row.statementTransactionId != null;
-                String bankRef = hasBank ? formatBankStatementReference(row.statementTransactionId, parseEntryDate(row.date.get())) : "";
+                String bankRef = !safe(row.statementReference, "").isBlank()
+                        ? row.statementReference
+                        : (hasBank ? formatBankStatementReference(row.statementTransactionId, parseEntryDate(row.date.get())) : "");
 
                 if(hasDoc && hasBank){
                     HBox box = new HBox(6);
@@ -480,9 +490,11 @@ public class BankExpenseController implements ScreenLifecycle {
     private void openLinkedTransactionsDialog(EntryRow row) {
         if (row == null) return;
         List<BankStatementController.LinkedTargetItem> targets = new ArrayList<>();
-        String bankRef = row.statementTransactionId != null
-                ? formatBankStatementReference(row.statementTransactionId, parseEntryDate(row.date.get()))
-                : "";
+        String bankRef = !safe(row.statementReference, "").isBlank()
+                ? row.statementReference
+                : (row.statementTransactionId != null
+                    ? formatBankStatementReference(row.statementTransactionId, parseEntryDate(row.date.get()))
+                    : "");
 
         if (hasLinkedErp(row)) {
             String type = safe(row.linkedTargetType, "").toUpperCase(Locale.ROOT);
@@ -816,7 +828,7 @@ public class BankExpenseController implements ScreenLifecycle {
         if(activeDeepLinkEntryId!=null)return;
         filtered.clear();if(page!=null&&page.rows()!=null)for(var e:page.rows())filtered.add(toRow(e));currentPage=page==null?0:page.page();totalPages=page==null?0:page.totalPages();totalRows=page==null?0:page.totalRows();renderPage();if(pendingSelectEntryId!=null){EntryRow row=filtered.stream().filter(x->x.id==pendingSelectEntryId).findFirst().orElse(null);if(row!=null){table.getSelectionModel().select(row);table.scrollTo(row);showEntryDetails(row);pendingSelectEntryId=null;}}if(filtered.isEmpty())org.example.util.OperationalUiSupport.showEmpty(table,mode==Mode.EXPENSE?"No expenses found":"No bank entries found","Adjust the filters or add a new entry.");finishExplicitRefresh(true);
     }
-    private EntryRow toRow(OperationsApiClient.FinanceEntry e){String raw=safe(e.voucherType(),"");String type=raw.toUpperCase(Locale.ROOT).contains("DEPOSIT")?"Deposit":raw.toUpperCase(Locale.ROOT).contains("WITHDRAW")?"Withdrawal":safe(e.category(),"Other");return new EntryRow(e.id()==null?0:e.id(),safe(e.voucherNo(),""),e.voucherDate(),type,safe(e.notes(),""),safe(e.accountName(),""),safe(e.paymentMode(),""),safe(e.referenceNo(),""),e.amount(),raw,e.reconciled(),e.statementTransactionId(),safe(e.linkedTargetType(),""),e.linkedTargetId(),safe(e.linkedDocumentNo(),""),e.rowVersion());}
+    private EntryRow toRow(OperationsApiClient.FinanceEntry e){String raw=safe(e.voucherType(),"");String type=raw.toUpperCase(Locale.ROOT).contains("DEPOSIT")?"Deposit":raw.toUpperCase(Locale.ROOT).contains("WITHDRAW")?"Withdrawal":safe(e.category(),"Other");return new EntryRow(e.id()==null?0:e.id(),safe(e.voucherNo(),""),e.voucherDate(),type,safe(e.notes(),""),safe(e.accountName(),""),safe(e.paymentMode(),""),safe(e.referenceNo(),""),e.amount(),raw,e.reconciled(),e.statementTransactionId(),safe(e.statementReference(),""),safe(e.linkedTargetType(),""),e.linkedTargetId(),safe(e.linkedDocumentNo(),""),e.rowVersion());}
     private void renderPage(){table.getItems().setAll(filtered);long from=totalRows==0?0:(long)currentPage*getPageSize()+1,to=totalRows==0?0:Math.min(totalRows,from+filtered.size()-1);showingLabel.setText(totalRows==0?"Showing 0 to 0 of 0 entries":"Showing "+from+" to "+to+" of "+totalRows+" entries");pageLabel.setText(totalPages<=0?"0 / 0":(currentPage+1)+" / "+totalPages);}
     @FXML private void previousPage(){if(currentPage>0){currentPage--;reloadRows();}} @FXML private void nextPage(){if(currentPage+1<totalPages){currentPage++;reloadRows();}}
 
@@ -910,7 +922,7 @@ public class BankExpenseController implements ScreenLifecycle {
     private static String userMessage(Throwable failure){Throwable root=failure;while(root!=null&&root.getCause()!=null&&root.getCause()!=root)root=root.getCause();String message=root==null?null:root.getMessage();if(message==null||message.isBlank()||"empty String".equalsIgnoreCase(message.trim()))return "The ERP could not complete this request. Please review the entered values and try again.";return message;}
     private static LocalDate parseEntryDate(String value){if(value==null||value.isBlank())return BusinessClock.today();String text=value.trim();for(var pattern:List.of(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE,java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"),java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"))){try{return LocalDate.parse(text.length()>=10?text.substring(0,10):text,pattern);}catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }}return BusinessClock.today();}
 
-    public static final class EntryRow { final int id; final long rowVersion; final SimpleStringProperty date,type,description,account,paymentMode,reference,match; final SimpleDoubleProperty amount; final String rawType,linkedTargetType,linkedDocumentNo,voucherNo; final Long statementTransactionId; final Integer linkedTargetId; final boolean reconciled; EntryRow(int id,String voucherNo,String d,String t,String desc,String acc,String pm,String ref,double amt,String raw,boolean reconciled,Long statementId,String targetType,Integer targetId,String documentNo,long rowVersion){this.id=id;this.voucherNo=voucherNo==null?"":voucherNo;this.rowVersion=rowVersion;this.reconciled=reconciled;date=new SimpleStringProperty(d);type=new SimpleStringProperty(t);description=new SimpleStringProperty(desc);account=new SimpleStringProperty(acc);paymentMode=new SimpleStringProperty(pm);reference=new SimpleStringProperty(ref);amount=new SimpleDoubleProperty(amt);rawType=raw==null?"":raw.toUpperCase(Locale.ROOT);statementTransactionId=statementId;linkedTargetType=targetType==null?"":targetType;linkedTargetId=targetId;linkedDocumentNo=documentNo==null?"":documentNo;String display="";if(statementId!=null)display="Bank Statement";if(!linkedDocumentNo.isBlank())display=display.isBlank()?linkedDocumentNo:display+" • "+linkedDocumentNo;match=new SimpleStringProperty(display);} }
+    public static final class EntryRow { final int id; final long rowVersion; final SimpleStringProperty date,type,description,account,paymentMode,reference,match; final SimpleDoubleProperty amount; final String rawType,linkedTargetType,linkedDocumentNo,voucherNo,statementReference; final Long statementTransactionId; final Integer linkedTargetId; final boolean reconciled; EntryRow(int id,String voucherNo,String d,String t,String desc,String acc,String pm,String ref,double amt,String raw,boolean reconciled,Long statementId,String targetType,Integer targetId,String documentNo,long rowVersion){this(id,voucherNo,d,t,desc,acc,pm,ref,amt,raw,reconciled,statementId,"",targetType,targetId,documentNo,rowVersion);} EntryRow(int id,String voucherNo,String d,String t,String desc,String acc,String pm,String ref,double amt,String raw,boolean reconciled,Long statementId,String stmtRef,String targetType,Integer targetId,String documentNo,long rowVersion){this.id=id;this.voucherNo=voucherNo==null?"":voucherNo;this.rowVersion=rowVersion;this.reconciled=reconciled;date=new SimpleStringProperty(d);type=new SimpleStringProperty(t);description=new SimpleStringProperty(desc);account=new SimpleStringProperty(acc);paymentMode=new SimpleStringProperty(pm);reference=new SimpleStringProperty(ref);amount=new SimpleDoubleProperty(amt);rawType=raw==null?"":raw.toUpperCase(Locale.ROOT);statementTransactionId=statementId;this.statementReference=stmtRef==null?"":stmtRef;linkedTargetType=targetType==null?"":targetType;linkedTargetId=targetId;linkedDocumentNo=documentNo==null?"":documentNo;String display="";if(statementId!=null)display=!this.statementReference.isBlank()?this.statementReference:"Bank Statement";if(!linkedDocumentNo.isBlank())display=display.isBlank()?linkedDocumentNo:display+" • "+linkedDocumentNo;match=new SimpleStringProperty(display);} }
     private record FinanceMasterLookups(List<String> paymentModes, List<String> expenseCategories, Map<String, String> referenceFormats) { }
 
 }

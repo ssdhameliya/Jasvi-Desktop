@@ -152,11 +152,20 @@ public class CreditNoteRegisterController implements ScreenLifecycle {
         refreshData();
         LinkedRecordContext.Target target = LinkedRecordContext.consume("CREDIT_NOTE");
         if (target != null) {
-            if (tabPaneRegister != null && tabReturnApprovals != null) {
-                tabPaneRegister.getSelectionModel().select(tabReturnApprovals);
-            }
-            if (txtReturnSearch != null && !target.documentNo().isBlank()) {
-                txtReturnSearch.setText(target.documentNo());
+            if ("VIEW".equalsIgnoreCase(target.action())) {
+                if (tabPaneRegister != null && tabCreditNotes != null) {
+                    tabPaneRegister.getSelectionModel().select(tabCreditNotes);
+                }
+                if (txtSearch != null && !target.documentNo().isBlank()) {
+                    txtSearch.setText(target.documentNo());
+                }
+            } else {
+                if (tabPaneRegister != null && tabReturnApprovals != null) {
+                    tabPaneRegister.getSelectionModel().select(tabReturnApprovals);
+                }
+                if (txtReturnSearch != null && !target.documentNo().isBlank()) {
+                    txtReturnSearch.setText(target.documentNo());
+                }
             }
         }
     }

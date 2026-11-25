@@ -142,7 +142,11 @@
 
         <Tab text="GSTR-3B Tax Set-Off Summary" closable="false">
           <VBox spacing="14" styleClass="approved-card">
-            <Label text="Section 49 / 49A / 49B Statutory Credit Consumption &amp; Cash Liability" styleClass="section-title"/>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+              <Label text="Section 49 / 49A / 49B Statutory Credit Consumption &amp; Cash Liability" styleClass="section-title"/>
+              <Region HBox.hgrow="ALWAYS"/>
+              <Button fx:id="btnPostGstGl" text="Post Monthly ITC Offset to GL" onAction="#postGstUtilizationToGl" styleClass="primary-action,approved-button,approved-primary-button"/>
+            </HBox>
             <TableView fx:id="tblGstr3b" VBox.vgrow="ALWAYS" styleClass="approved-table,erp-table-profile-responsive">
               <columns>
                 <TableColumn fx:id="colTaxHead" text="Tax Head"/>

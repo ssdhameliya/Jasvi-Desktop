@@ -47,8 +47,21 @@ public final class WahaDtos {
         Long channelId,
         String recipientPhone,
         String customMessage,
-        Long rowVersion
-    ) {}
+        Long rowVersion,
+        String dispatchLabel
+    ) {
+        public DocumentSendRequest(
+            String documentType,
+            String documentNumber,
+            Integer documentId,
+            Long channelId,
+            String recipientPhone,
+            String customMessage,
+            Long rowVersion
+        ) {
+            this(documentType, documentNumber, documentId, channelId, recipientPhone, customMessage, rowVersion, null);
+        }
+    }
 
     public record TextSendRequest(
         String recipientPhone,

@@ -63,7 +63,7 @@ public class GstComplianceController implements ScreenLifecycle {
     @FXML private ComboBox<String> cmbMatchFilter;
     @FXML private DatePicker dpFromDate, dpToDate;
     @FXML private TextField txtSearch, txtSearchGstr1;
-    @FXML private Button btnImportGstr2b, btnExportGstr1, btnApply2bFilter, btnRefresh2b, btnRefreshGstr1, btnOpenLinkedBill, btnNotifySupplier;
+    @FXML private Button btnImportGstr2b, btnExportGstr1, btnApply2bFilter, btnRefresh2b, btnRefreshGstr1, btnOpenLinkedBill, btnNotifySupplier, btnPostGstGl;
 
     @FXML private SplitPane mainSplit;
     @FXML private VBox detailDrawer;
@@ -161,6 +161,9 @@ public class GstComplianceController implements ScreenLifecycle {
         boolean canNotify = PermissionService.allowed("GST_COMPLIANCE.NOTIFY");
         if (btnNotifySupplier != null) { btnNotifySupplier.setDisable(!canNotify); btnNotifySupplier.setVisible(canNotify); btnNotifySupplier.setManaged(canNotify); }
 
+        boolean canPostGl = PermissionService.allowed("GST_COMPLIANCE.POST_GL");
+        if (btnPostGstGl != null) { btnPostGstGl.setDisable(!canPostGl); btnPostGstGl.setVisible(canPostGl); btnPostGstGl.setManaged(canPostGl); }
+
         loadGstDataAsync();
     }
 
@@ -180,8 +183,40 @@ public class GstComplianceController implements ScreenLifecycle {
         UiActionIcons.apply(btnCloseDrawer, ButtonAction.CLOSE);
         UiActionIcons.apply(btnOpenLinkedBill, "purchase", "Open Purchase Bill");
         UiActionIcons.apply(btnNotifySupplier, "communication", "Notify Supplier");
+        if (btnPostGstGl != null) UiActionIcons.apply(btnPostGstGl, "ledger", "Post Monthly ITC Offset to GL");
         UiActionIcons.apply(btnTabExportGstr1Json, ButtonAction.EXPORT);
         UiActionIcons.apply(btnTabExportGstr1Excel, "excel", "Export GSTR-1 Excel");
+    }
+
+    @FXML
+    public void postGstUtilizationToGl() {
+        PermissionService.require("GST_COMPLIANCE.POST_GL", "post monthly GST ITC offset to General Ledger");
+        LocalDate refDate = dpToDate != null && dpToDate.getValue() != null ? dpToDate.getValue() : BusinessClock.today();
+        String period = refDate.format(DateTimeFormatter.ofPattern("MMyyyy"));
+        if (!AppDialogService.confirm(tblGstr3b, "Post GSTR-3B Set-Off to GL",
+                "Post GST ITC Utilization Voucher for period " + period + "?",
+                "This posts an audited General Ledger voucher clearing Output GST (2081/2082/2083) against Input GST ITC Pools (1081/1082/1083) under Rule 88A and records Net Electronic Cash Ledger payable in GST Payable (2085). Duplicate posting for the same period is automatically blocked.")) {
+            return;
+        }
+        UiTaskExecutor.submitAction("gst-post-utilization-" + period, () -> {
+            HttpRequest.Builder req = HttpRequest.newBuilder(URI.create(apiUrl("/api/gst/gstr3b/" + period + "/post-utilization")))
+                    .timeout(Duration.ofSeconds(20))
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.noBody());
+            ApiSession.authorize(req);
+            HttpResponse<String> resp = ApiRuntime.HTTP.send(req.build(), HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
+                throw new IllegalStateException(ApiRuntime.userMessage("GST GL utilization posting", resp.statusCode(), resp.body()));
+            }
+            return ApiRuntime.JSON.readTree(resp.body());
+        }, json -> {
+            String voucher = json.path("entryNumber").asText("JV-GST");
+            String msg = json.path("message").asText("GST utilization posted successfully.");
+            AppDialogService.success(tblGstr3b, "GST Utilization Posted",
+                    "Voucher: " + voucher + "\n" + msg);
+            NotificationService.createNotification(NotificationService.Category.GST, "GSTR-3B Posted to GL",
+                    voucher + " posted for period " + period, "INFO", "/fxml/pages/GeneralLedger.fxml", voucher);
+        }, err -> AppDialogService.error(tblGstr3b, "GST Posting Failed", "Could not post GST ITC offset", err.getMessage()));
     }
 
     private void configureDatePickers() {

@@ -895,15 +895,14 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             LiveOperationDialog.run(tableSales, "Sending WhatsApp Invoice", "whatsapp", "Connecting to WhatsApp Business Engine...", reporter -> {
                 var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
                 List<String> phones = Arrays.stream(result.recipientPhone().split("[;,]"))
-                        .map(String::trim).filter(s -> !s.isBlank()).toList();
+                        .map(String::trim).filter(s -> !s.isBlank()).distinct().toList();
+                String targetPhones = String.join(", ", phones);
                 reporter.stage(1, 3, "Validating " + phones.size() + " recipient(s)...");
                 reporter.stage(2, 3, "Transmitting tax invoice to WhatsApp...");
-                for (String phone : phones) {
-                    var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
-                        "SALE", sale.getInvoiceNo(), sale.getId(), null, phone, result.message(), sale.getRowVersion()
-                    ));
-                    if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
-                }
+                var sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+                        "SALE", sale.getInvoiceNo(), sale.getId(), null, targetPhones, result.message(), sale.getRowVersion()
+                ));
+                if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
                 reporter.stage(3, 3, "Dispatched via WhatsApp to " + phones.size() + " recipient(s)");
             }, () -> {
                 refresh();

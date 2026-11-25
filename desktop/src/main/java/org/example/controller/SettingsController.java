@@ -3034,7 +3034,7 @@ private record AssetPreviewRequest(
             }
             SharedApplicationFooter.refreshAll();
             DatePickerFormatter.refreshAll();
-            if (section == Section.COMPANY) {
+            if (section == Section.COMPANY || section == Section.INVOICE) {
                 org.example.util.SceneManager.refreshApplicationTitle();
                 DashboardController.refreshBranding();
             }

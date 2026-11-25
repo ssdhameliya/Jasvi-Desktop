@@ -22,15 +22,9 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import org.example.model.Item;
-import org.example.model.Purchase;
-import org.example.model.Sales;
 import org.example.navigation.NavigationManager;
 import org.example.navigation.ScreenLifecycle;
-import org.example.service.ItemService;
 import org.example.service.PermissionService;
-import org.example.service.PurchaseService;
-import org.example.service.SalesService;
 import org.example.util.*;
 
 import java.text.NumberFormat;
@@ -58,7 +52,9 @@ public class GeneralLedgerController implements ScreenLifecycle {
     @FXML private Label kpiTotalAssets, kpiTotalLiabilities, kpiTotalRevenue, kpiTotalExpense, kpiNetProfit;
 
     @FXML private Label lblPeriodLockBadge, lblActivePeriodInfo;
-    @FXML private Button btnPeriodLock, btnNewJournal, btnExportLedger, btnExportPdf, btnRefreshLedger;
+    @FXML private Button btnHealthCheck, btnCloseYear, btnPeriodLock, btnNewJournal, btnRefreshLedger;
+    @FXML private MenuButton btnExport;
+    @FXML private MenuItem miExportExcel, miExportCsv, miExportPdf;
     @FXML private ComboBox<String> cmbPeriodPreset;
     @FXML private DatePicker dpFromDate, dpToDate;
     @FXML private Button btnApplyPeriod, btnClearPeriod;
@@ -108,16 +104,20 @@ public class GeneralLedgerController implements ScreenLifecycle {
     @FXML private TableColumn<BsRow, String> colBsLeCode, colBsLeName, colBsLeType, colBsLeBalance;
     @FXML private Label lblBsTotalAssets, lblBsTotalLiab, lblBsTotalEquity, lblBsTallyPill;
 
-    private final SalesService salesService = new SalesService();
-    private final PurchaseService purchaseService = new PurchaseService();
-    private final ItemService itemService = new ItemService();
     private final GeneralLedgerApiClient glClient = new GeneralLedgerApiClient();
 
     private final NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.of("en", "IN"));
 
     private final ObservableList<JournalRow> allJournalRows = FXCollections.observableArrayList();
     private final ObservableList<JournalRow> filteredJournalRows = FXCollections.observableArrayList();
-    private TablePaginationBar<JournalRow> journalPaginationBar;
+    private int journalCurrentPage = 0;
+    private int journalPageSize = 50;
+    private long journalTotalElements = 0L;
+    private int journalTotalPages = 1;
+    private boolean initializingFilters = true;
+    private Label lblJournalPageSummary, lblJournalPageNum;
+    private Button btnJournalFirst, btnJournalPrev, btnJournalNext, btnJournalLast;
+    private ComboBox<Integer> cmbJournalPageSize;
 
     private final ObservableList<AccountRow> allAccountRows = FXCollections.observableArrayList();
     private final ObservableList<AccountRow> filteredAccountRows = FXCollections.observableArrayList();
@@ -165,6 +165,12 @@ public class GeneralLedgerController implements ScreenLifecycle {
             btnPeriodLock.setVisible(canLock);
             btnPeriodLock.setManaged(canLock);
         }
+        if (btnCloseYear != null) {
+            boolean canCloseYear = PermissionService.allowed("GENERAL_LEDGER.CLOSE_YEAR");
+            btnCloseYear.setDisable(!canCloseYear);
+            btnCloseYear.setVisible(canCloseYear);
+            btnCloseYear.setManaged(canCloseYear);
+        }
         if (btnNewJournal != null) {
             boolean canCreate = PermissionService.allowed("GENERAL_LEDGER.CREATE_JOURNAL");
             btnNewJournal.setDisable(!canCreate);
@@ -184,14 +190,37 @@ public class GeneralLedgerController implements ScreenLifecycle {
             btnEditAccount.setManaged(canEditAcc);
         }
         boolean canExport = PermissionService.allowed("GENERAL_LEDGER.EXPORT");
-        if (btnExportLedger != null) { btnExportLedger.setDisable(!canExport); btnExportLedger.setVisible(canExport); btnExportLedger.setManaged(canExport); }
-        if (btnExportPdf != null) { btnExportPdf.setDisable(!canExport); btnExportPdf.setVisible(canExport); btnExportPdf.setManaged(canExport); }
+        if (btnExport != null) { btnExport.setDisable(!canExport); btnExport.setVisible(canExport); btnExport.setManaged(canExport); }
         if (btnExportTb != null) { btnExportTb.setDisable(!canExport); btnExportTb.setVisible(canExport); btnExportTb.setManaged(canExport); }
 
         RegisterUiSupport.hideDrawer(journalDetailDrawer, journalSplit, tblJournals);
         javafx.application.Platform.runLater(() -> RegisterUiSupport.hideDrawer(journalDetailDrawer, journalSplit, tblJournals));
         OperationalUiSupport.installEscapeClose(journalSplit, () -> journalDetailDrawer != null && journalDetailDrawer.isVisible(), this::closeJournalDetails);
+        initializingFilters = false;
         loadLedgerDataAsync();
+        javafx.application.Platform.runLater(this::consumeLinkedLedgerRequest);
+    }
+
+    @Override
+    public void onScreenShown(boolean reusedFromCache) {
+        if (reusedFromCache) {
+            loadLedgerDataAsync();
+        }
+        consumeLinkedLedgerRequest();
+    }
+
+    private void consumeLinkedLedgerRequest() {
+        LinkedRecordContext.Target accTarget = LinkedRecordContext.consume("ACCOUNT_LEDGER");
+        if (accTarget != null && !accTarget.documentNo().isBlank()) {
+            openAccountLedger(accTarget.documentNo(), accTarget.documentNo());
+            return;
+        }
+        LinkedRecordContext.Target partyTarget = LinkedRecordContext.consume("PARTY_LEDGER");
+        if (partyTarget != null && partyTarget.recordId() != null && partyTarget.recordId() > 0) {
+            AccountLedgerDialog.showPartyLedger(tblJournals, glClient, partyTarget.recordId(),
+                    partyTarget.documentNo(), dpFromDate != null ? dpFromDate.getValue() : null,
+                    dpToDate != null ? dpToDate.getValue() : null);
+        }
     }
 
     private void configurePeriodBar() {
@@ -238,9 +267,13 @@ public class GeneralLedgerController implements ScreenLifecycle {
         if (kpiProfitIcon != null) kpiProfitIcon.getChildren().setAll(IconFactory.compactIcon("currency", 20));
 
         if (btnPeriodLock != null) UiActionIcons.apply(btnPeriodLock, "lock", "Period Lock");
+        if (btnHealthCheck != null) UiActionIcons.apply(btnHealthCheck, "reconciliation", "GL Health Check");
+        if (btnCloseYear != null) UiActionIcons.apply(btnCloseYear, "calendar", "Close Fiscal Year");
         UiActionIcons.apply(btnNewJournal, ButtonAction.ADD);
-        UiActionIcons.apply(btnExportLedger, ButtonAction.EXPORT);
-        if (btnExportPdf != null) UiActionIcons.apply(btnExportPdf, "pdf", "Export PDF");
+        UiActionIcons.apply(btnExport, ButtonAction.EXPORT);
+        if (miExportExcel != null) miExportExcel.setGraphic(IconFactory.compactIcon("excel", 14));
+        if (miExportCsv   != null) miExportCsv.setGraphic(IconFactory.compactIcon("csv", 14));
+        if (miExportPdf   != null) miExportPdf.setGraphic(IconFactory.compactIcon("pdf", 14));
         UiActionIcons.apply(btnRefreshLedger, ButtonAction.REFRESH);
         if (btnApplyPeriod != null) UiActionIcons.apply(btnApplyPeriod, "filter", "Apply Period");
         if (btnClearPeriod != null) UiActionIcons.apply(btnClearPeriod, ButtonAction.REFRESH);
@@ -373,10 +406,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
             });
 
             if (journalPaginationHost != null) {
-                journalPaginationBar = new TablePaginationBar<>(tblJournals, 25);
-                journalPaginationBar.bindTo(filteredJournalRows);
-                HBox.setHgrow(journalPaginationBar, Priority.ALWAYS);
-                journalPaginationHost.getChildren().setAll(journalPaginationBar);
+                buildServerPaginationBar();
             } else {
                 tblJournals.setItems(filteredJournalRows);
             }
@@ -632,6 +662,7 @@ public class GeneralLedgerController implements ScreenLifecycle {
         HBox hero = new HBox(14, iconLabel, titleBox, spacerHero, statusPill);
         hero.setAlignment(Pos.CENTER_LEFT);
         hero.setPadding(new Insets(4, 8, 8, 8));
+        DocumentInspectionScaffold.installDragPhysics(hero, dialog);
 
         // Details Grid
         GridPane grid = new GridPane();
@@ -723,6 +754,18 @@ public class GeneralLedgerController implements ScreenLifecycle {
             dock.getChildren().add(btnPost);
         }
 
+        if (row.id() != null && "POSTED".equalsIgnoreCase(row.status())
+                && PermissionService.allowed("GENERAL_LEDGER.REVERSE_JOURNAL")) {
+            Button btnRevModal = new Button("Reverse Voucher");
+            btnRevModal.setGraphic(IconFactory.compactIcon("rollback", 14));
+            btnRevModal.getStyleClass().addAll("approved-button", "approved-danger-ghost-button");
+            btnRevModal.setOnAction(e -> {
+                dialog.close();
+                reverseJournal(row);
+            });
+            dock.getChildren().add(btnRevModal);
+        }
+
         Button btnOpenDoc = new Button("Open Linked Document");
         btnOpenDoc.setGraphic(IconFactory.compactIcon("open", 14));
         btnOpenDoc.getStyleClass().addAll("approved-button", "approved-secondary-button");
@@ -796,9 +839,15 @@ public class GeneralLedgerController implements ScreenLifecycle {
         String ref = row.referenceNo();
         if (ref == null || ref.isBlank()) ref = row.entryNumber();
         String type = row.entryType() != null ? row.entryType().toUpperCase(Locale.ROOT) : "JOURNAL";
-        String entityType = "SALES".equals(type) || "RECEIPT".equals(type) ? "SALE"
-                : ("PURCHASE".equals(type) || "PAYMENT".equals(type) ? "PURCHASE" : "JOURNAL");
-        org.example.util.ActivityTimelineDialog.show(tblJournals, entityType, 1, ref);
+        String entityType = switch (type) {
+            case "SALES", "SALE", "RECEIPT" -> "SALE";
+            case "PURCHASE", "PAYMENT" -> "PURCHASE";
+            case "CREDIT_NOTE", "SALES_RETURN" -> "CREDIT_NOTE";
+            case "DEBIT_NOTE", "PURCHASE_RETURN" -> "DEBIT_NOTE";
+            default -> "JOURNAL";
+        };
+        int entityId = row.id() != null ? row.id().intValue() : 0;
+        org.example.util.ActivityTimelineDialog.show(tblJournals, entityType, entityId, ref);
     }
 
     @FXML
@@ -807,16 +856,33 @@ public class GeneralLedgerController implements ScreenLifecycle {
     }
 
     private void openDocument(JournalRow row) {
-        if (row == null || row.referenceNo() == null || row.referenceNo().isBlank()) return;
+        if (row == null) return;
+        String ref = row.referenceNo() != null && !row.referenceNo().isBlank() ? row.referenceNo() : row.entryNumber();
+        if (ref == null || ref.isBlank()) return;
         String type = row.entryType() != null ? row.entryType().toUpperCase(Locale.ROOT) : "";
-        if ("SALES".equals(type) || "RECEIPT".equals(type)) {
-            LinkedRecordContext.open("SALE", null, row.referenceNo(), "VIEW", "General Ledger");
-            NavigationManager.getInstance().loadPage("/fxml/pages/SalesList.fxml");
-        } else if ("PURCHASE".equals(type) || "PAYMENT".equals(type)) {
-            LinkedRecordContext.open("PURCHASE", null, row.referenceNo(), "VIEW", "General Ledger");
-            NavigationManager.getInstance().loadPage("/fxml/pages/PurchaseList.fxml");
-        } else {
-            AppDialogService.info(tblJournals, "General Ledger", "Voucher " + row.entryNumber() + " is an internal journal record.");
+        switch (type) {
+            case "SALES", "SALE", "RECEIPT" -> {
+                LinkedRecordContext.open("SALE", null, ref, "VIEW", "General Ledger");
+                NavigationManager.getInstance().loadPage("/fxml/pages/SalesList.fxml");
+            }
+            case "PURCHASE", "PAYMENT" -> {
+                LinkedRecordContext.open("PURCHASE", null, ref, "VIEW", "General Ledger");
+                NavigationManager.getInstance().loadPage("/fxml/pages/PurchaseList.fxml");
+            }
+            case "CREDIT_NOTE", "SALES_RETURN" -> {
+                LinkedRecordContext.open("CREDIT_NOTE", null, ref, "VIEW", "General Ledger");
+                NavigationManager.getInstance().loadPage("/fxml/pages/CreditNoteRegister.fxml");
+            }
+            case "DEBIT_NOTE", "PURCHASE_RETURN" -> {
+                LinkedRecordContext.open("DEBIT_NOTE", null, ref, "VIEW", "General Ledger");
+                NavigationManager.getInstance().loadPage("/fxml/pages/DebitNoteRegister.fxml");
+            }
+            case "EXPENSE", "FINANCE", "BANK_DEPOSIT", "BANK_WITHDRAWAL", "CONTRA" -> {
+                BankExpenseController.requestMode(type.contains("EXPENSE") ? BankExpenseController.Mode.EXPENSE : BankExpenseController.Mode.BANK);
+                LinkedRecordContext.open("FINANCE", null, ref, "VIEW", "General Ledger");
+                NavigationManager.getInstance().loadPage("/fxml/pages/BankExpense.fxml");
+            }
+            default -> PostingFlowDialog.show(tblJournals, type.isBlank() ? "JOURNAL" : type, ref);
         }
     }
 
@@ -831,20 +897,6 @@ public class GeneralLedgerController implements ScreenLifecycle {
         cc.putString(row.entryNumber());
         Clipboard.getSystemClipboard().setContent(cc);
         AppDialogService.info(tblJournals, "Copied", "Voucher number copied to clipboard: " + row.entryNumber());
-    }
-
-    private static boolean isInterStateParty(org.example.model.Party party) {
-        if (party == null) return false;
-        String gstin = party.getGstin();
-        if (gstin != null && gstin.trim().length() >= 2) {
-            return !gstin.trim().startsWith("24");
-        }
-        String addr = party.getAddress();
-        if (addr != null && !addr.isBlank()) {
-            String lower = addr.toLowerCase(Locale.ROOT);
-            return !lower.contains("gujarat") && (lower.contains("maharashtra") || lower.contains("rajasthan") || lower.contains("delhi") || lower.contains("mp") || lower.contains("madhya pradesh") || lower.contains("karnataka") || lower.contains("tamil nadu"));
-        }
-        return false;
     }
 
     private void postDraftJournal(JournalRow row) {
@@ -869,6 +921,11 @@ public class GeneralLedgerController implements ScreenLifecycle {
         final LocalDate fromDate = dpFromDate != null ? dpFromDate.getValue() : null;
         final LocalDate toDate = dpToDate != null ? dpToDate.getValue() : null;
         final boolean includeInactive = chkShowInactiveAccounts != null && chkShowInactiveAccounts.isSelected();
+        final String searchQuery = txtJournalSearch != null && txtJournalSearch.getText() != null ? txtJournalSearch.getText().trim() : "";
+        final String typeFilter = cmbVoucherFilter != null && cmbVoucherFilter.getValue() != null ? cmbVoucherFilter.getValue() : "All Types";
+        final String bookFilter = cmbQuickBookFilter != null && cmbQuickBookFilter.getValue() != null ? cmbQuickBookFilter.getValue() : "All Vouchers";
+        final JournalQuerySpec qSpec = resolveJournalQuerySpec(fromDate, toDate, typeFilter, bookFilter, searchQuery);
+
         if (lblActivePeriodInfo != null) {
             if (fromDate == null && toDate == null) {
                 lblActivePeriodInfo.setText("Showing: All Time");
@@ -889,337 +946,82 @@ public class GeneralLedgerController implements ScreenLifecycle {
                     GeneralLedgerApiClient.ProfitAndLossResponse plResp = null;
                     GeneralLedgerApiClient.BalanceSheetResponse bsResp = null;
                     GeneralLedgerApiClient.PeriodLockDto lockDto = null;
-                    String assetsStr = null;
-                    String liabStr = null;
-                    String revStr = null;
-                    String expStr = null;
-                    String profitStr = null;
+                    String assetsStr = "₹ 0.00";
+                    String liabStr = "₹ 0.00";
+                    String revStr = "₹ 0.00";
+                    String expStr = "₹ 0.00";
+                    String profitStr = "₹ 0.00";
+                    long totalElements = 0L;
+                    int totalPages = 1;
 
                     boolean glEnabled = ConfigManager.getBoolean("module.gl.enabled", true);
-                    boolean autoPost = ConfigManager.getBoolean("module.gl.autoPost", true);
-
-                    // 1. Fetch authentic data from Spring Boot General Ledger API
                     if (glEnabled) {
-                        try {
-                            List<GeneralLedgerApiClient.AccountDto> accDtos = glClient.accounts(includeInactive);
-                            if (accDtos != null && !accDtos.isEmpty()) {
-                                rawAccounts.addAll(accDtos);
-                                for (GeneralLedgerApiClient.AccountDto a : accDtos) {
-                                    aRows.add(new AccountRow(
-                                            a.accountCode(),
-                                            a.accountName(),
-                                            a.accountType(),
-                                            a.accountSubtype() != null ? a.accountSubtype() : "",
-                                            currency.format(a.openingBalance() != null ? a.openingBalance() : BigDecimal.ZERO),
-                                            currency.format(a.currentBalance() != null ? a.currentBalance() : BigDecimal.ZERO),
-                                            Boolean.TRUE.equals(a.isActive()) ? "Active" : "Inactive"
-                                    ));
-                                }
+                        List<GeneralLedgerApiClient.AccountDto> accDtos = glClient.accounts(includeInactive);
+                        if (accDtos != null) {
+                            rawAccounts.addAll(accDtos);
+                            for (GeneralLedgerApiClient.AccountDto a : accDtos) {
+                                aRows.add(new AccountRow(
+                                        a.accountCode(),
+                                        a.accountName(),
+                                        a.accountType(),
+                                        a.accountSubtype() != null ? a.accountSubtype() : "",
+                                        currency.format(a.openingBalance() != null ? a.openingBalance() : BigDecimal.ZERO),
+                                        currency.format(a.currentBalance() != null ? a.currentBalance() : BigDecimal.ZERO),
+                                        Boolean.TRUE.equals(a.isActive()) ? "Active" : "Inactive"
+                                ));
                             }
+                        }
 
-                            List<GeneralLedgerApiClient.TrialBalanceItemDto> tbDtos = glClient.trialBalance(fromDate, toDate);
-                            if (tbDtos != null && !tbDtos.isEmpty()) {
-                                for (GeneralLedgerApiClient.TrialBalanceItemDto tb : tbDtos) {
-                                    tRows.add(new TbRow(
-                                            tb.accountCode(),
-                                            tb.accountName(),
-                                            tb.accountType(),
-                                            currency.format(tb.openingBalance() != null ? tb.openingBalance() : BigDecimal.ZERO),
-                                            currency.format(tb.debitAmount() != null ? tb.debitAmount() : BigDecimal.ZERO),
-                                            currency.format(tb.creditAmount() != null ? tb.creditAmount() : BigDecimal.ZERO),
-                                            currency.format(tb.closingBalance() != null ? tb.closingBalance() : BigDecimal.ZERO)
-                                    ));
-                                }
+                        List<GeneralLedgerApiClient.TrialBalanceItemDto> tbDtos = glClient.trialBalance(fromDate, toDate);
+                        if (tbDtos != null) {
+                            for (GeneralLedgerApiClient.TrialBalanceItemDto tb : tbDtos) {
+                                tRows.add(new TbRow(
+                                        tb.accountCode(),
+                                        tb.accountName(),
+                                        tb.accountType(),
+                                        currency.format(tb.openingBalance() != null ? tb.openingBalance() : BigDecimal.ZERO),
+                                        currency.format(tb.debitAmount() != null ? tb.debitAmount() : BigDecimal.ZERO),
+                                        currency.format(tb.creditAmount() != null ? tb.creditAmount() : BigDecimal.ZERO),
+                                        currency.format(tb.closingBalance() != null ? tb.closingBalance() : BigDecimal.ZERO)
+                                ));
                             }
+                        }
 
-                            GeneralLedgerApiClient.FinancialStatementDto fs = glClient.financialStatements(fromDate, toDate);
-                            if (fs != null) {
-                                if (fs.totalAssets() != null) assetsStr = currency.format(fs.totalAssets());
-                                if (fs.totalLiabilities() != null) liabStr = currency.format(fs.totalLiabilities());
-                                if (fs.totalRevenue() != null) revStr = currency.format(fs.totalRevenue());
-                                if (fs.totalExpense() != null) expStr = currency.format(fs.totalExpense());
-                                if (fs.netProfit() != null) profitStr = currency.format(fs.netProfit());
-                            }
+                        GeneralLedgerApiClient.FinancialStatementDto fs = glClient.financialStatements(fromDate, toDate);
+                        if (fs != null) {
+                            if (fs.totalAssets() != null) assetsStr = currency.format(fs.totalAssets());
+                            if (fs.totalLiabilities() != null) liabStr = currency.format(fs.totalLiabilities());
+                            if (fs.totalRevenue() != null) revStr = currency.format(fs.totalRevenue());
+                            if (fs.totalExpense() != null) expStr = currency.format(fs.totalExpense());
+                            if (fs.netProfit() != null) profitStr = currency.format(fs.netProfit());
+                        }
 
-                            List<GeneralLedgerApiClient.JournalEntryDto> jeDtos = glClient.journalEntries(fromDate, toDate, null, null);
-                            if (jeDtos != null && !jeDtos.isEmpty()) {
-                                for (GeneralLedgerApiClient.JournalEntryDto je : jeDtos) {
-                                    String drHead = "";
-                                    String crHead = "";
-                                    if (je.lines() != null) {
-                                        for (GeneralLedgerApiClient.JournalLineDto l : je.lines()) {
-                                            if (l.debitAmount() != null && l.debitAmount().compareTo(BigDecimal.ZERO) > 0 && drHead.isBlank()) {
-                                                drHead = l.accountName() != null ? l.accountName() : l.accountCode();
-                                            }
-                                            if (l.creditAmount() != null && l.creditAmount().compareTo(BigDecimal.ZERO) > 0 && crHead.isBlank()) {
-                                                crHead = l.accountName() != null ? l.accountName() : l.accountCode();
-                                            }
-                                        }
+                        int reqSize = qSpec.specialBook() ? Math.max(200, journalPageSize) : journalPageSize;
+                        GeneralLedgerApiClient.PagedJournalResponse pageResp = glClient.journalEntriesPage(
+                                journalCurrentPage, reqSize, qSpec.fromDate(), qSpec.toDate(),
+                                qSpec.entryType(), qSpec.status(), qSpec.query());
+                        if (pageResp != null) {
+                            totalElements = pageResp.totalElements();
+                            totalPages = Math.max(1, pageResp.totalPages());
+                            if (pageResp.rows() != null) {
+                                for (GeneralLedgerApiClient.JournalEntryDto je : pageResp.rows()) {
+                                    JournalRow mapped = mapJournalDto(je);
+                                    if (matchesBookView(mapped, bookFilter)) {
+                                        jRows.add(mapped);
                                     }
-                                    String dtStr = je.entryDate() != null ? BusinessClock.formatDate(je.entryDate()) : "";
-                                    double raw = je.totalDebit() != null ? je.totalDebit().doubleValue() : 0.0;
-                                    jRows.add(new JournalRow(
-                                            je.id(),
-                                            je.entryNumber(),
-                                            dtStr,
-                                            je.entryType(),
-                                            je.referenceNo(),
-                                            je.narration(),
-                                            currency.format(je.totalDebit() != null ? je.totalDebit() : BigDecimal.ZERO),
-                                            currency.format(je.totalCredit() != null ? je.totalCredit() : BigDecimal.ZERO),
-                                            je.status() != null ? je.status() : "POSTED",
-                                            drHead,
-                                            crHead,
-                                            currency.format(je.totalDebit() != null ? je.totalDebit() : BigDecimal.ZERO),
-                                            currency.format(je.totalCredit() != null ? je.totalCredit() : BigDecimal.ZERO),
-                                            raw,
-                                            je.lines() != null ? je.lines() : List.of()
-                                    ));
                                 }
                             }
-
-                            try { plResp = glClient.profitAndLoss(fromDate, toDate); } catch (Exception ignored) {}
-                            try { bsResp = glClient.balanceSheet(toDate); } catch (Exception ignored) {}
-                            try { lockDto = glClient.periodLock(); } catch (Exception ignored) {}
-                        } catch (Exception ignored) {
-                            // Local transaction compilation fallback
                         }
+
+                        plResp = glClient.profitAndLoss(fromDate, toDate);
+                        bsResp = glClient.balanceSheet(toDate);
+                        lockDto = glClient.periodLock();
                     }
-
-                    // 2. If no journals from API, compile from live sales, purchases, and items with authentic Indian GST accounts
-                    if (jRows.isEmpty()) {
-                        List<Sales> sales = salesService.getAll();
-                        List<Purchase> purchases = purchaseService.getAll();
-                        List<Item> items = itemService.getAll();
-
-                        double totalSales = 0.0;
-                        double totalSalesReceived = 0.0;
-                        double totalSalesReceivable = 0.0;
-                        double totalOutputCgst = 0.0;
-                        double totalOutputSgst = 0.0;
-                        double totalOutputIgst = 0.0;
-
-                        String defaultStatus = autoPost ? "POSTED" : "DRAFT";
-
-                        if (sales != null) {
-                            for (Sales s : sales) {
-                                if (s == null) continue;
-                                totalSales += s.getTotalAmount();
-                                totalSalesReceived += s.getPaidAmount();
-                                totalSalesReceivable += s.getBalanceAmount();
-
-                                double gst = s.getGstAmount();
-                                double baseRevenue = Math.max(0.0, s.getTotalAmount() - gst);
-                                boolean isInterState = isInterStateParty(s.getCustomer());
-
-                                if (isInterState) {
-                                    totalOutputIgst += gst;
-                                } else {
-                                    totalOutputCgst += (gst / 2.0);
-                                    totalOutputSgst += (gst / 2.0);
-                                }
-
-                                String inv = s.getInvoiceNo() != null ? s.getInvoiceNo() : "INV-" + s.getId();
-                                String safeNum = inv.replace("INV-", "").replace("SALE-", "");
-                                String partyName = s.getCustomer() != null && s.getCustomer().getName() != null ? s.getCustomer().getName() : "Customer";
-                                String dt = s.getInvoiceDate() != null ? BusinessClock.formatDate(s.getInvoiceDate()) : BusinessClock.formatDate(BusinessClock.today());
-
-                                String crDescription = isInterState
-                                        ? "4020 Inter-State Sales [₹" + String.format(Locale.ROOT, "%.2f", baseRevenue) + "] + 2083 IGST [₹" + String.format(Locale.ROOT, "%.2f", gst) + "]"
-                                        : "4010 Domestic Sales [₹" + String.format(Locale.ROOT, "%.2f", baseRevenue) + "] + 2081 CGST/2082 SGST [₹" + String.format(Locale.ROOT, "%.2f", gst) + "]";
-
-                                jRows.add(new JournalRow(
-                                        "JV-S-" + safeNum,
-                                        dt,
-                                        "SALES",
-                                        inv,
-                                        "Tax Invoice Supply to " + partyName,
-                                        currency.format(s.getTotalAmount()),
-                                        currency.format(s.getTotalAmount()),
-                                        defaultStatus,
-                                        "1040 Sundry Debtors (" + partyName + ")",
-                                        crDescription,
-                                        currency.format(s.getTotalAmount()),
-                                        currency.format(s.getTotalAmount()),
-                                        s.getTotalAmount()
-                                ));
-
-                                if (s.getPaidAmount() > 0.01) {
-                                    jRows.add(new JournalRow(
-                                            "JV-REC-" + safeNum,
-                                            dt,
-                                            "RECEIPT",
-                                            inv,
-                                            "Customer Receipt Settlement from " + partyName,
-                                            currency.format(s.getPaidAmount()),
-                                            currency.format(s.getPaidAmount()),
-                                            "POSTED",
-                                            "1020 Bank Current Account",
-                                            "1040 Sundry Debtors (" + partyName + ")",
-                                            currency.format(s.getPaidAmount()),
-                                            currency.format(s.getPaidAmount()),
-                                            s.getPaidAmount()
-                                    ));
-                                }
-                            }
-                        }
-
-                        double totalPurchases = 0.0;
-                        double totalPurchasesPaid = 0.0;
-                        double totalPurchasesPayable = 0.0;
-                        double totalInputCgst = 0.0;
-                        double totalInputSgst = 0.0;
-                        double totalInputIgst = 0.0;
-
-                        if (purchases != null) {
-                            for (Purchase p : purchases) {
-                                if (p == null) continue;
-                                totalPurchases += p.getTotalAmount();
-                                totalPurchasesPaid += p.getPaidAmount();
-                                totalPurchasesPayable += p.getBalanceAmount();
-
-                                double gst = p.getGstAmount();
-                                double baseCost = Math.max(0.0, p.getTotalAmount() - gst);
-                                boolean isInterState = isInterStateParty(p.getSupplier());
-
-                                if (isInterState) {
-                                    totalInputIgst += gst;
-                                } else {
-                                    totalInputCgst += (gst / 2.0);
-                                    totalInputSgst += (gst / 2.0);
-                                }
-
-                                String bill = p.getInvoiceNo() != null ? p.getInvoiceNo() : "BILL-" + p.getId();
-                                String safeNum = bill.replace("BILL-", "").replace("PUR-", "");
-                                String suppName = p.getSupplier() != null && p.getSupplier().getName() != null ? p.getSupplier().getName() : "Supplier";
-                                String dt = p.getInvoiceDate() != null ? BusinessClock.formatDate(p.getInvoiceDate()) : BusinessClock.formatDate(BusinessClock.today());
-
-                                String drDescription = isInterState
-                                        ? "5020 Raw Material Purchases [₹" + String.format(Locale.ROOT, "%.2f", baseCost) + "] + 1083 Input IGST [₹" + String.format(Locale.ROOT, "%.2f", gst) + "]"
-                                        : "5020 Raw Material Purchases [₹" + String.format(Locale.ROOT, "%.2f", baseCost) + "] + 1081 Input CGST/1082 Input SGST [₹" + String.format(Locale.ROOT, "%.2f", gst) + "]";
-
-                                jRows.add(new JournalRow(
-                                        "JV-P-" + safeNum,
-                                        dt,
-                                        "PURCHASE",
-                                        bill,
-                                        "Inward Supply from " + suppName,
-                                        currency.format(p.getTotalAmount()),
-                                        currency.format(p.getTotalAmount()),
-                                        defaultStatus,
-                                        drDescription,
-                                        "2010 Sundry Creditors (" + suppName + ")",
-                                        currency.format(p.getTotalAmount()),
-                                        currency.format(p.getTotalAmount()),
-                                        p.getTotalAmount()
-                                ));
-
-                                if (p.getPaidAmount() > 0.01) {
-                                    jRows.add(new JournalRow(
-                                            "JV-PAY-" + safeNum,
-                                            dt,
-                                            "PAYMENT",
-                                            bill,
-                                            "Vendor Disbursal Payment to " + suppName,
-                                            currency.format(p.getPaidAmount()),
-                                            currency.format(p.getPaidAmount()),
-                                            "POSTED",
-                                            "2010 Sundry Creditors (" + suppName + ")",
-                                            "1020 Bank Current Account",
-                                            currency.format(p.getPaidAmount()),
-                                            currency.format(p.getPaidAmount()),
-                                            p.getPaidAmount()
-                                    ));
-                                }
-                            }
-                        }
-
-                        double inventoryValuation = 0.0;
-                        if (items != null) {
-                            for (Item i : items) {
-                                if (i == null) continue;
-                                double qty = i.getOpeningStock();
-                                double price = i.getPurchasePrice() > 0 ? i.getPurchasePrice() : (i.getSellingPrice() * 0.7);
-                                if (qty > 0 && price > 0) {
-                                    inventoryValuation += (qty * price);
-                                }
-                            }
-                        }
-
-                        // Zero Mock Data: Authentic balances derived from transaction history
-                        double cashOnHand = 0.0;
-                        double bankBalance = Math.max(0.0, totalSalesReceived - totalPurchasesPaid);
-
-                        double totalInputGst = totalInputCgst + totalInputSgst + totalInputIgst;
-                        double totalOutputGst = totalOutputCgst + totalOutputSgst + totalOutputIgst;
-                        double netGstDue = Math.max(0.0, totalOutputGst - totalInputGst);
-
-                        double totalAssets = cashOnHand + bankBalance + totalSalesReceivable + inventoryValuation + Math.max(0.0, totalInputGst - totalOutputGst);
-                        double totalLiabilities = totalPurchasesPayable + netGstDue;
-                        double netProfit = totalSales - totalPurchases;
-
-                        if (assetsStr == null) assetsStr = currency.format(totalAssets);
-                        if (liabStr == null) liabStr = currency.format(totalLiabilities);
-                        if (revStr == null) revStr = currency.format(totalSales);
-                        if (expStr == null) expStr = currency.format(totalPurchases);
-                        if (profitStr == null) profitStr = currency.format(netProfit);
-
-                        if (aRows.isEmpty()) {
-                            aRows = List.of(
-                                    new AccountRow("1010", "Cash on Hand", "ASSET", "CURRENT_ASSET", "₹ 0.00", currency.format(cashOnHand), "Active"),
-                                    new AccountRow("1020", "Bank Current Account", "ASSET", "BANK_ACCOUNT", "₹ 0.00", currency.format(bankBalance), "Active"),
-                                    new AccountRow("1040", "Sundry Debtors (Receivables)", "ASSET", "CURRENT_ASSET", "₹ 0.00", currency.format(totalSalesReceivable), "Active"),
-                                    new AccountRow("1060", "Stock-in-Trade (Inventory)", "ASSET", "STOCK_IN_HAND", "₹ 0.00", currency.format(inventoryValuation), "Active"),
-                                    new AccountRow("1081", "Input CGST Pool", "ASSET", "TAX_CREDIT", "₹ 0.00", currency.format(totalInputCgst), "Active"),
-                                    new AccountRow("1082", "Input SGST Pool", "ASSET", "TAX_CREDIT", "₹ 0.00", currency.format(totalInputSgst), "Active"),
-                                    new AccountRow("1083", "Input IGST Pool", "ASSET", "TAX_CREDIT", "₹ 0.00", currency.format(totalInputIgst), "Active"),
-                                    new AccountRow("2010", "Sundry Creditors (Payables)", "LIABILITY", "CURRENT_LIABILITY", "₹ 0.00", currency.format(totalPurchasesPayable), "Active"),
-                                    new AccountRow("2081", "Output CGST Payable", "LIABILITY", "DUTIES_AND_TAXES", "₹ 0.00", currency.format(totalOutputCgst), "Active"),
-                                    new AccountRow("2082", "Output SGST Payable", "LIABILITY", "DUTIES_AND_TAXES", "₹ 0.00", currency.format(totalOutputSgst), "Active"),
-                                    new AccountRow("2083", "Output IGST Payable", "LIABILITY", "DUTIES_AND_TAXES", "₹ 0.00", currency.format(totalOutputIgst), "Active"),
-                                    new AccountRow("4010", "Domestic Sales Revenue", "REVENUE", "OPERATING_REVENUE", "₹ 0.00", currency.format(totalSales - (totalOutputCgst + totalOutputSgst + totalOutputIgst)), "Active"),
-                                    new AccountRow("5020", "Raw Material Purchases", "EXPENSE", "DIRECT_EXPENSE", "₹ 0.00", currency.format(totalPurchases - (totalInputCgst + totalInputSgst + totalInputIgst)), "Active")
-                            );
-                        }
-
-                        if (tRows.isEmpty()) {
-                            tRows = List.of(
-                                    new TbRow("1010", "Cash on Hand", "ASSET", "₹ 0.00", "₹ 0.00", "₹ 0.00", currency.format(cashOnHand)),
-                                    new TbRow("1020", "Bank Current Account", "ASSET", "₹ 0.00", currency.format(totalSalesReceived), currency.format(totalPurchasesPaid), currency.format(bankBalance)),
-                                    new TbRow("1040", "Sundry Debtors", "ASSET", "₹ 0.00", currency.format(totalSales), currency.format(totalSalesReceived), currency.format(totalSalesReceivable)),
-                                    new TbRow("1060", "Stock-in-Trade", "ASSET", "₹ 0.00", currency.format(inventoryValuation), "₹ 0.00", currency.format(inventoryValuation)),
-                                    new TbRow("1081", "Input CGST Pool", "ASSET", "₹ 0.00", currency.format(totalInputCgst), "₹ 0.00", currency.format(totalInputCgst)),
-                                    new TbRow("1082", "Input SGST Pool", "ASSET", "₹ 0.00", currency.format(totalInputSgst), "₹ 0.00", currency.format(totalInputSgst)),
-                                    new TbRow("1083", "Input IGST Pool", "ASSET", "₹ 0.00", currency.format(totalInputIgst), "₹ 0.00", currency.format(totalInputIgst)),
-                                    new TbRow("2010", "Sundry Creditors", "LIABILITY", "₹ 0.00", currency.format(totalPurchasesPaid), currency.format(totalPurchases), currency.format(totalPurchasesPayable)),
-                                    new TbRow("2081", "Output CGST Payable", "LIABILITY", "₹ 0.00", "₹ 0.00", currency.format(totalOutputCgst), currency.format(totalOutputCgst)),
-                                    new TbRow("2082", "Output SGST Payable", "LIABILITY", "₹ 0.00", "₹ 0.00", currency.format(totalOutputSgst), currency.format(totalOutputSgst)),
-                                    new TbRow("2083", "Output IGST Payable", "LIABILITY", "₹ 0.00", "₹ 0.00", currency.format(totalOutputIgst), currency.format(totalOutputIgst)),
-                                    new TbRow("4010", "Domestic Sales Revenue", "REVENUE", "₹ 0.00", "₹ 0.00", currency.format(totalSales - (totalOutputCgst + totalOutputSgst + totalOutputIgst)), currency.format(totalSales - (totalOutputCgst + totalOutputSgst + totalOutputIgst))),
-                                    new TbRow("5020", "Raw Material Purchases", "EXPENSE", "₹ 0.00", currency.format(totalPurchases - (totalInputCgst + totalInputSgst + totalInputIgst)), "₹ 0.00", currency.format(totalPurchases - (totalInputCgst + totalInputSgst + totalInputIgst)))
-                            );
-                        }
-                    }
-
-                    if (assetsStr == null) assetsStr = "₹ 0.00";
-                    if (liabStr == null) liabStr = "₹ 0.00";
-                    if (revStr == null) revStr = "₹ 0.00";
-                    if (expStr == null) expStr = "₹ 0.00";
-                    if (profitStr == null) profitStr = "₹ 0.00";
 
                     return new LedgerResult(
-                            assetsStr,
-                            liabStr,
-                            revStr,
-                            expStr,
-                            profitStr,
-                            jRows,
-                            aRows,
-                            tRows,
-                            rawAccounts,
-                            plResp,
-                            bsResp,
-                            lockDto
+                            assetsStr, liabStr, revStr, expStr, profitStr,
+                            jRows, aRows, tRows, rawAccounts, plResp, bsResp, lockDto,
+                            totalElements, totalPages
                     );
                 },
                 result -> {
@@ -1233,11 +1035,17 @@ public class GeneralLedgerController implements ScreenLifecycle {
                     latestPl = result.plResp();
                     latestBs = result.bsResp();
                     latestPeriodLock = result.lockDto();
+                    journalTotalElements = result.journalTotalElements();
+                    journalTotalPages = Math.max(1, result.journalTotalPages());
 
                     updatePeriodLockBadge(latestPeriodLock);
 
                     allJournalRows.setAll(result.journalRows());
-                    filterJournals();
+                    filteredJournalRows.setAll(result.journalRows());
+                    if (tblJournals != null && journalPaginationHost != null) {
+                        tblJournals.setItems(filteredJournalRows);
+                    }
+                    updateServerPaginationControls();
 
                     allAccountRows.setAll(result.accountRows());
                     filterAccounts();
@@ -1248,8 +1056,195 @@ public class GeneralLedgerController implements ScreenLifecycle {
                     populateProfitAndLoss(latestPl);
                     populateBalanceSheet(latestBs);
                 },
-                ex -> AppDialogService.error(tblJournals, "General Ledger Error", "Unable to load financial statements: " + ex.getMessage())
+                ex -> AppDialogService.error(tblJournals, "General Ledger Error",
+                        "Unable to load General Ledger from server: " + ex.getMessage())
         );
+    }
+
+    private record JournalQuerySpec(LocalDate fromDate, LocalDate toDate, String entryType, String status, String query, boolean specialBook) {}
+
+    private JournalQuerySpec resolveJournalQuerySpec(LocalDate from, LocalDate to, String typeFilter, String bookFilter, String query) {
+        LocalDate effFrom = from;
+        LocalDate effTo = to;
+        String effType = (!"All Types".equals(typeFilter) && !typeFilter.isBlank()) ? typeFilter : null;
+        String effStatus = null;
+        boolean special = false;
+        if ("Day Book (Today)".equals(bookFilter)) {
+            LocalDate today = BusinessClock.today();
+            effFrom = today;
+            effTo = today;
+        } else if ("Drafts Only".equals(bookFilter)) {
+            effStatus = "DRAFT";
+        } else if ("Cash & Bank Book".equals(bookFilter) || "GST Ledgers".equals(bookFilter) || "Manual & Reversals".equals(bookFilter)) {
+            special = true;
+        }
+        return new JournalQuerySpec(effFrom, effTo, effType, effStatus, query, special);
+    }
+
+    private static boolean matchesBookView(JournalRow row, String bookFilter) {
+        if (bookFilter == null || "All Vouchers".equals(bookFilter) || "Day Book (Today)".equals(bookFilter) || "Drafts Only".equals(bookFilter)) {
+            return true;
+        }
+        return switch (bookFilter) {
+            case "Cash & Bank Book" -> hasAnyAccountPrefix(row, "1010", "1020")
+                    || "RECEIPT".equalsIgnoreCase(row.entryType())
+                    || "PAYMENT".equalsIgnoreCase(row.entryType())
+                    || "CONTRA".equalsIgnoreCase(row.entryType());
+            case "GST Ledgers" -> hasAnyAccountPrefix(row, "1081", "1082", "1083", "2081", "2082", "2083", "2085");
+            case "Manual & Reversals" -> Set.of("GENERAL", "EXPENSE", "CONTRA", "ADJUSTMENT", "REVERSAL", "CLOSING", "GST_OFFSET")
+                    .contains(safeStr(row.entryType()).toUpperCase(Locale.ROOT));
+            default -> true;
+        };
+    }
+
+    private JournalRow mapJournalDto(GeneralLedgerApiClient.JournalEntryDto je) {
+        String drHead = "";
+        String crHead = "";
+        if (je.lines() != null) {
+            for (GeneralLedgerApiClient.JournalLineDto l : je.lines()) {
+                if (l.debitAmount() != null && l.debitAmount().compareTo(BigDecimal.ZERO) > 0 && drHead.isBlank()) {
+                    drHead = l.accountName() != null ? l.accountName() : l.accountCode();
+                }
+                if (l.creditAmount() != null && l.creditAmount().compareTo(BigDecimal.ZERO) > 0 && crHead.isBlank()) {
+                    crHead = l.accountName() != null ? l.accountName() : l.accountCode();
+                }
+            }
+        }
+        String dtStr = je.entryDate() != null ? BusinessClock.formatDate(je.entryDate()) : "";
+        double raw = je.totalDebit() != null ? je.totalDebit().doubleValue() : 0.0;
+        return new JournalRow(
+                je.id(),
+                je.entryNumber(),
+                dtStr,
+                je.entryType(),
+                je.referenceNo(),
+                je.narration(),
+                currency.format(je.totalDebit() != null ? je.totalDebit() : BigDecimal.ZERO),
+                currency.format(je.totalCredit() != null ? je.totalCredit() : BigDecimal.ZERO),
+                je.status() != null ? je.status() : "POSTED",
+                drHead,
+                crHead,
+                currency.format(je.totalDebit() != null ? je.totalDebit() : BigDecimal.ZERO),
+                currency.format(je.totalCredit() != null ? je.totalCredit() : BigDecimal.ZERO),
+                raw,
+                je.lines() != null ? je.lines() : List.of()
+        );
+    }
+
+    private void buildServerPaginationBar() {
+        lblJournalPageSummary = new Label("Showing 0 Vouchers");
+        lblJournalPageSummary.getStyleClass().add("erp-pagination-summary");
+        lblJournalPageSummary.setMinWidth(Region.USE_PREF_SIZE);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Label lblRows = new Label("Rows per page");
+        lblRows.getStyleClass().add("erp-pagination-label");
+        lblRows.setMinWidth(Region.USE_PREF_SIZE);
+
+        cmbJournalPageSize = new ComboBox<>(FXCollections.observableArrayList(25, 50, 100, 200));
+        cmbJournalPageSize.setValue(journalPageSize);
+        cmbJournalPageSize.getStyleClass().addAll("approved-combobox", "erp-pagination-size-combo");
+        cmbJournalPageSize.setMinWidth(Region.USE_PREF_SIZE);
+        cmbJournalPageSize.valueProperty().addListener((o, oldV, newV) -> {
+            if (newV != null && newV > 0 && newV != journalPageSize) {
+                journalPageSize = newV;
+                journalCurrentPage = 0;
+                loadJournalsPageAsync();
+            }
+        });
+
+        btnJournalFirst = createPageNavButton("«", "First page", () -> goToJournalPage(0));
+        btnJournalPrev = createPageNavButton("‹", "Previous page", () -> goToJournalPage(journalCurrentPage - 1));
+        lblJournalPageNum = new Label("1 / 1");
+        lblJournalPageNum.getStyleClass().add("erp-pagination-page-pill");
+        lblJournalPageNum.setMinWidth(Region.USE_PREF_SIZE);
+        btnJournalNext = createPageNavButton("›", "Next page", () -> goToJournalPage(journalCurrentPage + 1));
+        btnJournalLast = createPageNavButton("»", "Last page", () -> goToJournalPage(Math.max(0, journalTotalPages - 1)));
+
+        HBox navGroup = new HBox(4, btnJournalFirst, btnJournalPrev, lblJournalPageNum, btnJournalNext, btnJournalLast);
+        navGroup.setAlignment(Pos.CENTER_RIGHT);
+
+        HBox bar = new HBox(10, lblJournalPageSummary, spacer, lblRows, cmbJournalPageSize, navGroup);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.setPadding(new Insets(6, 4, 2, 4));
+        bar.getStyleClass().add("erp-pagination-bar");
+        HBox.setHgrow(bar, Priority.ALWAYS);
+        journalPaginationHost.getChildren().setAll(bar);
+        tblJournals.setItems(filteredJournalRows);
+    }
+
+    private Button createPageNavButton(String text, String tip, Runnable action) {
+        Button b = new Button(text);
+        b.getStyleClass().addAll("approved-button", "erp-pagination-nav-btn");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setTooltip(new Tooltip(tip));
+        b.setOnAction(e -> action.run());
+        return b;
+    }
+
+    private void goToJournalPage(int targetPage) {
+        int clamped = Math.max(0, Math.min(targetPage, Math.max(0, journalTotalPages - 1)));
+        if (clamped != journalCurrentPage) {
+            journalCurrentPage = clamped;
+            loadJournalsPageAsync();
+        }
+    }
+
+    private void loadJournalsPageAsync() {
+        if (initializingFilters) return;
+        final LocalDate fromDate = dpFromDate != null ? dpFromDate.getValue() : null;
+        final LocalDate toDate = dpToDate != null ? dpToDate.getValue() : null;
+        final String searchQuery = txtJournalSearch != null && txtJournalSearch.getText() != null ? txtJournalSearch.getText().trim() : "";
+        final String typeFilter = cmbVoucherFilter != null && cmbVoucherFilter.getValue() != null ? cmbVoucherFilter.getValue() : "All Types";
+        final String bookFilter = cmbQuickBookFilter != null && cmbQuickBookFilter.getValue() != null ? cmbQuickBookFilter.getValue() : "All Vouchers";
+        final JournalQuerySpec qSpec = resolveJournalQuerySpec(fromDate, toDate, typeFilter, bookFilter, searchQuery);
+
+        UiTaskExecutor.submitLatest("gl-journal-page", () -> {
+            if (!ConfigManager.getBoolean("module.gl.enabled", true)) {
+                return new GeneralLedgerApiClient.PagedJournalResponse(List.of(), 0, journalPageSize, 0L, 1);
+            }
+            int reqSize = qSpec.specialBook() ? Math.max(200, journalPageSize) : journalPageSize;
+            return glClient.journalEntriesPage(journalCurrentPage, reqSize, qSpec.fromDate(), qSpec.toDate(),
+                    qSpec.entryType(), qSpec.status(), qSpec.query());
+        }, pageResp -> {
+            List<JournalRow> rows = new ArrayList<>();
+            if (pageResp != null && pageResp.rows() != null) {
+                for (GeneralLedgerApiClient.JournalEntryDto je : pageResp.rows()) {
+                    JournalRow mapped = mapJournalDto(je);
+                    if (matchesBookView(mapped, bookFilter)) {
+                        rows.add(mapped);
+                    }
+                }
+            }
+            journalTotalElements = pageResp != null ? pageResp.totalElements() : 0L;
+            journalTotalPages = pageResp != null ? Math.max(1, pageResp.totalPages()) : 1;
+            allJournalRows.setAll(rows);
+            filteredJournalRows.setAll(rows);
+            updateServerPaginationControls();
+        }, ex -> AppDialogService.error(tblJournals, "Journal Load Error", "Failed to load journal vouchers: " + ex.getMessage()));
+    }
+
+    private void updateServerPaginationControls() {
+        int dispPage = journalCurrentPage + 1;
+        int pages = Math.max(1, journalTotalPages);
+        int shown = filteredJournalRows.size();
+        if (lblJournalPageSummary != null) {
+            if (shown == 0) {
+                lblJournalPageSummary.setText("Showing 0 Vouchers");
+            } else {
+                long fromIdx = (long) journalCurrentPage * journalPageSize + 1L;
+                long toIdx = fromIdx + shown - 1L;
+                lblJournalPageSummary.setText(String.format(Locale.ENGLISH, "Showing %,d–%,d of %,d Vouchers",
+                        fromIdx, Math.max(fromIdx, Math.max(toIdx, shown)), Math.max(journalTotalElements, shown)));
+            }
+        }
+        if (lblJournalPageNum != null) lblJournalPageNum.setText(dispPage + " / " + pages);
+        if (btnJournalFirst != null) btnJournalFirst.setDisable(journalCurrentPage <= 0);
+        if (btnJournalPrev != null) btnJournalPrev.setDisable(journalCurrentPage <= 0);
+        if (btnJournalNext != null) btnJournalNext.setDisable(dispPage >= pages);
+        if (btnJournalLast != null) btnJournalLast.setDisable(dispPage >= pages);
     }
 
     private void updatePeriodLockBadge(GeneralLedgerApiClient.PeriodLockDto lock) {
@@ -1748,6 +1743,231 @@ public class GeneralLedgerController implements ScreenLifecycle {
     }
 
     @FXML
+    public void openHealthCheckDialog() {
+        PermissionService.require("GENERAL_LEDGER.VIEW", "view GL reconciliation health check");
+        UiTaskExecutor.submitLatest("gl-reconciliation-health", glClient::reconciliationHealth, health -> {
+            OwnedDialog<ButtonType> dlg = new OwnedDialog<>(tblJournals);
+            dlg.setTitle("GL Control Account & Posting Health Audit");
+            dlg.setResizable(true);
+            DialogPane pane = dlg.getDialogPane();
+            pane.getStyleClass().addAll("dse-dialog-pane", "approved-dialog", "comm-inspection-dialog", "erp-responsive-dialog");
+            PopupTableWorkspace.applyWideWorkspace90(dlg, tblJournals);
+
+            Label lblKicker = new Label("AUDIT & RECONCILIATION  •  GL vs SUB-LEDGER INTEGRITY");
+            lblKicker.getStyleClass().addAll("comm-hero-kicker", "comm-kicker-email");
+            Label lblTitle = new Label(health.healthy() ? "General Ledger Books Healthy & Synchronized" : "Reconciliation Variances or Unposted Documents Found");
+            lblTitle.getStyleClass().add("stock-ledger-title");
+            Label statusPill = new Label(health.healthy() ? "HEALTHY" : (health.mismatchCount() + " VARIANCES • " + health.unpostedCount() + " UNPOSTED"));
+            statusPill.getStyleClass().addAll("status-pill", health.healthy() ? "pill-success" : "pill-warning");
+
+            VBox heroText = new VBox(2, lblKicker, lblTitle);
+            HBox.setHgrow(heroText, Priority.ALWAYS);
+            HBox hero = new HBox(12, IconFactory.icon("reconciliation", 24), heroText, statusPill);
+            hero.setAlignment(Pos.CENTER_LEFT);
+            hero.setPadding(new Insets(12, 18, 12, 18));
+            hero.getStyleClass().addAll("comm-hero-banner", "comm-hero-email");
+            DocumentInspectionScaffold.installDragPhysics(hero, dlg);
+
+            TableView<GeneralLedgerApiClient.ReconciliationControlRow> tblCtrl = new TableView<>();
+            tblCtrl.setPrefHeight(260);
+            tblCtrl.setMinHeight(180);
+            VBox.setVgrow(tblCtrl, Priority.ALWAYS);
+            TableColumn<GeneralLedgerApiClient.ReconciliationControlRow, String> cArea = new TableColumn<>("Control Area");
+            cArea.setCellValueFactory(v -> new SimpleStringProperty(safeStr(v.getValue().area())));
+            TableColumn<GeneralLedgerApiClient.ReconciliationControlRow, String> cAcc = new TableColumn<>("Account");
+            cAcc.setCellValueFactory(v -> new SimpleStringProperty(safeStr(v.getValue().accountCode()) + " " + safeStr(v.getValue().accountName())));
+            TableColumn<GeneralLedgerApiClient.ReconciliationControlRow, String> cGl = new TableColumn<>("GL Balance (₹)");
+            cGl.setCellValueFactory(v -> new SimpleStringProperty(currency.format(nz(v.getValue().glBalance()))));
+            TableColumn<GeneralLedgerApiClient.ReconciliationControlRow, String> cSub = new TableColumn<>("Sub-Ledger (₹)");
+            cSub.setCellValueFactory(v -> new SimpleStringProperty(currency.format(nz(v.getValue().subledgerBalance()))));
+            TableColumn<GeneralLedgerApiClient.ReconciliationControlRow, String> cVar = new TableColumn<>("Variance (₹)");
+            cVar.setCellValueFactory(v -> new SimpleStringProperty(currency.format(nz(v.getValue().variance()))));
+            TableColumn<GeneralLedgerApiClient.ReconciliationControlRow, String> cSt = new TableColumn<>("Status");
+            cSt.setCellValueFactory(v -> new SimpleStringProperty(safeStr(v.getValue().status())));
+            tblCtrl.getColumns().addAll(List.of(cArea, cAcc, cGl, cSub, cVar, cSt));
+            tblCtrl.setItems(FXCollections.observableArrayList(health.controls() != null ? health.controls() : List.of()));
+            DynamicTableLayoutManager.install(tblCtrl);
+
+            TableView<GeneralLedgerApiClient.UnpostedDocRow> tblUnposted = new TableView<>();
+            tblUnposted.setPrefHeight(360);
+            tblUnposted.setMinHeight(220);
+            VBox.setVgrow(tblUnposted, Priority.ALWAYS);
+            TableColumn<GeneralLedgerApiClient.UnpostedDocRow, String> uType = new TableColumn<>("Type");
+            uType.setCellValueFactory(v -> new SimpleStringProperty(safeStr(v.getValue().docType())));
+            TableColumn<GeneralLedgerApiClient.UnpostedDocRow, String> uNo = new TableColumn<>("Document No");
+            uNo.setCellValueFactory(v -> new SimpleStringProperty(safeStr(v.getValue().docNo())));
+            TableColumn<GeneralLedgerApiClient.UnpostedDocRow, String> uDt = new TableColumn<>("Date");
+            uDt.setCellValueFactory(v -> new SimpleStringProperty(BusinessClock.formatDate(v.getValue().date())));
+            TableColumn<GeneralLedgerApiClient.UnpostedDocRow, String> uAmt = new TableColumn<>("Amount (₹)");
+            uAmt.setCellValueFactory(v -> new SimpleStringProperty(currency.format(nz(v.getValue().amount()))));
+            TableColumn<GeneralLedgerApiClient.UnpostedDocRow, String> uSt = new TableColumn<>("Status");
+            uSt.setCellValueFactory(v -> new SimpleStringProperty(safeStr(v.getValue().status())));
+            tblUnposted.getColumns().addAll(List.of(uType, uNo, uDt, uAmt, uSt));
+            tblUnposted.setItems(FXCollections.observableArrayList(health.unpostedDocuments() != null ? health.unpostedDocuments() : List.of()));
+            tblUnposted.setPlaceholder(new Label("All posted operational documents have valid GL entries."));
+            DynamicTableLayoutManager.install(tblUnposted);
+
+            Label lbl1 = new Label("1. Control Account vs Operational Sub-Ledger Reconciliation");
+            lbl1.getStyleClass().add("section-title");
+            Label lbl2 = new Label("2. Operational Documents Missing GL Journal Entry");
+            lbl2.getStyleClass().add("section-title");
+
+            Button btnClose = new Button("Close");
+            btnClose.setGraphic(IconFactory.compactIcon("cancel", 14));
+            btnClose.getStyleClass().addAll("approved-button", "approved-secondary-button");
+            btnClose.setOnAction(e -> dlg.close());
+            HBox dock = new HBox(10, new Region(), btnClose);
+            HBox.setHgrow(dock.getChildren().getFirst(), Priority.ALWAYS);
+            dock.getStyleClass().add("erp-inspection-action-dock");
+
+            VBox body = new VBox(12, lbl1, tblCtrl, lbl2, tblUnposted, dock);
+            body.setPadding(new Insets(14, 20, 14, 20));
+            body.setFillWidth(true);
+            VBox.setVgrow(body, Priority.ALWAYS);
+            VBox root = new VBox(0, hero, body);
+            root.setFillWidth(true);
+            root.getStyleClass().addAll("dse-dialog-shell", "dse-dialog-shell-workspace", "comm-inspection-shell");
+            pane.setContent(root);
+            pane.getButtonTypes().add(ButtonType.CLOSE);
+            dlg.setOnShowing(ev -> {
+                Node bb = pane.lookup(".button-bar");
+                if (bb != null) { bb.setVisible(false); bb.setManaged(false); }
+            });
+            dlg.showAndWait();
+        }, ex -> AppDialogService.error(tblJournals, "Health Check Failed", "Could not run GL Health Check: " + ex.getMessage()));
+    }
+
+    @FXML
+    public void openCloseYearDialog() {
+        PermissionService.require("GENERAL_LEDGER.CLOSE_YEAR", "close fiscal year and transfer net profit");
+        OwnedDialog<ButtonType> dlg = new OwnedDialog<>(tblJournals);
+        dlg.setTitle("Fiscal Year-End Closing Wizard");
+        dlg.setResizable(true);
+        DialogPane pane = dlg.getDialogPane();
+        pane.getStyleClass().addAll("dse-dialog-pane", "approved-dialog", "comm-inspection-dialog", "erp-responsive-dialog");
+        PopupTableWorkspace.prepareDialog(dlg, 820);
+        pane.setPrefSize(820, 580);
+        pane.setMinSize(760, 560);
+
+        LocalDate today = BusinessClock.today();
+        int fyStartYear = today.getMonthValue() >= 4 ? today.getYear() - 1 : today.getYear() - 2;
+        LocalDate defFrom = LocalDate.of(fyStartYear, 4, 1);
+        LocalDate defTo = LocalDate.of(fyStartYear + 1, 3, 31);
+        String defLabel = "FY " + fyStartYear + "-" + String.format("%02d", (fyStartYear + 1) % 100);
+
+        TextField txtLabel = new TextField(defLabel);
+        txtLabel.getStyleClass().add("approved-input");
+        DatePicker dpFyFrom = new DatePicker(defFrom);
+        DatePicker dpFyTo = new DatePicker(defTo);
+        DatePickerFormatter.attachAll(dpFyFrom, dpFyTo);
+        CheckBox chkLock = new CheckBox("Immediately lock accounting period through " + BusinessClock.formatDate(defTo));
+        chkLock.setSelected(true);
+        chkLock.getStyleClass().add("approved-checkbox");
+        dpFyTo.valueProperty().addListener((o, a, nv) -> {
+            if (nv != null) chkLock.setText("Immediately lock accounting period through " + BusinessClock.formatDate(nv));
+        });
+
+        Label lblKicker = new Label("FISCAL YEAR CLOSE  •  REVENUE & EXPENSE TRANSFER TO RETAINED EARNINGS");
+        lblKicker.getStyleClass().addAll("comm-hero-kicker", "comm-kicker-email");
+        Label lblTitle = new Label("Close Fiscal Year");
+        lblTitle.getStyleClass().add("stock-ledger-title");
+        VBox heroText = new VBox(2, lblKicker, lblTitle);
+        HBox.setHgrow(heroText, Priority.ALWAYS);
+        HBox hero = new HBox(12, IconFactory.icon("calendar", 22), heroText);
+        hero.setAlignment(Pos.CENTER_LEFT);
+        hero.setPadding(new Insets(12, 18, 12, 18));
+        hero.getStyleClass().addAll("comm-hero-banner", "comm-hero-email");
+        DocumentInspectionScaffold.installDragPhysics(hero, dlg);
+
+        Label warn = new Label("Executing Fiscal Year Close zeros out net Revenue and Expense balances for the selected period into Retained Earnings (3020) via an audited CLOSING journal voucher.");
+        warn.setWrapText(true);
+        warn.setMaxWidth(Double.MAX_VALUE);
+        warn.setMinHeight(Region.USE_PREF_SIZE);
+        warn.getStyleClass().add("page-subtitle");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(14);
+        grid.setVgap(12);
+        grid.add(new Label("Fiscal Year Label"), 0, 0);
+        grid.add(txtLabel, 1, 0);
+        grid.add(new Label("FY Start Date"), 0, 1);
+        grid.add(dpFyFrom, 1, 1);
+        grid.add(new Label("FY End Date"), 0, 2);
+        grid.add(dpFyTo, 1, 2);
+        grid.add(chkLock, 1, 3);
+
+        Button btnExecute = new Button("Post Closing Voucher");
+        btnExecute.setGraphic(IconFactory.compactIcon("check", 14));
+        btnExecute.getStyleClass().addAll("approved-button", "approved-primary-button");
+        Button btnCancel = new Button("Cancel");
+        btnCancel.setGraphic(IconFactory.compactIcon("cancel", 14));
+        btnCancel.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnCancel.setOnAction(e -> dlg.close());
+
+        btnExecute.setOnAction(e -> {
+            String fyLabel = txtLabel.getText() == null ? "" : txtLabel.getText().trim();
+            LocalDate from = dpFyFrom.getValue();
+            LocalDate to = dpFyTo.getValue();
+            if (fyLabel.isBlank() || from == null || to == null || to.isBefore(from)) {
+                AppDialogService.warning(pane, "Invalid Period", "Specify a valid Fiscal Year label and date range.");
+                return;
+            }
+            if (!AppDialogService.confirm(pane, "Confirm Year-End Close",
+                    "Close " + fyLabel + " (" + BusinessClock.formatDate(from) + " to " + BusinessClock.formatDate(to) + ")?",
+                    "This posts an official CLOSING voucher transferring net profit/loss to Retained Earnings (3020).")) {
+                return;
+            }
+            btnExecute.setDisable(true);
+            UiTaskExecutor.submitAction("gl-close-fy", () -> {
+                var u = org.example.service.SessionService.current();
+                String actor = u != null && u.getUsername() != null ? u.getUsername() : "admin";
+                return glClient.closeFiscalYear(new GeneralLedgerApiClient.FiscalYearCloseRequest(
+                        fyLabel, from, to, chkLock.isSelected(), actor));
+            }, res -> {
+                dlg.close();
+                AppDialogService.success(tblJournals, "Fiscal Year Closed",
+                        "Closing Voucher: " + res.entryNumber() + "\n" + res.message());
+                loadLedgerDataAsync();
+            }, err -> {
+                btnExecute.setDisable(false);
+                String msg = err != null && err.getMessage() != null ? err.getMessage() : "Unable to close fiscal year.";
+                String cleanMsg = msg.replaceAll("(?s)\\n\\nTip: Reload the record.*", "").trim();
+                boolean isBusinessNotice = cleanMsg.contains("No Revenue or Expense movements")
+                        || cleanMsg.contains("already closed")
+                        || cleanMsg.contains("BUSINESS_CONFLICT")
+                        || msg.contains("Tip: Reload the record");
+                if (isBusinessNotice) {
+                    AppDialogService.warning(pane, "Cannot Close Fiscal Year", cleanMsg);
+                } else {
+                    AppDialogService.error(pane, "Year-End Close Failed", cleanMsg);
+                }
+            });
+        });
+
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+        HBox dock = new HBox(10, btnExecute, sp, btnCancel);
+        dock.getStyleClass().add("erp-inspection-action-dock");
+
+        Region bodySpacer = new Region();
+        VBox.setVgrow(bodySpacer, Priority.ALWAYS);
+        VBox body = new VBox(14, warn, grid, bodySpacer, dock);
+        body.setPadding(new Insets(14, 20, 14, 20));
+        body.setFillWidth(true);
+        VBox.setVgrow(body, Priority.ALWAYS);
+        VBox root = new VBox(0, hero, body);
+        root.setFillWidth(true);
+        root.getStyleClass().addAll("dse-dialog-shell", "dse-dialog-shell-workspace", "comm-inspection-shell");
+        pane.setContent(root);
+        pane.getButtonTypes().add(ButtonType.CLOSE);
+        dlg.setOnShowing(ev -> {
+            Node bb = pane.lookup(".button-bar");
+            if (bb != null) { bb.setVisible(false); bb.setManaged(false); }
+        });
+        dlg.showAndWait();
+    }
+
+    @FXML
     public void applyPeriodFilter() {
         if (cmbPeriodPreset != null) {
             cmbPeriodPreset.setValue("Custom Range");
@@ -1761,6 +1981,39 @@ public class GeneralLedgerController implements ScreenLifecycle {
         if (dpToDate != null) dpToDate.setValue(null);
         if (cmbPeriodPreset != null) cmbPeriodPreset.setValue("All Time");
         loadLedgerDataAsync();
+    }
+
+    @FXML
+    public void exportCsv() {
+        PermissionService.require("GENERAL_LEDGER.EXPORT", "export general ledger CSV");
+        File file = ExportFeedbackManager.resolveWorkspaceExportFile("GeneralLedger", "General_Ledger_Journals", "csv");
+        if (!ExportFeedbackManager.checkFileWriteable(tblJournals, file)) return;
+
+        try (java.io.PrintWriter out = new java.io.PrintWriter(file, java.nio.charset.StandardCharsets.UTF_8)) {
+            out.println("Entry #,Date,Voucher Type,Reference,Narration,Debit,Credit,Status");
+            for (JournalRow row : filteredJournalRows) {
+                out.printf("%s,%s,%s,%s,%s,%.2f,%.2f,%s%n",
+                        csvEscape(row.entryNumber()),
+                        csvEscape(row.entryDate()),
+                        csvEscape(row.entryType()),
+                        csvEscape(row.referenceNo()),
+                        csvEscape(row.narration()),
+                        parseMoney(row.totalDebit()).doubleValue(),
+                        parseMoney(row.totalCredit()).doubleValue(),
+                        csvEscape(row.status()));
+            }
+            ExportFeedbackManager.notifyExportSuccess(tblJournals, file, "General Ledger CSV Export");
+        } catch (Exception e) {
+            AppDialogService.error(tblJournals, "Export failed", "Could not write CSV file", e.getMessage());
+        }
+    }
+
+    private static String csvEscape(String value) {
+        String s = value == null ? "" : value;
+        if (s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r")) {
+            return "\"" + s.replace("\"", "\"\"") + "\"";
+        }
+        return s;
     }
 
     @FXML
@@ -1902,82 +2155,52 @@ public class GeneralLedgerController implements ScreenLifecycle {
             String company = BrandingService.companyName();
             String periodLabel = lblActivePeriodInfo != null ? lblActivePeriodInfo.getText() : "All Time";
 
-            // Page 1: Executive Financial Summary + Profit & Loss
-            PDPage p1 = new PDPage(PDRectangle.A4);
-            doc.addPage(p1);
-            try (PDPageContentStream cs = new PDPageContentStream(doc, p1)) {
-                float y = 800;
-                cs.beginText(); cs.setFont(bold, 15); cs.newLineAtOffset(42, y);
-                cs.showText(sanitizePdf(company + " — Financial Statement Pack")); cs.endText();
-                y -= 18;
-                cs.beginText(); cs.setFont(regular, 10); cs.newLineAtOffset(42, y);
-                cs.showText(sanitizePdf(periodLabel + "   |   Generated: " + BusinessClock.formatDate(BusinessClock.today()))); cs.endText();
-                y -= 26;
-
-                cs.beginText(); cs.setFont(bold, 12); cs.newLineAtOffset(42, y);
-                cs.showText("1. Profit & Loss Summary"); cs.endText();
-                y -= 18;
-                String[] plSummary = {
-                        "Operating Revenue: " + (kpiTotalRevenue != null ? kpiTotalRevenue.getText() : "0.00"),
-                        "Total Expenses: " + (kpiTotalExpense != null ? kpiTotalExpense.getText() : "0.00"),
-                        "Net Profit / Loss: " + (kpiNetProfit != null ? kpiNetProfit.getText() : "0.00")
-                };
-                for (String line : plSummary) {
-                    cs.beginText(); cs.setFont(regular, 10); cs.newLineAtOffset(52, y);
-                    cs.showText(sanitizePdf(line)); cs.endText();
-                    y -= 15;
-                }
-                y -= 10;
-                for (PlRow row : filteredPlRows) {
-                    if (y < 70) break;
-                    cs.beginText(); cs.setFont(regular, 9); cs.newLineAtOffset(42, y);
-                    cs.showText(sanitizePdf(String.format("%-16s %-8s %-38s %16s",
-                            trimTo(row.section(), 15), trimTo(row.code(), 7), trimTo(row.name(), 36), row.amount())));
-                    cs.endText();
-                    y -= 13;
-                }
-
-                y -= 18;
-                if (y > 140) {
-                    cs.beginText(); cs.setFont(bold, 12); cs.newLineAtOffset(42, y);
-                    cs.showText("2. Balance Sheet Snapshot"); cs.endText();
-                    y -= 16;
-                    cs.beginText(); cs.setFont(regular, 10); cs.newLineAtOffset(52, y);
-                    cs.showText(sanitizePdf((lblBsTotalAssets != null ? lblBsTotalAssets.getText() : "") + "   |   "
-                            + (lblBsTotalLiab != null ? lblBsTotalLiab.getText() : "") + "   |   "
-                            + (lblBsTotalEquity != null ? lblBsTotalEquity.getText() : "")));
-                    cs.endText();
-                }
+            PdfPackWriter pdf = new PdfPackWriter(doc, bold, regular, company, periodLabel);
+            pdf.heading("1. Profit & Loss Statement");
+            pdf.line("Operating Revenue: " + (kpiTotalRevenue != null ? kpiTotalRevenue.getText() : "0.00")
+                    + "   |   Total Expenses: " + (kpiTotalExpense != null ? kpiTotalExpense.getText() : "0.00")
+                    + "   |   Net Profit: " + (kpiNetProfit != null ? kpiNetProfit.getText() : "0.00"), false);
+            pdf.gap(6);
+            pdf.tableHeader(String.format("%-16s %-8s %-38s %16s", "Section", "Code", "Account Head", "Amount (Rs.)"));
+            for (PlRow row : filteredPlRows) {
+                pdf.row(String.format("%-16s %-8s %-38s %16s",
+                        trimTo(row.section(), 15), trimTo(row.code(), 7), trimTo(row.name(), 36), row.amount()),
+                        String.format("%-16s %-8s %-38s %16s", "Section", "Code", "Account Head", "Amount (Rs.)"));
             }
 
-            // Page 2: Trial Balance
-            PDPage p2 = new PDPage(PDRectangle.A4);
-            doc.addPage(p2);
-            try (PDPageContentStream cs = new PDPageContentStream(doc, p2)) {
-                float y = 800;
-                cs.beginText(); cs.setFont(bold, 13); cs.newLineAtOffset(42, y);
-                cs.showText(sanitizePdf("3. Trial Balance — " + periodLabel)); cs.endText();
-                y -= 20;
-                cs.beginText(); cs.setFont(bold, 9); cs.newLineAtOffset(42, y);
-                cs.showText(String.format("%-8s %-30s %-10s %14s %14s %14s", "Code", "Account Head", "Type", "Debit", "Credit", "Closing"));
-                cs.endText();
-                y -= 14;
-                for (TbRow tb : filteredTbRows) {
-                    if (y < 70) break;
-                    cs.beginText(); cs.setFont(regular, 8.5f); cs.newLineAtOffset(42, y);
-                    cs.showText(sanitizePdf(String.format("%-8s %-30s %-10s %14s %14s %14s",
-                            trimTo(tb.code(), 7), trimTo(tb.name(), 28), trimTo(tb.type(), 9),
-                            tb.debit(), tb.credit(), tb.closing())));
-                    cs.endText();
-                    y -= 13;
-                }
-                y -= 10;
-                cs.beginText(); cs.setFont(bold, 9.5f); cs.newLineAtOffset(42, y);
-                cs.showText(sanitizePdf((lblTbTotalDebit != null ? lblTbTotalDebit.getText() : "") + "   |   "
-                        + (lblTbTotalCredit != null ? lblTbTotalCredit.getText() : "") + "   |   "
-                        + (lblTbBalancePill != null ? lblTbBalancePill.getText() : "")));
-                cs.endText();
+            pdf.heading("2. Balance Sheet — Assets, Liabilities & Equity");
+            pdf.line((lblBsTotalAssets != null ? lblBsTotalAssets.getText() : "") + "   |   "
+                    + (lblBsTotalLiab != null ? lblBsTotalLiab.getText() : "") + "   |   "
+                    + (lblBsTotalEquity != null ? lblBsTotalEquity.getText() : "") + "   |   "
+                    + (lblBsTallyPill != null ? lblBsTallyPill.getText() : ""), true);
+            pdf.gap(6);
+            String bsColHdr = String.format("%-8s %-34s %-22s %16s", "Code", "Asset / Account Head", "Subtype", "Balance (Rs.)");
+            pdf.tableHeader(bsColHdr);
+            for (BsRow a : bsAssetRows) {
+                pdf.row(String.format("%-8s %-34s %-22s %16s",
+                        trimTo(a.code(), 7), trimTo(a.name(), 32), trimTo(a.subtype(), 20), a.balance()), bsColHdr);
             }
+            pdf.gap(8);
+            String leColHdr = String.format("%-8s %-34s %-22s %16s", "Code", "Liability / Equity Head", "Category", "Balance (Rs.)");
+            pdf.tableHeader(leColHdr);
+            for (BsRow le : bsLeRows) {
+                pdf.row(String.format("%-8s %-34s %-22s %16s",
+                        trimTo(le.code(), 7), trimTo(le.name(), 32), trimTo(le.subtype(), 20), le.balance()), leColHdr);
+            }
+
+            pdf.newPage("3. Trial Balance — " + periodLabel);
+            String tbColHdr = String.format("%-8s %-30s %-10s %14s %14s %14s", "Code", "Account Head", "Type", "Debit", "Credit", "Closing");
+            pdf.tableHeader(tbColHdr);
+            for (TbRow tb : filteredTbRows) {
+                pdf.row(String.format("%-8s %-30s %-10s %14s %14s %14s",
+                        trimTo(tb.code(), 7), trimTo(tb.name(), 28), trimTo(tb.type(), 9),
+                        tb.debit(), tb.credit(), tb.closing()), tbColHdr);
+            }
+            pdf.gap(8);
+            pdf.line((lblTbTotalDebit != null ? lblTbTotalDebit.getText() : "") + "   |   "
+                    + (lblTbTotalCredit != null ? lblTbTotalCredit.getText() : "") + "   |   "
+                    + (lblTbBalancePill != null ? lblTbBalancePill.getText() : ""), true);
+            pdf.close();
 
             doc.save(file);
             ExportFeedbackManager.notifyExportSuccess(tblJournals, file, "Financial Statement Pack PDF");
@@ -1986,55 +2209,92 @@ public class GeneralLedgerController implements ScreenLifecycle {
         }
     }
 
+    private final class PdfPackWriter {
+        private final PDDocument doc;
+        private final PDType1Font bold;
+        private final PDType1Font regular;
+        private final String company;
+        private final String periodLabel;
+        private PDPageContentStream cs;
+        private float y;
+        private int pageNum = 0;
+
+        PdfPackWriter(PDDocument doc, PDType1Font bold, PDType1Font regular, String company, String periodLabel) throws java.io.IOException {
+            this.doc = doc;
+            this.bold = bold;
+            this.regular = regular;
+            this.company = company;
+            this.periodLabel = periodLabel;
+            startPage(company + " — Financial Statement Pack", true);
+        }
+
+        private void startPage(String banner, boolean showPeriodMeta) throws java.io.IOException {
+            if (cs != null) cs.close();
+            PDPage page = new PDPage(PDRectangle.A4);
+            doc.addPage(page);
+            cs = new PDPageContentStream(doc, page);
+            pageNum++;
+            y = 800f;
+            cs.beginText(); cs.setFont(bold, pageNum == 1 ? 14 : 11); cs.newLineAtOffset(42, y);
+            cs.showText(sanitizePdf(banner + (pageNum > 1 ? " (Page " + pageNum + ")" : ""))); cs.endText();
+            y -= 17;
+            if (showPeriodMeta) {
+                cs.beginText(); cs.setFont(regular, 9.5f); cs.newLineAtOffset(42, y);
+                cs.showText(sanitizePdf(periodLabel + "   |   Generated: " + BusinessClock.formatDate(BusinessClock.today())));
+                cs.endText();
+                y -= 20;
+            }
+        }
+
+        void newPage(String title) throws java.io.IOException {
+            startPage(title, false);
+        }
+
+        void heading(String title) throws java.io.IOException {
+            if (y < 110) startPage(company + " — Financial Statement Pack (Cont.)", false);
+            y -= 8;
+            cs.beginText(); cs.setFont(bold, 11.5f); cs.newLineAtOffset(42, y);
+            cs.showText(sanitizePdf(title)); cs.endText();
+            y -= 16;
+        }
+
+        void tableHeader(String hdr) throws java.io.IOException {
+            if (y < 85) startPage(company + " — Financial Statement Pack (Cont.)", false);
+            cs.beginText(); cs.setFont(bold, 8.5f); cs.newLineAtOffset(42, y);
+            cs.showText(sanitizePdf(hdr)); cs.endText();
+            y -= 13;
+        }
+
+        void line(String text, boolean useBold) throws java.io.IOException {
+            if (y < 65) startPage(company + " — Financial Statement Pack (Cont.)", false);
+            cs.beginText(); cs.setFont(useBold ? bold : regular, 9.2f); cs.newLineAtOffset(42, y);
+            cs.showText(sanitizePdf(text)); cs.endText();
+            y -= 14;
+        }
+
+        void row(String rowText, String repeatColHdr) throws java.io.IOException {
+            if (y < 60) {
+                startPage(company + " — Financial Statement Pack (Cont.)", false);
+                tableHeader(repeatColHdr);
+            }
+            cs.beginText(); cs.setFont(regular, 8.5f); cs.newLineAtOffset(42, y);
+            cs.showText(sanitizePdf(rowText)); cs.endText();
+            y -= 12.5f;
+        }
+
+        void gap(float pts) {
+            y -= pts;
+        }
+
+        void close() throws java.io.IOException {
+            if (cs != null) cs.close();
+        }
+    }
+
     @FXML
     public void filterJournals() {
-        String q = txtJournalSearch != null && txtJournalSearch.getText() != null ? txtJournalSearch.getText().trim().toLowerCase(Locale.ROOT) : "";
-        String typeFilter = cmbVoucherFilter != null && cmbVoucherFilter.getValue() != null ? cmbVoucherFilter.getValue() : "All Types";
-        String bookFilter = cmbQuickBookFilter != null && cmbQuickBookFilter.getValue() != null ? cmbQuickBookFilter.getValue() : "All Vouchers";
-        String todayFormatted = BusinessClock.formatDate(BusinessClock.today());
-
-        filteredJournalRows.setAll(allJournalRows.stream().filter(row -> {
-            if (!typeFilter.equals("All Types") && !safeStr(row.entryType()).equalsIgnoreCase(typeFilter)) return false;
-
-            if (!"All Vouchers".equals(bookFilter)) {
-                boolean bookOk = switch (bookFilter) {
-                    case "Day Book (Today)" -> todayFormatted.equalsIgnoreCase(safeStr(row.entryDate()));
-                    case "Cash & Bank Book" -> hasAnyAccountPrefix(row, "1010", "1020")
-                            || "RECEIPT".equalsIgnoreCase(row.entryType())
-                            || "PAYMENT".equalsIgnoreCase(row.entryType())
-                            || "CONTRA".equalsIgnoreCase(row.entryType());
-                    case "GST Ledgers" -> hasAnyAccountPrefix(row, "1081", "1082", "1083", "2081", "2082", "2083");
-                    case "Drafts Only" -> "DRAFT".equalsIgnoreCase(row.status());
-                    case "Manual & Reversals" -> Set.of("GENERAL", "EXPENSE", "CONTRA", "ADJUSTMENT", "REVERSAL")
-                            .contains(safeStr(row.entryType()).toUpperCase(Locale.ROOT));
-                    default -> true;
-                };
-                if (!bookOk) return false;
-            }
-
-            if (q.isBlank()) return true;
-
-            StringBuilder sb = new StringBuilder();
-            sb.append(safeStr(row.entryNumber())).append(" ")
-              .append(safeStr(row.referenceNo())).append(" ")
-              .append(safeStr(row.narration())).append(" ")
-              .append(safeStr(row.entryType())).append(" ")
-              .append(safeStr(row.status())).append(" ")
-              .append(safeStr(row.drHead())).append(" ")
-              .append(safeStr(row.crHead())).append(" ")
-              .append(safeStr(row.totalDebit())).append(" ")
-              .append(safeStr(row.totalCredit()));
-
-            if (row.lines() != null) {
-                for (GeneralLedgerApiClient.JournalLineDto l : row.lines()) {
-                    sb.append(" ").append(safeStr(l.accountCode()))
-                      .append(" ").append(safeStr(l.accountName()))
-                      .append(" ").append(safeStr(l.lineNarration()));
-                }
-            }
-
-            return sb.toString().toLowerCase(Locale.ROOT).contains(q);
-        }).toList());
+        journalCurrentPage = 0;
+        loadJournalsPageAsync();
     }
 
     private static boolean hasAnyAccountPrefix(JournalRow row, String... codes) {
@@ -2243,6 +2503,8 @@ public class GeneralLedgerController implements ScreenLifecycle {
             List<GeneralLedgerApiClient.AccountDto> rawAccounts,
             GeneralLedgerApiClient.ProfitAndLossResponse plResp,
             GeneralLedgerApiClient.BalanceSheetResponse bsResp,
-            GeneralLedgerApiClient.PeriodLockDto lockDto
+            GeneralLedgerApiClient.PeriodLockDto lockDto,
+            long journalTotalElements,
+            int journalTotalPages
     ) {}
 }

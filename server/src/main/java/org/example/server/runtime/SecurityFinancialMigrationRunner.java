@@ -259,7 +259,13 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_85__add_force_password_change",
                     "db/migration/V11_0_85__add_force_password_change.sql"),
             new Migration("V11_0_86__company_template_linking",
-                    "db/migration/V11_0_86__company_template_linking.sql")
+                    "db/migration/V11_0_86__company_template_linking.sql"),
+            new Migration("V11_0_87__bank_statement_line_reference",
+                    "db/migration/V11_0_87__bank_statement_line_reference.sql"),
+            new Migration("V11_0_88__gl_integrity_reconciliation_and_fy_close",
+                    "db/migration/V11_0_88__gl_integrity_reconciliation_and_fy_close.sql"),
+            new Migration("V11_0_89__bank_statement_suggested_match_type",
+                    "db/migration/V11_0_89__bank_statement_suggested_match_type.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;
@@ -372,6 +378,7 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
         requireTable("registration_request");
         requireColumn("payment_record", "row_version");
         requireColumn("bank_statement_transaction", "row_version");
+        requireColumn("bank_statement_transaction", "transaction_reference");
         requireColumn("bank_statement_import", "row_version");
         requireTable("party_contact");
         requireColumn("party_contact", "party_id");

@@ -145,7 +145,11 @@ public final class BusinessWhatsappApiClient {
     }
     public record ChannelDto(Long id, String channelCode, String displayName, String phoneNumber, String sessionName, boolean isDefault, boolean isActive, String connectionStatus, String createdAt, String updatedAt) {}
     public record ChannelSaveRequest(Long id, String channelCode, String displayName, String phoneNumber, String sessionName, Boolean isDefault, Boolean isActive) {}
-    public record DocumentSendRequest(String documentType, String documentNumber, Integer documentId, Long channelId, String recipientPhone, String customMessage, Long rowVersion) {}
+    public record DocumentSendRequest(String documentType, String documentNumber, Integer documentId, Long channelId, String recipientPhone, String customMessage, Long rowVersion, String dispatchLabel) {
+        public DocumentSendRequest(String documentType, String documentNumber, Integer documentId, Long channelId, String recipientPhone, String customMessage, Long rowVersion) {
+            this(documentType, documentNumber, documentId, channelId, recipientPhone, customMessage, rowVersion, null);
+        }
+    }
     public record TextSendRequest(String recipientPhone, String message, Long channelId) {}
     public record SendResponse(boolean success, String message, String messageId, String channelCode, String recipientPhone) {}
     public record QrResponse(String session, String qrImageBase64, String status, String message) {}

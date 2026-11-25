@@ -14,77 +14,88 @@
         <Region HBox.hgrow="ALWAYS"/>
         <HBox alignment="CENTER_LEFT" spacing="8">
           <Label text="Statement / Bank Account" minWidth="-Infinity" styleClass="bank-recon-field-caption"/>
-          <ComboBox fx:id="cmbBatch" prefWidth="300" minWidth="220" promptText="Select recent statement"/>
+          <ComboBox fx:id="cmbBatch" prefWidth="320" minWidth="230" promptText="Select statement or consolidated account"/>
         </HBox>
         <Button fx:id="btnBrowseStatements" text="Browse Statements" minWidth="-Infinity" onAction="#toggleStatementHistory" styleClass="approved-button,approved-secondary-button"/>
+        <MenuButton fx:id="btnExport" text="Export" minWidth="-Infinity" styleClass="approved-button,approved-secondary-button">
+          <items>
+            <MenuItem fx:id="miExportExcel" text="Export Filtered Excel" onAction="#exportFilteredExcel"/>
+            <MenuItem fx:id="miExportPdf" text="Export Filtered PDF" onAction="#exportFilteredPdf"/>
+            <SeparatorMenuItem/>
+            <MenuItem fx:id="miExportBrsPdf" text="Export CA BRS Report (PDF)" onAction="#exportBrsPdf"/>
+            <MenuItem fx:id="miExportBrsExcel" text="Export CA BRS Workbook (Excel)" onAction="#exportBrsExcel"/>
+          </items>
+        </MenuButton>
         <Button fx:id="btnDeleteStatement" text="Delete Statement" minWidth="-Infinity" onAction="#deleteCurrentStatement" disable="true" styleClass="approved-button,approved-danger-button"/>
         <Button fx:id="btnImport" text="Import Statement" minWidth="-Infinity" onAction="#importStatement" styleClass="approved-button,approved-primary-button,bank-recon-import-button"/>
         <Button fx:id="btnScreenGuide" contentDisplay="GRAPHIC_ONLY" onAction="#showScreenGuide" styleClass="approved-button,approved-secondary-button,erp-screen-guide-button"/>
       </HBox>
 
       <GridPane hgap="10" vgap="0" styleClass="bank-recon-kpi-panel,erp-kpi-section,erp-kpi-single-row">
-        <VBox fx:id="cardKpiTotal" spacing="4" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-blue" GridPane.columnIndex="0"><HBox alignment="CENTER_LEFT" spacing="8"><StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Total Transactions" wrapText="true" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><VBox spacing="1"><Label fx:id="kpiTotal" text="0" styleClass="bank-recon-kpi-value,metric-value"/><Label text="Imported rows" wrapText="true" styleClass="bank-recon-kpi-note,metric-note"/></VBox></VBox>
-        <VBox fx:id="cardKpiUnmatched" spacing="4" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-red" GridPane.columnIndex="1"><HBox alignment="CENTER_LEFT" spacing="8"><StackPane fx:id="kpiUnmatchedIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Unmatched" wrapText="true" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><VBox spacing="1"><Label fx:id="kpiUnmatched" text="0" styleClass="bank-recon-kpi-value,metric-value"/><Label text="Needs reconciliation" wrapText="true" styleClass="bank-recon-kpi-note,metric-note"/></VBox></VBox>
-        <VBox fx:id="cardKpiSuggested" spacing="4" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-orange" GridPane.columnIndex="2"><HBox alignment="CENTER_LEFT" spacing="8"><StackPane fx:id="kpiSuggestedIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Suggested" wrapText="true" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><VBox spacing="1"><Label fx:id="kpiSuggested" text="0" styleClass="bank-recon-kpi-value,metric-value"/><Label text="System suggestions" wrapText="true" styleClass="bank-recon-kpi-note,metric-note"/></VBox></VBox>
-        <VBox fx:id="cardKpiMatched" spacing="4" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-green" GridPane.columnIndex="3"><HBox alignment="CENTER_LEFT" spacing="8"><StackPane fx:id="kpiMatchedIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Matched" wrapText="true" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><VBox spacing="1"><Label fx:id="kpiMatched" text="0" styleClass="bank-recon-kpi-value,metric-value"/><Label text="Linked to ERP" wrapText="true" styleClass="bank-recon-kpi-note,metric-note"/></VBox></VBox>
-        <VBox fx:id="cardKpiExpense" spacing="4" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-purple" GridPane.columnIndex="4"><HBox alignment="CENTER_LEFT" spacing="8"><StackPane fx:id="kpiExpenseIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Expenses" wrapText="true" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><VBox spacing="1"><Label fx:id="kpiExpense" text="0" styleClass="bank-recon-kpi-value,metric-value"/><Label text="Expense entries" wrapText="true" styleClass="bank-recon-kpi-note,metric-note"/></VBox></VBox>
-        <VBox spacing="4" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-green" GridPane.columnIndex="5"><HBox alignment="CENTER_LEFT" spacing="8"><StackPane fx:id="kpiCreditsIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Total Credits" wrapText="true" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><VBox spacing="1"><Label fx:id="kpiCredits" text="0.00" styleClass="bank-recon-kpi-value,metric-value"/><Label text="Money in" wrapText="true" styleClass="bank-recon-kpi-note,metric-note"/></VBox></VBox>
-        <VBox spacing="4" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-red" GridPane.columnIndex="6"><HBox alignment="CENTER_LEFT" spacing="8"><StackPane fx:id="kpiDebitsIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Total Debits" wrapText="true" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><VBox spacing="1"><Label fx:id="kpiDebits" text="0.00" styleClass="bank-recon-kpi-value,metric-value"/><Label text="Money out" wrapText="true" styleClass="bank-recon-kpi-note,metric-note"/></VBox></VBox>
+        <VBox fx:id="cardKpiTotal" spacing="2" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-blue" GridPane.columnIndex="0"><HBox alignment="CENTER_LEFT" spacing="6"><StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Total Transactions" minWidth="0" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><HBox alignment="BASELINE_LEFT" spacing="6"><Label fx:id="kpiTotal" text="0" minWidth="-Infinity" styleClass="bank-recon-kpi-value,metric-value"/><Region HBox.hgrow="ALWAYS"/><Label text="Rows" minWidth="-Infinity" styleClass="bank-recon-kpi-note,metric-note"/></HBox></VBox>
+        <VBox fx:id="cardKpiUnmatched" spacing="2" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-red" GridPane.columnIndex="1"><HBox alignment="CENTER_LEFT" spacing="6"><StackPane fx:id="kpiUnmatchedIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Unmatched" minWidth="0" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><HBox alignment="BASELINE_LEFT" spacing="6"><Label fx:id="kpiUnmatched" text="0" minWidth="-Infinity" styleClass="bank-recon-kpi-value,metric-value"/><Region HBox.hgrow="ALWAYS"/><Label text="Open" minWidth="-Infinity" styleClass="bank-recon-kpi-note,metric-note"/></HBox></VBox>
+        <VBox fx:id="cardKpiSuggested" spacing="2" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-orange" GridPane.columnIndex="2"><HBox alignment="CENTER_LEFT" spacing="6"><StackPane fx:id="kpiSuggestedIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Suggested" minWidth="0" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><HBox alignment="BASELINE_LEFT" spacing="6"><Label fx:id="kpiSuggested" text="0" minWidth="-Infinity" styleClass="bank-recon-kpi-value,metric-value"/><Region HBox.hgrow="ALWAYS"/><Label text="Hints" minWidth="-Infinity" styleClass="bank-recon-kpi-note,metric-note"/></HBox></VBox>
+        <VBox fx:id="cardKpiMatched" spacing="2" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-green" GridPane.columnIndex="3"><HBox alignment="CENTER_LEFT" spacing="6"><StackPane fx:id="kpiMatchedIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Matched" minWidth="0" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><HBox alignment="BASELINE_LEFT" spacing="6"><Label fx:id="kpiMatched" text="0" minWidth="-Infinity" styleClass="bank-recon-kpi-value,metric-value"/><Region HBox.hgrow="ALWAYS"/><Label text="Linked" minWidth="-Infinity" styleClass="bank-recon-kpi-note,metric-note"/></HBox></VBox>
+        <VBox fx:id="cardKpiExpense" spacing="2" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-purple" GridPane.columnIndex="4"><HBox alignment="CENTER_LEFT" spacing="6"><StackPane fx:id="kpiExpenseIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Expenses" minWidth="0" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><HBox alignment="BASELINE_LEFT" spacing="6"><Label fx:id="kpiExpense" text="0" minWidth="-Infinity" styleClass="bank-recon-kpi-value,metric-value"/><Region HBox.hgrow="ALWAYS"/><Label text="Posted" minWidth="-Infinity" styleClass="bank-recon-kpi-note,metric-note"/></HBox></VBox>
+        <VBox spacing="2" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-green" GridPane.columnIndex="5"><HBox alignment="CENTER_LEFT" spacing="6"><StackPane fx:id="kpiCreditsIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Total Credits" minWidth="0" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><HBox alignment="BASELINE_LEFT" spacing="6"><Label fx:id="kpiCredits" text="0.00" minWidth="-Infinity" styleClass="bank-recon-kpi-value,metric-value"/><Region HBox.hgrow="ALWAYS"/><Label text="In" minWidth="-Infinity" styleClass="bank-recon-kpi-note,metric-note"/></HBox></VBox>
+        <VBox spacing="2" minWidth="0" styleClass="standard-kpi-card,bank-recon-kpi,kpi-red" GridPane.columnIndex="6"><HBox alignment="CENTER_LEFT" spacing="6"><StackPane fx:id="kpiDebitsIcon" styleClass="standard-kpi-icon,approved-kpi-icon,bank-recon-kpi-icon"/><Label text="Total Debits" minWidth="0" styleClass="bank-recon-kpi-caption,metric-label"/></HBox><HBox alignment="BASELINE_LEFT" spacing="6"><Label fx:id="kpiDebits" text="0.00" minWidth="-Infinity" styleClass="bank-recon-kpi-value,metric-value"/><Region HBox.hgrow="ALWAYS"/><Label text="Out" minWidth="-Infinity" styleClass="bank-recon-kpi-note,metric-note"/></HBox></VBox>
       </GridPane>
+
+      <HBox fx:id="balanceVerificationBar" alignment="CENTER_LEFT" spacing="10" styleClass="bank-balance-strip,approved-card">
+        <Label fx:id="lblScopeBadge" text="Batch Mode" styleClass="bank-balance-pill,bank-balance-neutral"/>
+        <HBox alignment="CENTER_LEFT" spacing="5"><Label text="Opening:" styleClass="bank-balance-caption"/><Label fx:id="lblOpeningBalance" text="₹ 0.00" styleClass="bank-balance-num"/></HBox>
+        <HBox alignment="CENTER_LEFT" spacing="5"><Label text="Calculated Closing:" styleClass="bank-balance-caption"/><Label fx:id="lblCalculatedClosing" text="₹ 0.00" styleClass="bank-balance-num"/></HBox>
+        <HBox alignment="CENTER_LEFT" spacing="5"><Label text="Bank Closing:" styleClass="bank-balance-caption"/><Label fx:id="lblBankClosing" text="₹ 0.00" styleClass="bank-balance-num"/></HBox>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Label fx:id="lblBatchStatus" text="IMPORTED" minWidth="-Infinity" styleClass="bank-recon-status-badge"/>
+        <Label fx:id="lblBalanceStatus" text="Import statement to verify balance" minWidth="-Infinity" styleClass="bank-balance-pill,bank-balance-neutral"/>
+      </HBox>
     </VBox>
   </top>
 
   <center>
     <StackPane fx:id="statementWorkspace" styleClass="bank-recon-workspace,bank-statement-history-overlay">
-      <VBox spacing="10" styleClass="bank-recon-main-panel" StackPane.alignment="CENTER">
-        <VBox spacing="6" styleClass="bank-recon-filter-panel">
-          <!-- Row 1: Unified Search + All Filter Controls on One Clean Row -->
-          <HBox spacing="8" alignment="BOTTOM_LEFT">
-            <VBox spacing="2" minWidth="240" prefWidth="320" maxWidth="380" HBox.hgrow="SOMETIMES">
+      <VBox spacing="8" styleClass="bank-recon-main-panel" StackPane.alignment="CENTER">
+        <VBox spacing="0" styleClass="bank-recon-filter-panel">
+          <!-- Single Compact Filter & Progress Row -->
+          <HBox spacing="6" alignment="BOTTOM_LEFT">
+            <VBox spacing="2" minWidth="160" prefWidth="230" maxWidth="300" HBox.hgrow="SOMETIMES">
               <Label text="Search" styleClass="bank-recon-field-caption"/>
               <TextField fx:id="txtSearch" promptText="Search narration, reference, amount..." maxWidth="Infinity" onAction="#applyFilters"/>
             </VBox>
-            <VBox spacing="2" minWidth="130" prefWidth="148" HBox.hgrow="SOMETIMES">
+            <VBox spacing="2" minWidth="138" prefWidth="144">
               <Label text="From Date" styleClass="bank-recon-field-caption"/>
               <DatePicker fx:id="fromDate" promptText="From" maxWidth="Infinity"/>
             </VBox>
-            <VBox spacing="2" minWidth="130" prefWidth="148" HBox.hgrow="SOMETIMES">
+            <VBox spacing="2" minWidth="138" prefWidth="144">
               <Label text="To Date" styleClass="bank-recon-field-caption"/>
               <DatePicker fx:id="toDate" promptText="To" maxWidth="Infinity"/>
             </VBox>
-            <VBox spacing="2" minWidth="150" prefWidth="180" HBox.hgrow="SOMETIMES">
+            <VBox spacing="2" minWidth="140" prefWidth="150">
               <Label text="Reconciliation Status" styleClass="bank-recon-field-caption"/>
               <ComboBox fx:id="cmbStatus" maxWidth="Infinity"/>
             </VBox>
-            <VBox spacing="2" minWidth="115" prefWidth="135">
+            <VBox spacing="2" minWidth="106" prefWidth="114">
               <Label text="Transaction Type" styleClass="bank-recon-field-caption"/>
               <ComboBox fx:id="cmbDirection" maxWidth="Infinity"/>
             </VBox>
-            <Region HBox.hgrow="ALWAYS"/>
-            <VBox spacing="2" minWidth="190" prefWidth="220">
-              <Label text="Batch Progress" styleClass="bank-recon-field-caption"/>
-              <HBox alignment="CENTER_LEFT" spacing="8">
-                <ProgressBar fx:id="reconciliationProgress" HBox.hgrow="ALWAYS" maxWidth="Infinity" progress="0"/>
-                <Label fx:id="lblProgressText" text="0 / 0 reconciled" minWidth="-Infinity" styleClass="bank-recon-progress-label"/>
-              </HBox>
+            <VBox spacing="2" minWidth="128" prefWidth="136">
+              <Label text="Channel" styleClass="bank-recon-field-caption"/>
+              <ComboBox fx:id="cmbChannel" maxWidth="Infinity"/>
             </VBox>
-          </HBox>
-
-          <!-- Row 2: Selection Checkbox + All Bulk & Filter Action Buttons in One Single Row -->
-          <HBox spacing="8" alignment="CENTER_LEFT" styleClass="bank-bulk-toolbar">
-            <CheckBox fx:id="chkSelectAll" text="Select all visible" minWidth="-Infinity" onAction="#selectAllVisible" styleClass="bank-select-all"/>
-            <Label fx:id="lblSelected" text="0 selected" minWidth="-Infinity" styleClass="bank-recon-selection-count"/>
-            <Region HBox.hgrow="ALWAYS"/>
-            <Button fx:id="btnAutoMatch" text="Auto Match Suggestions" minWidth="-Infinity" onAction="#openAutoMatchDialog" styleClass="approved-button,approved-primary-button,bank-direct-action"/>
-            <Button fx:id="btnManageRules" text="Rules" minWidth="-Infinity" onAction="#openRulesManager" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
-            <Button fx:id="btnApplyRules" text="Run Rules" minWidth="-Infinity" onAction="#runSmartRules" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
-            <Button fx:id="btnBulkReview" text="Reviewed" minWidth="-Infinity" onAction="#bulkMarkReview" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
-            <Button fx:id="btnBulkIgnore" text="Ignore" minWidth="-Infinity" onAction="#bulkIgnore" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
-            <Button fx:id="btnMoveExpense" text="Move to Expense" minWidth="-Infinity" onAction="#moveSelectedToExpense" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
-            <Button fx:id="btnMoveBankEntry" text="Move to Bank Entry" minWidth="-Infinity" onAction="#moveSelectedToBankEntry" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action"/>
-            <Button fx:id="btnSearch" text="Search" minWidth="-Infinity" onAction="#applyFilters" styleClass="approved-button,approved-secondary-button"/>
-            <Button fx:id="btnReset" text="Reset" minWidth="-Infinity" onAction="#resetFilters" styleClass="approved-button,approved-secondary-button"/>
-            <Button fx:id="btnRefresh" text="Refresh" minWidth="-Infinity" onAction="#refreshWithFeedback" styleClass="approved-button,approved-secondary-button"/>
+            <VBox spacing="2" minWidth="150" prefWidth="166" styleClass="bank-recon-progress-box">
+              <HBox alignment="CENTER_LEFT" spacing="4">
+                <Label text="Batch Progress" styleClass="bank-recon-field-caption"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label fx:id="lblProgressText" text="0 / 0" minWidth="-Infinity" styleClass="bank-recon-progress-label"/>
+              </HBox>
+              <VBox alignment="CENTER_LEFT" VBox.vgrow="ALWAYS">
+                <ProgressBar fx:id="reconciliationProgress" maxWidth="Infinity" progress="0"/>
+              </VBox>
+            </VBox>
+            <Region minWidth="8" HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnReset" text="Reset" minWidth="-Infinity" onAction="#resetFilters" styleClass="approved-button,approved-secondary-button,bank-filter-action"/>
+            <Button fx:id="btnRefresh" text="Refresh" minWidth="-Infinity" onAction="#refreshWithFeedback" styleClass="approved-button,approved-secondary-button,bank-filter-action"/>
           </HBox>
         </VBox>
 
@@ -92,9 +103,9 @@
           <TableView fx:id="table" VBox.vgrow="ALWAYS" styleClass="approved-table,bank-recon-table,erp-table-profile-responsive">
             <columns>
               <TableColumn fx:id="colSelect" text="" resizable="false" sortable="false"/>
-              <TableColumn fx:id="colStatementRef" text="Statement Ref"/>
+              <TableColumn fx:id="colStatementRef" text="Line Ref"/>
               <TableColumn fx:id="colDate" text="Date"/>
-              <TableColumn fx:id="colReference" text="Reference / Cheque No."/>
+              <TableColumn fx:id="colReference" text="Ref / Chq No."/>
               <TableColumn fx:id="colDescription" text="Description / Narration"/>
               <TableColumn fx:id="colDebit" text="Debit"/>
               <TableColumn fx:id="colCredit" text="Credit"/>
@@ -105,15 +116,22 @@
             </columns>
             <placeholder><VBox alignment="CENTER" spacing="8"><Label text="No bank statement transactions to display" styleClass="bank-recon-empty-title"/><Label text="Import a CSV statement or select an existing statement batch." wrapText="true" styleClass="bank-recon-empty-note"/></VBox></placeholder>
           </TableView>
-          <HBox alignment="CENTER_LEFT" spacing="10" styleClass="bank-recon-footer">
-            <Label fx:id="lblShowing" text="Showing 0 records" styleClass="finance-showing-label"/>
+          <HBox alignment="CENTER_LEFT" spacing="5" styleClass="bank-recon-footer">
+            <Label fx:id="lblShowing" text="Showing 0 records" minWidth="-Infinity" styleClass="finance-showing-label"/>
+            <Button fx:id="btnMoveExpense" text="Move to Expense" minWidth="-Infinity" onAction="#moveSelectedToExpense" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action,bank-footer-action"/>
+            <Button fx:id="btnMoveBankEntry" text="Move to Bank Entry" minWidth="-Infinity" onAction="#moveSelectedToBankEntry" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action,bank-footer-action"/>
+            <Button fx:id="btnBulkReview" text="Reviewed" minWidth="-Infinity" onAction="#bulkMarkReview" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action,bank-footer-action"/>
+            <Button fx:id="btnBulkIgnore" text="Ignore" minWidth="-Infinity" onAction="#bulkIgnore" disable="true" styleClass="approved-button,approved-secondary-button,bank-direct-action,bank-footer-action"/>
+            <Separator orientation="VERTICAL"/>
+            <Button fx:id="btnAutoMatch" text="Auto Match Suggestions" minWidth="-Infinity" onAction="#openAutoMatchDialog" styleClass="approved-button,approved-primary-button,bank-direct-action,bank-footer-action"/>
+            <Button fx:id="btnManageRules" text="Rules" minWidth="-Infinity" onAction="#openRulesManager" styleClass="approved-button,approved-secondary-button,bank-direct-action,bank-footer-action"/>
+            <Button fx:id="btnApplyRules" text="Run Rules" minWidth="-Infinity" onAction="#runSmartRules" styleClass="approved-button,approved-secondary-button,bank-direct-action,bank-footer-action"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Label text="Rows" styleClass="finance-showing-label"/>
-            <ComboBox fx:id="cmbPageSize" prefWidth="92"/>
-            <Button fx:id="btnPrevPage" text="Previous" onAction="#previousPage" styleClass="approved-button,approved-secondary-button"/>
-            <Label fx:id="lblPage" text="Page 0 of 0" styleClass="finance-showing-label"/>
-            <Button fx:id="btnNextPage" text="Next" onAction="#nextPage" styleClass="approved-button,approved-secondary-button"/>
-            <Label fx:id="lblBatchStatus" text="IMPORTED" styleClass="bank-recon-status-badge"/>
+            <ComboBox fx:id="cmbPageSize" prefWidth="68" minWidth="62"/>
+            <Button fx:id="btnPrevPage" text="Previous" minWidth="-Infinity" onAction="#previousPage" styleClass="approved-button,approved-secondary-button,bank-footer-action"/>
+            <Label fx:id="lblPage" text="Page 0 of 0" minWidth="-Infinity" styleClass="finance-showing-label"/>
+            <Button fx:id="btnNextPage" text="Next" minWidth="-Infinity" onAction="#nextPage" styleClass="approved-button,approved-secondary-button,bank-footer-action"/>
           </HBox>
         </VBox>
       </VBox>
