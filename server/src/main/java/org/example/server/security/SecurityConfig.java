@@ -1,6 +1,7 @@
 package org.example.server.security;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +30,7 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers("/error", "/", "/gateway", "/api/runtime/health", "/api/sync/v1/health",
                                 "/api/updates/**", "/api/auth/health", "/api/auth/login",
                                 "/api/auth/login/mfa/enrollment", "/api/auth/login/mfa/complete",

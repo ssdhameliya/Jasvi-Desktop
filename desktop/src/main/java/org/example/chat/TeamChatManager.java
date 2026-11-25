@@ -36,6 +36,8 @@ public final class TeamChatManager {
     private volatile DirectoryResponse latestDirectory;
     private volatile ScheduledExecutorService heartbeatExec;
     private volatile ChatWindowHost dockHost;
+    private volatile java.io.InputStream activeSseStream;
+    private volatile long lastDirectoryRefreshMs = 0L;
 
     public interface ChatWindowHost {
         void openDockedChannel(ChannelSummaryDto channel);
@@ -106,6 +108,11 @@ public final class TeamChatManager {
 
     public void stop() {
         boolean wasRunning = running.getAndSet(false);
+        java.io.InputStream stream = activeSseStream;
+        activeSseStream = null;
+        if (stream != null) {
+            try { stream.close(); } catch (Exception ignored) {}
+        }
         ScheduledExecutorService exec = heartbeatExec;
         heartbeatExec = null;
         if (exec != null) exec.shutdownNow();
@@ -217,17 +224,29 @@ public final class TeamChatManager {
     }
 
     private void runSseLoop() {
+        long backoffMs = 3000L;
         while (running.get() && ApiSession.isEstablished()) {
             try {
-                api.consumeEventStream(this::dispatchStreamEvent, running::get);
+                api.consumeEventStream(this::dispatchStreamEvent, running::get, s -> {
+                    activeSseStream = s;
+                });
+                backoffMs = 3000L;
             } catch (Exception ex) {
-                if (running.get()) {
-                    DesktopLog.warn("TeamChatManager", "SSE_RECONNECT", ex.getMessage());
+                String msg = ex.getMessage() == null ? "" : ex.getMessage();
+                if (msg.contains("HTTP 401") || msg.contains("HTTP 403") || ex instanceof org.example.api.ApiSession.AuthenticationRequiredException) {
+                    running.set(false);
+                    break;
                 }
+                if (running.get()) {
+                    DesktopLog.warn("TeamChatManager", "SSE_RECONNECT", msg);
+                }
+                backoffMs = Math.min(30_000L, backoffMs * 2);
+            } finally {
+                activeSseStream = null;
             }
-            if (!running.get()) break;
+            if (!running.get() || !ApiSession.isEstablished()) break;
             try {
-                Thread.sleep(3000);
+                Thread.sleep(backoffMs);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 break;
@@ -237,8 +256,14 @@ public final class TeamChatManager {
 
     private void dispatchStreamEvent(ChatStreamEvent ev) {
         if (ev == null) return;
-        if ("MESSAGE".equals(ev.eventType()) || "MESSAGE_UPDATED".equals(ev.eventType()) || "PRESENCE".equals(ev.eventType())) {
-            refreshDirectoryAsync();
+        if ("PRESENCE".equals(ev.eventType()) && ev.presence() != null) {
+            applyPresencePatchInMemory(ev.presence());
+        } else if ("MESSAGE".equals(ev.eventType()) || "MESSAGE_UPDATED".equals(ev.eventType())) {
+            long now = System.currentTimeMillis();
+            if (now - lastDirectoryRefreshMs >= 800L) {
+                lastDirectoryRefreshMs = now;
+                refreshDirectoryAsync();
+            }
         }
         Platform.runLater(() -> {
             for (Consumer<ChatStreamEvent> l : eventListeners) {
@@ -249,6 +274,23 @@ public final class TeamChatManager {
                 }
             }
         });
+    }
+
+    private void applyPresencePatchInMemory(PresenceDto updated) {
+        DirectoryResponse cur = latestDirectory;
+        if (cur == null || updated == null) return;
+        List<PresenceDto> users = cur.users().stream()
+                .map(u -> u.userId() == updated.userId() ? updated : u)
+                .toList();
+        List<ChannelSummaryDto> channels = cur.channels().stream()
+                .map(c -> ("DIRECT".equals(c.channelType()) && Objects.equals(c.peerUserId(), updated.userId()))
+                        ? new ChannelSummaryDto(c.id(), c.channelType(), c.channelKey(), c.name(), c.unreadCount(),
+                                c.lastMessagePreview(), c.lastMessageUtc(), c.peerUserId(), updated.status(),
+                                updated.customNote(), c.members())
+                        : c)
+                .toList();
+        latestDirectory = new DirectoryResponse(cur.selfPresence(), users, channels, cur.totalUnread());
+        Platform.runLater(this::notifyDirectoryListeners);
     }
 
     private void notifyDirectoryListeners() {

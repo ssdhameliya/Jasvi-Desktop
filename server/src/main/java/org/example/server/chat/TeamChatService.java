@@ -42,6 +42,7 @@ public class TeamChatService {
     private final TeamChatSseBroker broker;
     private final ObjectMapper json = new ObjectMapper();
     private final Path chatStorageRoot;
+    private volatile boolean defaultChannelsSeeded = false;
 
     public TeamChatService(
             UserRepository userRepo,
@@ -65,18 +66,23 @@ public class TeamChatService {
         this.chatStorageRoot = root.resolve("Attachments").resolve("chat").normalize();
     }
 
-    @Transactional
     public TeamChatDtos.DirectoryResponse directory(AuthenticatedUser current) {
         UserEntity me = requireActiveUser(current);
         ensureDefaultChannelsSynced(me);
-        touchHeartbeat(me.getId(), null, null, false);
+        String prevStatus = presenceRepo.findById(me.getId()).map(ChatPresenceEntity::getStatus).orElse("OFFLINE");
+        ChatPresenceEntity selfPres = touchHeartbeat(me.getId(), null, null, false);
+        if ("OFFLINE".equalsIgnoreCase(prevStatus)) {
+            broker.broadcastAll(new TeamChatDtos.ChatStreamEvent(
+                    "PRESENCE", null, null, toPresenceDto(me, selfPres), me.getId(), displayName(me), null, null));
+        }
 
-        List<UserEntity> visibleUsers = visibleDirectoryUsers(me);
-        Map<Integer, ChatPresenceEntity> presenceMap = loadPresenceMap(visibleUsers);
+        List<UserEntity> allUsers = userRepo.findAll();
         Map<Integer, UserEntity> userById = new LinkedHashMap<>();
-        for (UserEntity u : userRepo.findAll()) {
+        for (UserEntity u : allUsers) {
             if (u.getId() != null) userById.put(u.getId(), u);
         }
+        List<UserEntity> visibleUsers = filterVisibleUsers(me, allUsers);
+        Map<Integer, ChatPresenceEntity> presenceMap = loadPresenceMap(visibleUsers);
 
         List<TeamChatDtos.PresenceDto> userDtos = visibleUsers.stream()
                 .map(u -> toPresenceDto(u, presenceMap.get(u.getId())))
@@ -84,7 +90,7 @@ public class TeamChatService {
                         .thenComparing(TeamChatDtos.PresenceDto::fullName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
 
-        TeamChatDtos.PresenceDto selfDto = toPresenceDto(me, presenceRepo.findById(me.getId()).orElse(null));
+        TeamChatDtos.PresenceDto selfDto = toPresenceDto(me, selfPres);
 
         List<ChatChannelMemberEntity> memberships = memberRepo.findByUserId(me.getId());
         List<TeamChatDtos.ChannelSummaryDto> channelDtos = new ArrayList<>();
@@ -124,9 +130,13 @@ public class TeamChatService {
 
     public TeamChatDtos.PresenceDto heartbeat(AuthenticatedUser current) {
         UserEntity me = requireActiveUser(current);
+        ChatPresenceEntity existing = presenceRepo.findById(me.getId()).orElse(null);
+        String prevEffective = computeEffectiveStatus(existing);
         ChatPresenceEntity saved = touchHeartbeat(me.getId(), null, null, false);
         TeamChatDtos.PresenceDto dto = toPresenceDto(me, saved);
-        broker.broadcastAll(new TeamChatDtos.ChatStreamEvent("PRESENCE", null, null, dto, me.getId(), displayName(me), null, null));
+        if (!Objects.equals(prevEffective, dto.status())) {
+            broker.broadcastAll(new TeamChatDtos.ChatStreamEvent("PRESENCE", null, null, dto, me.getId(), displayName(me), null, null));
+        }
         return dto;
     }
 
@@ -449,9 +459,8 @@ public class TeamChatService {
         return toAttachmentDto(entity);
     }
 
-    private void ensureDefaultChannelsSynced(UserEntity current) {
+    private synchronized void ensureDefaultChannelsSynced(UserEntity current) {
         String now = Instant.now().toString();
-        // 1. Company-wide #general channel for internal company team (excluding Super Admin unless needed)
         ChatChannelEntity general = channelRepo.findByChannelKey("GROUP:GENERAL").orElseGet(() -> {
             ChatChannelEntity ch = new ChatChannelEntity();
             ch.setChannelType("GROUP");
@@ -459,17 +468,15 @@ public class TeamChatService {
             ch.setName("general");
             ch.setCreatedBy(current.getId());
             ch.setCreatedUtc(now);
-            return channelRepo.save(ch);
-        });
-        List<UserEntity> allUsers = userRepo.findAll();
-        for (UserEntity u : allUsers) {
-            if (!u.isActive() || u.getId() == null) continue;
-            if (!isSuperAdmin(u.getRoleName())) {
-                ensureMember(general.getId(), u.getId(), "ADMIN".equalsIgnoreCase(u.getRoleName()) ? "OWNER" : "MEMBER");
+            try {
+                return channelRepo.save(ch);
+            } catch (Exception ignored) {
+                return channelRepo.findByChannelKey("GROUP:GENERAL").orElseThrow();
             }
+        });
+        if (!isSuperAdmin(current.getRoleName())) {
+            ensureMember(general.getId(), current.getId(), "ADMIN".equalsIgnoreCase(current.getRoleName()) ? "OWNER" : "MEMBER");
         }
-
-        // 2. Admin <-> Super Admin Escalation Channel
         if (isAdminOrSuperAdmin(current.getRoleName())) {
             ChatChannelEntity support = channelRepo.findByChannelKey("ADMIN_SUPPORT:GLOBAL").orElseGet(() -> {
                 ChatChannelEntity ch = new ChatChannelEntity();
@@ -478,12 +485,25 @@ public class TeamChatService {
                 ch.setName("Super Admin Support");
                 ch.setCreatedBy(current.getId());
                 ch.setCreatedUtc(now);
-                return channelRepo.save(ch);
-            });
-            for (UserEntity u : allUsers) {
-                if (u.isActive() && u.getId() != null && isAdminOrSuperAdmin(u.getRoleName())) {
-                    ensureMember(support.getId(), u.getId(), isSuperAdmin(u.getRoleName()) ? "OWNER" : "MEMBER");
+                try {
+                    return channelRepo.save(ch);
+                } catch (Exception ignored) {
+                    return channelRepo.findByChannelKey("ADMIN_SUPPORT:GLOBAL").orElseThrow();
                 }
+            });
+            ensureMember(support.getId(), current.getId(), isSuperAdmin(current.getRoleName()) ? "OWNER" : "MEMBER");
+        }
+        if (defaultChannelsSeeded) return;
+        defaultChannelsSeeded = true;
+        List<UserEntity> allUsers = userRepo.findAll();
+        for (UserEntity u : allUsers) {
+            if (!u.isActive() || u.getId() == null) continue;
+            if (!isSuperAdmin(u.getRoleName())) {
+                ensureMember(general.getId(), u.getId(), "ADMIN".equalsIgnoreCase(u.getRoleName()) ? "OWNER" : "MEMBER");
+            }
+            if (isAdminOrSuperAdmin(u.getRoleName())) {
+                channelRepo.findByChannelKey("ADMIN_SUPPORT:GLOBAL").ifPresent(support ->
+                        ensureMember(support.getId(), u.getId(), isSuperAdmin(u.getRoleName()) ? "OWNER" : "MEMBER"));
             }
         }
     }
@@ -496,7 +516,11 @@ public class TeamChatService {
         mem.setMemberRole(role);
         mem.setLastReadMessageId(0L);
         mem.setJoinedUtc(Instant.now().toString());
-        memberRepo.save(mem);
+        try {
+            memberRepo.save(mem);
+        } catch (Exception ignored) {
+            // Concurrent request already inserted member row
+        }
     }
 
     private void markReadInternal(int userId, long channelId, long lastReadId) {
@@ -520,7 +544,6 @@ public class TeamChatService {
         if (explicitStatus != null) {
             p.setStatus(explicitStatus);
         } else if ("OFFLINE".equalsIgnoreCase(p.getStatus())) {
-            // Restore automatic ONLINE when user logs back in / actively heartbeats without manual AWAY/BUSY
             p.setStatus("ONLINE");
         }
         if (updateNote) {
@@ -528,7 +551,16 @@ public class TeamChatService {
         }
         p.setLastHeartbeatUtc(now);
         p.setUpdatedUtc(now);
-        return presenceRepo.save(p);
+        try {
+            return presenceRepo.save(p);
+        } catch (RuntimeException ex) {
+            ChatPresenceEntity retry = presenceRepo.findById(userId).orElseThrow(() -> ex);
+            if (explicitStatus != null) retry.setStatus(explicitStatus);
+            if (updateNote) retry.setCustomNote(note == null || note.isBlank() ? null : note);
+            retry.setLastHeartbeatUtc(now);
+            retry.setUpdatedUtc(now);
+            return presenceRepo.save(retry);
+        }
     }
 
     private void broadcastChannelEvent(long channelId, String type, TeamChatDtos.MessageDto msg, UserEntity actor, Boolean typing, Long readId) {
@@ -539,10 +571,10 @@ public class TeamChatService {
                 new TeamChatDtos.ChatStreamEvent(type, channelId, msg, null, actor.getId(), displayName(actor), typing, readId));
     }
 
-    private List<UserEntity> visibleDirectoryUsers(UserEntity me) {
+    private List<UserEntity> filterVisibleUsers(UserEntity me, List<UserEntity> allUsers) {
         boolean iAmAdmin = "ADMIN".equalsIgnoreCase(me.getRoleName());
         boolean iAmSuperAdmin = isSuperAdmin(me.getRoleName());
-        return userRepo.findAll().stream()
+        return allUsers.stream()
                 .filter(u -> u.isActive() && u.getId() != null && !Objects.equals(u.getId(), me.getId()))
                 .filter(u -> {
                     if (iAmSuperAdmin) return isAdminOrSuperAdmin(u.getRoleName());
