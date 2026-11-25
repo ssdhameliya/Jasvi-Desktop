@@ -77,6 +77,7 @@ public final class TeamChatWindowPane extends VBox {
     private final Runnable directoryListener = this::syncHeaderPresenceFromDirectory;
 
     private long lastTypingSentMs = 0L;
+    private long lastMarkedReadId = 0L;
     private boolean disposed = false;
 
     public TeamChatWindowPane(
@@ -316,14 +317,25 @@ public final class TeamChatWindowPane extends VBox {
                 lblTyping.setVisible(false);
                 lblTyping.setManaged(false);
                 renderMessages(true);
-                markLatestRead();
+                Integer selfId = selfUserId();
+                if (selfId == null || ev.message().senderId() != selfId) {
+                    markLatestRead();
+                } else {
+                    lastMarkedReadId = Math.max(lastMarkedReadId, ev.message().id());
+                }
             }
-            case "MESSAGE_UPDATED", "READ" -> {
-                if ("READ".equals(ev.eventType())) {
-                    loadMessagesAsync(txtSearch.isVisible() ? txtSearch.getText() : null);
-                } else if (ev.message() != null) {
+            case "MESSAGE_UPDATED" -> {
+                if (ev.message() != null) {
                     upsertMessage(ev.message());
                     renderMessages(false);
+                }
+            }
+            case "READ" -> {
+                Integer selfId = selfUserId();
+                if (selfId != null && Objects.equals(selfId, ev.actorUserId())) return;
+                long peerReadId = ev.readMessageId() == null ? 0L : ev.readMessageId();
+                if (peerReadId > 0) {
+                    applyPeerReadInMemory(peerReadId);
                 }
             }
             case "TYPING" -> {
@@ -336,6 +348,22 @@ public final class TeamChatWindowPane extends VBox {
             }
             default -> {}
         }
+    }
+
+    private void applyPeerReadInMemory(long peerReadId) {
+        Integer selfId = selfUserId();
+        boolean changed = false;
+        for (int i = 0; i < messages.size(); i++) {
+            MessageDto m = messages.get(i);
+            if (selfId != null && m.senderId() == selfId && !m.readByPeer() && m.id() <= peerReadId) {
+                messages.set(i, new MessageDto(
+                        m.id(), m.channelId(), m.senderId(), m.senderUsername(), m.senderName(), m.senderRole(),
+                        m.body(), m.replyToId(), m.replyPreview(), m.linkedDocType(), m.linkedDocNo(),
+                        m.reactions(), m.attachments(), m.createdUtc(), m.editedUtc(), m.deleted(), true));
+                changed = true;
+            }
+        }
+        if (changed) renderMessages(false);
     }
 
     private void upsertMessage(MessageDto msg) {
@@ -351,6 +379,8 @@ public final class TeamChatWindowPane extends VBox {
     private void markLatestRead() {
         if (messages.isEmpty()) return;
         long maxId = messages.getLast().id();
+        if (maxId <= lastMarkedReadId) return;
+        lastMarkedReadId = maxId;
         manager.markChannelReadAsync(channel.id(), maxId);
     }
 

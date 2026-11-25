@@ -90,7 +90,9 @@ public class TeamChatSseBroker {
             int uid = entry.getKey();
             for (SseEmitter emitter : entry.getValue()) {
                 try {
-                    emitter.send(SseEmitter.event().comment("keepalive"));
+                    synchronized (emitter) {
+                        emitter.send(SseEmitter.event().comment("keepalive"));
+                    }
                 } catch (Exception ex) {
                     remove(uid, emitter);
                 }
@@ -103,7 +105,9 @@ public class TeamChatSseBroker {
         if (emitters == null || emitters.isEmpty()) return;
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event().name(eventName).data(serializedJson, MediaType.APPLICATION_JSON));
+                synchronized (emitter) {
+                    emitter.send(SseEmitter.event().name(eventName).data(serializedJson, MediaType.APPLICATION_JSON));
+                }
             } catch (Exception ex) {
                 log.debug("Removing closed SSE chat emitter for user {}: {}", userId, ex.getMessage());
                 remove(userId, emitter);

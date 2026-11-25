@@ -9,10 +9,15 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import jakarta.persistence.OptimisticLockException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.NestedExceptionUtils;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -133,8 +138,23 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
+    @ExceptionHandler({AsyncRequestNotUsableException.class, AsyncRequestTimeoutException.class})
+    public ResponseEntity<Void> sseClientDisconnected(Exception ignored) {
+        return ResponseEntity.noContent().build();
+    }
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> serverError(Exception error) {
+    public ResponseEntity<?> serverError(Exception error, HttpServletRequest request, HttpServletResponse response) {
+        String ct = response != null ? response.getContentType() : null;
+        String accept = request != null ? request.getHeader("Accept") : null;
+        String uri = request != null ? request.getRequestURI() : null;
+        boolean isSse = (ct != null && ct.contains(MediaType.TEXT_EVENT_STREAM_VALUE))
+                || (accept != null && accept.contains(MediaType.TEXT_EVENT_STREAM_VALUE))
+                || (uri != null && uri.contains("/api/chat/stream"))
+                || (response != null && response.isCommitted());
+        if (isSse) {
+            return ResponseEntity.noContent().build();
+        }
         error.printStackTrace();
         Throwable root = NestedExceptionUtils.getMostSpecificCause(error);
         String rootMsg = root == null || root.getMessage() == null ? error.getMessage() : root.getMessage();
