@@ -66,5 +66,24 @@ class StageIconBrandingTest {
         String bridgeSource = Files.readString(Path.of("src/main/java/org/example/config/SharedAssetBridge.java"));
         assertTrue(bridgeSource.contains("DashboardController.refreshBranding()"),
                 "Background business asset sync must refresh active shell branding and Stage icons");
+        assertTrue(bridgeSource.contains("String alias = getAliasKey(key);")
+                        && bridgeSource.indexOf("syncPublicBranding()") >= 0,
+                "Public branding sync must preserve alias fallback before login");
+    }
+
+    @Test
+    void firstRunAndNativeOsHooksSynchronizeBrandingAcrossWindowsAndMac() throws Exception {
+        String mainSource = Files.readString(Path.of("src/main/java/org/example/app/Main.java"));
+        int completeFirstRunIndex = mainSource.indexOf("private void completeFirstRun(Stage stage)");
+        assertTrue(completeFirstRunIndex >= 0);
+        String firstRunSection = mainSource.substring(completeFirstRunIndex);
+        assertTrue(firstRunSection.contains("SharedAssetBridge.syncPublicBranding()"),
+                "First-run setup completion must fetch public branding before Login opens");
+        assertTrue(mainSource.contains("NativeAppBranding.initializeProcessIdentity()"),
+                "Startup must stamp explicit process AppUserModelID before Stage show");
+
+        String sceneSource = Files.readString(Path.of("src/main/java/org/example/util/SceneManager.java"));
+        assertTrue(sceneSource.contains("NativeAppBranding.applyToPrimaryStageAsync"),
+                "Stage branding transitions must keep Windows taskbar/shortcut and macOS Dock icons synchronized");
     }
 }

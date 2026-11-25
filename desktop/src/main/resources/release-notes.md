@@ -1,3 +1,29 @@
+# What's New in DSE ERP v11.0.80
+
+### MS Teams Live Presence & Facebook Messenger-Style Multi-Window Team Chat (Rule 4, Rule 5, Rule 9, Rule 10, Rule 12, Rule 13 & Rule 17)
+- **Live Company Internal Chat, Group Channels & Admin ↔ Super Admin Support (`V11_0_90__team_chat_and_presence.sql`, `TeamChatController`, `TeamChatService`, `TeamChatSseBroker`)**:
+  - Added real-time SSE-pushed team messaging (`#general`, custom multi-member Group Channels, and 1-on-1 Direct Messages) for internal company users plus a role-gated **Super Admin Support** escalation channel between Company `ADMIN` and `SUPER_ADMIN` (isolated from non-admin staff).
+  - Added live MS Teams presence indicators (**Available**, **Busy / DND**, **Away**, **Offline**) with custom status notes, 25s heartbeats, and automatic offline expiry.
+- **Facebook Messenger-Style Simultaneous Multi-Chat Dock & Pop-Out Windows (`TeamChatDockOverlay`, `TeamChatWindowPane`, `TeamChatPopoutWindow`, `TeamChatRosterPopup`)**:
+  - Users can open and chat across multiple teammates/channels side-by-side at the bottom-right of any ERP screen, collapse boxes into unread-badged pills, or pop out any conversation into an independent OS window (`Modality.NONE`) with synced Light & Dark CSS themes.
+  - Supports uploading & downloading files (PDF, Excel, Word, Images, ZIP, etc., backed up under `Attachments/chat/`), `Ctrl+V` clipboard screenshot paste, drag-and-drop attachments, inline image preview/zoom, clickable ERP document link cards, reply/quote, quick emoji reactions, edit/delete, in-chat search, typing indicators, and read receipts (`✓✓`).
+
+### General Ledger, Financial Statements, Aging & GST Remediation + UI Fixes (Rule 4, Rule 5, Rule 7, Rule 8, Rule 9, Rule 11, Rule 12 & Rule 16)
+- **General Ledger & Dialog Ergonomics (`GeneralLedger.fxml`, `GeneralLedgerController.java`)**:
+  - Replaced legacy client-side fallback with server-backed journal pagination, added **GL Health Check** (`90%` screen workspace sizing via `PopupTableWorkspace.applyWideWorkspace90` with expanded tables) and **Fiscal Year-End Closing Wizard** (`PopupTableWorkspace.prepareDialog` with `409` business-conflict warning handling), wired **Reverse Voucher** in the inspection modal, consolidated `Export Excel`/`Export PDF` into a unified color-icon **Export** `MenuButton` (Excel, CSV, PDF), and completed deep-link navigation to Credit Notes, Debit Notes, and Bank Expenses.
+- **Financial Statements, Aging Analysis, Account Ledger & GST Compliance (`FinancialStatementsController`, `AgingAnalysisController`, `AccountLedgerDialog`, `GstComplianceController`)**:
+  - Switched Financial Statements to canonical GL data with Cash Flow statement, Prior Period comparison, pruned `TreeTableView` dynamic widths, and `AccountLedgerDialog` drill-down (with party ledger mode, export permission gate, and repeating PDF headers).
+  - Fixed Aging Analysis audit timeline `partyId` and phone icon bindings, wired **Post Monthly ITC Offset to GL** in `GstComplianceCenter`, and resolved runtime FXML errors in `ExcelDesigner.fxml` (`%` resource lookup) and `Import.fxml` (inline `SVGPath` graphic).
+
+### Multi-Tenant White-Label OS Taskbar, Shortcut, macOS Dock & Neutral Installer Branding (Rule 4, Rule 5, Rule 9, Rule 10 & Rule 16)
+- **Neutral Multi-Company Installer Artwork (`DSE-ERP.ico`, `logo-1024.png`, `logo.png`)**:
+  - Replaced legacy company-specific installer artwork with a neutral multi-resolution geometric enterprise ERP icon (`16×16` through `256×256` ICO frames and `1024×1024` macOS `.icns` master PNG) while keeping updater/package technical filenames unchanged.
+- **Native Win32 Taskbar, Shortcut & macOS Dock Branding Bridge (`IcoEncoder.java`, `NativeAppBranding.java`, `SceneManager.java`, `BrandingService.java`, `ConfigManager.java`)**:
+  - Added pure-Java multi-resolution `.ico` encoding and Java 25 FFM Win32 Shell integration (`SetCurrentProcessExplicitAppUserModelID`, `SHGetPropertyStoreForWindow`, `WM_SETICON`, per-user `.lnk` `IShellLinkW` + `IPropertyStore` synchronization, and `SHChangeNotify`) so configured Settings marks update running Windows taskbar buttons and user shortcuts per tenant workspace.
+  - Added `java.awt.Taskbar` Dock icon synchronization for macOS after JavaFX Glass initialization without introducing external dependencies.
+- **First-Run Public Branding Synchronization (`Main.java`, `SharedAssetBridge.java`)**:
+  - Added pre-login `SharedAssetBridge.syncPublicBranding()` execution during `completeFirstRun()` and aligned alias fallback (`application.mark`, `application.banner`, `invoice.header.logo`) and stale asset cleanup across Shared Client startups.
+
 # What's New in DSE ERP v11.0.79
 
 ### Application Stage & Taskbar Branding Alignment (Rule 4, Rule 5, Rule 10 & Rule 16)

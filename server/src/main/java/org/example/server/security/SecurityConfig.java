@@ -52,7 +52,7 @@ public class SecurityConfig {
                                 "/api/authority/resources/BUSINESS_ASSET/invoice.header.logo")
                         .permitAll()
                         .requestMatchers("/api/auth/effective-permissions", "/api/auth/session",
-                                "/api/admin/diagnostics/**", "/api/admin/showcase/**", "/api/sync/v1/**")
+                                "/api/admin/diagnostics/**", "/api/admin/showcase/**", "/api/sync/v1/**", "/api/chat/**")
                         .authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/admin/users/**", "/api/admin/roles",
                                 "/api/admin/permissions")

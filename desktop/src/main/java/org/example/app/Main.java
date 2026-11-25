@@ -35,6 +35,7 @@ import org.example.service.BrandingService;
 import org.example.update.UpdateLifecycle;
 import org.example.update.UpdateStartupChecker;
 import org.example.util.SceneManager;
+import org.example.util.NativeAppBranding;
 import org.example.util.WindowUtilsFx;
 import org.example.util.PerformanceMonitor;
 import org.example.util.PerformanceBudgets;
@@ -72,6 +73,7 @@ public final class Main {
             // before primaryStage.show() is invoked.
             ConfigManager.load();
         }
+        NativeAppBranding.initializeProcessIdentity();
         SceneManager.initialize(stage);
         WindowUtilsFx.apply(stage, 1200, 800);
 
@@ -526,6 +528,12 @@ public final class Main {
                 RuntimeApiClient.RuntimeStatus startupRuntime = RuntimeBootstrapper.ensureServerReady();
                 SceneManager.updateSplashStage(4, "Verifying database, schema and migrations...");
                 new org.example.api.runtime.RuntimeApiClient().status();
+                if (ConfigManager.isSharedClient()) {
+                    try {
+                        org.example.config.SharedAssetBridge.syncPublicBranding();
+                    } catch (Exception ignored) {}
+                }
+                SceneManager.refreshSplashBranding();
                 SceneManager.updateSplashStage(5, "Finalizing " + BrandingService.applicationName() + "...");
                 SceneManager.markSplashReady("Services ready. Opening " + BrandingService.applicationName() + "...");
                 RuntimeApiClient.RuntimeStatus verifiedRuntime = startupRuntime;
