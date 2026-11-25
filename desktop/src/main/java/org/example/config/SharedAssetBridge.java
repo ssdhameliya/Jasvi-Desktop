@@ -98,6 +98,7 @@ public final class SharedAssetBridge {
                     org.example.service.BrandingService.invalidateSharedIdentity();
                     org.example.ui.SharedApplicationFooter.refreshAll();
                     org.example.controller.DashboardController.refreshBranding();
+                    org.example.util.SceneManager.applyStageIcon(org.example.util.SceneManager.primaryStage);
                 },
                 err -> java.lang.System.getLogger("org.example.config").log(java.lang.System.Logger.Level.DEBUG, "Asset sync background warning: " + err.getMessage())
         );
@@ -140,16 +141,30 @@ public final class SharedAssetBridge {
 
     public static void syncPublicBranding() {
         boolean changed = false;
+        var client = new ServerResourceClient();
         for (String key : PUBLIC_BRANDING_KEYS) {
             try {
                 Path folder = ConfigManager.getConfigurationFolder().resolve("assets");
                 Files.createDirectories(folder);
                 Path target = folder.resolve(key.replaceAll("[^A-Za-z0-9._-]", "_") + ".png");
-                byte[] bytes = new ServerResourceClient().get("BUSINESS_ASSET", key);
+                byte[] bytes = client.get("BUSINESS_ASSET", key);
+                if ((bytes == null || bytes.length == 0)) {
+                    String alias = getAliasKey(key);
+                    if (alias != null) {
+                        bytes = client.get("BUSINESS_ASSET", alias);
+                    }
+                }
                 if (bytes != null && bytes.length > 0) {
                     Files.write(target, bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                     ConfigManager.setLocalProperty(key, target.toAbsolutePath().toString().replace('\\', '/'));
                     changed = true;
+                } else {
+                    String previous = ConfigManager.getLocalProperty(key, "");
+                    if (previous != null && !previous.isBlank()) {
+                        ConfigManager.setLocalProperty(key, "");
+                        changed = true;
+                    }
+                    Files.deleteIfExists(target);
                 }
             } catch (Exception ex) {
                 java.lang.System.getLogger("org.example.config").log(java.lang.System.Logger.Level.DEBUG, "Public asset sync error for " + key + ": " + ex.getMessage());

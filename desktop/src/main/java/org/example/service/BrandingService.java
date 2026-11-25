@@ -120,18 +120,43 @@ public final class BrandingService {
     public static Image authorizedSignature() { return configuredImage("company.signaturePath"); }
     public static Image paymentQrImage() { return configuredImage("payment.qrImagePath"); }
 
+    /** Resolves the configured square mark (or company logo fallback) file path for OS taskbar/Dock icons. */
+    public static Path resolveLocalMarkFile() {
+        Path mark = configuredLocalPath("application.markImagePath");
+        return mark != null ? mark : configuredLocalPath("company.logoPath");
+    }
+
     /** Backward-compatible alias retained for older callers. */
     public static Image brandImage() { return applicationBrandImage(); }
 
     /** Backward-compatible alias retained for older callers. */
     public static Image logo() { return applicationBrandImage(); }
 
-    private static Image configuredImage(String configKey) {
+    private static Path configuredLocalPath(String configKey) {
         try {
-            String configured = ConfigManager.get(configKey, "").trim();
+            String local = ConfigManager.getLocalProperty(configKey, "");
+            String configured = local == null ? "" : local.trim();
+            if (configured.isBlank() && !Platform.isFxApplicationThread()) {
+                String fallback = ConfigManager.get(configKey, "");
+                configured = fallback == null ? "" : fallback.trim();
+            }
             if (configured.isBlank()) return null;
             Path path = Path.of(configured).toAbsolutePath().normalize();
-            if (!Files.isRegularFile(path)) return null;
+            return Files.isRegularFile(path) ? path : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static Image configuredImage(String configKey) {
+        try {
+            Path path = configuredLocalPath(configKey);
+            if (path == null) {
+                String configured = ConfigManager.get(configKey, "").trim();
+                if (configured.isBlank()) return null;
+                path = Path.of(configured).toAbsolutePath().normalize();
+                if (!Files.isRegularFile(path)) return null;
+            }
             // Load from a fresh stream so replacing the same asset filename does
             // not leave a stale URL-cached image in a long-running application.
             try (InputStream input = Files.newInputStream(path)) {

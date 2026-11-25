@@ -170,6 +170,13 @@
                 <Label fx:id="lblEmailBadge" text="0" mouseTransparent="true" styleClass="notification-badge" StackPane.alignment="TOP_RIGHT"/>
             </StackPane>
             <StackPane styleClass="notification-button-wrap">
+                <Button fx:id="btnTeamChat" contentDisplay="GRAPHIC_ONLY" onAction="#toggleTeamChat" styleClass="top-icon,approved-button,approved-secondary-button,approved-icon-button">
+                    <tooltip><Tooltip text="Team Chat &amp; Live Status"/></tooltip>
+                </Button>
+                <Label fx:id="lblChatBadge" text="0" visible="false" managed="false" mouseTransparent="true" styleClass="notification-badge" StackPane.alignment="TOP_RIGHT"/>
+                <Circle fx:id="chatSelfPresenceDot" radius="4.5" mouseTransparent="true" styleClass="chat-presence-dot,chat-dot-online" StackPane.alignment="BOTTOM_RIGHT"/>
+            </StackPane>
+            <StackPane styleClass="notification-button-wrap">
                 <Button fx:id="btnSystemDiagnostics" contentDisplay="GRAPHIC_ONLY" onAction="#openSystemDiagnostics" styleClass="top-icon,approved-button,approved-secondary-button,approved-icon-button">
                     <tooltip><Tooltip text="System Logs &amp; Application Diagnostics (Ctrl + Shift + L)"/></tooltip>
                 </Button>
@@ -202,7 +209,10 @@
                     <Button fx:id="btnWorkspaceShortcutHint" id="btnWorkspaceShortcutHint" onAction="#showWorkspaceShortcuts" styleClass="workspace-tab-shortcut-icon-btn" focusTraversable="false" accessibleText="Workspace tab shortcuts"/>
                 </HBox>
             </HBox>
-            <StackPane fx:id="contentPane" id="contentPane" VBox.vgrow="ALWAYS" styleClass="erp-content"/>
+            <StackPane VBox.vgrow="ALWAYS">
+                <StackPane fx:id="contentPane" id="contentPane" styleClass="erp-content"/>
+                <StackPane fx:id="chatOverlayLayer" pickOnBounds="false"/>
+            </StackPane>
         </VBox>
     </center>
     <bottom><SharedApplicationFooter/></bottom>

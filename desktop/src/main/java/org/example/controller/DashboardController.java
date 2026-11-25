@@ -1,5 +1,9 @@
 package org.example.controller;
 
+import javafx.scene.shape.Circle;
+import org.example.chat.TeamChatDockOverlay;
+import org.example.chat.TeamChatManager;
+import org.example.chat.TeamChatRosterPopup;
 import org.example.api.ApiSession;
 import org.example.util.AppDialogService;
 import org.example.util.DesktopLog;
@@ -247,7 +251,12 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private Button btnReminderTop;
     @FXML private Button btnNotifications;
     @FXML private Button btnEmailCenter;
+    @FXML private Button btnTeamChat;
+    @FXML private Label lblChatBadge;
+    @FXML private Circle chatSelfPresenceDot;
+    @FXML private StackPane chatOverlayLayer;
     @FXML private Button btnSystemDiagnostics;
+    private TeamChatRosterPopup chatRosterPopup;
     @FXML private Button btnSidebarToggle;
     @FXML private Button shellNewSale;
 
@@ -277,6 +286,7 @@ public class DashboardController implements ScreenLifecycle {
 
         navigationManager = new NavigationManager(contentPane);
         org.example.navigation.WorkspaceTabManager.bind(workspaceTabContainer, contentPane);
+        initializeTeamChat();
         configureWorkspaceShortcutHint();
         initializeSidebarAccordion();
         applySidebarVisibility(loadSidebarVisiblePreference(), false);
@@ -614,6 +624,7 @@ public class DashboardController implements ScreenLifecycle {
             clientHeartbeatTimeline.stop();
             clientHeartbeatTimeline = null;
         }
+        TeamChatManager.getInstance().stop();
         ApiSession.setSessionRevocationListener(null);
     }
 
@@ -914,6 +925,7 @@ public class DashboardController implements ScreenLifecycle {
         UiActionIcons.apply(btnReminderTop, "reminder", "Reminder Center");
         UiActionIcons.apply(btnNotifications, "notification", "Notifications");
         UiActionIcons.apply(btnEmailCenter, "email", "Email centre");
+        if (btnTeamChat != null) UiActionIcons.apply(btnTeamChat, "chat", "Team Chat & Live Status");
         if (btnSystemDiagnostics != null) UiActionIcons.apply(btnSystemDiagnostics, "diagnostic", "System Logs & Application Diagnostics");
         UiActionIcons.apply(menuUser, "user", "User menu");
         updateThemeButton();
@@ -1223,6 +1235,7 @@ public class DashboardController implements ScreenLifecycle {
 
         ThemeManager.toggle(btnTheme.getScene());
         updateThemeButton();
+        TeamChatManager.getInstance().refreshThemeEverywhere();
 
     }
 
@@ -2063,6 +2076,46 @@ public class DashboardController implements ScreenLifecycle {
 
     @FXML private void openSettingsShowcase() {
         openSettingsSection(btnSettingsShowcase, SettingsController.Section.SHOWCASE, "Website & 3D Showcase");
+    }
+
+    @FXML
+    private void toggleTeamChat() {
+        if (chatRosterPopup != null && btnTeamChat != null) {
+            chatRosterPopup.toggle(btnTeamChat);
+        }
+    }
+
+    private void initializeTeamChat() {
+        TeamChatManager chat = TeamChatManager.getInstance();
+        if (lblChatBadge != null) {
+            chat.totalUnreadProperty().addListener((o, ov, nv) -> applyBadge(lblChatBadge, nv.intValue()));
+            applyBadge(lblChatBadge, (int) chat.totalUnreadProperty().get());
+        }
+        if (chatSelfPresenceDot != null) {
+            chat.selfStatusProperty().addListener((o, ov, nv) ->
+                    chatSelfPresenceDot.getStyleClass().setAll("chat-presence-dot", TeamChatManager.presenceCssClass(nv)));
+            chatSelfPresenceDot.getStyleClass().setAll("chat-presence-dot",
+                    TeamChatManager.presenceCssClass(chat.selfStatusProperty().get()));
+        }
+        chatRosterPopup = new TeamChatRosterPopup();
+        if (chatOverlayLayer != null) {
+            new TeamChatDockOverlay(chatOverlayLayer, this::navigateFromChatRecord);
+        }
+        chat.start();
+    }
+
+    private void navigateFromChatRecord(String module) {
+        switch (module == null ? "" : module) {
+            case "SALE" -> openSales();
+            case "PURCHASE" -> openPurchase();
+            case "JOURNAL" -> openGeneralLedger();
+            case "QUOTATION" -> openQuotations();
+            case "CREDIT_NOTE" -> openCreditNotes();
+            case "DEBIT_NOTE" -> openDebitNotes();
+            case "CUSTOMER" -> openCustomers();
+            case "SUPPLIER" -> openSupplier();
+            default -> openSales();
+        }
     }
 
     @FXML private void openGeneralLedger() {

@@ -40,6 +40,11 @@ public class SceneManager {
         primaryStage = stage;
         primaryStage.setTitle(applicationTitle());
         WindowUtilsFx.applyAdaptiveMinimums(primaryStage, javafx.stage.Screen.getPrimary().getVisualBounds());
+        stage.showingProperty().addListener((obs, wasShowing, isShowing) -> {
+            if (Boolean.TRUE.equals(isShowing)) {
+                applyNativeBranding(stage);
+            }
+        });
         applyStageIcon(primaryStage);
     }
 
@@ -49,11 +54,15 @@ public class SceneManager {
      */
     public static void applyStageIcon(Stage stage) {
         if (stage == null) return;
-        if (Platform.isFxApplicationThread() && ConfigManager.isSharedClient() && ApiSession.isEstablished()) {
+        java.nio.file.Path localMark = BrandingService.resolveLocalMarkFile();
+        if (localMark == null && Platform.isFxApplicationThread() && ConfigManager.isSharedClient() && ApiSession.isEstablished()) {
             Thread.startVirtualThread(() -> {
                 List<Image> icons = resolveStageIcons();
                 if (!icons.isEmpty()) {
-                    Platform.runLater(() -> stage.getIcons().setAll(icons));
+                    Platform.runLater(() -> {
+                        stage.getIcons().setAll(icons);
+                        applyNativeBranding(stage);
+                    });
                 }
             });
             return;
@@ -62,9 +71,21 @@ public class SceneManager {
         if (icons.isEmpty()) return;
         if (Platform.isFxApplicationThread()) {
             stage.getIcons().setAll(icons);
+            applyNativeBranding(stage);
         } else {
-            Platform.runLater(() -> stage.getIcons().setAll(icons));
+            Platform.runLater(() -> {
+                stage.getIcons().setAll(icons);
+                applyNativeBranding(stage);
+            });
         }
+    }
+
+    private static void applyNativeBranding(Stage stage) {
+        if (stage == null || !stage.isShowing()) return;
+        NativeAppBranding.applyToPrimaryStageAsync(
+                stage,
+                BrandingService.resolveLocalMarkFile(),
+                brandedWindowTitle(""));
     }
 
     private static List<Image> resolveStageIcons() {
@@ -186,6 +207,7 @@ public class SceneManager {
             primaryStage.setTitle(applicationTitle());
             if (!primaryStage.isShowing()) primaryStage.centerOnScreen();
             primaryStage.show();
+            applyNativeBranding(primaryStage);
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to open first-run setup.", exception);
         }
@@ -311,6 +333,7 @@ public class SceneManager {
             }
             if (!primaryStage.isShowing()) primaryStage.centerOnScreen();
             primaryStage.show();
+            applyNativeBranding(primaryStage);
 
         } catch (Exception e) {
             throw new IllegalStateException("Unable to load application screen: " + fxml, e);

@@ -265,7 +265,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_88__gl_integrity_reconciliation_and_fy_close",
                     "db/migration/V11_0_88__gl_integrity_reconciliation_and_fy_close.sql"),
             new Migration("V11_0_89__bank_statement_suggested_match_type",
-                    "db/migration/V11_0_89__bank_statement_suggested_match_type.sql")
+                    "db/migration/V11_0_89__bank_statement_suggested_match_type.sql"),
+            new Migration("V11_0_90__team_chat_and_presence",
+                    "db/migration/V11_0_90__team_chat_and_presence.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;
