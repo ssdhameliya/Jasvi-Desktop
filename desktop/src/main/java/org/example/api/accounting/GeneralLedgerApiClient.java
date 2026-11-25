@@ -58,6 +58,34 @@ public final class GeneralLedgerApiClient {
         return get(p.toString(), new TypeReference<List<JournalEntryDto>>() {});
     }
 
+    public PagedJournalResponse journalEntriesPage(int page, int size, LocalDate fromDate, LocalDate toDate,
+                                                     String entryType, String status, String q) {
+        StringBuilder p = new StringBuilder("/api/accounting/journal-entries/page?page=").append(page)
+                .append("&size=").append(size);
+        if (fromDate != null) p.append("&fromDate=").append(enc(fromDate.toString()));
+        if (toDate != null) p.append("&toDate=").append(enc(toDate.toString()));
+        if (entryType != null && !entryType.isBlank()) p.append("&entryType=").append(enc(entryType));
+        if (status != null && !status.isBlank()) p.append("&status=").append(enc(status));
+        if (q != null && !q.isBlank()) p.append("&q=").append(enc(q));
+        return get(p.toString(), PagedJournalResponse.class);
+    }
+
+    public PartyLedgerResponse partyLedger(long partyId, LocalDate fromDate, LocalDate toDate) {
+        StringBuilder p = new StringBuilder("/api/accounting/party-ledger/").append(partyId);
+        String sep = "?";
+        if (fromDate != null) { p.append(sep).append("fromDate=").append(enc(fromDate.toString())); sep = "&"; }
+        if (toDate != null) { p.append(sep).append("toDate=").append(enc(toDate.toString())); }
+        return get(p.toString(), PartyLedgerResponse.class);
+    }
+
+    public ReconciliationHealthCheckDto reconciliationHealth() {
+        return get("/api/accounting/reconciliation-health", ReconciliationHealthCheckDto.class);
+    }
+
+    public FiscalYearCloseResponse closeFiscalYear(FiscalYearCloseRequest req) {
+        return post("/api/accounting/fiscal-year-close", req, FiscalYearCloseResponse.class);
+    }
+
     public JournalEntryDto postJournalEntry(CreateJournalRequest req) {
         return post("/api/accounting/journal-entries", req, JournalEntryDto.class);
     }
@@ -484,4 +512,76 @@ public final class GeneralLedgerApiClient {
                  BigDecimal.ZERO, null, "SYSTEM", "AUTO_POST", null, null, null);
         }
     }
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record PagedJournalResponse(
+            List<JournalEntryDto> rows,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record PartyLedgerResponse(
+            Long partyId,
+            String partyName,
+            String partyType,
+            LocalDate fromDate,
+            LocalDate toDate,
+            BigDecimal openingBalance,
+            BigDecimal totalDebit,
+            BigDecimal totalCredit,
+            BigDecimal closingBalance,
+            String closingBalanceType,
+            List<AccountLedgerLineDto> entries
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record ReconciliationControlRow(
+            String area,
+            String accountCode,
+            String accountName,
+            BigDecimal glBalance,
+            BigDecimal subledgerBalance,
+            BigDecimal variance,
+            String status
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record UnpostedDocRow(
+            String docType,
+            Long docId,
+            String docNo,
+            String date,
+            BigDecimal amount,
+            String status
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record ReconciliationHealthCheckDto(
+            List<ReconciliationControlRow> controls,
+            List<UnpostedDocRow> unpostedDocuments,
+            int mismatchCount,
+            int unpostedCount,
+            boolean healthy
+    ) {}
+
+    public record FiscalYearCloseRequest(
+            String fyLabel,
+            LocalDate fromDate,
+            LocalDate toDate,
+            boolean lockPeriod,
+            String closedBy
+    ) {}
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public record FiscalYearCloseResponse(
+            Long closingEntryId,
+            String entryNumber,
+            String fyLabel,
+            BigDecimal netProfitTransferred,
+            LocalDate lockedUntil,
+            String message
+    ) {}
 }

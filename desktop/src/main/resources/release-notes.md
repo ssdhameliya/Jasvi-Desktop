@@ -1,3 +1,30 @@
+# What's New in DSE ERP v11.0.79
+
+### Application Stage & Taskbar Branding Alignment (Rule 4, Rule 5, Rule 10 & Rule 16)
+- **Pre-Show Configuration Load & Multi-Resolution Square Taskbar Icons (`Main.java`, `SceneManager.java`, `SharedAssetBridge.java`, `SettingsController.java`)**:
+  - Loaded workspace configuration before `SceneManager.initialize(stage)` when configured so the application title and custom Settings Application Mark (`application.markImagePath`, with `company.logoPath` fallback) bind to `primaryStage` before Windows displays the window handle.
+  - Replaced single raw icon assignment with multi-resolution square icon generation (`16×16`, `32×32`, `48×48`, `64×64`, `128×128`, `256×256` bilinear-resampled frames) so Windows updates both `ICON_SMALL` (titlebar) and `ICON_BIG` (taskbar) cleanly even for non-square uploaded marks, and ensured asynchronous shared asset synchronization refreshes the active shell title, footer, and Stage icon without blocking the JavaFX thread.
+
+### Bank Statement Reconciliation Evolution: Per-Line Audit References, Indian UTR Parsing, Quick Modals & CA BRS Reports (Rule 4, Rule 5, Rule 7, Rule 10, Rule 11, Rule 12 & Rule 16)
+- **Unique Per-Transaction Line References (`BST/00001-001`) Across Full ERP Stack**:
+  - Separated batch import identity (`BST/00001`) from unique row-level line references (`BST/00001-001`) via `V11_0_87__bank_statement_line_reference.sql` with automated backfill and unique indexing.
+  - Propagated row-level `transaction_reference` seamlessly into Bank Statement table, Quick Bank/Expense vouchers (`BankExpenseController`), Purchase Reconciliation, Sales/Purchase inspections, and Global Search (`SupportService`).
+- **Indian Banking Narration & Real UTR Extractor (`BankNarrationParser`, `UniversalBankStatementParser`)**:
+  - Automatically detects transfer channels (`UPI`, `NEFT`, `IMPS`, `RTGS`, `CHQ`, `ACH`, `POS`, `CHARGES`), extracts real 10–20 digit UTR/RRN/Cheque IDs when Ref No. is blank, and displays clickable channel pills, counterparty names, Channel filter dropdown, and 1-click Copy UTR action.
+- **Stay-on-Screen Quick Posting Workflows (`BankStatementQuickEntryDialog`)**:
+  - Added non-disruptive in-screen Quick Expense (with single-row *"Remember rule"* toggle), Quick Bank Entry / Internal Contra Transfer, Quick Customer/Supplier Advance Receipt/Payment, and interactive No-Match fallback choices preserving filter and scroll state.
+- **Running Balance Verification Bar, Consolidated Account Date-Range View & CA BRS Export (`BankStatementExportHelper`)**:
+  - Added live Opening vs. Calculated Closing vs. Bank Closing verification strip and balanced/variance badge, consolidated per-account view across overlapping imports, and toolbar Export menu for Filtered Excel/PDF and CA-ready BRS Summary + Uncleared Schedules.
+- **Smart Auto-Rule Persistence Hardening & Streamlined Compact Workspace (`V11_0_89`, `BankStatement.fxml`, `BankStatementController`)**:
+  - Widened `bank_statement_transaction.suggested_match_type` from `VARCHAR(20)` to `VARCHAR(255)` with length guarding in `BankReconciliationRuleService`, eliminating `character varying(20)` overflows on Smart Rule suggestions.
+  - Streamlined workspace layout: 60% compact non-truncating KPI cards, `36px` table header height, single-line smart compact narration rows (`38px`, stripping duplicate channel/UTR/IFSC noise while preserving full narration on hover tooltip and `Actions -> View Transaction Details`), multi-link `+N` interactive pill revealing remaining linked vouchers/invoices, batch status badge unified on the balance bar, `Reset` and `Refresh` actions positioned beside `Batch Progress` in the filter strip, and consolidated bottom bulk + automation footer (`Move to Expense`, `Move to Bank Entry`, `Reviewed`, `Ignore`, `Auto Match Suggestions`, `Rules`, `Run Rules`).
+
+### Sale & Purchase Additional Charge Update Persistence Fix (Rule 4, Rule 10, Rule 16 & Rule 17)
+- **Eliminated Duplicate Sequence Key Violations on Invoice Charge Updates (`SalesChargeRepository.java`, `PurchaseChargeRepository.java`, `BusinessOperationsService.java`)**:
+  - Fixed a JPA/Hibernate `ActionQueue` ordering race condition where editing or modifying additional charges on an existing Sale or Purchase invoice triggered `uq_sales_charge_sequence` / `uq_purchase_charge_sequence` (`23505` duplicate key violation) because `IDENTITY`-generated inserts executed ahead of pending entity deletions.
+  - Replaced derived deletes with `@Modifying(flushAutomatically = true)` bulk JPQL deletes in `SalesChargeRepository` and `PurchaseChargeRepository` (preserving managed parent header entities with `clearAutomatically = false`), paired with explicit repository `flush()` calls in `replaceSaleCharges`, `replacePurchaseCharges`, `replaceSaleLines`, and `replacePurchaseLines`.
+  - Added regression verification in `ChargeReplacementOrderContractTest` and real PostgreSQL test coverage in `PostgresWorkflowIntegrationTest`.
+
 # What's New in DSE ERP v11.0.78
 
 ### Smart GSTIN-First Customer & Supplier Loader with Live GST Portal Auto-Fetch (Rule 4, Rule 10, Rule 11, Rule 16 & Rule 17)

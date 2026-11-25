@@ -94,7 +94,11 @@ public final class SharedAssetBridge {
         org.example.util.UiTaskExecutor.submitAction(
                 "sync-business-assets",
                 () -> { syncAll(); return Boolean.TRUE; },
-                done -> org.example.service.BrandingService.invalidateSharedIdentity(),
+                done -> {
+                    org.example.service.BrandingService.invalidateSharedIdentity();
+                    org.example.ui.SharedApplicationFooter.refreshAll();
+                    org.example.controller.DashboardController.refreshBranding();
+                },
                 err -> java.lang.System.getLogger("org.example.config").log(java.lang.System.Logger.Level.DEBUG, "Asset sync background warning: " + err.getMessage())
         );
     }

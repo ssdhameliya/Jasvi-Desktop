@@ -214,8 +214,12 @@ public final class CommunicationInspectionDialog {
             lblAttTime.getStyleClass().add("stock-date-time");
             lblAttTime.setMinWidth(Region.USE_PREF_SIZE);
 
-            Label lblAttRecip = new Label(attRecips.size() + (attRecips.size() == 1 ? " recipient" : " recipients") + " • " + (safe(att.createdBy()).isBlank() ? "System" : att.createdBy()));
+            String subjText = safe(att.subject());
+            String recipMeta = attRecips.size() + (attRecips.size() == 1 ? " recipient" : " recipients")
+                    + " • " + (safe(att.createdBy()).isBlank() ? "System" : att.createdBy());
+            Label lblAttRecip = new Label(subjText.isBlank() ? recipMeta : subjText + "  •  " + recipMeta);
             lblAttRecip.getStyleClass().add("muted-label");
+            lblAttRecip.setTooltip(IconFactory.createTooltip((subjText.isBlank() ? "" : subjText + "\n") + String.join(", ", attRecips)));
             HBox.setHgrow(lblAttRecip, Priority.ALWAYS);
 
             Label lblAttStatus = new Label(attFail ? "FAILED" : "SENT");

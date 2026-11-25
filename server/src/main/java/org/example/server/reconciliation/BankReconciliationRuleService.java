@@ -191,7 +191,7 @@ public class BankReconciliationRuleService {
             } else if (!onImport || isSuggestOnImportEnabled()) {
                 String prev = tx.getStatus();
                 tx.setStatus("SUGGESTED");
-                tx.setSuggestedMatchType("RULE:" + rule.getActionType() + ":" + rule.getRuleName());
+                tx.setSuggestedMatchType(formatSuggestedRuleTag(rule));
                 tx.setSuggestedConfidence(95.0);
                 txs.save(tx);
                 recordAudit(tx, "RULE_SUGGESTED",
@@ -356,6 +356,10 @@ public class BankReconciliationRuleService {
     }
     private static String normalizeMode(String s) {
         return "AUTO_APPLY".equalsIgnoreCase(safe(s).trim()) ? "AUTO_APPLY" : "SUGGEST";
+    }
+    private static String formatSuggestedRuleTag(BankReconciliationRuleEntity rule) {
+        String tag = "RULE:" + normalizeAction(rule.getActionType()) + ":" + safe(rule.getRuleName()).trim();
+        return tag.length() > 255 ? tag.substring(0, 255) : tag;
     }
     private static String currentActor() {
         try {

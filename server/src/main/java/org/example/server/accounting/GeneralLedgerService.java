@@ -1,5 +1,7 @@
 package org.example.server.accounting;
 
+import org.example.server.audit.AuditService;
+import org.example.server.insights.CashPositionService;
 import org.example.server.persistence.entity.ChartOfAccountsEntity;
 import org.example.server.persistence.entity.JournalEntryEntity;
 import org.example.server.persistence.entity.JournalLineEntity;
@@ -7,7 +9,10 @@ import org.example.server.persistence.repository.ChartOfAccountsRepository;
 import org.example.server.persistence.repository.JournalEntryRepository;
 import org.example.server.persistence.repository.JournalLineRepository;
 import org.example.server.persistence.JpaNativeRepository;
+import org.example.server.security.CurrentUser;
 import org.example.shared.ReferenceFormatRules;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,16 +32,44 @@ public class GeneralLedgerService {
     private final JournalEntryRepository journalEntryRepository;
     private final JournalLineRepository journalLineRepository;
     private final JpaNativeRepository jdbc;
+    private final ObjectProvider<AuditService> auditProvider;
+    private final ObjectProvider<CashPositionService> cashPositionProvider;
     private final AtomicLong sequenceGen = new AtomicLong(System.currentTimeMillis() % 100000);
 
     public GeneralLedgerService(ChartOfAccountsRepository coaRepository,
                                 JournalEntryRepository journalEntryRepository,
                                 JournalLineRepository journalLineRepository,
                                 JpaNativeRepository jdbc) {
+        this(coaRepository, journalEntryRepository, journalLineRepository, jdbc, null, null);
+    }
+
+    @Autowired
+    public GeneralLedgerService(ChartOfAccountsRepository coaRepository,
+                                JournalEntryRepository journalEntryRepository,
+                                JournalLineRepository journalLineRepository,
+                                JpaNativeRepository jdbc,
+                                ObjectProvider<AuditService> auditProvider,
+                                ObjectProvider<CashPositionService> cashPositionProvider) {
         this.coaRepository = coaRepository;
         this.journalEntryRepository = journalEntryRepository;
         this.journalLineRepository = journalLineRepository;
         this.jdbc = jdbc;
+        this.auditProvider = auditProvider;
+        this.cashPositionProvider = cashPositionProvider;
+    }
+
+    private void recordAudit(String entityType, Number entityId, String action, String detail, List<AuditService.Change> changes) {
+        try {
+            AuditService audit = auditProvider != null ? auditProvider.getIfAvailable() : null;
+            if (audit == null || !CurrentUser.isSet()) return;
+            if (changes == null || changes.isEmpty()) {
+                audit.log(entityType, entityId, action, detail);
+            } else {
+                audit.logChanges(entityType, entityId, action, detail, changes);
+            }
+        } catch (Exception ignored) {
+            // Never let auxiliary audit lookup disrupt GL core persistence when anonymous/system seeded
+        }
     }
 
     private static final String PERIOD_LOCK_UNTIL_KEY = "accounting.period.lock.until";
@@ -80,12 +113,23 @@ public class GeneralLedgerService {
         entity.setIsActive(dto.isActive() != null ? dto.isActive() : true);
         entity.setIsSystem(false);
         ChartOfAccountsEntity saved = coaRepository.save(entity);
+        reconcileOpeningBalanceSuspense(saved, saved.getOpeningBalance());
+        recordAudit("ACCOUNT", saved.getId(), "CREATED",
+                saved.getAccountCode() + " - " + saved.getAccountName() + " (" + saved.getAccountType() + ")",
+                List.of(new AuditService.Change("Opening Balance", "0.00", saved.getOpeningBalance().toPlainString())));
         return toAccountDto(saved);
     }
 
     public GeneralLedgerDtos.AccountDto updateAccount(Long id, GeneralLedgerDtos.UpdateAccountRequest req) {
         ChartOfAccountsEntity entity = coaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found: " + id));
+        String oldName = entity.getAccountName();
+        String oldType = entity.getAccountType();
+        String oldSubtype = entity.getAccountSubtype();
+        BigDecimal oldOpening = entity.getOpeningBalance() != null ? entity.getOpeningBalance() : BigDecimal.ZERO;
+        Boolean oldActive = entity.getIsActive();
+        BigDecimal openingDelta = BigDecimal.ZERO;
+
         if (req.accountName() != null && !req.accountName().isBlank()) {
             entity.setAccountName(req.accountName().trim());
         }
@@ -102,11 +146,10 @@ public class GeneralLedgerService {
             entity.setAccountSubtype(req.accountSubtype().trim().toUpperCase(Locale.ROOT));
         }
         if (req.openingBalance() != null) {
-            BigDecimal oldOpening = entity.getOpeningBalance() != null ? entity.getOpeningBalance() : BigDecimal.ZERO;
             BigDecimal current = entity.getCurrentBalance() != null ? entity.getCurrentBalance() : BigDecimal.ZERO;
-            BigDecimal delta = req.openingBalance().subtract(oldOpening);
+            openingDelta = req.openingBalance().subtract(oldOpening);
             entity.setOpeningBalance(req.openingBalance());
-            entity.setCurrentBalance(current.add(delta));
+            entity.setCurrentBalance(current.add(openingDelta));
         }
         if (req.isActive() != null && !req.isActive()) {
             if (Boolean.TRUE.equals(entity.getIsSystem())) {
@@ -120,7 +163,35 @@ public class GeneralLedgerService {
         } else if (req.isActive() != null && req.isActive()) {
             entity.setIsActive(true);
         }
-        return toAccountDto(coaRepository.save(entity));
+        ChartOfAccountsEntity saved = coaRepository.save(entity);
+        reconcileOpeningBalanceSuspense(saved, openingDelta);
+        recordAudit("ACCOUNT", saved.getId(), "UPDATED",
+                saved.getAccountCode() + " - " + saved.getAccountName(),
+                List.of(
+                        new AuditService.Change("Account Name", oldName, saved.getAccountName()),
+                        new AuditService.Change("Account Type", oldType, saved.getAccountType()),
+                        new AuditService.Change("Account Subtype", oldSubtype, saved.getAccountSubtype()),
+                        new AuditService.Change("Opening Balance", oldOpening.toPlainString(),
+                                saved.getOpeningBalance() != null ? saved.getOpeningBalance().toPlainString() : "0.00"),
+                        new AuditService.Change("Active", String.valueOf(oldActive), String.valueOf(saved.getIsActive()))
+                ));
+        return toAccountDto(saved);
+    }
+
+    /** Preserves double-entry Trial Balance equilibrium whenever an account opening balance is added or changed. */
+    private void reconcileOpeningBalanceSuspense(ChartOfAccountsEntity target, BigDecimal openingDelta) {
+        if (target == null || openingDelta == null || openingDelta.compareTo(BigDecimal.ZERO) == 0) return;
+        if ("3999".equals(target.getAccountCode())) return;
+        Long suspenseId = getAccountIdOrDefault("3999", "Opening Balance Suspense", "EQUITY");
+        ChartOfAccountsEntity suspense = coaRepository.findById(suspenseId).orElse(null);
+        if (suspense == null) return;
+        BigDecimal cur = suspense.getCurrentBalance() != null ? suspense.getCurrentBalance() : BigDecimal.ZERO;
+        BigDecimal curOpen = suspense.getOpeningBalance() != null ? suspense.getOpeningBalance() : BigDecimal.ZERO;
+        // Debit-normal account opening increases Dr -> offset Credits 3999 (positive EQUITY); Credit-normal decreases Cr -> offset Debits 3999.
+        BigDecimal suspenseDelta = isDebitNormal(target.getAccountType()) ? openingDelta : openingDelta.negate();
+        suspense.setOpeningBalance(curOpen.add(suspenseDelta));
+        suspense.setCurrentBalance(cur.add(suspenseDelta));
+        coaRepository.save(suspense);
     }
 
     @Transactional(readOnly = true)
@@ -140,11 +211,17 @@ public class GeneralLedgerService {
     }
 
     public GeneralLedgerDtos.PeriodLockDto setPeriodLock(LocalDate lockedUntil, String actor) {
+        GeneralLedgerDtos.PeriodLockDto previous = getPeriodLock();
         String safeActor = (actor == null || actor.isBlank()) ? "ADMIN" : actor.trim();
         String nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         upsertSetting(PERIOD_LOCK_UNTIL_KEY, lockedUntil == null ? "" : lockedUntil.toString());
         upsertSetting(PERIOD_LOCK_BY_KEY, safeActor);
         upsertSetting(PERIOD_LOCK_AT_KEY, nowStr);
+        String oldUntil = previous.lockedUntil() != null ? previous.lockedUntil().toString() : "OPEN";
+        String newUntil = lockedUntil != null ? lockedUntil.toString() : "OPEN";
+        recordAudit("PERIOD_LOCK", 1L, lockedUntil != null ? "LOCKED" : "UNLOCKED",
+                "Period lock changed from " + oldUntil + " to " + newUntil + " by " + safeActor,
+                List.of(new AuditService.Change("Locked Until", oldUntil, newUntil)));
         return new GeneralLedgerDtos.PeriodLockDto(lockedUntil, safeActor, nowStr, lockedUntil != null);
     }
 
@@ -182,6 +259,9 @@ public class GeneralLedgerService {
             if (d.compareTo(BigDecimal.ZERO) < 0 || c.compareTo(BigDecimal.ZERO) < 0) {
                 throw new IllegalArgumentException("Debit and Credit amounts cannot be negative.");
             }
+            if (d.compareTo(BigDecimal.ZERO) > 0 && c.compareTo(BigDecimal.ZERO) > 0) {
+                throw new IllegalArgumentException("A single journal line cannot contain both Debit and Credit amounts.");
+            }
             sumDebit = sumDebit.add(d);
             sumCredit = sumCredit.add(c);
         }
@@ -207,8 +287,11 @@ public class GeneralLedgerService {
         entry.setTotalDebit(sumDebit);
         entry.setTotalCredit(sumCredit);
         entry.setStatus(status);
+        String creator = (req.postedBy() != null && !req.postedBy().isBlank()) ? req.postedBy().trim()
+                : (CurrentUser.isSet() ? CurrentUser.require().username() : "SYSTEM");
+        entry.setCreatedBy(creator);
         if ("POSTED".equals(status)) {
-            entry.setPostedBy(req.postedBy() != null ? req.postedBy() : "SYSTEM");
+            entry.setPostedBy(creator);
             entry.setPostedAt(LocalDateTime.now());
         }
 
@@ -226,6 +309,9 @@ public class GeneralLedgerService {
             } else {
                 throw new IllegalArgumentException("Line " + lineNum + " missing account specification");
             }
+            if (!Boolean.TRUE.equals(account.getIsActive()) && !"REVERSAL".equalsIgnoreCase(entry.getEntryType())) {
+                throw new IllegalArgumentException("Account '" + account.getAccountCode() + " - " + account.getAccountName() + "' is inactive and cannot be posted.");
+            }
 
             BigDecimal debit = lineReq.debitAmount() != null ? lineReq.debitAmount() : BigDecimal.ZERO;
             BigDecimal credit = lineReq.creditAmount() != null ? lineReq.creditAmount() : BigDecimal.ZERO;
@@ -239,7 +325,8 @@ public class GeneralLedgerService {
             line.setPartyId(lineReq.partyId());
             line.setLineNarration(lineReq.lineNarration());
             line.setCostCenter(lineReq.costCenter());
-            journalLineRepository.save(line);
+            JournalLineEntity savedLine = journalLineRepository.save(line);
+            savedEntry.getLines().add(savedLine);
 
             // Update Account Balance if POSTED
             if ("POSTED".equals(status)) {
@@ -253,6 +340,10 @@ public class GeneralLedgerService {
             }
         }
 
+        recordAudit("JOURNAL", savedEntry.getId(), "DRAFT".equals(status) ? "CREATED_DRAFT" : "POSTED",
+                savedEntry.getEntryNumber() + " (" + savedEntry.getEntryType() + ") • Total: " + sumDebit.toPlainString(),
+                List.of(new AuditService.Change("Voucher Status", null, status),
+                        new AuditService.Change("Amount", "0.00", sumDebit.toPlainString())));
         return toJournalEntryDto(savedEntry);
     }
 
@@ -266,12 +357,18 @@ public class GeneralLedgerService {
             throw new IllegalStateException("Cannot post a " + entry.getStatus() + " voucher.");
         }
         ensurePeriodOpen(entry.getEntryDate());
+        String actor = postedBy != null && !postedBy.isBlank() ? postedBy.trim()
+                : (CurrentUser.isSet() ? CurrentUser.require().username() : "SYSTEM");
+        boolean selfPosted = entry.getCreatedBy() != null && entry.getCreatedBy().equalsIgnoreCase(actor);
         entry.setStatus("POSTED");
-        entry.setPostedBy(postedBy != null && !postedBy.isBlank() ? postedBy : "SYSTEM");
+        entry.setPostedBy(actor);
         entry.setPostedAt(LocalDateTime.now());
         for (JournalLineEntity line : entry.getLines()) {
             ChartOfAccountsEntity account = coaRepository.findById(line.getAccountId())
                     .orElseThrow(() -> new IllegalArgumentException("Account not found: " + line.getAccountId()));
+            if (!Boolean.TRUE.equals(account.getIsActive())) {
+                throw new IllegalArgumentException("Account '" + account.getAccountCode() + " - " + account.getAccountName() + "' is inactive.");
+            }
             BigDecimal current = account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO;
             if (isDebitNormal(account.getAccountType())) {
                 account.setCurrentBalance(current.add(line.getDebitAmount()).subtract(line.getCreditAmount()));
@@ -280,7 +377,12 @@ public class GeneralLedgerService {
             }
             coaRepository.save(account);
         }
-        return toJournalEntryDto(journalEntryRepository.save(entry));
+        JournalEntryEntity saved = journalEntryRepository.save(entry);
+        recordAudit("JOURNAL", saved.getId(), "POSTED",
+                saved.getEntryNumber() + " posted from DRAFT by " + actor + (selfPosted ? " (Self-Approved)" : " (Maker-Checker)"),
+                List.of(new AuditService.Change("Status", "DRAFT", "POSTED"),
+                        new AuditService.Change("Posted By", entry.getCreatedBy(), actor)));
+        return toJournalEntryDto(saved);
     }
 
     public GeneralLedgerDtos.JournalEntryDto reverseJournalEntry(Long journalEntryId, GeneralLedgerDtos.ReverseJournalRequest req) {
@@ -329,6 +431,9 @@ public class GeneralLedgerService {
         GeneralLedgerDtos.JournalEntryDto reversal = postJournalEntry(revReq);
         original.setStatus("REVERSED");
         journalEntryRepository.save(original);
+        recordAudit("JOURNAL", original.getId(), "REVERSED",
+                "Reversed " + original.getEntryNumber() + " via " + reversal.entryNumber() + " (" + reason + ")",
+                List.of(new AuditService.Change("Status", "POSTED", "REVERSED")));
         return reversal;
     }
 
@@ -345,7 +450,8 @@ public class GeneralLedgerService {
             LocalDate end = toDate != null ? toDate : LocalDate.of(2099, 12, 31);
             entities = journalEntryRepository.findByEntryDateBetweenOrderByEntryDateDescIdDesc(start, end);
         } else {
-            entities = journalEntryRepository.findTop500ByOrderByEntryDateDescIdDesc();
+            entities = journalEntryRepository.findByEntryDateBetweenOrderByEntryDateDescIdDesc(
+                    LocalDate.of(2000, 1, 1), LocalDate.of(2099, 12, 31));
         }
         String typeFilter = (entryType == null || entryType.isBlank() || "ALL".equalsIgnoreCase(entryType)) ? null : entryType.trim().toUpperCase(Locale.ROOT);
         String statusFilter = (status == null || status.isBlank() || "ALL".equalsIgnoreCase(status)) ? null : status.trim().toUpperCase(Locale.ROOT);
@@ -358,17 +464,73 @@ public class GeneralLedgerService {
     }
 
     @Transactional(readOnly = true)
+    public GeneralLedgerDtos.PagedJournalResponse listEntriesPage(int page, int size, LocalDate fromDate, LocalDate toDate,
+                                                                  String entryType, String status, String q) {
+        int safeSize = Math.max(10, Math.min(size, 200));
+        int safePage = Math.max(0, page);
+        StringBuilder where = new StringBuilder(" WHERE 1=1 ");
+        List<Object> args = new ArrayList<>();
+        if (fromDate != null) {
+            where.append(" AND je.entry_date >= ? ");
+            args.add(fromDate);
+        }
+        if (toDate != null) {
+            where.append(" AND je.entry_date <= ? ");
+            args.add(toDate);
+        }
+        String typeFilter = (entryType == null || entryType.isBlank() || "ALL".equalsIgnoreCase(entryType)) ? null : entryType.trim().toUpperCase(Locale.ROOT);
+        if (typeFilter != null) {
+            where.append(" AND UPPER(COALESCE(je.entry_type, '')) = ? ");
+            args.add(typeFilter);
+        }
+        String statusFilter = (status == null || status.isBlank() || "ALL".equalsIgnoreCase(status)) ? null : status.trim().toUpperCase(Locale.ROOT);
+        if (statusFilter != null) {
+            where.append(" AND UPPER(COALESCE(je.status, '')) = ? ");
+            args.add(statusFilter);
+        }
+        if (q != null && !q.isBlank()) {
+            String like = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
+            where.append(" AND (LOWER(COALESCE(je.entry_number,'')) LIKE ? OR LOWER(COALESCE(je.reference_no,'')) LIKE ? OR LOWER(COALESCE(je.narration,'')) LIKE ? OR EXISTS (SELECT 1 FROM journal_line jl JOIN chart_of_accounts ca ON ca.id = jl.account_id WHERE jl.journal_entry_id = je.id AND (LOWER(ca.account_code) LIKE ? OR LOWER(ca.account_name) LIKE ? OR LOWER(COALESCE(jl.line_narration,'')) LIKE ?))) ");
+            for (int i = 0; i < 6; i++) args.add(like);
+        }
+        long total = Optional.ofNullable(jdbc.queryForObject("SELECT COUNT(*) FROM journal_entry je " + where, Long.class, args.toArray())).orElse(0L);
+        int totalPages = total == 0 ? 0 : (int) Math.ceil(total / (double) safeSize);
+        if (totalPages > 0 && safePage >= totalPages) safePage = totalPages - 1;
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(safeSize);
+        pageArgs.add((long) safePage * safeSize);
+        List<Long> ids = jdbc.query(
+                "SELECT je.id FROM journal_entry je " + where + " ORDER BY je.entry_date DESC, je.id DESC LIMIT ? OFFSET ?",
+                (rs, rowNum) -> rs.getLong(1), pageArgs.toArray());
+        if (ids.isEmpty()) {
+            return new GeneralLedgerDtos.PagedJournalResponse(List.of(), safePage, safeSize, total, totalPages);
+        }
+        Map<Long, JournalEntryEntity> byId = new HashMap<>();
+        journalEntryRepository.findAllById(ids).forEach(e -> byId.put(e.getId(), e));
+        List<GeneralLedgerDtos.JournalEntryDto> rows = ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .map(this::toJournalEntryDto)
+                .toList();
+        return new GeneralLedgerDtos.PagedJournalResponse(rows, safePage, safeSize, total, totalPages);
+    }
+
+    @Transactional(readOnly = true)
     public List<GeneralLedgerDtos.TrialBalanceItemDto> getTrialBalance() {
         return getTrialBalance(null, null);
     }
 
     @Transactional(readOnly = true)
     public List<GeneralLedgerDtos.TrialBalanceItemDto> getTrialBalance(LocalDate fromDate, LocalDate toDate) {
-        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
+        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByOrderByAccountCodeAsc();
         if (fromDate == null && toDate == null) {
             List<GeneralLedgerDtos.TrialBalanceItemDto> tb = new ArrayList<>();
             for (ChartOfAccountsEntity acc : accounts) {
+                BigDecimal open = acc.getOpeningBalance() != null ? acc.getOpeningBalance() : BigDecimal.ZERO;
                 BigDecimal current = acc.getCurrentBalance() != null ? acc.getCurrentBalance() : BigDecimal.ZERO;
+                if (!Boolean.TRUE.equals(acc.getIsActive()) && open.compareTo(BigDecimal.ZERO) == 0 && current.compareTo(BigDecimal.ZERO) == 0) {
+                    continue;
+                }
                 BigDecimal debit = BigDecimal.ZERO;
                 BigDecimal credit = BigDecimal.ZERO;
                 if (isDebitNormal(acc.getAccountType())) {
@@ -380,7 +542,7 @@ public class GeneralLedgerService {
                 }
                 tb.add(new GeneralLedgerDtos.TrialBalanceItemDto(
                         acc.getAccountCode(), acc.getAccountName(), acc.getAccountType(),
-                        acc.getOpeningBalance(), debit, credit, current
+                        open, debit, credit, current
                 ));
             }
             return tb;
@@ -406,6 +568,13 @@ public class GeneralLedgerService {
             BigDecimal closing = drNormal
                     ? opening.add(periodDr).subtract(periodCr)
                     : opening.add(periodCr).subtract(periodDr);
+            if (!Boolean.TRUE.equals(acc.getIsActive())
+                    && opening.compareTo(BigDecimal.ZERO) == 0
+                    && periodDr.compareTo(BigDecimal.ZERO) == 0
+                    && periodCr.compareTo(BigDecimal.ZERO) == 0
+                    && closing.compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
             tb.add(new GeneralLedgerDtos.TrialBalanceItemDto(
                     acc.getAccountCode(), acc.getAccountName(), acc.getAccountType(),
                     opening, periodDr, periodCr, closing
@@ -520,7 +689,7 @@ public class GeneralLedgerService {
 
     @Transactional(readOnly = true)
     public GeneralLedgerDtos.ProfitAndLossResponse getProfitAndLoss(LocalDate fromDate, LocalDate toDate) {
-        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
+        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByOrderByAccountCodeAsc();
         Map<Long, BigDecimal[]> periodMap = (fromDate != null || toDate != null)
                 ? loadAccountMovementSums(fromDate, toDate)
                 : null;
@@ -575,7 +744,7 @@ public class GeneralLedgerService {
 
     @Transactional(readOnly = true)
     public GeneralLedgerDtos.BalanceSheetResponse getBalanceSheet(LocalDate asOfDate) {
-        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
+        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByOrderByAccountCodeAsc();
         Map<Long, BigDecimal[]> upToMap = asOfDate != null ? loadAccountMovementSums(null, asOfDate) : null;
 
         List<GeneralLedgerDtos.BalanceSheetLineDto> assets = new ArrayList<>();
@@ -636,7 +805,7 @@ public class GeneralLedgerService {
     @Transactional(readOnly = true)
     public GeneralLedgerDtos.FinancialStatementDto getFinancialStatements(LocalDate fromDate, LocalDate toDate) {
         if (fromDate == null && toDate == null) {
-            List<ChartOfAccountsEntity> accounts = coaRepository.findAllByIsActiveTrueOrderByAccountCodeAsc();
+            List<ChartOfAccountsEntity> accounts = coaRepository.findAllByOrderByAccountCodeAsc();
             BigDecimal totalRevenue = BigDecimal.ZERO;
             BigDecimal totalExpense = BigDecimal.ZERO;
             BigDecimal totalAssets = BigDecimal.ZERO;
@@ -871,7 +1040,7 @@ public class GeneralLedgerService {
         if (referenceType == null || referenceId == null) return;
         try {
             List<Map<String, Object>> existingEntries = jdbc.queryForList(
-                    "SELECT id, entry_date FROM journal_entry WHERE reference_type = ? AND reference_id = ? AND status <> 'CANCELLED'",
+                    "SELECT id, entry_date, status FROM journal_entry WHERE reference_type = ? AND reference_id = ? AND status <> 'CANCELLED'",
                     referenceType, referenceId
             );
             for (Map<String, Object> existing : existingEntries) {
@@ -882,24 +1051,31 @@ public class GeneralLedgerService {
             }
             for (Map<String, Object> existing : existingEntries) {
                 Long eId = ((Number) existing.get("id")).longValue();
-                List<Map<String, Object>> lines = jdbc.queryForList(
-                        "SELECT account_id, debit_amount, credit_amount FROM journal_line WHERE journal_entry_id = ?", eId
-                );
-                for (Map<String, Object> l : lines) {
-                    Long accId = ((Number) l.get("account_id")).longValue();
-                    BigDecimal deb = toBigDecimal(l.get("debit_amount"));
-                    BigDecimal cred = toBigDecimal(l.get("credit_amount"));
-                    Optional<ChartOfAccountsEntity> accOpt = coaRepository.findById(accId);
-                    if (accOpt.isPresent()) {
-                        ChartOfAccountsEntity acc = accOpt.get();
-                        BigDecimal cur = acc.getCurrentBalance() != null ? acc.getCurrentBalance() : BigDecimal.ZERO;
-                        if ("ASSET".equalsIgnoreCase(acc.getAccountType()) || "EXPENSE".equalsIgnoreCase(acc.getAccountType())) {
-                            acc.setCurrentBalance(cur.subtract(deb).add(cred));
-                        } else {
-                            acc.setCurrentBalance(cur.subtract(cred).add(deb));
+                String status = Objects.toString(existing.get("status"), "").toUpperCase(Locale.ROOT);
+                // Only subtract current_balance for live POSTED vouchers (DRAFT never moved balances; REVERSED already has a contra entry).
+                if ("POSTED".equals(status)) {
+                    List<Map<String, Object>> lines = jdbc.queryForList(
+                            "SELECT account_id, debit_amount, credit_amount FROM journal_line WHERE journal_entry_id = ?", eId
+                    );
+                    for (Map<String, Object> l : lines) {
+                        Long accId = ((Number) l.get("account_id")).longValue();
+                        BigDecimal deb = toBigDecimal(l.get("debit_amount"));
+                        BigDecimal cred = toBigDecimal(l.get("credit_amount"));
+                        Optional<ChartOfAccountsEntity> accOpt = coaRepository.findById(accId);
+                        if (accOpt.isPresent()) {
+                            ChartOfAccountsEntity acc = accOpt.get();
+                            BigDecimal cur = acc.getCurrentBalance() != null ? acc.getCurrentBalance() : BigDecimal.ZERO;
+                            if (isDebitNormal(acc.getAccountType())) {
+                                acc.setCurrentBalance(cur.subtract(deb).add(cred));
+                            } else {
+                                acc.setCurrentBalance(cur.subtract(cred).add(deb));
+                            }
+                            coaRepository.save(acc);
                         }
-                        coaRepository.save(acc);
                     }
+                } else if ("REVERSED".equals(status)) {
+                    // Cancel any linked contra reversal entry atomically as well without distorting net balance
+                    cancelJournalEntriesForReference("JOURNAL_REVERSAL", eId, user);
                 }
                 jdbc.update("UPDATE journal_entry SET status = 'CANCELLED', updated_by = ?, updated_at = NOW() WHERE id = ?",
                         user != null ? user : "SYSTEM", eId);
@@ -1118,24 +1294,24 @@ public class GeneralLedgerService {
         String jvNo = meta.entryNumber();
         if (vLines.isEmpty()) {
             jvNo = "PROSPECTIVE (ON APPROVAL)";
-            vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1100", "Accounts Receivable", total, BigDecimal.ZERO, "Debit Customer: " + partyName));
+            vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1040", "Sundry Debtors (Trade Receivables)", total, BigDecimal.ZERO, "Debit Customer: " + partyName));
             if (discount.compareTo(BigDecimal.ZERO) > 0) {
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5200", "Discount Allowed", discount, BigDecimal.ZERO, "Debit Discount Allowed"));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5050", "Discounts & Rounding Adjustments", discount, BigDecimal.ZERO, "Debit Discount Allowed"));
             }
-            vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("4000", "Sales Revenue", BigDecimal.ZERO, taxable, "Credit Revenue: " + invoiceNo));
+            vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine(isInterstate ? "4020" : "4010", isInterstate ? "Inter-State Sales Revenue" : "Domestic Sales Revenue", BigDecimal.ZERO, taxable, "Credit Revenue: " + invoiceNo));
             if (totalTax.compareTo(BigDecimal.ZERO) > 0) {
                 if (igst.compareTo(BigDecimal.ZERO) > 0) {
-                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2200", "Output IGST Payable", BigDecimal.ZERO, igst, "Credit Output IGST"));
+                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2083", "Output IGST Payable", BigDecimal.ZERO, igst, "Credit Output IGST"));
                 } else {
-                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2210", "Output CGST Payable", BigDecimal.ZERO, cgst, "Credit Output CGST"));
-                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2220", "Output SGST Payable", BigDecimal.ZERO, sgst, "Credit Output SGST"));
+                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2081", "Output CGST Payable", BigDecimal.ZERO, cgst, "Credit Output CGST"));
+                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2082", "Output SGST Payable", BigDecimal.ZERO, sgst, "Credit Output SGST"));
                 }
             }
             BigDecimal diff = total.add(discount).subtract(taxable.add(totalTax));
             if (diff.compareTo(BigDecimal.ZERO) > 0) {
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("8100", "Round Off Adjustment", BigDecimal.ZERO, diff, "Round off credit"));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5050", "Discounts & Rounding Adjustments", BigDecimal.ZERO, diff, "Round off credit"));
             } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("8100", "Round Off Adjustment", diff.abs(), BigDecimal.ZERO, "Round off debit"));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5050", "Discounts & Rounding Adjustments", diff.abs(), BigDecimal.ZERO, "Round off debit"));
             }
         }
 
@@ -1285,24 +1461,24 @@ public class GeneralLedgerService {
         String jvNo = meta.entryNumber();
         if (vLines.isEmpty()) {
             jvNo = "PROSPECTIVE (ON APPROVAL)";
-            vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5000", "Purchases / Cost of Goods", taxable, BigDecimal.ZERO, "Debit Purchases: " + invoiceNo));
+            vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5020", "Raw Material Purchases", taxable, BigDecimal.ZERO, "Debit Purchases: " + invoiceNo));
             if (totalTax.compareTo(BigDecimal.ZERO) > 0) {
                 if (igst.compareTo(BigDecimal.ZERO) > 0) {
-                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1200", "Input IGST Credit", igst, BigDecimal.ZERO, "Debit Input IGST"));
+                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1083", "Input IGST Pool", igst, BigDecimal.ZERO, "Debit Input IGST"));
                 } else {
-                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1210", "Input CGST Credit", cgst, BigDecimal.ZERO, "Debit Input CGST"));
-                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1220", "Input SGST Credit", sgst, BigDecimal.ZERO, "Debit Input SGST"));
+                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1081", "Input CGST Pool", cgst, BigDecimal.ZERO, "Debit Input CGST"));
+                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1082", "Input SGST Pool", sgst, BigDecimal.ZERO, "Debit Input SGST"));
                 }
             }
-            vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2100", "Accounts Payable", BigDecimal.ZERO, total, "Credit Supplier: " + partyName));
+            vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2010", "Sundry Creditors (Trade Payables)", BigDecimal.ZERO, total, "Credit Supplier: " + partyName));
             if (discount.compareTo(BigDecimal.ZERO) > 0) {
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5100", "Discount Received", BigDecimal.ZERO, discount, "Credit Discount Received"));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("4090", "Discounts Received", BigDecimal.ZERO, discount, "Credit Discount Received"));
             }
             BigDecimal diff = taxable.add(totalTax).subtract(total.add(discount));
             if (diff.compareTo(BigDecimal.ZERO) > 0) {
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("8100", "Round Off Adjustment", BigDecimal.ZERO, diff, "Round off credit"));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("4090", "Discounts & Rounding Adjustments", BigDecimal.ZERO, diff, "Round off credit"));
             } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("8100", "Round Off Adjustment", diff.abs(), BigDecimal.ZERO, "Round off debit"));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("4090", "Discounts & Rounding Adjustments", diff.abs(), BigDecimal.ZERO, "Round off debit"));
             }
         }
 
@@ -1574,15 +1750,64 @@ public class GeneralLedgerService {
             jvNo = "PROSPECTIVE (ON APPROVAL)";
             if (isRebate) {
                 // Commercial discount - Section 15(3)(b)
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5200", "Discount Allowed / Commercial Rebate", total, BigDecimal.ZERO, "Debit Rebate: " + retNo));
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1100", "Accounts Receivable", BigDecimal.ZERO, total, "Credit Customer: " + partyName));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5050", "Discounts Allowed / Commercial Rebate", total, BigDecimal.ZERO, "Debit Rebate: " + retNo));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1040", "Sundry Debtors (Trade Receivables)", BigDecimal.ZERO, total, "Credit Customer: " + partyName));
             } else {
-                // Statutory Credit note (tax reversed)
-                BigDecimal taxable = total.divide(BigDecimal.valueOf(1.18), 2, RoundingMode.HALF_UP);
-                BigDecimal tax = total.subtract(taxable);
+                // Statutory Credit note (tax reversed) using source GST split when available
+                boolean interState = false;
+                BigDecimal taxable = BigDecimal.ZERO;
+                BigDecimal cgstAmt = BigDecimal.ZERO;
+                BigDecimal sgstAmt = BigDecimal.ZERO;
+                BigDecimal igstAmt = BigDecimal.ZERO;
+                try {
+                    List<Map<String, Object>> cn = jdbc.queryForList(
+                            "SELECT taxable_amount, cgst_amount, sgst_amount, igst_amount FROM credit_note_header WHERE credit_note_no = ? LIMIT 1", retNo);
+                    if (!cn.isEmpty()) {
+                        taxable = toBigDecimal(cn.getFirst().get("taxable_amount"));
+                        cgstAmt = toBigDecimal(cn.getFirst().get("cgst_amount"));
+                        sgstAmt = toBigDecimal(cn.getFirst().get("sgst_amount"));
+                        igstAmt = toBigDecimal(cn.getFirst().get("igst_amount"));
+                        interState = igstAmt.compareTo(BigDecimal.ZERO) > 0;
+                    }
+                } catch (Exception ignored) {}
+                if (taxable.compareTo(BigDecimal.ZERO) <= 0) {
+                    try {
+                        List<Map<String, Object>> orig = origInv == null || origInv.isBlank() ? List.of() : jdbc.queryForList(
+                                "SELECT subtotal, gst_amount, total_amount, COALESCE(gst_type,'') AS gst_type FROM sales_header WHERE invoice_no = ? LIMIT 1", origInv);
+                        if (!orig.isEmpty()) {
+                            BigDecimal sTot = toBigDecimal(orig.getFirst().get("total_amount"));
+                            BigDecimal sTax = toBigDecimal(orig.getFirst().get("gst_amount"));
+                            BigDecimal sSub = toBigDecimal(orig.getFirst().get("subtotal"));
+                            String gt = Objects.toString(orig.getFirst().get("gst_type"), "").toUpperCase(Locale.ROOT);
+                            interState = gt.contains("IGST") || gt.contains("INTER");
+                            if (sTot.compareTo(BigDecimal.ZERO) > 0 && sSub.compareTo(BigDecimal.ZERO) > 0) {
+                                taxable = total.multiply(sSub).divide(sTot, 2, RoundingMode.HALF_UP);
+                                BigDecimal taxRem = total.subtract(taxable).max(BigDecimal.ZERO);
+                                if (interState) igstAmt = taxRem;
+                                else {
+                                    cgstAmt = taxRem.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+                                    sgstAmt = taxRem.subtract(cgstAmt);
+                                }
+                            } else if (sTax.compareTo(BigDecimal.ZERO) == 0 && sTot.compareTo(BigDecimal.ZERO) > 0) {
+                                taxable = total;
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+                if (taxable.compareTo(BigDecimal.ZERO) <= 0) {
+                    taxable = total.divide(BigDecimal.valueOf(1.18), 2, RoundingMode.HALF_UP);
+                    BigDecimal rem = total.subtract(taxable);
+                    cgstAmt = rem.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+                    sgstAmt = rem.subtract(cgstAmt);
+                }
                 vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("4100", "Sales Returns & Allowances", taxable, BigDecimal.ZERO, "Debit Sales Return: " + retNo));
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2200", "Output GST Reversal", tax, BigDecimal.ZERO, "Debit Output GST Reversal"));
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1100", "Accounts Receivable", BigDecimal.ZERO, total, "Credit Customer: " + partyName));
+                if (interState && igstAmt.compareTo(BigDecimal.ZERO) > 0) {
+                    vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2083", "Output IGST Payable", igstAmt, BigDecimal.ZERO, "Debit Output IGST Reversal"));
+                } else {
+                    if (cgstAmt.compareTo(BigDecimal.ZERO) > 0) vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2081", "Output CGST Payable", cgstAmt, BigDecimal.ZERO, "Debit Output CGST Reversal"));
+                    if (sgstAmt.compareTo(BigDecimal.ZERO) > 0) vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2082", "Output SGST Payable", sgstAmt, BigDecimal.ZERO, "Debit Output SGST Reversal"));
+                }
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1040", "Sundry Debtors (Trade Receivables)", BigDecimal.ZERO, total, "Credit Customer: " + partyName));
             }
         }
 
@@ -1804,12 +2029,12 @@ public class GeneralLedgerService {
         if (vLines.isEmpty()) {
             jvNo = "PROSPECTIVE (ON APPROVAL)";
             if (isRebate) {
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2100", "Accounts Payable", total, BigDecimal.ZERO, "Debit Supplier: " + supplier));
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5210", "Discount Received / Supplier Rebate", BigDecimal.ZERO, total, "Credit Rebate: " + dnNo));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2010", "Sundry Creditors (Trade Payables)", total, BigDecimal.ZERO, "Debit Supplier: " + supplier));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("4090", "Discounts Received / Supplier Rebate", BigDecimal.ZERO, total, "Credit Rebate: " + dnNo));
             } else {
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2100", "Accounts Payable", total, BigDecimal.ZERO, "Debit Supplier: " + supplier));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2010", "Sundry Creditors (Trade Payables)", total, BigDecimal.ZERO, "Debit Supplier: " + supplier));
                 vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("5100", "Purchase Returns & Outward", BigDecimal.ZERO, taxable, "Credit Purchase Return"));
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1200", "Input GST Reversal", BigDecimal.ZERO, tax, "Credit Input GST Reversal"));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1083", "Input GST Reversal (CGST/SGST/IGST)", BigDecimal.ZERO, tax, "Credit Input GST Reversal"));
             }
         }
 
@@ -1877,20 +2102,20 @@ public class GeneralLedgerService {
         String refNo = Objects.toString(p.get("reference_no"), no);
         boolean isCustomer = "SALE".equalsIgnoreCase(docType) || "CUSTOMER".equalsIgnoreCase(Objects.toString(p.get("received_from"), ""));
 
-        List<GeneralLedgerDtos.PostingFlowVoucherLine> vLines = fetchVoucherLines(isCustomer ? "SALES_PAYMENT" : "PURCHASE_PAYMENT", paymentId, refNo);
-        VoucherMeta meta = fetchVoucherMeta(isCustomer ? "SALES_PAYMENT" : "PURCHASE_PAYMENT", paymentId, refNo);
+        List<GeneralLedgerDtos.PostingFlowVoucherLine> vLines = fetchVoucherLines(isCustomer ? "PAYMENT_RECEIPT" : "PURCHASE_PAYMENT", paymentId, refNo);
+        VoucherMeta meta = fetchVoucherMeta(isCustomer ? "PAYMENT_RECEIPT" : "PURCHASE_PAYMENT", paymentId, refNo);
         String jvNo = meta.entryNumber();
 
         if (vLines.isEmpty()) {
             jvNo = "PROSPECTIVE (ON SETTLEMENT)";
             boolean isCash = mode.toUpperCase(Locale.ROOT).contains("CASH");
             String fundAccCode = isCash ? "1010" : "1020";
-            String fundAccName = isCash ? "Cash in Hand" : "Bank Account";
+            String fundAccName = isCash ? "Cash on Hand" : "Bank Current Account";
             if (isCustomer) {
                 vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine(fundAccCode, fundAccName, amount, BigDecimal.ZERO, "Debit Received via " + mode));
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1100", "Accounts Receivable", BigDecimal.ZERO, amount, "Credit Customer AR (" + refNo + ")"));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("1040", "Sundry Debtors (Trade Receivables)", BigDecimal.ZERO, amount, "Credit Customer AR (" + refNo + ")"));
             } else {
-                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2100", "Accounts Payable", amount, BigDecimal.ZERO, "Debit Supplier AP (" + refNo + ")"));
+                vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine("2010", "Sundry Creditors (Trade Payables)", amount, BigDecimal.ZERO, "Debit Supplier AP (" + refNo + ")"));
                 vLines.add(new GeneralLedgerDtos.PostingFlowVoucherLine(fundAccCode, fundAccName, BigDecimal.ZERO, amount, "Credit Paid via " + mode));
             }
         }
@@ -2002,5 +2227,493 @@ public class GeneralLedgerService {
         if (o == null) return LocalDate.now();
         if (o instanceof LocalDate ld) return ld;
         try { return LocalDate.parse(o.toString().substring(0, 10)); } catch (Exception ignored) { return LocalDate.now(); }
+    }
+
+    public Long resolveExpenseAccountId(String category, String accountName) {
+        String combined = ((category != null ? category : "") + " " + (accountName != null ? accountName : ""))
+                .trim().toUpperCase(Locale.ROOT);
+        if (combined.contains("BANK CHARGE") || combined.contains("MDR") || combined.contains("GATEWAY")) {
+            return getAccountIdOrDefault("5060", "Bank Charges & Gateway MDR Fees", "EXPENSE");
+        }
+        if (combined.contains("SALARY") || combined.contains("WAGE") || combined.contains("STAFF") || combined.contains("WELFARE")) {
+            return getAccountIdOrDefault("5070", "Salaries & Staff Welfare", "EXPENSE");
+        }
+        if (combined.contains("FREIGHT") || combined.contains("CARTAGE") || combined.contains("TRANSPORT")) {
+            return getAccountIdOrDefault("5030", "Freight Inward (Cartage)", "EXPENSE");
+        }
+        if (combined.contains("PURCHASE") || combined.contains("RAW")) {
+            return getAccountIdOrDefault("5020", "Raw Material Purchases", "EXPENSE");
+        }
+        if (combined.contains("DISCOUNT")) {
+            return getAccountIdOrDefault("5050", "Discounts Allowed", "EXPENSE");
+        }
+        if (combined.contains("RENT") || combined.contains("UTILITY") || combined.contains("ELECTRIC") || combined.contains("OFFICE")) {
+            return getAccountIdOrDefault("5080", "Office Rent & Utilities", "EXPENSE");
+        }
+        if (category != null && !category.isBlank()) {
+            try {
+                Long matched = jdbc.queryForObject(
+                        "SELECT id FROM chart_of_accounts WHERE UPPER(account_type) = 'EXPENSE' AND is_active = TRUE AND LOWER(account_name) LIKE ? ORDER BY account_code ASC LIMIT 1",
+                        Long.class, "%" + category.trim().toLowerCase(Locale.ROOT) + "%");
+                if (matched != null) return matched;
+            } catch (Exception ignored) {}
+        }
+        return getAccountIdOrDefault("5080", "Office Rent & Utilities", "EXPENSE");
+    }
+
+    /** Posts or replaces the GL Journal Voucher for a manual Bank & Expense Register entry. */
+    public Long postFinanceVoucher(Integer financeId, String voucherNo, LocalDate date, String voucherType,
+                                   String category, String accountName, String mode, BigDecimal amount,
+                                   Integer partyId, String notes, String actor) {
+        if (financeId == null || amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return null;
+        LocalDate effectiveDate = date != null ? date : LocalDate.now();
+        ensurePeriodOpen(effectiveDate);
+        cancelJournalEntriesForReference("FINANCE", Long.valueOf(financeId), actor);
+
+        BigDecimal amt = amount.setScale(2, RoundingMode.HALF_UP);
+        String vt = voucherType == null ? "EXPENSE" : voucherType.trim().toUpperCase(Locale.ROOT);
+        boolean isCashMode = mode != null && mode.toUpperCase(Locale.ROOT).contains("CASH");
+        Long fundAcc = getAccountIdOrDefault(isCashMode ? "1010" : "1020",
+                isCashMode ? "Cash on Hand" : "Bank Current Account", "ASSET");
+        String fundCode = isCashMode ? "1010" : "1020";
+
+        List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
+        String entryType;
+        if ("EXPENSE".equals(vt)) {
+            entryType = "EXPENSE";
+            Long expAcc = resolveExpenseAccountId(category, accountName);
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(expAcc, null, amt, BigDecimal.ZERO, partyId,
+                    (category != null ? category : "Expense") + ": " + (notes != null ? notes : voucherNo), null));
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(fundAcc, fundCode, BigDecimal.ZERO, amt, null,
+                    "Paid via " + (mode != null ? mode : "Bank") + " (" + voucherNo + ")", null));
+        } else if (vt.contains("DEPOSIT")) {
+            entryType = "BANK_DEPOSIT";
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(fundAcc, fundCode, amt, BigDecimal.ZERO, null,
+                    "Deposit " + voucherNo + (notes != null && !notes.isBlank() ? " - " + notes : ""), null));
+            Long creditAcc;
+            String creditCode;
+            if (partyId != null && partyId > 0) {
+                creditCode = "1040";
+                creditAcc = getAccountIdOrDefault("1040", "Sundry Debtors (Trade Receivables)", "ASSET");
+            } else if ((accountName + " " + category + " " + notes).toUpperCase(Locale.ROOT).contains("CAPITAL")) {
+                creditCode = "3010";
+                creditAcc = getAccountIdOrDefault("3010", "Owner Capital Account", "EQUITY");
+            } else if ((mode != null && mode.toUpperCase(Locale.ROOT).contains("CASH")) || (category != null && category.toUpperCase(Locale.ROOT).contains("CONTRA"))) {
+                creditCode = "1010";
+                creditAcc = getAccountIdOrDefault("1010", "Cash on Hand", "ASSET");
+            } else {
+                creditCode = "4090";
+                creditAcc = getAccountIdOrDefault("4090", "Discounts Received", "REVENUE");
+            }
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(creditAcc, creditCode, BigDecimal.ZERO, amt, partyId,
+                    "Source: " + (category != null ? category : "Deposit") + " (" + voucherNo + ")", null));
+        } else {
+            entryType = "BANK_WITHDRAWAL";
+            Long debitAcc;
+            String debitCode;
+            if (partyId != null && partyId > 0) {
+                debitCode = "2010";
+                debitAcc = getAccountIdOrDefault("2010", "Sundry Creditors (Trade Payables)", "LIABILITY");
+            } else if ((notes + " " + category).toUpperCase(Locale.ROOT).matches(".*(ATM|CASH|SELF|CONTRA|PETTY).*")) {
+                debitCode = "1010";
+                debitAcc = getAccountIdOrDefault("1010", "Cash on Hand", "ASSET");
+            } else {
+                debitCode = "3010";
+                debitAcc = getAccountIdOrDefault("3010", "Owner Capital Account", "EQUITY");
+            }
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(debitAcc, debitCode, amt, BigDecimal.ZERO, partyId,
+                    "Withdrawal to: " + (category != null ? category : debitCode) + " (" + voucherNo + ")", null));
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(fundAcc, fundCode, BigDecimal.ZERO, amt, null,
+                    "Bank withdrawal " + voucherNo, null));
+        }
+
+        GeneralLedgerDtos.JournalEntryDto created = postJournalEntry(new GeneralLedgerDtos.CreateJournalRequest(
+                effectiveDate, entryType, "FINANCE", Long.valueOf(financeId), voucherNo,
+                vt + " " + voucherNo + (notes != null && !notes.isBlank() ? " — " + notes : ""),
+                actor != null ? actor : "SYSTEM", lines
+        ));
+        if (created != null && created.id() != null) {
+            jdbc.update("UPDATE finance_register SET gl_entry_id = ? WHERE id = ?", created.id(), financeId);
+            return created.id();
+        }
+        return null;
+    }
+
+    /** Posts the GL Journal Voucher for a Bank Statement Reconciliation Match (handles Round-Off and TDS). */
+    public Long postBankReconSettlement(Integer financeId, String voucherNo, LocalDate date, boolean isReceipt,
+                                        String targetType, String targetNo, BigDecimal bankAmount,
+                                        BigDecimal roundOff, BigDecimal tdsAmount, Integer partyId,
+                                        String partyName, String actor) {
+        if (bankAmount == null || bankAmount.compareTo(BigDecimal.ZERO) <= 0) return null;
+        LocalDate effectiveDate = date != null ? date : LocalDate.now();
+        ensurePeriodOpen(effectiveDate);
+        if (financeId != null) {
+            cancelJournalEntriesForReference("FINANCE", Long.valueOf(financeId), actor);
+        }
+        BigDecimal bankAmt = bankAmount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal roAmt = roundOff != null ? roundOff.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        BigDecimal tdsAmt = tdsAmount != null ? tdsAmount.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        BigDecimal settledTotal = bankAmt.add(roAmt).add(tdsAmt);
+        if (settledTotal.compareTo(BigDecimal.ZERO) <= 0) settledTotal = bankAmt;
+
+        Long bankAcc = getAccountIdOrDefault("1020", "Bank Current Account", "ASSET");
+        Long roundAcc = getAccountIdOrDefault("5050", "Discounts & Rounding Adjustments", "EXPENSE");
+        List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
+
+        if (isReceipt) {
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(bankAcc, "1020", bankAmt, BigDecimal.ZERO, null,
+                    "Bank receipt reconciled: " + targetNo, null));
+            if (tdsAmt.compareTo(BigDecimal.ZERO) > 0) {
+                Long tdsRecAcc = getAccountIdOrDefault("1090", "TDS Receivable (Sec 194Q/194C)", "ASSET");
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(tdsRecAcc, "1090", tdsAmt, BigDecimal.ZERO, partyId,
+                        "TDS deducted on " + targetNo, null));
+            }
+            if (roAmt.compareTo(BigDecimal.ZERO) > 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", roAmt, BigDecimal.ZERO, null,
+                        "Settlement rounding loss on " + targetNo, null));
+            } else if (roAmt.compareTo(BigDecimal.ZERO) < 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", BigDecimal.ZERO, roAmt.abs(), null,
+                        "Settlement rounding gain on " + targetNo, null));
+            }
+            Long arAcc = getAccountIdOrDefault("1040", "Sundry Debtors (Trade Receivables)", "ASSET");
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(arAcc, "1040", BigDecimal.ZERO, settledTotal, partyId,
+                    "AR cleared: " + (partyName != null ? partyName : targetNo) + " [" + targetNo + "]", null));
+        } else {
+            Long apAcc = getAccountIdOrDefault("2010", "Sundry Creditors (Trade Payables)", "LIABILITY");
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(apAcc, "2010", settledTotal, BigDecimal.ZERO, partyId,
+                    "AP cleared: " + (partyName != null ? partyName : targetNo) + " [" + targetNo + "]", null));
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(bankAcc, "1020", BigDecimal.ZERO, bankAmt, null,
+                    "Bank payout reconciled: " + targetNo, null));
+            if (tdsAmt.compareTo(BigDecimal.ZERO) > 0) {
+                Long tdsPayAcc = getAccountIdOrDefault("2090", "TDS / TCS Payable", "LIABILITY");
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(tdsPayAcc, "2090", BigDecimal.ZERO, tdsAmt, partyId,
+                        "TDS withheld on " + targetNo, null));
+            }
+            if (roAmt.compareTo(BigDecimal.ZERO) > 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", BigDecimal.ZERO, roAmt, null,
+                        "Supplier settlement discount/roundoff " + targetNo, null));
+            } else if (roAmt.compareTo(BigDecimal.ZERO) < 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", roAmt.abs(), BigDecimal.ZERO, null,
+                        "Supplier settlement excess " + targetNo, null));
+            }
+        }
+
+        GeneralLedgerDtos.JournalEntryDto created = postJournalEntry(new GeneralLedgerDtos.CreateJournalRequest(
+                effectiveDate, "BANK_RECON", "FINANCE", financeId != null ? Long.valueOf(financeId) : null, voucherNo,
+                "Bank Reconciliation " + targetType + " " + targetNo + (partyName != null && !partyName.isBlank() ? " (" + partyName + ")" : ""),
+                actor != null ? actor : "SYSTEM", lines
+        ));
+        if (created != null && created.id() != null && financeId != null) {
+            jdbc.update("UPDATE finance_register SET gl_entry_id = ? WHERE id = ?", created.id(), financeId);
+            return created.id();
+        }
+        return created != null ? created.id() : null;
+    }
+
+    /** Posts the GL Journal Voucher when a Sales Return refund is paid or Purchase Return refund is received. */
+    public Long postReturnRefundVoucher(Integer refundId, String returnNo, boolean isSalesReturn, LocalDate date,
+                                        BigDecimal cashAmount, BigDecimal rounding, String mode,
+                                        Integer partyId, String partyName, String actor) {
+        if (cashAmount == null || cashAmount.compareTo(BigDecimal.ZERO) <= 0) return null;
+        LocalDate effectiveDate = date != null ? date : LocalDate.now();
+        ensurePeriodOpen(effectiveDate);
+        if (refundId != null) {
+            cancelJournalEntriesForReference("RETURN_REFUND", Long.valueOf(refundId), actor);
+        }
+        BigDecimal amt = cashAmount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal ro = rounding != null ? rounding.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        BigDecimal total = amt.add(ro);
+        boolean isCash = mode != null && mode.toUpperCase(Locale.ROOT).contains("CASH");
+        Long fundAcc = getAccountIdOrDefault(isCash ? "1010" : "1020",
+                isCash ? "Cash on Hand" : "Bank Current Account", "ASSET");
+        String fundCode = isCash ? "1010" : "1020";
+        Long roundAcc = getAccountIdOrDefault("5050", "Discounts & Rounding Adjustments", "EXPENSE");
+
+        List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
+        if (isSalesReturn) {
+            Long arAcc = getAccountIdOrDefault("1040", "Sundry Debtors (Trade Receivables)", "ASSET");
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(arAcc, "1040", total, BigDecimal.ZERO, partyId,
+                    "Customer return refund: " + returnNo + " (" + (partyName != null ? partyName : "Customer") + ")", null));
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(fundAcc, fundCode, BigDecimal.ZERO, amt, null,
+                    "Refund paid via " + (mode != null ? mode : "Bank"), null));
+            if (ro.compareTo(BigDecimal.ZERO) > 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", BigDecimal.ZERO, ro, null, "Refund rounding: " + returnNo, null));
+            } else if (ro.compareTo(BigDecimal.ZERO) < 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", ro.abs(), BigDecimal.ZERO, null, "Refund rounding: " + returnNo, null));
+            }
+        } else {
+            Long apAcc = getAccountIdOrDefault("2010", "Sundry Creditors (Trade Payables)", "LIABILITY");
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(fundAcc, fundCode, amt, BigDecimal.ZERO, null,
+                    "Supplier refund received via " + (mode != null ? mode : "Bank"), null));
+            if (ro.compareTo(BigDecimal.ZERO) > 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", ro, BigDecimal.ZERO, null, "Refund rounding: " + returnNo, null));
+            } else if (ro.compareTo(BigDecimal.ZERO) < 0) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", BigDecimal.ZERO, ro.abs(), null, "Refund rounding: " + returnNo, null));
+            }
+            lines.add(new GeneralLedgerDtos.CreateLineRequest(apAcc, "2010", BigDecimal.ZERO, total, partyId,
+                    "Supplier return refund: " + returnNo + " (" + (partyName != null ? partyName : "Supplier") + ")", null));
+        }
+
+        GeneralLedgerDtos.JournalEntryDto created = postJournalEntry(new GeneralLedgerDtos.CreateJournalRequest(
+                effectiveDate, "REFUND", "RETURN_REFUND", refundId != null ? Long.valueOf(refundId) : null, returnNo,
+                "Return Refund Settlement " + returnNo, actor != null ? actor : "SYSTEM", lines
+        ));
+        if (created != null && created.id() != null && refundId != null) {
+            jdbc.update("UPDATE return_refund SET gl_entry_id = ? WHERE id = ?", created.id(), refundId);
+            return created.id();
+        }
+        return created != null ? created.id() : null;
+    }
+
+    @Transactional(readOnly = true)
+    public GeneralLedgerDtos.PartyLedgerResponse getPartyLedger(Long partyId, LocalDate fromDate, LocalDate toDate) {
+        if (partyId == null || partyId <= 0) {
+            throw new IllegalArgumentException("A valid Customer or Supplier partyId is required.");
+        }
+        List<Map<String, Object>> partyRows = jdbc.queryForList(
+                "SELECT id, COALESCE(name, 'Party') AS name, COALESCE(party_type, 'CUSTOMER') AS party_type FROM party_master WHERE id = ?",
+                partyId);
+        if (partyRows.isEmpty()) {
+            throw new IllegalArgumentException("Party not found: " + partyId);
+        }
+        Map<String, Object> pm = partyRows.getFirst();
+        String partyName = Objects.toString(pm.get("name"), "Party");
+        String partyType = Objects.toString(pm.get("party_type"), "CUSTOMER").toUpperCase(Locale.ROOT);
+        boolean drNormal = !partyType.contains("SUPPLIER") && !partyType.contains("VENDOR");
+
+        BigDecimal opening = BigDecimal.ZERO;
+        if (fromDate != null) {
+            Map<String, Object> prior = jdbc.queryForMap("""
+                SELECT COALESCE(SUM(jl.debit_amount), 0) AS dr, COALESCE(SUM(jl.credit_amount), 0) AS cr
+                FROM journal_line jl
+                JOIN journal_entry je ON je.id = jl.journal_entry_id
+                WHERE jl.party_id = ?
+                  AND je.entry_date < ?
+                  AND UPPER(COALESCE(je.status, '')) IN ('POSTED', 'REVERSED')
+                """, partyId, fromDate);
+            BigDecimal pDr = toBigDecimal(prior.get("dr"));
+            BigDecimal pCr = toBigDecimal(prior.get("cr"));
+            opening = drNormal ? pDr.subtract(pCr) : pCr.subtract(pDr);
+        }
+
+        StringBuilder sql = new StringBuilder("""
+            SELECT je.id AS je_id, je.entry_number, je.entry_date, je.entry_type, je.reference_type, je.reference_id,
+                   je.reference_no, je.narration, jl.line_narration, jl.debit_amount, jl.credit_amount, je.status, je.posted_by
+            FROM journal_line jl
+            JOIN journal_entry je ON je.id = jl.journal_entry_id
+            WHERE jl.party_id = ?
+              AND UPPER(COALESCE(je.status, '')) IN ('POSTED', 'REVERSED')
+            """);
+        List<Object> params = new ArrayList<>();
+        params.add(partyId);
+        if (fromDate != null) {
+            sql.append(" AND je.entry_date >= ? ");
+            params.add(fromDate);
+        }
+        if (toDate != null) {
+            sql.append(" AND je.entry_date <= ? ");
+            params.add(toDate);
+        }
+        sql.append(" ORDER BY je.entry_date ASC, je.id ASC, jl.line_number ASC");
+
+        List<Map<String, Object>> rows = jdbc.queryForList(sql.toString(), params.toArray());
+        BigDecimal running = opening;
+        BigDecimal totalDr = BigDecimal.ZERO;
+        BigDecimal totalCr = BigDecimal.ZERO;
+        List<GeneralLedgerDtos.AccountLedgerLineDto> lines = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            BigDecimal dr = toBigDecimal(r.get("debit_amount"));
+            BigDecimal cr = toBigDecimal(r.get("credit_amount"));
+            totalDr = totalDr.add(dr);
+            totalCr = totalCr.add(cr);
+            running = drNormal ? running.add(dr).subtract(cr) : running.add(cr).subtract(dr);
+            lines.add(new GeneralLedgerDtos.AccountLedgerLineDto(
+                    r.get("je_id") instanceof Number n ? n.longValue() : null,
+                    str(r.get("entry_number")),
+                    parseLocalDate(r.get("entry_date")),
+                    str(r.get("entry_type")),
+                    str(r.get("reference_type")),
+                    r.get("reference_id") instanceof Number n ? n.longValue() : null,
+                    str(r.get("reference_no")),
+                    str(r.get("narration")),
+                    str(r.get("line_narration")),
+                    dr, cr, running.abs(), resolveBalanceSide(drNormal, running),
+                    str(r.get("status")), str(r.get("posted_by"))
+            ));
+        }
+
+        return new GeneralLedgerDtos.PartyLedgerResponse(
+                partyId, partyName, partyType, fromDate, toDate,
+                opening.abs(), totalDr, totalCr, running.abs(), resolveBalanceSide(drNormal, running), lines
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public GeneralLedgerDtos.ReconciliationHealthCheckDto getReconciliationHealth() {
+        List<GeneralLedgerDtos.ReconciliationControlRow> controls = new ArrayList<>();
+
+        BigDecimal glAr = sumAccountCurrentBalance(List.of("1040", "1100"));
+        BigDecimal subAr = toBigDecimal(jdbc.queryForObject(
+                "SELECT COALESCE(SUM(GREATEST(0, COALESCE(total_amount, 0) - COALESCE(paid_amount, 0))), 0) FROM sales_header WHERE UPPER(COALESCE(document_status, '')) NOT IN ('DELETED','CANCELLED','REJECTED','VOID') AND UPPER(COALESCE(approval_status, 'APPROVED')) <> 'PENDING'",
+                BigDecimal.class));
+        controls.add(buildControlRow("Accounts Receivable", "1040", "Sundry Debtors vs Sales Unpaid", glAr, subAr));
+
+        BigDecimal glAp = sumAccountCurrentBalance(List.of("2010", "2100"));
+        BigDecimal subAp = toBigDecimal(jdbc.queryForObject(
+                "SELECT COALESCE(SUM(GREATEST(0, COALESCE(total_amount, 0) - COALESCE(paid_amount, 0))), 0) FROM purchase_header WHERE UPPER(COALESCE(document_status, '')) NOT IN ('DELETED','CANCELLED','REJECTED','VOID') AND UPPER(COALESCE(approval_status, 'APPROVED')) <> 'PENDING'",
+                BigDecimal.class));
+        controls.add(buildControlRow("Accounts Payable", "2010", "Sundry Creditors vs Purchase Unpaid", glAp, subAp));
+
+        BigDecimal glCashBank = sumAccountCurrentBalance(List.of("1010", "1020"));
+        CashPositionService cashSvc = cashPositionProvider != null ? cashPositionProvider.getIfAvailable() : null;
+        BigDecimal subCashBank = cashSvc != null ? BigDecimal.valueOf(cashSvc.cashPosition()).setScale(2, RoundingMode.HALF_UP) : glCashBank;
+        controls.add(buildControlRow("Cash & Bank Position", "1010/1020", "GL Cash+Bank vs Operational Cash Position", glCashBank, subCashBank));
+
+        BigDecimal glStock = sumAccountCurrentBalance(List.of("1060"));
+        BigDecimal subStock = toBigDecimal(jdbc.queryForObject(
+                "SELECT COALESCE(SUM(COALESCE(opening_stock, 0) * COALESCE(NULLIF(purchase_price, 0), 0)), 0) FROM item_master WHERE COALESCE(is_active, 1) <> 0",
+                BigDecimal.class)).setScale(2, RoundingMode.HALF_UP);
+        controls.add(buildControlRow("Inventory Valuation", "1060", "Stock-in-Trade vs Item Valuation", glStock, subStock));
+
+        List<GeneralLedgerDtos.UnpostedDocRow> unposted = new ArrayList<>();
+        try {
+            jdbc.query("""
+                SELECT 'SALE' AS doc_type, s.id, COALESCE(s.invoice_no, CAST(s.id AS VARCHAR)) AS doc_no, s.invoice_date::TEXT AS dt, COALESCE(s.total_amount, 0) AS amt, COALESCE(s.document_status, '') AS st
+                FROM sales_header s
+                WHERE UPPER(COALESCE(s.approval_status, '')) = 'APPROVED'
+                  AND UPPER(COALESCE(s.document_status, '')) NOT IN ('DELETED','CANCELLED','REJECTED','VOID')
+                  AND COALESCE(s.total_amount, 0) > 0
+                  AND NOT EXISTS (SELECT 1 FROM journal_entry je WHERE je.reference_type = 'SALE' AND je.reference_id = s.id AND UPPER(COALESCE(je.status,'')) IN ('POSTED','REVERSED'))
+                UNION ALL
+                SELECT 'PURCHASE', p.id, COALESCE(p.invoice_no, CAST(p.id AS VARCHAR)), p.invoice_date::TEXT, COALESCE(p.total_amount, 0), COALESCE(p.document_status, '')
+                FROM purchase_header p
+                WHERE UPPER(COALESCE(p.approval_status, '')) = 'APPROVED'
+                  AND UPPER(COALESCE(p.document_status, '')) NOT IN ('DELETED','CANCELLED','REJECTED','VOID')
+                  AND COALESCE(p.total_amount, 0) > 0
+                  AND NOT EXISTS (SELECT 1 FROM journal_entry je WHERE je.reference_type = 'PURCHASE' AND je.reference_id = p.id AND UPPER(COALESCE(je.status,'')) IN ('POSTED','REVERSED'))
+                UNION ALL
+                SELECT 'FINANCE', f.id, COALESCE(f.voucher_no, CAST(f.id AS VARCHAR)), COALESCE(f.voucher_date, ''), COALESCE(f.amount, 0), COALESCE(f.voucher_type, '')
+                FROM finance_register f
+                WHERE COALESCE(f.amount, 0) > 0
+                  AND NOT EXISTS (SELECT 1 FROM journal_entry je WHERE je.reference_type = 'FINANCE' AND je.reference_id = f.id AND UPPER(COALESCE(je.status,'')) IN ('POSTED','REVERSED'))
+                LIMIT 50
+                """, (rs, i) -> {
+                unposted.add(new GeneralLedgerDtos.UnpostedDocRow(
+                        rs.getString(1), rs.getLong(2), rs.getString(3),
+                        rs.getString(4), rs.getBigDecimal(5), rs.getString(6)
+                ));
+                return null;
+            });
+        } catch (Exception ignored) {}
+
+        int mismatches = (int) controls.stream().filter(c -> !"MATCHED".equals(c.status())).count();
+        boolean healthy = mismatches == 0 && unposted.isEmpty();
+        return new GeneralLedgerDtos.ReconciliationHealthCheckDto(controls, unposted, mismatches, unposted.size(), healthy);
+    }
+
+    private BigDecimal sumAccountCurrentBalance(List<String> codes) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (String code : codes) {
+            total = total.add(coaRepository.findByAccountCode(code).map(ChartOfAccountsEntity::getCurrentBalance).orElse(BigDecimal.ZERO));
+        }
+        return total.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static GeneralLedgerDtos.ReconciliationControlRow buildControlRow(String area, String code, String name, BigDecimal gl, BigDecimal sub) {
+        BigDecimal g = gl != null ? gl.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        BigDecimal s = sub != null ? sub.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        BigDecimal diff = g.subtract(s);
+        String st = diff.abs().compareTo(new BigDecimal("1.00")) <= 0 ? "MATCHED" : "VARIANCE";
+        return new GeneralLedgerDtos.ReconciliationControlRow(area, code, name, g, s, diff, st);
+    }
+
+    public GeneralLedgerDtos.FiscalYearCloseResponse closeFiscalYear(GeneralLedgerDtos.FiscalYearCloseRequest req, String actor) {
+        if (req == null || req.fromDate() == null || req.toDate() == null || req.toDate().isBefore(req.fromDate())) {
+            throw new IllegalArgumentException("Valid Fiscal Year start and end dates are required.");
+        }
+        String label = (req.fyLabel() == null || req.fyLabel().isBlank())
+                ? "FY " + req.fromDate().getYear() + "-" + req.toDate().getYear()
+                : req.fyLabel().trim();
+        ensurePeriodOpen(req.toDate());
+
+        // Prevent duplicate FY close for exact date range
+        Long existing = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM fiscal_year_close_log WHERE from_date = ? AND to_date = ?",
+                Long.class, req.fromDate(), req.toDate());
+        if (existing != null && existing > 0) {
+            throw new IllegalStateException("Fiscal Year " + label + " (" + req.fromDate() + " to " + req.toDate() + ") has already been closed.");
+        }
+
+        Map<Long, BigDecimal[]> periodMap = loadAccountMovementSums(req.fromDate(), req.toDate());
+        List<ChartOfAccountsEntity> accounts = coaRepository.findAllByOrderByAccountCodeAsc();
+        List<GeneralLedgerDtos.CreateLineRequest> closingLines = new ArrayList<>();
+        BigDecimal netTransfer = BigDecimal.ZERO;
+
+        for (ChartOfAccountsEntity acc : accounts) {
+            String type = acc.getAccountType() == null ? "" : acc.getAccountType().toUpperCase(Locale.ROOT);
+            if (!"REVENUE".equals(type) && !"EXPENSE".equals(type)) continue;
+            BigDecimal[] mov = periodMap.getOrDefault(acc.getId(), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            BigDecimal netRaw = "REVENUE".equals(type) ? mov[1].subtract(mov[0]) : mov[0].subtract(mov[1]);
+            BigDecimal net = netRaw.setScale(2, RoundingMode.HALF_UP);
+            if (net.abs().compareTo(new BigDecimal("0.01")) < 0) continue;
+
+            if ("REVENUE".equals(type)) {
+                if (net.compareTo(BigDecimal.ZERO) > 0) {
+                    closingLines.add(new GeneralLedgerDtos.CreateLineRequest(acc.getId(), acc.getAccountCode(), net, BigDecimal.ZERO, null, "FY Close: " + acc.getAccountName(), null));
+                    netTransfer = netTransfer.add(net);
+                } else {
+                    BigDecimal absNet = net.abs();
+                    closingLines.add(new GeneralLedgerDtos.CreateLineRequest(acc.getId(), acc.getAccountCode(), BigDecimal.ZERO, absNet, null, "FY Close: " + acc.getAccountName(), null));
+                    netTransfer = netTransfer.subtract(absNet);
+                }
+            } else {
+                if (net.compareTo(BigDecimal.ZERO) > 0) {
+                    closingLines.add(new GeneralLedgerDtos.CreateLineRequest(acc.getId(), acc.getAccountCode(), BigDecimal.ZERO, net, null, "FY Close: " + acc.getAccountName(), null));
+                    netTransfer = netTransfer.subtract(net);
+                } else {
+                    BigDecimal absNet = net.abs();
+                    closingLines.add(new GeneralLedgerDtos.CreateLineRequest(acc.getId(), acc.getAccountCode(), absNet, BigDecimal.ZERO, null, "FY Close: " + acc.getAccountName(), null));
+                    netTransfer = netTransfer.add(absNet);
+                }
+            }
+        }
+
+        if (closingLines.isEmpty()) {
+            throw new IllegalStateException("No Revenue or Expense movements found in " + label + " to close.");
+        }
+
+        Long retainedAcc = getAccountIdOrDefault("3030", "Retained Earnings", "EQUITY");
+        if (netTransfer.compareTo(BigDecimal.ZERO) > 0) {
+            closingLines.add(new GeneralLedgerDtos.CreateLineRequest(retainedAcc, "3030", BigDecimal.ZERO, netTransfer.setScale(2, RoundingMode.HALF_UP), null,
+                    "Net Profit transferred to Retained Earnings (" + label + ")", null));
+        } else if (netTransfer.compareTo(BigDecimal.ZERO) < 0) {
+            closingLines.add(new GeneralLedgerDtos.CreateLineRequest(retainedAcc, "3030", netTransfer.abs().setScale(2, RoundingMode.HALF_UP), BigDecimal.ZERO, null,
+                    "Net Loss transferred to Retained Earnings (" + label + ")", null));
+        }
+
+        String safeActor = (actor != null && !actor.isBlank()) ? actor : (req.closedBy() != null ? req.closedBy() : "ADMIN");
+        GeneralLedgerDtos.JournalEntryDto closingVoucher = postJournalEntry(new GeneralLedgerDtos.CreateJournalRequest(
+                req.toDate(), "CLOSING", "FISCAL_YEAR_CLOSE", null, label,
+                "Year-End Fiscal Closing & Retained Earnings Transfer for " + label,
+                safeActor, closingLines
+        ));
+
+        jdbc.update("INSERT INTO fiscal_year_close_log(fy_label, from_date, to_date, net_profit, retained_earnings_entry_id, closed_by) VALUES (?, ?, ?, ?, ?, ?)",
+                label, req.fromDate(), req.toDate(), netTransfer.setScale(2, RoundingMode.HALF_UP), closingVoucher.id(), safeActor);
+
+        LocalDate lockedUntil = getPeriodLock().lockedUntil();
+        if (req.lockPeriod()) {
+            setPeriodLock(req.toDate(), safeActor);
+            lockedUntil = req.toDate();
+        }
+        recordAudit("FISCAL_CLOSE", closingVoucher.id(), "CLOSED",
+                "Closed " + label + "; Net Profit " + netTransfer.setScale(2, RoundingMode.HALF_UP) + " transferred to 3030 Retained Earnings",
+                List.of(new AuditService.Change("Net Profit Transferred", "0.00", netTransfer.setScale(2, RoundingMode.HALF_UP).toPlainString())));
+
+        return new GeneralLedgerDtos.FiscalYearCloseResponse(
+                closingVoucher.id(), closingVoucher.entryNumber(), label,
+                netTransfer.setScale(2, RoundingMode.HALF_UP), lockedUntil,
+                "Fiscal Year " + label + " closed cleanly via voucher " + closingVoucher.entryNumber() + "."
+        );
     }
 }

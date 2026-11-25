@@ -93,7 +93,7 @@
               </HBox>
               <HBox spacing="4" alignment="CENTER_LEFT">
                 <Button fx:id="btnCurrency" text="₹" onAction="#applyCurrencyFormat" styleClass="approved-button,excel-tool-green"/>
-                <Button fx:id="btnPercent" text="\%" onAction="#applyPercentFormat" styleClass="approved-button,excel-tool-blue"/>
+                <Button fx:id="btnPercent" text="%" onAction="#applyPercentFormat" styleClass="approved-button,excel-tool-blue"/>
                 <Button fx:id="btnComma" text="," onAction="#applyCommaFormat" styleClass="approved-button,excel-tool-blue"/>
               </HBox>
               <Label text="Number" styleClass="excel-ribbon-group-label"/>

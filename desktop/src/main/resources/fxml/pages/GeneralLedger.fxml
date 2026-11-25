@@ -14,10 +14,17 @@
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
         <Label fx:id="lblPeriodLockBadge" text="Books Open" styleClass="status-pill,status-positive"/>
+        <Button fx:id="btnHealthCheck" text="GL Health Check" onAction="#openHealthCheckDialog" styleClass="approved-button,approved-secondary-button"/>
+        <Button fx:id="btnCloseYear" text="Close Fiscal Year" onAction="#openCloseYearDialog" styleClass="approved-button,approved-secondary-button"/>
         <Button fx:id="btnPeriodLock" text="Period Lock" onAction="#openPeriodLockDialog" styleClass="approved-button,approved-secondary-button"/>
         <Button fx:id="btnNewJournal" text="New Journal Voucher" onAction="#openNewJournalDialog" styleClass="primary-action,approved-button,approved-primary-button"/>
-        <Button fx:id="btnExportLedger" text="Export Excel" onAction="#exportStatement" styleClass="approved-button,approved-secondary-button"/>
-        <Button fx:id="btnExportPdf" text="Export PDF" onAction="#exportPdfFinancialPack" styleClass="approved-button,approved-secondary-button"/>
+        <MenuButton fx:id="btnExport" text="Export" styleClass="approved-button,approved-secondary-button">
+          <items>
+            <MenuItem fx:id="miExportExcel" text="Excel"  onAction="#exportStatement"/>
+            <MenuItem fx:id="miExportCsv"   text="CSV"    onAction="#exportCsv"/>
+            <MenuItem fx:id="miExportPdf"   text="PDF"    onAction="#exportPdfFinancialPack"/>
+          </items>
+        </MenuButton>
         <Button fx:id="btnRefreshLedger" text="Refresh" onAction="#refreshJournals" styleClass="approved-button,approved-secondary-button"/>
       </HBox>
 

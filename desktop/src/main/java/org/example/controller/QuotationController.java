@@ -325,26 +325,30 @@ private void setupActions(){
    Optional<WhatsappTransmissionDialog.WhatsappTransmissionResult> opt=WhatsappTransmissionDialog.show(table,draft);
    if(opt.isEmpty())return;
    WhatsappTransmissionDialog.WhatsappTransmissionResult result=opt.get();
+   final boolean[] serverAuditLogged = {false};
    LiveOperationDialog.run(table,"Sending WhatsApp Quotation","whatsapp","Connecting to WhatsApp Business Engine...",reporter->{
     var wahaApi=new org.example.api.whatsapp.BusinessWhatsappApiClient();
     List<String> phones = Arrays.stream(result.recipientPhone().split("[;,]"))
-            .map(String::trim).filter(s -> !s.isBlank()).toList();
+            .map(String::trim).filter(s -> !s.isBlank()).distinct().toList();
+    String targetPhones = String.join(", ", phones);
     reporter.stage(1,3,"Validating "+phones.size()+" recipient(s)...");
     reporter.stage(2,3,"Transmitting quotation via WhatsApp...");
-    for (String phoneNum : phones) {
-        var sendResp=wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
-                "QUOTATION",q.no.get(),q.id,null,phoneNum,result.message(),q.rowVersion
-        ));
-        if(!sendResp.success())throw new IllegalStateException(sendResp.message());
-        comm(q,"WHATSAPP",phoneNum,"SENT",null);
-    }
+    var sendResp=wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
+            "QUOTATION",q.no.get(),q.id,null,targetPhones,result.message(),q.rowVersion
+    ));
+    serverAuditLogged[0]=true;
+    if(!sendResp.success())throw new IllegalStateException(sendResp.message());
     quotationApi.markSent(q.id,"WHATSAPP",q.rowVersion);
     reporter.stage(3,3,"Dispatched via WhatsApp to "+phones.size()+" recipient(s)");
    },()->{
     refresh();
     success("Quotation "+q.no.get()+" sent successfully via WhatsApp!");
    },failure->{
-    comm(q,"WHATSAPP",result.recipientPhone(),"FAILED",failure.getMessage());
+    if(!serverAuditLogged[0]){
+     comm(q,"WHATSAPP",result.recipientPhone(),"FAILED",failure.getMessage());
+    }else{
+     refresh();
+    }
     error(asException(failure));
    });
   },failure->error(asException(failure)));

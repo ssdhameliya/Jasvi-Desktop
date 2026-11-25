@@ -209,6 +209,7 @@ public class AgingAnalysisController implements ScreenLifecycle {
         colActions.setCellFactory(col -> new TableCell<>() {
             private final MenuButton actionsBtn = new MenuButton("Actions");
             private final MenuItem viewItem = new MenuItem("View Details");
+            private final MenuItem ledgerItem = new MenuItem("View Party Ledger");
             private final MenuItem remindItem = new MenuItem();
             private final MenuItem auditItem = new MenuItem("Audit Trail");
             {
@@ -226,6 +227,12 @@ public class AgingAnalysisController implements ScreenLifecycle {
                     }
                 });
 
+                ledgerItem.setGraphic(IconFactory.compactIcon("ledger", 13));
+                ledgerItem.setOnAction(e -> {
+                    AgingBucketRow row = getTableRow().getItem();
+                    if (row != null) openPartyLedger(row);
+                });
+
                 remindItem.setGraphic(IconFactory.compactIcon("reminder", 13));
                 remindItem.setOnAction(e -> {
                     AgingBucketRow row = getTableRow().getItem();
@@ -236,7 +243,8 @@ public class AgingAnalysisController implements ScreenLifecycle {
                 auditItem.setOnAction(e -> {
                     AgingBucketRow row = getTableRow().getItem();
                     if (row != null) {
-                        org.example.util.ActivityTimelineDialog.show(tblAging, isDebtorMode ? "CUSTOMER" : "SUPPLIER", 1, row.partyName);
+                        org.example.util.ActivityTimelineDialog.show(tblAging, isDebtorMode ? "CUSTOMER" : "SUPPLIER",
+                                row.partyId != null ? row.partyId.intValue() : 0, row.partyName);
                     }
                 });
 
@@ -248,7 +256,7 @@ public class AgingAnalysisController implements ScreenLifecycle {
                     }
                 });
 
-                actionsBtn.getItems().addAll(viewItem, remindItem, auditItem);
+                actionsBtn.getItems().addAll(viewItem, ledgerItem, remindItem, auditItem);
                 IconFactory.decorateActionMenu(actionsBtn);
             }
             @Override
@@ -383,6 +391,7 @@ public class AgingAnalysisController implements ScreenLifecycle {
         HBox hero = new HBox(14, iconLabel, titleBox, spacerHero, statusPill);
         hero.setAlignment(Pos.CENTER_LEFT);
         hero.setPadding(new Insets(4, 8, 8, 8));
+        DocumentInspectionScaffold.installDragPhysics(hero, dialog);
 
         // Details Grid
         GridPane grid = new GridPane();
@@ -394,7 +403,7 @@ public class AgingAnalysisController implements ScreenLifecycle {
         int r = 0;
         addAgingDetailRow(grid, r++, "Party / Trade Name", row.partyName, isDebtorMode ? "customer" : "supplier");
         addAgingDetailRow(grid, r++, "Ledger Group", isDebtorMode ? "Sundry Debtors (AR)" : "Sundry Creditors (AP)", "finance");
-        addAgingDetailRow(grid, r++, "Contact Phone", row.phone != null && !row.phone.isBlank() ? row.phone : "Not recorded", "user");
+        addAgingDetailRow(grid, r++, "Contact Phone", row.phone != null && !row.phone.isBlank() ? row.phone : "Not recorded", "phone");
         addAgingDetailRow(grid, r++, "Contact Email", row.email != null && !row.email.isBlank() ? row.email : "Not recorded", "email");
         if (isCollectionsEnabled() && isDebtorMode) {
             String remindedText = (row.lastRemindedAt == null || row.lastRemindedAt.isBlank())
@@ -428,11 +437,20 @@ public class AgingAnalysisController implements ScreenLifecycle {
             sendReminderForRow(row);
         });
 
+        Button btnPartyLedger = new Button("View Party Ledger");
+        btnPartyLedger.setGraphic(IconFactory.compactIcon("ledger", 14));
+        btnPartyLedger.getStyleClass().addAll("approved-button", "approved-primary-button");
+        btnPartyLedger.setOnAction(e -> {
+            dialog.close();
+            openPartyLedger(row);
+        });
+
         Button btnAudit = new Button("Audit Trail");
         btnAudit.setGraphic(IconFactory.compactIcon("history", 14));
         btnAudit.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnAudit.setOnAction(e -> {
-            org.example.util.ActivityTimelineDialog.show(tblAging, isDebtorMode ? "CUSTOMER" : "SUPPLIER", 1, row.partyName);
+            org.example.util.ActivityTimelineDialog.show(tblAging, isDebtorMode ? "CUSTOMER" : "SUPPLIER",
+                    row.partyId != null ? row.partyId.intValue() : 0, row.partyName);
         });
 
         Region sp = new Region();
@@ -443,7 +461,7 @@ public class AgingAnalysisController implements ScreenLifecycle {
         btnClose.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnClose.setOnAction(e -> dialog.close());
 
-        dock.getChildren().addAll(btnAction, btnAudit, sp, btnClose);
+        dock.getChildren().addAll(btnPartyLedger, btnAction, btnAudit, sp, btnClose);
 
         VBox contentBox = new VBox(12, hero, scroll, dock);
         contentBox.setPadding(new Insets(16, 20, 16, 20));
@@ -649,9 +667,28 @@ public class AgingAnalysisController implements ScreenLifecycle {
 
     @FXML
     public void viewLedger() {
-        if (selectedRow != null) {
+        AgingBucketRow target = selectedRow != null ? selectedRow : tblAging.getSelectionModel().getSelectedItem();
+        if (target != null) {
+            openPartyLedger(target);
+        } else {
             DashboardController.navigateFromChildPage("General Ledger", "/fxml/pages/GeneralLedger.fxml");
         }
+    }
+
+    private void openPartyLedger(AgingBucketRow row) {
+        if (row == null || row.partyId == null || row.partyId <= 0) {
+            DashboardController.navigateFromChildPage("General Ledger", "/fxml/pages/GeneralLedger.fxml");
+            return;
+        }
+        LocalDate asOf = dpAsOfDate != null ? dpAsOfDate.getValue() : null;
+        AccountLedgerDialog.showPartyLedger(
+                tblAging,
+                new org.example.api.accounting.GeneralLedgerApiClient(),
+                row.partyId,
+                row.partyName,
+                null,
+                asOf
+        );
     }
 
     public static class AgingReportResponse {

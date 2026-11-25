@@ -1528,7 +1528,7 @@ public final class IconFactory {
         if (value.contains("expense")) return "payment";
         if (value.contains("convert to sale")) return "sale";
         if (value.contains("map column") || value.contains("mapping")) return "mapping";
-        if (value.contains("system health")) return "validate";
+        if (value.contains("system health") || value.contains("health check") || value.contains("gl health")) return "validate";
         if (value.contains("offline package") || value.contains("install update")) return "update";
         if (value.equals("menu")) return "menu";
         if (value.contains("notification")) return "notification";

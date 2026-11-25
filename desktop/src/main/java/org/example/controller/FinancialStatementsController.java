@@ -26,6 +26,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.example.api.ApiRuntime;
 import org.example.api.ApiSession;
+import org.example.api.accounting.GeneralLedgerApiClient;
 import org.example.config.ConfigManager;
 import org.example.navigation.ScreenLifecycle;
 import org.example.service.BrandedRegisterPdfService;
@@ -53,13 +54,14 @@ public class FinancialStatementsController implements ScreenLifecycle {
     @FXML private Label kpiRevenue, kpiCogs, kpiGrossProfit, kpiNetProfit, lblGrossMargin, lblNetMargin;
 
     @FXML private ComboBox<String> cmbEngineMode;
+    @FXML private CheckBox chkComparePrior;
     @FXML private DatePicker dpFromDate, dpToDate;
     @FXML private Button btnApplyDate, btnExportPdf, btnExportExcel;
 
-    @FXML private Label lblCurrentRatio, lblQuickRatio, lblDso, lblDpo, lblWorkingCapital;
+    @FXML private Label lblCurrentRatio, lblQuickRatio, lblDso, lblDpo, lblWorkingCapital, lblPriorSummary;
 
     @FXML private TabPane tabStatements;
-    @FXML private Tab tabPnl, tabBalanceSheet, tabRatios;
+    @FXML private Tab tabPnl, tabBalanceSheet, tabCashFlow, tabRatios;
 
     @FXML private TextField txtSearchPnl, txtSearchBs;
     @FXML private Button btnDrillDownPnl, btnDrillDownBs, btnExpandAllPnl, btnCollapseAllPnl;
@@ -71,11 +73,18 @@ public class FinancialStatementsController implements ScreenLifecycle {
     @FXML private TreeTableView<StatementItemRow> treeTblBs;
     @FXML private TreeTableColumn<StatementItemRow, String> colBsClassification, colBsCode, colBsGroup, colBsAmount;
 
+    @FXML private Label lblOperatingCash, lblInvestingCash, lblFinancingCash, lblNetCashFlow;
+    @FXML private TableView<CashFlowRow> tblCashFlow;
+    @FXML private TableColumn<CashFlowRow, String> colCfCategory, colCfDescription, colCfAmount;
+
     @FXML private TableView<RatioRow> tblRatios;
     @FXML private TableColumn<RatioRow, String> colRatioCategory, colRatioMetric, colRatioValue, colRatioBenchmark, colRatioStatus;
 
     private final ObservableList<RatioRow> ratioRows = FXCollections.observableArrayList();
+    private final ObservableList<CashFlowRow> cashFlowRows = FXCollections.observableArrayList();
     private final NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.of("en", "IN"));
+    private TreeItem<StatementItemRow> masterPnlRoot;
+    private TreeItem<StatementItemRow> masterBsRoot;
 
     public void initialize() {
         if (pageIcon != null) pageIcon.getChildren().setAll(IconFactory.icon("report", 22));
@@ -98,7 +107,10 @@ public class FinancialStatementsController implements ScreenLifecycle {
 
         configurePnlColumns();
         configureBsColumns();
+        configureCashFlowColumns();
         configureRatioColumns();
+        DynamicTableLayoutManager.install(treeTblPnl);
+        DynamicTableLayoutManager.install(treeTblBs);
 
         RealtimeSearchSupport.installLocal(txtSearchPnl, () -> filterTree(treeTblPnl, txtSearchPnl.getText()));
         RealtimeSearchSupport.installLocal(txtSearchBs, () -> filterTree(treeTblBs, txtSearchBs.getText()));
@@ -231,6 +243,16 @@ public class FinancialStatementsController implements ScreenLifecycle {
         DynamicTableLayoutManager.install(tblRatios);
     }
 
+    private void configureCashFlowColumns() {
+        if (tblCashFlow == null) return;
+        colCfCategory.setCellValueFactory(r -> new SimpleStringProperty(r.getValue().category()));
+        colCfDescription.setCellValueFactory(r -> new SimpleStringProperty(r.getValue().description()));
+        colCfAmount.setCellValueFactory(r -> new SimpleStringProperty(r.getValue().amountText()));
+        colCfAmount.setCellFactory(c -> SemanticTableCells.moneyString("blue"));
+        tblCashFlow.setItems(cashFlowRows);
+        DynamicTableLayoutManager.install(tblCashFlow);
+    }
+
     @FXML
     public void refreshStatements() {
         LocalDate from = dpFromDate.getValue();
@@ -257,7 +279,9 @@ public class FinancialStatementsController implements ScreenLifecycle {
 
                 if (resp.statusCode() == 200) {
                     ThreeTierResponse threeTier = ApiRuntime.JSON.readValue(resp.body(), ThreeTierResponse.class);
-                    return new StatementsData(threeTier.profitAndLoss, threeTier.balanceSheet, threeTier.tradingAccount, threeTier.ratios);
+                    return new StatementsData(
+                            threeTier.profitAndLoss, threeTier.balanceSheet, threeTier.tradingAccount,
+                            threeTier.ratios, threeTier.cashFlow, threeTier.comparison);
                 }
 
                 // Fallback to individual endpoints
@@ -281,7 +305,7 @@ public class FinancialStatementsController implements ScreenLifecycle {
                 BalanceSheetResponse bsData = bsResp.statusCode() == 200
                         ? ApiRuntime.JSON.readValue(bsResp.body(), BalanceSheetResponse.class) : null;
 
-                return new StatementsData(pnlData, bsData, null, null);
+                return new StatementsData(pnlData, bsData, null, null, null, null);
             },
             data -> {
                 if (data.trading != null && data.pnl != null) {
@@ -291,6 +315,8 @@ public class FinancialStatementsController implements ScreenLifecycle {
                 }
                 if (data.bs != null) populateBs(data.bs);
                 if (data.ratios != null) populateRatios(data.ratios);
+                populateCashFlow(data.cashFlow);
+                populateComparison(data.comparison);
             },
             err -> AppDialogService.error(tabStatements, "Financials", "Failed to Load Financials", err.getMessage())
         );
@@ -345,8 +371,13 @@ public class FinancialStatementsController implements ScreenLifecycle {
         bottomNode.setExpanded(true);
         root.getChildren().add(bottomNode);
 
+        masterPnlRoot = root;
         treeTblPnl.setRoot(root);
         treeTblPnl.setShowRoot(false);
+        if (txtSearchPnl != null && txtSearchPnl.getText() != null && !txtSearchPnl.getText().isBlank()) {
+            filterTree(treeTblPnl, txtSearchPnl.getText());
+        }
+        DynamicTableLayoutManager.requestLayout(treeTblPnl);
     }
 
     private void populatePnl(ProfitAndLossResponse pnl) {
@@ -410,8 +441,13 @@ public class FinancialStatementsController implements ScreenLifecycle {
         // Net Profit Summary
         root.getChildren().add(new TreeItem<>(new StatementItemRow("NET PROFIT / (LOSS)", null, "Summary", pnl.netProfit, null)));
 
+        masterPnlRoot = root;
         treeTblPnl.setRoot(root);
         treeTblPnl.setShowRoot(false);
+        if (txtSearchPnl != null && txtSearchPnl.getText() != null && !txtSearchPnl.getText().isBlank()) {
+            filterTree(treeTblPnl, txtSearchPnl.getText());
+        }
+        DynamicTableLayoutManager.requestLayout(treeTblPnl);
     }
 
     private void populateBs(BalanceSheetResponse bs) {
@@ -484,8 +520,13 @@ public class FinancialStatementsController implements ScreenLifecycle {
         }
         root.getChildren().add(eqNode);
 
+        masterBsRoot = root;
         treeTblBs.setRoot(root);
         treeTblBs.setShowRoot(false);
+        if (txtSearchBs != null && txtSearchBs.getText() != null && !txtSearchBs.getText().isBlank()) {
+            filterTree(treeTblBs, txtSearchBs.getText());
+        }
+        DynamicTableLayoutManager.requestLayout(treeTblBs);
     }
 
     private void populateRatios(RatiosData r) {
@@ -517,14 +558,73 @@ public class FinancialStatementsController implements ScreenLifecycle {
         ratioRows.add(new RatioRow("Activity", "Days Payables Outstanding (DPO)", String.format(Locale.of("en", "IN"), "%.1f days", dpo), "45 - 60 days", "Normal Credit Cycle"));
     }
 
+    private void populateCashFlow(CashFlowData cf) {
+        cashFlowRows.clear();
+        if (cf == null) {
+            if (lblOperatingCash != null) lblOperatingCash.setText("₹ 0.00");
+            if (lblInvestingCash != null) lblInvestingCash.setText("₹ 0.00");
+            if (lblFinancingCash != null) lblFinancingCash.setText("₹ 0.00");
+            if (lblNetCashFlow != null) lblNetCashFlow.setText("Net Cash Flow: ₹ 0.00");
+            return;
+        }
+        if (lblOperatingCash != null) lblOperatingCash.setText(currency.format(nz(cf.operatingCashFlow)));
+        if (lblInvestingCash != null) lblInvestingCash.setText(currency.format(nz(cf.investingCashFlow)));
+        if (lblFinancingCash != null) lblFinancingCash.setText(currency.format(nz(cf.financingCashFlow)));
+        if (lblNetCashFlow != null) {
+            BigDecimal net = nz(cf.netCashChange);
+            lblNetCashFlow.setText("Net Cash Flow: " + currency.format(net) + " (Closing: " + currency.format(nz(cf.closingCash)) + ")");
+            lblNetCashFlow.getStyleClass().setAll("status-pill", net.compareTo(BigDecimal.ZERO) >= 0 ? "status-pill-green" : "status-pill-red");
+        }
+        cashFlowRows.add(new CashFlowRow("Summary", "Opening Cash & Bank Balance", currency.format(nz(cf.openingCash))));
+        if (cf.lines != null) {
+            for (FinancialAccountRow line : cf.lines) {
+                cashFlowRows.add(new CashFlowRow(
+                        line.accountGroup != null ? line.accountGroup : "Cash Movement",
+                        line.accountName != null ? line.accountName : "",
+                        currency.format(nz(line.amount))
+                ));
+            }
+        }
+        cashFlowRows.add(new CashFlowRow("Summary", "Net Increase / (Decrease) in Cash", currency.format(nz(cf.netCashChange))));
+        cashFlowRows.add(new CashFlowRow("Summary", "Closing Cash & Bank Balance", currency.format(nz(cf.closingCash))));
+    }
+
+    private void populateComparison(PriorComparisonData cmp) {
+        if (lblPriorSummary == null) return;
+        boolean compareOn = chkComparePrior != null && chkComparePrior.isSelected();
+        if (!compareOn || cmp == null) {
+            lblPriorSummary.setText("Prior Comparison: Off");
+            lblPriorSummary.getStyleClass().setAll("field-caption");
+            return;
+        }
+        String revVar = formatSignedPct(cmp.revenueVariancePct);
+        String netVar = formatSignedPct(cmp.netProfitVariancePct);
+        lblPriorSummary.setText("vs Prior (" + cmp.priorFromDate + " to " + cmp.priorToDate + "): Rev "
+                + currency.format(nz(cmp.priorRevenue)) + " (" + revVar + ") | Net "
+                + currency.format(nz(cmp.priorNetProfit)) + " (" + netVar + ")");
+        lblPriorSummary.getStyleClass().setAll("metric-trend-pill",
+                nz(cmp.netProfitVariancePct).compareTo(BigDecimal.ZERO) >= 0 ? "trend-positive" : "trend-negative");
+    }
+
+    private static String formatSignedPct(BigDecimal pct) {
+        BigDecimal v = pct != null ? pct : BigDecimal.ZERO;
+        return (v.compareTo(BigDecimal.ZERO) > 0 ? "+" : "") + v.setScale(1, RoundingMode.HALF_UP) + "%";
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v != null ? v : BigDecimal.ZERO;
+    }
+
     @FXML
     public void drillDownSelectedPnl() {
         TreeItem<StatementItemRow> sel = treeTblPnl.getSelectionModel().getSelectedItem();
         String cat = "SALES";
         if (sel != null && sel.getValue() != null && sel.getValue().name != null) {
             String n = sel.getValue().name.toUpperCase(Locale.ROOT);
-            if (n.contains("PURCHASE") || n.contains("COGS") || n.contains("DIRECT COST")) cat = "PURCHASES";
-            else if (n.contains("EXPENSE") || n.contains("OVERHEAD") || n.contains("OFFICE")) cat = "EXPENSES";
+            if (n.contains("OPENING") && (n.contains("STOCK") || n.contains("INVENTORY"))) cat = "OPENING_STOCK";
+            else if (n.contains("CLOSING") && (n.contains("STOCK") || n.contains("INVENTORY"))) cat = "CLOSING_STOCK";
+            else if (n.contains("PURCHASE") || n.contains("COGS") || n.contains("DIRECT COST") || n.contains("FREIGHT")) cat = "PURCHASES";
+            else if (n.contains("EXPENSE") || n.contains("OVERHEAD") || n.contains("OFFICE") || n.contains("RENT") || n.contains("SALARY")) cat = "EXPENSES";
             else if (n.contains("STOCK") || n.contains("INVENTORY")) cat = "INVENTORY";
             else cat = "SALES";
         }
@@ -537,9 +637,15 @@ public class FinancialStatementsController implements ScreenLifecycle {
         String cat = "DEBTORS";
         if (sel != null && sel.getValue() != null && sel.getValue().name != null) {
             String n = sel.getValue().name.toUpperCase(Locale.ROOT);
-            if (n.contains("CREDITOR") || n.contains("PAYABLE")) cat = "CREDITORS";
-            else if (n.contains("STOCK") || n.contains("INVENTORY")) cat = "INVENTORY";
-            else if (n.contains("CASH") || n.contains("BANK")) cat = "CASH_BANK";
+            String grp = sel.getValue().groupType != null ? sel.getValue().groupType.toUpperCase(Locale.ROOT) : "";
+            String code = sel.getValue().accountCode != null ? sel.getValue().accountCode : "";
+            if (n.contains("CREDITOR") || n.contains("PAYABLE") || "2010".equals(code)) cat = "CREDITORS";
+            else if (n.contains("STOCK") || n.contains("INVENTORY") || "1060".equals(code) || "1030".equals(code)) cat = "INVENTORY";
+            else if (n.contains("CASH") || n.contains("BANK") || "1010".equals(code) || "1020".equals(code)) cat = "CASH_BANK";
+            else if (n.contains("GST") || n.contains("TAX") || n.contains("CGST") || n.contains("SGST") || n.contains("IGST")) cat = "GST";
+            else if (n.contains("FIXED") || n.contains("MACHINERY") || n.contains("PLANT") || grp.contains("NON_CURRENT_ASSET")) cat = "FIXED_ASSETS";
+            else if (n.contains("LOAN") || n.contains("BORROW") || grp.contains("NON_CURRENT_LIABILITY")) cat = "BORROWINGS";
+            else if (n.contains("EQUITY") || n.contains("CAPITAL") || n.contains("RETAINED") || n.contains("RESERVE") || grp.contains("EQUITY")) cat = "CAPITAL";
             else cat = "DEBTORS";
         }
         openDrillDownDialog(cat);
@@ -684,18 +790,58 @@ public class FinancialStatementsController implements ScreenLifecycle {
     }
 
     private void filterTree(TreeTableView<StatementItemRow> treeTable, String search) {
-        if (treeTable.getRoot() == null) return;
-        boolean hasFilter = search != null && !search.trim().isEmpty();
-        String query = hasFilter ? search.trim().toLowerCase(Locale.ROOT) : "";
-        for (TreeItem<StatementItemRow> cat : treeTable.getRoot().getChildren()) {
-            boolean catMatch = hasFilter && cat.getValue().name.toLowerCase(Locale.ROOT).contains(query);
-            for (TreeItem<StatementItemRow> item : cat.getChildren()) {
-                boolean itemMatch = catMatch || (hasFilter && item.getValue().name.toLowerCase(Locale.ROOT).contains(query));
-                if (itemMatch) {
-                    cat.setExpanded(true);
-                    item.setExpanded(true);
-                }
+        TreeItem<StatementItemRow> master = (treeTable == treeTblPnl) ? masterPnlRoot
+                : (treeTable == treeTblBs ? masterBsRoot : null);
+        if (master == null) master = treeTable.getRoot();
+        if (master == null) return;
+
+        String query = search != null ? search.trim().toLowerCase(Locale.ROOT) : "";
+        if (query.isBlank()) {
+            treeTable.setRoot(master);
+            return;
+        }
+        TreeItem<StatementItemRow> pruned = pruneTree(master, query);
+        if (pruned == null) {
+            pruned = new TreeItem<>(new StatementItemRow("Root", null, null, null, null));
+        }
+        pruned.setExpanded(true);
+        treeTable.setRoot(pruned);
+    }
+
+    private TreeItem<StatementItemRow> pruneTree(TreeItem<StatementItemRow> source, String query) {
+        if (source == null) return null;
+        StatementItemRow v = source.getValue();
+        boolean isRoot = v != null && "Root".equalsIgnoreCase(v.name);
+        boolean selfMatches = !isRoot && v != null && (
+                (v.name != null && v.name.toLowerCase(Locale.ROOT).contains(query))
+                || (v.accountCode != null && v.accountCode.toLowerCase(Locale.ROOT).contains(query))
+                || (v.groupType != null && v.groupType.toLowerCase(Locale.ROOT).contains(query)));
+
+        TreeItem<StatementItemRow> copy = new TreeItem<>(v);
+        if (selfMatches) {
+            copyAllChildren(source, copy);
+            copy.setExpanded(true);
+            return copy;
+        }
+        for (TreeItem<StatementItemRow> child : source.getChildren()) {
+            TreeItem<StatementItemRow> matchedChild = pruneTree(child, query);
+            if (matchedChild != null) {
+                copy.getChildren().add(matchedChild);
             }
+        }
+        if (isRoot || !copy.getChildren().isEmpty()) {
+            copy.setExpanded(true);
+            return copy;
+        }
+        return null;
+    }
+
+    private void copyAllChildren(TreeItem<StatementItemRow> from, TreeItem<StatementItemRow> to) {
+        for (TreeItem<StatementItemRow> child : from.getChildren()) {
+            TreeItem<StatementItemRow> copy = new TreeItem<>(child.getValue());
+            copy.setExpanded(true);
+            copyAllChildren(child, copy);
+            to.getChildren().add(copy);
         }
     }
 
@@ -717,8 +863,23 @@ public class FinancialStatementsController implements ScreenLifecycle {
     }
 
     private void drillDownToLedger(String accountCode) {
-        AppDialogService.info(tabStatements, "General Ledger", "Ledger Drill-Down", "Navigating to General Ledger for account: " + accountCode);
-        DashboardController.navigateFromChildPage("General Ledger", "/fxml/pages/GeneralLedger.fxml");
+        if (accountCode == null || accountCode.isBlank()) return;
+        String cleanCode = accountCode.trim();
+        if (cleanCode.contains("-") || "5099".equals(cleanCode) || "4099".equals(cleanCode)) {
+            AppDialogService.info(tabStatements, "Calculated Summary Line",
+                    "Account code " + cleanCode + " is a computed Trading summary line. Select a ledger account (e.g. 4010, 5020, 1020) or use 'Inspect / Drill-Down'.");
+            return;
+        }
+        String accountName = cleanCode;
+        TreeItem<StatementItemRow> sel = (tabStatements != null && tabStatements.getSelectionModel().getSelectedItem() == tabBalanceSheet)
+                ? treeTblBs.getSelectionModel().getSelectedItem()
+                : treeTblPnl.getSelectionModel().getSelectedItem();
+        if (sel != null && sel.getValue() != null && cleanCode.equals(sel.getValue().accountCode) && sel.getValue().name != null) {
+            accountName = sel.getValue().name;
+        }
+        AccountLedgerDialog.show(tabStatements, new GeneralLedgerApiClient(), cleanCode, accountName,
+                dpFromDate != null ? dpFromDate.getValue() : null,
+                dpToDate != null ? dpToDate.getValue() : null);
     }
 
     @FXML
@@ -730,18 +891,38 @@ public class FinancialStatementsController implements ScreenLifecycle {
 
         try {
             List<String[]> rows = new ArrayList<>();
+            rows.add(new String[]{"=== PROFIT & LOSS STATEMENT ===", "", "", "", ""});
             if (treeTblPnl.getRoot() != null) {
                 flattenTreeRowsForPdf(treeTblPnl.getRoot(), rows, 0);
             }
+            rows.add(new String[]{"", "", "", "", ""});
+            rows.add(new String[]{"=== BALANCE SHEET ===", "", "", "", ""});
+            if (treeTblBs.getRoot() != null) {
+                flattenTreeRowsForPdf(treeTblBs.getRoot(), rows, 0);
+            }
+            if (!cashFlowRows.isEmpty()) {
+                rows.add(new String[]{"", "", "", "", ""});
+                rows.add(new String[]{"=== CASH FLOW STATEMENT (INDIRECT) ===", "", "", "", ""});
+                for (CashFlowRow cf : cashFlowRows) {
+                    rows.add(new String[]{cf.description(), "", cf.category(), cf.amountText(), ""});
+                }
+            }
+            if (!ratioRows.isEmpty()) {
+                rows.add(new String[]{"", "", "", "", ""});
+                rows.add(new String[]{"=== EXECUTIVE FINANCIAL RATIOS ===", "", "", "", ""});
+                for (RatioRow rr : ratioRows) {
+                    rows.add(new String[]{rr.metric(), rr.status(), rr.category(), rr.value(), rr.benchmark()});
+                }
+            }
             BrandedRegisterPdfService.export(
                 file.toPath(),
-                "Profit & Loss Statement",
-                new String[]{"Account / Item", "Code", "Type", "Amount (₹)", "% Revenue"},
+                "Complete Financial Statements Pack",
+                new String[]{"Account / Line Item", "Code", "Group / Category", "Amount (Rs.)", "Share / Notes"},
                 rows,
-                new float[]{3.5f, 1.2f, 1.8f, 2.0f, 1.2f}
+                new float[]{3.5f, 1.2f, 1.8f, 1.9f, 1.3f}
             );
 
-            ExportFeedbackManager.notifyExportSuccess(treeTblPnl, file, "Financial Statements PDF", rows.size());
+            ExportFeedbackManager.notifyExportSuccess(treeTblPnl, file, "Financial Statements Complete PDF", rows.size());
         } catch (Exception ex) {
             AppDialogService.error(treeTblPnl, "Export Failed", "Could not export PDF statement", ex.getMessage());
         }
@@ -791,8 +972,36 @@ public class FinancialStatementsController implements ScreenLifecycle {
                 writeTreeRowsToExcel(bsSheet, treeTblBs.getRoot(), rowIdx, 0);
             }
 
+            Sheet cfSheet = workbook.createSheet("Cash Flow Statement");
+            Row cfHdr = cfSheet.createRow(0);
+            String[] cfHeaders = {"Classification", "Description", "Amount (₹)"};
+            for (int i = 0; i < cfHeaders.length; i++) cfHdr.createCell(i).setCellValue(cfHeaders[i]);
+            int cfRowIdx = 1;
+            for (CashFlowRow cf : cashFlowRows) {
+                Row cr = cfSheet.createRow(cfRowIdx++);
+                cr.createCell(0).setCellValue(cf.category());
+                cr.createCell(1).setCellValue(cf.description());
+                cr.createCell(2).setCellValue(cf.amountText());
+            }
+
+            Sheet ratioSheet = workbook.createSheet("Financial Ratios");
+            Row rrHdr = ratioSheet.createRow(0);
+            String[] rrHeaders = {"Classification", "Metric / Ratio", "Value", "Benchmark", "Assessment"};
+            for (int i = 0; i < rrHeaders.length; i++) rrHdr.createCell(i).setCellValue(rrHeaders[i]);
+            int rrRowIdx = 1;
+            for (RatioRow rr : ratioRows) {
+                Row rrow = ratioSheet.createRow(rrRowIdx++);
+                rrow.createCell(0).setCellValue(rr.category());
+                rrow.createCell(1).setCellValue(rr.metric());
+                rrow.createCell(2).setCellValue(rr.value());
+                rrow.createCell(3).setCellValue(rr.benchmark());
+                rrow.createCell(4).setCellValue(rr.status());
+            }
+
             for (int i = 0; i < pnlHeaders.length; i++) pnlSheet.autoSizeColumn(i);
             for (int i = 0; i < bsHeaders.length; i++) bsSheet.autoSizeColumn(i);
+            for (int i = 0; i < cfHeaders.length; i++) cfSheet.autoSizeColumn(i);
+            for (int i = 0; i < rrHeaders.length; i++) ratioSheet.autoSizeColumn(i);
 
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 workbook.write(fos);
@@ -891,6 +1100,7 @@ public class FinancialStatementsController implements ScreenLifecycle {
     }
 
     public record RatioRow(String category, String metric, String value, String benchmark, String status) {}
+    public record CashFlowRow(String category, String description, String amountText) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ThreeTierResponse {
@@ -903,7 +1113,33 @@ public class FinancialStatementsController implements ScreenLifecycle {
         @JsonAlias({"balanceSheet", "bs"})
         public BalanceSheetResponse balanceSheet;
         public RatiosData ratios;
+        public CashFlowData cashFlow;
+        public PriorComparisonData comparison;
         public String statementDate;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class CashFlowData {
+        public BigDecimal netProfit = BigDecimal.ZERO;
+        public BigDecimal openingCash = BigDecimal.ZERO;
+        public BigDecimal operatingCashFlow = BigDecimal.ZERO;
+        public BigDecimal investingCashFlow = BigDecimal.ZERO;
+        public BigDecimal financingCashFlow = BigDecimal.ZERO;
+        public BigDecimal netCashChange = BigDecimal.ZERO;
+        public BigDecimal closingCash = BigDecimal.ZERO;
+        public List<FinancialAccountRow> lines;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class PriorComparisonData {
+        public String priorFromDate;
+        public String priorToDate;
+        public BigDecimal priorRevenue = BigDecimal.ZERO;
+        public BigDecimal priorCogs = BigDecimal.ZERO;
+        public BigDecimal priorGrossProfit = BigDecimal.ZERO;
+        public BigDecimal priorNetProfit = BigDecimal.ZERO;
+        public BigDecimal revenueVariancePct = BigDecimal.ZERO;
+        public BigDecimal netProfitVariancePct = BigDecimal.ZERO;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -957,5 +1193,11 @@ public class FinancialStatementsController implements ScreenLifecycle {
         public BigDecimal balance = BigDecimal.ZERO;
     }
 
-    private record StatementsData(ProfitAndLossResponse pnl, BalanceSheetResponse bs, TradingAccountData trading, RatiosData ratios) {}
+    private record StatementsData(
+            ProfitAndLossResponse pnl,
+            BalanceSheetResponse bs,
+            TradingAccountData trading,
+            RatiosData ratios,
+            CashFlowData cashFlow,
+            PriorComparisonData comparison) {}
 }

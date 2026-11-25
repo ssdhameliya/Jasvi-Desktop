@@ -376,22 +376,35 @@ public class CommunicationCenterController implements ScreenLifecycle {
     }
 
     private List<Row> readRows() {
-        List<Row> x = new ArrayList<>();
-        var rawList = supportApi.communications();
+        return buildRows(supportApi.communications());
+    }
+
+    static List<Row> buildRows(List<SupportApiClient.CommunicationRow> rawList) {
+        if (rawList == null || rawList.isEmpty()) {
+            return List.of();
+        }
         Map<String, Integer> counts = new HashMap<>();
         for (var r : rawList) {
-            String key = groupKey(r.entityType(), r.entityId(), r.channel(), r.recipient());
-            counts.put(key, counts.getOrDefault(key, 0) + 1);
+            String key = groupKey(r.entityType(), r.entityId(), r.channel(), r.recipient(), r.subject());
+            counts.merge(key, 1, Integer::sum);
         }
 
-        Map<String, Integer> currentIdx = new HashMap<>();
-        for (var r : rawList) {
-            String key = groupKey(r.entityType(), r.entityId(), r.channel(), r.recipient());
-            int idx = currentIdx.getOrDefault(key, 0) + 1;
-            currentIdx.put(key, idx);
+        // rawList arrives newest-first (created_at DESC, id DESC); number oldest-to-newest so Original is 1/N
+        String[] attemptLabels = new String[rawList.size()];
+        Map<String, Integer> chronoIdx = new HashMap<>();
+        for (int i = rawList.size() - 1; i >= 0; i--) {
+            var r = rawList.get(i);
+            String key = groupKey(r.entityType(), r.entityId(), r.channel(), r.recipient(), r.subject());
+            int idx = chronoIdx.merge(key, 1, Integer::sum);
             int totalForEntity = counts.getOrDefault(key, 1);
-            String attemptText = (totalForEntity <= 1) ? "Original"
-                    : (idx == 1 ? "Original (1/" + totalForEntity + ")" : "Resend #" + (idx - 1) + " (" + idx + "/" + totalForEntity + ")");
+            attemptLabels[i] = formatAttemptLabel(idx, totalForEntity);
+        }
+
+        List<Row> x = new ArrayList<>(rawList.size());
+        for (int i = 0; i < rawList.size(); i++) {
+            var r = rawList.get(i);
+            String key = groupKey(r.entityType(), r.entityId(), r.channel(), r.recipient(), r.subject());
+            int totalForEntity = counts.getOrDefault(key, 1);
             x.add(new Row(
                     BusinessClock.formatTimestamp(r.createdAt()),
                     BusinessClock.localDateOfTimestamp(r.createdAt()),
@@ -404,11 +417,20 @@ public class CommunicationCenterController implements ScreenLifecycle {
                     r.status(),
                     r.errorMessage(),
                     r.createdBy(),
-                    attemptText,
+                    attemptLabels[i],
                     totalForEntity
             ));
         }
         return x;
+    }
+
+    static String formatAttemptLabel(int idx, int totalForEntity) {
+        if (totalForEntity <= 1) {
+            return "Original";
+        }
+        return idx == 1
+                ? "Original (1/" + totalForEntity + ")"
+                : "Resend #" + (idx - 1) + " (" + idx + "/" + totalForEntity + ")";
     }
 
     private void applyRows(List<Row> x) {
@@ -585,11 +607,12 @@ public class CommunicationCenterController implements ScreenLifecycle {
 
     private void inspectRow(Row row) {
         if (row == null) return;
-        String key = groupKey(row.entityType, row.entityId, row.channel.get(), row.recipient.get());
+        String key = groupKey(row.entityType, row.entityId, row.channel.get(), row.recipient.get(), row.subject.get());
         List<CommunicationInspectionDialog.CommunicationSnapshot> related = all.stream()
-                .filter(r -> groupKey(r.entityType, r.entityId, r.channel.get(), r.recipient.get()).equals(key))
+                .filter(r -> groupKey(r.entityType, r.entityId, r.channel.get(), r.recipient.get(), r.subject.get()).equals(key))
                 .map(Row::toSnapshot)
-                .toList();
+                .toList()
+                .reversed();
         Runnable openDocAction = canOpenLinkedDocument(row) ? () -> openLinkedDocument(row) : null;
         CommunicationInspectionDialog.show(table, row.toSnapshot(), related, openDocAction, () -> resend(row));
     }
@@ -738,7 +761,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
                 "prep-whatsapp-resend",
                 () -> {
                     Path pdf = originalDocumentPdf(row);
-                    String phone = row.recipient.get().trim();
+                    String phone = row.recipients.isEmpty() ? row.recipient.get().trim() : String.join(", ", row.recipients);
                     String message = (row.subject.get() != null && !row.subject.get().isBlank())
                             ? row.subject.get()
                             : ("Document " + row.entity.get() + " from " + BrandingService.applicationName());
@@ -760,32 +783,34 @@ public class CommunicationCenterController implements ScreenLifecycle {
                     var result = opt.get();
 
                     LiveOperationDialog.run(table, "Re-sending WhatsApp Message", "whatsapp", "Connecting to WhatsApp Business Engine...", reporter -> {
-                        reporter.stage(1, 3, "Validating recipient " + result.recipientPhone() + "...");
+                        List<String> phones = CommunicationInspectionDialog.parseRecipients(result.recipientPhone());
+                        String targetPhones = phones.isEmpty() ? result.recipientPhone().trim() : String.join(", ", phones);
+                        reporter.stage(1, 3, "Validating " + Math.max(1, phones.size()) + " recipient(s)...");
                         var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
 
                         reporter.stage(2, 3, "Transmitting via WhatsApp Business Engine...");
                         org.example.api.whatsapp.BusinessWhatsappApiClient.SendResponse sendResp;
 
+                        // BusinessWhatsappService automatically records the consolidated WHATSAPP audit entry on the server
                         if (draft.attachmentPdf() != null && Files.isRegularFile(draft.attachmentPdf())) {
                             sendResp = wahaApi.sendDocument(new org.example.api.whatsapp.BusinessWhatsappApiClient.DocumentSendRequest(
-                                    row.entityType, row.entity.get(), row.entityId, null, result.recipientPhone(), result.message(), 0L
+                                    row.entityType, row.entity.get(), row.entityId, null, targetPhones, result.message(), 0L
                             ));
                         } else {
-                            String ph = result.recipientPhone().replaceAll("\\D", "");
-                            if (ph.length() == 10) ph = "91" + ph;
-                            sendResp = wahaApi.sendText(new org.example.api.whatsapp.BusinessWhatsappApiClient.TextSendRequest(ph, result.message(), null));
+                            sendResp = wahaApi.sendText(new org.example.api.whatsapp.BusinessWhatsappApiClient.TextSendRequest(
+                                    targetPhones, result.message(), null
+                            ));
                         }
 
                         if (!sendResp.success()) throw new IllegalStateException(sendResp.message());
                         reporter.stage(3, 3, "Message dispatched via channel " + sendResp.channelCode());
-
-                        supportApi.communication(new SupportApiClient.CommunicationRequest(
-                                row.entityType, row.entityId, "WHATSAPP", result.recipientPhone(), row.subject.get(), "SENT", null, (SessionService.current() != null ? SessionService.current().getUsername() : "System")
-                        ));
                     }, () -> {
                         AppDialogService.success(table, "WhatsApp Resent", "Document " + row.entity.get() + " was resent successfully via WhatsApp.");
                         refresh();
-                    }, error -> new OwnedAlert(Alert.AlertType.ERROR, error.getMessage()).showAndWait());
+                    }, error -> {
+                        refresh();
+                        new OwnedAlert(Alert.AlertType.ERROR, error.getMessage()).showAndWait();
+                    });
                 },
                 failure -> new OwnedAlert(Alert.AlertType.ERROR, "Failed to prepare WhatsApp draft:\n\n" + failure.getMessage()).showAndWait()
         );
@@ -808,18 +833,49 @@ public class CommunicationCenterController implements ScreenLifecycle {
                             + "{Signature}";
 
                     String docType = row.entityType == null ? "" : row.entityType.toUpperCase(Locale.ROOT);
+                    String category = dispatchCategory(row.entityType, origSubject);
+                    String draftLabel = row.entityType != null ? row.entityType : "DOCUMENT";
                     try {
                         if ("SALE".equals(docType)) {
                             var sale = new SalesService().getByInvoice(row.entity.get());
                             if (sale != null) {
-                                var formatted = MessageTemplateService.formatSalesEmail(sale);
-                                body = formatted.body();
+                                if ("PAYMENT_RECEIPT".equals(category)) {
+                                    draftLabel = "Payment Receipt";
+                                    body = MessageTemplateService.formatPaymentReceiptEmail(
+                                            sale.getCustomer() == null ? "Valued Customer" : sale.getCustomer().getName(),
+                                            sale.getInvoiceNo(),
+                                            sale.getInvoiceDate() == null ? BusinessClock.today() : sale.getInvoiceDate(),
+                                            sale.getTotalAmount(),
+                                            sale.getPaidAmount(),
+                                            sale.getBalanceAmount(),
+                                            "Receipt Confirmation",
+                                            BusinessClock.formatDate(BusinessClock.today()),
+                                            "Payment confirmation for " + sale.getInvoiceNo()
+                                    ).body();
+                                } else {
+                                    body = MessageTemplateService.formatSalesEmail(sale).body();
+                                }
                             }
                         } else if ("PURCHASE".equals(docType)) {
                             var purchase = new PurchaseService().getByInvoice(row.entity.get());
                             if (purchase != null) {
-                                var formatted = MessageTemplateService.formatPurchaseEmail(purchase);
-                                body = formatted.body();
+                                if ("REMITTANCE_ADVICE".equals(category)) {
+                                    draftLabel = "Remittance Advice";
+                                    body = MessageTemplateService.formatPurchaseRemittanceAdviceEmail(
+                                            purchase.getSupplier() == null ? "Valued Supplier" : purchase.getSupplier().getName(),
+                                            purchase.getInvoiceNo(),
+                                            purchase.getInvoiceDate() == null ? BusinessClock.today() : purchase.getInvoiceDate(),
+                                            purchase.getTotalAmount(),
+                                            purchase.getPaidAmount(),
+                                            purchase.getBalanceAmount(),
+                                            "Remittance Settlement",
+                                            BusinessClock.formatDate(BusinessClock.today()),
+                                            "Bank Transfer",
+                                            "Payment remittance for " + purchase.getInvoiceNo()
+                                    ).body();
+                                } else {
+                                    body = MessageTemplateService.formatPurchaseEmail(purchase).body();
+                                }
                             }
                         }
                     } catch (Exception ignored) {}
@@ -829,7 +885,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
                     return new EmailTransmissionDialog.EmailDraft(
                             "Re-send Document Email",
                             "Transmit document " + row.entity.get() + " (supports multiple ; or , separated emails)",
-                            row.entityType != null ? row.entityType : "DOCUMENT",
+                            draftLabel,
                             row.entity.get(),
                             to,
                             subject,
@@ -844,14 +900,15 @@ public class CommunicationCenterController implements ScreenLifecycle {
                     var result = opt.get();
 
                     LiveOperationDialog.run(table, "Re-sending Email", "email", "Connecting to Mail Transfer Agent...", reporter -> {
+                        String loggedRecipients = String.join(", ", EmailService.parseRecipientList(result.recipientEmail()));
                         reporter.stage(1, 3, "Validating mail recipients...");
-                        reporter.stage(2, 3, "Dispatching email to " + result.recipientEmail() + "...");
+                        reporter.stage(2, 3, "Dispatching email to " + loggedRecipients + "...");
 
-                        EmailService.resend(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage(), result.senderProfile());
+                        EmailService.resend(loggedRecipients, result.subject(), result.body(), result.attachmentPdf(), result.signatureImage(), result.senderProfile());
                         reporter.stage(3, 3, "Mail sent successfully.");
 
                         supportApi.communication(new SupportApiClient.CommunicationRequest(
-                                row.entityType, row.entityId, "EMAIL", result.recipientEmail(), result.subject(), "SENT", null, (SessionService.current() != null ? SessionService.current().getUsername() : "System")
+                                row.entityType, row.entityId, "EMAIL", loggedRecipients, result.subject(), "SENT", null, (SessionService.current() != null ? SessionService.current().getUsername() : "System")
                         ));
                     }, () -> {
                         AppDialogService.success(table, "Email Resent", "Document " + row.entity.get() + " was resent successfully to " + result.recipientEmail());
@@ -902,12 +959,38 @@ public class CommunicationCenterController implements ScreenLifecycle {
     }
 
     private static String groupKey(String entityType, int entityId, String channel, String recipient) {
-        String base = ((entityType == null ? "" : entityType) + "#" + entityId + "#" + (channel == null ? "" : channel)).toUpperCase(Locale.ROOT);
+        return groupKey(entityType, entityId, channel, recipient, "");
+    }
+
+    static String groupKey(String entityType, int entityId, String channel, String recipient, String subject) {
+        String category = dispatchCategory(entityType, subject);
+        String base = ((entityType == null ? "" : entityType) + "#" + entityId + "#" + (channel == null ? "" : channel) + "#" + category).toUpperCase(Locale.ROOT);
         if (entityId <= 0) {
             String cleanRecipient = recipient == null ? "" : recipient.trim().toLowerCase(Locale.ROOT);
             return base + "#" + cleanRecipient;
         }
         return base;
+    }
+
+    static String dispatchCategory(String entityType, String subject) {
+        String type = entityType == null ? "" : entityType.trim().toUpperCase(Locale.ROOT);
+        String cleanSubj = subject == null ? "" : subject.replaceAll("(?i)\\[Resend\\s*#\\d+]", "").trim().toLowerCase(Locale.ROOT);
+        if (cleanSubj.contains("payment receipt") || cleanSubj.contains("payment confirmation")) {
+            return "PAYMENT_RECEIPT";
+        }
+        if (cleanSubj.contains("remittance advice") || cleanSubj.contains("payment remittance")) {
+            return "REMITTANCE_ADVICE";
+        }
+        if (cleanSubj.contains("refund settlement") || cleanSubj.contains("refund advice")) {
+            return "REFUND_ADVICE";
+        }
+        if (type.contains("RETURN") || cleanSubj.contains("return note") || cleanSubj.contains("credit note") || cleanSubj.contains("debit note")) {
+            return "DOCUMENT_RETURN";
+        }
+        if ("AGING_COLLECTION".equals(type) || "PARTY".equals(type) || cleanSubj.contains("collection reminder")) {
+            return "COLLECTION_REMINDER";
+        }
+        return "DOCUMENT_DISPATCH";
     }
 
     public static final class Row {

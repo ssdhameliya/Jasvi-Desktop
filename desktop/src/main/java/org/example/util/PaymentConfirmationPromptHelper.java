@@ -714,42 +714,20 @@ public final class PaymentConfirmationPromptHelper {
                         // 1. Send Email if selected
                         if (res.sendEmail()) {
                             reporter.stage(currentStage++, totalStages, "Transmitting Email via SMTP...");
+                            String loggedRecipients = res.recipientEmail() == null ? "" : res.recipientEmail().trim();
                             try {
                                 List<String> emails = EmailService.parseRecipientList(res.recipientEmail());
-                                for (String email : emails) {
-                                    EmailService.send(email, res.emailSubject(), res.emailBody(), res.attachmentPdf(), res.signatureImage(), res.senderProfile());
-                                    supportApi.communication(new SupportApiClient.CommunicationRequest(
-                                            eType, eId, "EMAIL", email, res.emailSubject(), "SENT", null, actor
-                                    ));
-                                }
-                                if (paymentIds != null && !paymentIds.isEmpty()) {
-                                    for (Integer pid : paymentIds) {
-                                        if (pid != null && pid > 0) {
-                                            supportApi.updatePaymentEmailStatus(pid, "SENT");
-                                        }
-                                    }
-                                } else if (paymentId != null && paymentId > 0) {
-                                    supportApi.updatePaymentEmailStatus(paymentId, "SENT");
-                                }
-                                if (refundId != null && refundId > 0) {
-                                    new org.example.api.returns.ReturnApiClient().updateRefundEmailStatus(refundId, "SENT");
-                                }
+                                loggedRecipients = String.join(", ", emails);
+                                EmailService.send(loggedRecipients, res.emailSubject(), res.emailBody(), res.attachmentPdf(), res.signatureImage(), res.senderProfile());
+                                supportApi.communication(new SupportApiClient.CommunicationRequest(
+                                        eType, eId, "EMAIL", loggedRecipients, res.emailSubject(), "SENT", null, actor
+                                ));
+                                updateSettlementChannelStatus(paymentIds, paymentId, refundId, false, "SENT");
                             } catch (Exception ex) {
                                 supportApi.communication(new SupportApiClient.CommunicationRequest(
-                                        eType, eId, "EMAIL", res.recipientEmail(), res.emailSubject(), "FAILED", ex.getMessage(), actor
+                                        eType, eId, "EMAIL", loggedRecipients, res.emailSubject(), "FAILED", ex.getMessage(), actor
                                 ));
-                                if (paymentIds != null && !paymentIds.isEmpty()) {
-                                    for (Integer pid : paymentIds) {
-                                        if (pid != null && pid > 0) {
-                                            supportApi.updatePaymentEmailStatus(pid, "FAILED");
-                                        }
-                                    }
-                                } else if (paymentId != null && paymentId > 0) {
-                                    supportApi.updatePaymentEmailStatus(paymentId, "FAILED");
-                                }
-                                if (refundId != null && refundId > 0) {
-                                    new org.example.api.returns.ReturnApiClient().updateRefundEmailStatus(refundId, "FAILED");
-                                }
+                                updateSettlementChannelStatus(paymentIds, paymentId, refundId, false, "FAILED");
                                 throw new IllegalStateException("Email transmission failed: " + ex.getMessage(), ex);
                             }
                         }
@@ -762,48 +740,33 @@ public final class PaymentConfirmationPromptHelper {
                                 List<String> phones = Arrays.stream(res.recipientPhone().split("[;,]"))
                                         .map(String::trim)
                                         .filter(s -> !s.isBlank())
+                                        .distinct()
                                         .toList();
-                                for (String phone : phones) {
-                                    BusinessWhatsappApiClient.SendResponse sendResp = null;
-                                    if (res.attachmentPdf() != null && Files.isRegularFile(res.attachmentPdf())) {
-                                        sendResp = wahaApi.sendDocument(new BusinessWhatsappApiClient.DocumentSendRequest(
-                                                eType, draft != null && draft.documentNo() != null ? draft.documentNo() : "PAY", eId, null, phone, res.whatsappMessage(), 0L
-                                        ));
-                                    } else {
-                                        sendResp = wahaApi.sendText(new BusinessWhatsappApiClient.TextSendRequest(
-                                                phone, res.whatsappMessage(), null
-                                        ));
-                                    }
-                                    if (sendResp != null && !sendResp.success()) {
-                                        throw new IllegalStateException(sendResp.message());
-                                    }
+                                String targetPhones = String.join(", ", phones);
+                                BusinessWhatsappApiClient.SendResponse sendResp;
+                                if (res.attachmentPdf() != null && Files.isRegularFile(res.attachmentPdf())) {
+                                    sendResp = wahaApi.sendDocument(new BusinessWhatsappApiClient.DocumentSendRequest(
+                                            eType,
+                                            draft != null && draft.documentNo() != null ? draft.documentNo() : "PAY",
+                                            eId,
+                                            null,
+                                            targetPhones,
+                                            res.whatsappMessage(),
+                                            0L,
+                                            draft != null ? draft.documentLabel() : null
+                                    ));
+                                } else {
+                                    sendResp = wahaApi.sendText(new BusinessWhatsappApiClient.TextSendRequest(
+                                            targetPhones, res.whatsappMessage(), null
+                                    ));
                                 }
-                                // Note: BusinessWhatsappService on the server automatically records the WHATSAPP communication log entry.
-                                if (paymentIds != null && !paymentIds.isEmpty()) {
-                                    for (Integer pid : paymentIds) {
-                                        if (pid != null && pid > 0) {
-                                            supportApi.updatePaymentWhatsappStatus(pid, "SENT");
-                                        }
-                                    }
-                                } else if (paymentId != null && paymentId > 0) {
-                                    supportApi.updatePaymentWhatsappStatus(paymentId, "SENT");
+                                if (sendResp != null && !sendResp.success()) {
+                                    throw new IllegalStateException(sendResp.message());
                                 }
-                                if (refundId != null && refundId > 0) {
-                                    new org.example.api.returns.ReturnApiClient().updateRefundWhatsappStatus(refundId, "SENT");
-                                }
+                                // Note: BusinessWhatsappService on the server automatically records the consolidated WHATSAPP communication log entry.
+                                updateSettlementChannelStatus(paymentIds, paymentId, refundId, true, "SENT");
                             } catch (Exception ex) {
-                                if (paymentIds != null && !paymentIds.isEmpty()) {
-                                    for (Integer pid : paymentIds) {
-                                        if (pid != null && pid > 0) {
-                                            supportApi.updatePaymentWhatsappStatus(pid, "FAILED");
-                                        }
-                                    }
-                                } else if (paymentId != null && paymentId > 0) {
-                                    supportApi.updatePaymentWhatsappStatus(paymentId, "FAILED");
-                                }
-                                if (refundId != null && refundId > 0) {
-                                    new org.example.api.returns.ReturnApiClient().updateRefundWhatsappStatus(refundId, "FAILED");
-                                }
+                                updateSettlementChannelStatus(paymentIds, paymentId, refundId, true, "FAILED");
                                 throw new IllegalStateException("WhatsApp transmission failed: " + ex.getMessage(), ex);
                             }
                         }
@@ -821,6 +784,30 @@ public final class PaymentConfirmationPromptHelper {
                         AppDialogService.error(ownerNode, "Transmission Failed", err.getMessage() == null ? "Delivery failed." : err.getMessage());
                     }
             );
+        }
+    }
+
+    private static void updateSettlementChannelStatus(
+            List<Integer> paymentIds,
+            Integer paymentId,
+            Integer refundId,
+            boolean whatsapp,
+            String status) {
+        if (paymentIds != null && !paymentIds.isEmpty()) {
+            for (Integer pid : paymentIds) {
+                if (pid != null && pid > 0) {
+                    if (whatsapp) supportApi.updatePaymentWhatsappStatus(pid, status);
+                    else supportApi.updatePaymentEmailStatus(pid, status);
+                }
+            }
+        } else if (paymentId != null && paymentId > 0) {
+            if (whatsapp) supportApi.updatePaymentWhatsappStatus(paymentId, status);
+            else supportApi.updatePaymentEmailStatus(paymentId, status);
+        }
+        if (refundId != null && refundId > 0) {
+            var returnApi = new org.example.api.returns.ReturnApiClient();
+            if (whatsapp) returnApi.updateRefundWhatsappStatus(refundId, status);
+            else returnApi.updateRefundEmailStatus(refundId, status);
         }
     }
 

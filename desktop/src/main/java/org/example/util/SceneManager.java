@@ -1,7 +1,12 @@
 package org.example.util;
 
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.image.Image;
+import javafx.scene.image.PixelReader;
+import javafx.scene.image.PixelWriter;
+import javafx.scene.image.WritableImage;
+import org.example.api.ApiSession;
 import org.example.controller.SetupWizardController;
 import org.example.controller.SplashController;
 import javafx.scene.Parent;
@@ -15,8 +20,12 @@ import org.example.config.ConfigManager;
 import org.example.navigation.UnsavedChangesManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class SceneManager {
+
+    private static final int[] STAGE_ICON_SIZES = {16, 32, 48, 64, 128, 256};
 
     public static Stage primaryStage;
     private static volatile String activeScreenTitle = "";
@@ -35,40 +44,126 @@ public class SceneManager {
     }
 
     /**
-     * Dynamically attaches the application mark to the stage titlebar and taskbar.
-     * Follows the user-configured Application Mark / Splash Logo with fallback to the bundled logo.
+     * Dynamically attaches multi-resolution square application marks to the stage titlebar and taskbar.
+     * Follows the user-configured Application Mark / Splash Logo with fallback to Company Logo and bundled logos.
      */
     public static void applyStageIcon(Stage stage) {
         if (stage == null) return;
-        Runnable task = () -> {
-            try {
-                Image mark = BrandingService.applicationMarkImage();
-                if (mark == null || mark.isError()) {
-                    try (var is = ResourceLocator.open("/installer/logo-1024.png")) {
-                        if (is != null) {
-                            Image fallback = new Image(is);
-                            if (!fallback.isError()) mark = fallback;
-                        }
-                    }
+        if (Platform.isFxApplicationThread() && ConfigManager.isSharedClient() && ApiSession.isEstablished()) {
+            Thread.startVirtualThread(() -> {
+                List<Image> icons = resolveStageIcons();
+                if (!icons.isEmpty()) {
+                    Platform.runLater(() -> stage.getIcons().setAll(icons));
                 }
-                if (mark == null || mark.isError()) {
-                    try (var is = ResourceLocator.open("/logo.png")) {
-                        if (is != null) {
-                            Image fallback = new Image(is);
-                            if (!fallback.isError()) mark = fallback;
-                        }
-                    }
-                }
-                if (mark != null && !mark.isError()) {
-                    stage.getIcons().setAll(mark);
-                }
-            } catch (Exception ignored) {}
-        };
-        if (javafx.application.Platform.isFxApplicationThread()) {
-            task.run();
-        } else {
-            javafx.application.Platform.runLater(task);
+            });
+            return;
         }
+        List<Image> icons = resolveStageIcons();
+        if (icons.isEmpty()) return;
+        if (Platform.isFxApplicationThread()) {
+            stage.getIcons().setAll(icons);
+        } else {
+            Platform.runLater(() -> stage.getIcons().setAll(icons));
+        }
+    }
+
+    private static List<Image> resolveStageIcons() {
+        try {
+            Image mark = BrandingService.applicationMarkImage();
+            if (mark == null || mark.isError()) {
+                mark = BrandingService.companyLogo();
+            }
+            if (mark == null || mark.isError()) {
+                mark = loadClasspathImage("/installer/logo-1024.png");
+            }
+            if (mark == null || mark.isError()) {
+                mark = loadClasspathImage("/logo.png");
+            }
+            return buildStageIcons(mark);
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
+    private static Image loadClasspathImage(String resourcePath) {
+        try (var is = ResourceLocator.open(resourcePath)) {
+            if (is == null) return null;
+            Image img = new Image(is);
+            return img.isError() ? null : img;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Generates crisp square icon frames across standard Windows/macOS/Linux sizes
+     * (16..256 px) so Windows updates both ICON_SMALL (titlebar) and ICON_BIG (taskbar),
+     * even when the uploaded mark has non-square dimensions.
+     */
+    public static List<Image> buildStageIcons(Image source) {
+        if (source == null || source.isError() || source.getWidth() <= 0 || source.getHeight() <= 0) {
+            return List.of();
+        }
+        PixelReader reader = source.getPixelReader();
+        if (reader == null) {
+            return List.of(source);
+        }
+        int srcW = Math.max(1, (int) Math.round(source.getWidth()));
+        int srcH = Math.max(1, (int) Math.round(source.getHeight()));
+        List<Image> icons = new ArrayList<>(STAGE_ICON_SIZES.length);
+        for (int size : STAGE_ICON_SIZES) {
+            icons.add(renderSquareIcon(reader, srcW, srcH, size));
+        }
+        return List.copyOf(icons);
+    }
+
+    private static Image renderSquareIcon(PixelReader reader, int srcW, int srcH, int targetSize) {
+        WritableImage canvas = new WritableImage(targetSize, targetSize);
+        PixelWriter writer = canvas.getPixelWriter();
+        double scale = Math.min((double) targetSize / srcW, (double) targetSize / srcH);
+        double drawW = Math.max(1.0, srcW * scale);
+        double drawH = Math.max(1.0, srcH * scale);
+        double offsetX = (targetSize - drawW) / 2.0;
+        double offsetY = (targetSize - drawH) / 2.0;
+
+        for (int y = 0; y < targetSize; y++) {
+            double srcY = (y + 0.5 - offsetY) / scale - 0.5;
+            if (srcY < -0.5 || srcY > srcH - 0.5) continue;
+            for (int x = 0; x < targetSize; x++) {
+                double srcX = (x + 0.5 - offsetX) / scale - 0.5;
+                if (srcX < -0.5 || srcX > srcW - 0.5) continue;
+                writer.setArgb(x, y, sampleBilinear(reader, srcW, srcH, srcX, srcY));
+            }
+        }
+        return canvas;
+    }
+
+    private static int sampleBilinear(PixelReader reader, int srcW, int srcH, double srcX, double srcY) {
+        double clampedX = Math.max(0.0, Math.min(srcW - 1.0, srcX));
+        double clampedY = Math.max(0.0, Math.min(srcH - 1.0, srcY));
+        int x0 = (int) Math.floor(clampedX);
+        int y0 = (int) Math.floor(clampedY);
+        int x1 = Math.min(srcW - 1, x0 + 1);
+        int y1 = Math.min(srcH - 1, y0 + 1);
+        double tx = clampedX - x0;
+        double ty = clampedY - y0;
+
+        int c00 = reader.getArgb(x0, y0);
+        int c10 = reader.getArgb(x1, y0);
+        int c01 = reader.getArgb(x0, y1);
+        int c11 = reader.getArgb(x1, y1);
+
+        int a = interpolateChannel((c00 >>> 24) & 0xFF, (c10 >>> 24) & 0xFF, (c01 >>> 24) & 0xFF, (c11 >>> 24) & 0xFF, tx, ty);
+        int r = interpolateChannel((c00 >>> 16) & 0xFF, (c10 >>> 16) & 0xFF, (c01 >>> 16) & 0xFF, (c11 >>> 16) & 0xFF, tx, ty);
+        int g = interpolateChannel((c00 >>> 8) & 0xFF, (c10 >>> 8) & 0xFF, (c01 >>> 8) & 0xFF, (c11 >>> 8) & 0xFF, tx, ty);
+        int b = interpolateChannel(c00 & 0xFF, c10 & 0xFF, c01 & 0xFF, c11 & 0xFF, tx, ty);
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    private static int interpolateChannel(int c00, int c10, int c01, int c11, double tx, double ty) {
+        double top = c00 + (c10 - c00) * tx;
+        double bottom = c01 + (c11 - c01) * tx;
+        return Math.max(0, Math.min(255, (int) Math.round(top + (bottom - top) * ty)));
     }
 
 
@@ -87,7 +182,7 @@ public class SceneManager {
             ThemeManager.applyTheme(scene);
             PlatformUiSupport.installResponsiveClasses(scene);
             primaryStage.setScene(scene);
-            if (primaryStage.getIcons().isEmpty()) applyStageIcon(primaryStage);
+            applyStageIcon(primaryStage);
             primaryStage.setTitle(applicationTitle());
             if (!primaryStage.isShowing()) primaryStage.centerOnScreen();
             primaryStage.show();
@@ -201,7 +296,7 @@ public class SceneManager {
 
             PlatformUiSupport.installResponsiveClasses(scene);
             primaryStage.setScene(scene);
-            if (primaryStage.getIcons().isEmpty()) applyStageIcon(primaryStage);
+            applyStageIcon(primaryStage);
             if ("/fxml/pages/Registration.fxml".equals(fxml)) {
                 var tracker = UnsavedChangesManager.track(root, "Registration");
                 javafx.application.Platform.runLater(tracker::resetBaseline);

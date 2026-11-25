@@ -1,5 +1,7 @@
 package org.example.server.integration;
 
+import org.example.server.operations.BusinessOperationsService;
+import org.example.server.operations.OperationDtos;
 import org.example.server.returns.ReturnDtos;
 import org.example.server.returns.ReturnService;
 import org.example.server.reconciliation.BankReconciliationDtos;
@@ -53,6 +55,7 @@ class PostgresWorkflowIntegrationTest {
     @Autowired ReturnService returns;
     @Autowired BankReconciliationService bankReconciliation;
     @Autowired CanonicalDocumentService canonicalDocuments;
+    @Autowired BusinessOperationsService operations;
 
     @BeforeEach
     void setUp() {
@@ -225,6 +228,67 @@ class PostgresWorkflowIntegrationTest {
                 "SELECT COUNT(*) FROM bank_statement_transaction WHERE transaction_fingerprint=?", Integer.class, BANK_TX));
     }
 
+    @Test
+    void editingSaleAndPurchaseChargesReplacesSequenceOneWithoutConstraintConflict() {
+        Integer customerId = jdbc.queryForObject(
+                "INSERT INTO party_master(party_type,party_code,name,address,gstin,is_active) VALUES('CUSTOMER',?,?,?,?,1) RETURNING id",
+                Integer.class, PARTY, "Charge Test Customer", "Customer Address", "24AAAAA0000A1Z5");
+        Integer supplierId = jdbc.queryForObject(
+                "INSERT INTO party_master(party_type,party_code,name,address,gstin,is_active) VALUES('SUPPLIER',?,?,?,?,1) RETURNING id",
+                Integer.class, SUPPLIER, "Charge Test Supplier", "Supplier Address", "24BBBBB0000B1Z5");
+        assertNotNull(customerId);
+        assertNotNull(supplierId);
+
+        jdbc.update("INSERT INTO item_master(item_code,description,unit,hsn,gst,purchase_price,selling_price,opening_stock,minimum_stock,is_active) VALUES(?,?,?,?,?,?,?,?,?,1)",
+                ITEM, "Charge Test Item", "Nos", "8471", 18d, 50d, 100d, 20d, 1d);
+
+        String today = LocalDate.now().toString();
+        OperationDtos.PartyDto customerDto = new OperationDtos.PartyDto(customerId, PARTY, "Charge Test Customer", null, null, "24AAAAA0000A1Z5", "Customer Address");
+        OperationDtos.PartyDto supplierDto = new OperationDtos.PartyDto(supplierId, SUPPLIER, "Charge Test Supplier", null, null, "24BBBBB0000B1Z5", "Supplier Address");
+        OperationDtos.LineDto saleLine = new OperationDtos.LineDto(ITEM, "Charge Test Item", "General", "8471", "Nos", "", 2d, 100d, 0d, 0d, 18d, 236d);
+
+        OperationDtos.SaleDto createdSale = operations.saveSale(new OperationDtos.SaleDto(
+                null, null, today, customerDto, 200d, 0d, 126d, 826d, "", null, false, today, 0d, "PENDING", false,
+                "TAX", "Admin", "DESKTOP", "", "Customer Address", "15 Days", "", "", null, "Customer Address", "GST",
+                "", "", "", "", "", "24AAAAA0000A1Z5", "24AAAAA0000A1Z5", "24AAAAA0000A1Z5", true, "", "Freight", 500d,
+                "", "APPROVED", "", 2d,
+                List.of(new OperationDtos.ChargeDto("Freight", 500d, true, 18d)),
+                List.of(saleLine), 0L));
+
+        OperationDtos.SaleDto updatedSale = assertDoesNotThrow(() -> operations.updateSale(new OperationDtos.SaleDto(
+                createdSale.id(), createdSale.invoiceNo(), today, customerDto, 200d, 0d, 171d, 1221d, "", createdSale.createdAt(),
+                false, today, 0d, "PENDING", false, "TAX", "Admin", "DESKTOP", "", "Customer Address", "15 Days", "", "",
+                null, "Customer Address", "GST", "", "", "", "", "", "24AAAAA0000A1Z5", "24AAAAA0000A1Z5", "24AAAAA0000A1Z5",
+                true, "", "Freight", 750d, "", "APPROVED", "", 2d,
+                List.of(
+                        new OperationDtos.ChargeDto("Freight", 750d, true, 18d),
+                        new OperationDtos.ChargeDto("Handling", 100d, false, 0d)),
+                List.of(saleLine), createdSale.rowVersion())));
+        assertEquals(2, updatedSale.charges().size());
+        assertEquals(750d, updatedSale.charges().getFirst().amount(), 0.01);
+
+        OperationDtos.LineDto purchaseLine = new OperationDtos.LineDto(ITEM, "Charge Test Item", "General", "8471", "Nos", "", 2d, 50d, 0d, 0d, 18d, 118d);
+        OperationDtos.PurchaseDto createdPurchase = operations.savePurchase(new OperationDtos.PurchaseDto(
+                null, null, today, supplierDto, 100d, 108d, 708d, "", null, false, today, 0d, "PENDING", "COMPLETED",
+                "MAIN", "15 Days", "INR", "", "REGISTERED", "", "", "PERCENT", 0d, "", "integration-admin",
+                "", "Supplier Address", "Supplier Address", "24BBBBB0000B1Z5", "24BBBBB0000B1Z5", "GST", "", "", "", "",
+                "", "", "", true, 2d,
+                List.of(new OperationDtos.ChargeDto("Freight", 500d, true, 18d)),
+                List.of(purchaseLine), 0L));
+
+        OperationDtos.PurchaseDto updatedPurchase = assertDoesNotThrow(() -> operations.updatePurchase(new OperationDtos.PurchaseDto(
+                createdPurchase.id(), createdPurchase.invoiceNo(), today, supplierDto, 100d, 162d, 1162d, "", createdPurchase.createdAt(),
+                false, today, 0d, "PENDING", "COMPLETED", "MAIN", "15 Days", "INR", "", "REGISTERED", "", "", "PERCENT",
+                0d, "", "integration-admin", "", "Supplier Address", "Supplier Address", "24BBBBB0000B1Z5", "24BBBBB0000B1Z5",
+                "GST", "", "", "", "", "", "", "", true, 2d,
+                List.of(
+                        new OperationDtos.ChargeDto("Freight", 800d, true, 18d),
+                        new OperationDtos.ChargeDto("Packing", 100d, false, 0d)),
+                List.of(purchaseLine), createdPurchase.rowVersion())));
+        assertEquals(2, updatedPurchase.charges().size());
+        assertEquals(800d, updatedPurchase.charges().getFirst().amount(), 0.01);
+    }
+
     private void assertSettlement(String returnNo, String expectedStatus, double expectedPending) {
         ReturnDtos.Settlement settlement = returns.settlements("SALES RETURN").stream()
                 .filter(x -> INVOICE.equals(x.invoiceNo()))
@@ -247,15 +311,18 @@ class PostgresWorkflowIntegrationTest {
         jdbc.update("DELETE FROM return_refund WHERE return_no IN (SELECT return_no FROM return_register WHERE invoice_no=?)", INVOICE);
         jdbc.update("DELETE FROM activity_log WHERE (entity_type IN ('SALE','SALES_RETURN') AND (detail LIKE ? OR detail LIKE ?))", "%" + INVOICE + "%", "%IT-%");
         jdbc.update("DELETE FROM return_register WHERE invoice_no=?", INVOICE);
+        jdbc.update("DELETE FROM journal_entry WHERE id IN (SELECT journal_entry_id FROM journal_line WHERE party_id IN (SELECT id FROM party_master WHERE party_code IN (?,?)))", PARTY, SUPPLIER);
         jdbc.update("DELETE FROM inventory_cost_ledger WHERE item_code=?", ITEM);
         jdbc.update("DELETE FROM inventory_cost_state WHERE item_code=?", ITEM);
-        jdbc.update("DELETE FROM purchase_line WHERE purchase_id IN (SELECT id FROM purchase_header WHERE invoice_no=?)", PURCHASE);
-        jdbc.update("DELETE FROM purchase_header WHERE invoice_no=?", PURCHASE);
+        jdbc.update("DELETE FROM purchase_charge WHERE purchase_id IN (SELECT id FROM purchase_header WHERE invoice_no=? OR supplier_id IN (SELECT id FROM party_master WHERE party_code=?))", PURCHASE, SUPPLIER);
+        jdbc.update("DELETE FROM purchase_line WHERE purchase_id IN (SELECT id FROM purchase_header WHERE invoice_no=? OR supplier_id IN (SELECT id FROM party_master WHERE party_code=?))", PURCHASE, SUPPLIER);
+        jdbc.update("DELETE FROM purchase_header WHERE invoice_no=? OR supplier_id IN (SELECT id FROM party_master WHERE party_code=?)", PURCHASE, SUPPLIER);
         jdbc.update("DELETE FROM server_resource WHERE resource_type='ISSUED_SALES_PDF' AND resource_key IN (SELECT 'sale-' || id || '-r' || GREATEST(row_version,0) FROM sales_header WHERE invoice_no LIKE 'IT-STATUS-9034-%')");
         jdbc.update("DELETE FROM sales_line WHERE sales_id IN (SELECT id FROM sales_header WHERE invoice_no LIKE 'IT-STATUS-9034-%')");
         jdbc.update("DELETE FROM sales_header WHERE invoice_no LIKE 'IT-STATUS-9034-%'");
-        jdbc.update("DELETE FROM sales_line WHERE sales_id IN (SELECT id FROM sales_header WHERE invoice_no=?)", INVOICE);
-        jdbc.update("DELETE FROM sales_header WHERE invoice_no=?", INVOICE);
+        jdbc.update("DELETE FROM sales_charge WHERE sales_id IN (SELECT id FROM sales_header WHERE invoice_no=? OR customer_id IN (SELECT id FROM party_master WHERE party_code=?))", INVOICE, PARTY);
+        jdbc.update("DELETE FROM sales_line WHERE sales_id IN (SELECT id FROM sales_header WHERE invoice_no=? OR customer_id IN (SELECT id FROM party_master WHERE party_code=?))", INVOICE, PARTY);
+        jdbc.update("DELETE FROM sales_header WHERE invoice_no=? OR customer_id IN (SELECT id FROM party_master WHERE party_code=?)", INVOICE, PARTY);
         jdbc.update("DELETE FROM item_master WHERE item_code=?", ITEM);
         jdbc.update("DELETE FROM party_master WHERE party_code IN (?,?)", PARTY, SUPPLIER);
     }

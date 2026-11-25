@@ -65,10 +65,17 @@ public final class Main {
         WorkspaceManager.initialize();
         DesktopLog.initialize();
         DesktopLog.info("Main", "START", "DSE ERP desktop start requested");
+        boolean workspaceMissing = requiresWorkspaceChooser(WorkspaceManager.isConfigured());
+        if (!workspaceMissing) {
+            // Load workspace configuration before SceneManager.initialize(stage) so the native
+            // window title and multi-size Stage/taskbar icon reflect configured Settings branding
+            // before primaryStage.show() is invoked.
+            ConfigManager.load();
+        }
         SceneManager.initialize(stage);
         WindowUtilsFx.apply(stage, 1200, 800);
 
-        if (requiresWorkspaceChooser(WorkspaceManager.isConfigured())) {
+        if (workspaceMissing) {
             SceneManager.showSetupWizard(() -> completeFirstRun(stage));
             return;
         }
@@ -163,9 +170,9 @@ public final class Main {
             if (ConfigManager.isSharedClient()) {
                 try {
                     org.example.config.SharedAssetBridge.syncPublicBranding();
-                    SceneManager.refreshSplashBranding();
                 } catch (Exception ignored) {}
             }
+            SceneManager.refreshSplashBranding();
             SceneManager.updateSplashStage(5, "Finalizing " + BrandingService.applicationName() + "...");
             SceneManager.markSplashReady("Services ready. Opening " + BrandingService.applicationName() + "...");
         } catch (Exception exception) {

@@ -244,13 +244,15 @@ public class CreditDebitNoteService {
         }
 
         // Post balancing Journal Voucher via General Ledger
-        Long glId = postCreditNoteJournal(noteNo, date, dto.partyName(), taxable, cgst.add(sgst).add(igst), roundedTotal, user);
+        String cnReason = dto.reasonCode() != null ? dto.reasonCode() : "SALES_RETURN";
+        Long glId = postCreditNoteJournal(headerId, noteNo, date, partyId.intValue(), partyName, cnReason,
+                taxable, cgst, sgst, igst, roundoff, roundedTotal, user);
         if (glId != null) {
             jdbc.update("UPDATE credit_note_header SET gl_entry_id = ? WHERE id = ?", glId, headerId);
         }
 
         auditService.log("CREDIT_NOTE", headerId, "CREATED",
-                "Created Sales Credit Note " + noteNo + " for party " + dto.partyName() + " (Total: " + roundedTotal + ")");
+                "Created Sales Credit Note " + noteNo + " for party " + partyName + " (Total: " + roundedTotal + ")");
 
         return getCreditNote(headerId).orElse(null);
     }
@@ -471,13 +473,15 @@ public class CreditDebitNoteService {
         }
 
         // Post balancing Journal Voucher via General Ledger
-        Long glId = postDebitNoteJournal(noteNo, date, dto.supplierName(), taxable, cgst.add(sgst).add(igst), roundedTotal, user);
+        String dnReason = dto.reasonCode() != null ? dto.reasonCode() : "PURCHASE_RETURN";
+        Long glId = postDebitNoteJournal(headerId, noteNo, date, supplierId.intValue(), supplierName, dnReason,
+                taxable, cgst, sgst, igst, roundoff, roundedTotal, user);
         if (glId != null) {
             jdbc.update("UPDATE debit_note_header SET gl_entry_id = ? WHERE id = ?", glId, headerId);
         }
 
         auditService.log("DEBIT_NOTE", headerId, "CREATED",
-                "Created Purchase Debit Note " + noteNo + " for supplier " + dto.supplierName() + " (Total: " + roundedTotal + ")");
+                "Created Purchase Debit Note " + noteNo + " for supplier " + supplierName + " (Total: " + roundedTotal + ")");
 
         return getDebitNote(headerId).orElse(null);
     }
@@ -515,66 +519,116 @@ public class CreditDebitNoteService {
         return false;
     }
 
-    private Long postCreditNoteJournal(String noteNo, LocalDate date, String party, BigDecimal taxable, BigDecimal tax, BigDecimal total, String user) {
+    private Long postCreditNoteJournal(Long noteId, String noteNo, LocalDate date, Integer partyId, String party,
+                                       String reasonCode, BigDecimal taxable, BigDecimal cgst, BigDecimal sgst, BigDecimal igst,
+                                       BigDecimal roundoff, BigDecimal total, String user) {
         try {
-            Long salesReturnAcc = getAccountIdOrDefault("4100", "Sales Returns", "REVENUE");
-            Long gstOutputAcc = getAccountIdOrDefault("2200", "Output GST Reversal", "LIABILITY");
-            Long arAcc = getAccountIdOrDefault("1100", "Accounts Receivable", "ASSET");
-            Long roundoffAcc = getAccountIdOrDefault("8100", "Round Off Adjustment", "EXPENSE");
-
+            glService.ensurePeriodOpen(date);
+            boolean isRebate = reasonCode != null && reasonCode.toUpperCase(Locale.ROOT).contains("REBATE");
+            Long arAcc = glService.getAccountIdOrDefault("1040", "Sundry Debtors (Trade Receivables)", "ASSET");
+            Long roundoffAcc = glService.getAccountIdOrDefault("5050", "Discounts & Rounding Adjustments", "EXPENSE");
             List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
-            lines.add(new GeneralLedgerDtos.CreateLineRequest(salesReturnAcc, "4100", taxable, BigDecimal.ZERO, null, "Credit Note: " + noteNo, null));
-            lines.add(new GeneralLedgerDtos.CreateLineRequest(gstOutputAcc, "2200", tax, BigDecimal.ZERO, null, "Tax adjustment: " + noteNo, null));
-            lines.add(new GeneralLedgerDtos.CreateLineRequest(arAcc, "1100", BigDecimal.ZERO, total, null, "Party adjustment: " + party, null));
 
-            BigDecimal debits = taxable.add(tax).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal credits = total.setScale(2, RoundingMode.HALF_UP);
-            BigDecimal diff = debits.subtract(credits);
-            if (diff.compareTo(BigDecimal.ZERO) > 0) {
-                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "8100", BigDecimal.ZERO, diff, null, "Round off: " + noteNo, null));
-            } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
-                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "8100", diff.abs(), BigDecimal.ZERO, null, "Round off: " + noteNo, null));
+            if (isRebate) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "5050", total, BigDecimal.ZERO, null, "Commercial Rebate Credit Note: " + noteNo, null));
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(arAcc, "1040", BigDecimal.ZERO, total, partyId, "Party adjustment: " + party, null));
+            } else {
+                Long salesReturnAcc = glService.getAccountIdOrDefault("4100", "Sales Returns & Allowances", "REVENUE");
+                Long cgstAcc = glService.getAccountIdOrDefault("2081", "Output CGST Payable", "LIABILITY");
+                Long sgstAcc = glService.getAccountIdOrDefault("2082", "Output SGST Payable", "LIABILITY");
+                Long igstAcc = glService.getAccountIdOrDefault("2083", "Output IGST Payable", "LIABILITY");
+
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(salesReturnAcc, "4100", taxable, BigDecimal.ZERO, null, "Credit Note: " + noteNo, null));
+                if (igst != null && igst.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(igstAcc, "2083", igst, BigDecimal.ZERO, null, "IGST reversal: " + noteNo, null));
+                }
+                if (cgst != null && cgst.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(cgstAcc, "2081", cgst, BigDecimal.ZERO, null, "CGST reversal: " + noteNo, null));
+                }
+                if (sgst != null && sgst.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(sgstAcc, "2082", sgst, BigDecimal.ZERO, null, "SGST reversal: " + noteNo, null));
+                }
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(arAcc, "1040", BigDecimal.ZERO, total, partyId, "Party adjustment: " + party, null));
+
+                BigDecimal tax = (igst != null ? igst : BigDecimal.ZERO)
+                        .add(cgst != null ? cgst : BigDecimal.ZERO)
+                        .add(sgst != null ? sgst : BigDecimal.ZERO);
+                BigDecimal debits = taxable.add(tax).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal credits = total.setScale(2, RoundingMode.HALF_UP);
+                BigDecimal diff = debits.subtract(credits);
+                if (diff.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "5050", BigDecimal.ZERO, diff, null, "Round off: " + noteNo, null));
+                } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "5050", diff.abs(), BigDecimal.ZERO, null, "Round off: " + noteNo, null));
+                }
             }
 
             GeneralLedgerDtos.CreateJournalRequest req = new GeneralLedgerDtos.CreateJournalRequest(
-                    date, "CREDIT_NOTE", "CREDIT_NOTE", null, noteNo,
-                    "Sales Credit Note reversal for " + party, user, lines
+                    date, "CREDIT_NOTE", "CREDIT_NOTE", noteId, noteNo,
+                    "Sales Credit Note for " + party, user, lines
             );
             GeneralLedgerDtos.JournalEntryDto created = glService.postJournalEntry(req);
             return created != null ? created.id() : null;
+        } catch (IllegalStateException locked) {
+            throw locked;
         } catch (Exception e) {
             java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Failed to post credit note journal for " + noteNo + ": " + e.getMessage(), e);
             return null;
         }
     }
 
-    private Long postDebitNoteJournal(String noteNo, LocalDate date, String supplier, BigDecimal taxable, BigDecimal tax, BigDecimal total, String user) {
+    private Long postDebitNoteJournal(Long noteId, String noteNo, LocalDate date, Integer supplierId, String supplier,
+                                      String reasonCode, BigDecimal taxable, BigDecimal cgst, BigDecimal sgst, BigDecimal igst,
+                                      BigDecimal roundoff, BigDecimal total, String user) {
         try {
-            Long apAcc = getAccountIdOrDefault("2100", "Accounts Payable", "LIABILITY");
-            Long purchaseReturnAcc = getAccountIdOrDefault("5100", "Purchase Returns", "EXPENSE");
-            Long gstInputAcc = getAccountIdOrDefault("1200", "Input GST Reversal", "ASSET");
-            Long roundoffAcc = getAccountIdOrDefault("8100", "Round Off Adjustment", "EXPENSE");
-
+            glService.ensurePeriodOpen(date);
+            boolean isRebate = reasonCode != null && reasonCode.toUpperCase(Locale.ROOT).contains("REBATE");
+            Long apAcc = glService.getAccountIdOrDefault("2010", "Sundry Creditors (Trade Payables)", "LIABILITY");
+            Long roundoffAcc = glService.getAccountIdOrDefault("4090", "Discounts & Rounding Adjustments", "REVENUE");
             List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
-            lines.add(new GeneralLedgerDtos.CreateLineRequest(apAcc, "2100", total, BigDecimal.ZERO, null, "Supplier adjustment: " + supplier, null));
-            lines.add(new GeneralLedgerDtos.CreateLineRequest(purchaseReturnAcc, "5100", BigDecimal.ZERO, taxable, null, "Debit Note: " + noteNo, null));
-            lines.add(new GeneralLedgerDtos.CreateLineRequest(gstInputAcc, "1200", BigDecimal.ZERO, tax, null, "Tax reversal: " + noteNo, null));
 
-            BigDecimal debits = total.setScale(2, RoundingMode.HALF_UP);
-            BigDecimal credits = taxable.add(tax).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal diff = debits.subtract(credits);
-            if (diff.compareTo(BigDecimal.ZERO) > 0) {
-                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "8100", BigDecimal.ZERO, diff, null, "Round off: " + noteNo, null));
-            } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
-                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "8100", diff.abs(), BigDecimal.ZERO, null, "Round off: " + noteNo, null));
+            if (isRebate) {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(apAcc, "2010", total, BigDecimal.ZERO, supplierId, "Supplier Rebate adjustment: " + supplier, null));
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "4090", BigDecimal.ZERO, total, null, "Supplier Rebate Debit Note: " + noteNo, null));
+            } else {
+                Long purchaseReturnAcc = glService.getAccountIdOrDefault("5100", "Purchase Returns & Outward", "EXPENSE");
+                Long cgstAcc = glService.getAccountIdOrDefault("1081", "Input CGST Pool", "ASSET");
+                Long sgstAcc = glService.getAccountIdOrDefault("1082", "Input SGST Pool", "ASSET");
+                Long igstAcc = glService.getAccountIdOrDefault("1083", "Input IGST Pool", "ASSET");
+
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(apAcc, "2010", total, BigDecimal.ZERO, supplierId, "Supplier adjustment: " + supplier, null));
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(purchaseReturnAcc, "5100", BigDecimal.ZERO, taxable, null, "Debit Note: " + noteNo, null));
+                if (igst != null && igst.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(igstAcc, "1083", BigDecimal.ZERO, igst, null, "Input IGST reversal: " + noteNo, null));
+                }
+                if (cgst != null && cgst.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(cgstAcc, "1081", BigDecimal.ZERO, cgst, null, "Input CGST reversal: " + noteNo, null));
+                }
+                if (sgst != null && sgst.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(sgstAcc, "1082", BigDecimal.ZERO, sgst, null, "Input SGST reversal: " + noteNo, null));
+                }
+
+                BigDecimal tax = (igst != null ? igst : BigDecimal.ZERO)
+                        .add(cgst != null ? cgst : BigDecimal.ZERO)
+                        .add(sgst != null ? sgst : BigDecimal.ZERO);
+                BigDecimal debits = total.setScale(2, RoundingMode.HALF_UP);
+                BigDecimal credits = taxable.add(tax).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal diff = debits.subtract(credits);
+                if (diff.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "4090", BigDecimal.ZERO, diff, null, "Round off: " + noteNo, null));
+                } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(roundoffAcc, "4090", diff.abs(), BigDecimal.ZERO, null, "Round off: " + noteNo, null));
+                }
             }
 
             GeneralLedgerDtos.CreateJournalRequest req = new GeneralLedgerDtos.CreateJournalRequest(
-                    date, "DEBIT_NOTE", "DEBIT_NOTE", null, noteNo,
+                    date, "DEBIT_NOTE", "DEBIT_NOTE", noteId, noteNo,
                     "Purchase Debit Note adjustment for " + supplier, user, lines
             );
             GeneralLedgerDtos.JournalEntryDto created = glService.postJournalEntry(req);
             return created != null ? created.id() : null;
+        } catch (IllegalStateException locked) {
+            throw locked;
         } catch (Exception e) {
             java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Failed to post debit note journal for " + noteNo + ": " + e.getMessage(), e);
             return null;
@@ -617,6 +671,9 @@ public class CreditDebitNoteService {
         var note = noteOpt.get();
         if ("CANCELLED".equalsIgnoreCase(note.status())) return false;
 
+        glService.ensurePeriodOpen(note.noteDate());
+        glService.ensurePeriodOpen(LocalDate.now());
+
         int rows = jdbc.update("UPDATE credit_note_header SET status = 'CANCELLED' WHERE id = ?", id);
         if (rows > 0) {
             if (Boolean.TRUE.equals(note.stockReturned()) && note.lines() != null) {
@@ -631,24 +688,34 @@ public class CreditDebitNoteService {
                     }
                 }
             }
-            try {
-                Long arAcc = getAccountIdOrDefault("1100", "Accounts Receivable", "ASSET");
-                Long salesReturnAcc = getAccountIdOrDefault("4100", "Sales Returns", "REVENUE");
-                Long gstOutputAcc = getAccountIdOrDefault("2200", "Output GST Reversal", "LIABILITY");
-                BigDecimal tax = note.cgstAmount().add(note.sgstAmount()).add(note.igstAmount());
+            if (note.glEntryId() != null) {
+                glService.reverseJournalEntry(note.glEntryId(), new GeneralLedgerDtos.ReverseJournalRequest(
+                        LocalDate.now(), "Credit Note Cancellation: " + note.creditNoteNo(), user));
+            } else {
+                Long arAcc = glService.getAccountIdOrDefault("1040", "Sundry Debtors (Trade Receivables)", "ASSET");
+                Long salesReturnAcc = glService.getAccountIdOrDefault("4100", "Sales Returns & Allowances", "REVENUE");
+                Long cgstAcc = glService.getAccountIdOrDefault("2081", "Output CGST Payable", "LIABILITY");
+                Long sgstAcc = glService.getAccountIdOrDefault("2082", "Output SGST Payable", "LIABILITY");
+                Long igstAcc = glService.getAccountIdOrDefault("2083", "Output IGST Payable", "LIABILITY");
+                Long roundAcc = glService.getAccountIdOrDefault("5050", "Discounts & Rounding Adjustments", "EXPENSE");
+                Integer pId = note.partyId() != null ? note.partyId().intValue() : null;
 
-                List<GeneralLedgerDtos.CreateLineRequest> lines = List.of(
-                        new GeneralLedgerDtos.CreateLineRequest(arAcc, "1100", note.totalAmount(), BigDecimal.ZERO, null, "Credit Note Cancellation: " + note.creditNoteNo(), null),
-                        new GeneralLedgerDtos.CreateLineRequest(salesReturnAcc, "4100", BigDecimal.ZERO, note.taxableAmount(), null, "Reversal of Sales Return: " + note.creditNoteNo(), null),
-                        new GeneralLedgerDtos.CreateLineRequest(gstOutputAcc, "2200", BigDecimal.ZERO, tax, null, "Reversal of Tax Adjustment: " + note.creditNoteNo(), null)
-                );
-                GeneralLedgerDtos.CreateJournalRequest req = new GeneralLedgerDtos.CreateJournalRequest(
-                        LocalDate.now(), "CREDIT_NOTE", "CREDIT_NOTE", null, "REV-" + note.creditNoteNo(),
-                        "Cancellation reversal for Credit Note " + note.creditNoteNo(), user, lines
-                );
-                glService.postJournalEntry(req);
-            } catch (Exception e) {
-                auditService.log("CREDIT_NOTE", id, "WARN", "Could not post reversal GL entry: " + e.getMessage());
+                List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(arAcc, "1040", note.totalAmount(), BigDecimal.ZERO, pId, "Credit Note Cancellation: " + note.creditNoteNo(), null));
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(salesReturnAcc, "4100", BigDecimal.ZERO, note.taxableAmount(), null, "Reversal of Sales Return: " + note.creditNoteNo(), null));
+                if (note.igstAmount().compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(igstAcc, "2083", BigDecimal.ZERO, note.igstAmount(), null, "IGST reversal cancel", null));
+                if (note.cgstAmount().compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(cgstAcc, "2081", BigDecimal.ZERO, note.cgstAmount(), null, "CGST reversal cancel", null));
+                if (note.sgstAmount().compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(sgstAcc, "2082", BigDecimal.ZERO, note.sgstAmount(), null, "SGST reversal cancel", null));
+                BigDecimal tax = note.cgstAmount().add(note.sgstAmount()).add(note.igstAmount());
+                BigDecimal diff = note.totalAmount().subtract(note.taxableAmount().add(tax)).setScale(2, RoundingMode.HALF_UP);
+                if (diff.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", BigDecimal.ZERO, diff, null, "Round off cancel: " + note.creditNoteNo(), null));
+                } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "5050", diff.abs(), BigDecimal.ZERO, null, "Round off cancel: " + note.creditNoteNo(), null));
+                }
+                glService.postJournalEntry(new GeneralLedgerDtos.CreateJournalRequest(
+                        LocalDate.now(), "CREDIT_NOTE_REV", "CREDIT_NOTE", id, "REV-" + note.creditNoteNo(),
+                        "Cancellation reversal for Credit Note " + note.creditNoteNo(), user, lines));
             }
 
             auditService.log("CREDIT_NOTE", id, "CANCELLED",
@@ -664,6 +731,9 @@ public class CreditDebitNoteService {
         var note = noteOpt.get();
         if ("CANCELLED".equalsIgnoreCase(note.status())) return false;
 
+        glService.ensurePeriodOpen(note.noteDate());
+        glService.ensurePeriodOpen(LocalDate.now());
+
         int rows = jdbc.update("UPDATE debit_note_header SET status = 'CANCELLED' WHERE id = ?", id);
         if (rows > 0) {
             if (Boolean.TRUE.equals(note.stockReturned()) && note.lines() != null) {
@@ -678,24 +748,34 @@ public class CreditDebitNoteService {
                     }
                 }
             }
-            try {
-                Long apAcc = getAccountIdOrDefault("2100", "Accounts Payable", "LIABILITY");
-                Long purchaseReturnAcc = getAccountIdOrDefault("5100", "Purchase Returns", "EXPENSE");
-                Long gstInputAcc = getAccountIdOrDefault("1200", "Input GST Reversal", "ASSET");
-                BigDecimal tax = note.cgstAmount().add(note.sgstAmount()).add(note.igstAmount());
+            if (note.glEntryId() != null) {
+                glService.reverseJournalEntry(note.glEntryId(), new GeneralLedgerDtos.ReverseJournalRequest(
+                        LocalDate.now(), "Debit Note Cancellation: " + note.debitNoteNo(), user));
+            } else {
+                Long apAcc = glService.getAccountIdOrDefault("2010", "Sundry Creditors (Trade Payables)", "LIABILITY");
+                Long purchaseReturnAcc = glService.getAccountIdOrDefault("5100", "Purchase Returns & Outward", "EXPENSE");
+                Long cgstAcc = glService.getAccountIdOrDefault("1081", "Input CGST Pool", "ASSET");
+                Long sgstAcc = glService.getAccountIdOrDefault("1082", "Input SGST Pool", "ASSET");
+                Long igstAcc = glService.getAccountIdOrDefault("1083", "Input IGST Pool", "ASSET");
+                Long roundAcc = glService.getAccountIdOrDefault("4090", "Discounts & Rounding Adjustments", "REVENUE");
+                Integer supId = note.supplierId() != null ? note.supplierId().intValue() : null;
 
-                List<GeneralLedgerDtos.CreateLineRequest> lines = List.of(
-                        new GeneralLedgerDtos.CreateLineRequest(purchaseReturnAcc, "5100", note.taxableAmount(), BigDecimal.ZERO, null, "Debit Note Cancellation: " + note.debitNoteNo(), null),
-                        new GeneralLedgerDtos.CreateLineRequest(gstInputAcc, "1200", tax, BigDecimal.ZERO, null, "Reversal of Input Tax: " + note.debitNoteNo(), null),
-                        new GeneralLedgerDtos.CreateLineRequest(apAcc, "2100", BigDecimal.ZERO, note.totalAmount(), null, "Reversal of Supplier Adjustment: " + note.supplierName(), null)
-                );
-                GeneralLedgerDtos.CreateJournalRequest req = new GeneralLedgerDtos.CreateJournalRequest(
-                        LocalDate.now(), "DEBIT_NOTE", "DEBIT_NOTE", null, "REV-" + note.debitNoteNo(),
-                        "Cancellation reversal for Debit Note " + note.debitNoteNo(), user, lines
-                );
-                glService.postJournalEntry(req);
-            } catch (Exception e) {
-                auditService.log("DEBIT_NOTE", id, "WARN", "Could not post reversal GL entry: " + e.getMessage());
+                List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(purchaseReturnAcc, "5100", note.taxableAmount(), BigDecimal.ZERO, null, "Debit Note Cancellation: " + note.debitNoteNo(), null));
+                if (note.igstAmount().compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(igstAcc, "1083", note.igstAmount(), BigDecimal.ZERO, null, "Input IGST cancel", null));
+                if (note.cgstAmount().compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(cgstAcc, "1081", note.cgstAmount(), BigDecimal.ZERO, null, "Input CGST cancel", null));
+                if (note.sgstAmount().compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(sgstAcc, "1082", note.sgstAmount(), BigDecimal.ZERO, null, "Input SGST cancel", null));
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(apAcc, "2010", BigDecimal.ZERO, note.totalAmount(), supId, "Reversal of Supplier Adjustment: " + note.supplierName(), null));
+                BigDecimal tax = note.cgstAmount().add(note.sgstAmount()).add(note.igstAmount());
+                BigDecimal diff = note.totalAmount().subtract(note.taxableAmount().add(tax)).setScale(2, RoundingMode.HALF_UP);
+                if (diff.compareTo(BigDecimal.ZERO) > 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "4090", diff, BigDecimal.ZERO, null, "Round off cancel: " + note.debitNoteNo(), null));
+                } else if (diff.compareTo(BigDecimal.ZERO) < 0) {
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(roundAcc, "4090", BigDecimal.ZERO, diff.abs(), null, "Round off cancel: " + note.debitNoteNo(), null));
+                }
+                glService.postJournalEntry(new GeneralLedgerDtos.CreateJournalRequest(
+                        LocalDate.now(), "DEBIT_NOTE_REV", "DEBIT_NOTE", id, "REV-" + note.debitNoteNo(),
+                        "Cancellation reversal for Debit Note " + note.debitNoteNo(), user, lines));
             }
 
             auditService.log("DEBIT_NOTE", id, "CANCELLED",

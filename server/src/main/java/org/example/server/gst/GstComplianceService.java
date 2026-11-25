@@ -1,5 +1,8 @@
 package org.example.server.gst;
 
+import org.example.server.accounting.GeneralLedgerDtos;
+import org.example.server.accounting.GeneralLedgerService;
+import org.example.server.audit.AuditService;
 import org.example.server.persistence.entity.Gstr2bReconciliationEntity;
 import org.example.server.persistence.entity.PurchaseHeaderEntity;
 import org.example.server.persistence.entity.SalesHeaderEntity;
@@ -7,6 +10,8 @@ import org.example.server.persistence.repository.Gstr2bReconciliationRepository;
 import org.example.server.persistence.repository.PurchaseHeaderRepository;
 import org.example.server.persistence.repository.SalesHeaderRepository;
 import org.example.server.persistence.JpaNativeRepository;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +21,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -27,15 +33,29 @@ public class GstComplianceService {
     private final PurchaseHeaderRepository purchaseRepository;
     private final SalesHeaderRepository salesRepository;
     private final JpaNativeRepository jdbc;
+    private final ObjectProvider<GeneralLedgerService> glProvider;
+    private final ObjectProvider<AuditService> auditProvider;
 
     public GstComplianceService(Gstr2bReconciliationRepository gstr2bRepository,
                                 PurchaseHeaderRepository purchaseRepository,
                                 SalesHeaderRepository salesRepository,
                                 JpaNativeRepository jdbc) {
+        this(gstr2bRepository, purchaseRepository, salesRepository, jdbc, null, null);
+    }
+
+    @Autowired
+    public GstComplianceService(Gstr2bReconciliationRepository gstr2bRepository,
+                                PurchaseHeaderRepository purchaseRepository,
+                                SalesHeaderRepository salesRepository,
+                                JpaNativeRepository jdbc,
+                                ObjectProvider<GeneralLedgerService> glProvider,
+                                ObjectProvider<AuditService> auditProvider) {
         this.gstr2bRepository = gstr2bRepository;
         this.purchaseRepository = purchaseRepository;
         this.salesRepository = salesRepository;
         this.jdbc = jdbc;
+        this.glProvider = glProvider;
+        this.auditProvider = auditProvider;
     }
 
     public static String normalizeInvoiceNo(String raw) {
@@ -598,6 +618,97 @@ public class GstComplianceService {
                 itcIgst, itcCgst, itcSgst, netIgst, netCgst, netSgst, totalCash,
                 rcmTaxable, rcmTax, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 totSetOffIgst, totSetOffCgst, totSetOffSgst
+        );
+    }
+
+    public GstDtos.GstGlUtilizationResultDto postMonthlyGstUtilization(String returnPeriod, String actor) {
+        GeneralLedgerService gl = glProvider != null ? glProvider.getIfAvailable() : null;
+        if (gl == null) {
+            throw new IllegalStateException("General Ledger service is unavailable.");
+        }
+        String normPeriod = returnPeriod == null ? "" : returnPeriod.trim();
+        if (normPeriod.isBlank()) {
+            throw new IllegalArgumentException("Return period (e.g. 2026-11 or 112026) is required.");
+        }
+
+        Long existing = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM gst_gl_settlement_log WHERE gst_period = ?", Long.class, normPeriod);
+        if (existing != null && existing > 0) {
+            throw new IllegalStateException("GST ITC Utilization for period " + normPeriod + " has already been posted to General Ledger.");
+        }
+
+        GstDtos.Gstr3bSummaryDto summary = calculateGstr3b(normPeriod);
+        BigDecimal usedIgst = summary.itcSetOffIgst().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal usedCgst = summary.itcSetOffCgst().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal usedSgst = summary.itcSetOffSgst().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalItcUsed = usedIgst.add(usedCgst).add(usedSgst);
+
+        BigDecimal outIgstCleared = summary.outwardIgst().subtract(summary.netPayableIgst()).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal outCgstCleared = summary.outwardCgst().subtract(summary.netPayableCgst()).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal outSgstCleared = summary.outwardSgst().subtract(summary.netPayableSgst()).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalOutCleared = outIgstCleared.add(outCgstCleared).add(outSgstCleared);
+
+        if (totalItcUsed.compareTo(BigDecimal.ZERO) <= 0 || totalOutCleared.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException("No GST ITC cross-utilization balance available for period " + normPeriod + ".");
+        }
+
+        // Adjust any 1-paise rounding residual deterministically on CGST/IGST output
+        BigDecimal residual = totalItcUsed.subtract(totalOutCleared).setScale(2, RoundingMode.HALF_UP);
+        if (residual.compareTo(BigDecimal.ZERO) != 0) {
+            outCgstCleared = outCgstCleared.add(residual);
+            totalOutCleared = outIgstCleared.add(outCgstCleared).add(outSgstCleared);
+        }
+
+        LocalDate postDate = LocalDate.now();
+        try {
+            if (normPeriod.matches("\\d{4}-\\d{2}")) {
+                postDate = YearMonth.parse(normPeriod).atEndOfMonth();
+            } else if (normPeriod.matches("\\d{6}")) {
+                int mm = Integer.parseInt(normPeriod.substring(0, 2));
+                int yyyy = Integer.parseInt(normPeriod.substring(2, 6));
+                postDate = YearMonth.of(yyyy, mm).atEndOfMonth();
+            }
+        } catch (Exception ignored) {}
+        gl.ensurePeriodOpen(postDate);
+
+        Long outIgstAcc = gl.getAccountIdOrDefault("2083", "Output IGST Payable", "LIABILITY");
+        Long outCgstAcc = gl.getAccountIdOrDefault("2081", "Output CGST Payable", "LIABILITY");
+        Long outSgstAcc = gl.getAccountIdOrDefault("2082", "Output SGST Payable", "LIABILITY");
+        Long inIgstAcc = gl.getAccountIdOrDefault("1083", "Input IGST Pool", "ASSET");
+        Long inCgstAcc = gl.getAccountIdOrDefault("1081", "Input CGST Pool", "ASSET");
+        Long inSgstAcc = gl.getAccountIdOrDefault("1082", "Input SGST Pool", "ASSET");
+
+        List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
+        if (outIgstCleared.compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(outIgstAcc, "2083", outIgstCleared, BigDecimal.ZERO, null, "Output IGST offset " + normPeriod, null));
+        if (outCgstCleared.compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(outCgstAcc, "2081", outCgstCleared, BigDecimal.ZERO, null, "Output CGST offset " + normPeriod, null));
+        if (outSgstCleared.compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(outSgstAcc, "2082", outSgstCleared, BigDecimal.ZERO, null, "Output SGST offset " + normPeriod, null));
+
+        if (usedIgst.compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(inIgstAcc, "1083", BigDecimal.ZERO, usedIgst, null, "Input IGST ITC utilized " + normPeriod, null));
+        if (usedCgst.compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(inCgstAcc, "1081", BigDecimal.ZERO, usedCgst, null, "Input CGST ITC utilized " + normPeriod, null));
+        if (usedSgst.compareTo(BigDecimal.ZERO) > 0) lines.add(new GeneralLedgerDtos.CreateLineRequest(inSgstAcc, "1082", BigDecimal.ZERO, usedSgst, null, "Input SGST ITC utilized " + normPeriod, null));
+
+        String safeActor = (actor == null || actor.isBlank()) ? "SYSTEM" : actor.trim();
+        GeneralLedgerDtos.JournalEntryDto jv = gl.postJournalEntry(new GeneralLedgerDtos.CreateJournalRequest(
+                postDate, "GST_OFFSET", "GST_SETTLEMENT", null, "GST-" + normPeriod,
+                "Monthly GSTR-3B Sec 49 ITC Utilization & Output Set-Off (" + normPeriod + ")",
+                safeActor, lines
+        ));
+
+        BigDecimal netCash = summary.totalNetCashPayable() != null ? summary.totalNetCashPayable().setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        jdbc.update("INSERT INTO gst_gl_settlement_log(gst_period, journal_entry_id, output_tax, input_credit, net_cash_payable, posted_by) VALUES (?, ?, ?, ?, ?, ?)",
+                normPeriod, jv.id(), totalOutCleared, totalItcUsed, netCash, safeActor);
+
+        try {
+            AuditService audit = auditProvider != null ? auditProvider.getIfAvailable() : null;
+            if (audit != null) {
+                audit.log("GST_SETTLEMENT", jv.id(), "POSTED",
+                        "Posted GSTR-3B ITC utilization " + normPeriod + " via " + jv.entryNumber() + " (ITC: ₹" + totalItcUsed + ")");
+            }
+        } catch (Exception ignored) {}
+
+        return new GstDtos.GstGlUtilizationResultDto(
+                normPeriod, jv.id(), jv.entryNumber(), totalOutCleared, totalItcUsed, netCash,
+                "GST ITC Utilization posted cleanly via voucher " + jv.entryNumber() + "."
         );
     }
 

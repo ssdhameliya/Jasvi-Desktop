@@ -105,6 +105,7 @@ public class PaymentIntegrityService {
         if (glProvider != null && glProvider.getIfAvailable() != null) {
             try {
                 String user = CurrentUser.isSet() ? CurrentUser.require().username() : "SYSTEM";
+                Long glId = null;
                 if (type == DocumentType.SALE) {
                     Map<String, Object> saleInfo = jdbc.queryForMap(
                             "SELECT customer_id, invoice_no, COALESCE(customer_name_snapshot, '') as cname FROM sales_header WHERE id = ?",
@@ -113,7 +114,7 @@ public class PaymentIntegrityService {
                     Integer custId = saleInfo.get("customer_id") != null ? ((Number) saleInfo.get("customer_id")).intValue() : null;
                     String invNo = String.valueOf(saleInfo.get("invoice_no"));
                     String cName = String.valueOf(saleInfo.get("cname"));
-                    glProvider.getIfAvailable().postPaymentReceipt(Long.valueOf(paymentId), paymentReference, date, amount, mode, custId, cName, invNo, user);
+                    glId = glProvider.getIfAvailable().postPaymentReceipt(Long.valueOf(paymentId), paymentReference, date, amount, mode, custId, cName, invNo, user);
                 } else if (type == DocumentType.PURCHASE) {
                     Map<String, Object> purInfo = jdbc.queryForMap(
                             "SELECT supplier_id, invoice_no, COALESCE(supplier_name_snapshot, '') as sname FROM purchase_header WHERE id = ?",
@@ -122,8 +123,13 @@ public class PaymentIntegrityService {
                     Integer supId = purInfo.get("supplier_id") != null ? ((Number) purInfo.get("supplier_id")).intValue() : null;
                     String billNo = String.valueOf(purInfo.get("invoice_no"));
                     String sName = String.valueOf(purInfo.get("sname"));
-                    glProvider.getIfAvailable().postPurchasePayment(Long.valueOf(paymentId), paymentReference, date, amount, mode, supId, sName, billNo, user);
+                    glId = glProvider.getIfAvailable().postPurchasePayment(Long.valueOf(paymentId), paymentReference, date, amount, mode, supId, sName, billNo, user);
                 }
+                if (glId != null) {
+                    jdbc.update("UPDATE payment_record SET gl_entry_id = ? WHERE id = ?", glId, paymentId);
+                }
+            } catch (IllegalStateException locked) {
+                throw locked;
             } catch (Exception ex) {
                 java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.WARNING, "Auto-post payment GL skipped: " + ex.getMessage());
             }
@@ -188,6 +194,44 @@ public class PaymentIntegrityService {
         if (recalculatedPaid.compareTo(target.total) > 0) {
             BigDecimal maximum = target.total.subtract(otherPaid).max(ZERO).setScale(2, RoundingMode.HALF_UP);
             throw new IllegalArgumentException("Edited payment exceeds the remaining allowable amount of " + maximum.toPlainString());
+        }
+
+        if (glProvider != null && glProvider.getIfAvailable() != null) {
+            GeneralLedgerService gl = glProvider.getIfAvailable();
+            gl.ensurePeriodOpen(paymentDate);
+            String user = CurrentUser.isSet() ? CurrentUser.require().username() : "SYSTEM";
+            String payRef = clean(request.reference());
+            try {
+                Map<String, Object> pMeta = jdbc.queryForMap("SELECT payment_reference, payment_date FROM payment_record WHERE id = ?", paymentId);
+                LocalDate oldDate = pMeta.get("payment_date") != null ? date(String.valueOf(pMeta.get("payment_date"))) : null;
+                if (oldDate != null) gl.ensurePeriodOpen(oldDate);
+                if (pMeta.get("payment_reference") != null && !String.valueOf(pMeta.get("payment_reference")).isBlank()) {
+                    payRef = String.valueOf(pMeta.get("payment_reference"));
+                }
+            } catch (IllegalStateException locked) {
+                throw locked;
+            } catch (Exception ignored) {}
+            if (payRef == null) payRef = "PAY-" + paymentId;
+
+            Long newGlId = null;
+            if (existing.type == DocumentType.SALE) {
+                Map<String, Object> saleInfo = jdbc.queryForMap(
+                        "SELECT customer_id, invoice_no, COALESCE(customer_name_snapshot, '') as cname FROM sales_header WHERE id = ?",
+                        existing.documentId);
+                Integer custId = saleInfo.get("customer_id") != null ? ((Number) saleInfo.get("customer_id")).intValue() : null;
+                newGlId = gl.postPaymentReceipt(Long.valueOf(paymentId), payRef, paymentDate, newAmount, paymentMode,
+                        custId, String.valueOf(saleInfo.get("cname")), String.valueOf(saleInfo.get("invoice_no")), user);
+            } else {
+                Map<String, Object> purInfo = jdbc.queryForMap(
+                        "SELECT supplier_id, invoice_no, COALESCE(supplier_name_snapshot, '') as sname FROM purchase_header WHERE id = ?",
+                        existing.documentId);
+                Integer supId = purInfo.get("supplier_id") != null ? ((Number) purInfo.get("supplier_id")).intValue() : null;
+                newGlId = gl.postPurchasePayment(Long.valueOf(paymentId), payRef, paymentDate, newAmount, paymentMode,
+                        supId, String.valueOf(purInfo.get("sname")), String.valueOf(purInfo.get("invoice_no")), user);
+            }
+            if (newGlId != null) {
+                jdbc.update("UPDATE payment_record SET gl_entry_id = ? WHERE id = ?", newGlId, paymentId);
+            }
         }
 
         int updated = jdbc.update(

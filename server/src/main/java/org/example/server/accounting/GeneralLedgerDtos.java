@@ -320,4 +320,70 @@ public class GeneralLedgerDtos {
                  BigDecimal.ZERO, null, "SYSTEM", "AUTO_POST", null, null, null);
         }
     }
+
+    public record PagedJournalResponse(
+            List<JournalEntryDto> rows,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages
+    ) {}
+
+    public record PartyLedgerResponse(
+            Long partyId,
+            String partyName,
+            String partyType,
+            LocalDate fromDate,
+            LocalDate toDate,
+            BigDecimal openingBalance,
+            BigDecimal totalDebit,
+            BigDecimal totalCredit,
+            BigDecimal closingBalance,
+            String closingBalanceType,
+            List<AccountLedgerLineDto> entries
+    ) {}
+
+    public record ReconciliationControlRow(
+            String area,
+            String accountCode,
+            String accountName,
+            BigDecimal glBalance,
+            BigDecimal subledgerBalance,
+            BigDecimal variance,
+            String status
+    ) {}
+
+    public record UnpostedDocRow(
+            String docType,
+            Long docId,
+            String docNo,
+            String date,
+            BigDecimal amount,
+            String status
+    ) {}
+
+    public record ReconciliationHealthCheckDto(
+            List<ReconciliationControlRow> controls,
+            List<UnpostedDocRow> unpostedDocuments,
+            int mismatchCount,
+            int unpostedCount,
+            boolean healthy
+    ) {}
+
+    public record FiscalYearCloseRequest(
+            String fyLabel,
+            LocalDate fromDate,
+            LocalDate toDate,
+            boolean lockPeriod,
+            String closedBy
+    ) {}
+
+    public record FiscalYearCloseResponse(
+            Long closingEntryId,
+            String entryNumber,
+            String fyLabel,
+            BigDecimal netProfitTransferred,
+            LocalDate lockedUntil,
+            String message
+    ) {}
 }
