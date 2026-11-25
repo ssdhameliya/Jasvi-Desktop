@@ -1,3 +1,11 @@
+# What's New in DSE ERP v11.0.82
+
+### Team Chat Distributed Read-Loop Fix & SSE `text/event-stream` Exception Hardening (Rule 4, Rule 10 & Rule 16)
+- **Eliminated Infinite Distributed `READ` Storm (`TeamChatWindowPane.java`, `TeamChatService.java`)**:
+  - Updated `TeamChatWindowPane` to apply peer `READ` events in memory (`✓` → `✓✓`) without reloading messages or re-invoking `markLatestRead()`, added a strict monotonic `lastMarkedReadId` guard, made `TeamChatService.markRead()` idempotent, and excluded the reader from `READ` SSE echoes.
+- **SSE Exception & Thread-Safety Hardening (`ApiExceptionHandler.java`, `TeamChatSseBroker.java`)**:
+  - Added dedicated handling for `AsyncRequestNotUsableException` / `AsyncRequestTimeoutException` and `text/event-stream` responses in `ApiExceptionHandler` (returning `204 No Content` instead of a `HashMap` JSON error), and synchronized per-`SseEmitter` sends between keepalives and virtual-thread dispatches.
+
 # What's New in DSE ERP v11.0.81
 
 ### Team Chat Stability, SSE Keepalive & HikariCP Contention Fix (Rule 4, Rule 10 & Rule 16)

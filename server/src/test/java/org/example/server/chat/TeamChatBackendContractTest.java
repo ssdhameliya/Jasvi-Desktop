@@ -125,6 +125,63 @@ class TeamChatBackendContractTest {
         verify(broker, never()).broadcastAll(any());
     }
 
+    @Test
+    void markReadIsIdempotentAndSseErrorsNeverReturnHashMap() {
+        UserRepository userRepo = mock(UserRepository.class);
+        ChatPresenceRepository presRepo = mock(ChatPresenceRepository.class);
+        ChatChannelRepository chRepo = mock(ChatChannelRepository.class);
+        ChatChannelMemberRepository memRepo = mock(ChatChannelMemberRepository.class);
+        ChatMessageRepository msgRepo = mock(ChatMessageRepository.class);
+        ChatAttachmentRepository attRepo = mock(ChatAttachmentRepository.class);
+        TeamChatSseBroker broker = mock(TeamChatSseBroker.class);
+
+        UserEntity admin = new UserEntity();
+        admin.setUsername("admin");
+        admin.setFullName("Admin");
+        admin.setRole("ADMIN");
+        admin.setActive(true);
+        try {
+            var f = UserEntity.class.getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(admin, 1);
+        } catch (Exception e) { throw new RuntimeException(e); }
+
+        when(userRepo.findById(1)).thenReturn(Optional.of(admin));
+        ChatChannelEntity ch = new ChatChannelEntity();
+        ch.setChannelType("DIRECT");
+        when(chRepo.findById(5L)).thenReturn(Optional.of(ch));
+        when(memRepo.existsByChannelIdAndUserId(5L, 1)).thenReturn(true);
+
+        ChatChannelMemberEntity mem1 = new ChatChannelMemberEntity();
+        mem1.setChannelId(5L);
+        mem1.setUserId(1);
+        mem1.setLastReadMessageId(42L);
+        ChatChannelMemberEntity mem2 = new ChatChannelMemberEntity();
+        mem2.setChannelId(5L);
+        mem2.setUserId(2);
+        mem2.setLastReadMessageId(40L);
+        when(memRepo.findByChannelIdAndUserId(5L, 1)).thenReturn(Optional.of(mem1));
+        when(memRepo.findByChannelId(5L)).thenReturn(List.of(mem1, mem2));
+
+        TeamChatService svc = new TeamChatService(userRepo, presRepo, chRepo, memRepo, msgRepo, attRepo,
+                broker, tempWorkspace.toString());
+
+        // Same messageId (42) must NOT emit any READ event
+        svc.markRead(new AuthenticatedUser(1, "admin", "ADMIN"), 5L, 42L);
+        verify(broker, never()).sendToUsers(any(), any(), any());
+
+        // New messageId (43) emits READ only to peer (user 2), never back to user 1
+        svc.markRead(new AuthenticatedUser(1, "admin", "ADMIN"), 5L, 43L);
+        verify(broker, times(1)).sendToUsers(eq(List.of(2)), eq("READ"), any());
+
+        var handler = new org.example.server.web.ApiExceptionHandler();
+        var req = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/chat/stream");
+        var resp = new org.springframework.mock.web.MockHttpServletResponse();
+        resp.setContentType("text/event-stream");
+        var entity = handler.serverError(new RuntimeException("Client closed"), req, resp);
+        assertEquals(204, entity.getStatusCode().value());
+    }
+
     private static UserEntity user(int id, String username, String role) throws Exception {
         UserEntity u = new UserEntity();
         Field f = UserEntity.class.getDeclaredField("id");

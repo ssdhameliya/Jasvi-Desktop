@@ -374,8 +374,9 @@ public class TeamChatService {
     public void markRead(AuthenticatedUser current, long channelId, long lastReadMessageId) {
         UserEntity me = requireActiveUser(current);
         requireChannelAccess(me, channelId);
-        markReadInternal(me.getId(), channelId, lastReadMessageId);
-        broadcastChannelEvent(channelId, "READ", null, me, null, lastReadMessageId);
+        if (markReadInternal(me.getId(), channelId, lastReadMessageId)) {
+            broadcastChannelEventExcludingActor(channelId, "READ", null, me, null, lastReadMessageId);
+        }
     }
 
     public void notifyTyping(AuthenticatedUser current, long channelId, boolean typing) {
@@ -523,14 +524,17 @@ public class TeamChatService {
         }
     }
 
-    private void markReadInternal(int userId, long channelId, long lastReadId) {
-        if (lastReadId <= 0) return;
-        memberRepo.findByChannelIdAndUserId(channelId, userId).ifPresent(m -> {
-            if (lastReadId > m.getLastReadMessageId()) {
-                m.setLastReadMessageId(lastReadId);
-                memberRepo.save(m);
-            }
-        });
+    private boolean markReadInternal(int userId, long channelId, long lastReadId) {
+        if (lastReadId <= 0) return false;
+        var opt = memberRepo.findByChannelIdAndUserId(channelId, userId);
+        if (opt.isEmpty()) return false;
+        ChatChannelMemberEntity m = opt.get();
+        if (lastReadId > m.getLastReadMessageId()) {
+            m.setLastReadMessageId(lastReadId);
+            memberRepo.save(m);
+            return true;
+        }
+        return false;
     }
 
     private ChatPresenceEntity touchHeartbeat(int userId, String explicitStatus, String note, boolean updateNote) {
@@ -568,6 +572,16 @@ public class TeamChatService {
                 .map(ChatChannelMemberEntity::getUserId)
                 .toList();
         broker.sendToUsers(memberIds, type,
+                new TeamChatDtos.ChatStreamEvent(type, channelId, msg, null, actor.getId(), displayName(actor), typing, readId));
+    }
+
+    private void broadcastChannelEventExcludingActor(long channelId, String type, TeamChatDtos.MessageDto msg, UserEntity actor, Boolean typing, Long readId) {
+        List<Integer> peerIds = memberRepo.findByChannelId(channelId).stream()
+                .map(ChatChannelMemberEntity::getUserId)
+                .filter(id -> !Objects.equals(id, actor.getId()))
+                .toList();
+        if (peerIds.isEmpty()) return;
+        broker.sendToUsers(peerIds, type,
                 new TeamChatDtos.ChatStreamEvent(type, channelId, msg, null, actor.getId(), displayName(actor), typing, readId));
     }
 
