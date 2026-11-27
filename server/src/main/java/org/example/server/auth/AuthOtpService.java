@@ -66,12 +66,12 @@ class AuthOtpService {
         return new Issued(challengeId, true);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     synchronized Verified verify(Purpose purpose, String challengeId, String code, String binding) {
         return verifyInternal(purpose, challengeId, code, bindingHash(binding), true);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     synchronized Verified verify(Purpose purpose, String challengeId, String code) {
         cleanup();
         Map<String,Object> row = challengeRow(purpose, challengeId, true);
@@ -79,7 +79,7 @@ class AuthOtpService {
     }
 
     /** Verify a challenge but keep it alive until a later factor succeeds. */
-    @Transactional
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     synchronized Verified verifyWithoutConsume(Purpose purpose, String challengeId, String code, String binding) {
         return verifyInternal(purpose, challengeId, code, bindingHash(binding), false);
     }
@@ -90,7 +90,7 @@ class AuthOtpService {
         db.update("DELETE FROM auth_challenge WHERE challenge_id=? AND purpose=?", challengeId, purpose.name());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, noRollbackFor = IllegalArgumentException.class)
     synchronized Integer challengeUser(Purpose purpose, String challengeId) {
         Map<String,Object> row = challengeRow(purpose, challengeId, false);
         Object value = row.get("user_id");

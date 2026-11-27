@@ -1,8 +1,11 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<?import javafx.geometry.Insets?><?import javafx.scene.control.*?><?import javafx.scene.layout.*?><BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.controller.SetupWizardController" styleClass="setup-page,approved-ui,approved-screen,approved-screen-setup-wizard,erp-screen-root">
+<?import javafx.geometry.Insets?><?import javafx.scene.control.*?><?import javafx.scene.image.ImageView?><?import javafx.scene.layout.*?><BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.controller.SetupWizardController" styleClass="setup-page,approved-ui,approved-screen,approved-screen-setup-wizard,erp-screen-root">
     <left>
         <VBox prefWidth="350" minWidth="320" spacing="18" alignment="CENTER" styleClass="setup-brand-panel">
-            <StackPane styleClass="setup-logo"><Label text="◆"/></StackPane>
+            <StackPane fx:id="setupLogoBox" styleClass="setup-logo">
+                <ImageView fx:id="imgSetupMark" fitWidth="56" fitHeight="56" preserveRatio="true" smooth="true" managed="false" visible="false"/>
+                <Label fx:id="lblSetupMarkFallback" text="◆"/>
+            </StackPane>
             <Label text="ERP Setup" styleClass="setup-brand-title"/>
             <Label text="Professional Business Workspace" styleClass="setup-brand-subtitle"/>
             <Separator maxWidth="120"/>

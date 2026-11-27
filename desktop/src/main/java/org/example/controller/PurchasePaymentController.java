@@ -434,9 +434,9 @@ public final class PurchasePaymentController implements ScreenLifecycle {
             String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(docNo, total);
             String sigBase64 = MessageTemplateService.getSignatureImageBase64();
 
-            String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
-            String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
-            String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+            String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
+            String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
+            String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
 
             var formatted = MessageTemplateService.formatPurchaseRemittanceAdviceEmail(
                     partyName,

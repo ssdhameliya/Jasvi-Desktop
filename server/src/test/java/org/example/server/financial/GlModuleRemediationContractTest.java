@@ -260,4 +260,30 @@ class GlModuleRemediationContractTest {
         assertEquals(0, new BigDecimal("9000.00").compareTo(p.totalDue()), "Net receivable must exclude future invoice and net unapplied CN");
         assertEquals(0, new BigDecimal("9000.00").compareTo(summary.totalOutstanding()));
     }
+
+    @Test
+    void getAccountIdOrDefaultAutoProvisionsMissingAccountOnEmptyResult() {
+        ChartOfAccountsRepository coaRepo = mock(ChartOfAccountsRepository.class);
+        JournalEntryRepository jeRepo = mock(JournalEntryRepository.class);
+        JournalLineRepository jlRepo = mock(JournalLineRepository.class);
+        JpaNativeRepository jdbc = mock(JpaNativeRepository.class);
+
+        when(jdbc.queryForObject(
+                eq("SELECT id FROM chart_of_accounts WHERE account_code = ? LIMIT 1"),
+                eq(Long.class),
+                eq("5080")))
+                .thenThrow(new org.springframework.dao.EmptyResultDataAccessException(1))
+                .thenThrow(new jakarta.persistence.NoResultException("No entity found for query"));
+        when(jdbc.queryForObject(
+                contains("INSERT INTO chart_of_accounts"),
+                eq(Long.class),
+                eq("5080"),
+                eq("Office Rent & Utilities"),
+                eq("EXPENSE")))
+                .thenReturn(508L);
+
+        GeneralLedgerService gl = new GeneralLedgerService(coaRepo, jeRepo, jlRepo, jdbc);
+        assertEquals(508L, gl.getAccountIdOrDefault("5080", "Office Rent & Utilities", "EXPENSE"));
+        assertEquals(508L, gl.getAccountIdOrDefault("5080", "Office Rent & Utilities", "EXPENSE"));
+    }
 }

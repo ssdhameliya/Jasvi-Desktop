@@ -127,9 +127,15 @@ public class SalesController implements ScreenLifecycle {
     @FXML
     private StackPane itemSearchIconBox;
     @FXML
-    private HBox stockPositionBar;
+    private HBox stockPositionBar, customerHealthBar, pricingInsightBar;
     @FXML
     private Label lblStockOnHand, lblStockReserved, lblStockAvailable, lblStockAfterSale, lblStockState;
+    @FXML
+    private Label lblCustomerNetDue, lblCustomerOverdue, lblCustomerCreditUsed, lblCustomerLastPay;
+    @FXML
+    private Label lblLastSoldPrice, lblPurchaseCost, lblLiveMargin, lblCustomerSlabChip;
+    @FXML
+    private Button btnCustomerPriceList, btnApplyLastRate, btnManageItemSlabs;
 
     @FXML
     private TextArea txtRemarks;
@@ -222,6 +228,9 @@ public class SalesController implements ScreenLifecycle {
     private final LookupService lookupService = new LookupService();
     private final MasterApiClient masterApi = new MasterApiClient();
     private final SupportApiClient supportApi = new SupportApiClient();
+    private final org.example.api.customer360.Customer360ApiClient customer360Api = new org.example.api.customer360.Customer360ApiClient();
+    private org.example.api.customer360.Customer360ApiClient.CreditHealth activeCustomerHealth;
+    private org.example.api.customer360.Customer360ApiClient.ItemPricingInsight activeItemPricing;
 
     // -------------------------------------------------------
     // Editing
@@ -502,8 +511,12 @@ public class SalesController implements ScreenLifecycle {
             // loadSale() and the asynchronous bootstrap both re-bind persisted
             // edit selections. During that re-bind the saved invoice addresses
             // must not be replaced by today's master-data address.
-            if (loadingSaleForEdit && editingSale != null)
+            if (loadingSaleForEdit && editingSale != null) {
+                if (customer != null) {
+                    refreshCustomerHealthAsync(customer);
+                }
                 return;
+            }
             if (customer != null) {
                 customerSearchDebounce.stop();
                 UiTaskExecutor.cancel("create-sale-customer-search");
@@ -520,6 +533,10 @@ public class SalesController implements ScreenLifecycle {
                 if (cmbCustomer.isEditable() && cmbCustomer.getEditor().isFocused()
                         && !cmbCustomer.getEditor().getText().isBlank())
                     return;
+                clearCustomerHealthBar();
+                if (selectedItem != null) {
+                    refreshItemPricingAsync(null, selectedItem, false);
+                }
                 txtBillingAddress.clear();
                 if (txtBillingGstin != null)
                     txtBillingGstin.clear();
@@ -539,6 +556,10 @@ public class SalesController implements ScreenLifecycle {
                 chkSameAsBilling.setSelected(true);
             syncDeliveryAddressState();
             suggestGstTypeFromGstin();
+            refreshCustomerHealthAsync(customer);
+            if (selectedItem != null) {
+                refreshItemPricingAsync(customer, selectedItem, editingLine == null);
+            }
         });
 
         // -------------------------------------------------------
@@ -818,8 +839,19 @@ public class SalesController implements ScreenLifecycle {
             itemSearchIconBox.getChildren().setAll(IconFactory.compactIcon("search", 16));
         itemSuggestions.getStyleClass().addAll("sales-entry-item-suggestions", "erp-item-suggestions");
         itemSearchDebounce.setOnFinished(event -> refreshItemSuggestions(txtItemSearch.getText()));
-        if (txtQuantity != null)
-            txtQuantity.textProperty().addListener((o, a, b) -> updateSaleStockPosition());
+        if (txtQuantity != null) {
+            txtQuantity.textProperty().addListener((o, a, b) -> {
+                updateSaleStockPosition();
+                reevaluateSlabForQuantity();
+                updateLiveMarginDisplay();
+            });
+        }
+        if (txtRate != null) {
+            txtRate.textProperty().addListener((o, a, b) -> updateLiveMarginDisplay());
+        }
+        if (txtLineDiscount != null) {
+            txtLineDiscount.textProperty().addListener((o, a, b) -> updateLiveMarginDisplay());
+        }
         txtItemSearch.textProperty().addListener((obs, oldText, text) -> {
             if (updatingItemSearch)
                 return;
@@ -949,6 +981,12 @@ public class SalesController implements ScreenLifecycle {
             Platform.runLater(() -> WorkflowFocusManager.initial(txtQuantity));
         }
         updateSaleStockPosition();
+        Party activeCustomer = cmbCustomer != null ? cmbCustomer.getValue() : null;
+        if (item == null) {
+            clearPricingInsightBar();
+        } else {
+            refreshItemPricingAsync(activeCustomer, item, applyMasterDefaults);
+        }
     }
 
     private void clearItemSearch() {
@@ -1043,6 +1081,321 @@ public class SalesController implements ScreenLifecycle {
 
     private static String qtyText(double value) {
         return java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+    }
+
+    private void clearCustomerHealthBar() {
+        activeCustomerHealth = null;
+        if (customerHealthBar != null) {
+            customerHealthBar.setVisible(false);
+            customerHealthBar.setManaged(false);
+        }
+    }
+
+    private void refreshCustomerHealthAsync(Party customer) {
+        if (customer == null || customer.getId() <= 0) {
+            clearCustomerHealthBar();
+            return;
+        }
+        int customerId = customer.getId();
+        UiTaskExecutor.submitLatest(
+                "create-sale-customer-health-" + customerId,
+                () -> customer360Api.creditHealth(customerId),
+                health -> {
+                    Party current = cmbCustomer != null ? cmbCustomer.getValue() : null;
+                    if (current == null || current.getId() != customerId) return;
+                    activeCustomerHealth = health;
+                    renderCustomerHealthBar();
+                },
+                err -> {
+                    activeCustomerHealth = null;
+                    clearCustomerHealthBar();
+                }
+        );
+    }
+
+    private void renderCustomerHealthBar() {
+        if (customerHealthBar == null) return;
+        Party customer = cmbCustomer != null ? cmbCustomer.getValue() : null;
+        if (customer == null || activeCustomerHealth == null) {
+            customerHealthBar.setVisible(false);
+            customerHealthBar.setManaged(false);
+            return;
+        }
+        var h = activeCustomerHealth;
+        double limit = resolveEffectiveCreditLimit(customer, h);
+        double previousBalance = editingSale != null ? Math.max(0, editingSale.getTotalAmount() - editingSale.getPaidAmount()) : 0;
+        double draftTotal = salesDocumentTotals().grandTotal();
+        double draftBalance = editingSale != null
+                ? Math.max(0, draftTotal - editingSale.getPaidAmount())
+                : draftTotal;
+        double baseReceivable = h.netReceivable() != null ? h.netReceivable().doubleValue() : 0d;
+        double projectedExposure = Math.max(0, baseReceivable - previousBalance) + draftBalance;
+        double usedPct = limit > 0 ? (projectedExposure * 100.0 / limit) : 0d;
+
+        if (lblCustomerNetDue != null) {
+            lblCustomerNetDue.setText(String.format(java.util.Locale.of("en", "IN"), "₹ %,.2f", projectedExposure));
+            lblCustomerNetDue.getStyleClass().removeAll("stock-positive", "stock-warning", "stock-shortage");
+            lblCustomerNetDue.getStyleClass().add(projectedExposure > limit && limit > 0 ? "stock-shortage" : (projectedExposure > 0.01 ? "stock-warning" : "stock-positive"));
+        }
+        if (lblCustomerOverdue != null) {
+            lblCustomerOverdue.getStyleClass().removeAll("stock-positive", "stock-warning", "stock-shortage");
+            if (h.overdueCount() > 0) {
+                double ovAmt = h.overdueAmount() != null ? h.overdueAmount().doubleValue() : 0d;
+                lblCustomerOverdue.setText(String.format(java.util.Locale.of("en", "IN"), "%d (₹ %,.2f)", h.overdueCount(), ovAmt));
+                lblCustomerOverdue.getStyleClass().add("stock-shortage");
+            } else {
+                lblCustomerOverdue.setText("0 Overdue");
+                lblCustomerOverdue.getStyleClass().add("stock-positive");
+            }
+        }
+        if (lblCustomerCreditUsed != null) {
+            lblCustomerCreditUsed.getStyleClass().removeAll("stock-positive", "stock-warning", "stock-shortage");
+            lblCustomerCreditUsed.setText(limit > 0
+                    ? String.format(java.util.Locale.of("en", "IN"), "%.1f%% of ₹ %,.0f", usedPct, limit)
+                    : "No Limit Set");
+            lblCustomerCreditUsed.getStyleClass().add(usedPct >= 100.0 ? "stock-shortage" : (usedPct >= 75.0 ? "stock-warning" : "stock-positive"));
+        }
+        if (lblCustomerLastPay != null) {
+            double lp = h.lastPaymentAmount() != null ? h.lastPaymentAmount().doubleValue() : 0d;
+            String ld = h.lastPaymentDate() == null || h.lastPaymentDate().isBlank() ? "" : " (" + BusinessClock.formatDate(h.lastPaymentDate()) + ")";
+            lblCustomerLastPay.setText(lp > 0.01 ? String.format(java.util.Locale.of("en", "IN"), "₹ %,.2f%s", lp, ld) : "No payments yet");
+        }
+        customerHealthBar.setVisible(true);
+        customerHealthBar.setManaged(true);
+    }
+
+    private double resolveEffectiveCreditLimit(Party customer, org.example.api.customer360.Customer360ApiClient.CreditHealth health) {
+        if (customer != null && customer.getCreditLimit() != null && customer.getCreditLimit() > 0) {
+            return customer.getCreditLimit();
+        }
+        if (health != null && health.creditLimit() != null && health.creditLimit().doubleValue() > 0) {
+            return health.creditLimit().doubleValue();
+        }
+        try {
+            return Double.parseDouble(ConfigManager.get("credit_control.default_limit", "500000.0"));
+        } catch (Exception ignored) {
+            return 500000.0;
+        }
+    }
+
+    private void clearPricingInsightBar() {
+        activeItemPricing = null;
+        if (pricingInsightBar != null) {
+            pricingInsightBar.setVisible(false);
+            pricingInsightBar.setManaged(false);
+        }
+    }
+
+    private double currentEntryQuantity() {
+        try {
+            double q = Double.parseDouble(txtQuantity == null || txtQuantity.getText() == null ? "1" : txtQuantity.getText().trim());
+            return q > 0 ? q : 1.0;
+        } catch (Exception ignored) {
+            return 1.0;
+        }
+    }
+
+    private void refreshItemPricingAsync(Party customer, Item item, boolean allowAutoApply) {
+        if (pricingInsightBar == null || item == null) {
+            clearPricingInsightBar();
+            return;
+        }
+        pricingInsightBar.setVisible(true);
+        pricingInsightBar.setManaged(true);
+        if (lblPurchaseCost != null) {
+            lblPurchaseCost.setText(item.getPurchasePrice() > 0
+                    ? String.format(java.util.Locale.of("en", "IN"), "₹ %,.2f", item.getPurchasePrice())
+                    : "Not set");
+        }
+        if (customer == null || customer.getId() <= 0) {
+            activeItemPricing = null;
+            if (lblLastSoldPrice != null) lblLastSoldPrice.setText("Select customer");
+            if (btnApplyLastRate != null) { btnApplyLastRate.setVisible(false); btnApplyLastRate.setManaged(false); }
+            if (lblCustomerSlabChip != null) { lblCustomerSlabChip.setVisible(false); lblCustomerSlabChip.setManaged(false); }
+            updateLiveMarginDisplay();
+            return;
+        }
+        int customerId = customer.getId();
+        String code = item.getItemCode();
+        double qty = currentEntryQuantity();
+        UiTaskExecutor.submitLatest(
+                "create-sale-item-pricing-" + customerId,
+                () -> customer360Api.itemPricing(customerId, code, qty),
+                insight -> {
+                    Party curParty = cmbCustomer != null ? cmbCustomer.getValue() : null;
+                    if (curParty == null || curParty.getId() != customerId || selectedItem == null
+                            || !safeItem(selectedItem.getItemCode()).equalsIgnoreCase(code)) {
+                        return;
+                    }
+                    activeItemPricing = insight;
+                    renderItemPricingInsight(insight, allowAutoApply);
+                },
+                err -> updateLiveMarginDisplay()
+        );
+    }
+
+    private void renderItemPricingInsight(org.example.api.customer360.Customer360ApiClient.ItemPricingInsight insight, boolean allowAutoApply) {
+        if (insight == null || pricingInsightBar == null) return;
+        if (lblPurchaseCost != null) {
+            lblPurchaseCost.setText(insight.purchaseCost() > 0
+                    ? String.format(java.util.Locale.of("en", "IN"), "₹ %,.2f", insight.purchaseCost())
+                    : "Not set");
+        }
+        if (lblLastSoldPrice != null) {
+            if (insight.lastSoldRate() != null) {
+                String dt = insight.lastSoldDate() == null || insight.lastSoldDate().isBlank() ? "" : " (" + BusinessClock.formatDate(insight.lastSoldDate()) + ")";
+                lblLastSoldPrice.setText(String.format(java.util.Locale.of("en", "IN"), "₹ %,.2f%s", insight.lastSoldRate(), dt));
+            } else {
+                lblLastSoldPrice.setText("First time");
+            }
+        }
+        if (btnApplyLastRate != null) {
+            boolean hasLast = insight.lastSoldRate() != null;
+            btnApplyLastRate.setVisible(hasLast);
+            btnApplyLastRate.setManaged(hasLast);
+        }
+        if (allowAutoApply && insight.matchedRule() != null) {
+            applySlabRuleToInputs(insight.matchedRule());
+        } else {
+            updateSlabChip(insight, currentEntryQuantity());
+        }
+        updateLiveMarginDisplay();
+    }
+
+    private void reevaluateSlabForQuantity() {
+        if (activeItemPricing == null || activeItemPricing.allSlabs() == null || activeItemPricing.allSlabs().isEmpty() || editingLine != null) {
+            return;
+        }
+        double qty = currentEntryQuantity();
+        String today = BusinessClock.today().toString();
+        var matched = activeItemPricing.allSlabs().stream()
+                .filter(r -> r.active() && r.minQty() <= qty + 0.0001)
+                .filter(r -> (r.validFrom() == null || r.validFrom().isBlank() || r.validFrom().compareTo(today) <= 0)
+                        && (r.validTo() == null || r.validTo().isBlank() || r.validTo().compareTo(today) >= 0))
+                .max(java.util.Comparator.comparingDouble(org.example.api.customer360.Customer360ApiClient.PriceRuleRow::minQty))
+                .orElse(null);
+        if (matched != null) {
+            applySlabRuleToInputs(matched);
+        } else {
+            updateSlabChip(activeItemPricing, qty);
+        }
+    }
+
+    private void applySlabRuleToInputs(org.example.api.customer360.Customer360ApiClient.PriceRuleRow rule) {
+        if (rule == null) return;
+        if (txtRate != null) txtRate.setText(String.format(java.util.Locale.ROOT, "%.2f", rule.specialRate()));
+        if (txtLineDiscount != null) txtLineDiscount.setText(String.format(java.util.Locale.ROOT, "%.2f", rule.discountPercent()));
+        updateSlabChip(activeItemPricing, currentEntryQuantity());
+    }
+
+    private void updateSlabChip(org.example.api.customer360.Customer360ApiClient.ItemPricingInsight insight, double qty) {
+        if (lblCustomerSlabChip == null || insight == null) return;
+        lblCustomerSlabChip.getStyleClass().removeAll("stock-positive", "stock-warning", "stock-shortage");
+        if (insight.allSlabs() == null || insight.allSlabs().isEmpty()) {
+            lblCustomerSlabChip.setVisible(false);
+            lblCustomerSlabChip.setManaged(false);
+            return;
+        }
+        String today = BusinessClock.today().toString();
+        var activeValid = insight.allSlabs().stream()
+                .filter(r -> r.active()
+                        && (r.validFrom() == null || r.validFrom().isBlank() || r.validFrom().compareTo(today) <= 0)
+                        && (r.validTo() == null || r.validTo().isBlank() || r.validTo().compareTo(today) >= 0))
+                .toList();
+        var matched = activeValid.stream()
+                .filter(r -> r.minQty() <= qty + 0.0001)
+                .max(java.util.Comparator.comparingDouble(org.example.api.customer360.Customer360ApiClient.PriceRuleRow::minQty))
+                .orElse(null);
+        if (matched != null) {
+            lblCustomerSlabChip.setText(String.format(java.util.Locale.of("en", "IN"),
+                    "Slab Active (Qty >= %s -> ₹ %,.2f)", qtyText(matched.minQty()), matched.specialRate()));
+            lblCustomerSlabChip.getStyleClass().add("stock-positive");
+        } else if (!activeValid.isEmpty()) {
+            var next = activeValid.getFirst();
+            lblCustomerSlabChip.setText(String.format(java.util.Locale.of("en", "IN"),
+                    "Next Slab: Qty >= %s -> ₹ %,.2f", qtyText(next.minQty()), next.specialRate()));
+            lblCustomerSlabChip.getStyleClass().add("stock-warning");
+        } else {
+            lblCustomerSlabChip.setVisible(false);
+            lblCustomerSlabChip.setManaged(false);
+            return;
+        }
+        lblCustomerSlabChip.setVisible(true);
+        lblCustomerSlabChip.setManaged(true);
+    }
+
+    private void updateLiveMarginDisplay() {
+        if (lblLiveMargin == null) return;
+        double cost = activeItemPricing != null ? activeItemPricing.purchaseCost()
+                : (selectedItem != null ? selectedItem.getPurchasePrice() : 0d);
+        lblLiveMargin.getStyleClass().removeAll("stock-positive", "stock-warning", "stock-shortage", "muted-label");
+        if (cost <= 0.0001) {
+            lblLiveMargin.setText("Set Purchase Cost");
+            lblLiveMargin.getStyleClass().add("muted-label");
+            return;
+        }
+        double rate = 0d, disc = 0d;
+        try {
+            if (txtRate != null && txtRate.getText() != null && !txtRate.getText().isBlank()) {
+                rate = Double.parseDouble(txtRate.getText().trim());
+            }
+        } catch (Exception ignored) { return; }
+        try {
+            if (txtLineDiscount != null && txtLineDiscount.getText() != null && !txtLineDiscount.getText().isBlank()) {
+                disc = Double.parseDouble(txtLineDiscount.getText().trim());
+            }
+        } catch (Exception ignored) {}
+        double netRate = rate * (1.0 - Math.max(0d, Math.min(100d, disc)) / 100.0);
+        double profitPerUnit = netRate - cost;
+        double marginPct = netRate > 0 ? (profitPerUnit / netRate) * 100.0 : -100.0;
+        if (profitPerUnit < -0.005) {
+            lblLiveMargin.setText(String.format(java.util.Locale.of("en", "IN"),
+                    "⚠ BELOW COST (%.1f%% / ₹ %,.2f)", marginPct, profitPerUnit));
+            lblLiveMargin.getStyleClass().add("stock-shortage");
+        } else if (marginPct < 10.0) {
+            lblLiveMargin.setText(String.format(java.util.Locale.of("en", "IN"),
+                    "%.1f%% (₹ %,.2f/unit)", marginPct, profitPerUnit));
+            lblLiveMargin.getStyleClass().add("stock-warning");
+        } else {
+            lblLiveMargin.setText(String.format(java.util.Locale.of("en", "IN"),
+                    "+%.1f%% (+₹ %,.2f/unit)", marginPct, profitPerUnit));
+            lblLiveMargin.getStyleClass().add("stock-positive");
+        }
+    }
+
+    @FXML
+    private void applyLastCustomerRate() {
+        if (activeItemPricing == null || activeItemPricing.lastSoldRate() == null) return;
+        if (txtRate != null) {
+            txtRate.setText(String.format(java.util.Locale.ROOT, "%.2f", activeItemPricing.lastSoldRate()));
+        }
+        if (txtLineDiscount != null && activeItemPricing.lastSoldDiscountPercent() != null) {
+            txtLineDiscount.setText(String.format(java.util.Locale.ROOT, "%.2f", activeItemPricing.lastSoldDiscountPercent()));
+        }
+        updateLiveMarginDisplay();
+        if (txtRate != null) txtRate.requestFocus();
+    }
+
+    @FXML
+    private void manageCustomerPriceList() {
+        Party customer = cmbCustomer != null ? cmbCustomer.getValue() : null;
+        if (customer == null || customer.getId() <= 0) {
+            warn("Select a customer first to manage their Price List & Quantity Slabs.");
+            return;
+        }
+        String code = selectedItem != null ? selectedItem.getItemCode() : null;
+        org.example.util.CustomerPriceListDialog.show(
+                salesEntryRoot,
+                customer.getId(),
+                customer.getName(),
+                allItems,
+                code,
+                () -> {
+                    if (selectedItem != null) {
+                        refreshItemPricingAsync(customer, selectedItem, editingLine == null);
+                    }
+                }
+        );
     }
 
     private void configureTransporterSelector() {
@@ -1309,24 +1662,39 @@ public class SalesController implements ScreenLifecycle {
         if (sale == null)
             return;
 
-        // Customer Credit Overdue Hard-Stop Check (module.automation.creditHardStop)
-        if (editingSale == null && sale.getCustomer() != null) {
+        // Customer Credit Overdue Hard-Stop Check using Live Net Receivable Exposure (module.automation.creditHardStop)
+        if (sale.getCustomer() != null) {
             boolean creditStop = ConfigManager.getBoolean("module.automation.creditHardStop",
                     ConfigManager.getBoolean("credit_control.hard_stop", false));
             if (creditStop) {
-                double creditLimit = 500000.0;
-                try {
-                    creditLimit = Double.parseDouble(ConfigManager.get("credit_control.default_limit", "500000.0"));
-                } catch (Exception ignored) {}
-                double currentOutstanding = sale.getCustomer().getOpeningBalance();
-                double newTotal = currentOutstanding + sale.getBalanceAmount();
-                if (creditLimit > 0 && newTotal > creditLimit) {
+                double creditLimit = resolveEffectiveCreditLimit(sale.getCustomer(), activeCustomerHealth);
+                double baseNetReceivable = activeCustomerHealth != null && activeCustomerHealth.netReceivable() != null
+                        ? activeCustomerHealth.netReceivable().doubleValue()
+                        : sale.getCustomer().getOpeningBalance();
+                double previousDocBalance = editingSale != null
+                        ? Math.max(0, editingSale.getTotalAmount() - editingSale.getPaidAmount())
+                        : 0;
+                double newTotal = Math.max(0, baseNetReceivable - previousDocBalance) + sale.getBalanceAmount();
+                long overdueCount = activeCustomerHealth != null ? activeCustomerHealth.overdueCount() : 0L;
+                if ((creditLimit > 0 && newTotal > creditLimit) || overdueCount > 0) {
+                    String overdueLine = overdueCount > 0 && activeCustomerHealth != null && activeCustomerHealth.overdueAmount() != null
+                            ? String.format(java.util.Locale.of("en", "IN"),
+                                    "\nOverdue Invoices: %d (₹ %,.2f)", overdueCount, activeCustomerHealth.overdueAmount().doubleValue())
+                            : "";
                     boolean proceed = org.example.util.AppDialogService.warningConfirm(tableLines,
-                            "Credit Limit Exceeded",
-                            "Customer Credit Policy Violation",
+                            "Credit Limit / Overdue Check",
+                            "Customer Credit Exposure Alert",
                             String.format(java.util.Locale.of("en", "IN"),
-                                    "Customer '%s' has an active Credit Limit of ₹ %,.2f.\nCurrent Outstanding: ₹ %,.2f\nNew Invoice Outstanding: ₹ %,.2f\nTotal Exposure: ₹ %,.2f (Exceeds limit by ₹ %,.2f).\n\nDo you wish to override and save this sale?",
-                                    sale.getCustomer().getName(), creditLimit, currentOutstanding, sale.getBalanceAmount(), newTotal, (newTotal - creditLimit)),
+                                    "Customer '%s' has an active Credit Limit of ₹ %,.2f.\nCurrent Net Receivable: ₹ %,.2f\nDraft Invoice Balance: ₹ %,.2f\nProjected Total Exposure: ₹ %,.2f%s%s\n\nDo you wish to override and save this sale?",
+                                    sale.getCustomer().getName(),
+                                    creditLimit,
+                                    Math.max(0, baseNetReceivable - previousDocBalance),
+                                    sale.getBalanceAmount(),
+                                    newTotal,
+                                    creditLimit > 0 && newTotal > creditLimit
+                                            ? String.format(java.util.Locale.of("en", "IN"), " (Exceeds limit by ₹ %,.2f)", (newTotal - creditLimit))
+                                            : "",
+                                    overdueLine),
                             "Override & Save", "Cancel Sale");
                     if (!proceed) {
                         return;
@@ -1699,6 +2067,7 @@ public class SalesController implements ScreenLifecycle {
         if (lblChargeCaption != null)
             lblChargeCaption.setText(
                     invoiceCharges.isEmpty() ? "Additional Charges" : "Additional Charges • " + invoiceCharges.size());
+        renderCustomerHealthBar();
     }
 
     private DocumentCalculationEngine.Totals salesDocumentTotals() {
@@ -2246,6 +2615,26 @@ public class SalesController implements ScreenLifecycle {
             }
             if (discount < 0 || discount > 100)
                 throw new IllegalArgumentException("Discount must be between 0 and 100");
+
+            double purchaseCost = activeItemPricing != null && activeItemPricing.purchaseCost() > 0
+                    ? activeItemPricing.purchaseCost()
+                    : item.getPurchasePrice();
+            double netUnitRate = rate * (1.0 - discount / 100.0);
+            if (purchaseCost > 0.0001 && netUnitRate + 0.005 < purchaseCost) {
+                boolean belowCostConfirmed = org.example.util.AppDialogService.warningConfirm(
+                        tableLines,
+                        "Selling Below Purchase Cost",
+                        "Negative Margin Alert for " + item.getDescription(),
+                        String.format(java.util.Locale.of("en", "IN"),
+                                "Effective Net Selling Rate: ₹ %,.2f / unit\nPurchase Cost: ₹ %,.2f / unit\nLoss per unit: ₹ %,.2f\n\nDo you still want to add this item at a loss?",
+                                netUnitRate, purchaseCost, (purchaseCost - netUnitRate)),
+                        "Add Line Anyway", "Adjust Rate"
+                );
+                if (!belowCostConfirmed) {
+                    if (txtRate != null) txtRate.requestFocus();
+                    return;
+                }
+            }
 
             SalesLine line = new SalesLine();
 

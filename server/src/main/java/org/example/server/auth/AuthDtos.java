@@ -31,7 +31,11 @@ public final class AuthDtos { private AuthDtos() {}
          this(success,user,message,accessToken,expiresAt,mfaRequired,challengeId,maskedDestination,null);
      }
  }
- public record OperationResponse(boolean success,String message){}
+ public record OperationResponse(boolean success,String message,String incidentTicketId){
+     public OperationResponse(boolean success,String message) {
+         this(success,message,null);
+     }
+ }
  public record RoleOption(String code,String displayName){}
  public record EffectivePermission(String module,String action,String description){}
  public record UserPayload(int id,String username,String fullName,String role,Integer roleId,String email,String phone,boolean active,String department,String branch,String accessLevel,boolean locked,boolean mfaEnabled,boolean forcePasswordChange){

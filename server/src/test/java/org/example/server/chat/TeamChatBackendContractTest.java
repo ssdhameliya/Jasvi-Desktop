@@ -182,6 +182,38 @@ class TeamChatBackendContractTest {
         assertEquals(204, entity.getStatusCode().value());
     }
 
+    @Test
+    void manualOfflineAndCustomNotePersistAcrossHeartbeatAndDirectory() throws Exception {
+        UserRepository userRepo = mock(UserRepository.class);
+        ChatPresenceRepository presRepo = mock(ChatPresenceRepository.class);
+        ChatChannelRepository chRepo = mock(ChatChannelRepository.class);
+        ChatChannelMemberRepository memRepo = mock(ChatChannelMemberRepository.class);
+        ChatMessageRepository msgRepo = mock(ChatMessageRepository.class);
+        ChatAttachmentRepository attRepo = mock(ChatAttachmentRepository.class);
+        TeamChatSseBroker broker = mock(TeamChatSseBroker.class);
+
+        UserEntity admin = user(1, "admin", "ADMIN");
+        when(userRepo.findById(1)).thenReturn(Optional.of(admin));
+        ChatPresenceEntity pres = new ChatPresenceEntity();
+        pres.setUserId(1);
+        pres.setStatus("ONLINE");
+        when(presRepo.findById(1)).thenReturn(Optional.of(pres));
+        when(presRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        TeamChatService svc = new TeamChatService(userRepo, presRepo, chRepo, memRepo, msgRepo, attRepo,
+                broker, tempWorkspace.toString());
+
+        TeamChatDtos.PresenceDto updated = svc.updatePresence(
+                new AuthenticatedUser(1, "admin", "ADMIN"),
+                new TeamChatDtos.PresenceUpdateRequest("OFFLINE", "Support"));
+        assertEquals("OFFLINE", updated.status());
+        assertEquals("Support", updated.customNote());
+
+        TeamChatDtos.PresenceDto afterHeartbeat = svc.heartbeat(new AuthenticatedUser(1, "admin", "ADMIN"));
+        assertEquals("OFFLINE", afterHeartbeat.status(), "Heartbeat must preserve manual OFFLINE status");
+        assertEquals("Support", afterHeartbeat.customNote(), "Heartbeat must preserve custom status note");
+    }
+
     private static UserEntity user(int id, String username, String role) throws Exception {
         UserEntity u = new UserEntity();
         Field f = UserEntity.class.getDeclaredField("id");

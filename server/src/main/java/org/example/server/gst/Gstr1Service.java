@@ -274,11 +274,14 @@ public class Gstr1Service {
         List<Gstr1Dtos.Gstr1CdnurNoteDto> cdnurList = new ArrayList<>();
         try {
             List<Map<String, Object>> cnRows = jdbc.queryForList("""
-                SELECT id, credit_note_no, note_date, original_invoice_no, party_name, party_gstin,
-                       taxable_amount, cgst_amount, sgst_amount, igst_amount, total_amount
-                FROM credit_note_header
-                WHERE note_date BETWEEN ? AND ?
-                ORDER BY id ASC
+                SELECT cn.id, cn.credit_note_no, cn.note_date, cn.original_invoice_no, cn.party_name,
+                       COALESCE(NULLIF(cn.party_gstin, ''), p.gstin, '') as party_gstin,
+                       cn.taxable_amount, cn.cgst_amount, cn.sgst_amount, cn.igst_amount, cn.total_amount
+                FROM credit_note_header cn
+                LEFT JOIN party_master p ON p.id = cn.party_id
+                WHERE cn.note_date BETWEEN ? AND ?
+                  AND UPPER(COALESCE(cn.status, '')) NOT IN ('CANCELLED', 'VOID', 'DELETED')
+                ORDER BY cn.id ASC
                 """, win.startDate(), win.endDate());
 
             Map<String, List<Gstr1Dtos.Gstr1CdnrNoteDto>> cnByParty = new LinkedHashMap<>();
@@ -315,13 +318,15 @@ public class Gstr1Service {
                 }
             }
 
-            // Also include outward customer debit notes in Table 9B (CDNR) and Table 9C (CDNUR)
+            // Include only outward customer debit notes (exclude inward supplier PURCHASE_RETURN debit notes) in GSTR-1 CDNR/CDNUR
             try {
                 List<Map<String, Object>> dnRows = jdbc.queryForList("""
                     SELECT id, debit_note_no, note_date, original_bill_no, supplier_name as party_name, supplier_gstin as party_gstin,
                            taxable_amount, cgst_amount, sgst_amount, igst_amount, total_amount
                     FROM debit_note_header
                     WHERE note_date BETWEEN ? AND ?
+                      AND UPPER(COALESCE(status, '')) NOT IN ('CANCELLED', 'VOID', 'DELETED')
+                      AND UPPER(COALESCE(reason_code, 'PURCHASE_RETURN')) <> 'PURCHASE_RETURN'
                     ORDER BY id ASC
                     """, win.startDate(), win.endDate());
 

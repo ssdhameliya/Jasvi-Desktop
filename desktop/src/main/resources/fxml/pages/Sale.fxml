@@ -119,6 +119,17 @@
                     </VBox>
                 </GridPane>
 
+                <HBox fx:id="customerHealthBar" visible="false" managed="false" alignment="CENTER_LEFT" spacing="12" styleClass="sales-stock-position-bar,sales-customer-health-bar,approved-toolbar">
+                    <Label text="Customer Health" styleClass="sales-stock-position-title"/>
+                    <Label text="Net Due" styleClass="sales-stock-caption"/><Label fx:id="lblCustomerNetDue" text="₹ 0.00" styleClass="sales-stock-value"/>
+                    <Label text="Overdue Bills" styleClass="sales-stock-caption"/><Label fx:id="lblCustomerOverdue" text="0" styleClass="sales-stock-value"/>
+                    <Label text="Credit Used" styleClass="sales-stock-caption"/><Label fx:id="lblCustomerCreditUsed" text="0%" styleClass="sales-stock-value"/>
+                    <Label text="Last Payment" styleClass="sales-stock-caption"/><Label fx:id="lblCustomerLastPay" text="—" styleClass="sales-stock-value"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="btnCustomerPriceList" text="Price List" onAction="#manageCustomerPriceList"
+                            styleClass="approved-button,approved-secondary-button,sales-price-rule-button"/>
+                </HBox>
+
                 <!-- Compatibility/backing controls retained but removed from the visible workflow. -->
                 <TextArea fx:id="txtRemarks" visible="false" managed="false"/>
                 <Label fx:id="lblInvoiceDisplay" visible="false" managed="false"/>
@@ -166,6 +177,19 @@
                     <Label text="After Sale" styleClass="sales-stock-caption"/><Label fx:id="lblStockAfterSale" text="0" styleClass="sales-stock-value,stock-after"/>
                     <Region HBox.hgrow="ALWAYS"/>
                     <Label fx:id="lblStockState" text="" styleClass="sales-stock-state"/>
+                </HBox>
+
+                <HBox fx:id="pricingInsightBar" visible="false" managed="false" alignment="CENTER_LEFT" spacing="12" styleClass="sales-stock-position-bar,sales-pricing-insight-bar,approved-toolbar">
+                    <Label text="Pricing &amp; Margin" styleClass="sales-stock-position-title"/>
+                    <Label text="Last Sold" styleClass="sales-stock-caption"/><Label fx:id="lblLastSoldPrice" text="Never sold" styleClass="sales-stock-value"/>
+                    <Button fx:id="btnApplyLastRate" text="Use Last Rate" onAction="#applyLastCustomerRate" visible="false" managed="false"
+                            styleClass="approved-button,approved-secondary-button,sales-price-rule-button"/>
+                    <Label text="Purchase Cost" styleClass="sales-stock-caption"/><Label fx:id="lblPurchaseCost" text="₹ 0.00" styleClass="sales-stock-value"/>
+                    <Label text="Live Margin" styleClass="sales-stock-caption"/><Label fx:id="lblLiveMargin" text="0.0%" styleClass="sales-stock-value"/>
+                    <Label fx:id="lblCustomerSlabChip" text="" visible="false" managed="false" styleClass="sales-stock-state"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="btnManageItemSlabs" text="Price Slabs" onAction="#manageCustomerPriceList"
+                            styleClass="approved-button,approved-secondary-button,sales-price-rule-button"/>
                 </HBox>
 
                 <TableView fx:id="tableLines" minHeight="190" VBox.vgrow="ALWAYS"

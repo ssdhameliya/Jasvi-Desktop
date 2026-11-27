@@ -110,7 +110,7 @@ public class AuthService {
 
         UserEntity user = users.findForAuthentication(identity).orElse(null);
         if (user != null && user.isLocked()) {
-            return failedLogin(lockMessage(user));
+            return lockedLoginResponse(user);
         }
 
         if (user == null) {
@@ -136,13 +136,13 @@ public class AuthService {
                 return failedLogin("Too many sign-in attempts. Try again later.");
             }
             recordLoginFailure(source, identity);
-            return failedPassword(user, source);
+            return failedPassword(user, cleanClientIp(sourceAddress));
         }
         clearLoginThrottle(source, identity);
 
         if (!"APPROVED".equals(user.getApprovalStatus()) || !user.isActive())
             return failedLogin("Account Approval Pending. This account is not active for sign in.");
-        if (user.isLocked()) return failedLogin(lockMessage(user));
+        if (user.isLocked()) return lockedLoginResponse(user);
 
         String role = normalizeRole(user.getRoleName());
         if (role.isBlank() || !roleMaster.isActive(role))
@@ -194,18 +194,24 @@ public class AuthService {
 
     @Transactional
     public AuthDtos.LoginResponse completeLoginMfa(AuthDtos.LoginMfaCompleteRequest request) {
+        return completeLoginMfa(request, null);
+    }
+
+    @Transactional
+    public AuthDtos.LoginResponse completeLoginMfa(AuthDtos.LoginMfaCompleteRequest request, String sourceAddress) {
         if(request==null||request.challengeId()==null||request.challengeId().isBlank())throw new IllegalArgumentException("The MFA challenge is invalid or expired");
         Integer userId=totp.peekLogin(request.challengeId()); boolean authenticator=userId!=null;
         if(userId==null){ try{userId=otp.challengeUser(AuthOtpService.Purpose.LOGIN_MFA,request.challengeId());}catch(RuntimeException ignored){userId=null;} }
         if(userId==null)throw new IllegalArgumentException("The MFA challenge is invalid or expired");
         UserEntity user=users.findByIdForAuthentication(userId).orElseThrow(()->new IllegalArgumentException("The MFA challenge is invalid or expired"));
         String role=normalizeRole(user.getRoleName());
-        if(!user.isActive()||user.isLocked()||!"APPROVED".equals(user.getApprovalStatus())||role.isBlank()||!roleMaster.isActive(role)||!requiresMfa(user,role))return failedLogin(user.isLocked()?lockMessage(user):"This account is not available for sign in.");
+        if (user.isLocked()) return lockedLoginResponse(user);
+        if(!user.isActive()||!"APPROVED".equals(user.getApprovalStatus())||role.isBlank()||!roleMaster.isActive(role)||!requiresMfa(user,role))return failedLogin("This account is not available for sign in.");
         boolean wasEnrollmentPending = authenticator && enrollmentPending(userId);
         boolean verified;
         if(authenticator){ verified=totp.verifyEncrypted(user.getTotpSecretEnc(),request.otp()); if(verified)totp.consumeLogin(request.challengeId()); }
         else { try{var v=otp.verify(AuthOtpService.Purpose.LOGIN_MFA,request.challengeId(),request.otp());verified=v.userId()!=null&&v.userId().equals(userId);}catch(IllegalArgumentException ex){verified=false;} }
-        if(!verified)return failedMfa(user);
+        if(!verified)return failedMfa(user, cleanClientIp(sourceAddress));
         if(wasEnrollmentPending){
             clearEnrollmentPending(userId);
             audit(userId,"MFA_ENROLLMENT_COMPLETED","Authenticator enrollment verified and activated",user.getUsername());
@@ -535,9 +541,15 @@ public class AuthService {
 
     @Transactional
     public AuthDtos.OperationResponse completePasswordReset(AuthDtos.PasswordResetCompleteRequest request) {
+        return completePasswordReset(request, null);
+    }
+
+    @Transactional
+    public AuthDtos.OperationResponse completePasswordReset(AuthDtos.PasswordResetCompleteRequest request, String sourceAddress) {
         if (request == null) return new AuthDtos.OperationResponse(false, "Invalid password reset request");
         String passwordError = passwordError(request.password());
         if (passwordError != null) return new AuthDtos.OperationResponse(false, passwordError);
+        String clientIp = cleanClientIp(sourceAddress);
 
         AuthOtpService.Verified verified;
         try {
@@ -550,11 +562,14 @@ public class AuthService {
             if (targetUserId != null) {
                 UserEntity targetUser = users.findById(targetUserId).orElse(null);
                 if (targetUser != null && targetUser.isLocked() && !isSuperAdminUser(targetUser)) {
-                    autoLock(targetUser, LOCK_PERMANENT, "Incorrect OTP during password recovery on locked account");
+                    String ticketId = escalateOrReusePermanentTicket(targetUser,
+                            "Incorrect OTP during password recovery on locked account", clientIp);
                     otp.invalidate(AuthOtpService.Purpose.PASSWORD_RESET, "user:" + targetUserId);
                     boolean isAdmin = isAdminUser(targetUser);
                     String contact = isAdmin ? "Super Admin" : "an Administrator";
-                    return new AuthDtos.OperationResponse(false, "Verification failed. Because this account was already locked, your ID is now permanently locked. Only " + contact + " can unlock or reset your account.");
+                    return permanentLockResetResponse(
+                            "Verification failed. Because this account was already locked, your ID is now permanently locked.",
+                            contact, ticketId);
                 }
             }
             return new AuthDtos.OperationResponse(false, "The verification code is invalid or expired.");
@@ -568,7 +583,10 @@ public class AuthService {
 
         if (!isSuperAdmin) {
             if (LOCK_PERMANENT.equals(user.getLockReason()) || LOCK_ADMIN.equals(user.getLockReason())) {
-                return new AuthDtos.OperationResponse(false, "This account is permanently locked. Self-service password reset is disabled. Please contact " + contact + ".");
+                String activeTicket = LOCK_PERMANENT.equals(user.getLockReason()) ? findActiveIncidentTicketId(user.getId()) : null;
+                return new AuthDtos.OperationResponse(false,
+                        "This account is permanently locked. Self-service password reset is disabled. Please contact " + contact + ".",
+                        activeTicket);
             }
 
             if (isResetToday(user.getLastPasswordResetUtc())) {
@@ -583,17 +601,23 @@ public class AuthService {
             if (!totp.verifyEncrypted(user.getTotpSecretEnc(), request.totp())) {
                 boolean wasLocked = user.isLocked();
                 if (wasLocked && !isSuperAdmin) {
-                    autoLock(user, LOCK_PERMANENT, "Incorrect authenticator code during password recovery on locked account");
+                    String ticketId = escalateOrReusePermanentTicket(user,
+                            "Incorrect authenticator code during password recovery on locked account", clientIp);
                     otp.invalidate(AuthOtpService.Purpose.PASSWORD_RESET, "user:" + user.getId());
-                    return new AuthDtos.OperationResponse(false, "Verification failed. Because this account was already locked, your ID is now permanently locked. Only " + contact + " can unlock or reset your account.");
+                    return permanentLockResetResponse(
+                            "Verification failed. Because this account was already locked, your ID is now permanently locked.",
+                            contact, ticketId);
                 }
                 int attempt = user.recordFailedMfaAttempt();
                 audit(user.getId(), "PASSWORD_RESET_MFA_FAILED", "Incorrect authenticator code during reset (attempt " + attempt + " of " + MAX_MFA_ATTEMPTS + ")", user.getUsername());
                 if (attempt >= MAX_MFA_ATTEMPTS) {
                     if (!isSuperAdmin) {
-                        autoLock(user, LOCK_PERMANENT, "Three incorrect MFA verification-code attempts during password reset");
+                        String ticketId = escalatePermanentLock(user,
+                                "Three incorrect MFA verification-code attempts during password reset", clientIp);
                         otp.invalidate(AuthOtpService.Purpose.PASSWORD_RESET, "user:" + user.getId());
-                        return new AuthDtos.OperationResponse(false, "Incorrect authenticator code. Failed attempt 3 of 3. Your account has been permanently locked. Contact " + contact + ".");
+                        return permanentLockResetResponse(
+                                "Incorrect authenticator code. Failed attempt 3 of 3. Your account has been permanently locked.",
+                                contact, ticketId);
                     }
                 }
                 String suffix = attempt == MAX_MFA_ATTEMPTS - 1
@@ -701,22 +725,10 @@ public class AuthService {
         boolean isAdmin = isAdminUser(user);
         String contact = isAdmin ? "Super Admin" : "an Administrator";
         if (attempt >= MAX_PASSWORD_ATTEMPTS) {
-            String ticketId = null;
-            if (isAdminUser(user) && securityIncidentNotifier != null) {
-                ticketId = securityIncidentNotifier.notifyAccountLockedAsync(user, LOCK_FAILED_PASSWORD, "Three incorrect password attempts", clientIp);
-                user.setLocked(true);
-                user.setLockReason(LOCK_FAILED_PASSWORD);
-                tokens.revokeUser(user.getId());
-                audit(user.getId(), "ACCOUNT_AUTO_LOCKED", "Three incorrect password attempts", "SYSTEM");
-            } else {
-                autoLock(user, LOCK_FAILED_PASSWORD, "Three incorrect password attempts", clientIp);
-            }
-            String resetMsg = isResetToday(user.getLastPasswordResetUtc())
-                    ? "Daily password reset limit reached. Super Admin has been notified to unlock your account."
-                    : "You may reset it once today via Forgot Password, or contact " + contact + ".";
-            return new AuthDtos.LoginResponse(false, null,
-                    "Incorrect password. Failed attempt 3 of 3. Your " + (isAdmin ? "Administrator " : "") + "account has been locked. " + resetMsg,
-                    null, null, false, null, null, ticketId);
+            String ticketId = applyRecoverableOrPermanentThresholdLock(
+                    user, LOCK_FAILED_PASSWORD, "Three incorrect password attempts", clientIp);
+            return thresholdLockLoginResponse(
+                    "Incorrect password. Failed attempt 3 of 3. ", user, isAdmin, contact, ticketId);
         }
         if (attempt == MAX_PASSWORD_ATTEMPTS - 1) {
             return failedLogin("Invalid email/username or password. Failed attempt " + attempt + " of " + MAX_PASSWORD_ATTEMPTS + ". Warning: One attempt remains before this account is locked.");
@@ -724,33 +736,119 @@ public class AuthService {
         return failedLogin("Invalid email/username or password. Failed attempt " + attempt + " of " + MAX_PASSWORD_ATTEMPTS + ".");
     }
 
-    private AuthDtos.LoginResponse failedMfa(UserEntity user) {
+    private AuthDtos.LoginResponse failedMfa(UserEntity user, String clientIp) {
         int attempt = user.recordFailedMfaAttempt();
         audit(user.getId(), "MFA_LOGIN_FAILED", "Incorrect sign-in verification code (attempt " + attempt + " of " + MAX_MFA_ATTEMPTS + ")", user.getUsername());
         boolean isAdmin = isAdminUser(user);
         String contact = isAdmin ? "Super Admin" : "an Administrator";
         if (attempt >= MAX_MFA_ATTEMPTS) {
-            autoLock(user, LOCK_FAILED_MFA, "Three incorrect MFA verification-code attempts", null);
+            String ticketId = applyRecoverableOrPermanentThresholdLock(
+                    user, LOCK_FAILED_MFA, "Three incorrect MFA verification-code attempts", clientIp);
             otp.invalidate(AuthOtpService.Purpose.LOGIN_MFA, "user:" + user.getId());
-            return failedLogin("Incorrect verification code. Failed attempt 3 of 3. Your " + (isAdmin ? "Administrator " : "") + "account has been locked. You may reset it once today via Forgot Password, or contact " + contact + ".");
+            return thresholdLockLoginResponse(
+                    "Incorrect verification code. Failed attempt 3 of 3. ", user, isAdmin, contact, ticketId);
         }
         String suffix = attempt == MAX_MFA_ATTEMPTS - 1
                 ? " Warning: One attempt remains before this account is locked." : "";
         return failedLogin("Incorrect verification code. Failed attempt " + attempt + " of " + MAX_MFA_ATTEMPTS + "." + suffix);
     }
 
-    private void autoLock(UserEntity user, String reason, String detail) {
-        autoLock(user, reason, detail, null);
+    private AuthDtos.LoginResponse thresholdLockLoginResponse(
+            String prefix, UserEntity user, boolean isAdmin, String contact, String ticketId) {
+        String accountLabel = isAdmin ? "Administrator account" : "account";
+        if (LOCK_PERMANENT.equals(user.getLockReason())) {
+            String reason = isResetToday(user.getLastPasswordResetUtc())
+                    ? "Daily password reset limit reached."
+                    : "No registered email address is available for self-service recovery.";
+            String ticketNote = hasText(ticketId)
+                    ? " " + contact + " has been notified (Ticket #" + ticketId + ") to unlock your account."
+                    : " " + contact + " has been notified to unlock your account.";
+            return new AuthDtos.LoginResponse(false, null,
+                    prefix + "Your " + accountLabel + " has been permanently locked. " + reason + ticketNote,
+                    null, null, false, null, null, ticketId);
+        }
+        String recoveryNote = isAdmin && !isSuperAdminUser(user)
+                ? "Use Forgot Password to reset it once today (1 attempt — failing once will permanently lock your ID and notify Super Admin), or contact Super Admin."
+                : "You may reset it once today via Forgot Password, or contact " + contact + ".";
+        return failedLogin(prefix + "Your " + accountLabel + " has been locked. " + recoveryNote);
     }
 
-    private void autoLock(UserEntity user, String reason, String detail, String clientIp) {
+    private AuthDtos.OperationResponse permanentLockResetResponse(String prefix, String contact, String ticketId) {
+        String note = hasText(ticketId)
+                ? " " + contact + " has been notified (Ticket #" + ticketId + ") to unlock or reset your account."
+                : " Only " + contact + " can unlock or reset your account.";
+        return new AuthDtos.OperationResponse(false, prefix + note, ticketId);
+    }
+
+    private AuthDtos.LoginResponse lockedLoginResponse(UserEntity user) {
+        String ticketId = isEscalatedLockReason(user.getLockReason()) ? findActiveIncidentTicketId(user.getId()) : null;
+        return new AuthDtos.LoginResponse(false, null, lockMessage(user), null, null, false, null, null, ticketId);
+    }
+
+    private String applyRecoverableOrPermanentThresholdLock(UserEntity user, String lockReason, String detail, String clientIp) {
+        if (isAdminUser(user) && !isSuperAdminUser(user) && !canSelfResetPassword(user)) {
+            return escalatePermanentLock(user, detail + " (self-service password reset unavailable)", clientIp);
+        }
+        lockAccount(user, lockReason, detail);
+        return null;
+    }
+
+    private String escalateOrReusePermanentTicket(UserEntity user, String detail, String clientIp) {
+        if (LOCK_PERMANENT.equals(user.getLockReason())) {
+            return findActiveIncidentTicketId(user.getId());
+        }
+        return escalatePermanentLock(user, detail, clientIp);
+    }
+
+    private void lockAccount(UserEntity user, String reason, String detail) {
         user.setLocked(true);
         user.setLockReason(reason);
         tokens.revokeUser(user.getId());
         audit(user.getId(), "ACCOUNT_AUTO_LOCKED", detail, "SYSTEM");
-        if (isAdminUser(user) && securityIncidentNotifier != null) {
-            securityIncidentNotifier.notifyAccountLockedAsync(user, reason, detail, clientIp);
+    }
+
+    private String escalatePermanentLock(UserEntity user, String detail, String clientIp) {
+        lockAccount(user, LOCK_PERMANENT, detail);
+        if (isAdminUser(user) && !isSuperAdminUser(user) && securityIncidentNotifier != null) {
+            return securityIncidentNotifier.notifyAccountLockedAsync(user, LOCK_PERMANENT, detail, clientIp);
         }
+        return null;
+    }
+
+    private boolean canSelfResetPassword(UserEntity user) {
+        return user != null
+                && !isResetToday(user.getLastPasswordResetUtc())
+                && hasText(user.getEmail());
+    }
+
+    private static boolean isEscalatedLockReason(String lockReason) {
+        return LOCK_PERMANENT.equals(lockReason) || LOCK_ADMIN.equals(lockReason);
+    }
+
+    private String findActiveIncidentTicketId(int userId) {
+        try {
+            var rows = db.queryForList(
+                    "SELECT ticket_id FROM emergency_security_action " +
+                    "WHERE user_id = ? AND used = FALSE AND expires_at > CURRENT_TIMESTAMP " +
+                    "ORDER BY id DESC LIMIT 1",
+                    userId
+            );
+            if (!rows.isEmpty() && rows.get(0).get("ticket_id") != null) {
+                String ticket = String.valueOf(rows.get(0).get("ticket_id")).trim();
+                return ticket.isEmpty() ? null : ticket;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private static String cleanClientIp(String sourceAddress) {
+        if (sourceAddress == null) return null;
+        String trimmed = sourceAddress.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     public java.util.Map<String, Object> getAccountStatus(String identity) {
@@ -763,16 +861,9 @@ public class AuthService {
         }
         UserEntity u = userOpt.get();
         String activeTicketId = "";
-        if (u.isLocked()) {
-            try {
-                var rows = db.queryForList(
-                        "SELECT ticket_id FROM emergency_security_action WHERE user_id = ? ORDER BY id DESC LIMIT 1",
-                        u.getId()
-                );
-                if (!rows.isEmpty() && rows.get(0).get("ticket_id") != null) {
-                    activeTicketId = String.valueOf(rows.get(0).get("ticket_id"));
-                }
-            } catch (Exception ignored) {}
+        if (u.isLocked() && isEscalatedLockReason(u.getLockReason())) {
+            String found = findActiveIncidentTicketId(u.getId());
+            if (found != null) activeTicketId = found;
         }
         return java.util.Map.of(
                 "exists", true,
@@ -788,9 +879,12 @@ public class AuthService {
     private String lockMessage(UserEntity user) {
         boolean isAdmin = isAdminUser(user);
         String contact = isAdmin ? "Super Admin" : "an Administrator";
+        String recoverableNote = isAdmin && !isSuperAdminUser(user)
+                ? "Use Forgot Password (1 attempt — failing once permanently locks your ID and alerts Super Admin) or contact Super Admin."
+                : "Use Forgot Password or contact " + contact + ".";
         return switch (user.getLockReason()) {
-            case LOCK_FAILED_PASSWORD -> "This account is locked after 3 incorrect password attempts. Use Forgot Password or contact " + contact + ".";
-            case LOCK_FAILED_MFA -> "This account is locked after 3 incorrect verification-code attempts. Use Forgot Password or contact " + contact + ".";
+            case LOCK_FAILED_PASSWORD -> "This account is locked after 3 incorrect password attempts. " + recoverableNote;
+            case LOCK_FAILED_MFA -> "This account is locked after 3 incorrect verification-code attempts. " + recoverableNote;
             case LOCK_ADMIN -> "This account is locked by an administrator. Contact " + contact + ".";
             case LOCK_PERMANENT -> "This account has been permanently locked due to failed security verification. Contact " + contact + ".";
             default -> "This account is locked. Contact " + contact + ".";
@@ -894,12 +988,24 @@ public class AuthService {
     }
 
     private void sendAuthenticatorEnrollment(String email, String username, TotpService.Setup setup) {
-        String body = "Authenticator enrollment for " + mail.companyName() + "\n"
-                + "Username: " + username + "\n"
-                + "Manual setup key: " + setup.manualSecret() + "\n"
-                + "Provisioning URI: " + setup.provisioningUri() + "\n\n"
-                + "Add this account to Google Authenticator, Microsoft Authenticator, or another RFC-6238 compatible app before signing in.";
-        mail.sendBusiness(email, mail.companyName() + " authenticator enrollment", body, java.util.List.of());
+        String company = mail.companyName();
+        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(db);
+        var rendered = templates.renderEmail(
+                "mfa_enrollment",
+                java.util.Map.of(
+                        "CompanyName", company,
+                        "AppName", company + " ERP",
+                        "Username", username == null ? "" : username,
+                        "ManualSecret", setup.manualSecret(),
+                        "ProvisioningUri", setup.provisioningUri()
+                ),
+                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                        "#0f172a", "#0369a1", "Authenticator Setup",
+                        company + " Authenticator Enrollment", java.util.List.of(),
+                        "MFA Enrollment Advisory • " + company
+                )
+        );
+        mail.sendBusiness(email, rendered.subject(), rendered.body(), java.util.List.of());
     }
 
     private boolean loginBlocked(String source, String identity) {
@@ -986,19 +1092,19 @@ public class AuthService {
 
     private boolean requiresMfa(UserEntity user, String role) {
         String r = normalizeRole(role);
-        if ("SUPER_ADMIN".equals(r) || (user != null && "superadmin".equalsIgnoreCase(user.getUsername()))) return false;
         String policy = mfaPolicy();
         if ("DISABLED".equals(policy)) return false;
         if ("ADMIN_CONTROLLED".equals(policy)) return user != null && user.isMfaEnabled();
+        if ("SUPER_ADMIN".equals(r) || (user != null && "superadmin".equalsIgnoreCase(user.getUsername()))) return false;
         return true;
     }
 
     private boolean mfaForRequestedUser(String role, boolean requested) {
         String r = normalizeRole(role);
-        if ("SUPER_ADMIN".equals(r)) return false;
         String policy = mfaPolicy();
         if ("DISABLED".equals(policy)) return false;
         if ("ADMIN_CONTROLLED".equals(policy)) return requested;
+        if ("SUPER_ADMIN".equals(r)) return false;
         return true;
     }
 

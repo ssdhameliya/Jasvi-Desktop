@@ -2,6 +2,7 @@ package org.example.server.runtime;
 
 import org.example.server.util.BusinessClock;
 import org.example.shared.RuntimeContract;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,7 +25,24 @@ public class RuntimeController {
     private final String minimumSupportedIosVersion;
     private final String latestIosVersion;
     private final String environment;
+    private final String devSourceFingerprint;
 
+    public RuntimeController(RuntimeService runtimeService,
+                             String version,
+                             String apiRevision,
+                             String buildRevision,
+                             String minimumSupportedDesktopVersion,
+                             String minimumSupportedAndroidVersion,
+                             String latestAndroidVersion,
+                             String minimumSupportedIosVersion,
+                             String latestIosVersion,
+                             String environment) {
+        this(runtimeService, version, apiRevision, buildRevision, minimumSupportedDesktopVersion,
+                minimumSupportedAndroidVersion, latestAndroidVersion, minimumSupportedIosVersion,
+                latestIosVersion, environment, "");
+    }
+
+    @Autowired
     public RuntimeController(RuntimeService runtimeService,
                              @Value("${dse.app.version:DEV}") String version,
                              @Value("${dse.api.revision:" + RuntimeContract.API_REVISION + "}") String apiRevision,
@@ -34,7 +52,8 @@ public class RuntimeController {
                              @Value("${dse.latest-android-version:}") String latestAndroidVersion,
                              @Value("${dse.minimum-supported-ios-version:}") String minimumSupportedIosVersion,
                              @Value("${dse.latest-ios-version:}") String latestIosVersion,
-                             @Value("${dse.deployment.environment:LOCAL}") String environment) {
+                             @Value("${dse.deployment.environment:LOCAL}") String environment,
+                             @Value("${dse.dev.source.fingerprint:}") String devSourceFingerprint) {
         this.runtimeService = runtimeService;
         this.version = version;
         this.apiRevision = apiRevision;
@@ -45,6 +64,7 @@ public class RuntimeController {
         this.minimumSupportedIosVersion = configuredOrDefault(minimumSupportedIosVersion, RuntimeContract.iosCompatibilityBaseline());
         this.latestIosVersion = configuredOrDefault(latestIosVersion, RuntimeContract.iosLatestVersion());
         this.environment = normalizeEnvironment(environment);
+        this.devSourceFingerprint = devSourceFingerprint == null ? "" : devSourceFingerprint.trim();
     }
 
     @GetMapping("/health")
@@ -83,6 +103,9 @@ public class RuntimeController {
         result.put("minimumSupportedIosVersion", minimumSupportedIosVersion);
         result.put("latestIosVersion", latestIosVersion);
         result.put("environment", environment);
+        if (!devSourceFingerprint.isBlank()) {
+            result.put("devSourceFingerprint", devSourceFingerprint);
+        }
     }
 
     private static String configuredOrDefault(String value, String fallback) {

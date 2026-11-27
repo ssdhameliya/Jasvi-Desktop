@@ -132,4 +132,47 @@ class SearchableComboBoxHelperTest {
             throw new AssertionError(failure.get());
         }
     }
+
+    @Test
+    void enumComboNeverStoresRawStringOnCommitOrFromString() throws Exception {
+        if (!javaFxAvailable) return;
+
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+
+        Platform.runLater(() -> {
+            try {
+                ComboBox<org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode> combo = new ComboBox<>();
+                combo.getItems().setAll(
+                        org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.HTML,
+                        org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.STANDARD
+                );
+                combo.setValue(org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.HTML);
+
+                // Simulate global screen enhancement calling makeAllSearchable (textExtractor == null)
+                javafx.scene.layout.VBox root = new javafx.scene.layout.VBox(combo);
+                SearchableComboBoxHelper.makeAllSearchable(root);
+
+                assertFalse(SearchableComboBoxHelper.isJavaFxDefaultConverter(combo.getConverter()),
+                        "JavaFX default String-returning converter must be replaced");
+
+                Object resolved = combo.getConverter().fromString("Standard Plain Text");
+                assertInstanceOf(org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.class, resolved);
+                assertEquals(org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.STANDARD, resolved);
+
+                Object unmatched = combo.getConverter().fromString("HTML");
+                assertInstanceOf(org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.class, unmatched);
+                assertEquals(org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.HTML, unmatched);
+            } catch (Throwable t) {
+                failure.set(t);
+            } finally {
+                done.countDown();
+            }
+        });
+
+        assertTrue(done.await(5, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            throw new AssertionError(failure.get());
+        }
+    }
 }

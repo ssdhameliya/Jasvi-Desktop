@@ -83,7 +83,12 @@ public final class AuthApiClient {
         LoginResponse response = postAt(loginBase, "/api/auth/login/mfa/complete",
                 new LoginMfaCompleteRequest(challengeId, otp), LoginResponse.class);
         if (response == null || !response.success() || response.mfaRequired()) {
-            throw new IllegalStateException(response == null ? "MFA verification failed" : response.message());
+            String message = response == null || response.message() == null || response.message().isBlank()
+                    ? "MFA verification failed" : response.message();
+            if (response != null && response.incidentTicketId() != null && !response.incidentTicketId().isBlank()) {
+                throw new AccountLockoutException(message, response.incidentTicketId());
+            }
+            throw new IllegalStateException(message);
         }
         establishSession(response, loginBase);
         pendingLoginBaseUrl = null;
@@ -221,8 +226,14 @@ public final class AuthApiClient {
     public void completePasswordReset(String challengeId, String otp, String totp, String password) {
         OperationResponse response = post("/api/auth/password-reset/complete",
                 new PasswordResetCompleteRequest(challengeId, otp, totp, password), OperationResponse.class);
-        if (response == null || !response.success())
-            throw new IllegalStateException(response == null ? "Password reset failed" : response.message());
+        if (response == null || !response.success()) {
+            String message = response == null || response.message() == null || response.message().isBlank()
+                    ? "Password reset failed" : response.message();
+            if (response != null && response.incidentTicketId() != null && !response.incidentTicketId().isBlank()) {
+                throw new AccountLockoutException(message, response.incidentTicketId());
+            }
+            throw new IllegalStateException(message);
+        }
     }
 
     public void extendSession() {
@@ -361,6 +372,13 @@ public final class AuthApiClient {
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if ((response.statusCode() == 401 || response.statusCode() == 403) && responseType == LoginResponse.class) {
                 return json.readValue(response.body(), responseType);
+            }
+            if (response.statusCode() == 400 && responseType == OperationResponse.class) {
+                try {
+                    return json.readValue(response.body(), responseType);
+                } catch (Exception ignored) {
+                    throw new IllegalStateException(apiErrorMessage(response));
+                }
             }
             if (response.statusCode() == 401 || response.statusCode() == 404) return null;
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -508,7 +526,11 @@ public final class AuthApiClient {
     }
     public record LoginAttempt(AppUser user, boolean mfaRequired, String challengeId, String maskedDestination,
                                boolean enrollmentRequired, LoginMfaEnrollmentResponse enrollment) {}
-    public record OperationResponse(boolean success, String message) {}
+    public record OperationResponse(boolean success, String message, String incidentTicketId) {
+        public OperationResponse(boolean success, String message) {
+            this(success, message, null);
+        }
+    }
     public record EffectivePermission(String module, String action, String description) {}
     public record RoleOption(String code, String displayName) {
         @Override public String toString() { return displayName; }

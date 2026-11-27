@@ -6,6 +6,8 @@ public final class BankReconciliationDtos {
  public record ImportRow(Integer sourceRowNumber,String transactionTimestamp,String transactionDate,String valueDate,String description,String reference,double debit,double credit,double balance,String transactionFingerprint){}
  public record ImportRequest(String bankName,String bankAccount,String accountHolder,String statementFrom,String statementTo,String currency,Double openingBalance,Double closingBalance,String sourceFingerprint,String sourceFileName,String sourceCsv,String importedBy,boolean dryRun,List<ImportRow> rows){}
  public record ImportResult(BatchDto batch,int importedRows,int duplicateRows,boolean alreadyImported){}
+ public record ContinuityCheckRequest(String bankAccount,String statementFrom,String statementTo,Double openingBalance,Double closingBalance){}
+ public record ContinuityCheckResult(boolean hasPriorBatch,Long priorBatchId,String priorBatchRef,String priorFrom,String priorTo,Double priorClosingBalance,int gapDays,boolean overlapDetected,boolean balanceMismatch,double balanceDifference,String severity,List<String> warnings){}
  public record BatchDto(Long id,String statementReference,String bankName,String bankAccount,String accountHolder,String statementFrom,String statementTo,String currency,int transactionCount,double totalDebit,double totalCredit,int reconciledCount,double reconciliationPercent,String status,String sourceFileName,String importedAt){
   public BatchDto(Long id,String bankName,String bankAccount,String accountHolder,String statementFrom,String statementTo,String currency,int transactionCount,double totalDebit,double totalCredit,int reconciledCount,double reconciliationPercent,String status,String sourceFileName,String importedAt){
    this(id,null,bankName,bankAccount,accountHolder,statementFrom,statementTo,currency,transactionCount,totalDebit,totalCredit,reconciledCount,reconciliationPercent,status,sourceFileName,importedAt);
@@ -24,7 +26,10 @@ public final class BankReconciliationDtos {
   }
  }
  public record TransactionPage(List<TransactionDto> rows,Metrics metrics,int page,int size,long totalRows,int totalPages){}
- public record CandidateDto(String type,Integer id,String documentNo,String partyName,String documentDate,double totalAmount,double paidAmount,double outstanding,double confidence,String matchReason){
+ public record CandidateDto(String type,Integer id,String documentNo,String partyName,String documentDate,double totalAmount,double paidAmount,double outstanding,double confidence,String matchReason,double taxableAmount,double suggestedTdsAmount,String suggestedTdsLabel,double suggestedRounding,List<AllocationRequest> splitAllocations){
+  public CandidateDto(String type,Integer id,String documentNo,String partyName,String documentDate,double totalAmount,double paidAmount,double outstanding,double confidence,String matchReason){
+   this(type,id,documentNo,partyName,documentDate,totalAmount,paidAmount,outstanding,confidence,matchReason,totalAmount,0d,"",0d,List.of());
+  }
   public CandidateDto(String type,Integer id,String documentNo,String partyName,String documentDate,double totalAmount,double paidAmount,double outstanding,double confidence){
    this(type,id,documentNo,partyName,documentDate,totalAmount,paidAmount,outstanding,confidence,"");
   }
@@ -58,9 +63,21 @@ public final class BankReconciliationDtos {
   }
  }
  public record DocumentLinkageDto(boolean linked,String queryType,String queryRef,List<LinkageItemDto> linkages){}
- public record RuleDto(Long id,String ruleName,String matchField,String matchOperator,String matchPattern,String direction,String actionType,String targetCategory,String targetAccountName,String targetPaymentMode,String targetNotes,String executionMode,int priority,boolean active,int hitCount,String lastMatchedAt,String createdBy,String createdAt,String updatedAt){}
- public record RuleSaveRequest(String ruleName,String matchField,String matchOperator,String matchPattern,String direction,String actionType,String targetCategory,String targetAccountName,String targetPaymentMode,String targetNotes,String executionMode,Integer priority,Boolean active){}
+ public record RuleDto(Long id,String ruleName,String matchField,String matchOperator,String matchPattern,String direction,String actionType,String targetCategory,String targetAccountName,String targetPaymentMode,String targetNotes,String executionMode,int priority,boolean active,int hitCount,String lastMatchedAt,String createdBy,String createdAt,String updatedAt,Double minAmount,Double maxAmount,String channelFilter,String bankAccountFilter,Integer targetPartyId,String targetContraAccount){
+  public RuleDto(Long id,String ruleName,String matchField,String matchOperator,String matchPattern,String direction,String actionType,String targetCategory,String targetAccountName,String targetPaymentMode,String targetNotes,String executionMode,int priority,boolean active,int hitCount,String lastMatchedAt,String createdBy,String createdAt,String updatedAt){
+   this(id,ruleName,matchField,matchOperator,matchPattern,direction,actionType,targetCategory,targetAccountName,targetPaymentMode,targetNotes,executionMode,priority,active,hitCount,lastMatchedAt,createdBy,createdAt,updatedAt,null,null,null,null,null,null);
+  }
+ }
+ public record RuleSaveRequest(String ruleName,String matchField,String matchOperator,String matchPattern,String direction,String actionType,String targetCategory,String targetAccountName,String targetPaymentMode,String targetNotes,String executionMode,Integer priority,Boolean active,Double minAmount,Double maxAmount,String channelFilter,String bankAccountFilter,Integer targetPartyId,String targetContraAccount){
+  public RuleSaveRequest(String ruleName,String matchField,String matchOperator,String matchPattern,String direction,String actionType,String targetCategory,String targetAccountName,String targetPaymentMode,String targetNotes,String executionMode,Integer priority,Boolean active){
+   this(ruleName,matchField,matchOperator,matchPattern,direction,actionType,targetCategory,targetAccountName,targetPaymentMode,targetNotes,executionMode,priority,active,null,null,null,null,null,null);
+  }
+ }
  public record RulePreviewMatchDto(Long transactionId,String transactionDate,String description,String reference,double amount,String direction,String matchedRuleName,String actionType,String targetSummary,String executionMode){}
  public record RulePreviewResult(boolean enabled,int totalOpenRows,int matchedRows,double matchedTotalAmount,List<RulePreviewMatchDto> matches){}
  public record RuleApplyResult(boolean enabled,int suggestedCount,int autoAppliedCount,int skippedCount,String message){}
+ public record AutoMatchSuggestionDto(TransactionDto tx,String kind,CandidateDto candidate,Long ruleId,String ruleName,String ruleActionType,String ruleTargetCategory,String ruleTargetAccountName,String ruleTargetPaymentMode,String ruleTargetNotes,Integer ruleTargetPartyId,String contraAccountName,Long contraPairTxId,double varianceAmount,String reasonSummary,double confidence,boolean autoSelectable){}
+ public record AutoMatchPreviewDto(int scannedOpenCount,int eligibleCount,double eligibleTotalAmount,List<AutoMatchSuggestionDto> suggestions){}
+ public record RuleSuggestionCandidateDto(String suggestedName,String matchPattern,String direction,String actionType,String targetCategory,String targetAccountName,int historyCount,double totalAmount){}
+ public record PartyOptionDto(int id,String name,String partyType){}
 }

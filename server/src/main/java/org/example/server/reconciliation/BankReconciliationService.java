@@ -25,6 +25,8 @@ import java.math.RoundingMode;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.regex.Pattern;
+import org.example.shared.BankNarrationParser;
 
 @Service
 public class BankReconciliationService {
@@ -60,6 +62,76 @@ public class BankReconciliationService {
   }
   if(added==0){imports.delete(b);return new BankReconciliationDtos.ImportResult(null,0,dupes,false);}
   b.setTransactionCount(added);b.setTotalDebit(debit);b.setTotalCredit(credit);imports.save(b);if(ruleService!=null){try{ruleService.applyRulesToBatch(b.getId(),true,actor);}catch(Exception ignored){}}refreshBatch(b.getId());return new BankReconciliationDtos.ImportResult(batch(b),added,dupes,false);
+ }
+
+ @Transactional(readOnly=true)
+ public BankReconciliationDtos.ContinuityCheckResult checkContinuity(BankReconciliationDtos.ContinuityCheckRequest r){
+  if(r==null||blank(r.bankAccount())){
+   return new BankReconciliationDtos.ContinuityCheckResult(false,null,"","","",null,0,false,false,0d,"FIRST_BATCH",List.of());
+  }
+  LocalDate newFrom=date(r.statementFrom()),newTo=date(r.statementTo());
+  List<BankStatementImportEntity> accountBatches=imports.findAll().stream()
+   .filter(b->accountsMatch(b.getBankAccount(),r.bankAccount()))
+   .sorted(Comparator.comparing((BankStatementImportEntity b)->Optional.ofNullable(date(b.getStatementTo())).orElse(LocalDate.MIN))
+    .thenComparing(BankStatementImportEntity::getId))
+   .toList();
+  if(accountBatches.isEmpty()){
+   return new BankReconciliationDtos.ContinuityCheckResult(false,null,"","","",null,0,false,false,0d,"FIRST_BATCH",List.of());
+  }
+  List<String> warnings=new ArrayList<>();
+  boolean overlap=false;
+  if(newFrom!=null&&newTo!=null){
+   for(var existing:accountBatches){
+    LocalDate exFrom=date(existing.getStatementFrom()),exTo=date(existing.getStatementTo());
+    if(exFrom!=null&&exTo!=null&&!exFrom.isAfter(newTo)&&!newFrom.isAfter(exTo)){
+     overlap=true;
+     warnings.add("Period overlaps existing batch ["+safe(existing.getStatementReference())+"] ("+safe(existing.getStatementFrom())+" to "+safe(existing.getStatementTo())+").");
+     break;
+    }
+   }
+  }
+  BankStatementImportEntity prior=null;
+  if(newFrom!=null){
+   for(int i=accountBatches.size()-1;i>=0;i--){
+    var cand=accountBatches.get(i);
+    LocalDate candEnd=date(cand.getStatementTo());
+    if(candEnd!=null&&!candEnd.isAfter(newFrom)){prior=cand;break;}
+   }
+  }
+  if(prior==null)prior=accountBatches.getLast();
+  LocalDate priorEnd=date(prior.getStatementTo());
+  int gapDays=0;
+  if(priorEnd!=null&&newFrom!=null){
+   long missing=ChronoUnit.DAYS.between(priorEnd,newFrom)-1;
+   if(missing>0){
+    gapDays=(int)Math.min(Integer.MAX_VALUE,missing);
+    LocalDate missStart=priorEnd.plusDays(1),missEnd=newFrom.minusDays(1);
+    warnings.add("Date gap of "+gapDays+" missing day(s) between batch ["+safe(prior.getStatementReference())+"] ending "+priorEnd+" and new start "+newFrom+" (missing "+missStart+(missEnd.equals(missStart)?"":" to "+missEnd)+").");
+   }
+  }
+  boolean balanceMismatch=false;
+  double balanceDiff=0d;
+  if(prior.getClosingBalance()!=null&&r.openingBalance()!=null){
+   balanceDiff=money(r.openingBalance()-prior.getClosingBalance());
+   if(Math.abs(balanceDiff)>0.01){
+    balanceMismatch=true;
+    warnings.add("Opening/Closing balance mismatch vs ["+safe(prior.getStatementReference())+"]: prior closed at ₹"+fmt(prior.getClosingBalance())+", new file opens at ₹"+fmt(r.openingBalance())+" (Diff: "+signedMoney(balanceDiff)+").");
+   }
+  }
+  String severity=balanceMismatch?"ERROR":((overlap||gapDays>0)?"WARNING":"OK");
+  return new BankReconciliationDtos.ContinuityCheckResult(true,prior.getId(),safe(prior.getStatementReference()),safe(prior.getStatementFrom()),safe(prior.getStatementTo()),prior.getClosingBalance(),gapDays,overlap,balanceMismatch,balanceDiff,severity,List.copyOf(warnings));
+ }
+
+ private static boolean accountsMatch(String a,String b){
+  String c1=compact(a),c2=compact(b);
+  if(c1.isEmpty()||c2.isEmpty())return false;
+  if(c1.equalsIgnoreCase(c2))return true;
+  String d1=c1.replaceAll("[^0-9]",""),d2=c2.replaceAll("[^0-9]","");
+  if(!d1.isEmpty()&&d1.equals(d2))return true;
+  if(d1.length()>=4&&d2.length()>=4){
+   return d1.substring(d1.length()-4).equals(d2.substring(d2.length()-4));
+  }
+  return false;
  }
 
  public List<BankReconciliationDtos.BatchDto> batches(){return batchPage(0,20,"","","","","").rows();}
@@ -169,6 +241,7 @@ public class BankReconciliationService {
   String voucherNo=operations.nextBankEntryVoucher();
   FinanceRegisterEntity f=new FinanceRegisterEntity();f.setVoucherNo(voucherNo);f.setVoucherType(credit?"BANK DEPOSIT":"BANK WITHDRAWAL");f.setVoucherDate(t.getTransactionDate());f.setCategory(credit?"Deposit":"Withdrawal");f.setReferenceNo(t.getOriginalReference());f.setAmount(bank);f.setPaymentMode("Bank Statement");f.setNotes("Matched from imported bank statement: "+safe(t.getOriginalDescription()));f.setAccountName(t.getImportBatch().getBankName()+" - "+t.getImportBatch().getBankAccount());f.setReconciled(1);f.setCreatedAt(BusinessClock.nowUtcText());f=finance.save(f);
   double totalRounding=0d;
+  Integer singlePartyId = null;
   GeneralLedgerService gl = glProvider != null ? glProvider.getIfAvailable() : null;
   LocalDate reconDate = date(t.getTransactionDate());
   if (gl != null && reconDate != null) gl.ensurePeriodOpen(reconDate);
@@ -176,8 +249,8 @@ public class BankReconciliationService {
   boolean reconGlHasCash = false;
   for(var a:r.allocations()){
    double amount=money(a.amount());if(!Double.isFinite(amount)||amount<=0)throw new IllegalArgumentException("Allocation amount must be a finite number greater than zero.");String target=up(a.targetType());Integer partyId=null,paymentId=null;String docNo="",partyName="";double roundOff=0d;double allocationTds=0d;
-   if("SALE".equals(target)){var sale=sales.findByIdForUpdate(a.targetId()).orElseThrow(()->new IllegalArgumentException("Sales invoice not found."));if(cancelled(sale.getDocumentStatus())||approvalLocked(sale.getDocumentStatus()))throw new IllegalStateException("The selected Sales invoice is not eligible for reconciliation until Admin approval is complete.");double outstanding=Math.max(0,n(sale.getTotalAmount())-n(sale.getPaidAmount()));roundOff=roundingAdjustment(outstanding,amount,tolerance);double tdsAmt=0d;if(roundOff==0d&&outstanding>amount){double diff=money(outstanding-amount);if(isStatutoryTds(n(sale.getTotalAmount()),diff))tdsAmt=diff;}validateAllocation(amount,outstanding,roundOff+tdsAmt,sale.getInvoiceNo());double settled=money(amount+roundOff+tdsAmt),paid=n(sale.getPaidAmount())+settled;sale.setPaidAmount(paid);sale.setPaymentStatus(paid+.009>=n(sale.getTotalAmount())?"PAID":"PARTIAL");sales.save(sale);partyId=sale.getCustomer()==null?null:sale.getCustomer().getId();partyName=sale.getCustomer()==null?"":safe(sale.getCustomer().getName());docNo=sale.getInvoiceNo();allocationTds=tdsAmt;PaymentRecordEntity pr=new PaymentRecordEntity();pr.setDocumentType("SALE");pr.setDocumentId(a.targetId());pr.setPaymentDate(t.getTransactionDate());pr.setAmount(amount);pr.setPaymentMode("Bank Statement");pr.setReferenceNo(t.getOriginalReference());pr.setPaymentReference(operations.nextPaymentReference());pr.setNotes(reconciliationNote(t,roundOff)+(tdsAmt>0?" • Statutory TDS "+statutoryTdsLabel(n(sale.getTotalAmount()),tdsAmt)+" ₹"+fmt(tdsAmt):""));pr.setCreatedBy(org.example.server.security.CurrentUser.require().username());pr.setReceivedFrom("Bank Statement");pr.setPaymentType("BANK_RECONCILIATION");paymentId=payments.save(pr).getId();}
-   else if("PURCHASE".equals(target)){var purchase=purchases.findByIdForUpdate(a.targetId()).orElseThrow(()->new IllegalArgumentException("Purchase invoice not found."));if(cancelled(purchase.getDocumentStatus())||approvalLocked(purchase.getDocumentStatus())||purchaseLifecycleLocked(purchase.getDocumentStatus()))throw new IllegalStateException("The selected Purchase invoice is not eligible for reconciliation until it is approved and posted.");double outstanding=Math.max(0,n(purchase.getTotalAmount())-n(purchase.getPaidAmount()));roundOff=roundingAdjustment(outstanding,amount,tolerance);double tdsAmt=0d;if(roundOff==0d&&outstanding>amount){double diff=money(outstanding-amount);if(isStatutoryTds(n(purchase.getTotalAmount()),diff))tdsAmt=diff;}validateAllocation(amount,outstanding,roundOff+tdsAmt,purchase.getInvoiceNo());double settled=money(amount+roundOff+tdsAmt),paid=n(purchase.getPaidAmount())+settled;purchase.setPaidAmount(paid);purchase.setPaymentStatus(paid+.009>=n(purchase.getTotalAmount())?"PAID":"PARTIAL");purchases.save(purchase);partyId=purchase.getSupplier()==null?null:purchase.getSupplier().getId();partyName=purchase.getSupplier()==null?"":safe(purchase.getSupplier().getName());docNo=purchase.getInvoiceNo();allocationTds=tdsAmt;PaymentRecordEntity pr=new PaymentRecordEntity();pr.setDocumentType("PURCHASE");pr.setDocumentId(a.targetId());pr.setPaymentDate(t.getTransactionDate());pr.setAmount(amount);pr.setPaymentMode("Bank Statement");pr.setReferenceNo(t.getOriginalReference());pr.setPaymentReference(operations.nextPaymentReference());pr.setNotes(reconciliationNote(t,roundOff)+(tdsAmt>0?" • Statutory TDS "+statutoryTdsLabel(n(purchase.getTotalAmount()),tdsAmt)+" ₹"+fmt(tdsAmt):""));pr.setCreatedBy(org.example.server.security.CurrentUser.require().username());pr.setReceivedFrom(partyName);pr.setPaymentType("BANK_RECONCILIATION");paymentId=payments.save(pr).getId();}
+   if("SALE".equals(target)){var sale=sales.findByIdForUpdate(a.targetId()).orElseThrow(()->new IllegalArgumentException("Sales invoice not found."));if(cancelled(sale.getDocumentStatus())||approvalLocked(sale.getDocumentStatus()))throw new IllegalStateException("The selected Sales invoice is not eligible for reconciliation until Admin approval is complete.");double outstanding=Math.max(0,n(sale.getTotalAmount())-n(sale.getPaidAmount()));roundOff=roundingAdjustment(outstanding,amount,tolerance);double tdsAmt=0d;double taxable=n(sale.getSubtotal())>0?n(sale.getSubtotal()):n(sale.getTotalAmount());if(roundOff==0d&&outstanding>amount){double diff=money(outstanding-amount);if(isStatutoryTds(n(sale.getTotalAmount()),taxable,diff))tdsAmt=diff;}validateAllocation(amount,outstanding,roundOff+tdsAmt,sale.getInvoiceNo());double settled=money(amount+roundOff+tdsAmt),paid=n(sale.getPaidAmount())+settled;sale.setPaidAmount(paid);sale.setPaymentStatus(paid+.009>=n(sale.getTotalAmount())?"PAID":"PARTIAL");sales.save(sale);partyId=sale.getCustomer()==null?null:sale.getCustomer().getId();partyName=sale.getCustomer()==null?"":safe(sale.getCustomer().getName());docNo=sale.getInvoiceNo();allocationTds=tdsAmt;PaymentRecordEntity pr=new PaymentRecordEntity();pr.setDocumentType("SALE");pr.setDocumentId(a.targetId());pr.setPaymentDate(t.getTransactionDate());pr.setAmount(amount);pr.setPaymentMode("Bank Statement");pr.setReferenceNo(t.getOriginalReference());pr.setPaymentReference(operations.nextPaymentReference());pr.setNotes(reconciliationNote(t,roundOff)+(tdsAmt>0?" • Statutory TDS "+statutoryTdsLabel(n(sale.getTotalAmount()),taxable,tdsAmt)+" ₹"+fmt(tdsAmt):""));pr.setCreatedBy(org.example.server.security.CurrentUser.require().username());pr.setReceivedFrom("Bank Statement");pr.setPaymentType("BANK_RECONCILIATION");paymentId=payments.save(pr).getId();}
+   else if("PURCHASE".equals(target)){var purchase=purchases.findByIdForUpdate(a.targetId()).orElseThrow(()->new IllegalArgumentException("Purchase invoice not found."));if(cancelled(purchase.getDocumentStatus())||approvalLocked(purchase.getDocumentStatus())||purchaseLifecycleLocked(purchase.getDocumentStatus()))throw new IllegalStateException("The selected Purchase invoice is not eligible for reconciliation until it is approved and posted.");double outstanding=Math.max(0,n(purchase.getTotalAmount())-n(purchase.getPaidAmount()));roundOff=roundingAdjustment(outstanding,amount,tolerance);double tdsAmt=0d;double taxable=n(purchase.getSubtotal())>0?n(purchase.getSubtotal()):n(purchase.getTotalAmount());if(roundOff==0d&&outstanding>amount){double diff=money(outstanding-amount);if(isStatutoryTds(n(purchase.getTotalAmount()),taxable,diff))tdsAmt=diff;}validateAllocation(amount,outstanding,roundOff+tdsAmt,purchase.getInvoiceNo());double settled=money(amount+roundOff+tdsAmt),paid=n(purchase.getPaidAmount())+settled;purchase.setPaidAmount(paid);purchase.setPaymentStatus(paid+.009>=n(purchase.getTotalAmount())?"PAID":"PARTIAL");purchases.save(purchase);partyId=purchase.getSupplier()==null?null:purchase.getSupplier().getId();partyName=purchase.getSupplier()==null?"":safe(purchase.getSupplier().getName());docNo=purchase.getInvoiceNo();allocationTds=tdsAmt;PaymentRecordEntity pr=new PaymentRecordEntity();pr.setDocumentType("PURCHASE");pr.setDocumentId(a.targetId());pr.setPaymentDate(t.getTransactionDate());pr.setAmount(amount);pr.setPaymentMode("Bank Statement");pr.setReferenceNo(t.getOriginalReference());pr.setPaymentReference(operations.nextPaymentReference());pr.setNotes(reconciliationNote(t,roundOff)+(tdsAmt>0?" • Statutory TDS "+statutoryTdsLabel(n(purchase.getTotalAmount()),taxable,tdsAmt)+" ₹"+fmt(tdsAmt):""));pr.setCreatedBy(org.example.server.security.CurrentUser.require().username());pr.setReceivedFrom(partyName);pr.setPaymentType("BANK_RECONCILIATION");paymentId=payments.save(pr).getId();}
    else if("PURCHASE_RECON".equals(target)){org.example.server.security.CurrentUser.requirePermission("BANK_EXPENSE.RECONCILE","Bank reconciliation");org.example.server.security.CurrentUser.requirePermission("PURCHASE_RECON.MATCH","Purchase Recon bank matching");var recon=purchaseRecons.findByIdForUpdate(a.targetId()).orElseThrow(()->new IllegalArgumentException("Purchase Recon record not found."));double outstanding=Math.max(0,n(recon.getInvoiceValue())-n(recon.getLinkedAmount()));roundOff=roundingAdjustment(outstanding,amount,tolerance);validateAllocation(amount,outstanding,roundOff,recon.getReconRef());double linked=n(recon.getLinkedAmount())+money(amount+roundOff);recon.setLinkedAmount(linked);recon.setStatus(linked+.009>=n(recon.getInvoiceValue())?"RECONCILED":"PARTIAL");purchaseRecons.save(recon);partyName=recon.getSupplierNameSnapshot();if(!blank(partyName))purchaseReconTraders.add(partyName.trim());docNo=recon.getReconRef();}
    else if("CUSTOMER_REFUND".equals(target)){partyId=a.targetId();var partyRow=jdbc.queryForList("SELECT name FROM party_master WHERE id=?",partyId);partyName=partyRow.isEmpty()?"Customer #"+partyId:Objects.toString(partyRow.getFirst().get("name"),"");docNo="REFUND-"+partyName;f.setPartyId(partyId);f.setNotes("Customer direct refund: "+partyName+" • "+safe(t.getOriginalDescription()));}
    else if("MANUAL_PAYMENT".equals(target)){var fRow=finance.findById(a.targetId()).orElseThrow(()->new IllegalArgumentException("Manual finance entry not found."));fRow.setReconciled(1);finance.save(fRow);docNo=fRow.getVoucherNo();partyName=safe(fRow.getNotes());f.setNotes("Reconciled manual entry #"+docNo+" • "+safe(t.getOriginalDescription()));}
@@ -186,8 +259,10 @@ public class BankReconciliationService {
     appendBankReconGlLines(gl, reconGlLines, credit, target, docNo, amount, roundOff, allocationTds, partyId, partyName);
     reconGlHasCash = true;
    }
+   if (partyId != null && singlePartyId == null) singlePartyId = partyId;
    totalRounding=money(totalRounding+roundOff);if(r.allocations().size()==1){f.setPartyId(partyId);if("PURCHASE_RECON".equals(target)&&!blank(partyName))f.setNotes(partyName.trim());}BankReconciliationAllocationEntity al=new BankReconciliationAllocationEntity();al.setStatementTransactionId(t.getId());al.setTargetType(target);al.setTargetId(a.targetId());al.setAllocatedAmount(amount);al.setRoundingAdjustment(roundOff);al.setPaymentRecordId(paymentId);al.setFinanceEntryId(f.getId());al.setCreatedBy(org.example.server.security.CurrentUser.require().username());allocations.save(al);audit(t,"MATCHED","Allocated "+fmt(amount)+roundingDetail(roundOff)+" to "+docNo,t.getStatus(),"MATCHED",r.user());
   }
+  learnPartyAliasFromMatch(t, singlePartyId);
   if(purchaseReconOnly&&!purchaseReconTraders.isEmpty())f.setNotes(String.join(", ",purchaseReconTraders));finance.save(f);
   if (gl != null && reconGlHasCash && !reconGlLines.isEmpty()) {
    Long bankAcc = gl.getAccountIdOrDefault("1020", "Bank Current Account", "ASSET");
@@ -329,28 +404,28 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
  }
  public List<BankReconciliationDtos.AuditDto> audit(Long id){return audits.findByStatementTransactionIdOrderByIdDesc(id).stream().map(a->new BankReconciliationDtos.AuditDto(a.getId(),a.getEventType(),a.getEventDetail(),a.getPreviousStatus(),a.getNewStatus(),a.getPerformedBy(),a.getCreatedAt())).toList();}
 
- private static boolean isStatutoryTds(double total,double diff){
-  if(total<=0||diff<=0)return false;
-  double r01=DocumentCalculationEngine.money(total*0.001);
-  double r1=DocumentCalculationEngine.money(total*0.01);
-  double r2=DocumentCalculationEngine.money(total*0.02);
-  double r5=DocumentCalculationEngine.money(total*0.05);
-  double r10=DocumentCalculationEngine.money(total*0.10);
-  return Math.abs(diff-r01)<=1.0||Math.abs(diff-r1)<=1.0||Math.abs(diff-r2)<=1.0||Math.abs(diff-r5)<=1.0||Math.abs(diff-r10)<=1.0;
+ private static final double[] TDS_RATES = {0.001, 0.01, 0.02, 0.05, 0.10};
+ private static boolean isStatutoryTds(double total,double taxable,double diff){
+  if(diff<=0||(total<=0&&taxable<=0))return false;
+  for(double rate:TDS_RATES){
+   if(taxable>0&&Math.abs(diff-DocumentCalculationEngine.money(taxable*rate))<=1.0)return true;
+   if(total>0&&Math.abs(diff-DocumentCalculationEngine.money(total*rate))<=1.0)return true;
+  }
+  return false;
  }
- private static String statutoryTdsLabel(double total,double diff){
-  if(total<=0||diff<=0)return "";
-  double r01=DocumentCalculationEngine.money(total*0.001);
-  if(Math.abs(diff-r01)<=1.0)return "0.1% TDS (Sec 194Q)";
-  double r1=DocumentCalculationEngine.money(total*0.01);
-  if(Math.abs(diff-r1)<=1.0)return "1% TDS (Sec 194C)";
-  double r2=DocumentCalculationEngine.money(total*0.02);
-  if(Math.abs(diff-r2)<=1.0)return "2% TDS (Sec 194C/J)";
-  double r5=DocumentCalculationEngine.money(total*0.05);
-  if(Math.abs(diff-r5)<=1.0)return "5% TDS (Sec 194J)";
-  double r10=DocumentCalculationEngine.money(total*0.10);
-  if(Math.abs(diff-r10)<=1.0)return "10% TDS (Sec 194J)";
-  return "Statutory TDS";
+ private static String statutoryTdsLabel(double total,double taxable,double diff){
+  if(diff<=0||(total<=0&&taxable<=0))return "";
+  double base=taxable>0?taxable:total;
+  if(matchesTdsRate(total,taxable,diff,0.001))return "0.1% TDS (Sec 194Q)"+(taxable>0&&Math.abs(diff-DocumentCalculationEngine.money(taxable*0.001))<=1.0?" on Taxable":"");
+  if(matchesTdsRate(total,taxable,diff,0.01))return "1% TDS (Sec 194C)"+(taxable>0&&Math.abs(diff-DocumentCalculationEngine.money(taxable*0.01))<=1.0?" on Taxable":"");
+  if(matchesTdsRate(total,taxable,diff,0.02))return "2% TDS (Sec 194C/J)"+(taxable>0&&Math.abs(diff-DocumentCalculationEngine.money(taxable*0.02))<=1.0?" on Taxable":"");
+  if(matchesTdsRate(total,taxable,diff,0.05))return "5% TDS (Sec 194J)"+(taxable>0&&Math.abs(diff-DocumentCalculationEngine.money(taxable*0.05))<=1.0?" on Taxable":"");
+  if(matchesTdsRate(total,taxable,diff,0.10))return "10% TDS (Sec 194J)"+(taxable>0&&Math.abs(diff-DocumentCalculationEngine.money(taxable*0.10))<=1.0?" on Taxable":"");
+  return base>0?"Statutory TDS":"";
+ }
+ private static boolean matchesTdsRate(double total,double taxable,double diff,double rate){
+  return (taxable>0&&Math.abs(diff-DocumentCalculationEngine.money(taxable*rate))<=1.0)
+      || (total>0&&Math.abs(diff-DocumentCalculationEngine.money(total*rate))<=1.0);
  }
  private void applySuggestion(BankStatementTransactionEntity t){
   String desc=up(t.getOriginalDescription());
@@ -359,7 +434,7 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
   if(!holder.isBlank()&&compact(desc).contains(holder)){t.setStatus("REVIEW");t.setNotes("Possible transfer involving the statement account holder; verify before posting.");return;}
   if(desc.contains("CHRG")||desc.contains("CHARGE")){t.setStatus("REVIEW");t.setNotes("Likely bank charge; review and use Move to Expense if appropriate.");return;}
   var cs=candidatesFor(t);
-  if(!cs.isEmpty()&&cs.get(0).confidence()>=75){
+  if(!cs.isEmpty()&&cs.get(0).confidence()>=75&&bankAmount(t)<=cs.get(0).outstanding()+roundingTolerance()+0.01){
    var c=cs.get(0);
    t.setStatus("SUGGESTED");
    t.setSuggestedMatchType(c.type());
@@ -368,31 +443,314 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
    if(c.matchReason()!=null&&!c.matchReason().isBlank())t.setNotes(c.matchReason());
   }else t.setStatus("UNMATCHED");
  }
+ private Map<Integer,List<String>> loadPartyBankAliases(){
+  Map<Integer,List<String>> map=new HashMap<>();
+  try{
+   for(Map<String,Object> r:jdbc.queryForList("SELECT party_id, alias_pattern FROM party_bank_alias WHERE party_id IS NOT NULL AND alias_pattern IS NOT NULL")){
+    int pid=((Number)r.get("party_id")).intValue();
+    String pat=Objects.toString(r.get("alias_pattern"),"").trim().toLowerCase(Locale.ROOT);
+    if(!pat.isBlank())map.computeIfAbsent(pid,ignored->new ArrayList<>()).add(pat);
+   }
+  }catch(Exception ignored){}
+  return map;
+ }
+ private void learnPartyAliasFromMatch(BankStatementTransactionEntity t, Integer partyId){
+  if(t==null||partyId==null||partyId<=0)return;
+  String desc=safe(t.getOriginalDescription());
+  if(desc.isBlank())return;
+  Set<String> candidates=new LinkedHashSet<>();
+  var vpaMatcher=Pattern.compile("([A-Za-z0-9._\\-]{3,}@[A-Za-z0-9]{2,})").matcher(desc);
+  while(vpaMatcher.find())candidates.add(vpaMatcher.group(1).trim());
+  var parsed=BankNarrationParser.parse(desc,t.getOriginalReference());
+  if(parsed.hasCounterparty()&&parsed.counterparty().trim().length()>=4)candidates.add(parsed.counterparty().trim());
+  String actor=CurrentUser.isSet()?CurrentUser.require().username():"SYSTEM";
+  String now=BusinessClock.nowUtcText();
+  for(String pat:candidates){
+   String upPat=up(pat);
+   if(upPat.length()>150||GENERIC_PARTY_TOKENS.contains(upPat)||STOP_WORDS.contains(upPat))continue;
+   String type=pat.contains("@")?"UPI_HANDLE":"COUNTERPARTY";
+   try{
+    jdbc.update("""
+      INSERT INTO party_bank_alias(party_id,alias_pattern,alias_type,hit_count,last_seen_at,created_by,created_at)
+      VALUES(?,?,?,1,?,?,?)
+      ON CONFLICT (LOWER(alias_pattern)) DO UPDATE SET
+        party_id = EXCLUDED.party_id,
+        hit_count = party_bank_alias.hit_count + 1,
+        last_seen_at = EXCLUDED.last_seen_at
+      """,partyId,pat,type,now,actor,now);
+   }catch(Exception ignored){}
+  }
+ }
  private List<BankReconciliationDtos.CandidateDto> candidatesFor(BankStatementTransactionEntity t){
+  double tolerance=roundingTolerance();
+  Map<Integer,List<String>> aliasMap=loadPartyBankAliases();
+  return candidatesFor(t,tolerance,aliasMap,null,null,null,null,null);
+ }
+ private List<BankReconciliationDtos.CandidateDto> candidatesFor(
+   BankStatementTransactionEntity t,
+   double tolerance,
+   Map<Integer,List<String>> aliasMap,
+   List<SalesHeaderEntity> preloadedSales,
+   List<PurchaseHeaderEntity> preloadedPurchases,
+   List<PurchaseReconEntity> preloadedRecons,
+   List<Map<String,Object>> preloadedReturnsSale,
+   List<Map<String,Object>> preloadedReturnsPur){
   List<BankReconciliationDtos.CandidateDto> out=new ArrayList<>();double amount=bankAmount(t);
   if(n(t.getCreditAmount())>0){
-   for(var sale:sales.findOpenForBankMatching(amount,PageRequest.of(0,200))){
+   List<SalesHeaderEntity> openSales=preloadedSales!=null?preloadedSales:sales.findOpenForBankMatching(amount,PageRequest.of(0,500));
+   for(var sale:openSales){
     double o=Math.max(0,n(sale.getTotalAmount())-n(sale.getPaidAmount()));
-    out.add(candidate(t,"SALE",sale.getId(),sale.getInvoiceNo(),sale.getCustomer()==null?"":sale.getCustomer().getName(),sale.getInvoiceDate(),n(sale.getTotalAmount()),n(sale.getPaidAmount()),o));
+    if(o<=0.009)continue;
+    var cust=sale.getCustomer();
+    double taxable=n(sale.getSubtotal())>0?n(sale.getSubtotal()):n(sale.getTotalAmount());
+    out.add(candidate(t,"SALE",sale.getId(),sale.getInvoiceNo(),cust==null?"":cust.getName(),cust==null?null:cust.getId(),cust==null?"":cust.getPhone(),cust==null?"":cust.getGstin(),sale.getInvoiceDate(),n(sale.getTotalAmount()),taxable,n(sale.getPaidAmount()),o,tolerance,aliasMap));
    }
-   addReturnCandidates(out,t,"PURCHASE RETURN","PURCHASE_RETURN");
+   addMultiInvoiceSplitCandidates(out,t,"SALE",openSales,null,tolerance,aliasMap);
+   if(preloadedReturnsPur!=null) addReturnCandidatesFromRows(out,t,"PURCHASE_RETURN",preloadedReturnsPur,tolerance,aliasMap);
+   else addReturnCandidates(out,t,"PURCHASE RETURN","PURCHASE_RETURN",tolerance,aliasMap);
    addManualPaymentCandidates(out,t,"Deposit");
   }else{
-   for(var purchase:purchases.findOpenForBankMatching(amount,PageRequest.of(0,200))){
+   List<PurchaseHeaderEntity> openPurchases=preloadedPurchases!=null?preloadedPurchases:purchases.findOpenForBankMatching(amount,PageRequest.of(0,500));
+   for(var purchase:openPurchases){
     double o=Math.max(0,n(purchase.getTotalAmount())-n(purchase.getPaidAmount()));
-    out.add(candidate(t,"PURCHASE",purchase.getId(),purchase.getInvoiceNo(),purchase.getSupplier()==null?"":purchase.getSupplier().getName(),purchase.getInvoiceDate(),n(purchase.getTotalAmount()),n(purchase.getPaidAmount()),o));
+    if(o<=0.009)continue;
+    var sup=purchase.getSupplier();
+    double taxable=n(purchase.getSubtotal())>0?n(purchase.getSubtotal()):n(purchase.getTotalAmount());
+    out.add(candidate(t,"PURCHASE",purchase.getId(),purchase.getInvoiceNo(),sup==null?"":sup.getName(),sup==null?null:sup.getId(),sup==null?"":sup.getPhone(),sup==null?"":sup.getGstin(),purchase.getInvoiceDate(),n(purchase.getTotalAmount()),taxable,n(purchase.getPaidAmount()),o,tolerance,aliasMap));
    }
+   addMultiInvoiceSplitCandidates(out,t,"PURCHASE",null,openPurchases,tolerance,aliasMap);
    if(org.example.server.security.CurrentUser.hasPermission("BANK_EXPENSE.RECONCILE")&&org.example.server.security.CurrentUser.hasPermission("PURCHASE_RECON.MATCH")){
-    for(var recon:purchaseRecons.findOpenForBankMatching(amount,PageRequest.of(0,200))){
+    List<PurchaseReconEntity> openRecons=preloadedRecons!=null?preloadedRecons:purchaseRecons.findOpenForBankMatching(amount,PageRequest.of(0,500));
+    for(var recon:openRecons){
      double o=Math.max(0,n(recon.getInvoiceValue())-n(recon.getLinkedAmount()));
-     out.add(candidate(t,"PURCHASE_RECON",recon.getId(),recon.getReconRef(),recon.getSupplierNameSnapshot(),recon.getInvoiceDate()==null?"":recon.getInvoiceDate().toString(),n(recon.getInvoiceValue()),n(recon.getLinkedAmount()),o));
+     if(o<=0.009)continue;
+     var rSup=recon.getReconSupplier();
+     Integer spId=null;String spPhone="",spGstin="";
+     if(rSup!=null){spPhone=safe(rSup.getPhone());spGstin=safe(rSup.getGstin());}
+     out.add(candidate(t,"PURCHASE_RECON",recon.getId(),recon.getReconRef(),recon.getSupplierNameSnapshot(),spId,spPhone,spGstin,recon.getInvoiceDate()==null?"":recon.getInvoiceDate().toString(),n(recon.getInvoiceValue()),n(recon.getInvoiceValue()),n(recon.getLinkedAmount()),o,tolerance,aliasMap));
     }
    }
-   addReturnCandidates(out,t,"SALES RETURN","SALES_RETURN");
+   if(preloadedReturnsSale!=null) addReturnCandidatesFromRows(out,t,"SALES_RETURN",preloadedReturnsSale,tolerance,aliasMap);
+   else addReturnCandidates(out,t,"SALES RETURN","SALES_RETURN",tolerance,aliasMap);
    addManualPaymentCandidates(out,t,"Withdrawal");
   }
   out.sort(Comparator.comparingDouble(BankReconciliationDtos.CandidateDto::confidence).reversed());
   return out;
+ }
+ private record SplitDoc(int id,String no,String date,double total,double paid,double outAmt){}
+ private void addMultiInvoiceSplitCandidates(
+   List<BankReconciliationDtos.CandidateDto> out,
+   BankStatementTransactionEntity t,
+   String type,
+   List<SalesHeaderEntity> openSales,
+   List<PurchaseHeaderEntity> openPurchases,
+   double tolerance,
+   Map<Integer,List<String>> aliasMap){
+  double targetAmt=bankAmount(t);
+  if(targetAmt<=0)return;
+  record PartyBucket(int partyId,String partyName,String phone,String gstin,List<SplitDoc> docs){}
+  Map<Integer,PartyBucket> byParty=new LinkedHashMap<>();
+  if("SALE".equals(type)&&openSales!=null){
+   for(var s:openSales){
+    var p=s.getCustomer();if(p==null||p.getId()==null)continue;
+    double o=Math.max(0,n(s.getTotalAmount())-n(s.getPaidAmount()));
+    if(o<=0.009||o>=targetAmt-0.01)continue;
+    byParty.computeIfAbsent(p.getId(),ignored->new PartyBucket(p.getId(),safe(p.getName()),safe(p.getPhone()),safe(p.getGstin()),new ArrayList<>()))
+      .docs().add(new SplitDoc(s.getId(),s.getInvoiceNo(),safe(s.getInvoiceDate()),n(s.getTotalAmount()),n(s.getPaidAmount()),o));
+   }
+  }else if("PURCHASE".equals(type)&&openPurchases!=null){
+   for(var pu:openPurchases){
+    var p=pu.getSupplier();if(p==null||p.getId()==null)continue;
+    double o=Math.max(0,n(pu.getTotalAmount())-n(pu.getPaidAmount()));
+    if(o<=0.009||o>=targetAmt-0.01)continue;
+    byParty.computeIfAbsent(p.getId(),ignored->new PartyBucket(p.getId(),safe(p.getName()),safe(p.getPhone()),safe(p.getGstin()),new ArrayList<>()))
+      .docs().add(new SplitDoc(pu.getId(),pu.getInvoiceNo(),safe(pu.getInvoiceDate()),n(pu.getTotalAmount()),n(pu.getPaidAmount()),o));
+   }
+  }
+  String hay=up(safe(t.getOriginalDescription())+" "+safe(t.getOriginalReference()));
+  String normHay=" "+hay.replaceAll("[^A-Z0-9 ]"," ").replaceAll("\\s+"," ").trim()+" ";
+  for(PartyBucket bucket:byParty.values()){
+   if(bucket.docs().size()<2)continue;
+   double sumAll=bucket.docs().stream().mapToDouble(SplitDoc::outAmt).sum();
+   if(sumAll+tolerance<targetAmt)continue;
+   boolean partySignal=identitySignalScore(normHay,hay,bucket.partyId(),bucket.partyName(),bucket.phone(),bucket.gstin(),aliasMap,new ArrayList<>())>0;
+   List<SplitDoc> capped=bucket.docs().stream().limit(12).toList();
+   List<SplitDoc> picked=findSubsetMatch(capped,targetAmt,tolerance);
+   if(picked.isEmpty())continue;
+   if(!partySignal&&picked.size()>2)continue;
+   double pickedSum=money(picked.stream().mapToDouble(SplitDoc::outAmt).sum());
+   double diff=money(pickedSum-targetAmt);
+   double conf=partySignal?92.0:78.0;
+   if(Math.abs(diff)<=0.01)conf+=3.0;
+   String docLabel=picked.stream().map(SplitDoc::no).collect(java.util.stream.Collectors.joining(", "));
+   if(docLabel.length()>42)docLabel=picked.size()+" Docs ("+picked.getFirst().no()+"...)";
+   double remToAlloc=targetAmt;
+   List<BankReconciliationDtos.AllocationRequest> splitAllocs=new ArrayList<>();
+   for(int idx=0;idx<picked.size();idx++){
+    SplitDoc d=picked.get(idx);
+    double alloc=(idx==picked.size()-1)?money(Math.max(0.01,remToAlloc)):money(Math.min(d.outAmt(),remToAlloc));
+    splitAllocs.add(new BankReconciliationDtos.AllocationRequest(type,d.id(),alloc));
+    remToAlloc=money(remToAlloc-alloc);
+   }
+   out.add(new BankReconciliationDtos.CandidateDto(
+     "MULTI_SPLIT",picked.getFirst().id(),docLabel,bucket.partyName(),picked.getFirst().date(),
+     picked.stream().mapToDouble(SplitDoc::total).sum(),picked.stream().mapToDouble(SplitDoc::paid).sum(),
+     pickedSum,Math.min(98.0,conf),
+     "Multi-Invoice Split ("+picked.size()+" docs)"+(partySignal?" • Party Matched":"")+(Math.abs(diff)>0.005?" • Round-off "+signedMoney(diff):""),
+     pickedSum,0d,"",diff,List.copyOf(splitAllocs)
+   ));
+  }
+ }
+ private static List<SplitDoc> findSubsetMatch(List<SplitDoc> docs,double target,double tolerance){
+  double tol=Math.max(0.01,tolerance);
+  List<SplitDoc> current=new ArrayList<>();
+  for(int maxSize=2;maxSize<=4;maxSize++){
+   if(searchSubset(docs,0,maxSize,0d,target,tol,current))return List.copyOf(current);
+   current.clear();
+  }
+  return List.of();
+ }
+ private static boolean searchSubset(List<SplitDoc> docs,int idx,int maxSize,double sum,double target,double tol,List<SplitDoc> picked){
+  if(picked.size()>=2&&Math.abs(sum-target)<=tol)return true;
+  if(picked.size()>=maxSize||sum>target+tol)return false;
+  for(int i=idx;i<docs.size();i++){
+   SplitDoc d=docs.get(i);
+   picked.add(d);
+   if(searchSubset(docs,i+1,maxSize,money(sum+d.outAmt()),target,tol,picked))return true;
+   picked.removeLast();
+  }
+  return false;
+ }
+ @Transactional(readOnly=true)
+ public BankReconciliationDtos.AutoMatchPreviewDto previewAutoMatch(Long importId,String bankAccount,String fromDate,String toDate){
+  boolean batchMode=importId!=null&&importId>0L;
+  List<BankStatementTransactionEntity> scopedRows=batchMode
+    ?txs.findByImportBatchIdOrderByTransactionTimestampAscIdAsc(importId)
+    :txs.searchFiltered(0L,safe(bankAccount).trim(),"","ALL","ALL",safe(fromDate).trim(),safe(toDate).trim(),"",PageRequest.of(0,1000)).getContent();
+  Set<String> openStates=Set.of("UNMATCHED","SUGGESTED","REVIEW");
+  List<BankStatementTransactionEntity> openRows=scopedRows.stream()
+    .filter(t->openStates.contains(up(t.getStatus())))
+    .toList();
+  if(openRows.isEmpty()){
+   return new BankReconciliationDtos.AutoMatchPreviewDto(0,0,0d,List.of());
+  }
+  double tolerance=roundingTolerance();
+  Map<Integer,List<String>> aliasMap=loadPartyBankAliases();
+  List<SalesHeaderEntity> openSales=sales.findOpenForBankMatching(0d,PageRequest.of(0,500));
+  List<PurchaseHeaderEntity> openPurchases=purchases.findOpenForBankMatching(0d,PageRequest.of(0,500));
+  List<PurchaseReconEntity> openRecons=(org.example.server.security.CurrentUser.hasPermission("BANK_EXPENSE.RECONCILE")
+    &&org.example.server.security.CurrentUser.hasPermission("PURCHASE_RECON.MATCH"))
+    ?purchaseRecons.findOpenForBankMatching(0d,PageRequest.of(0,500)):List.of();
+  List<Map<String,Object>> saleReturns=loadOpenReturnRows("SALES RETURN");
+  List<Map<String,Object>> purReturns=loadOpenReturnRows("PURCHASE RETURN");
+
+  record CandidateEval(BankStatementTransactionEntity tx,BankReconciliationDtos.TransactionDto dto,BankReconciliationDtos.CandidateDto candidate){}
+  List<CandidateEval> evals=new ArrayList<>();
+  List<BankReconciliationDtos.TransactionDto> dtos=mapTransactions(openRows);
+  Map<Long,BankReconciliationDtos.TransactionDto> dtoById=new HashMap<>();
+  for(int i=0;i<openRows.size();i++)dtoById.put(openRows.get(i).getId(),dtos.get(i));
+
+  for(BankStatementTransactionEntity tx:openRows){
+   double bankAmt=bankAmount(tx);
+   if(bankAmt<=0)continue;
+   List<BankReconciliationDtos.CandidateDto> cs=candidatesFor(tx,tolerance,aliasMap,openSales,openPurchases,openRecons,saleReturns,purReturns);
+   for(var c:cs){
+    boolean validSettlement=bankAmt<=c.outstanding()+tolerance+0.01;
+    if(!validSettlement)continue;
+    double diff=Math.abs(c.outstanding()-bankAmt);
+    boolean eligible=c.confidence()>=70.0||diff<=tolerance+0.01||(cs.size()==1&&c.confidence()>=45.0&&diff<=0.01);
+    if(eligible){
+     evals.add(new CandidateEval(tx,dtoById.get(tx.getId()),c));
+     break;
+    }
+   }
+  }
+  evals.sort((a,b)->Double.compare(b.candidate().confidence(),a.candidate().confidence()));
+  Set<String> claimedDocs=new HashSet<>();
+  Set<Long> handledTxIds=new HashSet<>();
+  List<BankReconciliationDtos.AutoMatchSuggestionDto> suggestions=new ArrayList<>();
+
+  for(CandidateEval ev:evals){
+   var c=ev.candidate();
+   List<String> keys=new ArrayList<>();
+   if(c.splitAllocations()!=null&&!c.splitAllocations().isEmpty()){
+    for(var sa:c.splitAllocations())keys.add(up(sa.targetType())+"#"+sa.targetId());
+   }else if(c.id()!=null){
+    keys.add(up(c.type())+"#"+c.id());
+   }
+   if(keys.stream().anyMatch(claimedDocs::contains))continue;
+   claimedDocs.addAll(keys);
+   handledTxIds.add(ev.tx().getId());
+   double variance=c.suggestedTdsAmount()>0?c.suggestedTdsAmount():c.suggestedRounding();
+   String kind="MULTI_SPLIT".equals(c.type())?"MULTI_SPLIT":"DOCUMENT";
+   suggestions.add(new BankReconciliationDtos.AutoMatchSuggestionDto(
+     ev.dto(),kind,c,null,null,null,null,null,null,null,null,null,null,
+     variance,c.matchReason(),c.confidence(),c.confidence()>=70.0
+   ));
+  }
+
+  // Evaluate Smart Rules on remaining open transactions
+  if(ruleService!=null&&ruleService.isFeatureEnabled()){
+   for(BankStatementTransactionEntity tx:openRows){
+    if(handledTxIds.contains(tx.getId()))continue;
+    BankReconciliationDtos.RuleDto rule=ruleService.findMatchingRuleDto(tx);
+    if(rule==null)continue;
+    handledTxIds.add(tx.getId());
+    String targetDesc=switch(up(rule.actionType())){
+     case "EXPENSE" -> "Rule Expense: "+safe(rule.targetCategory());
+     case "BANK_ENTRY" -> "Rule Bank Entry: "+safe(rule.targetAccountName());
+     case "CONTRA" -> "Rule Contra: "+safe(rule.targetContraAccount());
+     case "MATCH_PARTY_FIFO" -> "Rule Party FIFO Settlement";
+     case "IGNORE" -> "Rule Ignore";
+     default -> "Smart Rule";
+    };
+    suggestions.add(new BankReconciliationDtos.AutoMatchSuggestionDto(
+      dtoById.get(tx.getId()),"RULE",null,rule.id(),rule.ruleName(),rule.actionType(),
+      rule.targetCategory(),rule.targetAccountName(),rule.targetPaymentMode(),rule.targetNotes(),
+      rule.targetPartyId(),rule.targetContraAccount(),null,0d,
+      "Smart Rule '"+rule.ruleName()+"' → "+targetDesc,95.0,true
+    ));
+   }
+  }
+
+  // Evaluate Inter-Bank Contra Transfer pairs across open transactions
+  for(int i=0;i<openRows.size();i++){
+   BankStatementTransactionEntity a=openRows.get(i);
+   if(handledTxIds.contains(a.getId()))continue;
+   double amtA=bankAmount(a);boolean creditA=n(a.getCreditAmount())>0;
+   String acctA=a.getImportBatch()!=null?safe(a.getImportBatch().getBankAccount()):"";
+   String acctLabelA=a.getImportBatch()!=null?(safe(a.getImportBatch().getBankName())+" - "+acctA):"";
+   LocalDate dateA=date(a.getTransactionDate());
+   for(int j=i+1;j<openRows.size();j++){
+    BankStatementTransactionEntity b=openRows.get(j);
+    if(handledTxIds.contains(b.getId()))continue;
+    boolean creditB=n(b.getCreditAmount())>0;
+    if(creditA==creditB)continue;
+    String acctB=b.getImportBatch()!=null?safe(b.getImportBatch().getBankAccount()):"";
+    if(acctA.isBlank()||acctB.isBlank()||acctA.equalsIgnoreCase(acctB))continue;
+    if(Math.abs(amtA-bankAmount(b))>0.01)continue;
+    LocalDate dateB=date(b.getTransactionDate());
+    if(dateA!=null&&dateB!=null&&Math.abs(ChronoUnit.DAYS.between(dateA,dateB))>2)continue;
+    String acctLabelB=b.getImportBatch()!=null?(safe(b.getImportBatch().getBankName())+" - "+acctB):"";
+    handledTxIds.add(a.getId());
+    handledTxIds.add(b.getId());
+    suggestions.add(new BankReconciliationDtos.AutoMatchSuggestionDto(
+      dtoById.get(a.getId()),"CONTRA",null,null,null,"CONTRA",null,acctLabelA,"Bank Transfer",
+      "Contra transfer paired with "+acctLabelB,null,acctLabelB,b.getId(),0d,
+      "Inter-Bank Contra Pair ("+acctLabelB+" • ₹"+fmt(amtA)+")",88.0,true
+    ));
+    suggestions.add(new BankReconciliationDtos.AutoMatchSuggestionDto(
+      dtoById.get(b.getId()),"CONTRA",null,null,null,"CONTRA",null,acctLabelB,"Bank Transfer",
+      "Contra transfer paired with "+acctLabelA,null,acctLabelA,a.getId(),0d,
+      "Inter-Bank Contra Pair ("+acctLabelA+" • ₹"+fmt(amtA)+")",88.0,true
+    ));
+    break;
+   }
+  }
+
+  suggestions.sort((a,b)->Double.compare(b.confidence(),a.confidence()));
+  double totalEligibleAmt=money(suggestions.stream().mapToDouble(s->Math.max(s.tx().credit(),s.tx().debit())).sum());
+  return new BankReconciliationDtos.AutoMatchPreviewDto(openRows.size(),suggestions.size(),totalEligibleAmt,List.copyOf(suggestions));
  }
  private void addManualPaymentCandidates(List<BankReconciliationDtos.CandidateDto> out,BankStatementTransactionEntity t,String category){
   double amount=bankAmount(t);
@@ -410,53 +768,146 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
    }
   }catch(Exception ignored){}
  }
- private void addReturnCandidates(List<BankReconciliationDtos.CandidateDto> out,BankStatementTransactionEntity t,String dbType,String candidateType){for(Map<String,Object> r:jdbc.queryForList("SELECT MIN(r.id) id,r.return_no no,MAX(r.return_date) date,MAX(COALESCE(pm.name,'')) party,SUM(r.amount) total,COALESCE((SELECT SUM(rr.amount+COALESCE(rr.rounding_adjustment,0)) FROM return_refund rr WHERE rr.return_no=r.return_no),0) refunded FROM return_register r LEFT JOIN party_master pm ON pm.id=r.party_id WHERE r.return_type=? AND UPPER(COALESCE(r.status,''))='APPROVED' GROUP BY r.return_no HAVING SUM(r.amount)-COALESCE((SELECT SUM(rr.amount+COALESCE(rr.rounding_adjustment,0)) FROM return_refund rr WHERE rr.return_no=r.return_no),0)>.009 ORDER BY MAX(CASE WHEN COALESCE(r.return_date,'') ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(r.return_date,'YYYY-MM-DD') WHEN COALESCE(r.return_date,'') ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN TO_DATE(r.return_date,'DD/MM/YYYY') WHEN COALESCE(r.return_date,'') ~ '^\\d{2}-\\d{2}-\\d{4}$' THEN TO_DATE(r.return_date,'DD-MM-YYYY') ELSE NULL END) DESC LIMIT 200",dbType)){int rid=((Number)r.get("id")).intValue();double total=((Number)r.get("total")).doubleValue(),paid=((Number)r.get("refunded")).doubleValue();out.add(candidate(t,candidateType,rid,Objects.toString(r.get("no"),""),Objects.toString(r.get("party"),""),Objects.toString(r.get("date"),""),total,paid,Math.max(0,total-paid)));}}
+ private void addReturnCandidates(List<BankReconciliationDtos.CandidateDto> out,BankStatementTransactionEntity t,String dbType,String candidateType,double tolerance,Map<Integer,List<String>> aliasMap){
+  addReturnCandidatesFromRows(out,t,candidateType,loadOpenReturnRows(dbType),tolerance,aliasMap);
+ }
+ private List<Map<String,Object>> loadOpenReturnRows(String dbType){
+  return jdbc.queryForList("SELECT MIN(r.id) id,r.return_no no,MAX(r.return_date) date,MAX(r.party_id) party_id,MAX(COALESCE(pm.name,'')) party,MAX(COALESCE(pm.phone,'')) phone,MAX(COALESCE(pm.gstin,'')) gstin,SUM(r.amount) total,COALESCE((SELECT SUM(rr.amount+COALESCE(rr.rounding_adjustment,0)) FROM return_refund rr WHERE rr.return_no=r.return_no),0) refunded FROM return_register r LEFT JOIN party_master pm ON pm.id=r.party_id WHERE r.return_type=? AND UPPER(COALESCE(r.status,''))='APPROVED' GROUP BY r.return_no HAVING SUM(r.amount)-COALESCE((SELECT SUM(rr.amount+COALESCE(rr.rounding_adjustment,0)) FROM return_refund rr WHERE rr.return_no=r.return_no),0)>.009 ORDER BY MAX(CASE WHEN COALESCE(r.return_date,'') ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(r.return_date,'YYYY-MM-DD') WHEN COALESCE(r.return_date,'') ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN TO_DATE(r.return_date,'DD/MM/YYYY') WHEN COALESCE(r.return_date,'') ~ '^\\d{2}-\\d{2}-\\d{4}$' THEN TO_DATE(r.return_date,'DD-MM-YYYY') ELSE NULL END) DESC LIMIT 200",dbType);
+ }
+ private void addReturnCandidatesFromRows(List<BankReconciliationDtos.CandidateDto> out,BankStatementTransactionEntity t,String candidateType,List<Map<String,Object>> rows,double tolerance,Map<Integer,List<String>> aliasMap){
+  for(Map<String,Object> r:rows){
+   int rid=((Number)r.get("id")).intValue();
+   Integer pid=r.get("party_id") instanceof Number n?n.intValue():null;
+   double total=((Number)r.get("total")).doubleValue(),paid=((Number)r.get("refunded")).doubleValue();
+   out.add(candidate(t,candidateType,rid,Objects.toString(r.get("no"),""),Objects.toString(r.get("party"),""),pid,Objects.toString(r.get("phone"),""),Objects.toString(r.get("gstin"),""),Objects.toString(r.get("date"),""),total,total,paid,Math.max(0,total-paid),tolerance,aliasMap));
+  }
+ }
  private Map<String,Object> returnTarget(int id,String candidateType){String dbType="SALES_RETURN".equals(candidateType)?"SALES RETURN":"PURCHASE RETURN";String returnNo=jdbc.queryForObject("SELECT return_no FROM return_register WHERE id=?",String.class,id);if(returnNo==null||returnNo.isBlank())throw new IllegalArgumentException("Return refund target was not found.");List<String> states=jdbc.query("SELECT COALESCE(status,'PENDING') FROM return_register WHERE return_no=? AND return_type=? FOR UPDATE",(r,i)->r.getString(1),returnNo,dbType);if(states.isEmpty())throw new IllegalArgumentException("Return refund target was not found.");if(states.stream().anyMatch(x->!"APPROVED".equals(safe(x).trim().toUpperCase(java.util.Locale.ROOT))))throw new IllegalStateException("Return refund reconciliation is available only after Admin approves the Return.");List<Map<String,Object>> rows=jdbc.queryForList("SELECT MIN(r.id) id,r.return_no no,MAX(r.party_id) party_id,MAX(COALESCE(pm.name,'')) party,SUM(r.amount) total,COALESCE((SELECT SUM(rr.amount+COALESCE(rr.rounding_adjustment,0)) FROM return_refund rr WHERE rr.return_no=r.return_no),0) refunded FROM return_register r LEFT JOIN party_master pm ON pm.id=r.party_id WHERE r.return_no=? AND r.return_type=? GROUP BY r.return_no",returnNo,dbType);if(rows.isEmpty())throw new IllegalArgumentException("Return refund target was not found.");return rows.getFirst();}
- private static final Set<String> GENERIC_PARTY_TOKENS=Set.of("PRIVATE","LIMITED","INDUSTRIES","INDUSTRY","ENTERPRISES","ENTERPRISE","COMPANY","CORPORATION","CORP","PVT","LTD","LLP","TRADERS","TRADING");
- private static final Set<String> STOP_WORDS=Set.of("TO","BY","IN","ON","OF","AT","MR","MS","DR","NO","A","AN","THE","IS","OR","AND");
- private BankReconciliationDtos.CandidateDto candidate(BankStatementTransactionEntity t,String type,Integer id,String no,String party,String docDate,double total,double paid,double outstanding){
+ private static final Set<String> GENERIC_PARTY_TOKENS=Set.of(
+   "PRIVATE","LIMITED","INDUSTRIES","INDUSTRY","ENTERPRISES","ENTERPRISE","COMPANY","CORPORATION","CORP",
+   "PVT","LTD","LLP","TRADERS","TRADING","INDIA","GUJARAT","AHMEDABAD","SURAT","MUMBAI","DELHI",
+   "SHREE","SHRI","TECH","SYSTEMS","SOLUTIONS","ENGINEERING","ENGINEERS","PLASTICS","HARDWARE",
+   "SALES","MARKETING","AGENCY","BROTHERS","SONS","BANK","CASH","HDFC","ICICI","SBI","AXIS","KOTAK",
+   "UPI","IMPS","NEFT","RTGS","NACH","POS"
+ );
+ private static final Set<String> STOP_WORDS=Set.of("TO","BY","IN","ON","OF","AT","MR","MS","DR","NO","A","AN","THE","IS","OR","AND","FOR","CR");
+ private BankReconciliationDtos.CandidateDto candidate(
+   BankStatementTransactionEntity t,String type,Integer id,String no,String party,
+   Integer partyId,String partyPhone,String partyGstin,
+   String docDate,double total,double taxable,double paid,double outstanding,
+   double tolerance,Map<Integer,List<String>> aliasMap){
   double score=0,amount=bankAmount(t);
+  double roundAdj=0d,tdsAmt=0d;String tdsLabel="";
   List<String> reasons=new ArrayList<>();
-  if(Math.abs(outstanding-amount)<=.01){
-   score+=50;
-   reasons.add("Exact Amount Match");
-  }else if(outstanding>amount){
-   double diff=DocumentCalculationEngine.money(outstanding-amount);
-   if(isStatutoryTds(total,diff)){
-    score+=45;
-    reasons.add(statutoryTdsLabel(total,diff)+" ₹"+fmt(diff));
-   }
-  }
   String hay=up(safe(t.getOriginalDescription())+" "+safe(t.getOriginalReference()));
-  String normHay=hay.replaceAll("[^A-Z0-9 ]"," ");
+  String normHay=" "+hay.replaceAll("[^A-Z0-9 ]"," ").replaceAll("\\s+"," ").trim()+" ";
   String compactHay=up(hay).replaceAll("[^A-Z0-9]","");
+
+  boolean hasDocMatch=false;
   if(!blank(no)){
-   String normNo=up(no).replaceAll("[^A-Z0-9 ]"," ").trim();
+   String normNo=up(no).replaceAll("[^A-Z0-9 ]"," ").replaceAll("\\s+"," ").trim();
    String compactNo=up(no).replaceAll("[^A-Z0-9]","");
-   if((!compactNo.isBlank()&&compactNo.length()>=3&&compactHay.contains(compactNo))||(!normNo.isBlank()&&normHay.contains(normNo))){
-    score+=45;
-    reasons.add("Invoice #"+no+" in narration");
+   if((!compactNo.isBlank()&&compactNo.length()>=4&&compactHay.contains(compactNo))
+       ||(!normNo.isBlank()&&normHay.contains(" "+normNo+" "))){
+    score+=40;
+    hasDocMatch=true;
+    reasons.add("Invoice #"+no+" matched");
    }
   }
-  if(!blank(party)){
-   String[] tokens=up(party).replaceAll("[^A-Z0-9 ]"," ").split("\\s+");
-   boolean matched=false;
-   for(int i=0;i<tokens.length;i++){
-    String tok=tokens[i];
-    if(GENERIC_PARTY_TOKENS.contains(tok))continue;
-    if(tok.length()>=4&&normHay.contains(tok)){matched=true;reasons.add("Party '"+tok+"' matched");break;}
-    if(i==0&&tok.length()>=2&&!STOP_WORDS.contains(tok)&&(" "+normHay+" ").contains(" "+tok+" ")){matched=true;reasons.add("Party '"+tok+"' matched");break;}
-   }
-   if(matched)score+=45;
+
+  double idScore=identitySignalScore(normHay,hay,partyId,party,partyPhone,partyGstin,aliasMap,reasons);
+  score+=idScore;
+
+  double diff=money(outstanding-amount);
+  boolean exactAmt=Math.abs(diff)<=0.01;
+  boolean roundOffAmt=!exactAmt&&tolerance>0&&Math.abs(diff)<=tolerance+0.0001;
+  boolean excessAmt=amount>outstanding+tolerance+0.01;
+  if(exactAmt){
+   score+=40;
+   reasons.add("Exact Amount Match");
+  }else if(roundOffAmt){
+   score+=35;
+   roundAdj=diff;
+   reasons.add("Within Round-off "+signedMoney(diff));
+  }else if(!excessAmt&&outstanding>amount&&isStatutoryTds(total,taxable,diff)){
+   score+=32;
+   tdsAmt=diff;
+   tdsLabel=statutoryTdsLabel(total,taxable,diff);
+   reasons.add(tdsLabel+" ₹"+fmt(diff));
+  }else if(excessAmt){
+   reasons.add("Exceeds Outstanding");
+  }else if(amount<outstanding&&(idScore>0||hasDocMatch)){
+   score+=12;
+   reasons.add("Partial Settlement");
   }
+
   LocalDate td=date(t.getTransactionDate()),dd=date(docDate);
   if(td!=null&&dd!=null){
-   long days=Math.abs(ChronoUnit.DAYS.between(dd,td));
-   if(days<=15){score+=5;reasons.add("Date within "+days+"d");}
-   else if(days<=30){score+=3;reasons.add("Date within "+days+"d");}
+   long signedDays=ChronoUnit.DAYS.between(dd,td);
+   long absDays=Math.abs(signedDays);
+   if(signedDays<-2){
+    score-=8;
+    reasons.add("Doc dated after bank tx");
+   }else if(absDays<=7){
+    score+=10;
+    reasons.add("Date within "+absDays+"d");
+   }else if(absDays<=30){
+    score+=6;
+    reasons.add("Date within "+absDays+"d");
+   }else if(absDays<=90){
+    score+=2;
+   }else if(absDays>180){
+    score-=5;
+   }
   }
+  if(excessAmt){
+   score=Math.min(35.0,Math.max(0.0,score));
+  }
+  double finalScore=Math.max(0.0,Math.min(100.0,Math.round(score)));
   String matchReason=String.join(" • ",reasons);
-  return new BankReconciliationDtos.CandidateDto(type,id,no,party,docDate,total,paid,outstanding,Math.min(100,score),matchReason);
+  return new BankReconciliationDtos.CandidateDto(type,id,no,party,docDate,total,paid,outstanding,finalScore,matchReason,taxable,tdsAmt,tdsLabel,roundAdj,List.of());
+ }
+ private static double identitySignalScore(
+   String normHay,String rawHay,
+   Integer partyId,String party,String phone,String gstin,
+   Map<Integer,List<String>> aliasMap,List<String> reasons){
+  if(partyId!=null&&aliasMap!=null){
+   for(String alias:aliasMap.getOrDefault(partyId,List.of())){
+    if(alias.length()>=3&&rawHay.contains(alias.toUpperCase(Locale.ROOT))){
+     reasons.add("Learned VPA/Alias matched");
+     return 30;
+    }
+   }
+  }
+  if(!blank(gstin)&&gstin.trim().length()>=10&&rawHay.contains(gstin.trim().toUpperCase(Locale.ROOT))){
+   reasons.add("Party GSTIN matched");
+   return 28;
+  }
+  String phoneDigits=safe(phone).replaceAll("[^0-9]","");
+  if(phoneDigits.length()>=10){
+   String last10=phoneDigits.substring(phoneDigits.length()-10);
+   if(rawHay.replaceAll("[^0-9]","").contains(last10)){
+    reasons.add("Party Phone matched");
+    return 28;
+   }
+  }
+  if(blank(party))return 0;
+  String[] tokens=up(party).replaceAll("[^A-Z0-9 ]"," ").split("\\s+");
+  int distinctCount=0,matchedCount=0;
+  String firstMatched="";
+  for(String tok:tokens){
+   if(tok.length()<3||STOP_WORDS.contains(tok)||GENERIC_PARTY_TOKENS.contains(tok))continue;
+   distinctCount++;
+   if(normHay.contains(" "+tok+" ")){
+    matchedCount++;
+    if(firstMatched.isBlank())firstMatched=tok;
+   }
+  }
+  if(matchedCount==0)return 0;
+  if(matchedCount==1&&firstMatched.length()<4&&distinctCount>1)return 0;
+  reasons.add("Party '"+firstMatched+"' matched");
+  double ratio=distinctCount>0?(double)matchedCount/distinctCount:1.0;
+  return matchedCount>=2||ratio>=0.99?25:18;
  }
  private void refreshBatch(Long id){var b=imports.findById(id).orElseThrow();var m=metrics(id);b.setReconciledCount(m.reconciled());b.setReconciliationPercent(m.reconciledPercent());b.setStatus(m.batchStatus());imports.save(b);}
  private BankReconciliationDtos.BatchDto batch(BankStatementImportEntity b){return new BankReconciliationDtos.BatchDto(b.getId(),b.getStatementReference(),b.getBankName(),b.getBankAccount(),b.getAccountHolder(),b.getStatementFrom(),b.getStatementTo(),b.getCurrency(),nv(b.getTransactionCount()),n(b.getTotalDebit()),n(b.getTotalCredit()),nv(b.getReconciledCount()),n(b.getReconciliationPercent()),b.getStatus(),b.getSourceFileName(),b.getImportedAt());}
@@ -684,7 +1135,7 @@ private BankReconciliationDtos.OperationResult reverseInternal(Long id,String us
   double difference=money(outstanding-amount);
   if(Math.abs(difference)<=.0001)return 0d;
   double absDiff=Math.abs(difference);
-  return tolerance>0&&absDiff<=tolerance+.0001&&absDiff<1.00?difference:0d;
+  return tolerance>0&&absDiff<=tolerance+.0001?difference:0d;
  }
  private static void validateAllocation(double amount,double outstanding,double roundOff,String documentNo){if(amount>outstanding+.01&&roundOff==0d)throw new IllegalArgumentException("Allocation exceeds outstanding balance for "+documentNo);double settled=money(amount+roundOff);if(settled>outstanding+.01)throw new IllegalArgumentException("Settlement exceeds outstanding balance for "+documentNo);}
  private static String reconciliationNote(BankStatementTransactionEntity t,double roundOff){return "Reconciled from bank statement transaction #"+t.getId()+(Math.abs(roundOff)>.0001?" • Round-off "+signedMoney(roundOff):"");}

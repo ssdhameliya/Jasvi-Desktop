@@ -27,6 +27,13 @@ public final class Customer360ApiClient {
     public List<NoteRow> notes(int id){return get("/api/customer-360/"+id+"/notes",new TypeReference<List<NoteRow>>(){});}
     public NoteRow saveNote(int id,NoteSave d){return post("/api/customer-360/"+id+"/notes",d,NoteRow.class);}
     public void deleteNote(int id,long noteId,long rowVersion){delete("/api/customer-360/"+id+"/notes/"+noteId+"?rowVersion="+rowVersion);}
+    public CreditHealth creditHealth(int id){return get("/api/customer-360/"+id+"/credit-health",CreditHealth.class);}
+    public ItemPricingInsight itemPricing(int id,String itemCode,double qty){return get("/api/customer-360/"+id+"/item-pricing?itemCode="+enc(itemCode)+"&qty="+qty,ItemPricingInsight.class);}
+    public List<PriceRuleRow> priceRules(int id){return get("/api/customer-360/"+id+"/price-rules",new TypeReference<List<PriceRuleRow>>(){});}
+    public PriceRuleRow savePriceRule(int id,PriceRuleSave d){return post("/api/customer-360/"+id+"/price-rules",d,PriceRuleRow.class);}
+    public void deletePriceRule(int id,long ruleId,long rowVersion){delete("/api/customer-360/"+id+"/price-rules/"+ruleId+"?rowVersion="+rowVersion);}
+
+    private static String enc(String v){return java.net.URLEncoder.encode(v==null?"":v,java.nio.charset.StandardCharsets.UTF_8);}
 
     private <T>T get(String path,Class<T> type){return req("GET",path,null,type,null);}
     private <T>T get(String path,TypeReference<T> type){return req("GET",path,null,null,type);}
@@ -55,5 +62,9 @@ public final class Customer360ApiClient {
     public record ContactSave(Long id,String name,String designation,String department,String mobile,String email,boolean primary,boolean emailRecipient,boolean whatsappRecipient,String notes,long rowVersion){}
     public record NoteRow(long id,int partyId,String note,String createdBy,String createdAt,String updatedBy,String updatedAt,long rowVersion){}
     public record NoteSave(Long id,String note,long rowVersion){}
+    public record CreditHealth(int customerId,BigDecimal openingBalance,BigDecimal unpaidInvoicesTotal,BigDecimal netReceivable,long overdueCount,BigDecimal overdueAmount,BigDecimal creditLimit,double creditUsedPercent,BigDecimal lastPaymentAmount,String lastPaymentDate){}
+    public record PriceRuleRow(long id,int partyId,String itemCode,String itemDescription,double minQty,double specialRate,double discountPercent,String validFrom,String validTo,String notes,boolean active,long rowVersion){}
+    public record PriceRuleSave(Long id,String itemCode,double minQty,double specialRate,double discountPercent,String validFrom,String validTo,String notes,boolean active,long rowVersion){}
+    public record ItemPricingInsight(int customerId,String itemCode,Double lastSoldRate,Double lastSoldDiscountPercent,String lastSoldDate,String lastSoldInvoiceNo,double purchaseCost,double masterSellingPrice,PriceRuleRow matchedRule,List<PriceRuleRow> allSlabs){}
     public record Ok(boolean success,String message){}
 }

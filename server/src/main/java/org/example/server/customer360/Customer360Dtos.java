@@ -20,5 +20,15 @@ public final class Customer360Dtos {
     public record ContactSave(Long id,String name,String designation,String department,String mobile,String email,boolean primary,boolean emailRecipient,boolean whatsappRecipient,String notes,long rowVersion) {}
     public record NoteRow(long id,int partyId,String note,String createdBy,String createdAt,String updatedBy,String updatedAt,long rowVersion) {}
     public record NoteSave(Long id,String note,long rowVersion) {}
+    public record CreditHealth(int customerId,BigDecimal openingBalance,BigDecimal unpaidInvoicesTotal,BigDecimal netReceivable,
+                               long overdueCount,BigDecimal overdueAmount,BigDecimal creditLimit,double creditUsedPercent,
+                               BigDecimal lastPaymentAmount,String lastPaymentDate) {}
+    public record PriceRuleRow(long id,int partyId,String itemCode,String itemDescription,double minQty,double specialRate,
+                               double discountPercent,String validFrom,String validTo,String notes,boolean active,long rowVersion) {}
+    public record PriceRuleSave(Long id,String itemCode,double minQty,double specialRate,double discountPercent,
+                                String validFrom,String validTo,String notes,boolean active,long rowVersion) {}
+    public record ItemPricingInsight(int customerId,String itemCode,Double lastSoldRate,Double lastSoldDiscountPercent,
+                                     String lastSoldDate,String lastSoldInvoiceNo,double purchaseCost,double masterSellingPrice,
+                                     PriceRuleRow matchedRule,List<PriceRuleRow> allSlabs) {}
     public record Ok(boolean success,String message) {}
 }

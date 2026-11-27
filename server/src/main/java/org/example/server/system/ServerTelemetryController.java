@@ -23,6 +23,12 @@ public class ServerTelemetryController {
     @Value("${dse.server.address:127.0.0.1}")
     private String serverAddress;
 
+    @Value("${dse.server.address.uat:}")
+    private String uatServerAddress;
+
+    @Value("${dse.server.address.prod:}")
+    private String prodServerAddress;
+
     public record ServerTelemetryDto(
             String environment,
             String serverIp,
@@ -97,12 +103,18 @@ public class ServerTelemetryController {
                 ? deploymentEnv.trim().toUpperCase(Locale.ROOT)
                 : "LOCAL";
         String serverIp;
-        if ("PROD".equals(env)) {
-            serverIp = "130.210.35.1";
-        } else if ("UAT".equals(env)) {
-            serverIp = "144.24.109.1";
+        if ("PROD".equals(env) && prodServerAddress != null && !prodServerAddress.isBlank()) {
+            serverIp = prodServerAddress.trim();
+        } else if ("UAT".equals(env) && uatServerAddress != null && !uatServerAddress.isBlank()) {
+            serverIp = uatServerAddress.trim();
+        } else if (serverAddress != null && !serverAddress.isBlank() && !"127.0.0.1".equals(serverAddress.trim())) {
+            serverIp = serverAddress.trim();
         } else {
-            serverIp = (serverAddress != null && !serverAddress.isBlank()) ? serverAddress.trim() : "127.0.0.1";
+            String hostIp = serverAddress != null && !serverAddress.isBlank() ? serverAddress.trim() : "127.0.0.1";
+            try {
+                hostIp = java.net.InetAddress.getLocalHost().getHostAddress();
+            } catch (Exception ignored) {}
+            serverIp = hostIp;
         }
 
         // 4. Overall Health Status

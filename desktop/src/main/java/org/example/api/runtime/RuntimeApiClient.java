@@ -82,5 +82,14 @@ public final class RuntimeApiClient {
 
     public record RuntimeStatus(boolean ready, String service, String version, String apiRevision, String buildRevision,
                                 String minimumSupportedDesktopVersion, String environment, String database, String databaseName, String message,
-                                String businessZone, String businessDate, String utcTime, String dateFormat, String timeFormat, String timePolicy, String databaseTimeZone) {}
+                                String businessZone, String businessDate, String utcTime, String dateFormat, String timeFormat, String timePolicy, String databaseTimeZone,
+                                String devSourceFingerprint) {
+        public RuntimeStatus(boolean ready, String service, String version, String apiRevision, String buildRevision,
+                             String minimumSupportedDesktopVersion, String environment, String database, String databaseName, String message,
+                             String businessZone, String businessDate, String utcTime, String dateFormat, String timeFormat, String timePolicy, String databaseTimeZone) {
+            this(ready, service, version, apiRevision, buildRevision, minimumSupportedDesktopVersion, environment,
+                    database, databaseName, message, businessZone, businessDate, utcTime, dateFormat, timeFormat,
+                    timePolicy, databaseTimeZone, null);
+        }
+    }
 }

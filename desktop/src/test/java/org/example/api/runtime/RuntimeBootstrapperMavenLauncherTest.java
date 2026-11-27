@@ -56,4 +56,30 @@ class RuntimeBootstrapperMavenLauncherTest {
         assertTrue(!first.equals(second), "release revision must change the development backend cache identity");
     }
 
+    @Test
+    void developmentSourceFingerprintCheckRejectsStaleOrUntrackedBackendAndAcceptsCurrentBuild() {
+        String ver = org.example.update.BuildInfo.version();
+        RuntimeApiClient.RuntimeStatus untracked = new RuntimeApiClient.RuntimeStatus(
+                true, "dse-erp-server", ver, "spring-security-bearer-v5", ver,
+                "10.0.4", "LOCAL", "postgresql", "dse_erp", "READY",
+                "Asia/Kolkata", "2026-11-27", "2026-11-26T18:50:00Z", "dd MMM yyyy", "hh:mm a", "ISO_DATE_UTC_INSTANT", "UTC",
+                null);
+        RuntimeApiClient.RuntimeStatus stale = new RuntimeApiClient.RuntimeStatus(
+                true, "dse-erp-server", ver, "spring-security-bearer-v5", ver,
+                "10.0.4", "LOCAL", "postgresql", "dse_erp", "READY",
+                "Asia/Kolkata", "2026-11-27", "2026-11-26T18:50:00Z", "dd MMM yyyy", "hh:mm a", "ISO_DATE_UTC_INSTANT", "UTC",
+                "1111222233334444");
+        RuntimeApiClient.RuntimeStatus current = new RuntimeApiClient.RuntimeStatus(
+                true, "dse-erp-server", ver, "spring-security-bearer-v5", ver,
+                "10.0.4", "LOCAL", "postgresql", "dse_erp", "READY",
+                "Asia/Kolkata", "2026-11-27", "2026-11-26T18:50:00Z", "dd MMM yyyy", "hh:mm a", "ISO_DATE_UTC_INSTANT", "UTC",
+                "abcd1234efgh5678");
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> RuntimeBootstrapper.requireCompatibleDevelopmentSource(untracked, "abcd1234efgh5678"));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> RuntimeBootstrapper.requireCompatibleDevelopmentSource(stale, "abcd1234efgh5678"));
+        RuntimeBootstrapper.requireCompatibleDevelopmentSource(current, "abcd1234efgh5678");
+    }
+
 }

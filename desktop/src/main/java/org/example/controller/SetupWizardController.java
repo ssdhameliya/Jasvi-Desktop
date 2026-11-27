@@ -4,6 +4,8 @@ import org.example.navigation.ScreenLifecycle;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.stage.DirectoryChooser;
 import org.example.backup.BackupManager;
@@ -40,6 +42,9 @@ public class SetupWizardController implements ScreenLifecycle {
     @FXML private TextField txtServerUrl;
     @FXML private Label lblServerStatus;
     @FXML private javafx.scene.layout.VBox sharedServerBox, localWorkspaceBox, localWorkspacePreview;
+    @FXML private StackPane setupLogoBox;
+    @FXML private ImageView imgSetupMark;
+    @FXML private Label lblSetupMarkFallback;
 
     private final List<StackPane> steps = new java.util.ArrayList<>();
     private int index;
@@ -48,6 +53,7 @@ public class SetupWizardController implements ScreenLifecycle {
     private String validatedServerEnvironment;
 
     @FXML public void initialize() {
+        applySetupBrandMark();
         steps.addAll(List.of(stepWorkspace, stepCompany, stepEmail, stepAdmin, stepFinish));
         txtWorkspace.setText((WorkspaceManager.isConfigured()
                 ? WorkspaceManager.getWorkspaceRoot() : WorkspaceManager.getSuggestedWorkspace()).toString());
@@ -76,6 +82,26 @@ public class SetupWizardController implements ScreenLifecycle {
         setEmailControlsEnabled(false);
         updateDeploymentControls();
         showStep(0);
+    }
+
+    private void applySetupBrandMark() {
+        Image mark = org.example.service.BrandingService.effectiveMarkImage();
+        boolean available = mark != null && !mark.isError();
+        if (imgSetupMark != null) {
+            imgSetupMark.setImage(available ? mark : null);
+            imgSetupMark.setManaged(available);
+            imgSetupMark.setVisible(available);
+        }
+        if (lblSetupMarkFallback != null) {
+            lblSetupMarkFallback.setManaged(!available);
+            lblSetupMarkFallback.setVisible(!available);
+        }
+        if (setupLogoBox != null) {
+            setupLogoBox.getStyleClass().remove("setup-logo-with-image");
+            if (available) {
+                setupLogoBox.getStyleClass().add("setup-logo-with-image");
+            }
+        }
     }
 
     public void setOnCompleted(Runnable onCompleted) { this.onCompleted = onCompleted; }

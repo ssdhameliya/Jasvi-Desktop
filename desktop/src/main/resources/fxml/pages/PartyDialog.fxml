@@ -143,6 +143,13 @@
                                 <Label text="Historical opening ledger balance (optional for new ledgers)" styleClass="field-help,muted-label"/>
                                 <Label fx:id="errOpeningBalance" managed="false" visible="false" styleClass="validation-message"/>
                             </VBox>
+                            <VBox fx:id="boxCreditLimit" spacing="4">
+                                <Label text="Credit Limit (₹)" styleClass="field-label,field-label-amount"/>
+                                <TextField fx:id="txtCreditLimit" promptText="Leave blank for company default"
+                                           styleClass="numeric-field,approved-input"/>
+                                <Label text="Maximum allowed net receivable exposure for this customer (optional)" styleClass="field-help,muted-label"/>
+                                <Label fx:id="errCreditLimit" managed="false" visible="false" styleClass="validation-message"/>
+                            </VBox>
                             <VBox spacing="4">
                                 <Label text="Master Account Status" styleClass="field-label,field-label-status"/>
                                 <CheckBox fx:id="chkActive" text="Active in transactions" selected="true" styleClass="approved-checkbox"/>

@@ -345,7 +345,7 @@ public class BusinessWhatsappService {
         String normalizedRecipients = targets.stream().map(PhoneTarget::displayPhone).reduce((a, b) -> a + ", " + b).orElse("");
         WhatsappSenderChannelEntity channel = resolveChannelForDocument(req.documentType(), req.channelId());
 
-        String companyName = getSetting("company.name", "Jasvi Industries");
+        String companyName = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc).companyName();
         String canonicalType = mapDocumentType(req.documentType());
 
         CanonicalDocumentService.Rendered rendered = null;

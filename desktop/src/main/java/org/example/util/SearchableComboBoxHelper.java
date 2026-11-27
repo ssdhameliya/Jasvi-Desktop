@@ -81,9 +81,9 @@ public final class SearchableComboBoxHelper {
 
         comboBox.setEditable(true);
 
-        // Ensure string converter matches the display extractor (override JavaFX's default toString converter when extractor is provided)
+        // Ensure string converter matches the display extractor (never keep JavaFX's built-in "(T) string" default converter)
         StringConverter<T> existingConverter = comboBox.getConverter();
-        if (existingConverter == null || textExtractor != null) {
+        if (isJavaFxDefaultConverter(existingConverter) || textExtractor != null) {
             comboBox.setConverter(createDefaultConverter(comboBox, textExtractor));
         }
 
@@ -417,6 +417,10 @@ public final class SearchableComboBoxHelper {
                 return comboBox.getValue();
             }
         };
+    }
+
+    public static boolean isJavaFxDefaultConverter(StringConverter<?> converter) {
+        return converter == null || converter.getClass().getName().startsWith("javafx.scene.control.ComboBox$");
     }
 
     private static boolean isInternalUpdate(ComboBox<?> box) {

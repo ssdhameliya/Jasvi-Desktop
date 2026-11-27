@@ -211,7 +211,16 @@ public class TeamChatService {
         userRepo.findAll().forEach(u -> { if (u.getId() != null) userById.put(u.getId(), u); });
         Map<Integer, ChatPresenceEntity> pres = loadPresenceMap(new ArrayList<>(userById.values()));
         ChatChannelMemberEntity myMem = memberRepo.findByChannelIdAndUserId(savedCh.getId(), me.getId()).orElseThrow();
-        return buildChannelSummary(savedCh, myMem, me.getId(), userById, pres);
+        TeamChatDtos.ChannelSummaryDto summary = buildChannelSummary(savedCh, myMem, me.getId(), userById, pres);
+        List<Integer> notifyIds = memberRepo.findByChannelId(savedCh.getId()).stream()
+                .map(ChatChannelMemberEntity::getUserId)
+                .filter(id -> !Objects.equals(id, me.getId()))
+                .toList();
+        if (!notifyIds.isEmpty()) {
+            broker.sendToUsers(notifyIds, "DIRECTORY",
+                    new TeamChatDtos.ChatStreamEvent("DIRECTORY", savedCh.getId(), null, null, me.getId(), displayName(me), null, null));
+        }
+        return summary;
     }
 
     public List<TeamChatDtos.MessageDto> listMessages(AuthenticatedUser current, long channelId, Long beforeId, String query, int limit) {
@@ -547,8 +556,6 @@ public class TeamChatService {
         });
         if (explicitStatus != null) {
             p.setStatus(explicitStatus);
-        } else if ("OFFLINE".equalsIgnoreCase(p.getStatus())) {
-            p.setStatus("ONLINE");
         }
         if (updateNote) {
             p.setCustomNote(note == null || note.isBlank() ? null : note);

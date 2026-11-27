@@ -319,6 +319,7 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private ToggleButton tglAttachSignatureEmail;
     @FXML private ToggleButton tglAttachSignatureWhatsapp;
     @FXML private Button btnEmailSecurityInfo;
+    @FXML private ComboBox<org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode> cmbEmailFormatMode;
     @FXML private Button btnLivePreview;
     @FXML private ComboBox<String> cmbMessageTemplateDoc;
     @FXML private Button btnOpenTemplateStudio;
@@ -334,6 +335,7 @@ public class SettingsController implements ScreenLifecycle {
 
     private final Map<String, String> templateSubjectDrafts = new HashMap<>();
     private final Map<String, String> templateBodyDrafts = new HashMap<>();
+    private final Map<String, org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode> templateFormatDrafts = new HashMap<>();
     private String currentSelectedTemplateDoc = "Sales Invoice (Email)";
 
     /* =========================================================
@@ -2433,12 +2435,22 @@ private record AssetPreviewRequest(
     }
 
     private void configureShortcutActionConverter() {
-        if (cmbShortcutAction == null || cmbShortcutAction.getConverter() != null) return;
+        if (cmbShortcutAction == null || !org.example.util.SearchableComboBoxHelper.isJavaFxDefaultConverter(cmbShortcutAction.getConverter())) return;
         cmbShortcutAction.setConverter(new javafx.util.StringConverter<>() {
             @Override public String toString(Action action) {
                 return action == null ? "" : action.label();
             }
-            @Override public Action fromString(String value) { return null; }
+            @Override public Action fromString(String value) {
+                if (value != null && !value.isBlank()) {
+                    String trimmed = value.trim();
+                    for (Action item : cmbShortcutAction.getItems()) {
+                        if (item != null && item.label().equalsIgnoreCase(trimmed)) {
+                            return item;
+                        }
+                    }
+                }
+                return cmbShortcutAction.getValue();
+            }
         });
     }
 
@@ -3372,6 +3384,11 @@ private record AssetPreviewRequest(
             putSetting("bank.promptRemittanceOnMatch.enabled", String.valueOf(promptMatch));
             ConfigManager.setWithoutSaving("bank.promptRemittanceOnMatch.enabled", String.valueOf(promptMatch));
         }
+        if (cmbEmailFormatMode != null && cmbEmailFormatMode.getValue() != null && SessionService.isAdmin()) {
+            String modeVal = cmbEmailFormatMode.getValue().name();
+            putSetting(org.example.shared.communication.NotificationTemplateCatalog.EMAIL_FORMAT_MODE_KEY, modeVal);
+            ConfigManager.setWithoutSaving(org.example.shared.communication.NotificationTemplateCatalog.EMAIL_FORMAT_MODE_KEY, modeVal);
+        }
         if (ConfigManager.isSharedClient()) {
             if (!SessionService.isAdmin()) return;
             new org.example.api.authority.BusinessEmailClient().saveSettings(
@@ -3757,7 +3774,43 @@ private record AssetPreviewRequest(
         qrDialog.showAndWait();
     }
 
+    private static javafx.util.StringConverter<org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode> emailFormatModeConverter(
+            ComboBox<org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode> combo,
+            org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode defaultFallback) {
+        return new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode mode) {
+                return mode == null ? "" : mode.displayName();
+            }
+
+            @Override
+            public org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode fromString(String value) {
+                var parsed = org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.parse(value, null);
+                if (parsed != null) return parsed;
+                return combo != null && combo.getValue() != null ? combo.getValue() : defaultFallback;
+            }
+        };
+    }
+
     private void initEmailTemplatesAndSignature() {
+        if (cmbEmailFormatMode != null) {
+            cmbEmailFormatMode.setConverter(emailFormatModeConverter(
+                    cmbEmailFormatMode,
+                    org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.HTML));
+            cmbEmailFormatMode.setItems(FXCollections.observableArrayList(
+                    org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.HTML,
+                    org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.STANDARD
+            ));
+            cmbEmailFormatMode.setValue(MessageTemplateService.emailFormatMode());
+            cmbEmailFormatMode.setDisable(!SessionService.isAdmin());
+            cmbEmailFormatMode.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal == null || oldVal == null || newVal == oldVal || !SessionService.isAdmin()) return;
+                putSetting(org.example.shared.communication.NotificationTemplateCatalog.EMAIL_FORMAT_MODE_KEY, newVal.name());
+                ConfigManager.setWithoutSaving(org.example.shared.communication.NotificationTemplateCatalog.EMAIL_FORMAT_MODE_KEY, newVal.name());
+                ConfigManager.save();
+            });
+        }
+
         if (cmbMessageTemplateDoc != null) {
             cmbMessageTemplateDoc.setItems(javafx.collections.FXCollections.observableArrayList(
                 "Sales Invoice (Email)",
@@ -3970,6 +4023,23 @@ private record AssetPreviewRequest(
         ));
         for (String docOption : allDocs) {
             boolean isWhatsapp = docOption.contains("WhatsApp");
+            var matchedSpec = resolveSpecFromDraftKey(docOption);
+            if (matchedSpec != null) {
+                if (!isWhatsapp) {
+                    String subj = templateSubjectDrafts.get(docOption);
+                    String body = templateBodyDrafts.get(docOption);
+                    if (subj != null) putSetting(matchedSpec.emailSubjectSettingKey(), subj.trim());
+                    if (body != null) putSetting(matchedSpec.emailBodySettingKey(), body.trim());
+                    var fmt = templateFormatDrafts.get(docOption);
+                    if (fmt != null && SessionService.isAdmin()) {
+                        putSetting(matchedSpec.emailFormatSettingKey(), fmt.name());
+                    }
+                } else {
+                    String body = templateBodyDrafts.get(docOption);
+                    if (body != null) putSetting(matchedSpec.whatsappBodySettingKey(), body.trim());
+                }
+                continue;
+            }
             MessageTemplateService.DocumentType docType = resolveDocType(docOption);
             if (!isWhatsapp) {
                 String subj = templateSubjectDrafts.get(docOption);
@@ -3981,6 +4051,20 @@ private record AssetPreviewRequest(
                 if (body != null) putSetting("whatsapp.template." + docType.key() + ".body", body.trim());
             }
         }
+    }
+
+    private static org.example.shared.communication.NotificationTemplateCatalog.TemplateSpec resolveSpecFromDraftKey(String docOption) {
+        if (docOption == null) return null;
+        if (docOption.startsWith("SPEC:")) {
+            int second = docOption.indexOf(':', 5);
+            String key = second > 5 ? docOption.substring(5, second) : docOption.substring(5);
+            return org.example.shared.communication.NotificationTemplateCatalog.byKey(key).orElse(null);
+        }
+        return null;
+    }
+
+    private static String draftKeyForSpec(org.example.shared.communication.NotificationTemplateCatalog.TemplateSpec spec, boolean isWa) {
+        return "SPEC:" + spec.key() + ":" + (isWa ? "WhatsApp" : "Email");
     }
 
     private static MessageTemplateService.DocumentType resolveDocType(String option) {
@@ -4425,8 +4509,8 @@ private record AssetPreviewRequest(
         AppDialogRenderer.configureWorkspace(dialog, isWa ? "message" : "email",
                 isWa ? "WhatsApp Studio" : "Email Studio",
                 isWa ? "WhatsApp Message & Notification Studio" : "Email Message & Template Studio",
-                isWa ? "Customise standardized WhatsApp messages, tokens, and formatting with real-time live preview"
-                     : "Customise standardized email subjects, bodies, and tokens with real-time live preview", "");
+                isWa ? "Customize all automated business & system WhatsApp templates with dynamic {Tokens} and live preview"
+                     : "Customize all automated Email templates, choose HTML Card vs Standard Plain Text, and insert dynamic {Tokens}", "");
 
         Window ownerWindow = (panelWorkspace != null && panelWorkspace.getScene() != null)
                 ? panelWorkspace.getScene().getWindow() : null;
@@ -4440,37 +4524,68 @@ private record AssetPreviewRequest(
         pane.setPrefSize(studioWidth, studioHeight);
         pane.setMinSize(1100, 680);
 
-        List<String> docs = isWa ? List.of(
-                "Sales Invoice (WhatsApp)",
-                "Quotation (WhatsApp)",
-                "Purchase Bill (WhatsApp)",
-                "Payment Receipt (WhatsApp)",
-                "Supplier Remittance Advice (WhatsApp)",
-                "Refund Settlement Confirmation (WhatsApp)",
-                "Sales Return (WhatsApp)",
-                "Purchase Return (WhatsApp)"
-        ) : List.of(
-                "Sales Invoice (Email)",
-                "Quotation (Email)",
-                "Purchase Bill (Email)",
-                "Payment Receipt (Email)",
-                "Supplier Remittance Advice (Email)",
-                "Refund Settlement Confirmation (Email)",
-                "Sales Return (Email)",
-                "Purchase Return (Email)"
-        );
+        boolean adminAccess = SessionService.isAdmin();
+        boolean superAdminAccess = SessionService.isSuperAdmin();
+        var availableSpecs = org.example.shared.communication.NotificationTemplateCatalog
+                .forChannelAndAccess(isWa, adminAccess, superAdminAccess);
 
-        // Top Control Row: Document Selector Only (Clean, Spacious)
-        HBox topRow = new HBox(12);
+        // Top Control Row: Category Filter + Template Selector + Per-Template Format Override + Reset
+        HBox topRow = new HBox(10);
         topRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
 
-        Label lblDoc = new Label("Document Type:");
+        Label lblCat = new Label("Category:");
+        lblCat.getStyleClass().add("settings-form-label");
+        ComboBox<String> cmbCategory = new ComboBox<>();
+        cmbCategory.setPrefWidth(230);
+        cmbCategory.getStyleClass().add("approved-combo");
+        List<String> categoryNames = new java.util.ArrayList<>();
+        categoryNames.add("All Categories");
+        availableSpecs.stream()
+                .map(s -> s.category().displayName())
+                .distinct()
+                .forEach(categoryNames::add);
+        cmbCategory.setItems(FXCollections.observableArrayList(categoryNames));
+        cmbCategory.setValue("All Categories");
+
+        Label lblDoc = new Label("Template:");
         lblDoc.getStyleClass().add("settings-form-label");
-        ComboBox<String> cmbStudioDoc = new ComboBox<>();
-        cmbStudioDoc.setPrefWidth(380);
+        ComboBox<org.example.shared.communication.NotificationTemplateCatalog.TemplateSpec> cmbStudioDoc = new ComboBox<>();
+        cmbStudioDoc.setPrefWidth(320);
         cmbStudioDoc.getStyleClass().add("approved-combo");
-        cmbStudioDoc.setItems(FXCollections.observableArrayList(docs));
-        cmbStudioDoc.setValue(docs.getFirst());
+        cmbStudioDoc.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(org.example.shared.communication.NotificationTemplateCatalog.TemplateSpec spec) {
+                return spec == null ? "" : spec.displayName();
+            }
+
+            @Override
+            public org.example.shared.communication.NotificationTemplateCatalog.TemplateSpec fromString(String s) {
+                return null;
+            }
+        });
+        cmbStudioDoc.setItems(FXCollections.observableArrayList(availableSpecs));
+        if (!availableSpecs.isEmpty()) {
+            cmbStudioDoc.setValue(availableSpecs.getFirst());
+        }
+
+        Label lblFormatOverride = new Label("Format:");
+        lblFormatOverride.getStyleClass().add("settings-form-label");
+        lblFormatOverride.setVisible(!isWa);
+        lblFormatOverride.setManaged(!isWa);
+        ComboBox<org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode> cmbTemplateFormat = new ComboBox<>();
+        cmbTemplateFormat.setPrefWidth(190);
+        cmbTemplateFormat.getStyleClass().add("approved-combo");
+        cmbTemplateFormat.setConverter(emailFormatModeConverter(
+                cmbTemplateFormat,
+                org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.INHERIT));
+        cmbTemplateFormat.setItems(FXCollections.observableArrayList(
+                org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.INHERIT,
+                org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.HTML,
+                org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.STANDARD
+        ));
+        cmbTemplateFormat.setDisable(!adminAccess);
+        cmbTemplateFormat.setVisible(!isWa);
+        cmbTemplateFormat.setManaged(!isWa);
 
         Region topSpacer = new Region();
         HBox.setHgrow(topSpacer, Priority.ALWAYS);
@@ -4478,7 +4593,7 @@ private record AssetPreviewRequest(
         Button btnResetTop = new Button("↺ Reset to Default");
         btnResetTop.getStyleClass().add("secondary-button");
 
-        topRow.getChildren().addAll(lblDoc, cmbStudioDoc, topSpacer, btnResetTop);
+        topRow.getChildren().addAll(lblCat, cmbCategory, lblDoc, cmbStudioDoc, lblFormatOverride, cmbTemplateFormat, topSpacer, btnResetTop);
 
         // Main Dual-Pane Split Area (50% Authoring on Left, 50% Live Preview on Right)
         HBox splitPane = new HBox(18);
@@ -4499,7 +4614,7 @@ private record AssetPreviewRequest(
         boxSubject.setManaged(!isWa);
 
         VBox tokenBox = new VBox(6);
-        Label lblTokens = new Label("Insert Dynamic Tokens (Click token to insert into body):");
+        Label lblTokens = new Label("Insert Dynamic Tokens for this Event (Click to insert):");
         lblTokens.getStyleClass().add("page-subtitle");
 
         FlowPane tokenBar = new FlowPane(6, 6);
@@ -4507,27 +4622,17 @@ private record AssetPreviewRequest(
 
         TextArea txtBody = new TextArea();
         txtBody.setWrapText(true);
-        txtBody.setPrefRowCount(16);
-        txtBody.setMinHeight(300);
+        txtBody.setPrefRowCount(15);
+        txtBody.setMinHeight(280);
         txtBody.getStyleClass().addAll("approved-input", "settings-template-body");
         VBox.setVgrow(txtBody, Priority.ALWAYS);
 
-        for (String token : List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{TotalAmount}",
-                "{BalanceAmount}", "{PaidAmount}", "{PaymentMode}", "{PaymentReference}", "{Signature}")) {
-            Button btnTok = new Button(token);
-            btnTok.getStyleClass().add("secondary-button");
-            btnTok.setOnAction(e -> {
-                int pos = txtBody.getCaretPosition();
-                txtBody.insertText(pos, token);
-                txtBody.requestFocus();
-            });
-            tokenBar.getChildren().add(btnTok);
-        }
         tokenBox.getChildren().addAll(lblTokens, tokenBar);
 
         Label lblFormattingHint = new Label(isWa
-                ? "WhatsApp Formatting: *bold*, _italic_, ~strikethrough~, ```code```. Documents will be delivered as signed PDF attachments."
-                : "Email Tip: Bullet points (•) in payment remittances automatically format into an executive 3-column colorized summary table.");
+                ? "WhatsApp Formatting: *bold*, _italic_, ~strikethrough~. Dynamic {Tokens} automatically inject live transaction/security data at send time."
+                : "Email Modes: HTML Card wraps bullet points (• Label: Value) into styled executive tables; Standard sends clean Plain Text. Raw HTML (<html>...) is also supported.");
+        lblFormattingHint.setWrapText(true);
         lblFormattingHint.getStyleClass().add("page-subtitle");
 
         leftCol.getChildren().addAll(boxSubject, tokenBox, txtBody, lblFormattingHint);
@@ -4540,17 +4645,19 @@ private record AssetPreviewRequest(
 
         HBox previewHeaderBox = new HBox(8);
         previewHeaderBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        Label lblPreviewHeader = new Label(isWa ? "WhatsApp Chat Bubble Preview:" : "Executive Live Email Preview:");
+        Label lblPreviewHeader = new Label(isWa ? "WhatsApp Live Preview:" : "Live Email Preview:");
         lblPreviewHeader.getStyleClass().add("section-title");
+        Label lblEffectiveMode = new Label();
+        lblEffectiveMode.getStyleClass().add("page-subtitle");
         Region previewSpacer = new Region();
         HBox.setHgrow(previewSpacer, Priority.ALWAYS);
 
-        Button btnPreviewBrowser = new Button("👁️ Preview Live Email in Browser");
+        Button btnPreviewBrowser = new Button("👁️ Preview Email in Browser");
         btnPreviewBrowser.getStyleClass().addAll("approved-button", "approved-secondary-button");
-        btnPreviewBrowser.setMinWidth(230);
+        btnPreviewBrowser.setMinWidth(210);
         btnPreviewBrowser.setVisible(!isWa);
         btnPreviewBrowser.setManaged(!isWa);
-        previewHeaderBox.getChildren().addAll(lblPreviewHeader, previewSpacer, btnPreviewBrowser);
+        previewHeaderBox.getChildren().addAll(lblPreviewHeader, lblEffectiveMode, previewSpacer, btnPreviewBrowser);
 
         Label lblPreviewSubject = new Label();
         lblPreviewSubject.setWrapText(true);
@@ -4567,40 +4674,74 @@ private record AssetPreviewRequest(
         scrollPreview.getStyleClass().add("approved-scroll");
         VBox.setVgrow(scrollPreview, Priority.ALWAYS);
 
+        java.util.function.Supplier<Boolean> resolveEffectiveHtml = () -> {
+            if (isWa) return false;
+            var override = cmbTemplateFormat.getValue();
+            if (override == org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.HTML) return true;
+            if (override == org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.STANDARD) return false;
+            var global = cmbEmailFormatMode != null && cmbEmailFormatMode.getValue() != null
+                    ? cmbEmailFormatMode.getValue()
+                    : MessageTemplateService.emailFormatMode();
+            return global != org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.STANDARD;
+        };
+
         btnPreviewBrowser.setOnAction(e -> {
             try {
-                String cur = cmbStudioDoc.getValue();
-                Map<String, String> tokens = MessageTemplateService.sampleTokens();
-                if (txtEmailSignature != null && !txtEmailSignature.getText().isBlank()) {
-                    tokens.put("Signature", txtEmailSignature.getText().trim());
-                }
-                String body = MessageTemplateService.format(txtBody.getText(), tokens);
-                String sigBase64 = MessageTemplateService.getSignatureImageBase64();
-                String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
-                String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
-                String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
-                String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl("PUR/10-11-2026/5146", 38545002.08);
-
-                String html = MessageTemplateService.formatExecutiveHtmlEmail(
-                        cur != null ? cur.replace(" (Email)", "") : "Remittance Advice",
-                        "SETTLED",
-                        "PUR/10-11-2026/5146",
-                        org.example.util.BusinessClock.formatDate(LocalDate.now()),
-                        "Shailesh Dhameliya",
-                        38545002.08,
-                        38545002.08,
-                        0.0,
-                        body,
-                        true,
-                        ourBankName,
-                        ourAccNo,
-                        ourIfsc,
-                        "Live Electronic Settlement Verification",
-                        "0745366171",
-                        statusUrl,
-                        true,
-                        sigBase64
+                var spec = cmbStudioDoc.getValue();
+                if (spec == null) return;
+                String sig = txtEmailSignature != null && !txtEmailSignature.getText().isBlank()
+                        ? txtEmailSignature.getText().trim()
+                        : MessageTemplateService.getSignature();
+                Map<String, String> tokens = org.example.shared.communication.NotificationTemplateCatalog.sampleTokens(
+                        BrandingService.companyName(),
+                        BusinessClock.formatDate(LocalDate.now()),
+                        sig
                 );
+                String rawBody = txtBody.getText() == null ? "" : txtBody.getText();
+                boolean effectiveHtml = resolveEffectiveHtml.get();
+                String html;
+                if (!effectiveHtml) {
+                    String resolvedSubj = MessageTemplateService.format(txtSubj.getText(), tokens);
+                    String resolvedPlain = MessageTemplateService.format(rawBody, tokens);
+                    html = MessageTemplateService.formatStandardPreviewHtml(resolvedSubj, resolvedPlain);
+                } else if (org.example.shared.communication.TokenTemplateEngine.isHtmlContent(rawBody)) {
+                    html = org.example.shared.communication.TokenTemplateEngine.formatHtmlEscaped(rawBody, tokens, java.util.Set.of());
+                } else if (spec.category() == org.example.shared.communication.NotificationTemplateCatalog.Category.BUSINESS_DOCUMENTS) {
+                    String body = MessageTemplateService.format(rawBody, tokens);
+                    String sigBase64 = MessageTemplateService.getSignatureImageBase64();
+                    String ourBankName = ConfigManager.get("payment.bankName", ConfigManager.get("company.bank.name", "")).trim();
+                    String ourAccNo = ConfigManager.get("payment.accountNumber", ConfigManager.get("company.bank.account", "")).trim();
+                    String ourIfsc = ConfigManager.get("payment.ifsc", ConfigManager.get("company.bank.ifsc", "")).trim();
+                    boolean hasBank = !ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank();
+                    String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(tokens.get("DocumentNo"), 125000.00);
+                    html = MessageTemplateService.formatExecutiveHtmlEmail(
+                            spec.displayName(),
+                            "OFFICIAL",
+                            tokens.get("DocumentNo"),
+                            BusinessClock.formatDate(LocalDate.now()),
+                            tokens.get("CustomerName"),
+                            125000.00,
+                            75000.00,
+                            50000.00,
+                            body,
+                            hasBank,
+                            ourBankName,
+                            ourAccNo,
+                            ourIfsc,
+                            "Live Electronic Settlement Verification",
+                            tokens.get("PaymentReference"),
+                            statusUrl,
+                            sigBase64 != null && !sigBase64.isBlank(),
+                            sigBase64
+                    );
+                } else {
+                    String resolvedPlain = MessageTemplateService.format(rawBody, tokens);
+                    html = MessageTemplateService.wrapPlainBodyInCardHtml(
+                            spec.category().displayName(),
+                            spec.displayName(),
+                            resolvedPlain
+                    );
+                }
                 Path tempHtml = Files.createTempFile("dse-email-preview-", ".html");
                 tempHtml.toFile().deleteOnExit();
                 Files.writeString(tempHtml, html, java.nio.charset.StandardCharsets.UTF_8);
@@ -4621,54 +4762,105 @@ private record AssetPreviewRequest(
 
         // Reactive Preview Update Engine
         Runnable updatePreview = () -> {
-            String selected = cmbStudioDoc.getValue();
-            if (selected == null) return;
-
-            Map<String, String> tokens = MessageTemplateService.sampleTokens();
-            if (txtEmailSignature != null && !txtEmailSignature.getText().isBlank()) {
-                tokens.put("Signature", txtEmailSignature.getText().trim());
-            }
+            var spec = cmbStudioDoc.getValue();
+            if (spec == null) return;
+            String sig = txtEmailSignature != null && !txtEmailSignature.getText().isBlank()
+                    ? txtEmailSignature.getText().trim()
+                    : MessageTemplateService.getSignature();
+            Map<String, String> tokens = org.example.shared.communication.NotificationTemplateCatalog.sampleTokens(
+                    BrandingService.companyName(),
+                    BusinessClock.formatDate(LocalDate.now()),
+                    sig
+            );
             if (!isWa) {
+                boolean effHtml = resolveEffectiveHtml.get();
+                lblEffectiveMode.setText(effHtml ? "[Mode: HTML Card]" : "[Mode: Standard Plain Text]");
                 lblPreviewSubject.setText("SUBJECT: " + MessageTemplateService.format(txtSubj.getText(), tokens));
             }
-            String rawFormatted = MessageTemplateService.format(txtBody.getText(), tokens);
-            lblPreviewContent.setText(rawFormatted);
+            lblPreviewContent.setText(MessageTemplateService.format(txtBody.getText(), tokens));
         };
 
-        java.util.function.Consumer<String> loadStudioDoc = doc -> {
-            if (doc == null) return;
-            MessageTemplateService.DocumentType dt = resolveDocType(doc);
-            if (!isWa) {
-                String s = templateSubjectDrafts.computeIfAbsent(doc, k -> MessageTemplateService.getEmailSubject(dt));
-                txtSubj.setText(s);
+        java.util.function.Consumer<org.example.shared.communication.NotificationTemplateCatalog.TemplateSpec> rebuildTokenButtons = spec -> {
+            tokenBar.getChildren().clear();
+            if (spec == null) return;
+            for (String token : spec.tokens()) {
+                Button btnTok = new Button(token);
+                btnTok.getStyleClass().add("secondary-button");
+                btnTok.setOnAction(e -> {
+                    int pos = txtBody.getCaretPosition();
+                    txtBody.insertText(pos, token);
+                    txtBody.requestFocus();
+                });
+                tokenBar.getChildren().add(btnTok);
             }
-            String b = templateBodyDrafts.computeIfAbsent(doc, k -> isWa ? MessageTemplateService.getWhatsappBody(dt) : MessageTemplateService.getEmailBody(dt));
+        };
+
+        java.util.function.Consumer<org.example.shared.communication.NotificationTemplateCatalog.TemplateSpec> loadStudioDoc = spec -> {
+            if (spec == null) return;
+            String draftKey = draftKeyForSpec(spec, isWa);
+            if (!isWa) {
+                String s = templateSubjectDrafts.computeIfAbsent(draftKey, k -> MessageTemplateService.getEmailSubject(spec.key()));
+                txtSubj.setText(s);
+                var fmt = templateFormatDrafts.computeIfAbsent(draftKey, k ->
+                        org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.parse(
+                                ConfigManager.get(spec.emailFormatSettingKey(), "INHERIT"),
+                                org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.INHERIT));
+                cmbTemplateFormat.setValue(fmt);
+            }
+            String b = templateBodyDrafts.computeIfAbsent(draftKey, k -> isWa
+                    ? MessageTemplateService.getWhatsappBody(spec.key())
+                    : MessageTemplateService.getEmailBody(spec.key()));
             txtBody.setText(b);
+            rebuildTokenButtons.accept(spec);
             updatePreview.run();
         };
 
+        cmbCategory.valueProperty().addListener((obs, o, newCat) -> {
+            var filtered = availableSpecs.stream()
+                    .filter(s -> "All Categories".equals(newCat) || s.category().displayName().equals(newCat))
+                    .toList();
+            var prev = cmbStudioDoc.getValue();
+            if (prev != null) {
+                String k = draftKeyForSpec(prev, isWa);
+                if (!isWa) {
+                    templateSubjectDrafts.put(k, txtSubj.getText());
+                    if (cmbTemplateFormat.getValue() != null) templateFormatDrafts.put(k, cmbTemplateFormat.getValue());
+                }
+                templateBodyDrafts.put(k, txtBody.getText());
+            }
+            cmbStudioDoc.setItems(FXCollections.observableArrayList(filtered));
+            if (!filtered.isEmpty()) {
+                cmbStudioDoc.setValue(filtered.getFirst());
+            }
+        });
+
         cmbStudioDoc.valueProperty().addListener((obs, o, n) -> {
             if (o != null) {
-                if (!isWa) templateSubjectDrafts.put(o, txtSubj.getText());
-                templateBodyDrafts.put(o, txtBody.getText());
+                String k = draftKeyForSpec(o, isWa);
+                if (!isWa) {
+                    templateSubjectDrafts.put(k, txtSubj.getText());
+                    if (cmbTemplateFormat.getValue() != null) templateFormatDrafts.put(k, cmbTemplateFormat.getValue());
+                }
+                templateBodyDrafts.put(k, txtBody.getText());
             }
             if (n != null) loadStudioDoc.accept(n);
         });
 
+        cmbTemplateFormat.valueProperty().addListener((obs, o, n) -> updatePreview.run());
         txtSubj.textProperty().addListener((obs, o, n) -> updatePreview.run());
         txtBody.textProperty().addListener((obs, o, n) -> updatePreview.run());
 
         loadStudioDoc.accept(cmbStudioDoc.getValue());
 
         btnResetTop.setOnAction(e -> {
-            String cur = cmbStudioDoc.getValue();
+            var cur = cmbStudioDoc.getValue();
             if (cur == null) return;
-            MessageTemplateService.DocumentType dt = resolveDocType(cur);
             if (isWa) {
-                txtBody.setText(MessageTemplateService.defaultWhatsappBody(dt));
+                txtBody.setText(cur.defaultWhatsappBody() == null ? "" : cur.defaultWhatsappBody());
             } else {
-                txtSubj.setText(MessageTemplateService.defaultEmailSubject(dt));
-                txtBody.setText(MessageTemplateService.defaultEmailBody(dt));
+                txtSubj.setText(cur.defaultEmailSubject() == null ? "" : cur.defaultEmailSubject());
+                txtBody.setText(cur.defaultEmailBody() == null ? "" : cur.defaultEmailBody());
+                cmbTemplateFormat.setValue(org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode.INHERIT);
             }
             updatePreview.run();
         });
@@ -4687,23 +4879,24 @@ private record AssetPreviewRequest(
         Button btnSaveApply = new Button("💾 Save & Apply Templates");
         btnSaveApply.getStyleClass().addAll("approved-button", "approved-primary-button");
         btnSaveApply.setOnAction(e -> {
-            String cur = cmbStudioDoc.getValue();
+            var cur = cmbStudioDoc.getValue();
             if (cur != null) {
-                if (!isWa) templateSubjectDrafts.put(cur, txtSubj.getText());
-                templateBodyDrafts.put(cur, txtBody.getText());
+                String k = draftKeyForSpec(cur, isWa);
+                if (!isWa) {
+                    templateSubjectDrafts.put(k, txtSubj.getText());
+                    if (cmbTemplateFormat.getValue() != null) templateFormatDrafts.put(k, cmbTemplateFormat.getValue());
+                }
+                templateBodyDrafts.put(k, txtBody.getText());
             }
             saveActiveMessageTemplate();
             saveAllDraftMessageTemplates();
-            if (cmbMessageTemplateDoc != null && cur != null) {
-                cmbMessageTemplateDoc.setValue(cur);
-                loadTemplateIntoUi(cur);
-            }
+            ConfigManager.save();
             dialog.close();
             Platform.runLater(() -> {
                 Node ownerNode = panelHost != null ? panelHost : panelScroll;
                 AppDialogService.success(ownerNode, "Templates Saved",
-                        isWa ? "WhatsApp message templates were successfully saved and applied."
-                             : "Email message templates were successfully saved and applied.");
+                        isWa ? "WhatsApp notification templates were saved and synced across the company."
+                             : "Email templates & format preferences were saved and synced across the company.");
             });
         });
 

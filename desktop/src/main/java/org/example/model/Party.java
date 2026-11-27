@@ -12,6 +12,7 @@ public class Party {
     private String gstin;
     private String address;
     private double openingBalance;
+    private Double creditLimit;
     private boolean active;
 
     public int getId() {
@@ -92,6 +93,14 @@ public class Party {
 
     public void setOpeningBalance(double openingBalance) {
         this.openingBalance = openingBalance;
+    }
+
+    public Double getCreditLimit() {
+        return creditLimit;
+    }
+
+    public void setCreditLimit(Double creditLimit) {
+        this.creditLimit = creditLimit;
     }
 
     public boolean isActive() {

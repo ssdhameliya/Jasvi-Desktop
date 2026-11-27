@@ -109,6 +109,125 @@ public class Customer360Service {
     }
 
     private Customer360Dtos.Customer customer(int id){var rows=jdbc.query("SELECT id,party_code,name,COALESCE(contact_person,''),COALESCE(phone,''),COALESCE(email,''),COALESCE(gstin,''),COALESCE(address,''),COALESCE(opening_balance,0),COALESCE(is_active,1),COALESCE(row_version,0) FROM party_master WHERE id=? AND UPPER(party_type)='CUSTOMER'",(r,i)->new Customer360Dtos.Customer(r.getInt(1),r.getString(2),r.getString(3),r.getString(4),r.getString(5),r.getString(6),r.getString(7),r.getString(8),r.getBigDecimal(9),r.getInt(10)!=0,r.getLong(11)),id);if(rows.isEmpty())throw new IllegalArgumentException("Customer not found");return rows.getFirst();}
+
+    @Transactional(readOnly=true)
+    public Customer360Dtos.CreditHealth creditHealth(int customerId){
+        requireCustomerOrSalesView();
+        var meta=jdbc.query("SELECT COALESCE(opening_balance,0),credit_limit FROM party_master WHERE id=? AND UPPER(party_type)='CUSTOMER'",
+                (r,i)->new Object[]{r.getBigDecimal(1),r.getBigDecimal(2)},customerId);
+        if(meta.isEmpty())throw new IllegalArgumentException("Customer not found");
+        BigDecimal opening=meta.getFirst()[0] instanceof BigDecimal b?b:BigDecimal.ZERO;
+        BigDecimal partyLimit=meta.getFirst()[1] instanceof BigDecimal b?b:null;
+        BigDecimal defaultLimit=defaultCompanyCreditLimit();
+        BigDecimal effectiveLimit=partyLimit!=null&&partyLimit.compareTo(BigDecimal.ZERO)>0?partyLimit:defaultLimit;
+        BigDecimal unpaid=money("SELECT COALESCE(SUM(GREATEST(COALESCE(total_amount,0)-COALESCE(paid_amount,0),0)),0) FROM sales_header WHERE customer_id=? AND UPPER(COALESCE(document_status,'')) NOT IN ('DELETED','CANCELLED','REJECTED','PENDING APPROVAL')",customerId);
+        BigDecimal netReceivable=opening.add(unpaid);
+        String today=BusinessClock.today().toString();
+        long overdueCount=count("SELECT COUNT(*) FROM sales_header WHERE customer_id=? AND UPPER(COALESCE(document_status,'')) NOT IN ('DELETED','CANCELLED','REJECTED','PENDING APPROVAL') AND GREATEST(COALESCE(total_amount,0)-COALESCE(paid_amount,0),0) > 0.01 AND COALESCE(TRIM(due_date),'')<>'' AND dse_safe_date(due_date) < dse_safe_date(?)",customerId,today);
+        BigDecimal overdueAmount=money("SELECT COALESCE(SUM(GREATEST(COALESCE(total_amount,0)-COALESCE(paid_amount,0),0)),0) FROM sales_header WHERE customer_id=? AND UPPER(COALESCE(document_status,'')) NOT IN ('DELETED','CANCELLED','REJECTED','PENDING APPROVAL') AND GREATEST(COALESCE(total_amount,0)-COALESCE(paid_amount,0),0) > 0.01 AND COALESCE(TRIM(due_date),'')<>'' AND dse_safe_date(due_date) < dse_safe_date(?)",customerId,today);
+        BigDecimal lastPay=BigDecimal.ZERO;String lastPayDate="";
+        var p=jdbc.query("SELECT COALESCE(pr.amount,0),COALESCE(pr.payment_date::text,'') FROM payment_record pr JOIN sales_header sh ON sh.id=pr.document_id AND pr.document_type='SALE' WHERE sh.customer_id=? ORDER BY dse_safe_date(pr.payment_date) DESC,pr.id DESC LIMIT 1",(r,i)->new Object[]{r.getBigDecimal(1),r.getString(2)},customerId);
+        if(!p.isEmpty()){lastPay=p.getFirst()[0] instanceof BigDecimal b?b:BigDecimal.ZERO;lastPayDate=Objects.toString(p.getFirst()[1],"");}
+        double pct=effectiveLimit.compareTo(BigDecimal.ZERO)>0?netReceivable.doubleValue()*100d/effectiveLimit.doubleValue():0d;
+        return new Customer360Dtos.CreditHealth(customerId,opening,unpaid,netReceivable,overdueCount,overdueAmount,effectiveLimit,pct,lastPay,lastPayDate);
+    }
+
+    @Transactional(readOnly=true)
+    public Customer360Dtos.ItemPricingInsight itemPricing(int customerId,String itemCode,double qty){
+        requireCustomerOrSalesView();
+        requireCustomer(customerId);
+        String code=trim(itemCode);
+        if(code.isBlank())throw new IllegalArgumentException("Item code is required");
+        double purchaseCost=0d,sellingPrice=0d;
+        var itemRows=jdbc.query("SELECT COALESCE(purchase_price,0),COALESCE(selling_price,0) FROM item_master WHERE UPPER(item_code)=UPPER(?)",(r,i)->new double[]{r.getDouble(1),r.getDouble(2)},code);
+        if(!itemRows.isEmpty()){purchaseCost=itemRows.getFirst()[0];sellingPrice=itemRows.getFirst()[1];}
+        Double lastRate=null,lastDisc=null;String lastDate="",lastInv="";
+        var hist=jdbc.query("SELECT sl.rate,COALESCE(sl.discount_percent,0),COALESCE(sh.invoice_date::text,''),COALESCE(sh.invoice_no,'') FROM sales_line sl JOIN sales_header sh ON sh.id=sl.sales_id WHERE sh.customer_id=? AND UPPER(sl.item_code)=UPPER(?) AND UPPER(COALESCE(sh.document_status,'')) NOT IN ('DELETED','CANCELLED','REJECTED') ORDER BY dse_safe_date(sh.invoice_date) DESC,sl.id DESC LIMIT 1",(r,i)->new Object[]{r.getObject(1),r.getObject(2),r.getString(3),r.getString(4)},customerId,code);
+        if(!hist.isEmpty()){
+            lastRate=hist.getFirst()[0] instanceof Number n?n.doubleValue():null;
+            lastDisc=hist.getFirst()[1] instanceof Number n?n.doubleValue():0d;
+            lastDate=Objects.toString(hist.getFirst()[2],"");
+            lastInv=Objects.toString(hist.getFirst()[3],"");
+        }
+        String today=BusinessClock.today().toString();
+        double effectiveQty=qty>0?qty:1d;
+        List<Customer360Dtos.PriceRuleRow> slabs=priceRules(customerId).stream()
+                .filter(r->r.itemCode().equalsIgnoreCase(code)&&r.active())
+                .sorted(Comparator.comparingDouble(Customer360Dtos.PriceRuleRow::minQty)
+                        .thenComparingLong(Customer360Dtos.PriceRuleRow::id).reversed())
+                .toList();
+        Customer360Dtos.PriceRuleRow matched=slabs.stream()
+                .filter(r->r.minQty()<=effectiveQty+0.0001)
+                .filter(r->(blank(r.validFrom())||r.validFrom().compareTo(today)<=0)&&(blank(r.validTo())||r.validTo().compareTo(today)>=0))
+                .findFirst().orElse(null);
+        List<Customer360Dtos.PriceRuleRow> ascSlabs=slabs.stream()
+                .sorted(Comparator.comparingDouble(Customer360Dtos.PriceRuleRow::minQty))
+                .toList();
+        return new Customer360Dtos.ItemPricingInsight(customerId,code,lastRate,lastDisc,lastDate,lastInv,purchaseCost,sellingPrice,matched,ascSlabs);
+    }
+
+    @Transactional(readOnly=true)
+    public List<Customer360Dtos.PriceRuleRow> priceRules(int customerId){
+        requireCustomerOrSalesView();
+        requireCustomer(customerId);
+        return jdbc.query("SELECT r.id,r.party_id,r.item_code,COALESCE(im.description,r.item_code),r.min_qty,r.special_rate,r.discount_percent,COALESCE(r.valid_from,''),COALESCE(r.valid_to,''),COALESCE(r.notes,''),r.active,r.row_version FROM customer_price_rule r LEFT JOIN item_master im ON UPPER(im.item_code)=UPPER(r.item_code) WHERE r.party_id=? ORDER BY UPPER(r.item_code),r.min_qty,r.id",
+                (r,i)->new Customer360Dtos.PriceRuleRow(r.getLong(1),r.getInt(2),r.getString(3),r.getString(4),r.getDouble(5),r.getDouble(6),r.getDouble(7),r.getString(8),r.getString(9),r.getString(10),r.getBoolean(11),r.getLong(12)),customerId);
+    }
+
+    @Transactional
+    public Customer360Dtos.PriceRuleRow savePriceRule(int customerId,Customer360Dtos.PriceRuleSave d){
+        requireCustomerOrSalesEdit();
+        requireCustomer(customerId);
+        if(d==null||blank(d.itemCode()))throw new IllegalArgumentException("Item code is required");
+        if(d.minQty()<=0)throw new IllegalArgumentException("Minimum quantity must be greater than zero");
+        if(d.specialRate()<0)throw new IllegalArgumentException("Special rate cannot be negative");
+        if(d.discountPercent()<0||d.discountPercent()>100)throw new IllegalArgumentException("Discount % must be between 0 and 100");
+        String code=trim(d.itemCode());
+        long id;String action;
+        if(d.id()==null){
+            id=jdbc.queryForObject("INSERT INTO customer_price_rule(party_id,item_code,min_qty,special_rate,discount_percent,valid_from,valid_to,notes,active,created_by,created_at,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+                    Long.class,customerId,code,d.minQty(),d.specialRate(),d.discountPercent(),trim(d.validFrom()),trim(d.validTo()),trim(d.notes()),d.active(),user(),BusinessClock.nowUtcText(),user(),BusinessClock.nowUtcText());
+            action="PRICE_RULE_CREATED";
+        }else{
+            int n=jdbc.update("UPDATE customer_price_rule SET item_code=?,min_qty=?,special_rate=?,discount_percent=?,valid_from=?,valid_to=?,notes=?,active=?,row_version=row_version+1,updated_by=?,updated_at=? WHERE id=? AND party_id=? AND row_version=?",
+                    code,d.minQty(),d.specialRate(),d.discountPercent(),trim(d.validFrom()),trim(d.validTo()),trim(d.notes()),d.active(),user(),BusinessClock.nowUtcText(),d.id(),customerId,d.rowVersion());
+            if(n!=1)throw new org.example.server.web.ConcurrentEditException("Customer price rule");
+            id=d.id();action="PRICE_RULE_UPDATED";
+        }
+        audit.log("PARTY",customerId,action,"Price rule for "+code+" (qty >= "+d.minQty()+") @ "+d.specialRate());
+        long savedId=id;
+        return priceRules(customerId).stream().filter(x->x.id()==savedId).findFirst().orElseThrow();
+    }
+
+    @Transactional
+    public void deletePriceRule(int customerId,long ruleId,long rowVersion){
+        requireCustomerOrSalesEdit();
+        requireCustomer(customerId);
+        int n=jdbc.update("DELETE FROM customer_price_rule WHERE id=? AND party_id=? AND row_version=?",ruleId,customerId,rowVersion);
+        if(n!=1)throw new org.example.server.web.ConcurrentEditException("Customer price rule");
+        audit.log("PARTY",customerId,"PRICE_RULE_DELETED","Customer price rule #"+ruleId);
+    }
+
+    private BigDecimal defaultCompanyCreditLimit(){
+        try{
+            var rows=jdbc.query("SELECT setting_value FROM application_setting WHERE setting_key='credit_control.default_limit'",(r,i)->r.getString(1));
+            if(!rows.isEmpty()&&!blank(rows.getFirst())){
+                BigDecimal v=new BigDecimal(rows.getFirst().trim());
+                if(v.compareTo(BigDecimal.ZERO)>=0)return v;
+            }
+        }catch(Exception ignored){}
+        return new BigDecimal("500000.00");
+    }
+    private void requireCustomerOrSalesView(){
+        if(!(has("CUSTOMERS.VIEW")||has("SALES.VIEW")||has("SALES.CREATE")||has("SALES.EDIT"))){
+            CurrentUser.requirePermission("CUSTOMERS.VIEW","View Customer 360");
+        }
+    }
+    private void requireCustomerOrSalesEdit(){
+        if(!(has("CUSTOMERS.EDIT")||has("ITEMS.EDIT")||has("SALES.EDIT"))){
+            CurrentUser.requirePermission("CUSTOMERS.EDIT","Manage customer price lists");
+        }
+    }
     private void requireCustomer(int id){customer(id);}
     private boolean has(String p){return CurrentUser.hasPermission(p);}
     private String user(){return CurrentUser.require().username();}

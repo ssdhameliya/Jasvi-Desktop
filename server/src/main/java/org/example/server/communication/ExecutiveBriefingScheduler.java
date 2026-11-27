@@ -172,7 +172,8 @@ public class ExecutiveBriefingScheduler {
         DateRange dateRange = resolveDateRange(cadence, today);
         String startIso = dateRange.startDate().toString();
         String endIso = dateRange.endDate().toString();
-        String companyName = getSetting("company.name", "Jasvi Industries");
+        var templates = ServerNotificationTemplateService.forJdbc(jdbc);
+        String companyName = templates.companyName();
         String env = System.getProperty("DSE_DEPLOYMENT_ENVIRONMENT", System.getenv().getOrDefault("DSE_DEPLOYMENT_ENVIRONMENT", getSetting("dse.deployment.environment", "LOCAL"))).toUpperCase(Locale.ROOT);
         String portalUrl = getSetting("company.publicPortalUrl", getSetting("web.portal.url", "")).trim();
 
@@ -324,133 +325,160 @@ public class ExecutiveBriefingScheduler {
             log.warning("Briefing liquid accounts calculation error: " + ex.getMessage());
         }
 
-        // 10. Format WhatsApp Text Message
-        StringBuilder wa = new StringBuilder();
+        // 10. Format Dynamic Metrics Summary & WhatsApp Text
+        StringBuilder metrics = new StringBuilder();
         if (!"PROD".equalsIgnoreCase(env)) {
-            wa.append("⚠️ *[TEST DISPATCH — ").append(env).append(" ENVIRONMENT]*\n");
+            metrics.append("⚠️ [TEST DISPATCH — ").append(env).append(" ENVIRONMENT]\n");
         }
-        wa.append("📊 *").append(companyName).append(" — ").append(dateRange.cadenceLabel()).append("*\n");
-        wa.append("📅 *Period:* ").append(dateRange.periodLabel()).append("\n");
-        wa.append("━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-        wa.append("📈 *Invoiced Sales:* ").append(formatInr(salesTotal))
-          .append(" (").append(salesCount).append(salesCount == 1 ? " Invoice" : " Invoices").append(")\n");
-        wa.append("📥 *Purchases Booked:* ").append(formatInr(purchaseTotal))
-          .append(" (").append(purchaseCount).append(purchaseCount == 1 ? " Bill" : " Bills").append(")\n");
-        wa.append("💵 *Customer Collections:* ").append(formatInr(collTotal))
-          .append(" (").append(collCount).append(collCount == 1 ? " Receipt" : " Receipts").append(")\n");
-        wa.append("📤 *Vendor Payments:* ").append(formatInr(payTotal))
-          .append(" (").append(payCount).append(payCount == 1 ? " Payment" : " Payments").append(")\n");
-        wa.append("⚖️ *Net Cash Flow:* ").append(netCashFlow >= 0 ? "+" : "").append(formatInr(netCashFlow))
-          .append(netCashFlow > 0 ? " (Surplus)" : (netCashFlow < 0 ? " (Deficit)" : " (Balanced)")).append("\n");
-        wa.append("🏦 *Total Liquid Balances:* ").append(formatInr(totalLiquid)).append("\n");
+        metrics.append("📈 Invoiced Sales: ").append(formatInr(salesTotal))
+               .append(" (").append(salesCount).append(salesCount == 1 ? " Invoice" : " Invoices").append(")\n");
+        metrics.append("📥 Purchases Booked: ").append(formatInr(purchaseTotal))
+               .append(" (").append(purchaseCount).append(purchaseCount == 1 ? " Bill" : " Bills").append(")\n");
+        metrics.append("💵 Customer Collections: ").append(formatInr(collTotal))
+               .append(" (").append(collCount).append(collCount == 1 ? " Receipt" : " Receipts").append(")\n");
+        metrics.append("📤 Vendor Payments: ").append(formatInr(payTotal))
+               .append(" (").append(payCount).append(payCount == 1 ? " Payment" : " Payments").append(")\n");
+        metrics.append("⚖️ Net Cash Flow: ").append(netCashFlow >= 0 ? "+" : "").append(formatInr(netCashFlow))
+               .append(netCashFlow > 0 ? " (Surplus)" : (netCashFlow < 0 ? " (Deficit)" : " (Balanced)")).append("\n");
+        metrics.append("🏦 Total Liquid Balances: ").append(formatInr(totalLiquid)).append("\n");
         for (var acc : liquidAccounts) {
             String name = Objects.toString(acc.get("account_name"), "Account");
             double bal = acc.get("current_balance") instanceof Number n ? n.doubleValue() : 0.0;
-            wa.append("   • ").append(name).append(": ").append(formatInr(bal)).append("\n");
+            metrics.append("   • ").append(name).append(": ").append(formatInr(bal)).append("\n");
         }
         if (overdueArCount > 0) {
-            wa.append("⚠️ *Overdue Receivables (AR):* ").append(formatInr(overdueArTotal))
-              .append(" (").append(overdueArCount).append(" Invoices)\n");
+            metrics.append("⚠️ Overdue Receivables (AR): ").append(formatInr(overdueArTotal))
+                   .append(" (").append(overdueArCount).append(" Invoices)\n");
         } else {
-            wa.append("✅ *Overdue Receivables (AR):* Zero overdue accounts.\n");
+            metrics.append("✅ Overdue Receivables (AR): Zero overdue accounts.\n");
         }
         if (overdueApCount > 0) {
-            wa.append("⏳ *Pending Payables (AP):* ").append(formatInr(overdueApTotal))
-              .append(" (").append(overdueApCount).append(" Bills Due)\n");
+            metrics.append("⏳ Pending Payables (AP): ").append(formatInr(overdueApTotal))
+                   .append(" (").append(overdueApCount).append(" Bills Due)\n");
         }
         if (!topInvoices.isEmpty()) {
-            wa.append("━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-            wa.append("🌟 *Top Invoices of Period:*\n");
+            metrics.append("🌟 Top Invoices of Period:\n");
             for (var inv : topInvoices) {
                 String no = Objects.toString(inv.get("invoice_number"), "-");
                 String party = Objects.toString(inv.get("party_name"), "Customer");
                 double amt = inv.get("total_amount") instanceof Number n ? n.doubleValue() : 0.0;
-                wa.append("   • ").append(no).append(" (").append(party).append("): ").append(formatInr(amt)).append("\n");
+                metrics.append("   • ").append(no).append(" (").append(party).append("): ").append(formatInr(amt)).append("\n");
             }
         }
-        wa.append("━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-        wa.append("_Automated briefing generated by ").append(companyName).append(" ERP Engine._");
-        String waText = wa.toString();
+        String metricsSummary = metrics.toString().trim();
 
-        // 11. Format Responsive HTML Email
-        StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html><html><head><meta charset='UTF-8'>");
-        html.append("<style>");
-        html.append("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 24px; color: #1e293b; }");
-        html.append(".card { max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }");
-        html.append(".header { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; padding: 24px; text-align: left; }");
-        html.append(".header h2 { margin: 0 0 6px 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }");
-        html.append(".header p { margin: 0; font-size: 13px; opacity: 0.9; }");
-        html.append(".env-banner { background: #fef3c7; border-bottom: 1px solid #fde68a; color: #92400e; padding: 8px 16px; font-size: 11px; font-weight: 700; text-align: center; }");
-        html.append(".body-content { padding: 24px; }");
-        html.append(".metric-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }");
-        html.append(".metric-title { font-size: 11px; text-transform: uppercase; font-weight: 600; color: #64748b; margin-bottom: 4px; }");
-        html.append(".metric-val { font-size: 18px; font-weight: 700; color: #0f172a; }");
-        html.append(".metric-sub { font-size: 11px; color: #64748b; margin-top: 2px; }");
-        html.append(".val-green { color: #16a34a; } .val-blue { color: #0284c7; } .val-indigo { color: #4f46e5; } .val-amber { color: #d97706; } .val-red { color: #dc2626; }");
-        html.append(".section-title { font-size: 13px; font-weight: 700; color: #334155; margin: 20px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px; }");
-        html.append("table { width: 100%; border-collapse: collapse; margin-top: 6px; }");
-        html.append("th { text-align: left; font-size: 11px; color: #64748b; padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 600; }");
-        html.append("td { font-size: 13px; padding: 8px; border-bottom: 1px solid #f1f5f9; color: #1e293b; }");
-        html.append(".btn-portal { display: inline-block; background: #0284c7; color: #ffffff !important; text-decoration: none; padding: 10px 22px; font-size: 13px; font-weight: 600; border-radius: 6px; margin: 16px 0; text-align: center; }");
-        html.append(".btn-portal:hover { background: #0369a1; }");
-        html.append(".footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 16px 24px; font-size: 12px; color: #64748b; text-align: center; }");
-        html.append("</style></head><body>");
-        html.append("<div class='card'>");
-        if (!"PROD".equalsIgnoreCase(env)) {
-            html.append("<div class='env-banner'>⚠️ TEST DISPATCH &bull; ").append(env).append(" ENVIRONMENT (Not Live Production)</div>");
-        }
-        html.append("<div class='header'><h2>").append(companyName).append(" — ").append(dateRange.cadenceLabel()).append("</h2>");
-        html.append("<p>").append(dateRange.periodLabel()).append("</p></div>");
-        html.append("<div class='body-content'>");
+        Map<String, String> briefingTokens = Map.of(
+                "CompanyName", companyName,
+                "CadenceLabel", dateRange.cadenceLabel(),
+                "PeriodLabel", dateRange.periodLabel(),
+                "Environment", env,
+                "PortalUrl", portalUrl,
+                "MetricsSummary", metricsSummary
+        );
+        String waText = templates.renderWhatsapp("briefing_dispatch", briefingTokens);
 
-        // 6-Card Metric Grid
-        html.append("<table style='margin-bottom:18px;'><tr>");
-        html.append("<td style='width:50%; vertical-align:top; padding-right:8px;'><div class='metric-box'><div class='metric-title'>Invoiced Sales</div><div class='metric-val val-blue'>").append(formatInr(salesTotal)).append("</div><div class='metric-sub'>").append(salesCount).append(salesCount == 1 ? " Invoice" : " Invoices").append("</div></div></td>");
-        html.append("<td style='width:50%; vertical-align:top; padding-left:8px;'><div class='metric-box'><div class='metric-title'>Purchases Booked</div><div class='metric-val val-indigo'>").append(formatInr(purchaseTotal)).append("</div><div class='metric-sub'>").append(purchaseCount).append(purchaseCount == 1 ? " Bill" : " Bills").append("</div></div></td>");
-        html.append("</tr><tr>");
-        html.append("<td style='width:50%; vertical-align:top; padding-right:8px; padding-top:12px;'><div class='metric-box'><div class='metric-title'>Customer Collections</div><div class='metric-val val-green'>").append(formatInr(collTotal)).append("</div><div class='metric-sub'>").append(collCount).append(collCount == 1 ? " Receipt" : " Receipts").append("</div></div></td>");
-        html.append("<td style='width:50%; vertical-align:top; padding-left:8px; padding-top:12px;'><div class='metric-box'><div class='metric-title'>Vendor Payments Outflow</div><div class='metric-val val-amber'>").append(formatInr(payTotal)).append("</div><div class='metric-sub'>").append(payCount).append(payCount == 1 ? " Payment" : " Payments").append("</div></div></td>");
-        html.append("</tr><tr>");
-        html.append("<td style='width:50%; vertical-align:top; padding-right:8px; padding-top:12px;'><div class='metric-box'><div class='metric-title'>Net Period Cash Flow</div><div class='metric-val ").append(netCashFlow >= 0 ? "val-green" : "val-red").append("'>").append(netCashFlow >= 0 ? "+" : "").append(formatInr(netCashFlow)).append("</div><div class='metric-sub'>").append(netCashFlow > 0 ? "Cash Surplus" : (netCashFlow < 0 ? "Cash Deficit" : "Balanced")).append("</div></div></td>");
-        html.append("<td style='width:50%; vertical-align:top; padding-left:8px; padding-top:12px;'><div class='metric-box'><div class='metric-title'>Critical Overdue AR</div><div class='metric-val ").append(overdueArCount > 0 ? "val-red" : "val-green").append("'>").append(formatInr(overdueArTotal)).append("</div><div class='metric-sub'>").append(overdueArCount).append(" Invoices Overdue</div></div></td>");
-        html.append("</tr></table>");
+        // 11. Format Email (Dynamic custom template or Standard Plain Text vs rich 6-Card HTML grid)
+        String customSubject = templates.setting("email.template.briefing_dispatch.subject", "");
+        String customBody = templates.setting("email.template.briefing_dispatch.body", "");
+        boolean useHtmlEmail = templates.shouldUseHtml("briefing_dispatch");
+        String emailSubject;
+        String emailPayload;
 
-        // Top Invoices Table (if any)
-        if (!topInvoices.isEmpty()) {
-            html.append("<div class='section-title'>Top Invoices of Period</div>");
-            html.append("<table><thead><tr><th>Invoice No</th><th>Customer Name</th><th style='text-align:right;'>Amount</th></tr></thead><tbody>");
-            for (var inv : topInvoices) {
-                String no = Objects.toString(inv.get("invoice_number"), "-");
-                String party = Objects.toString(inv.get("party_name"), "Customer");
-                double amt = inv.get("total_amount") instanceof Number n ? n.doubleValue() : 0.0;
-                html.append("<tr><td>").append(no).append("</td><td>").append(party).append("</td><td style='text-align:right; font-weight:600;'>").append(formatInr(amt)).append("</td></tr>");
+        if (!useHtmlEmail || !customBody.isBlank()) {
+            var rendered = templates.renderEmail(
+                    "briefing_dispatch",
+                    briefingTokens,
+                    new ServerNotificationTemplateService.CardStyle(
+                            "#0284c7", "#0369a1",
+                            dateRange.cadenceLabel(),
+                            companyName + " — " + dateRange.cadenceLabel(),
+                            portalUrl.isBlank()
+                                    ? List.of()
+                                    : List.of(new org.example.shared.communication.TokenTemplateEngine.ActionButton(
+                                            "Open Web ERP Portal →", portalUrl, "#0284c7")),
+                            "Dispatched automatically by " + companyName + " ERP Scheduled Automation Suite."
+                    )
+            );
+            emailSubject = rendered.subject();
+            emailPayload = rendered.body();
+        } else {
+            emailSubject = !customSubject.isBlank()
+                    ? org.example.shared.communication.TokenTemplateEngine.format(customSubject, briefingTokens)
+                    : (companyName + " — " + dateRange.cadenceLabel() + " (" + dateRange.periodLabel() + ")");
+            StringBuilder html = new StringBuilder();
+            html.append("<!DOCTYPE html><html><head><meta charset='UTF-8'>");
+            html.append("<style>");
+            html.append("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 24px; color: #1e293b; }");
+            html.append(".card { max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }");
+            html.append(".header { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; padding: 24px; text-align: left; }");
+            html.append(".header h2 { margin: 0 0 6px 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }");
+            html.append(".header p { margin: 0; font-size: 13px; opacity: 0.9; }");
+            html.append(".env-banner { background: #fef3c7; border-bottom: 1px solid #fde68a; color: #92400e; padding: 8px 16px; font-size: 11px; font-weight: 700; text-align: center; }");
+            html.append(".body-content { padding: 24px; }");
+            html.append(".metric-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }");
+            html.append(".metric-title { font-size: 11px; text-transform: uppercase; font-weight: 600; color: #64748b; margin-bottom: 4px; }");
+            html.append(".metric-val { font-size: 18px; font-weight: 700; color: #0f172a; }");
+            html.append(".metric-sub { font-size: 11px; color: #64748b; margin-top: 2px; }");
+            html.append(".val-green { color: #16a34a; } .val-blue { color: #0284c7; } .val-indigo { color: #4f46e5; } .val-amber { color: #d97706; } .val-red { color: #dc2626; }");
+            html.append(".section-title { font-size: 13px; font-weight: 700; color: #334155; margin: 20px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px; }");
+            html.append("table { width: 100%; border-collapse: collapse; margin-top: 6px; }");
+            html.append("th { text-align: left; font-size: 11px; color: #64748b; padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 600; }");
+            html.append("td { font-size: 13px; padding: 8px; border-bottom: 1px solid #f1f5f9; color: #1e293b; }");
+            html.append(".btn-portal { display: inline-block; background: #0284c7; color: #ffffff !important; text-decoration: none; padding: 10px 22px; font-size: 13px; font-weight: 600; border-radius: 6px; margin: 16px 0; text-align: center; }");
+            html.append(".footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 16px 24px; font-size: 12px; color: #64748b; text-align: center; }");
+            html.append("</style></head><body>");
+            html.append("<div class='card'>");
+            if (!"PROD".equalsIgnoreCase(env)) {
+                html.append("<div class='env-banner'>⚠️ TEST DISPATCH &bull; ").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(env)).append(" ENVIRONMENT (Not Live Production)</div>");
+            }
+            html.append("<div class='header'><h2>").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(companyName)).append(" — ").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(dateRange.cadenceLabel())).append("</h2>");
+            html.append("<p>").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(dateRange.periodLabel())).append("</p></div>");
+            html.append("<div class='body-content'>");
+
+            html.append("<table style='margin-bottom:18px;'><tr>");
+            html.append("<td style='width:50%; vertical-align:top; padding-right:8px;'><div class='metric-box'><div class='metric-title'>Invoiced Sales</div><div class='metric-val val-blue'>").append(formatInr(salesTotal)).append("</div><div class='metric-sub'>").append(salesCount).append(salesCount == 1 ? " Invoice" : " Invoices").append("</div></div></td>");
+            html.append("<td style='width:50%; vertical-align:top; padding-left:8px;'><div class='metric-box'><div class='metric-title'>Purchases Booked</div><div class='metric-val val-indigo'>").append(formatInr(purchaseTotal)).append("</div><div class='metric-sub'>").append(purchaseCount).append(purchaseCount == 1 ? " Bill" : " Bills").append("</div></div></td>");
+            html.append("</tr><tr>");
+            html.append("<td style='width:50%; vertical-align:top; padding-right:8px; padding-top:12px;'><div class='metric-box'><div class='metric-title'>Customer Collections</div><div class='metric-val val-green'>").append(formatInr(collTotal)).append("</div><div class='metric-sub'>").append(collCount).append(collCount == 1 ? " Receipt" : " Receipts").append("</div></div></td>");
+            html.append("<td style='width:50%; vertical-align:top; padding-left:8px; padding-top:12px;'><div class='metric-box'><div class='metric-title'>Vendor Payments Outflow</div><div class='metric-val val-amber'>").append(formatInr(payTotal)).append("</div><div class='metric-sub'>").append(payCount).append(payCount == 1 ? " Payment" : " Payments").append("</div></div></td>");
+            html.append("</tr><tr>");
+            html.append("<td style='width:50%; vertical-align:top; padding-right:8px; padding-top:12px;'><div class='metric-box'><div class='metric-title'>Net Period Cash Flow</div><div class='metric-val ").append(netCashFlow >= 0 ? "val-green" : "val-red").append("'>").append(netCashFlow >= 0 ? "+" : "").append(formatInr(netCashFlow)).append("</div><div class='metric-sub'>").append(netCashFlow > 0 ? "Cash Surplus" : (netCashFlow < 0 ? "Cash Deficit" : "Balanced")).append("</div></div></td>");
+            html.append("<td style='width:50%; vertical-align:top; padding-left:8px; padding-top:12px;'><div class='metric-box'><div class='metric-title'>Critical Overdue AR</div><div class='metric-val ").append(overdueArCount > 0 ? "val-red" : "val-green").append("'>").append(formatInr(overdueArTotal)).append("</div><div class='metric-sub'>").append(overdueArCount).append(" Invoices Overdue</div></div></td>");
+            html.append("</tr></table>");
+
+            if (!topInvoices.isEmpty()) {
+                html.append("<div class='section-title'>Top Invoices of Period</div>");
+                html.append("<table><thead><tr><th>Invoice No</th><th>Customer Name</th><th style='text-align:right;'>Amount</th></tr></thead><tbody>");
+                for (var inv : topInvoices) {
+                    String no = Objects.toString(inv.get("invoice_number"), "-");
+                    String party = Objects.toString(inv.get("party_name"), "Customer");
+                    double amt = inv.get("total_amount") instanceof Number n ? n.doubleValue() : 0.0;
+                    html.append("<tr><td>").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(no)).append("</td><td>").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(party)).append("</td><td style='text-align:right; font-weight:600;'>").append(formatInr(amt)).append("</td></tr>");
+                }
+                html.append("</tbody></table>");
+            }
+
+            html.append("<div class='section-title'>Liquid Balances (Total: ").append(formatInr(totalLiquid)).append(")</div>");
+            html.append("<table><thead><tr><th>Account Name</th><th>Code</th><th style='text-align:right;'>Current Balance</th></tr></thead><tbody>");
+            for (var acc : liquidAccounts) {
+                String name = Objects.toString(acc.get("account_name"), "Account");
+                String code = Objects.toString(acc.get("account_code"), "-");
+                double bal = acc.get("current_balance") instanceof Number n ? n.doubleValue() : 0.0;
+                html.append("<tr><td>").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(name)).append("</td><td>").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(code)).append("</td><td style='text-align:right; font-weight:600;'>").append(formatInr(bal)).append("</td></tr>");
             }
             html.append("</tbody></table>");
-        }
 
-        // Liquid Balances Table
-        html.append("<div class='section-title'>Liquid Balances (Total: ").append(formatInr(totalLiquid)).append(")</div>");
-        html.append("<table><thead><tr><th>Account Name</th><th>Code</th><th style='text-align:right;'>Current Balance</th></tr></thead><tbody>");
-        for (var acc : liquidAccounts) {
-            String name = Objects.toString(acc.get("account_name"), "Account");
-            String code = Objects.toString(acc.get("account_code"), "-");
-            double bal = acc.get("current_balance") instanceof Number n ? n.doubleValue() : 0.0;
-            html.append("<tr><td>").append(name).append("</td><td>").append(code).append("</td><td style='text-align:right; font-weight:600;'>").append(formatInr(bal)).append("</td></tr>");
-        }
-        html.append("</tbody></table>");
+            if (!portalUrl.isBlank()) {
+                html.append("<div style='text-align:center; margin-top:24px;'>");
+                html.append("<a href='").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(portalUrl)).append("' class='btn-portal'>Open Web ERP Portal &rarr;</a>");
+                html.append("</div>");
+            }
 
-        // Config-Gated Portal Button (White-Label: ONLY shown if portalUrl is configured)
-        if (!portalUrl.isBlank()) {
-            html.append("<div style='text-align:center; margin-top:24px;'>");
-            html.append("<a href='").append(portalUrl).append("' class='btn-portal'>Open Web ERP Portal &rarr;</a>");
             html.append("</div>");
+            html.append("<div class='footer'>Dispatched automatically by ").append(org.example.shared.communication.TokenTemplateEngine.escapeHtml(companyName)).append(" ERP Scheduled Automation Suite.</div>");
+            html.append("</div></body></html>");
+            emailPayload = html.toString();
         }
-
-        html.append("</div>");
-        html.append("<div class='footer'>Dispatched automatically by ").append(companyName).append(" ERP Scheduled Automation Suite.</div>");
-        html.append("</div></body></html>");
-        String emailHtml = html.toString();
 
         // 12. Multi-Recipient Dispatch
         int waSent = 0, waFailed = 0;
@@ -487,13 +515,12 @@ public class ExecutiveBriefingScheduler {
         if (emailEnabled && !emailsRaw.isBlank()) {
             SmtpMailService mailService = mailServiceProvider.getIfAvailable();
             String[] emails = emailsRaw.split("[,;]");
-            String emailSubject = companyName + " — " + dateRange.cadenceLabel() + " (" + dateRange.periodLabel() + ")";
             for (String email : emails) {
                 String e = email.trim();
                 if (e.isBlank()) continue;
                 if (mailService != null && mailService.isConfigured()) {
                     try {
-                        mailService.sendBusinessFiles(e, emailSubject, emailHtml, List.of());
+                        mailService.sendBusinessFiles(e, emailSubject, emailPayload, List.of());
                         emailSent++;
                         recordBriefingEmailAudit(e, true, null);
                     } catch (Exception ex) {

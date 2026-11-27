@@ -1065,11 +1065,12 @@ public class MasterDataService {
         e.setGstin(d.gstin());
         e.setAddress(d.address());
         e.setOpeningBalance(d.openingBalance());
+        e.setCreditLimit(d.creditLimit() != null && d.creditLimit() > 0 ? d.creditLimit() : null);
         e.setActive(d.active() ? 1 : 0);
     }
 
     private MasterDtos.PartyDto partyDto(PartyEntity e) {
-        return new MasterDtos.PartyDto(e.getId(), e.getPartyType(), e.getPartyCode(), e.getName(), e.getContactPerson(), e.getPhone(), e.getEmail(), e.getGstin(), e.getAddress(), n(e.getOpeningBalance()), e.getActive() == null || e.getActive() != 0, nv(e.getRowVersion()));
+        return new MasterDtos.PartyDto(e.getId(), e.getPartyType(), e.getPartyCode(), e.getName(), e.getContactPerson(), e.getPhone(), e.getEmail(), e.getGstin(), e.getAddress(), n(e.getOpeningBalance()), e.getActive() == null || e.getActive() != 0, nv(e.getRowVersion()), e.getCreditLimit());
     }
 
     private List<AuditService.Change> itemAuditChanges(ItemEntity e, MasterDtos.ItemDto d) {

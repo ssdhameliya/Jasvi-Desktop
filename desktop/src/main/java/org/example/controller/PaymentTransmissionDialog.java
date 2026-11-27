@@ -584,9 +584,10 @@ public class PaymentTransmissionDialog {
             String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
             String bodyContent = txtEmailBody == null ? "" : txtEmailBody.getText();
 
-            String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
-            String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
-            String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+            String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
+            String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
+            String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
+            boolean hasBankDetails = !ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank();
 
             Path sigPath = draft != null ? draft.signatureImage() : null;
             if (sigPath == null && MessageTemplateService.isAttachSignatureToEmail()) {
@@ -603,7 +604,7 @@ public class PaymentTransmissionDialog {
                     paid,
                     balance,
                     bodyContent,
-                    true,
+                    hasBankDetails,
                     ourBankName,
                     ourAccNo,
                     ourIfsc,
@@ -771,14 +772,22 @@ public class PaymentTransmissionDialog {
             profile = cmbSenderProfile.getValue().profile();
         }
 
+        String entityHint = draft != null && draft.entityType() != null && !draft.entityType().isBlank()
+                ? draft.entityType()
+                : (draft != null ? draft.documentLabel() : "PAYMENT_RECEIPT");
+        boolean useHtmlFormat = MessageTemplateService.shouldUseHtmlForEntity(entityHint);
+
         Path sigPath = draft != null ? draft.signatureImage() : null;
         if (sigPath == null && MessageTemplateService.isAttachSignatureToEmail()) {
             sigPath = MessageTemplateService.getOrCreateSignatureImagePath();
         }
+        if (!useHtmlFormat) {
+            sigPath = null;
+        }
 
-        // Format executive HTML email body if not already HTML
+        // Format executive HTML email body if HTML mode is active
         String finalEmailBody = emailBody;
-        if (sendEmail && !emailBody.contains("<!DOCTYPE html>")) {
+        if (sendEmail && useHtmlFormat && !emailBody.contains("<!DOCTYPE html>")) {
             String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
             String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "PAYMENT RECEIPT";
             String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "CONFIRMED";
@@ -787,9 +796,10 @@ public class PaymentTransmissionDialog {
             double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
             String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
 
-            String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
-            String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
-            String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+            String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
+            String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
+            String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
+            boolean hasBankDetails = !ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank();
 
             finalEmailBody = MessageTemplateService.formatExecutiveHtmlEmail(
                     docLabel,
@@ -801,7 +811,7 @@ public class PaymentTransmissionDialog {
                     paid,
                     balance,
                     emailBody,
-                    true,
+                    hasBankDetails,
                     ourBankName,
                     ourAccNo,
                     ourIfsc,

@@ -335,7 +335,8 @@ public class UserDialogController implements ScreenLifecycle {
     }
 
     private void applyRoleSecurityPolicy() {
-        boolean admin = "ADMIN".equals(canonicalRole(cmbRole.getValue()));
+        String role = canonicalRole(cmbRole.getValue());
+        boolean admin = "ADMIN".equals(role) || "SUPER_ADMIN".equals(role);
         String normalizedPolicy = mfaPolicy == null ? "REQUIRED" : mfaPolicy.trim().toUpperCase(Locale.ROOT).replace(' ', '_');
         if (lblMfaPolicy != null) lblMfaPolicy.setText(switch (normalizedPolicy) {
             case "ADMIN_CONTROLLED" -> "Admin Controlled";

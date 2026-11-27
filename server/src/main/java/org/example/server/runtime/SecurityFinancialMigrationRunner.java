@@ -267,7 +267,11 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_89__bank_statement_suggested_match_type",
                     "db/migration/V11_0_89__bank_statement_suggested_match_type.sql"),
             new Migration("V11_0_90__team_chat_and_presence",
-                    "db/migration/V11_0_90__team_chat_and_presence.sql")
+                    "db/migration/V11_0_90__team_chat_and_presence.sql"),
+            new Migration("V11_0_91__bank_rules_v2_and_party_aliases",
+                    "db/migration/V11_0_91__bank_rules_v2_and_party_aliases.sql"),
+            new Migration("V11_0_92__sales_customer_health_and_pricing",
+                    "db/migration/V11_0_92__sales_customer_health_and_pricing.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;
@@ -430,6 +434,8 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
         requireColumn("client_user_telemetry", "deployment_mode");
         requireColumn("client_user_session_log", "deployment_mode");
         requireColumn("client_user_session_log", "company_name");
+        requireColumn("bank_reconciliation_rules", "min_amount");
+        requireTable("party_bank_alias");
         requireFunction("dse_safe_date");
     }
 

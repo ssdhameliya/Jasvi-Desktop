@@ -240,7 +240,7 @@ public class LoginController implements ScreenLifecycle {
         if (lblBrandDescription != null) lblBrandDescription.setText(BrandingService.loginDescription());
         if (lblBrandQuote != null) lblBrandQuote.setText(BrandingService.loginDescription());
         Image logo = BrandingService.applicationBrandImage();
-        Image mark = BrandingService.applicationMarkImage();
+        Image mark = BrandingService.effectiveMarkImage();
         if (lblFooterCompany != null) lblFooterCompany.setText(BrandingService.companyName());
         if (lblFooterPhone != null) lblFooterPhone.setText("Phone: " + configured("company.phone"));
         if (lblFooterEmail != null) lblFooterEmail.setText("Email: " + configured("company.email"));
@@ -549,9 +549,18 @@ public class LoginController implements ScreenLifecycle {
             PerformanceMonitor.finish("login-mfa");
             String detail = exception.getMessage() == null || exception.getMessage().isBlank()
                     ? "MFA verification failed." : exception.getMessage();
+            String ticketId = exception instanceof org.example.api.auth.AuthApiClient.AccountLockoutException ale
+                    ? ale.getTicketId() : null;
             showFieldError(txtOtp, lblOtpError, detail);
             message(detail, true);
-            if (detail.toLowerCase(java.util.Locale.ROOT).contains("locked")) resetPendingLogin();
+            boolean lockedOut = (ticketId != null && !ticketId.isBlank())
+                    || detail.toLowerCase(java.util.Locale.ROOT).contains("has been locked")
+                    || detail.toLowerCase(java.util.Locale.ROOT).contains("locked");
+            if (lockedOut) {
+                resetPendingLogin();
+                showIncidentBanner(ticketId, detail);
+                startLiveUnlockTracker(txtUsername.getText() == null ? "" : txtUsername.getText().trim(), ticketId);
+            }
         });
     }
 
@@ -917,9 +926,22 @@ public class LoginController implements ScreenLifecycle {
                     txtPassword.clear();
                     message("Password updated successfully. Sign in with your new password.", false);
                     txtPassword.requestFocus();
-                }, failure -> {
+        }, failure -> {
                     if (btnResetPassword != null) btnResetPassword.setDisable(false);
-                    message("Unable to update password: " + (failure.getMessage() == null ? "Unknown error" : failure.getMessage()), true);
+                    String detail = failure.getMessage() == null || failure.getMessage().isBlank()
+                            ? "Unknown error" : failure.getMessage();
+                    if (failure instanceof org.example.api.auth.AuthApiClient.AccountLockoutException ale) {
+                        String identity = txtResetIdentity.getText() == null ? "" : txtResetIdentity.getText().trim();
+                        resetChallengeId = null;
+                        showLoginPanel();
+                        if (!identity.isBlank()) txtUsername.setText(identity);
+                        txtPassword.clear();
+                        showIncidentBanner(ale.getTicketId(), detail);
+                        startLiveUnlockTracker(identity, ale.getTicketId());
+                        message(detail, true);
+                        return;
+                    }
+                    message("Unable to update password: " + detail, true);
                 });
     }
 
@@ -1300,28 +1322,36 @@ public class LoginController implements ScreenLifecycle {
 
     private void showIncidentBanner(String ticketId, String message) {
         if (incidentBanner == null) return;
-        this.activeIncidentTicketId = ticketId;
+        String cleanTicket = ticketId != null && !ticketId.isBlank() ? ticketId.trim() : null;
+        boolean hasTicket = cleanTicket != null;
+        this.activeIncidentTicketId = cleanTicket;
         incidentBanner.getStyleClass().removeAll("auth-incident-unlocked");
         if (!incidentBanner.getStyleClass().contains("auth-incident-banner")) {
             incidentBanner.getStyleClass().add("auth-incident-banner");
         }
-        if (lblIncidentIcon != null) lblIncidentIcon.setText("🚨");
-        if (lblIncidentTitle != null) lblIncidentTitle.setText("Administrator Account Temporarily Locked");
+        if (lblIncidentIcon != null) lblIncidentIcon.setText(hasTicket ? "🚨" : "🔒");
+        if (lblIncidentTitle != null) {
+            lblIncidentTitle.setText(hasTicket ? "Account Permanently Locked" : "Administrator Account Temporarily Locked");
+        }
         if (lblIncidentSubtitle != null) {
-            lblIncidentSubtitle.setText("Super Admin has been alerted via high-priority Email & WhatsApp.");
+            lblIncidentSubtitle.setText(hasTicket
+                    ? "Super Admin has been alerted via high-priority Email & WhatsApp."
+                    : "Use Forgot Password to reset (1 attempt — failing once permanently locks your ID & alerts Super Admin).");
         }
         if (lblIncidentTicketBadge != null) {
-            lblIncidentTicketBadge.setText(ticketId != null && !ticketId.isBlank() ? "Ticket #" + ticketId : "Ticket #PENDING");
-            lblIncidentTicketBadge.setVisible(true);
-            lblIncidentTicketBadge.setManaged(true);
+            lblIncidentTicketBadge.setText(hasTicket ? "Ticket #" + cleanTicket : "");
+            lblIncidentTicketBadge.setVisible(hasTicket);
+            lblIncidentTicketBadge.setManaged(hasTicket);
         }
         if (btnCopyTicket != null) {
             btnCopyTicket.setText("Copy");
-            btnCopyTicket.setVisible(ticketId != null && !ticketId.isBlank());
-            btnCopyTicket.setManaged(ticketId != null && !ticketId.isBlank());
+            btnCopyTicket.setVisible(hasTicket);
+            btnCopyTicket.setManaged(hasTicket);
         }
         if (lblPollerStatus != null) {
-            lblPollerStatus.setText("⏳ Live Sentinel: Checking unlock status every 10s...");
+            lblPollerStatus.setText(hasTicket
+                    ? "⏳ Live Sentinel: Checking unlock status every 10s..."
+                    : "⏳ Ready for Forgot Password recovery (also monitoring for administrator unlock)...");
         }
         incidentBanner.setVisible(true);
         incidentBanner.setManaged(true);
@@ -1337,16 +1367,10 @@ public class LoginController implements ScreenLifecycle {
     private void handleAccountStatusUpdate(org.example.api.auth.AuthApiClient.AccountStatusResponse status) {
         if (status == null || !status.exists()) return;
         if (status.locked()) {
-            if (status.ticketId() != null && !status.ticketId().isBlank()) {
-                this.activeIncidentTicketId = status.ticketId();
-                if (lblIncidentTicketBadge != null) lblIncidentTicketBadge.setText("Ticket #" + status.ticketId());
-                if (btnCopyTicket != null) {
-                    btnCopyTicket.setVisible(true);
-                    btnCopyTicket.setManaged(true);
-                }
-            }
-            if (incidentBanner != null && !incidentBanner.isVisible()) {
-                showIncidentBanner(status.ticketId(), "This account is currently locked.");
+            String newTicket = status.ticketId() != null && !status.ticketId().isBlank() ? status.ticketId().trim() : null;
+            boolean upgradedToEscalated = newTicket != null && !newTicket.equals(this.activeIncidentTicketId);
+            if (incidentBanner != null && (!incidentBanner.isVisible() || upgradedToEscalated)) {
+                showIncidentBanner(newTicket, "This account is currently locked.");
             }
         } else {
             // UNLOCKED!

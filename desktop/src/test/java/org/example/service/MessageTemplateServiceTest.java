@@ -196,4 +196,52 @@ class MessageTemplateServiceTest {
         assertEquals("http://127.0.0.1:58080",
                 MessageTemplateService.sanitizePublicPortalUrl("http:/127.0.0.1:58080/"));
     }
+
+    @Test
+    void htmlAndStandardFormatModesToggleRenderingPerGlobalAndTemplateOverride() {
+        ConfigManager.setWithoutSaving("company.name", "Apex Castings Pvt Ltd");
+        ConfigManager.setWithoutSaving("email.format.mode", "STANDARD");
+        assertFalse(MessageTemplateService.shouldUseHtml("aging_collection"));
+        assertFalse(MessageTemplateService.shouldUseHtmlForEntity("SALES_INVOICE"));
+
+        var standardRendered = MessageTemplateService.renderEmailByKey(
+                "gst_rule36_notice",
+                Map.of(
+                        "SupplierName", "Bharat Steels",
+                        "InvoiceNo", "PUR-99",
+                        "InvoiceDate", "26/11/2026",
+                        "TaxableAmount", "10000",
+                        "TaxAmount", "1800",
+                        "CompanyGstin", "24AAAAA0000A1Z5"
+                ),
+                "GST Notice",
+                "ITC",
+                "#dc2626",
+                "#991b1b"
+        );
+        assertFalse(standardRendered.body().contains("<!DOCTYPE html>"));
+        assertTrue(standardRendered.body().contains("Bharat Steels"));
+        assertTrue(standardRendered.body().contains("PUR-99"));
+
+        // Per-template HTML override even while company default is STANDARD
+        ConfigManager.setWithoutSaving("email.template.gst_rule36_notice.format", "HTML");
+        assertTrue(MessageTemplateService.shouldUseHtml("gst_rule36_notice"));
+        var overrideHtmlRendered = MessageTemplateService.renderEmailByKey(
+                "gst_rule36_notice",
+                Map.of(
+                        "SupplierName", "Bharat Steels",
+                        "InvoiceNo", "PUR-99",
+                        "InvoiceDate", "26/11/2026",
+                        "TaxableAmount", "10000",
+                        "TaxAmount", "1800",
+                        "CompanyGstin", "24AAAAA0000A1Z5"
+                ),
+                "GST Notice",
+                "ITC",
+                "#dc2626",
+                "#991b1b"
+        );
+        assertTrue(overrideHtmlRendered.body().contains("<!DOCTYPE html>"));
+        assertTrue(overrideHtmlRendered.body().contains("Bharat Steels"));
+    }
 }

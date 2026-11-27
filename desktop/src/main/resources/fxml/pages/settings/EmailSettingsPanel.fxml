@@ -185,4 +185,15 @@
             <ToggleButton fx:id="tglPromptBankMatch" text="Bank Match Prompt: ON" styleClass="apple-toggle-switch,ios-toggle-switch"/>
         </HBox>
     </VBox>
+
+    <!-- Feature Flag 4: Email Format Mode (HTML Card View vs Standard Plain Text) -->
+    <VBox spacing="8" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <Label text="Default Email Rendering Format" styleClass="section-title"/>
+                <Label text="Choose whether emails send as styled HTML executive cards or clean Standard Plain Text across the company. Individual templates can override this in Studio." wrapText="true" styleClass="page-subtitle"/>
+            </VBox>
+            <ComboBox fx:id="cmbEmailFormatMode" prefWidth="220" styleClass="approved-combo"/>
+        </HBox>
+    </VBox>
 </VBox>

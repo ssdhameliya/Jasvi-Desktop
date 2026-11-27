@@ -60,6 +60,7 @@ public class LicenseRenewalDialogController {
     @FXML private Label lblDaysRemaining;
 
     @FXML private Button btnSelfActivateNow;
+    @FXML private Button btnSendEmailLead;
     @FXML private Button btnSendWhatsAppLead;
     @FXML private Button btnRegisterOnlineLead;
     @FXML private Button btnBrowseLicenseFile;
@@ -74,6 +75,7 @@ public class LicenseRenewalDialogController {
     private Dialog<?> hostDialog;
     private String currentUpiUri = "";
     private String supportPhone = "9537544008";
+    private String supportEmail = "shailesh.sdhameliya@gmail.com";
     private String upiVpa = "jasviindustries@icici";
     private String payeeName = "Jasvi Industries";
     private String gstRate = "18.00";
@@ -89,7 +91,8 @@ public class LicenseRenewalDialogController {
         }
         if (btnApplyActivation != null) UiActionIcons.apply(btnApplyActivation, "complete", "Apply & Activate License");
         if (btnClose != null) UiActionIcons.apply(btnClose, "cancel", "Close");
-        if (btnSendWhatsAppLead != null) UiActionIcons.apply(btnSendWhatsAppLead, "communication", "Send Machine ID via WhatsApp");
+        if (btnSendEmailLead != null) UiActionIcons.apply(btnSendEmailLead, "email", "Send Machine ID via Email");
+        if (btnSendWhatsAppLead != null) UiActionIcons.apply(btnSendWhatsAppLead, "communication", "Send via WhatsApp");
         if (btnRegisterOnlineLead != null) UiActionIcons.apply(btnRegisterOnlineLead, "link", "Register Online");
         if (btnSelfActivateNow != null) UiActionIcons.apply(btnSelfActivateNow, "security", "Activate Locally");
         if (btnBrowseLicenseFile != null) UiActionIcons.apply(btnBrowseLicenseFile, "document", "Browse License File");
@@ -106,6 +109,7 @@ public class LicenseRenewalDialogController {
                 cat -> {
                     if (cat != null && !cat.isEmpty()) {
                         if (cat.get("supportPhone") != null) supportPhone = String.valueOf(cat.get("supportPhone")).trim();
+                        if (cat.get("supportEmail") != null) supportEmail = String.valueOf(cat.get("supportEmail")).trim();
                         if (cat.get("upiVpa") != null) upiVpa = String.valueOf(cat.get("upiVpa")).trim();
                         if (cat.get("payeeName") != null) payeeName = String.valueOf(cat.get("payeeName")).trim();
                         if (cat.get("gstRate") != null) gstRate = String.valueOf(cat.get("gstRate")).trim();
@@ -187,10 +191,7 @@ public class LicenseRenewalDialogController {
         if (lblCompany != null) lblCompany.setText(dto.companyName() != null ? dto.companyName() : "-");
         if (lblTier != null) lblTier.setText(dto.tier() != null ? dto.tier() : "GOLD");
         if (lblServerHost != null) {
-            String sHost = dto.currentMachineId() != null && !dto.currentMachineId().isBlank()
-                    ? dto.currentMachineId()
-                    : (dto.machineId() != null && !dto.machineId().isBlank() ? dto.machineId() : "Oracle Cloud Host");
-            lblServerHost.setText(sHost);
+            lblServerHost.setText(resolveServerHost());
         }
         if (lblValidUntil != null) {
             String formattedDate = "-";
@@ -246,6 +247,70 @@ public class LicenseRenewalDialogController {
             content.putString(txtMachineId.getText());
             Clipboard.getSystemClipboard().setContent(content);
             applyCopiedFeedback(btnCopyMachineId, "Copied!");
+        }
+    }
+
+    private String resolveServerHost() {
+        try {
+            String url = org.example.config.ConfigManager.getDataApiBaseUrl();
+            if (url != null && !url.isBlank()) {
+                java.net.URI uri = java.net.URI.create(url);
+                String host = uri.getHost();
+                int port = uri.getPort();
+                if (host != null && !host.isBlank()) {
+                    if (host.contains("jasviindustries.in")) {
+                        return host.contains("uat") ? host + " (Oracle Cloud UAT)" : host + " (Oracle Cloud)";
+                    }
+                    if (port > 0 && port != 80 && port != 443) {
+                        return host + ":" + port;
+                    }
+                    return host;
+                }
+            }
+        } catch (Exception ignored) {}
+        return "Oracle Cloud Host";
+    }
+
+    @FXML
+    private void handleSendEmailLead() {
+        String company = (lblCompany != null && !lblCompany.getText().isBlank() && !"-".equals(lblCompany.getText()))
+                ? lblCompany.getText().trim() : "Our Company";
+        String machineId = HardwareFingerprintUtil.getDisplayMachineId();
+        String host = resolveServerHost();
+
+        String subject = "Jasvi ERP License Activation Request — Terminal [" + machineId + "]";
+        String body = "Hello Jasvi Support Team,\n\n"
+                + "Please activate our workstation license for " + company + ".\n\n"
+                + "Company Name: " + company + "\n"
+                + "Machine Hardware ID: " + machineId + "\n"
+                + "Connected Host: " + host + "\n\n"
+                + "Thank you,\n"
+                + company + " Team";
+
+        String targetEmail = (supportEmail != null && !supportEmail.isBlank())
+                ? supportEmail.trim()
+                : "shailesh.sdhameliya@gmail.com";
+
+        try {
+            String mailto = String.format("mailto:%s?subject=%s&body=%s",
+                    java.net.URLEncoder.encode(targetEmail, StandardCharsets.UTF_8).replace("+", "%20"),
+                    java.net.URLEncoder.encode(subject, StandardCharsets.UTF_8).replace("+", "%20"),
+                    java.net.URLEncoder.encode(body, StandardCharsets.UTF_8).replace("+", "%20")
+            );
+            if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.MAIL)) {
+                java.awt.Desktop.getDesktop().mail(new java.net.URI(mailto));
+            } else if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                java.awt.Desktop.getDesktop().browse(new java.net.URI(mailto));
+            } else {
+                throw new UnsupportedOperationException("Desktop mail and browse actions are unsupported.");
+            }
+        } catch (Exception ex) {
+            ClipboardContent content = new ClipboardContent();
+            content.putString("To: " + targetEmail + "\nSubject: " + subject + "\n\n" + body);
+            Clipboard.getSystemClipboard().setContent(content);
+            AppDialogService.info(btnSendEmailLead != null ? btnSendEmailLead : txtMachineId,
+                    "Email Draft Copied",
+                    "License request copied to clipboard!\n\nPlease email this request to: " + targetEmail);
         }
     }
 

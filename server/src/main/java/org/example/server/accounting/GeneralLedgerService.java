@@ -1088,8 +1088,12 @@ public class GeneralLedgerService {
     }
 
     public Long getAccountIdOrDefault(String code, String name, String type) {
-        Long id = jdbc.queryForObject("SELECT id FROM chart_of_accounts WHERE account_code = ? LIMIT 1", Long.class, code);
-        if (id != null) return id;
+        try {
+            Long id = jdbc.queryForObject("SELECT id FROM chart_of_accounts WHERE account_code = ? LIMIT 1", Long.class, code);
+            if (id != null) return id;
+        } catch (org.springframework.dao.EmptyResultDataAccessException | jakarta.persistence.NoResultException ignored) {
+            // Auto-provision missing statutory or default COA account below when query returns no rows.
+        }
         return jdbc.queryForObject("""
             INSERT INTO chart_of_accounts(account_code, account_name, account_type, account_subtype, is_active, is_system)
             VALUES (?, ?, ?, 'STATUTORY', TRUE, TRUE)

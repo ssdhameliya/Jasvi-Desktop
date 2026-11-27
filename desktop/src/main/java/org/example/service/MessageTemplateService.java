@@ -3,16 +3,24 @@ package org.example.service;
 import org.example.config.ConfigManager;
 import org.example.model.Purchase;
 import org.example.model.Sales;
+import org.example.shared.communication.NotificationTemplateCatalog;
+import org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode;
+import org.example.shared.communication.NotificationTemplateCatalog.TemplateSpec;
+import org.example.shared.communication.TokenTemplateEngine;
 import org.example.util.BusinessClock;
 
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Manages user-configurable email and WhatsApp message templates, signatures,
- * and dynamic token substitutions for business documents.
+ * Email format modes (HTML Card View vs Standard Plain Text), and dynamic token
+ * substitutions for all business and administrative notifications.
  */
 public final class MessageTemplateService {
 
@@ -56,16 +64,51 @@ public final class MessageTemplateService {
      * Replaces dynamic tokens such as {CustomerName}, {DocumentNo}, {TotalAmount}, etc.
      */
     public static String format(String template, Map<String, String> tokens) {
-        if (template == null || template.isBlank()) return "";
-        String result = template;
-        if (tokens != null) {
-            for (Map.Entry<String, String> entry : tokens.entrySet()) {
-                String token = entry.getKey();
-                String value = entry.getValue() == null ? "" : entry.getValue();
-                result = result.replace("{" + token + "}", value);
+        return TokenTemplateEngine.format(template, tokens);
+    }
+
+    public static EmailFormatMode emailFormatMode() {
+        String raw = ConfigManager.get(NotificationTemplateCatalog.EMAIL_FORMAT_MODE_KEY, EmailFormatMode.HTML.name());
+        EmailFormatMode parsed = EmailFormatMode.parse(raw, EmailFormatMode.HTML);
+        return parsed == EmailFormatMode.INHERIT ? EmailFormatMode.HTML : parsed;
+    }
+
+    public static EmailFormatMode emailFormatModeFor(String templateKey) {
+        if (templateKey != null && !templateKey.isBlank()) {
+            var specOpt = NotificationTemplateCatalog.byKey(templateKey);
+            if (specOpt.isPresent()) {
+                String rawOverride = ConfigManager.get(specOpt.get().emailFormatSettingKey(), EmailFormatMode.INHERIT.name());
+                EmailFormatMode override = EmailFormatMode.parse(rawOverride, EmailFormatMode.INHERIT);
+                if (override != EmailFormatMode.INHERIT) {
+                    return override;
+                }
             }
         }
-        return result;
+        return emailFormatMode();
+    }
+
+    public static boolean shouldUseHtml(String templateKey) {
+        return emailFormatModeFor(templateKey) != EmailFormatMode.STANDARD;
+    }
+
+    public static boolean shouldUseHtmlForEntity(String entityTypeOrLabel) {
+        return shouldUseHtml(resolveTemplateKeyForEntity(entityTypeOrLabel));
+    }
+
+    public static String resolveTemplateKeyForEntity(String entityTypeOrLabel) {
+        if (entityTypeOrLabel == null || entityTypeOrLabel.isBlank()) return "sale";
+        String norm = entityTypeOrLabel.trim().toLowerCase(Locale.ROOT);
+        if (NotificationTemplateCatalog.byKey(norm).isPresent()) return norm;
+        if (norm.contains("remittance")) return "purchase_remittance";
+        if (norm.contains("refund")) return "refund_confirmation";
+        if (norm.contains("payment") || norm.contains("receipt")) return "payment";
+        if (norm.contains("quot")) return "quote";
+        if (norm.contains("purchase") && norm.contains("return")) return "purchase_return";
+        if (norm.contains("sales") && norm.contains("return")) return "sales_return";
+        if (norm.contains("purchase")) return "purchase";
+        if (norm.contains("aging") || norm.contains("collection")) return "aging_collection";
+        if (norm.contains("gst") || norm.contains("rule36")) return "gst_rule36_notice";
+        return "sale";
     }
 
     public static String getSignature() {
@@ -253,124 +296,133 @@ public final class MessageTemplateService {
         ConfigManager.setWithoutSaving("whatsapp.template." + type.key() + ".body", body == null ? "" : body.trim());
     }
 
+    public static String getEmailSubject(String templateKey) {
+        TemplateSpec spec = NotificationTemplateCatalog.byKey(templateKey).orElse(null);
+        String fallback = spec != null ? spec.defaultEmailSubject() : "";
+        return ConfigManager.get(NotificationTemplateCatalog.EMAIL_TEMPLATE_PREFIX + templateKey + ".subject", fallback);
+    }
+
+    public static String getEmailBody(String templateKey) {
+        TemplateSpec spec = NotificationTemplateCatalog.byKey(templateKey).orElse(null);
+        String fallback = spec != null ? spec.defaultEmailBody() : "";
+        return ConfigManager.get(NotificationTemplateCatalog.EMAIL_TEMPLATE_PREFIX + templateKey + ".body", fallback);
+    }
+
+    public static String getWhatsappBody(String templateKey) {
+        TemplateSpec spec = NotificationTemplateCatalog.byKey(templateKey).orElse(null);
+        String fallback = spec != null ? spec.defaultWhatsappBody() : "";
+        return ConfigManager.get(NotificationTemplateCatalog.WHATSAPP_TEMPLATE_PREFIX + templateKey + ".body", fallback);
+    }
+
     public static String defaultEmailSubject(DocumentType type) {
-        return switch (type) {
-            case SALES_INVOICE -> "Sales Invoice {DocumentNo} from {CompanyName}";
-            case QUOTATION -> "Quotation {DocumentNo} from {CompanyName}";
-            case PURCHASE_BILL -> "Purchase Order {DocumentNo} from {CompanyName}";
-            case PAYMENT_RECEIPT -> "Payment Receipt for {DocumentNo} from {CompanyName}";
-            case PURCHASE_REMITTANCE -> "Payment Remittance Advice: Bill #{DocumentNo} - {CompanyName}";
-            case REFUND_CONFIRMATION -> "Refund Settlement: {DocumentNo} - {CompanyName}";
-            case SALES_RETURN -> "Sales Return Note {DocumentNo} from {CompanyName}";
-            case PURCHASE_RETURN -> "Purchase Return Note {DocumentNo} from {CompanyName}";
-        };
+        return NotificationTemplateCatalog.byKey(type.key()).map(TemplateSpec::defaultEmailSubject).orElse("");
     }
 
     public static String defaultEmailBody(DocumentType type) {
-        return switch (type) {
-            case SALES_INVOICE -> """
-                Dear {CustomerName},
-
-                Please find attached your sales invoice {DocumentNo} dated {DocumentDate}.
-
-                Invoice Summary:
-                • Invoice Number: {DocumentNo}
-                • Invoice Date: {DocumentDate}
-                • Total Amount: {TotalAmount}
-                • Balance Due: {BalanceAmount}
-
-                Thank you for your business.
-
-                {Signature}""";
-            case QUOTATION -> """
-                Dear {CustomerName},
-
-                Thank you for your enquiry. Please find attached our quotation {DocumentNo} dated {DocumentDate} for total amount {TotalAmount}.
-
-                We look forward to serving you. Please let us know if you need any adjustments or further information.
-
-                {Signature}""";
-            case PURCHASE_BILL -> """
-                Dear {CustomerName},
-
-                Please find attached our purchase order {DocumentNo} dated {DocumentDate}.
-
-                Kindly confirm receipt and proceed with fulfillment per agreed terms.
-
-                {Signature}""";
-            case PAYMENT_RECEIPT -> """
-                Dear {CustomerName},
-
-                Thank you for your payment. We have successfully received payment against document {DocumentNo}.
-
-                Receipt Summary:
-                • Document Number: {DocumentNo}
-                • Receipt Date: {DocumentDate}
-                • Amount Paid: {PaidAmount}
-                • Remaining Balance: {BalanceAmount}
-
-                Thank you for your business.
-
-                {Signature}""";
-            case PURCHASE_REMITTANCE -> """
-                Dear {CustomerName},
-
-                We have disbursed a payment settlement against Purchase Bill #{DocumentNo}.
-
-                Remittance Breakdown:
-                • Bill Total: {TotalAmount}
-                • Amount Disbursed: {PaidAmount}
-                • Balance Remaining: {BalanceAmount}
-                • Payment Mode: {PaymentMode}
-                • Reference / UTR: {PaymentReference}
-                • Settlement Date: {PaymentDate}
-                • Remarks / Narration: {Narration}
-
-                {Signature}""";
-            case REFUND_CONFIRMATION -> """
-                Dear {CustomerName},
-
-                This is an official confirmation that a refund settlement has been issued for document #{DocumentNo}.
-
-                Settlement Breakdown:
-                • Refund Amount: {PaidAmount}
-                • Remaining Balance: {BalanceAmount}
-                • Refund Mode: {PaymentMode}
-                • Reference / UTR: {PaymentReference}
-                • Settlement Date: {PaymentDate}
-                • Remarks / Notes: {Narration}
-
-                {Signature}""";
-            case SALES_RETURN -> """
-                Dear {CustomerName},
-
-                Please find attached sales return / credit note {DocumentNo} dated {DocumentDate}.
-
-                • Total Credit: {TotalAmount}
-
-                {Signature}""";
-            case PURCHASE_RETURN -> """
-                Dear {CustomerName},
-
-                Please find attached purchase return / debit note {DocumentNo} dated {DocumentDate}.
-
-                • Total Amount: {TotalAmount}
-
-                {Signature}""";
-        };
+        return NotificationTemplateCatalog.byKey(type.key()).map(TemplateSpec::defaultEmailBody).orElse("");
     }
 
     public static String defaultWhatsappBody(DocumentType type) {
-        return switch (type) {
-            case SALES_INVOICE -> "Hello *{CustomerName}*,\n\nPlease find attached sales invoice *{DocumentNo}* dated *{DocumentDate}* for total amount *{TotalAmount}* (Balance: *{BalanceAmount}*).\n\nThank you for your business!\n\nRegards,\n*{CompanyName}*";
-            case QUOTATION -> "Hello *{CustomerName}*,\n\nPlease find attached quotation *{DocumentNo}* dated *{DocumentDate}* for total amount *{TotalAmount}*.\n\nLooking forward to your feedback!\n\nRegards,\n*{CompanyName}*";
-            case PURCHASE_BILL -> "Hello *{CustomerName}*,\n\nPlease find attached purchase order *{DocumentNo}* dated *{DocumentDate}*.\n\nRegards,\n*{CompanyName}*";
-            case PAYMENT_RECEIPT -> "Hello *{CustomerName}*,\n\nWe have received payment of *{PaidAmount}* against *{DocumentNo}* (Balance: *{BalanceAmount}*).\n\nThank you!\n\n*{CompanyName}*";
-            case PURCHASE_REMITTANCE -> "Hello *{CustomerName}*,\n\nWe have disbursed payment of *{PaidAmount}* against Purchase Bill *{DocumentNo}* (Balance: *{BalanceAmount}*).\n\nRegards,\n*{CompanyName}*";
-            case REFUND_CONFIRMATION -> "Hello *{CustomerName}*,\n\nRefund settlement of *{PaidAmount}* has been issued for document *{DocumentNo}*.\n\nRegards,\n*{CompanyName}*";
-            case SALES_RETURN -> "Hello *{CustomerName}*,\n\nPlease find attached sales return note *{DocumentNo}* for amount *{TotalAmount}*.\n\n*{CompanyName}*";
-            case PURCHASE_RETURN -> "Hello *{CustomerName}*,\n\nPlease find attached purchase return note *{DocumentNo}* for amount *{TotalAmount}*.\n\n*{CompanyName}*";
-        };
+        return NotificationTemplateCatalog.byKey(type.key()).map(TemplateSpec::defaultWhatsappBody).orElse("");
+    }
+
+    public static FormattedMessage renderEmailByKey(
+            String templateKey,
+            Map<String, String> tokens,
+            String cardTitle,
+            String cardBadge,
+            String startHex,
+            String endHex
+    ) {
+        Map<String, String> merged = new LinkedHashMap<>();
+        String company = BrandingService.companyName();
+        merged.put("CompanyName", company);
+        merged.put("AppName", company + " ERP");
+        merged.put("Signature", getSignature());
+        if (tokens != null) {
+            merged.putAll(tokens);
+        }
+        String subjTpl = getEmailSubject(templateKey);
+        String bodyTpl = getEmailBody(templateKey);
+        String subject = format(subjTpl, merged);
+        boolean htmlMode = shouldUseHtml(templateKey);
+        if (TokenTemplateEngine.isHtmlContent(bodyTpl)) {
+            String resolved = htmlMode
+                    ? TokenTemplateEngine.formatHtmlEscaped(bodyTpl, merged, Set.of())
+                    : format(bodyTpl, merged).replaceAll("<[^>]+>", " ").replaceAll("\\s{2,}", " ").trim();
+            return new FormattedMessage(subject, resolved);
+        }
+        String plain = TokenTemplateEngine.stripWhatsappMarkdown(format(bodyTpl, merged));
+        if (!htmlMode) {
+            return new FormattedMessage(subject, plain);
+        }
+        String title = cardTitle == null || cardTitle.isBlank() ? subject : cardTitle;
+        String html = TokenTemplateEngine.wrapInCardHtml(
+                startHex == null ? "#0284c7" : startHex,
+                endHex == null ? "#0369a1" : endHex,
+                cardBadge == null ? company : cardBadge,
+                title,
+                plain,
+                List.of(),
+                "Generated by " + company + " ERP"
+        );
+        return new FormattedMessage(subject, html);
+    }
+
+    public static FormattedMessage renderEmailByKey(
+            String templateKey,
+            Map<String, String> tokens,
+            String cardTitle,
+            String cardBadge
+    ) {
+        return renderEmailByKey(templateKey, tokens, cardTitle, cardBadge, "#0284c7", "#0369a1");
+    }
+
+    public static FormattedMessage renderUrgentEmailByKey(
+            String templateKey,
+            Map<String, String> tokens,
+            String cardTitle,
+            String cardBadge
+    ) {
+        return renderEmailByKey(templateKey, tokens, cardTitle, cardBadge, "#dc2626", "#991b1b");
+    }
+
+    public static String wrapPlainBodyInCardHtml(String cardBadge, String cardTitle, String plainBody) {
+        String company = BrandingService.companyName();
+        return TokenTemplateEngine.wrapInCardHtml(
+                "#0284c7",
+                "#0369a1",
+                cardBadge == null ? company : cardBadge,
+                cardTitle == null || cardTitle.isBlank() ? company : cardTitle,
+                TokenTemplateEngine.stripWhatsappMarkdown(plainBody == null ? "" : plainBody),
+                List.of(),
+                company + " ERP"
+        );
+    }
+
+    public static String formatStandardPreviewHtml(String subject, String plainBody) {
+        String safeSubject = TokenTemplateEngine.escapeHtml(subject == null ? "" : subject);
+        String safeBody = TokenTemplateEngine.escapeHtml(
+                TokenTemplateEngine.stripWhatsappMarkdown(plainBody == null ? "" : plainBody)
+        );
+        return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head>"
+                + "<body style=\"font-family: ui-monospace, Consolas, monospace; background:#f8fafc; padding:24px; color:#0f172a;\">"
+                + "<div style=\"max-width:680px; margin:0 auto; background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:20px;\">"
+                + "<div style=\"font-size:12px; color:#64748b; margin-bottom:12px; border-bottom:1px solid #e2e8f0; padding-bottom:8px;\">STANDARD PLAIN-TEXT MODE &bull; Subject: "
+                + safeSubject
+                + "</div><pre style=\"white-space:pre-wrap; font-family:inherit; margin:0; line-height:1.5;\">"
+                + safeBody
+                + "</pre></div></body></html>";
+    }
+
+    public static String renderWhatsappByKey(String templateKey, Map<String, String> tokens) {
+        Map<String, String> merged = new LinkedHashMap<>();
+        merged.put("CompanyName", BrandingService.companyName());
+        merged.put("AppName", BrandingService.companyName() + " ERP");
+        if (tokens != null) {
+            merged.putAll(tokens);
+        }
+        return format(getWhatsappBody(templateKey), merged);
     }
 
     public static FormattedMessage formatSalesEmail(Sales sale) {

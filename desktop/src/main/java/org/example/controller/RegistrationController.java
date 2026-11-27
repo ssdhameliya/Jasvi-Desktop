@@ -64,7 +64,7 @@ public class RegistrationController implements ScreenLifecycle {
         lblBrandDescription.setText(BrandingService.loginDescription());
         Image logo=BrandingService.applicationBrandImage();
         if(logo!=null&&!logo.isError()){imgBrandLogo.setImage(logo);imgBrandLogo.setManaged(true);imgBrandLogo.setVisible(true);}
-        Image mark=BrandingService.applicationMarkImage();boolean a=mark!=null&&!mark.isError();
+        Image mark=BrandingService.effectiveMarkImage();boolean a=mark!=null&&!mark.isError();
         imgBrandMark.setImage(a?mark:null);imgBrandMark.setManaged(a);imgBrandMark.setVisible(a);brandMarkBox.setManaged(a);brandMarkBox.setVisible(a);
         lblBrandMark.setManaged(false);lblBrandMark.setVisible(false);
     }

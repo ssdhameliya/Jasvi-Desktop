@@ -271,12 +271,13 @@ public class EmailTransmissionDialog {
             double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
             String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
 
-            String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
-            String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
-            String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+            String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
+            String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
+            String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
             boolean hasDualBank = (draft != null && ("Payment Receipt".equalsIgnoreCase(draft.documentLabel())
                     || "Remittance Advice".equalsIgnoreCase(draft.documentLabel())
-                    || "Refund Advice".equalsIgnoreCase(draft.documentLabel())));
+                    || "Refund Advice".equalsIgnoreCase(draft.documentLabel())))
+                    && (!ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank());
 
             boolean hasSig = (draft != null && draft.signatureImage() != null) || MessageTemplateService.isAttachSignatureToEmail();
             String sigBase64 = hasSig ? MessageTemplateService.getSignatureImageBase64() : null;
@@ -631,18 +632,30 @@ public class EmailTransmissionDialog {
             profile = cmbSenderProfile.getValue().profile();
         }
 
+        String entityKeyHint = draft != null && draft.entityType() != null && !draft.entityType().isBlank()
+                ? draft.entityType()
+                : (draft != null ? draft.documentLabel() : null);
+        boolean useHtmlFormat = MessageTemplateService.shouldUseHtmlForEntity(entityKeyHint);
+
         Path sigPath = draft != null ? draft.signatureImage() : null;
         if (sigPath == null && MessageTemplateService.isAttachSignatureToEmail()) {
             sigPath = MessageTemplateService.getOrCreateSignatureImagePath();
         }
+        if (!useHtmlFormat) {
+            sigPath = null;
+        }
 
+        String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
+        String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
+        String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
         boolean hasDualBank = (draft != null && ("Payment Receipt".equalsIgnoreCase(draft.documentLabel())
                 || "Remittance Advice".equalsIgnoreCase(draft.documentLabel())
-                || "Refund Advice".equalsIgnoreCase(draft.documentLabel())));
+                || "Refund Advice".equalsIgnoreCase(draft.documentLabel())))
+                && (!ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank());
         boolean isExecutive = draft != null && (draft.totalAmount() != null || draft.publicStatusUrl() != null || hasDualBank);
 
         String transmissionBody = body;
-        if (isExecutive && !body.contains("<!DOCTYPE html>")) {
+        if (useHtmlFormat && isExecutive && !body.contains("<!DOCTYPE html>")) {
             String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
             String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "DOCUMENT";
             String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "OFFICIAL";
@@ -650,10 +663,6 @@ public class EmailTransmissionDialog {
             double paid = (draft != null && draft.paidAmount() != null) ? draft.paidAmount() : 0.0;
             double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
             String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
-
-            String ourBankName = org.example.config.ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
-            String ourAccNo = org.example.config.ConfigManager.get("company.bank.account", "38291048192");
-            String ourIfsc = org.example.config.ConfigManager.get("company.bank.ifsc", "SBIN0001234");
 
             transmissionBody = MessageTemplateService.formatExecutiveHtmlEmail(
                     docLabel,
@@ -674,6 +683,12 @@ public class EmailTransmissionDialog {
                     statusUrl,
                     sigPath != null,
                     "cid:signatureImage"
+            );
+        } else if (useHtmlFormat && !body.contains("<!DOCTYPE html>")) {
+            transmissionBody = MessageTemplateService.wrapPlainBodyInCardHtml(
+                    draft != null && draft.statusBadge() != null ? draft.statusBadge() : "OFFICIAL",
+                    draft != null && draft.documentLabel() != null ? draft.documentLabel() : subject,
+                    body
             );
         }
 

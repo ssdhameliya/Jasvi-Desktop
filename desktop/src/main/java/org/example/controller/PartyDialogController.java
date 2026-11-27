@@ -24,8 +24,9 @@ public class PartyDialogController implements ScreenLifecycle {
     private static final Pattern GSTIN = Pattern.compile("^[0-9A-Za-z]{15}$");
 
     @FXML private Label lblTitle, lblSubtitle, lblEmailCaption, lblStatusBadge, lblGstValidationChip, lblShortcuts, lblGstinDetails;
-    @FXML private Label errName, errPhone, errEmail, errGstin, errAddress, errOpeningBalance;
-    @FXML private TextField txtCode, txtName, txtContact, txtPhone, txtEmail, txtGstin, txtOpeningBalance;
+    @FXML private Label errName, errPhone, errEmail, errGstin, errAddress, errOpeningBalance, errCreditLimit;
+    @FXML private TextField txtCode, txtName, txtContact, txtPhone, txtEmail, txtGstin, txtOpeningBalance, txtCreditLimit;
+    @FXML private javafx.scene.layout.VBox boxCreditLimit;
     @FXML private ProgressIndicator loaderGstin;
     @FXML private Button btnAutoFillGstin;
     @FXML private HBox gstinPatchBanner;
@@ -69,7 +70,7 @@ public class PartyDialogController implements ScreenLifecycle {
         }
         installLiveValidation();
         org.example.util.WorkflowFocusManager.install(java.util.List.of(
-            txtGstin, btnAutoFillGstin, txtName, txtContact, txtPhone, txtEmail, txtAddress, txtOpeningBalance, chkActive, btnSave));
+            txtGstin, btnAutoFillGstin, txtName, txtContact, txtPhone, txtEmail, txtAddress, txtOpeningBalance, txtCreditLimit, chkActive, btnSave));
         org.example.util.WorkflowFocusManager.initial(txtGstin);
         org.example.util.WorkflowFocusManager.excludeFromTab(btnCancel, btnAuditTrail);
         javafx.application.Platform.runLater(() -> {
@@ -104,6 +105,10 @@ public class PartyDialogController implements ScreenLifecycle {
         boolean editingMode = party != null;
 
         if (lblEmailCaption != null) lblEmailCaption.setText(customer ? "Official Email Address" : "Official Email Address *");
+        if (boxCreditLimit != null) {
+            boxCreditLimit.setVisible(customer);
+            boxCreditLimit.setManaged(customer);
+        }
         headerIconHolder.getChildren().setAll(IconFactory.icon(customer ? "customer" : "supplier", 24));
         headerIconHolder.getStyleClass().removeAll("customer-title-icon", "supplier-title-icon");
         headerIconHolder.getStyleClass().add(customer ? "customer-title-icon" : "supplier-title-icon");
@@ -138,6 +143,7 @@ public class PartyDialogController implements ScreenLifecycle {
             txtGstin.setEditable(false);
             txtAddress.setEditable(false);
             txtOpeningBalance.setEditable(false);
+            if (txtCreditLimit != null) txtCreditLimit.setEditable(false);
             chkActive.setDisable(true);
         } else {
             lblTitle.setText((editingMode ? "Edit " : "Add ") + entity + " Specification");
@@ -177,12 +183,14 @@ public class PartyDialogController implements ScreenLifecycle {
             txtGstin.setEditable(true);
             txtAddress.setEditable(true);
             txtOpeningBalance.setEditable(!editingMode);
+            if (txtCreditLimit != null) txtCreditLimit.setEditable(true);
             chkActive.setDisable(false);
         }
 
         if (!editingMode) {
             txtCode.clear();
             txtOpeningBalance.setText("0.00");
+            if (txtCreditLimit != null) txtCreditLimit.clear();
             chkActive.setSelected(true);
             UiTaskExecutor.submitLatest(
                     "party-dialog-next-code-" + type,
@@ -201,6 +209,10 @@ public class PartyDialogController implements ScreenLifecycle {
         txtGstin.setText(safe(party.getGstin()));
         txtAddress.setText(safe(party.getAddress()));
         txtOpeningBalance.setText(String.valueOf(party.getOpeningBalance()));
+        if (txtCreditLimit != null) {
+            txtCreditLimit.setText(party.getCreditLimit() != null && party.getCreditLimit() > 0
+                    ? String.valueOf(party.getCreditLimit()) : "");
+        }
         chkActive.setSelected(party.isActive());
         updateGstinChip();
     }
@@ -366,6 +378,10 @@ public class PartyDialogController implements ScreenLifecycle {
         party.setAddress(txtAddress.getText().trim());
         party.setOpeningBalance(txtOpeningBalance.getText().isBlank()
                 ? 0 : Double.parseDouble(txtOpeningBalance.getText().trim()));
+        if (txtCreditLimit != null && "CUSTOMER".equals(type)) {
+            String rawLimit = txtCreditLimit.getText() == null ? "" : txtCreditLimit.getText().trim();
+            party.setCreditLimit(rawLimit.isBlank() ? null : Double.parseDouble(rawLimit));
+        }
         party.setActive(chkActive.isSelected());
 
         String entityName = "CUSTOMER".equals(type) ? "Customer" : "Supplier";
@@ -448,6 +464,20 @@ public class PartyDialogController implements ScreenLifecycle {
                 valid = false;
             }
         }
+        if (txtCreditLimit != null && errCreditLimit != null && "CUSTOMER".equals(type)) {
+            String limit = txtCreditLimit.getText() == null ? "" : txtCreditLimit.getText().trim();
+            if (!limit.isBlank()) {
+                try {
+                    if (Double.parseDouble(limit) < 0) {
+                        showError(txtCreditLimit, errCreditLimit, "Credit limit cannot be negative.");
+                        valid = false;
+                    }
+                } catch (NumberFormatException exception) {
+                    showError(txtCreditLimit, errCreditLimit, "Credit limit must be a valid number.");
+                    valid = false;
+                }
+            }
+        }
         return valid;
     }
 
@@ -465,6 +495,9 @@ public class PartyDialogController implements ScreenLifecycle {
         });
         txtAddress.textProperty().addListener((o, a, b) -> clearError(txtAddress, errAddress));
         txtOpeningBalance.textProperty().addListener((o, a, b) -> clearError(txtOpeningBalance, errOpeningBalance));
+        if (txtCreditLimit != null && errCreditLimit != null) {
+            txtCreditLimit.textProperty().addListener((o, a, b) -> clearError(txtCreditLimit, errCreditLimit));
+        }
     }
 
     private void showError(Control control, Label label, String message) {
@@ -489,6 +522,7 @@ public class PartyDialogController implements ScreenLifecycle {
         clearError(txtGstin, errGstin);
         clearError(txtAddress, errAddress);
         clearError(txtOpeningBalance, errOpeningBalance);
+        if (txtCreditLimit != null && errCreditLimit != null) clearError(txtCreditLimit, errCreditLimit);
     }
 
     @FXML private void cancel() { close(); }

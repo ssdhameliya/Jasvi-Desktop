@@ -34,6 +34,12 @@ public class CloudStorageHealthGuardian {
     @Value("${dse.server.address:127.0.0.1}")
     private String serverAddress;
 
+    @Value("${dse.server.address.uat:}")
+    private String uatServerAddress;
+
+    @Value("${dse.server.address.prod:}")
+    private String prodServerAddress;
+
     private final Map<String, Instant> lastAlertTimestamps = new ConcurrentHashMap<>();
     private String lastAlertLevel = "NONE";
 
@@ -89,28 +95,49 @@ public class CloudStorageHealthGuardian {
             String env = deploymentEnv != null && !deploymentEnv.isBlank()
                     ? deploymentEnv.trim().toUpperCase(Locale.ROOT)
                     : "LOCAL";
-            String serverIp = "PROD".equals(env) ? "130.210.35.1" : ("UAT".equals(env) ? "144.24.109.1" : serverAddress);
+            String serverIp;
+            if ("PROD".equals(env) && prodServerAddress != null && !prodServerAddress.isBlank()) {
+                serverIp = prodServerAddress.trim();
+            } else if ("UAT".equals(env) && uatServerAddress != null && !uatServerAddress.isBlank()) {
+                serverIp = uatServerAddress.trim();
+            } else {
+                serverIp = (serverAddress != null && !serverAddress.isBlank()) ? serverAddress.trim() : "127.0.0.1";
+            }
 
             long totalGb = totalDisk / (1024 * 1024 * 1024);
             long freeGb = freeDisk / (1024 * 1024 * 1024);
             long usedGb = usedDisk / (1024 * 1024 * 1024);
 
-            String title = "[" + currentLevel + "] Cloud Storage Alert: " + env + " Server (" + serverIp + ")";
-            String message = String.format(Locale.ROOT,
-                    "⚠️ *%s*\n\n" +
-                    "Storage on %s server (%s) has reached *%.1f%%* utilization.\n" +
-                    "• Total Disk Space: %d GB\n" +
-                    "• Used Disk Space: %d GB (%.1f%%)\n" +
-                    "• Available Space: %d GB\n\n" +
-                    "Action Required: Please review disk usage, clear old archives, or allocate additional volume space.\n" +
-                    "Timestamp: %s",
-                    title, env, serverIp, diskUsagePercent, totalGb, usedGb, diskUsagePercent, freeGb, now.toString());
+            var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+            String usageFormatted = String.format(Locale.ROOT, "%.1f", diskUsagePercent);
+            Map<String, String> tokens = Map.of(
+                    "Level", currentLevel,
+                    "Environment", env,
+                    "ServerHost", serverIp,
+                    "UsagePercent", usageFormatted,
+                    "TotalGb", String.valueOf(totalGb),
+                    "UsedGb", String.valueOf(usedGb),
+                    "FreeGb", String.valueOf(freeGb),
+                    "Timestamp", now.toString()
+            );
+            String startHex = "CRITICAL".equals(currentLevel) ? "#dc2626" : "#d97706";
+            String endHex = "CRITICAL".equals(currentLevel) ? "#991b1b" : "#b45309";
+            var renderedEmail = templates.renderEmail(
+                    "storage_alert",
+                    tokens,
+                    new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                            startHex, endHex, currentLevel + " • " + env,
+                            "Cloud Storage Alert (" + serverIp + ")", List.of(),
+                            templates.companyName() + " Storage Health Guardian"
+                    )
+            );
+            String waMessage = templates.renderWhatsapp("storage_alert", tokens);
 
             // 1. Dispatch Email Alert to Company Admin
-            dispatchEmailAlert(title, message);
+            dispatchEmailAlert(renderedEmail.subject(), renderedEmail.body());
 
             // 2. Dispatch WhatsApp Alert to Primary Company Admin Mobile
-            dispatchWhatsappAlert(message);
+            dispatchWhatsappAlert(waMessage);
 
             lastAlertTimestamps.put(currentLevel, now);
             lastAlertLevel = currentLevel;

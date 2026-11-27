@@ -1,8 +1,17 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<?import javafx.scene.control.*?><?import javafx.scene.layout.*?><?import javafx.scene.shape.Circle?><?import javafx.scene.shape.SVGPath?><!-- Shared ERP shell: module navigation, global toolbar and page host. --><?import org.example.ui.SharedApplicationFooter?>
+<?import javafx.scene.control.*?><?import javafx.scene.image.ImageView?><?import javafx.scene.layout.*?><?import javafx.scene.shape.Circle?><?import javafx.scene.shape.SVGPath?><!-- Shared ERP shell: module navigation, global toolbar and page host. --><?import org.example.ui.SharedApplicationFooter?>
 <BorderPane fx:id="shellRoot" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.controller.DashboardController" styleClass="erp-shell,approved-ui,approved-screen,approved-screen-dashboard,erp-screen-root">
     <left>
         <VBox fx:id="sidebarRoot" styleClass="erp-sidebar">
+            <HBox fx:id="sidebarBrandHeader" alignment="CENTER_LEFT" spacing="10" styleClass="sidebar-brand-header">
+                <StackPane fx:id="sidebarBrandLogoBox" styleClass="sidebar-brand-logo-badge">
+                    <ImageView fx:id="imgSidebarBrandLogo" fitWidth="30" fitHeight="30" preserveRatio="true" smooth="true"/>
+                </StackPane>
+                <VBox spacing="1" HBox.hgrow="ALWAYS">
+                    <Label fx:id="lblSidebarBrandName" text="Company" styleClass="sidebar-brand-title" maxWidth="Infinity"/>
+                    <Label fx:id="lblSidebarBrandSubtitle" text="Enterprise ERP" styleClass="sidebar-brand-subtitle" maxWidth="Infinity"/>
+                </VBox>
+            </HBox>
 
             <ScrollPane fitToWidth="true" hbarPolicy="NEVER" VBox.vgrow="ALWAYS" styleClass="sidebar-scroll">
               <content><VBox spacing="1">
@@ -127,6 +136,9 @@
             <Button fx:id="btnSidebarToggle" contentDisplay="GRAPHIC_ONLY" onAction="#toggleSidebar" styleClass="top-icon,approved-button,approved-secondary-button,approved-icon-button,sidebar-toggle-button">
                 <tooltip><Tooltip text="Hide navigation (Ctrl/Cmd + B)"/></tooltip>
             </Button>
+            <StackPane fx:id="topBarBrandLogoBox" visible="false" managed="false" styleClass="topbar-brand-badge">
+                <ImageView fx:id="imgTopBarBrandLogo" fitWidth="22" fitHeight="22" preserveRatio="true" smooth="true"/>
+            </StackPane>
             <StackPane fx:id="shellPageIcon" styleClass="shell-page-icon"/>
             <VBox><Label fx:id="lblPageTitle" text="Dashboard" styleClass="erp-page-title"/><Label fx:id="lblBreadcrumb" text="Welcome back, Admin!" styleClass="erp-breadcrumb"/></VBox>
             <Region HBox.hgrow="ALWAYS"/>
@@ -168,13 +180,6 @@
                     <tooltip><Tooltip text="Email centre"/></tooltip>
                 </Button>
                 <Label fx:id="lblEmailBadge" text="0" mouseTransparent="true" styleClass="notification-badge" StackPane.alignment="TOP_RIGHT"/>
-            </StackPane>
-            <StackPane styleClass="notification-button-wrap">
-                <Button fx:id="btnTeamChat" contentDisplay="GRAPHIC_ONLY" onAction="#toggleTeamChat" styleClass="top-icon,approved-button,approved-secondary-button,approved-icon-button">
-                    <tooltip><Tooltip text="Team Chat &amp; Live Status"/></tooltip>
-                </Button>
-                <Label fx:id="lblChatBadge" text="0" visible="false" managed="false" mouseTransparent="true" styleClass="notification-badge" StackPane.alignment="TOP_RIGHT"/>
-                <Circle fx:id="chatSelfPresenceDot" radius="4.5" mouseTransparent="true" styleClass="chat-presence-dot,chat-dot-online" StackPane.alignment="BOTTOM_RIGHT"/>
             </StackPane>
             <StackPane styleClass="notification-button-wrap">
                 <Button fx:id="btnSystemDiagnostics" contentDisplay="GRAPHIC_ONLY" onAction="#openSystemDiagnostics" styleClass="top-icon,approved-button,approved-secondary-button,approved-icon-button">
