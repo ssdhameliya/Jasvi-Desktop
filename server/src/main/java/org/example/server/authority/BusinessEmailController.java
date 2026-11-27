@@ -11,7 +11,18 @@ import java.util.Base64;
 @RequestMapping("/api/authority/email")
 public class BusinessEmailController {
     private final SmtpMailService mail;
-    public BusinessEmailController(SmtpMailService mail) { this.mail = mail; }
+    private final org.example.server.communication.ServerNotificationTemplateService templates;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public BusinessEmailController(SmtpMailService mail,
+                                   @org.springframework.beans.factory.annotation.Autowired(required = false) org.example.server.communication.ServerNotificationTemplateService templates) {
+        this.mail = mail;
+        this.templates = templates;
+    }
+
+    public BusinessEmailController(SmtpMailService mail) {
+        this(mail, null);
+    }
 
     @PostMapping
     public Result send(@RequestBody Request r) {
@@ -54,7 +65,24 @@ public class BusinessEmailController {
         requireAdmin();
         String recipient = request == null ? null : request.recipient();
         try {
-            mail.sendBusiness(recipient, mail.companyName() + " email test", "Your " + mail.companyName() + " company-server email configuration is working correctly.");
+            String company = mail.companyName();
+            String defaultSubject = mail.companyName() + " email test";
+            var tpl = templates != null ? templates : org.example.server.communication.ServerNotificationTemplateService.forJdbc(null);
+            var rendered = tpl.renderEmail(
+                    "smtp_test",
+                    java.util.Map.of(
+                            "CompanyName", company,
+                            "AppName", company + " ERP",
+                            "Recipient", recipient == null ? "" : recipient
+                    ),
+                    new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                            "#0284c7", "#0369a1", "SMTP Diagnostic",
+                            company + " Email Verification", java.util.List.of(),
+                            company + " Notification Engine"
+                    )
+            );
+            String finalSubject = rendered.subject() != null && !rendered.subject().isBlank() ? rendered.subject() : defaultSubject;
+            mail.sendBusiness(recipient, finalSubject, rendered.body());
             return new Result(true, "Test email sent successfully");
         } catch (EmailDeliveryException failure) {
             throw new IllegalStateException(failure.adminMessage(), failure);

@@ -120,6 +120,30 @@ public final class BrandingService {
     public static Image authorizedSignature() { return configuredImage("company.signaturePath"); }
     public static Image paymentQrImage() { return configuredImage("payment.qrImagePath"); }
 
+    /** Bundled square emblem packaged with desktop installers and fallback branding surfaces. */
+    public static Image bundledMarkImage() {
+        try (InputStream input = org.example.util.ResourceLocator.open("/logo.png")) {
+            if (input == null) return null;
+            Image image = new Image(input);
+            return image.isError() ? null : image;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Resolves the effective square mark for auth, splash, chat, and menu bar headers:
+     * preserves configured Settings marks and company logos, falling back to the
+     * bundled application emblem when no custom logo is configured.
+     */
+    public static Image effectiveMarkImage() {
+        Image mark = applicationMarkImage();
+        if (mark != null && !mark.isError()) return mark;
+        Image company = companyLogo();
+        if (company != null && !company.isError()) return company;
+        return bundledMarkImage();
+    }
+
     /** Resolves the configured square mark (or company logo fallback) file path for OS taskbar/Dock icons. */
     public static Path resolveLocalMarkFile() {
         Path mark = configuredLocalPath("application.markImagePath");

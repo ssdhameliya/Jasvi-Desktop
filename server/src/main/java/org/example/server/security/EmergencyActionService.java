@@ -251,69 +251,33 @@ public class EmergencyActionService {
             try {
                 String email = user.getEmail();
                 String adminDisplayName = user.getFullName() != null && !user.getFullName().isBlank() ? user.getFullName() : user.getUsername();
+                var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+                String brand = companyName();
+                String app = brand + " ERP";
+                Map<String, String> tokens = Map.of(
+                        "AppName", app,
+                        "CompanyName", brand,
+                        "TicketId", ticketId == null ? "" : ticketId,
+                        "FullName", adminDisplayName,
+                        "Username", user.getUsername() == null ? "" : user.getUsername()
+                );
                 if (email != null && !email.isBlank()) {
-                    String subject = "🎉 Account Unlocked: " + appName() + " [Ticket #" + ticketId + "]";
-                    String html = """
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                                <meta charset="utf-8">
-                                <style>
-                                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
-                                    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-                                    .header { background: linear-gradient(135deg, #16a34a, #15803d); color: #ffffff; padding: 20px 24px; }
-                                    .header h2 { margin: 0 0 6px 0; font-size: 20px; font-weight: 700; }
-                                    .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-                                    .content { padding: 24px; font-size: 14px; line-height: 1.6; }
-                                    .success-box { background: #f0fdf4; border-left: 4px solid #16a34a; padding: 14px; border-radius: 4px; margin: 16px 0; color: #166534; font-weight: 500; }
-                                    .meta-table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-                                    .meta-table td { padding: 8px 10px; font-size: 13.5px; border-bottom: 1px solid #f1f5f9; }
-                                    .meta-label { color: #64748b; font-weight: 600; width: 35%; }
-                                    .meta-value { color: #0f172a; font-weight: 500; }
-                                    .footer { background: #f8fafc; padding: 14px 24px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="card">
-                                    <div class="header">
-                                        <h2>🎉 Account Successfully Unlocked</h2>
-                                        <span class="badge">Ticket #{{TICKET_ID}} • RESOLVED</span>
-                                    </div>
-                                    <div class="content">
-                                        <p>Dear <strong>{{FULL_NAME}}</strong> (User: {{USERNAME}}),</p>
-                                        
-                                        <div class="success-box">
-                                            Your {{APP_NAME}} Administrator account has been <strong>successfully unlocked by Super Admin</strong>.
-                                        </div>
-
-                                        <table class="meta-table">
-                                            <tr><td class="meta-label">Resolution Status</td><td class="meta-value" style="color: #16a34a; font-weight: 700;">ACTIVE & UNLOCKED</td></tr>
-                                            <tr><td class="meta-label">Password Status</td><td class="meta-value">Existing password preserved</td></tr>
-                                            <tr><td class="meta-label">Workstation Action</td><td class="meta-value">Sign in immediately on Desktop</td></tr>
-                                        </table>
-
-                                        <p>You can now sign in immediately on your Desktop workstation using your existing password.</p>
-                                    </div>
-                                    <div class="footer">
-                                        {{COMPANY_NAME}} Autonomous Security Sentinel • Incident Ticket #{{TICKET_ID}}
-                                    </div>
-                                </div>
-                            </body>
-                            </html>
-                            """
-                            .replace("{{TICKET_ID}}", ticketId)
-                            .replace("{{FULL_NAME}}", adminDisplayName)
-                            .replace("{{USERNAME}}", user.getUsername())
-                            .replace("{{APP_NAME}}", appName())
-                            .replace("{{COMPANY_NAME}}", companyName());
-                    mailService.sendBusiness(email, subject, html);
+                    var rendered = templates.renderEmail(
+                            "security_unlock",
+                            tokens,
+                            new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                                    "#16a34a", "#15803d",
+                                    "Ticket #" + ticketId + " • RESOLVED",
+                                    "🎉 Account Successfully Unlocked",
+                                    List.of(),
+                                    brand + " Autonomous Security Sentinel • Incident Ticket #" + ticketId
+                            )
+                    );
+                    mailService.sendBusiness(email, rendered.subject(), rendered.body());
                 }
                 String phone = user.getPhone();
                 if (phone != null && !phone.isBlank()) {
-                    String msg = "🎉 *" + appName() + " Account Unlocked*\n" +
-                            "*Ticket ID:* #" + ticketId + "\n\n" +
-                            "Dear " + adminDisplayName + ",\n" +
-                            "Your Administrator account has been unlocked by Super Admin. You may now sign in on your Desktop workstation using your existing password.";
+                    String msg = templates.renderWhatsapp("security_unlock", tokens);
                     whatsappService.sendText(new WahaDtos.TextSendRequest(phone, msg, null));
                 }
             } catch (Exception ex) {
@@ -327,70 +291,35 @@ public class EmergencyActionService {
             try {
                 String email = user.getEmail();
                 String adminDisplayName = user.getFullName() != null && !user.getFullName().isBlank() ? user.getFullName() : user.getUsername();
+                var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+                String brand = companyName();
+                String app = brand + " ERP";
+                Map<String, String> tokens = Map.of(
+                        "AppName", app,
+                        "CompanyName", brand,
+                        "TicketId", ticketId == null ? "" : ticketId,
+                        "FullName", adminDisplayName,
+                        "Username", user.getUsername() == null ? "" : user.getUsername(),
+                        "TempPassword", tempPassword == null ? "" : tempPassword,
+                        "UserEmail", email == null ? "" : email
+                );
                 if (email != null && !email.isBlank()) {
-                    String subject = "🔑 Temporary Password Dispatched: " + appName() + " [Ticket #" + ticketId + "]";
-                    String html = """
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                                <meta charset="utf-8">
-                                <style>
-                                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
-                                    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-                                    .header { background: linear-gradient(135deg, #d97706, #b45309); color: #ffffff; padding: 20px 24px; }
-                                    .header h2 { margin: 0 0 6px 0; font-size: 20px; font-weight: 700; }
-                                    .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-                                    .content { padding: 24px; font-size: 14px; line-height: 1.6; }
-                                    .temp-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 18px; text-align: center; margin: 20px 0; }
-                                    .temp-label { font-size: 13px; color: #92400e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-                                    .temp-pwd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 22px; font-weight: 700; color: #b45309; letter-spacing: 2px; margin-top: 8px; }
-                                    .warning-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 14px; border-radius: 4px; margin: 16px 0; color: #991b1b; font-size: 13px; }
-                                    .footer { background: #f8fafc; padding: 14px 24px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="card">
-                                    <div class="header">
-                                        <h2>🔑 Temporary Password Dispatched</h2>
-                                        <span class="badge">Ticket #{{TICKET_ID}} • ACTION REQUIRED</span>
-                                    </div>
-                                    <div class="content">
-                                        <p>Dear <strong>{{FULL_NAME}}</strong> (User: {{USERNAME}}),</p>
-                                        <p>Your {{APP_NAME}} Administrator account has been unlocked and assigned a secure temporary password by Super Admin.</p>
-
-                                        <div class="temp-box">
-                                            <div class="temp-label">Your Temporary Sign-In Password</div>
-                                            <div class="temp-pwd">{{TEMP_PASSWORD}}</div>
-                                        </div>
-
-                                        <div class="warning-box">
-                                            <strong>Mandatory Security Policy:</strong> Upon your first login with this temporary password, the application will prompt you to set your permanent password. You cannot reuse this temporary password or any of your last 3 previous passwords.
-                                        </div>
-
-                                        <p>Please launch the Desktop application, sign in with this temporary password, and complete your password update.</p>
-                                    </div>
-                                    <div class="footer">
-                                        {{COMPANY_NAME}} Autonomous Security Sentinel • Incident Ticket #{{TICKET_ID}}
-                                    </div>
-                                </div>
-                            </body>
-                            </html>
-                            """
-                            .replace("{{TICKET_ID}}", ticketId)
-                            .replace("{{FULL_NAME}}", adminDisplayName)
-                            .replace("{{USERNAME}}", user.getUsername())
-                            .replace("{{TEMP_PASSWORD}}", tempPassword)
-                            .replace("{{APP_NAME}}", appName())
-                            .replace("{{COMPANY_NAME}}", companyName());
-                    mailService.sendBusiness(email, subject, html);
+                    var rendered = templates.renderEmail(
+                            "security_recovery_reset",
+                            tokens,
+                            new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                                    "#d97706", "#b45309",
+                                    "Ticket #" + ticketId + " • ACTION REQUIRED",
+                                    "🔑 Temporary Password Dispatched",
+                                    List.of(),
+                                    brand + " Autonomous Security Sentinel • Incident Ticket #" + ticketId
+                            )
+                    );
+                    mailService.sendBusiness(email, rendered.subject(), rendered.body());
                 }
                 String phone = user.getPhone();
                 if (phone != null && !phone.isBlank()) {
-                    String msg = "🔑 *" + appName() + " Password Reset*\n" +
-                            "*Ticket ID:* #" + ticketId + "\n\n" +
-                            "Dear " + adminDisplayName + ",\n" +
-                            "Your Administrator account has been unlocked by Super Admin.\n" +
-                            "A secure temporary password has been dispatched to your email (" + user.getEmail() + "). Please sign in on the Desktop workstation and set your permanent password.";
+                    String msg = templates.renderWhatsapp("security_recovery_reset", tokens);
                     whatsappService.sendText(new WahaDtos.TextSendRequest(phone, msg, null));
                 }
             } catch (Exception ex) {

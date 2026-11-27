@@ -636,11 +636,19 @@ public class CreditDebitNoteService {
     }
 
     private Long getAccountIdOrDefault(String code, String name, String type) {
-        Long id = jdbc.queryForObject("SELECT id FROM chart_of_accounts WHERE account_code = ? LIMIT 1", Long.class, code);
-        if (id != null) return id;
+        if (glService != null) {
+            return glService.getAccountIdOrDefault(code, name, type);
+        }
+        try {
+            Long id = jdbc.queryForObject("SELECT id FROM chart_of_accounts WHERE account_code = ? LIMIT 1", Long.class, code);
+            if (id != null) return id;
+        } catch (org.springframework.dao.EmptyResultDataAccessException | jakarta.persistence.NoResultException ignored) {
+            // Auto-provision missing COA account below when query returns no rows.
+        }
         return jdbc.queryForObject("""
             INSERT INTO chart_of_accounts(account_code, account_name, account_type, account_subtype, is_active, is_system)
             VALUES (?, ?, ?, 'ADJUSTMENT', TRUE, TRUE)
+            ON CONFLICT (account_code) DO UPDATE SET account_name = EXCLUDED.account_name
             RETURNING id
             """, Long.class, code, name, type);
     }

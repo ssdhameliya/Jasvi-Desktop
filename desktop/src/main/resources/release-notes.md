@@ -1,3 +1,71 @@
+# What's New in DSE ERP v11.0.83
+
+### Unified Installer Emblem, Menu Bar Branding & Legacy Logo Cleanup (Rule 4, Rule 5, Rule 10, Rule 12 & Rule 16)
+- **Bundled Installer & Application Icon Refresh (`DSE-ERP.ico`, `logo-1024.png`, `desktop/src/main/resources/logo.png`)**:
+  - Replaced all legacy bundled 3D diamond / `DS ENGINEERS PVT LTD` artwork across Windows `.exe` installer/shortcuts (`DSE-ERP.ico`, multi-res `16x16` through `256x256`), macOS `.dmg`/`.app` master icon (`logo-1024.png`, `1024x1024`), and runtime `/logo.png` fallback (`512x512`) with the new square emblem (`Logo_Final.png`), and removed the unreferenced legacy `server/src/main/resources/logo.png` asset.
+- **Persistent ERP Menu Bar Brand Header (`Dashboard.fxml`, `DashboardController.java`, `light-theme.css`, `dark-theme.css`)**:
+  - Added the brand header (`sidebarBrandHeader` / `imgSidebarBrandLogo`) at the top of the navigation menu bar and a compact top bar emblem (`topBarBrandLogoBox` / `imgTopBarBrandLogo`) that displays automatically when the sidebar is collapsed, styled with strict Light & Dark theme parity.
+- **Settings-Level Logo Precedence & Pre-Login Emblem Parity (`BrandingService.java`, `LoginController.java`, `SplashController.java`, `RegistrationController.java`, `EmailSettingsController.java`, `SetupWizard.fxml`, `SetupWizardController.java`, `TeamChatDockOverlay.java`)**:
+  - Preserved full precedence for company Settings-level logos (`application.markImagePath` and `company.logoPath`) across Taskbar/Dock, Stage windows, Menu Bar, and post-login surfaces via `BrandingService.effectiveMarkImage()`, while falling back cleanly to the bundled `/logo.png` emblem across Setup Wizard, Splash, Login, Registration, Email Settings, and Team Chat when no Settings mark is uploaded.
+
+### Bank Statement Auto Match v2, Calibrated Suggestion %, Smart Rules & Matching Popup Fixes (Rule 4, Rule 5, Rule 7, Rule 10, Rule 11, Rule 13 & Rule 17)
+- **Unified Server-Side Auto Match Console (`BankReconciliationService.java`, `BankReconciliationController.java`, `BankStatementController.java`)**:
+  - Replaced sequential N+1 client HTTP scans in **Auto Match Suggestions** with a single collision-free server preview (`previewAutoMatchBatch` / `previewAutoMatchAccount`) featuring document reservation (preventing duplicate invoice suggestions), multi-invoice 1-to-Many subset-sum split matching (`MULTI_SPLIT`), unified **Smart Rules (`SUGGEST`)** review, and **Inter-Bank Contra Pair** auto-detection.
+- **Calibrated 100-Point Suggestion % & Indian GST Taxable TDS (`BankReconciliationService.java`, `V11_0_91__bank_rules_v2_and_party_aliases.sql`)**:
+  - Fixed substring false positives (`TECH`/`BANK`/`SHREE` tokens) using whole-word boundary matching + expanded Indian business stop-words, added date-causality scoring, penalized excess overpayments so unmatchable amounts aren't pre-selected, calculated Statutory TDS (`0.1%` / `1%` / `2%` / `5%` / `10%`) against **pre-GST Taxable Value** (`subtotal`) as well as invoice total, and added self-learning UPI VPA / counterparty alias memory (`party_bank_alias`) on confirmed matches.
+- **Matching Popups Calculation & Display Fixes (`BankStatementController.java`, `BankReconciliationService.java`)**:
+  - Fixed the `₹1.00` round-off discrepancy (`absDiff < 1.00`) so configured `payment.bankMatchRoundingTolerance` (`₹0–₹5`) works identically on server save and dialog preview; integrated statutory TDS into `Match Transaction` residual & settlement status (`Full Match + TDS`), added semantic `%` badges on `Score`, formatted popup dates via `BusinessClock.formatDate`, parsed UTR references in Auto Match, fixed dynamic table widths, and updated `Avg Confidence` live with filters and selection.
+- **Smart Rules v2 (`BankReconciliationRuleService.java`, `BankReconciliationRulesDialog.java`)**:
+  - Added **Min/Max Amount Range**, **`REGEX`**, **Channel Filter**, **Bank Account Scope**, **`MATCH_PARTY_FIFO`** (auto-allocating recurring party payments oldest-first or posting advance entries), **`CONTRA`** transfers, **Single-Rule execution isolation** (`applySingleRule`), and **Discover Rules from History** one-click rule creation.
+
+### Dynamic Notification Template Studio & Dual Email Rendering Mode (HTML Card vs Standard Plain Text) (Rule 4, Rule 5, Rule 10, Rule 12, Rule 16 & Rule 17)
+- **Unified Catalog & Dynamic Template Engine (`NotificationTemplateCatalog.java`, `TokenTemplateEngine.java`, `ServerNotificationTemplateService.java`, `MessageTemplateService.java`)**:
+  - Replaced hardcoded Email and WhatsApp bodies across all notification triggers (Commercial Documents, Aging Collections, GST Rule 36(4) Notice, OTP & MFA Enrollment, Admin Lockout Escalation / Unlock / Recovery Reset, Executive Briefings, Scheduled Reports, Storage Health Alerts, SMTP Diagnostic Test, Unlicensed Instance Alert, and License Activation) with PostgreSQL `application_setting`-backed customizable templates using safe `{Token}` placeholders.
+  - Added role-based template protection in both Settings Studio and `SupportService` (`ADMIN`/`SUPER_ADMIN` required for format mode, Auth/Security, and Automation templates; `SUPER_ADMIN` required for Licensing templates).
+- **Company-Wide & Per-Template `HTML` vs `STANDARD` Plain Text Email Mode (`EmailSettingsPanel.fxml`, `SettingsController.java`, `EmailTransmissionDialog.java`, `PaymentTransmissionDialog.java`)**:
+  - Added Default Email Rendering Format (`HTML Card View` / `Standard Plain Text`) under **Settings → Email** (`email.format.mode`) plus per-template override (`Inherit Company Default` / `HTML Card View` / `Standard Plain Text`) in the upgraded **Email & WhatsApp Template Studio** with Category filtering, dynamic per-event `{Token}` insertion pills, and Browser HTML/Standard preview.
+- **Hardcoded Identity & Infrastructure Literal Cleanup (Rule 17)**:
+  - Removed hardcoded sample GSTINs (`24ABCDE1234F1Z5`), sample SBI bank fallbacks, hardcoded server IPs (`130.210.35.1` / `144.24.109.1`), and hardcoded `"Jasvi Industries"` / `"DSE ERP"` notification fallbacks in runtime senders in favor of `application.properties` / Settings-driven configuration (`company.name`, `payment.*`, `licensing.*`, `dse.public-url.*`, `dse.server.address.*`).
+
+### Machine Activation Ergonomics, Server Host Resolution & Email Activation Channel (Rule 4, Rule 5, Rule 9, Rule 10 & Rule 16)
+- **Resolved Cloud Server Host Label Discrepancy (`LicenseRenewalDialogController.java`)**:
+  - Fixed `lblServerHost` in the Subscription & Machine Activation dialog, which previously mirrored the workstation's own Machine ID; it now dynamically resolves and displays the actual connected server host and environment (e.g. `api.jasviindustries.in (Oracle Cloud)` / `api-uat.jasviindustries.in (Oracle Cloud UAT)` / `localhost:8080`), eliminating user confusion.
+- **Added Enterprise Email Activation Channel (`LicenseRenewalDialog.fxml`, `LicenseRenewalDialogController.java`, `LicensingApiController.java`)**:
+  - Added primary **Send Machine ID via Email** (`btnSendEmailLead`) action alongside WhatsApp, pre-filling a standardized activation draft to the Super Admin's official email address (`supportEmail` from catalog API, resolving to `shailesh.sdhameliya@gmail.com`) with Company Name, Machine Hardware ID, and Connected Host, complete with clipboard auto-copy fallback when desktop mail clients are unavailable.
+
+### Admin Lockout Self-Recovery & Super Admin Escalation Hardening (Rule 4, Rule 10 & Rule 16)
+- **Delayed Super Admin Escalation Until Permanent Lock (`AuthService.java`, `AuthController.java`, `AuthDtos.java`, `AuthOtpService.java`)**:
+  - Updated 3-attempt Admin login/MFA lockout (`FAILED_PASSWORD` / `FAILED_MFA`) so Super Admin Email & WhatsApp alerts (`#SEC-XXXXXX`) are no longer dispatched prematurely when the Administrator is eligible for self-service *Forgot Password* recovery (while still escalating immediately when self-reset is unavailable due to daily limit or missing email).
+  - Escalated to `PERMANENT_LOCK` with a single Super Admin `#SEC-XXXXXX` incident notification (carrying client IP) only when the 1st *Forgot Password* OTP or TOTP verification fails while locked, configured `@Transactional(noRollbackFor = IllegalArgumentException.class)` on `AuthOtpService` verification/lookup methods to eliminate `UnexpectedRollbackException` (`Transaction silently rolled back because it has been marked as rollback-only`) when catching invalid OTP attempts, and fixed WhatsApp failure logging in `WahaApiClient` and `SecurityIncidentNotifier`.
+- **Desktop Lockout Banner & Reset Recovery Flow (`AuthApiClient.java`, `LoginController.java`)**:
+  - Added HTTP 400 `OperationResponse` parsing for `completePasswordReset` and `AccountLockoutException` propagation across Forgot Password and login MFA completion so failed recovery immediately returns to the login screen with the live `#SEC-XXXXXX` unlock tracker, and separated temporary Forgot-Password-eligible lock messaging from escalated permanent-lock alerts.
+
+### Super Admin Managed Multi-Factor Authentication (MFA) Alignment (Rule 4, Rule 5, Rule 10 & Rule 16)
+- **Eliminated UI/Backend Contradiction for Super Admin MFA (`AuthService.java`, `UserDialogController.java`)**:
+  - Updated `AuthService.requiresMfa()` and `mfaForRequestedUser()` so under the active `ADMIN_CONTROLLED` policy, `SUPER_ADMIN` accounts follow the database `mfa_enabled` flag rather than being unconditionally bypassed, ensuring the `Require Two-Factor (MFA)` checkbox actually governs authentication on login.
+  - Aligned `UserDialogController.applyRoleSecurityPolicy()` to recognize both `ADMIN` and `SUPER_ADMIN` roles, keeping the MFA checkbox enabled and interactive so administrators can configure Authenticator enrollment for Super Admin without UI discrepancies.
+
+### Moveable Floating Chat Launcher & New Group Dialog Fix (Rule 5, Rule 10, Rule 11, Rule 12 & Rule 16)
+- **Fixed New Group Modal Freeze & `TKStage` NPE (`TeamChatRosterPopup.java`, `DialogOwnerResolver.java`, `TeamChatService.java`)**:
+  - Unwrapped `PopupWindow` owners in `DialogOwnerResolver` to the primary `Stage`, hid the auto-hiding roster popup before opening `Create Team Channel`, upgraded the dialog with semantic field icons, Light/Dark styling, blank-name validation, and comfortable bounds, and pushed a `DIRECTORY` SSE refresh to invited members upon group creation.
+- **Moveable Bottom-Right Jasvi Logo Launcher & Doubled Roster Popup (`TeamChatDockOverlay.java`, `TeamChatRosterPopup.java`, `Dashboard.fxml`)**:
+  - Removed the fixed Team Chat icon from the top bar and added a prominent `74×74px` draggable circular Jasvi logo medallion (`BrandingService.applicationMarkImage()`) at the bottom-right corner with a high-visibility `16px` live presence dot, unread badge, and right-click `Snap to Bottom-Right`.
+  - Doubled the `Team Chat & Live Status` roster popover (`560×560` responsive) with one-click live presence toggle pills (`Available` / `Busy` / `Away` / `Offline`), explicit `Save` + blur auto-save custom note box with confirmation pill, preserved manual `Offline` across heartbeats, initials avatars, semantic status badges, and zero-overlap upward placement cleanly above the launcher.
+
+- **Populated GSTR-1 Table 9B (`CDNR`) & Actions Menu (`GstComplianceController.java`, `Gstr1Service.java`)**:
+  - Wired posted Sales Credit Notes into `GSTR-1 Table 9B: CDNR` (resolving registered party GSTINs, computing POS/tax rates, adjusting GSTR-3B outward tax liability, adding `Credit Notes` to `Table 13`, and binding the `Actions` menu to view Credit Notes / Original Invoices).
+  - Hardened server `Gstr1Service` CDNR queries to join `party_master` for GSTIN fallback, exclude cancelled/void notes, and keep inward `PURCHASE_RETURN` supplier debit notes out of outward GSTR-1 CDNR.
+
+### Bank Continuity Detector, Sales Intelligence, COA Auto-Provisioning & Workspace Polish (Rule 4, Rule 5, Rule 7, Rule 10, Rule 12 & Rule 17)
+- **Bank Statement Continuity & Gap Detector (`BankReconciliationController.java`, `BankReconciliationService.java`, `UniversalBankStatementImportDialog.java`)**:
+  - Added pre-import `POST /api/bank-statements/imports/continuity-check` verification flagging date gaps, period overlaps, and opening-vs-prior-closing balance mismatches across sequential imports of the same bank account before posting.
+- **Sales Live Customer Health Pill, Net Exposure Check & Party/Slab Pricing (`SalesController.java`, `Customer360Service.java`, `CustomerPriceListDialog.java`, `V11_0_92__sales_customer_health_and_pricing.sql`)**:
+  - Added live customer credit health indicators (`Net Due`, `Overdue Bills`, `Credit Used %`, `Last Payment`), optional party `credit_limit` evaluating real net receivable exposure on `saveSale()`, last-sold rate with 1-click **Use Last Rate**, purchase cost, live line margin % with below-cost warning, and customer-specific price lists / quantity break slabs.
+- **GL COA Auto-Provisioning, Full-Width Bank History & Stale Dev Backend Guard (`GeneralLedgerService.java`, `CreditDebitNoteService.java`, `BankStatementController.java`, `RuntimeBootstrapper.java`)**:
+  - Fixed `getAccountIdOrDefault(...)` `NoResultException` / `EmptyResultDataAccessException` handling so missing Chart of Accounts codes cleanly auto-provision via `INSERT ... ON CONFLICT RETURNING id`.
+  - Unlocked the `Bank Statement History` modal to full 90% screen width with a compact 4-column filter bar and `Batch Ref`, `Total Credits`, `Total Debits`, and `Reconciled` columns.
+  - Enforced `devSourceFingerprint` verification in `RuntimeBootstrapper` + `RuntimeController` so IntelliJ launches automatically replace stale dev backends when source code changes.
+
 # What's New in DSE ERP v11.0.82
 
 ### Team Chat Distributed Read-Loop Fix & SSE `text/event-stream` Exception Hardening (Rule 4, Rule 10 & Rule 16)

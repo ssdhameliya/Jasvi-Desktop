@@ -41,9 +41,6 @@ public class WahaApiClient {
         if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
             clean = "http://" + clean;
         }
-        if (clean.contains("144.24.109.1") || clean.contains("130.210.35.1")) {
-            clean = clean.replace("144.24.109.1", "127.0.0.1").replace("130.210.35.1", "127.0.0.1");
-        }
         return clean;
     }
 
@@ -149,7 +146,7 @@ public class WahaApiClient {
                 return list;
             }
         } catch (Exception e) {
-            log.info("WAHA list sessions notice: {}", e.getMessage());
+            log.info("WAHA list sessions notice: {}", errorDetail(e));
         }
         return List.of();
     }
@@ -192,7 +189,7 @@ public class WahaApiClient {
 
             return (res.statusCode() >= 200 && res.statusCode() < 300) || res.statusCode() == 422;
         } catch (Exception e) {
-            log.warn("Failed to start WAHA session {}: {}", session, e.getMessage());
+            log.warn("Failed to start WAHA session {}: {}", session, errorDetail(e));
             return false;
         }
     }
@@ -310,8 +307,9 @@ public class WahaApiClient {
                 return new WahaDtos.SendResponse(false, extractCleanErrorMessage(res.statusCode(), res.body(), chatId), "", session, chatId);
             }
         } catch (Exception e) {
-            log.error("Failed to send WAHA text to {}: {}", chatId, e.getMessage());
-            return new WahaDtos.SendResponse(false, "Connection error: " + e.getMessage(), "", session, chatId);
+            String err = errorDetail(e);
+            log.error("Failed to send WAHA text to {}: {}", chatId, err);
+            return new WahaDtos.SendResponse(false, "Connection error: " + err, "", session, chatId);
         }
     }
 
@@ -362,9 +360,16 @@ public class WahaApiClient {
                 return new WahaDtos.SendResponse(false, extractCleanErrorMessage(res.statusCode(), res.body(), chatId), "", session, chatId);
             }
         } catch (Exception e) {
-            log.error("Failed to send WAHA file to {}: {}", chatId, e.getMessage());
-            return new WahaDtos.SendResponse(false, "Connection error: " + e.getMessage(), "", session, chatId);
+            String err = errorDetail(e);
+            log.error("Failed to send WAHA file to {}: {}", chatId, err);
+            return new WahaDtos.SendResponse(false, "Connection error: " + err, "", session, chatId);
         }
+    }
+
+    private static String errorDetail(Exception e) {
+        if (e == null) return "Unknown error";
+        String msg = e.getMessage();
+        return msg != null && !msg.isBlank() ? msg : e.getClass().getSimpleName();
     }
 
     private String extractCleanErrorMessage(int statusCode, String body, String chatId) {

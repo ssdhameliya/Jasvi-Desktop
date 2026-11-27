@@ -44,6 +44,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.paint.Color;
@@ -251,14 +253,19 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private Button btnReminderTop;
     @FXML private Button btnNotifications;
     @FXML private Button btnEmailCenter;
-    @FXML private Button btnTeamChat;
-    @FXML private Label lblChatBadge;
-    @FXML private Circle chatSelfPresenceDot;
     @FXML private StackPane chatOverlayLayer;
     @FXML private Button btnSystemDiagnostics;
-    private TeamChatRosterPopup chatRosterPopup;
     @FXML private Button btnSidebarToggle;
     @FXML private Button shellNewSale;
+    @FXML private HBox sidebarBrandHeader;
+    @FXML private StackPane sidebarBrandLogoBox;
+    @FXML private ImageView imgSidebarBrandLogo;
+    @FXML private Label lblSidebarBrandName;
+    @FXML private Label lblSidebarBrandSubtitle;
+    @FXML private StackPane topBarBrandLogoBox;
+    @FXML private ImageView imgTopBarBrandLogo;
+    private volatile boolean hasMenuBarBrandLogo;
+    private record MenuBarBrandState(String companyName, String subtitle, Image logo) {}
 
     @FXML
     private MenuButton menuUser;
@@ -282,6 +289,7 @@ public class DashboardController implements ScreenLifecycle {
         // footer from the clock listener caused repeated ConfigManager reads and
         // layout pulses, especially on macOS Retina displays.
         refreshCompanyFooter();
+        refreshMenuBarBrandIdentity();
 
 
         navigationManager = new NavigationManager(contentPane);
@@ -776,6 +784,61 @@ public class DashboardController implements ScreenLifecycle {
         lblCompanyFooter.setText(footer.company() + (details.isEmpty() ? "" : "   •   " + String.join("   •   ", details)));
     }
 
+    private void refreshMenuBarBrandIdentity() {
+        if (sidebarBrandHeader == null && topBarBrandLogoBox == null) return;
+        if (imgSidebarBrandLogo != null && imgSidebarBrandLogo.getImage() == null) {
+            applyMenuBarBrandState(new MenuBarBrandState(
+                    org.example.service.BrandingService.companyName(),
+                    org.example.service.BrandingService.tagline(),
+                    org.example.service.BrandingService.bundledMarkImage()
+            ));
+        }
+        UiTaskExecutor.submitLatest("dashboard-menubar-brand",
+                DashboardController::readMenuBarBrandState,
+                this::applyMenuBarBrandState,
+                failure -> System.err.println("[Dashboard] Menu bar brand unavailable: " + dashboardSafeMessage(failure)));
+    }
+
+    private static MenuBarBrandState readMenuBarBrandState() {
+        return new MenuBarBrandState(
+                org.example.service.BrandingService.companyName(),
+                org.example.service.BrandingService.tagline(),
+                org.example.service.BrandingService.effectiveMarkImage()
+        );
+    }
+
+    private void applyMenuBarBrandState(MenuBarBrandState state) {
+        if (state == null) return;
+        if (lblSidebarBrandName != null && state.companyName() != null && !state.companyName().isBlank()) {
+            lblSidebarBrandName.setText(state.companyName());
+        }
+        if (lblSidebarBrandSubtitle != null && state.subtitle() != null && !state.subtitle().isBlank()) {
+            lblSidebarBrandSubtitle.setText(state.subtitle());
+        }
+        Image logo = state.logo();
+        boolean available = logo != null && !logo.isError();
+        hasMenuBarBrandLogo = available;
+        if (imgSidebarBrandLogo != null) {
+            imgSidebarBrandLogo.setImage(available ? logo : null);
+        }
+        if (sidebarBrandLogoBox != null) {
+            sidebarBrandLogoBox.setManaged(available);
+            sidebarBrandLogoBox.setVisible(available);
+        }
+        if (imgTopBarBrandLogo != null) {
+            imgTopBarBrandLogo.setImage(available ? logo : null);
+        }
+        boolean sidebarManaged = sidebarRoot == null || sidebarRoot.isManaged();
+        updateTopBarBrandBadgeVisibility(sidebarManaged);
+    }
+
+    private void updateTopBarBrandBadgeVisibility(boolean sidebarVisible) {
+        if (topBarBrandLogoBox == null) return;
+        boolean showTopBadge = !sidebarVisible && hasMenuBarBrandLogo;
+        topBarBrandLogoBox.setManaged(showTopBadge);
+        topBarBrandLogoBox.setVisible(showTopBadge);
+    }
+
     private static String dashboardSafeMessage(Throwable error) {
         if (error == null || error.getMessage() == null || error.getMessage().isBlank()) return "Unexpected error";
         return error.getMessage();
@@ -925,7 +988,6 @@ public class DashboardController implements ScreenLifecycle {
         UiActionIcons.apply(btnReminderTop, "reminder", "Reminder Center");
         UiActionIcons.apply(btnNotifications, "notification", "Notifications");
         UiActionIcons.apply(btnEmailCenter, "email", "Email centre");
-        if (btnTeamChat != null) UiActionIcons.apply(btnTeamChat, "chat", "Team Chat & Live Status");
         if (btnSystemDiagnostics != null) UiActionIcons.apply(btnSystemDiagnostics, "diagnostic", "System Logs & Application Diagnostics");
         UiActionIcons.apply(menuUser, "user", "User menu");
         updateThemeButton();
@@ -1262,6 +1324,7 @@ public class DashboardController implements ScreenLifecycle {
         sidebarRoot.setVisible(visible);
         if (persist) ConfigManager.set(sidebarPreferenceKey(), Boolean.toString(visible));
         refreshSidebarTogglePresentation();
+        updateTopBarBrandBadgeVisibility(visible);
         if (contentPane != null) {
             contentPane.requestLayout();
             if (contentPane.getParent() != null) {
@@ -1875,6 +1938,7 @@ public class DashboardController implements ScreenLifecycle {
         if (c == null) return;
         javafx.application.Platform.runLater(() -> {
             c.refreshCompanyFooter();
+            c.refreshMenuBarBrandIdentity();
             c.applyScreenIdentity(c.lblPageTitle == null ? "Dashboard" : c.lblPageTitle.getText());
             org.example.util.SceneManager.applyStageIcon(org.example.util.SceneManager.primaryStage);
         });
@@ -2078,28 +2142,11 @@ public class DashboardController implements ScreenLifecycle {
         openSettingsSection(btnSettingsShowcase, SettingsController.Section.SHOWCASE, "Website & 3D Showcase");
     }
 
-    @FXML
-    private void toggleTeamChat() {
-        if (chatRosterPopup != null && btnTeamChat != null) {
-            chatRosterPopup.toggle(btnTeamChat);
-        }
-    }
-
     private void initializeTeamChat() {
         TeamChatManager chat = TeamChatManager.getInstance();
-        if (lblChatBadge != null) {
-            chat.totalUnreadProperty().addListener((o, ov, nv) -> applyBadge(lblChatBadge, nv.intValue()));
-            applyBadge(lblChatBadge, (int) chat.totalUnreadProperty().get());
-        }
-        if (chatSelfPresenceDot != null) {
-            chat.selfStatusProperty().addListener((o, ov, nv) ->
-                    chatSelfPresenceDot.getStyleClass().setAll("chat-presence-dot", TeamChatManager.presenceCssClass(nv)));
-            chatSelfPresenceDot.getStyleClass().setAll("chat-presence-dot",
-                    TeamChatManager.presenceCssClass(chat.selfStatusProperty().get()));
-        }
-        chatRosterPopup = new TeamChatRosterPopup();
+        TeamChatRosterPopup rosterPopup = new TeamChatRosterPopup();
         if (chatOverlayLayer != null) {
-            new TeamChatDockOverlay(chatOverlayLayer, this::navigateFromChatRecord);
+            new TeamChatDockOverlay(chatOverlayLayer, rosterPopup, this::navigateFromChatRecord);
         }
         chat.start();
     }

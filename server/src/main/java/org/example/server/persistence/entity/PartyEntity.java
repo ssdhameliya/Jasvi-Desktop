@@ -16,6 +16,7 @@ public class PartyEntity {
     private String gstin;
     private String address;
     @Column(name="opening_balance") private Double openingBalance;
+    @Column(name="credit_limit") private Double creditLimit;
     @Column(name="is_active") private Integer active;
     public Integer getId(){return id;} public void setId(Integer v){id=v;}
     public String getPartyType(){return partyType;} public void setPartyType(String v){partyType=v;}
@@ -27,6 +28,7 @@ public class PartyEntity {
     public String getGstin(){return gstin;} public void setGstin(String v){gstin=v;}
     public String getAddress(){return address;} public void setAddress(String v){address=v;}
     public Double getOpeningBalance(){return openingBalance;} public void setOpeningBalance(Double v){openingBalance=v;}
+    public Double getCreditLimit(){return creditLimit;} public void setCreditLimit(Double v){creditLimit=v;}
     public Integer getActive(){return active;} public void setActive(Integer v){active=v;}
 
  public Long getRowVersion(){return rowVersion;} public void setRowVersion(Long v){rowVersion=v==null?0L:v;}

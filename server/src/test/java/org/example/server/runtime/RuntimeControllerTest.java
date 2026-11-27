@@ -76,6 +76,21 @@ class RuntimeControllerTest {
     }
 
     @Test
+    void exposesDevelopmentSourceFingerprintWhenConfigured() throws Exception {
+        RuntimeService service = mock(RuntimeService.class);
+        when(service.databaseReady()).thenReturn(true);
+        when(service.databaseName()).thenReturn("dse_erp");
+        when(service.databaseTimeZone()).thenReturn("UTC");
+        MockMvc mvc = standaloneSetup(new RuntimeController(
+                service, RuntimeContract.appVersion(), RuntimeContract.API_REVISION, RuntimeContract.buildRevision(),
+                "", "", "", "", "", "LOCAL", "deadbeef01234567")).build();
+
+        mvc.perform(get(RuntimeContract.HEALTH_PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.devSourceFingerprint").value("deadbeef01234567"));
+    }
+
+    @Test
     void sourceContainsExactlyOneRuntimeHealthMapping() throws Exception {
         Path runtimeSource = Path.of("src", "main", "java", "org", "example", "server", "runtime");
         try (var files = Files.list(runtimeSource)) {

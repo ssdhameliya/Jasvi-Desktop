@@ -64,7 +64,11 @@ public final class RuntimeBootstrapper {
             } catch (IllegalStateException incompatible) {
                 if (!isLocalApiEndpoint()) throw incompatible;
                 // Never reuse a stale localhost backend from a previous IntelliJ/app run.
-                // Move this desktop session to a free managed port and start the current server.
+                // Stop stale dev-cache servers belonging to this workspace or move to a free managed port.
+                if (!isPackagedRuntime()) {
+                    Path root = findProjectRoot();
+                    if (root != null) stopStaleDevelopmentServers(root);
+                }
                 int port = findAvailableServerPort(DEFAULT_MANAGED_SERVER_PORT);
                 ConfigManager.applyRuntimeApiBaseUrl("http://127.0.0.1:" + port);
                 client = new RuntimeApiClient();
@@ -133,6 +137,12 @@ public final class RuntimeBootstrapper {
                 throw new IllegalStateException("DSE ERP backend version mismatch. Desktop is "
                         + org.example.update.BuildInfo.version() + " but server is " + status.version()
                         + ". A stale backend is running and must not be reused.");
+            }
+            if (!isPackagedRuntime()) {
+                Path root = findProjectRoot();
+                if (root != null) {
+                    requireCompatibleDevelopmentSource(status, currentDevSourceFingerprint(root));
+                }
             }
             ConfigManager.applyServerBusinessPolicy(status.businessZone(), status.dateFormat(), status.timeFormat());
         }
@@ -359,6 +369,43 @@ public final class RuntimeBootstrapper {
         });
     }
 
+    private static void stopStaleDevelopmentServers(Path root) {
+        String legacyTarget = normalizeProcessPath(root.resolve("server/target"));
+        String externalCache = normalizeProcessPath(developmentServerCacheDirectory(root));
+        String expectedJar = "dse-erp-server-dev-cache-" + currentDevSourceFingerprint(root) + ".jar";
+        long currentPid = ProcessHandle.current().pid();
+        ProcessHandle.allProcesses().forEach(handle -> {
+            if (handle.pid() == currentPid || !handle.isAlive()) return;
+            String command = handle.info().commandLine().orElse("");
+            if (command.isBlank()) return;
+            String normalized = command.replace('\\', '/').toLowerCase(Locale.ROOT);
+            boolean dseDevServer = normalized.contains("dse-erp-server-dev-cache-");
+            boolean belongsToProject = normalized.contains(legacyTarget) || normalized.contains(externalCache);
+            if (!dseDevServer || !belongsToProject || normalized.contains(expectedJar.toLowerCase(Locale.ROOT))) return;
+            stopOrphanProcess(handle);
+        });
+    }
+
+    static void requireCompatibleDevelopmentSource(RuntimeApiClient.RuntimeStatus status, String expectedShortFingerprint) {
+        if (expectedShortFingerprint == null || expectedShortFingerprint.isBlank()) return;
+        String actual = status == null || status.devSourceFingerprint() == null
+                ? "" : status.devSourceFingerprint().trim();
+        if (!expectedShortFingerprint.equals(actual)) {
+            throw new IllegalStateException("DSE ERP development backend source mismatch. Desktop requires "
+                    + expectedShortFingerprint + " but running server reports "
+                    + (actual.isBlank() ? "an older/untracked build" : actual)
+                    + ". Stopping stale development backend and starting current build.");
+        }
+    }
+
+    private static String currentDevSourceFingerprint(Path root) {
+        try {
+            return developmentServerFingerprint(root).substring(0, 16);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Unable to verify development Spring backend fingerprint", exception);
+        }
+    }
+
     private static String normalizeProcessPath(Path path) {
         return path.toAbsolutePath().normalize().toString().replace('\\', '/').toLowerCase(Locale.ROOT);
     }
@@ -502,6 +549,12 @@ public final class RuntimeBootstrapper {
             builder.environment().put("DSE_BUSINESS_TIME_ZONE", org.example.util.BusinessClock.zone().getId());
             builder.environment().put("DSE_BUSINESS_DATE_FORMAT", org.example.util.BusinessClock.datePattern());
             builder.environment().put("DSE_WORKSPACE_PATH", WorkspaceManager.getWorkspaceRoot().toString());
+            if (!isPackagedRuntime()) {
+                Path root = findProjectRoot();
+                if (root != null) {
+                    builder.environment().put("DSE_DEV_SOURCE_FINGERPRINT", currentDevSourceFingerprint(root));
+                }
+            }
             return builder.start();
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to start packaged DSE ERP backend from " + jar, exception);
@@ -560,6 +613,10 @@ public final class RuntimeBootstrapper {
             }
         } catch (IllegalStateException incompatible) {
             // A listening but incompatible local endpoint must never be reused.
+            if (!isPackagedRuntime()) {
+                Path root = findProjectRoot();
+                if (root != null) stopStaleDevelopmentServers(root);
+            }
         } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
         int port = findAvailableServerPort(DEFAULT_MANAGED_SERVER_PORT);
         ConfigManager.applyRuntimeApiBaseUrl("http://127.0.0.1:" + port);

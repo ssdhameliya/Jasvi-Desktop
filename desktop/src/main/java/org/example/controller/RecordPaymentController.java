@@ -409,9 +409,9 @@ public class RecordPaymentController implements ScreenLifecycle {
             String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(docNo, total);
             String sigBase64 = MessageTemplateService.getSignatureImageBase64();
 
-            String ourBankName = ConfigManager.get("company.bank.name", "STATE BANK OF INDIA");
-            String ourAccNo = ConfigManager.get("company.bank.account", "38291048192");
-            String ourIfsc = ConfigManager.get("company.bank.ifsc", "SBIN0001234");
+            String ourBankName = ConfigManager.get("payment.bankName", ConfigManager.get("company.bank.name", "")).trim();
+            String ourAccNo = ConfigManager.get("payment.accountNumber", ConfigManager.get("company.bank.account", "")).trim();
+            String ourIfsc = ConfigManager.get("payment.ifsc", ConfigManager.get("company.bank.ifsc", "")).trim();
 
             var formatted = MessageTemplateService.formatPaymentReceiptEmail(
                     partyName,

@@ -46,8 +46,11 @@ public class LicensingApiController {
     public Map<String, Object> getCatalog() {
         Map<String, Object> settings = registryService.getCommercialSettings();
         List<Map<String, Object>> plans = registryService.getPlans();
+        String supportEmail = String.valueOf(settings.getOrDefault("superAdminEmail", "shailesh.sdhameliya@gmail.com"));
+        if (supportEmail.isBlank()) supportEmail = "shailesh.sdhameliya@gmail.com";
         return Map.of(
                 "supportPhone", settings.getOrDefault("supportPhone", "9537544008"),
+                "supportEmail", supportEmail,
                 "upiVpa", settings.getOrDefault("upiVpa", "jasviindustries@icici"),
                 "payeeName", settings.getOrDefault("payeeName", "Jasvi Industries"),
                 "gstRate", settings.getOrDefault("gstRate", "18.00"),

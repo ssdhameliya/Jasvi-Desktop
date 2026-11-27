@@ -86,4 +86,53 @@ class StageIconBrandingTest {
         assertTrue(sceneSource.contains("NativeAppBranding.applyToPrimaryStageAsync"),
                 "Stage branding transitions must keep Windows taskbar/shortcut and macOS Dock icons synchronized");
     }
+
+    @Test
+    void bundledLogoInstallerAssetsAndDashboardMenuBarBrandingAreConfigured() throws Exception {
+        Path macMasterPng = Path.of("src/main/resources/installer/logo-1024.png");
+        Path windowsIco = Path.of("src/main/resources/installer/DSE-ERP.ico");
+        Path desktopMarkPng = Path.of("src/main/resources/logo.png");
+        Path removedLegacyServerLogo = Path.of("../server/src/main/resources/logo.png");
+
+        assertTrue(Files.isRegularFile(macMasterPng), "macOS installer master PNG must exist");
+        assertTrue(Files.isRegularFile(windowsIco), "Windows installer ICO must exist");
+        assertTrue(Files.isRegularFile(desktopMarkPng), "Desktop bundled mark PNG must exist");
+        assertTrue(Files.notExists(removedLegacyServerLogo), "Legacy server/src/main/resources/logo.png must stay removed");
+
+        byte[] icoBytes = Files.readAllBytes(windowsIco);
+        assertTrue(icoBytes.length > 6 + 16 * 7);
+        int icoType = ((icoBytes[3] & 0xFF) << 8) | (icoBytes[2] & 0xFF);
+        int icoCount = ((icoBytes[5] & 0xFF) << 8) | (icoBytes[4] & 0xFF);
+        assertEquals(1, icoType, "DSE-ERP.ico must have ICO type 1");
+        assertTrue(icoCount >= 7, "DSE-ERP.ico must include standard 16..256 icon frames");
+
+        for (Path pngPath : List.of(macMasterPng, desktopMarkPng)) {
+            Image img;
+            try (var in = Files.newInputStream(pngPath)) {
+                img = new Image(in);
+            }
+            assertFalse(img.isError(), "Bundled logo PNG must decode cleanly: " + pngPath);
+            int width = (int) img.getWidth();
+            int height = (int) img.getHeight();
+            assertEquals(width, height, "Bundled logo PNG must remain square: " + pngPath);
+            assertTrue(width >= 512, "Bundled logo PNG must be high-resolution: " + pngPath);
+            PixelReader reader = img.getPixelReader();
+            assertNotNull(reader);
+            int centerAlpha = (reader.getArgb(width / 2, height / 2) >>> 24) & 0xFF;
+            int cornerAlpha = (reader.getArgb(0, 0) >>> 24) & 0xFF;
+            assertTrue(centerAlpha > 200, "Center emblem pixel must be visible: " + pngPath);
+            assertEquals(0, cornerAlpha, "Circular emblem corner must stay transparent: " + pngPath);
+        }
+
+        Image bundled = org.example.service.BrandingService.bundledMarkImage();
+        assertNotNull(bundled);
+        assertFalse(bundled.isError());
+        assertNotNull(org.example.service.BrandingService.effectiveMarkImage());
+
+        String dashboardFxml = Files.readString(Path.of("src/main/resources/fxml/pages/Dashboard.fxml"));
+        assertTrue(dashboardFxml.contains("fx:id=\"sidebarBrandHeader\""));
+        assertTrue(dashboardFxml.contains("fx:id=\"imgSidebarBrandLogo\""));
+        assertTrue(dashboardFxml.contains("fx:id=\"topBarBrandLogoBox\""));
+        assertTrue(dashboardFxml.contains("fx:id=\"imgTopBarBrandLogo\""));
+    }
 }

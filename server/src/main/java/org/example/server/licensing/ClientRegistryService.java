@@ -33,6 +33,15 @@ public class ClientRegistryService {
     @Value("${dse.deployment.environment:LOCAL}")
     private String deploymentEnv = "LOCAL";
 
+    @Value("${dse.public-url.local:http://localhost:58080}")
+    private String localPublicUrl = "http://localhost:58080";
+
+    @Value("${dse.public-url.uat:https://api-uat.jasviindustries.in}")
+    private String uatPublicUrl = "https://api-uat.jasviindustries.in";
+
+    @Value("${dse.public-url.prod:https://erp.jasviindustries.in}")
+    private String prodPublicUrl = "https://erp.jasviindustries.in";
+
     private final Map<String, Instant> rogueAlertDebounceMap = new ConcurrentHashMap<>();
 
     private final JpaNativeRepository jdbc;
@@ -550,11 +559,12 @@ public class ClientRegistryService {
     public String resolveDefaultServerPublicUrl() {
         String env = deploymentEnv != null ? deploymentEnv.trim().toUpperCase(Locale.ROOT) : "LOCAL";
         return switch (env) {
-            case "PROD", "PRODUCTION" -> "https://erp.jasviindustries.in";
-            case "UAT", "STAGING" -> "https://api-uat.jasviindustries.in";
+            case "PROD", "PRODUCTION" -> prodPublicUrl != null && !prodPublicUrl.isBlank() ? prodPublicUrl.trim() : "";
+            case "UAT", "STAGING" -> uatPublicUrl != null && !uatPublicUrl.isBlank() ? uatPublicUrl.trim() : "";
             default -> {
                 String tunnelUrl = getSetting("remote_access.last_tunnel_url", null);
-                yield (tunnelUrl != null && !tunnelUrl.isBlank()) ? tunnelUrl.trim() : "http://localhost:58080";
+                if (tunnelUrl != null && !tunnelUrl.isBlank()) yield tunnelUrl.trim();
+                yield localPublicUrl != null && !localPublicUrl.isBlank() ? localPublicUrl.trim() : "http://localhost:58080";
             }
         };
     }
@@ -566,12 +576,13 @@ public class ClientRegistryService {
         // In LOCAL / DEV mode, ignore saved cloud domains (they cannot route to local machine)
         if ("LOCAL".equals(env) || "DEV".equals(env) || "TEST".equals(env)) {
             if (savedUrl != null && !savedUrl.isBlank()
-                    && !savedUrl.contains("erp.jasviindustries.in")
-                    && !savedUrl.contains("api-uat.jasviindustries.in")) {
+                    && (prodPublicUrl.isBlank() || !savedUrl.contains(prodPublicUrl.replaceFirst("^https?://", "")))
+                    && (uatPublicUrl.isBlank() || !savedUrl.contains(uatPublicUrl.replaceFirst("^https?://", "")))) {
                 return savedUrl.trim();
             }
             String tunnelUrl = getSetting("remote_access.last_tunnel_url", null);
-            return (tunnelUrl != null && !tunnelUrl.isBlank()) ? tunnelUrl.trim() : "http://localhost:58080";
+            if (tunnelUrl != null && !tunnelUrl.isBlank()) return tunnelUrl.trim();
+            return localPublicUrl != null && !localPublicUrl.isBlank() ? localPublicUrl.trim() : "http://localhost:58080";
         }
 
         return (savedUrl != null && !savedUrl.isBlank()) ? savedUrl.trim() : resolveDefaultServerPublicUrl();
@@ -624,14 +635,20 @@ public class ClientRegistryService {
         String defaultEmail = (masterEmail != null && !masterEmail.isBlank()) ? masterEmail : getSetting("licensing.superadmin_email", "");
         String defaultPhone = (masterPhone != null && !masterPhone.isBlank()) ? masterPhone : getSetting("licensing.superadmin_whatsapp", "");
 
+        String templatesCompany = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc).companyName();
+        String supportBrand = getSetting("licensing.issuer_brand", templatesCompany);
+        String supportEmail = getSetting("licensing.support_email", defaultEmail != null ? defaultEmail : getSetting("company.email", ""));
         result.put("supportPhone", getSetting("licensing.support_phone", (defaultPhone != null && !defaultPhone.isBlank()) ? defaultPhone : ""));
-        result.put("upiVpa", getSetting("licensing.upi_vpa", "jasviindustries@icici"));
-        result.put("payeeName", getSetting("licensing.payee_name", "Jasvi Industries"));
+        result.put("supportEmail", supportEmail);
+        result.put("issuerBrand", supportBrand);
+        result.put("upiVpa", getSetting("licensing.upi_vpa", ""));
+        result.put("payeeName", getSetting("licensing.payee_name", templatesCompany));
         result.put("gstRate", getSetting("licensing.gst_rate", "18.00"));
         result.put("whatsappTemplateLead", getSetting("licensing.whatsapp_template_lead",
-                "Hello Jasvi Team, I am {CompanyName} ({ContactPerson}, {Phone}). Terminal ID: {MachineId}. Please activate our Jasvi ERP license."));
+                "Hello " + supportBrand + " Team, I am {CompanyName} ({ContactPerson}, {Phone}). Terminal ID: {MachineId}. Please activate our " + supportBrand + " license."));
         result.put("whatsappTemplateIssued", getSetting("licensing.whatsapp_template_issued",
-                "Dear {CompanyName}, your Jasvi ERP {Tier} license is approved! Terminal ID: {MachineId}. Valid Until: {ValidUntil}. Thank you for choosing Jasvi ERP."));
+                getSetting("whatsapp.template.license_activation.body",
+                        "Dear {CompanyName}, your {IssuerBrand} {Tier} license is approved! Terminal ID: {MachineId}. Valid Until: {ValidUntil}. Thank you for choosing {IssuerBrand}.")));
         result.put("superAdminEmail", defaultEmail != null ? defaultEmail : "");
         result.put("superAdminWhatsapp", defaultPhone != null ? defaultPhone : "");
         result.put("serverPublicUrl", resolveEffectiveServerPublicUrl());
@@ -642,6 +659,8 @@ public class ClientRegistryService {
     public void saveCommercialSettings(Map<String, Object> settings) {
         if (settings == null) return;
         saveSetting("licensing.support_phone", settings.get("supportPhone"));
+        saveSetting("licensing.support_email", settings.get("supportEmail"));
+        saveSetting("licensing.issuer_brand", settings.get("issuerBrand"));
         saveSetting("licensing.upi_vpa", settings.get("upiVpa"));
         saveSetting("licensing.payee_name", settings.get("payeeName"));
         saveSetting("licensing.gst_rate", settings.get("gstRate"));
@@ -1644,17 +1663,20 @@ public class ClientRegistryService {
         }
         if (superAdminPhone == null || superAdminPhone.isBlank()) return;
 
-        String text = "🚨 *JASVI SECURITY ALERT: UNLICENSED INSTANCE*\n\n" +
-                "An unauthorized local workstation has connected to the system without an active plan:\n\n" +
-                "🏢 *Company:* " + company + "\n" +
-                "💻 *Machine ID:* " + machineId + "\n" +
-                "🌐 *IP Address:* " + ip + "\n" +
-                "👤 *Reported Users:* " + users + "\n" +
-                "📦 *Version:* Jasvi-Desktop " + version + "\n" +
-                "⚠️ *Plan Status:* NO PLAN / UNLICENSED\n\n" +
-                "🛑 *INSTANT 1-CLICK KICK & BLOCK:*\n" +
-                "Tap below to immediately terminate sessions and permanently lock this workstation:\n" +
-                kickUrl;
+        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+        String supportBrand = getSetting("licensing.issuer_brand", templates.companyName());
+        String text = templates.renderWhatsapp(
+                "rogue_alert",
+                Map.of(
+                        "CompanyName", company,
+                        "MachineId", machineId,
+                        "ClientIp", ip,
+                        "Users", users,
+                        "ClientVersion", version,
+                        "KickUrl", kickUrl,
+                        "SupportBrand", supportBrand
+                )
+        );
 
         try {
             whatsappService.sendText(new org.example.server.whatsapp.WahaDtos.TextSendRequest(superAdminPhone, text, null));
@@ -1681,11 +1703,11 @@ public class ClientRegistryService {
         if (superAdminEmail == null || superAdminEmail.isBlank()) {
             superAdminEmail = getSetting("licensing.superadmin_email", "").trim();
         }
-        if (superAdminEmail == null || superAdminEmail.isBlank() || "superadmin@jasviindustries.in".equalsIgnoreCase(superAdminEmail)) {
+        if (superAdminEmail == null || superAdminEmail.isBlank()) {
             try {
                 String queried = jdbc.queryForObject(
                         "SELECT email FROM users WHERE (LOWER(username) = 'superadmin' OR UPPER(COALESCE(role,'')) = 'SUPER_ADMIN') " +
-                                "AND email IS NOT NULL AND BTRIM(email) <> '' AND LOWER(email) NOT LIKE '%superadmin@jasviindustries.in%' ORDER BY id ASC LIMIT 1",
+                                "AND email IS NOT NULL AND BTRIM(email) <> '' ORDER BY id ASC LIMIT 1",
                         String.class
                 );
                 if (queried != null && !queried.isBlank()) {
@@ -1695,41 +1717,31 @@ public class ClientRegistryService {
         }
         if (superAdminEmail == null || superAdminEmail.isBlank()) return;
 
-        String subject = "🚨 Security Alert: Unlicensed Local Instance Detected - " + company;
-        String html = """
-                <!DOCTYPE html>
-                <html>
-                <body style="font-family: Arial, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 24px;">
-                  <div style="max-width: 600px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 24px;">
-                    <div style="background: #dc2626; color: #ffffff; padding: 12px 18px; border-radius: 8px; font-weight: bold; font-size: 16px;">
-                      🚨 SECURITY ALERT: UNLICENSED LOCAL WORKSTATION DETECTED
-                    </div>
-                    <p style="color: #cbd5e1; font-size: 14px; margin-top: 16px;">
-                      An unauthorized or unlicensed local workstation has connected to the Jasvi ecosystem without an active plan or purchase.
-                    </p>
-                    <table style="width: 100%%; border-collapse: collapse; margin-top: 16px; font-size: 13px;">
-                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Organization / Company:</td><td style="padding: 8px; font-weight: bold; color: #f8fafc;">%s</td></tr>
-                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Terminal / Machine ID:</td><td style="padding: 8px; font-family: monospace; color: #38bdf8;">%s</td></tr>
-                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Public IP Address:</td><td style="padding: 8px; font-family: monospace; color: #cbd5e1;">%s</td></tr>
-                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Reported Active Users:</td><td style="padding: 8px; color: #f8fafc;">%s</td></tr>
-                      <tr style="border-bottom: 1px solid #334155;"><td style="padding: 8px; color: #94a3b8;">Client Software Version:</td><td style="padding: 8px; color: #cbd5e1;">Jasvi-Desktop %s</td></tr>
-                      <tr><td style="padding: 8px; color: #94a3b8;">Plan Status:</td><td style="padding: 8px; font-weight: bold; color: #ef4444;">UNLICENSED / NO PLAN</td></tr>
-                    </table>
-                    <div style="text-align: center; margin-top: 28px; margin-bottom: 20px;">
-                      <a href="%s" style="background-color: #dc2626; color: #ffffff; text-decoration: none; padding: 14px 28px; font-size: 15px; font-weight: bold; border-radius: 8px; display: inline-block;">
-                        🛑 INSTANT KICK & BLOCK THIS INSTANCE
-                      </a>
-                    </div>
-                    <p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 16px;">
-                      Clicking this button will immediately terminate all active sessions and suspend access on the target workstation without requiring login.
-                    </p>
-                  </div>
-                </body>
-                </html>
-                """.formatted(company, machineId, ip, users, version, kickUrl);
+        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+        String supportBrand = getSetting("licensing.issuer_brand", templates.companyName());
+        var rendered = templates.renderEmail(
+                "rogue_alert",
+                Map.of(
+                        "CompanyName", company,
+                        "MachineId", machineId,
+                        "ClientIp", ip,
+                        "Users", users,
+                        "ClientVersion", version,
+                        "KickUrl", kickUrl,
+                        "SupportBrand", supportBrand
+                ),
+                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                        "#dc2626", "#991b1b",
+                        "CRITICAL SECURITY ALERT • UNLICENSED INSTANCE",
+                        "🚨 Unlicensed Workstation Detected",
+                        List.of(new org.example.shared.communication.TokenTemplateEngine.ActionButton(
+                                "🛑 INSTANT KICK & BLOCK THIS INSTANCE", kickUrl, "#dc2626")),
+                        supportBrand + " Platform Security"
+                )
+        );
 
         try {
-            mailService.sendBusiness(superAdminEmail, subject, html);
+            mailService.sendBusiness(superAdminEmail, rendered.subject(), rendered.body());
             log.info("Rogue instance security alert emailed to Super Admin ({}) for machine {}", superAdminEmail, machineId);
         } catch (Exception e) {
             log.warn("Failed to dispatch rogue instance email alert: {}", e.getMessage());
@@ -1848,52 +1860,38 @@ public class ClientRegistryService {
 
         if (mailService != null && !email.isBlank()) {
             try {
-                String subject = "Official Jasvi ERP Enterprise License Activation - " + company;
+                var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+                String issuerBrand = getSetting("licensing.issuer_brand", templates.companyName() + " ERP");
+                String supportEmail = templates.companySupportEmail();
                 String baseName = company.replaceAll("[^a-zA-Z0-9_-]", "_");
                 String filenameJlic = baseName + "-license.jlic";
                 String filenameJson = baseName + "-license.json";
                 byte[] jlicBytes = payload.getBytes(StandardCharsets.UTF_8);
 
-                String emailHtml = """
-                        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; color: #1e293b;">
-                            <div style="border-bottom: 2px solid #0284c7; padding-bottom: 16px; margin-bottom: 20px;">
-                                <h2 style="margin: 0; color: #0f172a; font-size: 22px;">Jasvi ERP Enterprise License Activation</h2>
-                                <p style="margin: 4px 0 0; color: #64748b; font-size: 14px;">Official Digital License Delivery</p>
-                            </div>
-                            <p style="font-size: 15px; line-height: 1.5;">Dear <strong>{{company}}</strong>,</p>
-                            <p style="font-size: 14px; line-height: 1.5; color: #334155;">
-                                Your Jasvi ERP production license has been issued and approved. Both your official digital license file (<strong>{{filenameJlic}}</strong>) and readable IT certificate copy (<strong>{{filenameJson}}</strong>) are attached to this email.
-                            </p>
-                            <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px; margin: 20px 0;">
-                                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                                    <tr><td style="padding: 6px 0; color: #64748b; width: 40%;"><strong>Registered Client:</strong></td><td style="padding: 6px 0; color: #0f172a;"><strong>{{company}}</strong></td></tr>
-                                    <tr><td style="padding: 6px 0; color: #64748b;"><strong>Subscription Tier:</strong></td><td style="padding: 6px 0; color: #0369a1; font-weight: 600;">{{tier}}</td></tr>
-                                    <tr><td style="padding: 6px 0; color: #64748b;"><strong>Hardware Terminal ID:</strong></td><td style="padding: 6px 0; font-family: monospace; color: #0f172a;">{{machineId}}</td></tr>
-                                    <tr><td style="padding: 6px 0; color: #64748b;"><strong>Validity Period:</strong></td><td style="padding: 6px 0; color: #15803d; font-weight: 600;">Until {{validUntil}}</td></tr>
-                                </table>
-                            </div>
-                            <h3 style="font-size: 16px; color: #0f172a; margin-top: 24px; margin-bottom: 12px;">How to Activate:</h3>
-                            <ol style="font-size: 14px; line-height: 1.6; padding-left: 20px; color: #334155;">
-                                <li>Download and save the attached <strong>{{filenameJlic}}</strong> (or <strong>{{filenameJson}}</strong>) file on your workstation.</li>
-                                <li>Open <strong>Jasvi ERP Desktop</strong>.</li>
-                                <li>On the startup prompt or in <em>Settings &gt; License</em>, click <strong>[Import .jlic File]</strong> (both formats are supported).</li>
-                                <li>Select the downloaded file. Your system will immediately activate with full enterprise capabilities.</li>
-                            </ol>
-                            <div style="margin-top: 28px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
-                                Jasvi Industries &bull; Enterprise ERP Systems &bull; Support: support@jasviindustries.in
-                            </div>
-                        </div>
-                        """
-                        .replace("{{company}}", company)
-                        .replace("{{filenameJlic}}", filenameJlic)
-                        .replace("{{filenameJson}}", filenameJson)
-                        .replace("{{tier}}", tier)
-                        .replace("{{machineId}}", machineId)
-                        .replace("{{validUntil}}", validUntil);
+                var rendered = templates.renderEmail(
+                        "license_activation",
+                        Map.of(
+                                "CompanyName", company,
+                                "Tier", tier,
+                                "MachineId", machineId,
+                                "ValidUntil", validUntil,
+                                "JlicFilename", filenameJlic,
+                                "JsonFilename", filenameJson,
+                                "IssuerBrand", issuerBrand,
+                                "SupportEmail", supportEmail
+                        ),
+                        new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                                "#0284c7", "#0369a1",
+                                "Official Digital License Delivery",
+                                issuerBrand + " Enterprise License Activation",
+                                List.of(),
+                                issuerBrand + (supportEmail.isBlank() ? "" : " • Support: " + supportEmail)
+                        )
+                );
 
                 var attJlic = new org.example.server.auth.SmtpMailService.Attachment(filenameJlic, "application/octet-stream", jlicBytes);
                 var attJson = new org.example.server.auth.SmtpMailService.Attachment(filenameJson, "application/json", jlicBytes);
-                mailService.sendBusiness(email, subject, emailHtml, List.of(attJlic, attJson));
+                mailService.sendBusiness(email, rendered.subject(), rendered.body(), List.of(attJlic, attJson));
                 emailSent = true;
             } catch (Exception ex) {
                 emailError = ex.getMessage();
@@ -1928,15 +1926,19 @@ public class ClientRegistryService {
         String filenameJson = baseName + "-license.json";
         byte[] jlicBytes = payload.getBytes(StandardCharsets.UTF_8);
 
-        String caption = "Dear " + company + ",\n\n" +
-                "🎉 Your Jasvi ERP Production License is ACTIVE!\n\n" +
-                "🏢 Company: " + company + "\n" +
-                "💻 Machine ID: " + machineId + "\n" +
-                "💎 Plan Tier: " + tier + "\n" +
-                "⏳ Valid Until: " + validUntil + "\n\n" +
-                "📄 Attached: Official Jasvi License (" + filenameJlic + ") & readable IT certificate copy (" + filenameJson + ").\n" +
-                "To activate: Open Jasvi ERP Desktop > Import License File > Select either file.\n\n" +
-                "Thank you for choosing Jasvi ERP!";
+        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+        String issuerBrand = getSetting("licensing.issuer_brand", templates.companyName() + " ERP");
+        Map<String, String> waTokens = Map.of(
+                "CompanyName", company,
+                "Tier", tier,
+                "MachineId", machineId,
+                "ValidUntil", validUntil,
+                "JlicFilename", filenameJlic,
+                "JsonFilename", filenameJson,
+                "IssuerBrand", issuerBrand,
+                "SupportEmail", templates.companySupportEmail()
+        );
+        String caption = templates.renderWhatsapp("license_activation", waTokens);
 
         if (whatsappService != null && !phone.isBlank()) {
             try {

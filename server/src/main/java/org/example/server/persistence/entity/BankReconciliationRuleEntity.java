@@ -41,6 +41,24 @@ public class BankReconciliationRuleEntity {
     @Column(name = "target_notes", columnDefinition = "TEXT")
     private String targetNotes;
 
+    @Column(name = "min_amount")
+    private Double minAmount;
+
+    @Column(name = "max_amount")
+    private Double maxAmount;
+
+    @Column(name = "channel_filter", length = 32)
+    private String channelFilter;
+
+    @Column(name = "bank_account_filter", length = 160)
+    private String bankAccountFilter;
+
+    @Column(name = "target_party_id")
+    private Integer targetPartyId;
+
+    @Column(name = "target_contra_account", length = 160)
+    private String targetContraAccount;
+
     @Column(name = "execution_mode", nullable = false, length = 24)
     private String executionMode = "SUGGEST";
 
@@ -101,6 +119,18 @@ public class BankReconciliationRuleEntity {
     public void setTargetPaymentMode(String v) { targetPaymentMode = v; }
     public String getTargetNotes() { return targetNotes; }
     public void setTargetNotes(String v) { targetNotes = v; }
+    public Double getMinAmount() { return minAmount; }
+    public void setMinAmount(Double v) { minAmount = v; }
+    public Double getMaxAmount() { return maxAmount; }
+    public void setMaxAmount(Double v) { maxAmount = v; }
+    public String getChannelFilter() { return channelFilter; }
+    public void setChannelFilter(String v) { channelFilter = v; }
+    public String getBankAccountFilter() { return bankAccountFilter; }
+    public void setBankAccountFilter(String v) { bankAccountFilter = v; }
+    public Integer getTargetPartyId() { return targetPartyId; }
+    public void setTargetPartyId(Integer v) { targetPartyId = v; }
+    public String getTargetContraAccount() { return targetContraAccount; }
+    public void setTargetContraAccount(String v) { targetContraAccount = v; }
     public String getExecutionMode() { return executionMode; }
     public void setExecutionMode(String v) { executionMode = v; }
     public Integer getPriority() { return priority == null ? 100 : priority; }

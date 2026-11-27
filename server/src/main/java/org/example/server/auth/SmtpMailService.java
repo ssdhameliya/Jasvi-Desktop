@@ -113,8 +113,7 @@ public class SmtpMailService {
                 }
             } catch (Exception ignored) { java.lang.System.getLogger("org.example").log(java.lang.System.Logger.Level.DEBUG, "Suppressed exception: " + ignored.getMessage(), ignored); }
         }
-        String configured = setting("company.name", "Company").trim();
-        return configured.isBlank() ? "Company" : configured;
+        return org.example.server.communication.ServerNotificationTemplateService.forJdbc(db).companyName();
     }
 
     @Transactional
@@ -173,9 +172,31 @@ public class SmtpMailService {
             MimeMessage message = new MimeMessage(session);
             message.setFrom(new InternetAddress(settings.email()));
             message.setRecipient(Message.RecipientType.TO, destination);
-            message.setSubject(companyName() + " " + purpose + " code");
-            message.setText("Your " + companyName() + " verification code is " + code
-                    + ". It expires in 10 minutes. If you did not request this, ignore this email.");
+            var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(db);
+            String brand = companyName();
+            String defaultSubject = companyName() + " " + purpose + " code";
+            var rendered = templates.renderEmail(
+                    "auth_otp",
+                    java.util.Map.of(
+                            "CompanyName", brand,
+                            "AppName", brand + " ERP",
+                            "Purpose", purpose == null ? "verification" : purpose,
+                            "OtpCode", code == null ? "" : code,
+                            "ExpiryMinutes", "10"
+                    ),
+                    new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                            "#0f172a", "#1e3a8a", "Security Verification",
+                            brand + " Verification Code", java.util.List.of(),
+                            "Automated Security Verification • " + brand
+                    )
+            );
+            String finalSubject = rendered.subject() != null && !rendered.subject().isBlank() ? rendered.subject() : defaultSubject;
+            message.setSubject(finalSubject);
+            if (rendered.html()) {
+                message.setContent(rendered.body(), "text/html; charset=UTF-8");
+            } else {
+                message.setText(rendered.body());
+            }
             Transport.send(message);
         } catch (Exception exception) {
             EmailDeliveryException failure = EmailDeliveryException.verification(exception);

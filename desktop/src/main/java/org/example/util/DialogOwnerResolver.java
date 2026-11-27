@@ -9,9 +9,11 @@ public final class DialogOwnerResolver {
     private DialogOwnerResolver() {}
 
     public static Window resolve(Node node) {
-        if (node != null && node.getScene() != null && node.getScene().getWindow() != null
-                && node.getScene().getWindow().isShowing()) {
-            return node.getScene().getWindow();
+        if (node != null && node.getScene() != null && node.getScene().getWindow() != null) {
+            Window resolved = unwrapStage(node.getScene().getWindow());
+            if (resolved != null && resolved.isShowing()) {
+                return resolved;
+            }
         }
         Window focused = Window.getWindows().stream()
                 .filter(Window::isShowing)
@@ -33,9 +35,20 @@ public final class DialogOwnerResolver {
     public static Window resolve() { return resolve((Node) null); }
 
     public static Window resolve(Object target) {
-        if (target instanceof Window window && window.isShowing()) return window;
+        if (target instanceof Window window) {
+            Window resolved = unwrapStage(window);
+            if (resolved != null && resolved.isShowing()) return resolved;
+        }
         if (target instanceof Node node) return resolve(node);
         return resolve((Node) null);
+    }
+
+    private static Window unwrapStage(Window window) {
+        Window current = window;
+        while (current instanceof javafx.stage.PopupWindow pw) {
+            current = pw.getOwnerWindow();
+        }
+        return current;
     }
 
     private static boolean isShowingStageCandidate(Window window) {

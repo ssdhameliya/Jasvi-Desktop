@@ -80,8 +80,12 @@
                 </GridPane>
 
                 <VBox spacing="8">
-                    <Button fx:id="btnSendWhatsAppLead" text="Send Machine ID via WhatsApp" onAction="#handleSendWhatsAppLead"
-                            styleClass="approved-button,approved-primary-button" maxWidth="Infinity"/>
+                    <HBox spacing="10">
+                        <Button fx:id="btnSendEmailLead" text="Send Machine ID via Email" onAction="#handleSendEmailLead"
+                                styleClass="approved-button,approved-primary-button" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                        <Button fx:id="btnSendWhatsAppLead" text="Send via WhatsApp" onAction="#handleSendWhatsAppLead"
+                                styleClass="approved-button,approved-secondary-button" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                    </HBox>
                     <HBox spacing="10">
                         <Button fx:id="btnRegisterOnlineLead" text="Register Online" onAction="#handleRegisterOnlineLead"
                                 styleClass="approved-button,approved-secondary-button" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>

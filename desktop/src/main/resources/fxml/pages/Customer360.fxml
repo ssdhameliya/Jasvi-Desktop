@@ -12,6 +12,7 @@
         <VBox spacing="2"><Label fx:id="lblTitle" text="Customer 360&#176;" styleClass="screen-title"/><Label text="One customer view across existing business records" styleClass="screen-subtitle"/></VBox>
         <Region HBox.hgrow="ALWAYS"/>
         <Button text="Back to Customers" onAction="#backToCustomers" styleClass="approved-button,approved-secondary-button,erp-nav-button"/>
+        <Button text="Price List" onAction="#managePriceList" styleClass="approved-button,approved-secondary-button"/>
         <Button text="Edit Customer" onAction="#editCustomer" styleClass="approved-button,approved-secondary-button"/>
         <Button text="New Sale" onAction="#newSale" styleClass="approved-button,approved-primary-button"/>
         <Button text="Refresh" onAction="#refresh" styleClass="approved-button,approved-secondary-button"/>

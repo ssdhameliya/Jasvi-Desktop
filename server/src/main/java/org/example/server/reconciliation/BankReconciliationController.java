@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.*; import java.util.*;
 public class BankReconciliationController {
  private final BankReconciliationService service; private final BankReconciliationRuleService ruleService; public BankReconciliationController(BankReconciliationService service, BankReconciliationRuleService ruleService){this.service=service;this.ruleService=ruleService;}
  @PostMapping("/imports") public BankReconciliationDtos.ImportResult importStatement(@RequestBody BankReconciliationDtos.ImportRequest r){return service.importStatement(r);}
+ @PostMapping("/imports/continuity-check") public BankReconciliationDtos.ContinuityCheckResult checkContinuity(@RequestBody BankReconciliationDtos.ContinuityCheckRequest r){return service.checkContinuity(r);}
  @GetMapping("/imports") public List<BankReconciliationDtos.BatchDto> batches(){return service.batches();}
  @GetMapping("/imports/page") public BankReconciliationDtos.BatchPage batchPage(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size,@RequestParam(defaultValue="") String account,@RequestParam(defaultValue="") String status,@RequestParam(defaultValue="") String fromDate,@RequestParam(defaultValue="") String toDate,@RequestParam(defaultValue="") String q){return service.batchPage(page,size,account,status,fromDate,toDate,q);}
  @GetMapping("/imports/{id}") public BankReconciliationDtos.BatchDto batch(@PathVariable Long id){return service.batch(id);}
@@ -36,4 +37,10 @@ public class BankReconciliationController {
  @DeleteMapping("/rules/{id}") public Map<String, Object> deleteRule(@PathVariable Long id){ruleService.deleteRule(id); return Map.of("deleted", true, "id", id);}
  @PostMapping("/imports/{id}/rules/preview") public BankReconciliationDtos.RulePreviewResult previewRules(@PathVariable Long id, @RequestBody(required=false) BankReconciliationDtos.RuleSaveRequest candidate){return ruleService.previewBatch(id, candidate);}
  @PostMapping("/imports/{id}/rules/apply") public BankReconciliationDtos.RuleApplyResult applyRules(@PathVariable Long id, @RequestParam(required=false) String user){return ruleService.applyRulesToBatch(id, false, user);}
+ @PostMapping("/imports/{id}/rules/{ruleId}/apply") public BankReconciliationDtos.RuleApplyResult applySingleRule(@PathVariable Long id, @PathVariable Long ruleId, @RequestParam(required=false) String user){return ruleService.applySingleRuleToBatch(id, ruleId, user);}
+ @PostMapping("/transactions/{txId}/rules/{ruleId}/apply") public BankReconciliationDtos.OperationResult applyRuleToTx(@PathVariable Long txId, @PathVariable Long ruleId, @RequestParam(required=false) String user){return ruleService.executeRuleForTransaction(txId, ruleId, user);}
+ @GetMapping("/rules/suggestions") public List<BankReconciliationDtos.RuleSuggestionCandidateDto> discoverRuleSuggestions(){return ruleService.discoverRuleSuggestions();}
+ @GetMapping("/rules/parties") public List<BankReconciliationDtos.PartyOptionDto> listRuleParties(){return ruleService.listActiveParties();}
+ @GetMapping("/imports/{id}/auto-match/preview") public BankReconciliationDtos.AutoMatchPreviewDto previewAutoMatchBatch(@PathVariable Long id){return service.previewAutoMatch(id, "", "", "");}
+ @GetMapping("/accounts/auto-match/preview") public BankReconciliationDtos.AutoMatchPreviewDto previewAutoMatchAccount(@RequestParam(defaultValue="") String account,@RequestParam(defaultValue="") String fromDate,@RequestParam(defaultValue="") String toDate){return service.previewAutoMatch(0L, account, fromDate, toDate);}
 }

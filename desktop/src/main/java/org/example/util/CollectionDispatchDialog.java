@@ -172,7 +172,8 @@ public final class CollectionDispatchDialog {
         TextField txtSubject = new TextField(defaultSubject(party));
         txtSubject.getStyleClass().add("approved-input");
 
-        TextArea txtMessage = new TextArea(defaultMessage(party));
+        String initialDefaultMessage = defaultMessage(party);
+        TextArea txtMessage = new TextArea(initialDefaultMessage);
         txtMessage.setWrapText(true);
         txtMessage.setPrefRowCount(8);
         txtMessage.getStyleClass().addAll("approved-input", "dialog-text-area");
@@ -281,7 +282,19 @@ public final class CollectionDispatchDialog {
                         if (sendEm) {
                             reporter.stage(++step, totalSteps, "Sending Email to " + email + "...");
                             try {
-                                EmailService.send(email, subject, message, statementPdf);
+                                String emailPayload = message;
+                                if (org.example.service.MessageTemplateService.shouldUseHtml("aging_collection")
+                                        && !org.example.shared.communication.TokenTemplateEngine.isHtmlContent(message)) {
+                                    emailPayload = org.example.shared.communication.TokenTemplateEngine.wrapInCardHtml(
+                                            "#0284c7", "#0369a1",
+                                            severityBadgeLabel(party),
+                                            "Outstanding Account Statement",
+                                            message,
+                                            List.of(),
+                                            org.example.service.BrandingService.companyName() + " Accounts Receivable"
+                                    );
+                                }
+                                EmailService.send(email, subject, emailPayload, statementPdf);
                                 logCommunication(supportApi, partyIntId, "EMAIL", email, subject, "SENT", null, user);
                             } catch (Exception ex) {
                                 logCommunication(supportApi, partyIntId, "EMAIL", email, subject, "FAILED", ex.getMessage(), user);
@@ -292,9 +305,12 @@ public final class CollectionDispatchDialog {
                         if (sendWa) {
                             reporter.stage(++step, totalSteps, "Sending WhatsApp to " + phone + "...");
                             try {
+                                String waPayload = message.equals(initialDefaultMessage)
+                                        ? defaultWhatsappMessage(party)
+                                        : message;
                                 var waha = new BusinessWhatsappApiClient();
                                 String normalizedPhone = normalizeIndiaPhone(phone);
-                                var resp = waha.sendText(new BusinessWhatsappApiClient.TextSendRequest(normalizedPhone, message, null));
+                                var resp = waha.sendText(new BusinessWhatsappApiClient.TextSendRequest(normalizedPhone, waPayload, null));
                                 if (resp == null || !resp.success()) {
                                     String errMsg = resp != null && resp.message() != null ? resp.message() : "WhatsApp delivery failed";
                                     logCommunication(supportApi, partyIntId, "WHATSAPP", phone, subject, "FAILED", errMsg, user);
@@ -484,15 +500,24 @@ public final class CollectionDispatchDialog {
                         for (TargetParty p : selected) {
                             idx++;
                             reporter.stage(idx, selected.size(), "Sending reminder to " + p.partyName() + " (" + idx + "/" + selected.size() + ")...");
-                            String subject = defaultSubject(p);
-                            String message = defaultMessage(p);
+                            Map<String, String> tokens = buildCollectionTokens(p);
+                            var renderedEmail = org.example.service.MessageTemplateService.renderEmailByKey(
+                                    "aging_collection",
+                                    tokens,
+                                    "Outstanding Account Statement",
+                                    severityBadgeLabel(p),
+                                    "#0284c7",
+                                    "#0369a1"
+                            );
+                            String subject = renderedEmail.subject();
+                            String waMessage = org.example.service.MessageTemplateService.renderWhatsappByKey("aging_collection", tokens);
                             int pid = p.partyId() == null ? 0 : p.partyId().intValue();
                             boolean anySent = false;
 
                             if (sendEm && !clean(p.email()).isBlank()) {
                                 try {
                                     Path pdf = attachPdf ? AgingStatementPdfService.generateTempStatement(statementLoader.apply(p.partyId())) : null;
-                                    EmailService.send(p.email().trim(), subject, message, pdf);
+                                    EmailService.send(p.email().trim(), subject, renderedEmail.body(), pdf);
                                     logCommunication(supportApi, pid, "EMAIL", p.email().trim(), subject, "SENT", null, user);
                                     anySent = true;
                                 } catch (Exception ex) {
@@ -502,7 +527,7 @@ public final class CollectionDispatchDialog {
                             }
                             if (sendWa && !clean(p.phone()).isBlank()) {
                                 try {
-                                    var resp = waha.sendText(new BusinessWhatsappApiClient.TextSendRequest(normalizeIndiaPhone(p.phone()), message, null));
+                                    var resp = waha.sendText(new BusinessWhatsappApiClient.TextSendRequest(normalizeIndiaPhone(p.phone()), waMessage, null));
                                     if (resp != null && resp.success()) {
                                         logCommunication(supportApi, pid, "WHATSAPP", p.phone().trim(), subject, "SENT", null, user);
                                         anySent = true;
@@ -581,19 +606,17 @@ public final class CollectionDispatchDialog {
         return "status-active";
     }
 
-    private static String defaultSubject(TargetParty p) {
+    private static Map<String, String> buildCollectionTokens(TargetParty p) {
         String company = BrandingService.companyName();
+        String urgencyPrefix;
         if (p.bucket90Plus() != null && p.bucket90Plus().compareTo(BigDecimal.ZERO) > 0) {
-            return "URGENT Payment Notice — Outstanding Statement (" + money(p.totalOutstanding()) + ") | " + company;
+            urgencyPrefix = "URGENT Payment Notice — Outstanding Statement";
+        } else if (p.overdueAmount().compareTo(BigDecimal.ZERO) > 0) {
+            urgencyPrefix = "Payment Reminder & Outstanding Statement";
+        } else {
+            urgencyPrefix = "Account Statement";
         }
-        if (p.overdueAmount().compareTo(BigDecimal.ZERO) > 0) {
-            return "Payment Reminder & Outstanding Statement (" + money(p.totalOutstanding()) + ") | " + company;
-        }
-        return "Account Statement (" + money(p.totalOutstanding()) + ") | " + company;
-    }
 
-    private static String defaultMessage(TargetParty p) {
-        String company = BrandingService.companyName();
         String intro;
         if (p.bucket90Plus() != null && p.bucket90Plus().compareTo(BigDecimal.ZERO) > 0) {
             intro = "This is an urgent reminder regarding your long-overdue account balance with " + company + ".";
@@ -605,29 +628,59 @@ public final class CollectionDispatchDialog {
             intro = "Please find below your current account statement summary with " + company + ".";
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("Dear ").append(p.partyName()).append(",\n\n");
-        sb.append(intro).append("\n\n");
-        sb.append("Account Summary (As of ").append(BusinessClock.formatDate(BusinessClock.today())).append("):\n");
-        sb.append("• Total Outstanding: ").append(money(p.totalOutstanding())).append("\n");
-        if (p.overdueAmount().compareTo(BigDecimal.ZERO) > 0) {
-            sb.append("• Overdue (>30 Days): ").append(money(p.overdueAmount())).append("\n");
-        }
-        if (p.unpaidInvoiceCount() > 0) {
-            sb.append("• Open Invoices: ").append(p.unpaidInvoiceCount()).append("\n");
-        }
         String upi = ConfigManager.get("payment.upiId", "").trim();
-        String bank = ConfigManager.get("payment.bankName", "").trim();
-        String ac = ConfigManager.get("payment.accountNumber", "").trim();
-        String ifsc = ConfigManager.get("payment.ifsc", "").trim();
+        String bank = ConfigManager.get("payment.bankName", ConfigManager.get("company.bank.name", "")).trim();
+        String ac = ConfigManager.get("payment.accountNumber", ConfigManager.get("company.bank.account", "")).trim();
+        String ifsc = ConfigManager.get("payment.ifsc", ConfigManager.get("company.bank.ifsc", "")).trim();
+        StringBuilder payBlock = new StringBuilder();
         if (!bank.isBlank() || !upi.isBlank()) {
-            sb.append("\nPayment Details:\n");
-            if (!bank.isBlank()) sb.append("• Bank: ").append(bank).append(!ac.isBlank() ? " | A/C: " + ac : "").append(!ifsc.isBlank() ? " | IFSC: " + ifsc : "").append("\n");
-            if (!upi.isBlank()) sb.append("• UPI: ").append(upi).append("\n");
+            payBlock.append("Payment Details:\n");
+            if (!bank.isBlank()) {
+                payBlock.append("• Bank: ").append(bank)
+                        .append(!ac.isBlank() ? " | A/C: " + ac : "")
+                        .append(!ifsc.isBlank() ? " | IFSC: " + ifsc : "");
+            }
+            if (!bank.isBlank() && !upi.isBlank()) payBlock.append("\n");
+            if (!upi.isBlank()) payBlock.append("• UPI: ").append(upi);
         }
-        sb.append("\nKindly arrange settlement at your earliest convenience and share the payment reference. If already paid, please disregard this notice.\n\n");
-        sb.append("Regards,\n").append(company);
-        return sb.toString();
+
+        Map<String, String> tokens = new LinkedHashMap<>();
+        tokens.put("PartyName", p.partyName());
+        tokens.put("CustomerName", p.partyName());
+        tokens.put("AsOfDate", BusinessClock.formatDate(BusinessClock.today()));
+        tokens.put("TotalOutstanding", money(p.totalOutstanding()));
+        tokens.put("OverdueAmount", money(p.overdueAmount()));
+        tokens.put("OpenInvoiceCount", String.valueOf(p.unpaidInvoiceCount()));
+        tokens.put("UrgencySubjectPrefix", urgencyPrefix);
+        tokens.put("UrgencyIntro", intro);
+        tokens.put("BankName", bank);
+        tokens.put("BankAccount", ac);
+        tokens.put("Ifsc", ifsc);
+        tokens.put("UpiId", upi);
+        tokens.put("PaymentDetails", payBlock.toString());
+        tokens.put("CompanyName", company);
+        return tokens;
+    }
+
+    private static String defaultSubject(TargetParty p) {
+        return org.example.service.MessageTemplateService.format(
+                org.example.service.MessageTemplateService.getEmailSubject("aging_collection"),
+                buildCollectionTokens(p)
+        );
+    }
+
+    private static String defaultMessage(TargetParty p) {
+        return org.example.service.MessageTemplateService.format(
+                org.example.service.MessageTemplateService.getEmailBody("aging_collection"),
+                buildCollectionTokens(p)
+        );
+    }
+
+    private static String defaultWhatsappMessage(TargetParty p) {
+        return org.example.service.MessageTemplateService.renderWhatsappByKey(
+                "aging_collection",
+                buildCollectionTokens(p)
+        );
     }
 
     private static void logCommunication(SupportApiClient supportApi, int partyId, String channel, String recipient, String subject, String status, String error, String user) {

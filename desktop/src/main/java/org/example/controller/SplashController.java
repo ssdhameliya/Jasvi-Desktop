@@ -69,10 +69,7 @@ public class SplashController implements ScreenLifecycle {
             imgBrandLogo.setManaged(bannerAvailable);
             imgBrandLogo.setVisible(bannerAvailable);
         }
-        Image mark = BrandingService.applicationMarkImage();
-        if (mark == null || mark.isError()) {
-            mark = BrandingService.companyLogo();
-        }
+        Image mark = BrandingService.effectiveMarkImage();
         boolean markAvailable = mark != null && !mark.isError();
         if (imgSplashMark != null) {
             imgSplashMark.setImage(markAvailable ? mark : null);
@@ -87,7 +84,7 @@ public class SplashController implements ScreenLifecycle {
             lblSplashMarkFallback.setManaged(!markAvailable);
             lblSplashMarkFallback.setVisible(!markAvailable);
         }
-        Image leftMark = BrandingService.applicationMarkImage();
+        Image leftMark = mark;
         boolean leftMarkAvailable = leftMark != null && !leftMark.isError();
         if (imgBrandMark != null) {
             imgBrandMark.setImage(leftMarkAvailable ? leftMark : null);

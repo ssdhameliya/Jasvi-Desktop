@@ -260,11 +260,29 @@ public class ReportScheduleService {
                     if (mail.isConfigured()) {
                         List<SmtpMailService.PathAttachment> attachments = new ArrayList<>();
                         for (Path file : files) attachments.add(new SmtpMailService.PathAttachment(file.getFileName().toString(), contentType(file), file));
-                        String subject = mail.companyName() + " Scheduled Report - " + result.title();
-                        String body = "Scheduled Report: " + schedule.name() + "\nReport: " + result.title()
-                                + "\nPeriod: " + result.periodFrom() + " to " + result.periodTo()
-                                + "\nGenerated: " + result.generatedAt() + "\nRows: " + result.totalRows();
-                        for (String recipient : recipients) mail.sendBusinessFiles(recipient, subject, body, attachments);
+                        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(db);
+                        String company = mail.companyName();
+                        String defaultSubject = mail.companyName() + " Scheduled Report - " + result.title();
+                        var rendered = templates.renderEmail(
+                                "scheduled_report",
+                                Map.of(
+                                        "CompanyName", company,
+                                        "AppName", company + " ERP",
+                                        "ScheduleName", schedule.name(),
+                                        "ReportTitle", result.title(),
+                                        "PeriodFrom", String.valueOf(result.periodFrom()),
+                                        "PeriodTo", String.valueOf(result.periodTo()),
+                                        "GeneratedAt", String.valueOf(result.generatedAt()),
+                                        "RowCount", String.valueOf(result.totalRows())
+                                ),
+                                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                                        "#0f172a", "#1d4ed8", "Scheduled Report",
+                                        result.title(), List.of(),
+                                        company + " Scheduled Reporting Engine"
+                                )
+                        );
+                        String finalSubject = rendered.subject() != null && !rendered.subject().isBlank() ? rendered.subject() : defaultSubject;
+                        for (String recipient : recipients) mail.sendBusinessFiles(recipient, finalSubject, rendered.body(), attachments);
                     } else {
                         LOG.warn("Scheduled Report '{}' generated successfully, but email delivery was skipped because SMTP is not configured.", schedule.name());
                     }

@@ -71,8 +71,8 @@ public class BankStatementController implements ScreenLifecycle {
     @FXML private TableColumn<Row,Boolean> colSelect;
     @FXML private TableColumn<Row,Number> colDebit,colCredit,colBalance;
     @FXML private TableColumn<Row,Void> colAction;
-    @FXML private TableColumn<BankStatementApiClient.BatchDto,String> colHistoryImported,colHistoryBank,colHistoryPeriod,colHistoryStatus;
-    @FXML private TableColumn<BankStatementApiClient.BatchDto,Number> colHistoryRows;
+    @FXML private TableColumn<BankStatementApiClient.BatchDto,String> colHistoryRef,colHistoryImported,colHistoryBank,colHistoryPeriod,colHistoryReconciled,colHistoryStatus;
+    @FXML private TableColumn<BankStatementApiClient.BatchDto,Number> colHistoryRows,colHistoryCredits,colHistoryDebits;
     @FXML private Label kpiTotal,kpiUnmatched,kpiSuggested,kpiMatched,kpiExpense,kpiCredits,kpiDebits,kpiReconciled,lblShowing,lblProgressText,lblBatchStatus,lblPage;
     @FXML private Label lblHistoryShowing,lblHistoryPage;
     @FXML private HBox balanceVerificationBar;
@@ -655,6 +655,13 @@ public class BankStatementController implements ScreenLifecycle {
     private void configureHistoryTable(){
         if(tableHistory==null)return;
         DynamicTableLayoutManager.install(tableHistory);
+        if (colHistoryRef != null) {
+            colHistoryRef.setCellValueFactory(v -> {
+                String ref = safe(v.getValue().statementReference());
+                return new SimpleStringProperty(ref.isBlank() ? "#" + v.getValue().id() : ref);
+            });
+            colHistoryRef.setCellFactory(c -> historyTextCell());
+        }
         colHistoryImported.setCellValueFactory(v->new SimpleStringProperty(BusinessClock.formatTimestamp(v.getValue().importedAt())));
         colHistoryBank.setCellValueFactory(v->new SimpleStringProperty(batchBankLabel(v.getValue())));
         colHistoryPeriod.setCellValueFactory(v->new SimpleStringProperty(
@@ -664,6 +671,22 @@ public class BankStatementController implements ScreenLifecycle {
         ));
         colHistoryStatus.setCellValueFactory(v->new SimpleStringProperty(safe(v.getValue().status())));
         colHistoryRows.setCellValueFactory(v->new SimpleIntegerProperty(v.getValue().transactionCount()));
+        if (colHistoryCredits != null) {
+            colHistoryCredits.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().totalCredit()));
+            colHistoryCredits.setCellFactory(c -> SemanticTableCells.amount("credit"));
+        }
+        if (colHistoryDebits != null) {
+            colHistoryDebits.setCellValueFactory(v -> new SimpleDoubleProperty(v.getValue().totalDebit()));
+            colHistoryDebits.setCellFactory(c -> SemanticTableCells.amount("debit"));
+        }
+        if (colHistoryReconciled != null) {
+            colHistoryReconciled.setCellValueFactory(v -> {
+                var b = v.getValue();
+                return new SimpleStringProperty(String.format(Locale.ENGLISH, "%d / %d (%.0f%%)",
+                        b.reconciledCount(), b.transactionCount(), b.reconciliationPercent()));
+            });
+            colHistoryReconciled.setCellFactory(c -> historyTextCell());
+        }
         colHistoryImported.setCellFactory(c->historyTextCell());
         colHistoryBank.setCellFactory(c->historyTextCell());
         colHistoryPeriod.setCellFactory(c->historyTextCell());
@@ -701,7 +724,7 @@ public class BankStatementController implements ScreenLifecycle {
         statementHistoryDrawer.setManaged(true);
         statementHistoryDrawer.setVisible(true);
         statementHistoryDrawer.setMinWidth(0);
-        statementHistoryDrawer.setPrefWidth(1040);
+        statementHistoryDrawer.setPrefWidth(Region.USE_COMPUTED_SIZE);
         statementHistoryDrawer.setMaxWidth(Double.MAX_VALUE);
         statementHistoryDialog=new OwnedDialog<>(statementWorkspace);
         statementHistoryDialog.setTitle("Bank Statement History");
@@ -1662,48 +1685,60 @@ public class BankStatementController implements ScreenLifecycle {
         TableColumn<CandidateRow,Boolean> selected=new TableColumn<>("Select");
         selected.setCellValueFactory(v->v.getValue().selected);
         selected.setCellFactory(CheckBoxTableCell.forTableColumn(selected));
-        selected.setMinWidth(75);
-        selected.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.055));
+        selected.setMinWidth(55);
+        selected.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.05));
 
         TableColumn<CandidateRow,Number> score=new TableColumn<>("Score");
         score.setCellValueFactory(v->v.getValue().confidence);
+        score.setCellFactory(c->new TableCell<>(){
+            @Override protected void updateItem(Number val,boolean empty){
+                super.updateItem(val,empty);
+                getStyleClass().removeAll("erp-table-value-colour-green","erp-table-value-colour-blue","erp-table-value-colour-orange");
+                if(empty||val==null){setText(null);setGraphic(null);return;}
+                double conf=val.doubleValue();
+                setText(String.format(Locale.ENGLISH,"%.0f%%",conf));
+                getStyleClass().add(conf>=85?"erp-table-value-colour-green":conf>=65?"erp-table-value-colour-blue":"erp-table-value-colour-orange");
+                setAlignment(Pos.CENTER);
+            }
+        });
         score.setMinWidth(65);
-        score.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.055));
+        score.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.06));
 
         TableColumn<CandidateRow,String> type=new TableColumn<>("Type");
         type.setCellValueFactory(v->v.getValue().type);
-        type.setMinWidth(95);
-        type.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.08));
+        type.setMinWidth(90);
+        type.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.075));
 
         TableColumn<CandidateRow,String> document=new TableColumn<>("Document");
         document.setCellValueFactory(v->v.getValue().document);
-        document.setMinWidth(135);
-        document.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.12));
+        document.setMinWidth(130);
+        document.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.115));
 
         TableColumn<CandidateRow,String> party=new TableColumn<>("Customer / Supplier");
         party.setCellValueFactory(v->v.getValue().party);
-        party.setMinWidth(180);
-        party.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.18));
+        party.setMinWidth(165);
+        party.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.16));
 
         TableColumn<CandidateRow,String> date=new TableColumn<>("Date");
-        date.setCellValueFactory(v->v.getValue().date);
-        date.setMinWidth(90);
-        date.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.08));
+        date.setCellValueFactory(v->new SimpleStringProperty(BusinessClock.formatDate(v.getValue().date.get())));
+        date.setCellFactory(c->SemanticTableCells.dateString());
+        date.setMinWidth(85);
+        date.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.075));
 
         TableColumn<CandidateRow,Number> total=new TableColumn<>("Document Total");
         total.setCellValueFactory(v->v.getValue().total);
-        total.setMinWidth(100);
-        total.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.095));
+        total.setMinWidth(95);
+        total.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.08));
 
         TableColumn<CandidateRow,Number> paid=new TableColumn<>("Paid / Refunded");
         paid.setCellValueFactory(v->v.getValue().paid);
         paid.setMinWidth(95);
-        paid.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.095));
+        paid.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.08));
 
         TableColumn<CandidateRow,Number> outstanding=new TableColumn<>("Outstanding");
         outstanding.setCellValueFactory(v->v.getValue().outstanding);
         outstanding.setMinWidth(95);
-        outstanding.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.095));
+        outstanding.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.08));
 
         total.setCellFactory(x -> SemanticTableCells.amount("total"));
         paid.setCellFactory(x -> SemanticTableCells.amount("paid"));
@@ -1711,10 +1746,17 @@ public class BankStatementController implements ScreenLifecycle {
 
         TableColumn<CandidateRow,Double> allocation=new TableColumn<>("Allocation");
         allocation.setCellValueFactory(v->v.getValue().allocation.asObject());
-        allocation.setCellFactory(TextFieldTableCell.forTableColumn(new DoubleStringConverter()));
-        allocation.setOnEditCommit(e->{double value=e.getNewValue()==null?0:e.getNewValue();e.getRowValue().allocation.set(value);e.getRowValue().selected.set(value>.0001);});
-        allocation.setMinWidth(110);
-        allocation.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.105));
+        allocation.setCellFactory(TextFieldTableCell.forTableColumn(new javafx.util.StringConverter<>(){
+            @Override public String toString(Double v){return v==null?"0.00":String.format(Locale.ENGLISH,"%.2f",v);}
+            @Override public Double fromString(String s){
+                if(s==null||s.isBlank())return 0d;
+                try{return Math.max(0d,Double.parseDouble(s.replace(",","").replace("₹","").trim()));}
+                catch(Exception ignored){return 0d;}
+            }
+        }));
+        allocation.setOnEditCommit(e->{double value=e.getNewValue()==null?0:Math.max(0d,e.getNewValue());e.getRowValue().allocation.set(value);e.getRowValue().selected.set(value>.0001);});
+        allocation.setMinWidth(100);
+        allocation.prefWidthProperty().bind(candidatesTable.widthProperty().multiply(0.085));
 
         TableColumn<CandidateRow,String> reasonCol=new TableColumn<>("Match Basis");
         reasonCol.setCellValueFactory(v->v.getValue().reason);
@@ -1753,12 +1795,7 @@ public class BankStatementController implements ScreenLifecycle {
         CheckBox selectAllCandidates=new CheckBox();
         selectAllCandidates.getProperties().put("erp.icon.skip",true);
         selectAllCandidates.setTooltip(new Tooltip("Select all visible match candidates"));
-        selectAllCandidates.setOnAction(e->{
-            if(!selectAllCandidates.isSelected()){rows.forEach(r->{r.allocation.set(0);r.selected.set(false);});candidatesTable.refresh();return;}
-            double left=bankValue;
-            for(CandidateRow r:rows){double value=Math.min(r.dto.outstanding(),Math.max(0,left));r.allocation.set(value);r.selected.set(value>.0001);left-=value;if(left<=.01)left=0;}
-            candidatesTable.refresh();
-        });
+        final boolean[] batchUpdating={false};
         rows.forEach(r->r.selected.addListener((o,a,b)->selectAllCandidates.setSelected(!rows.isEmpty()&&rows.stream().allMatch(x->x.selected.get()))));
         selected.setGraphic(selectAllCandidates);selected.getProperties().put("erp-header-preserve",true);
         IconFactory.applyTableHeaderIcon(score,"status");IconFactory.applyTableHeaderIcon(type,"category");
@@ -1774,36 +1811,54 @@ public class BankStatementController implements ScreenLifecycle {
         Label matchStatusValue=PopupTableWorkspace.metricValue("Select a Transaction","warning");
         Label selectedStatus=PopupTableWorkspace.footerText("0 selected");
         Runnable refreshStatus=()->{
+            if(batchUpdating[0])return;
             double allocated=rows.stream().filter(r->r.selected.get()).mapToDouble(r->r.allocation.get()).sum();
             double remainingAmount=bankValue-allocated;
             double roundOff=rows.stream().filter(r->r.selected.get()).mapToDouble(r->roundingFor(r.dto.outstanding(),r.allocation.get(),tolerance)).sum();
-            double documentResidual=rows.stream().filter(r->r.selected.get()).mapToDouble(r->{double ro=roundingFor(r.dto.outstanding(),r.allocation.get(),tolerance);return Math.max(0d,Math.round((r.dto.outstanding()-r.allocation.get()-ro)*100d)/100d);}).sum();
+            double tdsTotal=rows.stream().filter(r->r.selected.get()).mapToDouble(r->effectiveTdsFor(r.dto,r.allocation.get(),tolerance)).sum();
+            double documentResidual=rows.stream().filter(r->r.selected.get()).mapToDouble(r->{
+                double ro=roundingFor(r.dto.outstanding(),r.allocation.get(),tolerance);
+                double tds=effectiveTdsFor(r.dto,r.allocation.get(),tolerance);
+                return Math.max(0d,Math.round((r.dto.outstanding()-r.allocation.get()-ro-tds)*100d)/100d);
+            }).sum();
             long selectedRows=rows.stream().filter(r->r.selected.get()).count();
             allocatedValue.setText("₹ "+money(allocated));
             remainingValue.setText("₹ "+money(remainingAmount));
-            roundOffValue.setText(signedMoney(roundOff));
+            roundOffValue.setText(tdsTotal>0.009?"TDS ₹ "+money(tdsTotal):signedMoney(roundOff));
             documentResidualValue.setText("₹ "+money(documentResidual));
             boolean bankComplete=Math.abs(remainingAmount)<=.01;
             boolean documentsComplete=selectedRows>0&&documentResidual<=.01;
-            String state=selectedRows==0?"Select a Transaction":!bankComplete?"Bank Not Fully Allocated":documentsComplete?(Math.abs(roundOff)>.0001?"Full Match + Round-off":"Full Match"):"Document Remains Partial";
+            String state=selectedRows==0?"Select a Transaction":!bankComplete?"Bank Not Fully Allocated":documentsComplete?(tdsTotal>0.009?"Full Match + TDS":(Math.abs(roundOff)>.0001?"Full Match + Round-off":"Full Match")):"Document Remains Partial";
             matchStatusValue.setText(state);
             matchStatusValue.getStyleClass().removeAll("erp-popup-metric-success","erp-popup-metric-warning");
             matchStatusValue.getStyleClass().add(bankComplete&&documentsComplete?"erp-popup-metric-success":"erp-popup-metric-warning");
-            selectedStatus.setText(selectedRows+" selected  •  Bank allocated ₹ "+money(allocated)+"  •  Round-off "+signedMoney(roundOff)+"  •  Bank remaining ₹ "+money(remainingAmount)+"  •  Document residual ₹ "+money(documentResidual));
+            selectedStatus.setText(selectedRows+" selected  •  Bank allocated ₹ "+money(allocated)+(tdsTotal>0.009?"  •  TDS ₹ "+money(tdsTotal):"  •  Round-off "+signedMoney(roundOff))+"  •  Bank remaining ₹ "+money(remainingAmount)+"  •  Document residual ₹ "+money(documentResidual));
         };
+        selectAllCandidates.setOnAction(e->{
+            batchUpdating[0]=true;
+            try{
+                if(!selectAllCandidates.isSelected()){rows.forEach(r->{r.allocation.set(0);r.selected.set(false);});}
+                else{
+                    double left=bankValue;
+                    for(CandidateRow r:rows){double value=Math.min(r.dto.outstanding(),Math.max(0,left));r.allocation.set(value);r.selected.set(value>.0001);left-=value;if(left<=.01)left=0;}
+                }
+            }finally{batchUpdating[0]=false;}
+            candidatesTable.refresh();
+            refreshStatus.run();
+        });
         rows.forEach(r->{r.selected.addListener((o,a,b)->{if(Boolean.TRUE.equals(b)&&r.allocation.get()<=.0001){double used=rows.stream().filter(x->x!=r&&x.selected.get()).mapToDouble(x->x.allocation.get()).sum();r.allocation.set(Math.min(r.dto.outstanding(),Math.max(0,bankValue-used)));}else if(Boolean.FALSE.equals(b))r.allocation.set(0);refreshStatus.run();});r.allocation.addListener((o,a,b)->refreshStatus.run());});
         refreshStatus.run();
         HBox metrics=PopupTableWorkspace.metricStrip(
             PopupTableWorkspace.metricCard("Bank Amount","₹ "+money(bankValue),"bank"),
             PopupTableWorkspace.metricCard("Allocated",allocatedValue,"complete"),
-            PopupTableWorkspace.metricCard("Round-off",roundOffValue,"warning"),
+            PopupTableWorkspace.metricCard("Round-off / TDS",roundOffValue,"warning"),
             PopupTableWorkspace.metricCard("Bank Remaining",remainingValue,"warning"),
             PopupTableWorkspace.metricCard("Document Residual",documentResidualValue,"balance"),
             PopupTableWorkspace.metricCard("Settlement Status",matchStatusValue,"warning")
         );
-        Label bank=new Label(safe(bankRow.dto.transactionDate())+"  •  "+safe(bankRow.dto.reference())+"  •  "+safe(bankRow.dto.description()));
+        Label bank=new Label(BusinessClock.formatDate(bankRow.dto.transactionDate())+"  •  "+safe(bankRow.dto.reference())+"  •  "+safe(bankRow.dto.description()));
         bank.setWrapText(true);bank.getStyleClass().add("bank-dialog-help");
-        Label help=new Label("Suggestions stay strict: exact amount + useful party + date. When you manually confirm, a final document residual within the configured ₹"+money(tolerance)+" round-off tolerance is settled explicitly without changing the actual bank amount. The total actual allocation must still equal the bank amount.");
+        Label help=new Label("Suggestions stay strict: exact amount + identity + date causality. When you confirm, statutory TDS and final residual within configured ₹"+money(tolerance)+" round-off tolerance are settled automatically without altering the bank amount.");
         help.setWrapText(true);help.getStyleClass().add("bank-dialog-help");
         VBox tableArea=new VBox(7,bank,help,candidatesTable);VBox.setVgrow(candidatesTable,Priority.ALWAYS);
         VBox content=PopupTableWorkspace.content(metrics,tableArea,selectedStatus);
@@ -1819,11 +1874,20 @@ public class BankStatementController implements ScreenLifecycle {
                 double value=row.allocation.get();
                 double roundOff=roundingFor(row.dto.outstanding(),value,tolerance);
                 if(value<=0||value-row.dto.outstanding()>tolerance+.0001||(value-row.dto.outstanding()>.01&&Math.abs(roundOff)<=.0001)){info("Allocation needs attention","Each selected allocation must be greater than zero. Any final difference from outstanding must be within the configured ₹"+money(tolerance)+" round-off tolerance.");return;}
-                allocations.add(new BankStatementApiClient.AllocationRequest(row.dto.type(),row.dto.id(),value));allocated+=value;
+                if("MULTI_SPLIT".equalsIgnoreCase(row.dto.type())&&row.dto.splitAllocations()!=null&&!row.dto.splitAllocations().isEmpty()&&Math.abs(value-bankValue)<=0.01){
+                    allocations.addAll(row.dto.splitAllocations());
+                }else{
+                    allocations.add(new BankStatementApiClient.AllocationRequest(row.dto.type(),row.dto.id(),value));
+                }
+                allocated+=value;
             }
             if(allocations.isEmpty()){info("Match Transaction","Select at least one eligible Sale, Purchase or Return refund transaction.");return;}
             if(Math.abs(allocated-bankValue)>.01){info("Allocation needs attention","Allocated amount must equal the bank amount. Remaining: "+money(bankValue-allocated));return;}
-            double documentResidual=rows.stream().filter(r->r.selected.get()).mapToDouble(r->{double ro=roundingFor(r.dto.outstanding(),r.allocation.get(),tolerance);return Math.max(0d,Math.round((r.dto.outstanding()-r.allocation.get()-ro)*100d)/100d);}).sum();
+            double documentResidual=rows.stream().filter(r->r.selected.get()).mapToDouble(r->{
+                double ro=roundingFor(r.dto.outstanding(),r.allocation.get(),tolerance);
+                double tds=effectiveTdsFor(r.dto,r.allocation.get(),tolerance);
+                return Math.max(0d,Math.round((r.dto.outstanding()-r.allocation.get()-ro-tds)*100d)/100d);
+            }).sum();
             if(documentResidual>.01){Alert partial=new OwnedAlert(Alert.AlertType.CONFIRMATION,"Bank allocation: ₹ "+money(allocated)+"\nDocument residual after this match: ₹ "+money(documentResidual)+"\n\nThis will leave one or more documents PARTIAL. Continue only if this bank transaction is genuinely a partial settlement.",ButtonType.CANCEL,new ButtonType("Confirm Partial Settlement",ButtonBar.ButtonData.OK_DONE));partial.setHeaderText("Partial Document Settlement");Optional<ButtonType> choice=partial.showAndWait();if(choice.isEmpty()||choice.get().getButtonData()!=ButtonBar.ButtonData.OK_DONE)return;}
             confirmAllocations(bankRow,allocations);
         });
@@ -2620,22 +2684,77 @@ public class BankStatementController implements ScreenLifecycle {
             total.set(dto.totalAmount());paid.set(dto.paidAmount());outstanding.set(dto.outstanding());this.allocation.set(allocation);selected.set(selectedInitially);
         }
     }
+    private static double effectiveTdsFor(BankStatementApiClient.CandidateDto candidate, double amount, double tolerance) {
+        if (candidate == null || amount <= 0) return 0d;
+        double diff = Math.round((candidate.outstanding() - amount) * 100d) / 100d;
+        if (diff <= 0) return 0d;
+        if (roundingFor(candidate.outstanding(), amount, tolerance) > 0d) return 0d;
+        if (candidate.suggestedTdsAmount() > 0 && Math.abs(candidate.suggestedTdsAmount() - diff) <= 0.01) {
+            return diff;
+        }
+        double taxable = candidate.taxableAmount() > 0 ? candidate.taxableAmount() : candidate.totalAmount();
+        double total = candidate.totalAmount();
+        for (double rate : new double[]{0.001, 0.01, 0.02, 0.05, 0.10}) {
+            if (taxable > 0 && Math.abs(diff - Math.round(taxable * rate * 100d) / 100d) <= 1.0) return diff;
+            if (total > 0 && Math.abs(diff - Math.round(total * rate * 100d) / 100d) <= 1.0) return diff;
+        }
+        return 0d;
+    }
+
     public static final class AutoMatchItem {
         public final BooleanProperty selected = new SimpleBooleanProperty(true);
+        public final BankStatementApiClient.AutoMatchSuggestionDto suggestion;
         public final BankStatementApiClient.TransactionDto tx;
         public final BankStatementApiClient.CandidateDto candidate;
 
-        public AutoMatchItem(BankStatementApiClient.TransactionDto tx, BankStatementApiClient.CandidateDto candidate) {
-            this.tx = tx;
-            this.candidate = candidate;
+        public AutoMatchItem(BankStatementApiClient.AutoMatchSuggestionDto suggestion) {
+            this.suggestion = suggestion;
+            this.tx = suggestion.tx();
+            this.candidate = suggestion.candidate();
+            this.selected.set(suggestion.autoSelectable());
         }
 
         public double bankAmount() {
             return tx.credit() > 0 ? tx.credit() : tx.debit();
         }
 
+        public String kind() {
+            return suggestion.kind() == null ? "DOCUMENT" : suggestion.kind();
+        }
+
+        public double confidence() {
+            return suggestion.confidence();
+        }
+
         public String matchReason() {
-            return candidate == null || candidate.matchReason() == null ? "" : candidate.matchReason();
+            return suggestion.reasonSummary() == null ? "" : suggestion.reasonSummary();
+        }
+
+        public String targetLabel() {
+            if ("RULE".equals(kind())) return safe(suggestion.ruleName()) + " (" + safe(suggestion.ruleActionType()) + ")";
+            if ("CONTRA".equals(kind())) return "Contra → " + safe(suggestion.contraAccountName());
+            return candidate == null ? "" : candidate.documentNo() + " (" + candidate.type() + ")";
+        }
+
+        public String partyOrAccount() {
+            if ("RULE".equals(kind())) return !safe(suggestion.ruleTargetCategory()).isBlank() ? suggestion.ruleTargetCategory() : safe(suggestion.ruleTargetAccountName());
+            if ("CONTRA".equals(kind())) return safe(suggestion.contraAccountName());
+            return candidate == null ? "" : safe(candidate.partyName());
+        }
+
+        public String adjustmentLabel() {
+            if ("RULE".equals(kind())) return "Smart Rule";
+            if ("CONTRA".equals(kind())) return "Contra Pair";
+            if ("MULTI_SPLIT".equals(kind()) && candidate != null && candidate.splitAllocations() != null) {
+                return candidate.splitAllocations().size() + " Invoices";
+            }
+            if (candidate != null && candidate.suggestedTdsAmount() > 0.009) {
+                return "TDS ₹ " + money(candidate.suggestedTdsAmount());
+            }
+            if (candidate != null && Math.abs(candidate.suggestedRounding()) > 0.009) {
+                return "Rnd " + signedMoney(candidate.suggestedRounding());
+            }
+            return "Exact";
         }
     }
 
@@ -2647,51 +2766,37 @@ public class BankStatementController implements ScreenLifecycle {
         }
 
         List<Row> userSelected = table.getItems().stream().filter(r -> r.selected.get()).toList();
-        List<Long> targetTxIds = !userSelected.isEmpty() ? userSelected.stream().map(r -> r.dto.id()).toList() : null;
+        Set<Long> targetTxIds = !userSelected.isEmpty()
+                ? userSelected.stream().map(r -> r.dto.id()).collect(java.util.stream.Collectors.toSet())
+                : null;
+        boolean consolidated = batch.id() == null || batch.id() <= 0L;
+        String acct = safe(batch.bankAccount()), from = dateText(fromDate.getValue()), to = dateText(toDate.getValue());
 
         LiveOperationDialog.execute(
                 table,
                 "Scanning Suggestions",
                 "reconcile",
-                "Analyzing bank transactions for suggestions…",
+                "Analyzing open transactions, smart rules, multi-invoice splits & contra pairs…",
                 reporter -> {
-                    List<BankStatementApiClient.TransactionDto> allTx;
-                    if (targetTxIds != null) {
-                        allTx = targetTxIds.stream().map(id -> api.transaction(id.longValue())).toList();
-                    } else if (batch.id() == null || batch.id() <= 0L) {
-                        allTx = fetchTransactionsForScope(batch, "", "ALL", "ALL", dateText(fromDate.getValue()), dateText(toDate.getValue()), "");
-                    } else {
-                        allTx = api.transactions(batch.id().longValue());
-                    }
+                    reporter.stage(1, 2, "Evaluating batch on server…");
+                    reporter.progress(0.45);
+                    BankStatementApiClient.AutoMatchPreviewDto preview = consolidated
+                            ? api.previewAutoMatchAccount(acct, from, to)
+                            : api.previewAutoMatchBatch(batch.id().longValue());
+                    reporter.stage(2, 2, "Preparing suggestions workspace…");
+                    reporter.progress(1.0);
                     List<AutoMatchItem> items = new ArrayList<>();
-                    List<BankStatementApiClient.TransactionDto> scanTargets = allTx.stream().filter(tx -> {
-                        String st = tx.status() == null ? "" : tx.status().toUpperCase(Locale.ROOT);
-                        return !Set.of("MATCHED", "EXPENSE", "IGNORED").contains(st);
-                    }).toList();
-
-                    for (int i = 0; i < scanTargets.size(); i++) {
-                        if (reporter.isCancelled()) break;
-                        var tx = scanTargets.get(i);
-                        reporter.stage(i + 1, scanTargets.size(), "Scanning: " + safe(tx.reference()));
-                        reporter.progress((double) (i + 1) / Math.max(1, scanTargets.size()));
-                        try {
-                            List<BankStatementApiClient.CandidateDto> candidates = api.candidates(tx.id().longValue());
-                            if (candidates != null && !candidates.isEmpty()) {
-                                var top = candidates.getFirst();
-                                double bankAmt = bankAmount(tx);
-                                double diff = Math.abs(top.outstanding() - bankAmt);
-                                if (top.confidence() >= 70.0 || diff <= 1.00 || (candidates.size() == 1 && top.confidence() >= 40.0)) {
-                                    items.add(new AutoMatchItem(tx, top));
-                                }
-                            }
-                        } catch (Exception ignored) { }
+                    if (preview != null && preview.suggestions() != null) {
+                        for (var s : preview.suggestions()) {
+                            if (targetTxIds != null && !targetTxIds.contains(s.tx().id())) continue;
+                            items.add(new AutoMatchItem(s));
+                        }
                     }
-                    items.sort((a, b) -> Double.compare(b.candidate.confidence(), a.candidate.confidence()));
                     return items;
                 },
                 items -> {
                     if (items.isEmpty()) {
-                        info("No Auto-Match Suggestions", "No eligible auto-match suggestions found for this statement batch.\nTry adjusting reconciliation filters or review unallocated bank entries.");
+                        info("No Auto-Match Suggestions", "No eligible auto-match suggestions, smart rules, or contra pairs found for this scope.");
                         return;
                     }
                     showBulkAutoMatchDialog(items);
@@ -2702,11 +2807,11 @@ public class BankStatementController implements ScreenLifecycle {
 
     private void showBulkAutoMatchDialog(List<AutoMatchItem> items) {
         Dialog<ButtonType> dialog = new OwnedDialog<>(table);
-        dialog.setTitle("Auto Match Suggestions");
-        dialog.setHeaderText("Review and approve high-confidence auto-matched bank transactions (" + items.size() + " suggestions)");
+        dialog.setTitle("Auto Match & Smart Suggestions");
+        dialog.setHeaderText("Review unified document matches, multi-invoice splits, smart rules, and contra transfers (" + items.size() + " eligible)");
         AppDialogRenderer.configureWorkspace(dialog, "bank",
-                "Auto Match Suggestions",
-                "Review and approve high-confidence auto-matched bank transactions (" + items.size() + " suggestions)",
+                "Auto Match & Smart Suggestions",
+                "Review unified document matches, multi-invoice splits, smart rules, and contra transfers (" + items.size() + " eligible)",
                 "", "");
 
         ObservableList<AutoMatchItem> allItems = FXCollections.observableArrayList(items);
@@ -2715,11 +2820,9 @@ public class BankStatementController implements ScreenLifecycle {
         autoTable.getProperties().put("erp-keep-selection", true);
 
         Label lblTotalSuggestions = PopupTableWorkspace.metricValue(String.valueOf(items.size()), "link");
-        Label lblSelectedToMatch = PopupTableWorkspace.metricValue(String.valueOf(items.size()), "complete");
-        double initialAmount = items.stream().mapToDouble(AutoMatchItem::bankAmount).sum();
-        Label lblTotalAmount = PopupTableWorkspace.metricValue("₹ " + money(initialAmount), "currency");
-        double avgConf = items.stream().mapToDouble(i -> i.candidate.confidence()).average().orElse(0.0);
-        Label lblAvgConfidence = PopupTableWorkspace.metricValue(String.format(Locale.ENGLISH, "%.0f%%", avgConf), "status");
+        Label lblSelectedToMatch = PopupTableWorkspace.metricValue("0", "complete");
+        Label lblTotalAmount = PopupTableWorkspace.metricValue("₹ 0.00", "currency");
+        Label lblAvgConfidence = PopupTableWorkspace.metricValue("0%", "status");
 
         HBox metrics = PopupTableWorkspace.metricStrip(
                 PopupTableWorkspace.metricCard("Suggestions", lblTotalSuggestions, "link"),
@@ -2729,43 +2832,58 @@ public class BankStatementController implements ScreenLifecycle {
         );
 
         TextField txtFilter = new TextField();
-        txtFilter.setPromptText("Filter suggestions by party, reference, document...");
+        txtFilter.setPromptText("Filter by party, reference, document, rule...");
         HBox.setHgrow(txtFilter, Priority.ALWAYS);
 
-        CheckBox chkSelectAllModal = new CheckBox("Select All");
-        chkSelectAllModal.setSelected(true);
-        chkSelectAllModal.setOnAction(e -> {
-            boolean sel = chkSelectAllModal.isSelected();
-            for (AutoMatchItem it : autoTable.getItems()) {
-                it.selected.set(sel);
-            }
-        });
+        ComboBox<String> cmbKindFilter = new ComboBox<>(FXCollections.observableArrayList(
+                "All Types", "Documents & Splits", "Smart Rules", "Contra Pairs"));
+        cmbKindFilter.setValue("All Types");
 
-        HBox filterBar = new HBox(12, chkSelectAllModal, txtFilter);
+        ComboBox<String> cmbMinConf = new ComboBox<>(FXCollections.observableArrayList(
+                "All Eligible", "High Confidence (≥ 85%)", "Exact / Rules (≥ 95%)"));
+        cmbMinConf.setValue("All Eligible");
+
+        CheckBox chkSelectAllModal = new CheckBox("Select All");
+        chkSelectAllModal.setSelected(items.stream().allMatch(it -> it.selected.get()));
+        final boolean[] updatingSel = {false};
+
+        HBox filterBar = new HBox(10, chkSelectAllModal, cmbKindFilter, cmbMinConf, txtFilter);
         filterBar.setAlignment(Pos.CENTER_LEFT);
 
         TableColumn<AutoMatchItem, Boolean> colSel = new TableColumn<>("Select");
         colSel.setCellValueFactory(v -> v.getValue().selected);
         colSel.setCellFactory(CheckBoxTableCell.forTableColumn(colSel));
         colSel.setEditable(true);
-        colSel.setMinWidth(48); colSel.setPrefWidth(48);
+        colSel.setMinWidth(48);
+        colSel.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.045));
         autoTable.setEditable(true);
         IconFactory.applyTableHeaderIcon(colSel, "select");
 
         TableColumn<AutoMatchItem, String> colDate = new TableColumn<>("Bank Date");
         colDate.setCellValueFactory(v -> new SimpleStringProperty(BusinessClock.formatDate(v.getValue().tx.transactionDate())));
         colDate.setCellFactory(c -> SemanticTableCells.dateString());
-        colDate.setMinWidth(95); colDate.setPrefWidth(105);
+        colDate.setMinWidth(85);
+        colDate.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.075));
         IconFactory.applyTableHeaderIcon(colDate, "calendar");
 
-        TableColumn<AutoMatchItem, String> colRef = new TableColumn<>("Reference / Cheque");
-        colRef.setCellValueFactory(v -> new SimpleStringProperty(safe(v.getValue().tx.reference())));
-        colRef.setMinWidth(130); colRef.setPrefWidth(150);
+        TableColumn<AutoMatchItem, String> colRef = new TableColumn<>("Ref / UTR");
+        colRef.setCellValueFactory(v -> {
+            var tx = v.getValue().tx;
+            String rawRef = safe(tx.reference());
+            if (org.example.shared.BankNarrationParser.isSyntheticRef(rawRef)) {
+                var parsed = org.example.shared.BankNarrationParser.parse(tx.description(), rawRef);
+                if (parsed.hasUtrOrRef()) return new SimpleStringProperty(parsed.utrOrRef());
+            }
+            return new SimpleStringProperty(rawRef);
+        });
+        colRef.setMinWidth(100);
+        colRef.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.095));
         IconFactory.applyTableHeaderIcon(colRef, "reference");
 
         TableColumn<AutoMatchItem, String> colDesc = new TableColumn<>("Description / Narration");
         colDesc.setCellValueFactory(v -> new SimpleStringProperty(safe(v.getValue().tx.description())));
-        colDesc.setMinWidth(160); colDesc.setPrefWidth(200);
+        colDesc.setMinWidth(150);
+        colDesc.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.145));
         IconFactory.applyTableHeaderIcon(colDesc, "notes");
 
         TableColumn<AutoMatchItem, String> colAmount = new TableColumn<>("Bank Amount");
@@ -2773,40 +2891,33 @@ public class BankStatementController implements ScreenLifecycle {
             boolean isCredit = v.getValue().tx.credit() > 0;
             return new SimpleStringProperty((isCredit ? "+ ₹ " : "- ₹ ") + money(v.getValue().bankAmount()));
         });
-        colAmount.setCellFactory(c -> new TableCell<AutoMatchItem, String>() {
+        colAmount.setCellFactory(c -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 getStyleClass().removeAll("erp-table-value-colour-green", "erp-table-value-colour-orange");
-                if (empty || item == null) {
-                    setText(null);
-                    setGraphic(null);
-                    return;
-                }
+                if (empty || item == null) { setText(null); setGraphic(null); return; }
                 setText(item);
-                if (getTableRow() != null && getTableRow().getItem() != null) {
-                    AutoMatchItem rowItem = getTableRow().getItem();
-                    if (rowItem.tx.credit() > 0) {
-                        getStyleClass().add("erp-table-value-colour-green");
-                    } else {
-                        getStyleClass().add("erp-table-value-colour-orange");
-                    }
+                AutoMatchItem rowItem = getTableRow() != null ? getTableRow().getItem() : null;
+                if (rowItem != null) {
+                    getStyleClass().add(rowItem.tx.credit() > 0 ? "erp-table-value-colour-green" : "erp-table-value-colour-orange");
                 }
-                setAlignment(Pos.CENTER_LEFT);
+                setAlignment(Pos.CENTER_RIGHT);
             }
         });
-        colAmount.setMinWidth(115); colAmount.setPrefWidth(130);
+        colAmount.setMinWidth(100);
+        colAmount.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.095));
         IconFactory.applyTableHeaderIcon(colAmount, "payment");
 
-        TableColumn<AutoMatchItem, String> colDoc = new TableColumn<>("Matched Document");
-        colDoc.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().candidate.documentNo() + " (" + v.getValue().candidate.type() + ")"));
+        TableColumn<AutoMatchItem, String> colDoc = new TableColumn<>("Target Match / Rule");
+        colDoc.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().targetLabel()));
         colDoc.setCellFactory(tc -> new TableCell<>() {
             private final Hyperlink link = new Hyperlink();
             {
                 link.getStyleClass().add("table-link");
                 link.setOnAction(e -> {
-                    AutoMatchItem it = getTableView().getItems().get(getIndex());
-                    if (it != null && it.candidate != null) {
+                    AutoMatchItem it = getTableRow() != null ? getTableRow().getItem() : null;
+                    if (it != null && it.candidate != null && !"MULTI_SPLIT".equals(it.kind())) {
                         openLinkedTarget(it.candidate.type(), it.candidate.id(), it.candidate.documentNo(), "Auto Match", null);
                     }
                 });
@@ -2814,98 +2925,131 @@ public class BankStatementController implements ScreenLifecycle {
             @Override
             protected void updateItem(String val, boolean empty) {
                 super.updateItem(val, empty);
-                if (empty || val == null) {
-                    setGraphic(null);
-                } else {
+                if (empty || val == null || val.isBlank()) { setText(null); setGraphic(null); return; }
+                AutoMatchItem it = getTableRow() != null ? getTableRow().getItem() : null;
+                if (it != null && it.candidate != null && !"MULTI_SPLIT".equals(it.kind())) {
                     link.setText(val);
+                    setText(null);
                     setGraphic(link);
+                } else {
+                    setGraphic(null);
+                    setText(val);
                 }
             }
         });
-        colDoc.setMinWidth(140); colDoc.setPrefWidth(160);
+        colDoc.setMinWidth(130);
+        colDoc.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.125));
         IconFactory.applyTableHeaderIcon(colDoc, "document");
 
         TableColumn<AutoMatchItem, String> colParty = new TableColumn<>("Party / Account");
-        colParty.setCellValueFactory(v -> new SimpleStringProperty(safe(v.getValue().candidate.partyName())));
-        colParty.setMinWidth(150); colParty.setPrefWidth(180);
+        colParty.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().partyOrAccount()));
+        colParty.setMinWidth(120);
+        colParty.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.115));
         IconFactory.applyTableHeaderIcon(colParty, "customer");
 
-        TableColumn<AutoMatchItem, String> colDocDate = new TableColumn<>("Doc Date");
-        colDocDate.setCellValueFactory(v -> new SimpleStringProperty(BusinessClock.formatDate(v.getValue().candidate.documentDate())));
-        colDocDate.setCellFactory(c -> SemanticTableCells.dateString());
-        colDocDate.setMinWidth(95); colDocDate.setPrefWidth(105);
-        IconFactory.applyTableHeaderIcon(colDocDate, "calendar");
-
-        TableColumn<AutoMatchItem, String> colOuts = new TableColumn<>("Outstanding");
-        colOuts.setCellValueFactory(v -> new SimpleStringProperty("₹ " + money(v.getValue().candidate.outstanding())));
-        colOuts.setCellFactory(c -> SemanticTableCells.moneyString("blue"));
-        colOuts.setMinWidth(110); colOuts.setPrefWidth(125);
-        IconFactory.applyTableHeaderIcon(colOuts, "balance");
+        TableColumn<AutoMatchItem, String> colVariance = new TableColumn<>("Adjustment");
+        colVariance.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().adjustmentLabel()));
+        colVariance.setCellFactory(c -> SemanticTableCells.moneyString("blue"));
+        colVariance.setMinWidth(85);
+        colVariance.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.08));
+        IconFactory.applyTableHeaderIcon(colVariance, "balance");
 
         TableColumn<AutoMatchItem, String> colConf = new TableColumn<>("Confidence");
-        colConf.setCellValueFactory(v -> new SimpleStringProperty(String.format(Locale.ENGLISH, "%.0f%%", v.getValue().candidate.confidence())));
-        colConf.setCellFactory(c -> SemanticTableCells.status("complete"));
-        colConf.setMinWidth(85); colConf.setPrefWidth(95);
+        colConf.setCellValueFactory(v -> new SimpleStringProperty(String.format(Locale.ENGLISH, "%.0f%%", v.getValue().confidence())));
+        colConf.setCellFactory(c -> new TableCell<>() {
+            @Override protected void updateItem(String val, boolean empty) {
+                super.updateItem(val, empty);
+                getStyleClass().removeAll("erp-table-value-colour-green", "erp-table-value-colour-blue", "erp-table-value-colour-orange");
+                if (empty || val == null) { setText(null); setGraphic(null); return; }
+                AutoMatchItem it = getTableRow() != null ? getTableRow().getItem() : null;
+                double conf = it != null ? it.confidence() : 0;
+                setText(val);
+                getStyleClass().add(conf >= 90 ? "erp-table-value-colour-green" : conf >= 75 ? "erp-table-value-colour-blue" : "erp-table-value-colour-orange");
+                setAlignment(Pos.CENTER);
+            }
+        });
+        colConf.setMinWidth(75);
+        colConf.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.065));
         IconFactory.applyTableHeaderIcon(colConf, "status");
 
-        TableColumn<AutoMatchItem, String> colReason = new TableColumn<>("Match Reason");
+        TableColumn<AutoMatchItem, String> colReason = new TableColumn<>("Match Basis");
         colReason.setCellValueFactory(v -> new SimpleStringProperty(v.getValue().matchReason()));
-        colReason.setCellFactory(c -> new TableCell<AutoMatchItem, String>() {
+        colReason.setCellFactory(c -> new TableCell<>() {
             @Override
             protected void updateItem(String reason, boolean empty) {
                 super.updateItem(reason, empty);
                 getStyleClass().removeAll("erp-table-value-colour-blue", "erp-table-value-colour-green", "erp-table-value-colour-cyan", "erp-table-value-colour-purple");
-                if (empty || reason == null || reason.isBlank()) {
-                    setText(null);
-                    setGraphic(null);
-                    setTooltip(null);
-                    return;
-                }
+                if (empty || reason == null || reason.isBlank()) { setText(null); setGraphic(null); setTooltip(null); return; }
                 setText(reason);
                 setTooltip(new Tooltip(reason));
-                if (reason.contains("Exact")) {
-                    getStyleClass().add("erp-table-value-colour-green");
-                } else if (reason.contains("TDS")) {
-                    getStyleClass().add("erp-table-value-colour-cyan");
-                } else if (reason.contains("Invoice")) {
-                    getStyleClass().add("erp-table-value-colour-blue");
-                } else {
-                    getStyleClass().add("erp-table-value-colour-purple");
-                }
+                if (reason.contains("Exact")) getStyleClass().add("erp-table-value-colour-green");
+                else if (reason.contains("TDS") || reason.contains("Contra")) getStyleClass().add("erp-table-value-colour-cyan");
+                else if (reason.contains("Invoice") || reason.contains("Split")) getStyleClass().add("erp-table-value-colour-blue");
+                else getStyleClass().add("erp-table-value-colour-purple");
                 setAlignment(Pos.CENTER_LEFT);
             }
         });
-        colReason.setMinWidth(170);
-        colReason.setPrefWidth(220);
+        colReason.setMinWidth(150);
+        colReason.prefWidthProperty().bind(autoTable.widthProperty().multiply(0.16));
         IconFactory.applyTableHeaderIcon(colReason, "notes");
 
-        autoTable.getColumns().setAll(colSel, colDate, colRef, colDesc, colAmount, colDoc, colParty, colDocDate, colOuts, colConf, colReason);
+        autoTable.getColumns().setAll(colSel, colDate, colRef, colDesc, colAmount, colDoc, colParty, colVariance, colConf, colReason);
         DynamicTableLayoutManager.install(autoTable);
 
         Runnable updateModalMetrics = () -> {
-            long selCount = allItems.stream().filter(it -> it.selected.get()).count();
-            double selAmount = allItems.stream().filter(it -> it.selected.get()).mapToDouble(AutoMatchItem::bankAmount).sum();
-            lblSelectedToMatch.setText(String.valueOf(selCount));
+            List<AutoMatchItem> visible = autoTable.getItems();
+            lblTotalSuggestions.setText(String.valueOf(visible.size()));
+            List<AutoMatchItem> chosen = visible.stream().filter(it -> it.selected.get()).toList();
+            double selAmount = chosen.stream().mapToDouble(AutoMatchItem::bankAmount).sum();
+            double avgConf = chosen.isEmpty() ? 0.0 : chosen.stream().mapToDouble(AutoMatchItem::confidence).average().orElse(0.0);
+            lblSelectedToMatch.setText(String.valueOf(chosen.size()));
             lblTotalAmount.setText("₹ " + money(selAmount));
-        };
-        allItems.forEach(it -> it.selected.addListener((obs, oldV, newV) -> updateModalMetrics.run()));
-
-        txtFilter.textProperty().addListener((obs, oldV, q) -> {
-            if (q == null || q.isBlank()) {
-                autoTable.setItems(allItems);
-            } else {
-                String lq = q.toLowerCase(Locale.ROOT);
-                autoTable.setItems(allItems.filtered(it ->
-                        (it.candidate.partyName() != null && it.candidate.partyName().toLowerCase(Locale.ROOT).contains(lq)) ||
-                        (it.candidate.documentNo() != null && it.candidate.documentNo().toLowerCase(Locale.ROOT).contains(lq)) ||
-                        (it.tx.reference() != null && it.tx.reference().toLowerCase(Locale.ROOT).contains(lq)) ||
-                        (it.tx.description() != null && it.tx.description().toLowerCase(Locale.ROOT).contains(lq)) ||
-                        (it.matchReason().toLowerCase(Locale.ROOT).contains(lq))
-                ));
+            lblAvgConfidence.setText(String.format(Locale.ENGLISH, "%.0f%%", avgConf));
+            if (!updatingSel[0]) {
+                updatingSel[0] = true;
+                try { chkSelectAllModal.setSelected(!visible.isEmpty() && chosen.size() == visible.size()); }
+                finally { updatingSel[0] = false; }
             }
-        });
+        };
 
-        Label footer = PopupTableWorkspace.footerText("Confirming matches will link bank transactions and create corresponding Bank Entries and payment allocations.");
+        Runnable applyModalFilter = () -> {
+            String q = txtFilter.getText() == null ? "" : txtFilter.getText().trim().toLowerCase(Locale.ROOT);
+            String kindSel = cmbKindFilter.getValue();
+            String confSel = cmbMinConf.getValue();
+            double minConf = "Exact / Rules (≥ 95%)".equals(confSel) ? 95.0 : "High Confidence (≥ 85%)".equals(confSel) ? 85.0 : 0.0;
+            autoTable.setItems(allItems.filtered(it -> {
+                if (it.confidence() < minConf) return false;
+                if ("Documents & Splits".equals(kindSel) && !Set.of("DOCUMENT", "MULTI_SPLIT").contains(it.kind())) return false;
+                if ("Smart Rules".equals(kindSel) && !"RULE".equals(it.kind())) return false;
+                if ("Contra Pairs".equals(kindSel) && !"CONTRA".equals(it.kind())) return false;
+                if (q.isBlank()) return true;
+                return it.partyOrAccount().toLowerCase(Locale.ROOT).contains(q)
+                        || it.targetLabel().toLowerCase(Locale.ROOT).contains(q)
+                        || safe(it.tx.reference()).toLowerCase(Locale.ROOT).contains(q)
+                        || safe(it.tx.description()).toLowerCase(Locale.ROOT).contains(q)
+                        || it.matchReason().toLowerCase(Locale.ROOT).contains(q);
+            }));
+            updateModalMetrics.run();
+        };
+
+        chkSelectAllModal.setOnAction(e -> {
+            if (updatingSel[0]) return;
+            updatingSel[0] = true;
+            try {
+                boolean sel = chkSelectAllModal.isSelected();
+                for (AutoMatchItem it : autoTable.getItems()) it.selected.set(sel);
+            } finally {
+                updatingSel[0] = false;
+            }
+            updateModalMetrics.run();
+        });
+        allItems.forEach(it -> it.selected.addListener((obs, oldV, newV) -> updateModalMetrics.run()));
+        txtFilter.textProperty().addListener((obs, oldV, q) -> applyModalFilter.run());
+        cmbKindFilter.valueProperty().addListener((obs, oldV, v) -> applyModalFilter.run());
+        cmbMinConf.valueProperty().addListener((obs, oldV, v) -> applyModalFilter.run());
+        updateModalMetrics.run();
+
+        Label footer = PopupTableWorkspace.footerText("Confirming applies checked document allocations, multi-invoice splits, smart rules, and contra vouchers in one atomic pass per row.");
         VBox tableArea = new VBox(8, filterBar, autoTable);
         VBox.setVgrow(autoTable, Priority.ALWAYS);
         VBox.setVgrow(tableArea, Priority.ALWAYS);
@@ -2916,7 +3060,7 @@ public class BankStatementController implements ScreenLifecycle {
         autoTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         ButtonType refreshType = new ButtonType("Refresh Suggestions", ButtonBar.ButtonData.OTHER);
-        ButtonType confirmType = new ButtonType("Confirm Match", ButtonBar.ButtonData.OK_DONE);
+        ButtonType confirmType = new ButtonType("Confirm Selected", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().setAll(refreshType, ButtonType.CANCEL, confirmType);
 
         Button btnRefreshModal = (Button) dialog.getDialogPane().lookupButton(refreshType);
@@ -2937,9 +3081,9 @@ public class BankStatementController implements ScreenLifecycle {
 
         Optional<ButtonType> result = dialog.showAndWait();
         if (result.isPresent() && result.get() == confirmType) {
-            List<AutoMatchItem> confirmed = allItems.stream().filter(it -> it.selected.get()).toList();
+            List<AutoMatchItem> confirmed = autoTable.getItems().stream().filter(it -> it.selected.get()).toList();
             if (confirmed.isEmpty()) {
-                info("Auto Match", "No transactions were selected to match.");
+                info("Auto Match", "No suggestions were selected.");
                 return;
             }
             executeBulkAutoMatch(confirmed);
@@ -2953,33 +3097,44 @@ public class BankStatementController implements ScreenLifecycle {
                 table,
                 "Auto Match Progress",
                 "process",
-                "Matching " + items.size() + " bank transactions…",
+                "Applying " + items.size() + " bank reconciliation suggestion(s)…",
                 reporter -> {
                     int succeeded = 0;
                     int failed = 0;
                     for (int i = 0; i < items.size(); i++) {
                         if (reporter.isCancelled()) break;
                         var it = items.get(i);
-                        String doc = it.candidate.documentNo();
-                        String party = it.candidate.partyName();
-                        reporter.stage(i + 1, items.size(), "Matching: " + doc + " (" + party + ")");
+                        String label = it.targetLabel();
+                        String party = it.partyOrAccount();
+                        reporter.stage(i + 1, items.size(), "Applying: " + label);
                         reporter.progress((double) (i + 1) / items.size());
                         try {
-                            // Allocate full bank amount so server validation (allocatedSum == bankTxAmount) succeeds
-                            // and server applies round-off tolerance logic to settle document within tolerance!
-                            double amount = it.bankAmount();
-                            var alloc = new BankStatementApiClient.AllocationRequest(it.candidate.type(), it.candidate.id(), amount);
-                            var matchReq = new BankStatementApiClient.MatchRequest(performedBy, List.of(alloc));
-                            var res = api.match(it.tx.id().longValue(), matchReq);
-                            if (res.success()) {
+                            BankStatementApiClient.OperationResult res;
+                            if ("RULE".equals(it.kind()) && it.suggestion.ruleId() != null) {
+                                res = api.applyRuleToTransaction(it.tx.id().longValue(), it.suggestion.ruleId().longValue(), performedBy);
+                            } else if ("CONTRA".equals(it.kind())) {
+                                String acct = safe(it.suggestion.ruleTargetAccountName());
+                                if (acct.isBlank()) acct = batchAccountName();
+                                res = api.bankEntry(it.tx.id().longValue(), new BankStatementApiClient.BankEntryRequest(
+                                        acct, "Bank Transfer", safe(it.suggestion.ruleTargetNotes()), performedBy,
+                                        "CONTRA TRANSFER", null, it.suggestion.contraAccountName()));
+                            } else if ("MULTI_SPLIT".equals(it.kind()) && it.candidate != null
+                                    && it.candidate.splitAllocations() != null && !it.candidate.splitAllocations().isEmpty()) {
+                                res = api.match(it.tx.id().longValue(),
+                                        new BankStatementApiClient.MatchRequest(performedBy, it.candidate.splitAllocations()));
+                            } else {
+                                var alloc = new BankStatementApiClient.AllocationRequest(it.candidate.type(), it.candidate.id(), it.bankAmount());
+                                res = api.match(it.tx.id().longValue(), new BankStatementApiClient.MatchRequest(performedBy, List.of(alloc)));
+                            }
+                            if (res != null && res.success()) {
                                 succeeded++;
                             } else {
                                 failed++;
-                                failures.add(doc + " (" + party + "): " + res.message());
+                                failures.add(label + " (" + party + "): " + (res == null ? "Unknown error" : res.message()));
                             }
                         } catch (Exception ex) {
                             failed++;
-                            failures.add(doc + " (" + party + "): " + (ex.getMessage() == null ? ex.toString() : ex.getMessage()));
+                            failures.add(label + " (" + party + "): " + (ex.getMessage() == null ? ex.toString() : ex.getMessage()));
                         }
                     }
                     return new int[]{succeeded, failed};
@@ -2988,9 +3143,9 @@ public class BankStatementController implements ScreenLifecycle {
                     int succ = counts[0];
                     int fail = counts[1];
                     if (fail == 0) {
-                        success("Auto Match Completed", "Successfully matched " + succ + " bank transaction(s).");
+                        success("Auto Match Completed", "Successfully reconciled " + succ + " bank transaction(s).");
                     } else {
-                        String msg = "Successfully matched: " + succ + "\nFailed to match: " + fail + "\n\nFailure Details:\n" + String.join("\n", failures);
+                        String msg = "Successfully reconciled: " + succ + "\nFailed: " + fail + "\n\nFailure Details:\n" + String.join("\n", failures);
                         Alert alert = new OwnedAlert(Alert.AlertType.WARNING, msg);
                         alert.setHeaderText("Auto Match Completed with Issues");
                         alert.showAndWait();

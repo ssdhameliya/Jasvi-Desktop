@@ -38,6 +38,8 @@ public final class TeamChatManager {
     private volatile ChatWindowHost dockHost;
     private volatile java.io.InputStream activeSseStream;
     private volatile long lastDirectoryRefreshMs = 0L;
+    private volatile boolean manualOffline = false;
+    private volatile boolean initialPresenceSyncPending = false;
 
     public interface ChatWindowHost {
         void openDockedChannel(ChannelSummaryDto channel);
@@ -86,6 +88,8 @@ public final class TeamChatManager {
             refreshDirectoryAsync();
             return;
         }
+        manualOffline = false;
+        initialPresenceSyncPending = true;
         refreshDirectoryAsync();
 
         ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -162,6 +166,14 @@ public final class TeamChatManager {
             try {
                 DirectoryResponse dir = api.directory();
                 latestDirectory = dir;
+                if (initialPresenceSyncPending && !manualOffline
+                        && dir.selfPresence() != null
+                        && "OFFLINE".equalsIgnoreCase(dir.selfPresence().status())) {
+                    initialPresenceSyncPending = false;
+                    updateSelfPresenceAsync("ONLINE", dir.selfPresence().customNote());
+                } else {
+                    initialPresenceSyncPending = false;
+                }
                 Platform.runLater(() -> {
                     totalUnread.set(dir.totalUnread());
                     if (dir.selfPresence() != null) {
@@ -177,16 +189,28 @@ public final class TeamChatManager {
     }
 
     public void updateSelfPresenceAsync(String status, String customNote) {
+        updateSelfPresenceAsync(status, customNote, null, null);
+    }
+
+    public void updateSelfPresenceAsync(String status, String customNote, Runnable onSuccess, Consumer<String> onError) {
+        final String targetStatus = (status == null || status.isBlank()) ? "ONLINE" : status.trim().toUpperCase(Locale.ROOT);
+        manualOffline = "OFFLINE".equals(targetStatus);
+        initialPresenceSyncPending = false;
         Thread.ofVirtual().name("chat-presence-update").start(() -> {
             try {
-                PresenceDto updated = api.updatePresence(status, customNote);
+                PresenceDto updated = api.updatePresence(targetStatus, customNote);
                 Platform.runLater(() -> {
                     selfStatus.set(updated.status());
                     selfCustomNote.set(updated.customNote() == null ? "" : updated.customNote());
+                    applyPresencePatchInMemory(updated);
+                    if (onSuccess != null) onSuccess.run();
                 });
-                refreshDirectoryAsync();
             } catch (Exception ex) {
-                DesktopLog.warn("TeamChatManager", "PRESENCE_UPDATE", ex.getMessage());
+                String msg = ex.getMessage() == null || ex.getMessage().isBlank() ? "Failed to update status." : ex.getMessage();
+                DesktopLog.warn("TeamChatManager", "PRESENCE_UPDATE", msg);
+                if (onError != null) {
+                    Platform.runLater(() -> onError.accept(msg));
+                }
             }
         });
     }
@@ -258,7 +282,7 @@ public final class TeamChatManager {
         if (ev == null) return;
         if ("PRESENCE".equals(ev.eventType()) && ev.presence() != null) {
             applyPresencePatchInMemory(ev.presence());
-        } else if ("MESSAGE".equals(ev.eventType()) || "MESSAGE_UPDATED".equals(ev.eventType())) {
+        } else if ("DIRECTORY".equals(ev.eventType()) || "MESSAGE".equals(ev.eventType()) || "MESSAGE_UPDATED".equals(ev.eventType())) {
             long now = System.currentTimeMillis();
             if (now - lastDirectoryRefreshMs >= 800L) {
                 lastDirectoryRefreshMs = now;
@@ -279,6 +303,10 @@ public final class TeamChatManager {
     private void applyPresencePatchInMemory(PresenceDto updated) {
         DirectoryResponse cur = latestDirectory;
         if (cur == null || updated == null) return;
+        PresenceDto nextSelf = cur.selfPresence();
+        if (nextSelf != null && nextSelf.userId() == updated.userId()) {
+            nextSelf = updated;
+        }
         List<PresenceDto> users = cur.users().stream()
                 .map(u -> u.userId() == updated.userId() ? updated : u)
                 .toList();
@@ -289,7 +317,7 @@ public final class TeamChatManager {
                                 updated.customNote(), c.members())
                         : c)
                 .toList();
-        latestDirectory = new DirectoryResponse(cur.selfPresence(), users, channels, cur.totalUnread());
+        latestDirectory = new DirectoryResponse(nextSelf, users, channels, cur.totalUnread());
         Platform.runLater(this::notifyDirectoryListeners);
     }
 

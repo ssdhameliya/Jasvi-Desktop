@@ -179,11 +179,7 @@ public class SecurityIncidentNotifier {
     }
 
     private String companyName() {
-        if (mailService != null) {
-            String name = mailService.companyName();
-            if (name != null && !name.isBlank()) return name.trim();
-        }
-        return "Company";
+        return org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc).companyName();
     }
 
     private String appName() {
@@ -194,79 +190,44 @@ public class SecurityIncidentNotifier {
                                          String email, String phone, String branch, String department,
                                          String reason, String ip, String timestamp,
                                          String unlockUrl, String resetUrl) {
-        String subject = "🚨 URGENT: " + appName() + " Administrator Account Locked [Ticket #" + ticketId + "]";
-        String html = """
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="utf-8">
-                    <style>
-                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
-                        .card { max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-                        .header { background: linear-gradient(135deg, #b91c1c, #991b1b); color: #ffffff; padding: 20px 24px; }
-                        .header h2 { margin: 0 0 6px 0; font-size: 20px; font-weight: 700; }
-                        .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-                        .content { padding: 24px; }
-                        .meta-table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-                        .meta-table td { padding: 8px 10px; font-size: 13.5px; border-bottom: 1px solid #f1f5f9; }
-                        .meta-label { color: #64748b; font-weight: 600; width: 35%; }
-                        .meta-value { color: #0f172a; font-weight: 500; }
-                        .actions-container { margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
-                        .btn { display: block; text-align: center; padding: 12px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; margin-bottom: 12px; }
-                        .btn-unlock { background-color: #2563eb; color: #ffffff !important; }
-                        .btn-reset { background-color: #d97706; color: #ffffff !important; }
-                        .footer { background: #f8fafc; padding: 16px 24px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; }
-                    </style>
-                </head>
-                <body>
-                    <div class="card">
-                        <div class="header">
-                            <h2>🚨 Security Incident: Administrator Account Locked</h2>
-                            <span class="badge">Ticket #{{TICKET_ID}} • CRITICAL PRIORITY</span>
-                        </div>
-                        <div class="content">
-                            <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.5;">An Administrator account has been temporarily locked in the {{APP_NAME}} system due to repeated authentication failures.</p>
-                            
-                            <table class="meta-table">
-                                <tr><td class="meta-label">Administrator Name</td><td class="meta-value"><strong>{{ADMIN_NAME}}</strong> (User: {{USERNAME}})</td></tr>
-                                <tr><td class="meta-label">Registered Email</td><td class="meta-value">{{EMAIL}}</td></tr>
-                                <tr><td class="meta-label">Registered Phone</td><td class="meta-value">{{PHONE}}</td></tr>
-                                <tr><td class="meta-label">Branch & Dept</td><td class="meta-value">{{BRANCH}} | {{DEPARTMENT}}</td></tr>
-                                <tr><td class="meta-label">Lock Reason</td><td class="meta-value" style="color: #dc2626;"><strong>{{REASON}}</strong></td></tr>
-                                <tr><td class="meta-label">Workstation / IP</td><td class="meta-value">{{IP}}</td></tr>
-                                <tr><td class="meta-label">Incident Time</td><td class="meta-value">{{TIMESTAMP}}</td></tr>
-                            </table>
+        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+        String brand = templates.companyName();
+        String app = brand + " ERP";
+        java.util.Map<String, String> tokens = new java.util.LinkedHashMap<>();
+        tokens.put("AppName", app);
+        tokens.put("CompanyName", brand);
+        tokens.put("TicketId", ticketId);
+        tokens.put("AdminName", adminName);
+        tokens.put("Username", username);
+        tokens.put("AdminEmail", email);
+        tokens.put("AdminPhone", phone);
+        tokens.put("Branch", branch);
+        tokens.put("Department", department);
+        tokens.put("LockReason", reason);
+        tokens.put("ClientIp", ip);
+        tokens.put("Timestamp", timestamp);
+        tokens.put("UnlockUrl", unlockUrl);
+        tokens.put("ResetUrl", resetUrl);
 
-                            <div class="actions-container">
-                                <p style="margin: 0 0 14px 0; font-size: 13.5px; font-weight: 600; color: #334155;">Choose an Immediate Resolution Action:</p>
-                                <a href="{{UNLOCK_URL}}" class="btn btn-unlock" target="_blank">🔓 Unlock Admin Account (Preserve Existing Password)</a>
-                                <a href="{{RESET_URL}}" class="btn btn-reset" target="_blank">🔑 Unlock & Reset to Secure Temporary Password</a>
-                            </div>
-                        </div>
-                        <div class="footer">
-                            {{COMPANY_NAME}} Autonomous Security Sentinel • Single-use cryptographic tokens (24h expiry).
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """
-                .replace("{{TICKET_ID}}", ticketId)
-                .replace("{{ADMIN_NAME}}", adminName)
-                .replace("{{USERNAME}}", username)
-                .replace("{{EMAIL}}", email)
-                .replace("{{PHONE}}", phone)
-                .replace("{{BRANCH}}", branch)
-                .replace("{{DEPARTMENT}}", department)
-                .replace("{{REASON}}", reason)
-                .replace("{{IP}}", ip)
-                .replace("{{TIMESTAMP}}", timestamp)
-                .replace("{{UNLOCK_URL}}", unlockUrl)
-                .replace("{{RESET_URL}}", resetUrl)
-                .replace("{{APP_NAME}}", appName())
-                .replace("{{COMPANY_NAME}}", companyName());
+        var rendered = templates.renderEmail(
+                "security_lock_superadmin",
+                tokens,
+                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                        "#b91c1c", "#991b1b",
+                        "Ticket #" + ticketId + " • CRITICAL PRIORITY",
+                        "🚨 Security Incident: Administrator Account Locked",
+                        List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.ActionButton(
+                                        "🔓 Unlock Admin Account (Preserve Existing Password)", unlockUrl, "#2563eb"),
+                                new org.example.shared.communication.TokenTemplateEngine.ActionButton(
+                                        "🔑 Unlock & Reset to Secure Temporary Password", resetUrl, "#d97706")
+                        ),
+                        brand + " Autonomous Security Sentinel • Single-use cryptographic tokens (24h expiry)."
+                )
+        );
 
         try {
-            mailService.sendBusiness(recipient, subject, html);
+            mailService.sendBusiness(recipient, rendered.subject(), rendered.body());
             LOG.info("Super Admin emergency incident email successfully sent to {}", recipient);
         } catch (Exception ex) {
             LOG.error("Failed to deliver Super Admin emergency incident email to {}: {}", recipient, ex.getMessage(), ex);
@@ -277,113 +238,59 @@ public class SecurityIncidentNotifier {
                                             String email, String phone, String branch, String department,
                                             String reason, String ip, String timestamp,
                                             String unlockUrl, String resetUrl) {
-        String msg = """
-                🚨 *URGENT: {{APP_NAME}} Administrator Account Locked*
-                *Ticket ID:* #{{TICKET_ID}}
-                *Priority:* Critical
+        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+        String brand = templates.companyName();
+        java.util.Map<String, String> tokens = new java.util.LinkedHashMap<>();
+        tokens.put("AppName", brand + " ERP");
+        tokens.put("CompanyName", brand);
+        tokens.put("TicketId", ticketId);
+        tokens.put("AdminName", adminName);
+        tokens.put("Username", username);
+        tokens.put("AdminEmail", email);
+        tokens.put("AdminPhone", phone);
+        tokens.put("Branch", branch);
+        tokens.put("Department", department);
+        tokens.put("LockReason", reason);
+        tokens.put("ClientIp", ip);
+        tokens.put("Timestamp", timestamp);
+        tokens.put("UnlockUrl", unlockUrl);
+        tokens.put("ResetUrl", resetUrl);
+        String msg = templates.renderWhatsapp("security_lock_superadmin", tokens);
 
-                An Administrator account has been locked:
-                • *Admin:* {{ADMIN_NAME}} (User: {{USERNAME}})
-                • *Email:* {{EMAIL}}
-                • *Mobile:* {{PHONE}}
-                • *Branch / Dept:* {{BRANCH}} | {{DEPARTMENT}}
-                • *Reason:* {{REASON}}
-                • *Time:* {{TIMESTAMP}}
-                • *Workstation:* {{IP}}
-
-                *Choose an immediate action below (Single-use, 24h validity):*
-
-                🔓 *Option 1: Unlock Account (Preserve Password)*
-                {{UNLOCK_URL}}
-
-                🔑 *Option 2: Unlock & Reset to Temporary Password*
-                {{RESET_URL}}
-
-                _{{APP_NAME}} Autonomous Security Incident Engine_
-                """
-                .replace("{{TICKET_ID}}", ticketId)
-                .replace("{{ADMIN_NAME}}", adminName)
-                .replace("{{USERNAME}}", username)
-                .replace("{{EMAIL}}", email)
-                .replace("{{PHONE}}", phone)
-                .replace("{{BRANCH}}", branch)
-                .replace("{{DEPARTMENT}}", department)
-                .replace("{{REASON}}", reason)
-                .replace("{{TIMESTAMP}}", timestamp)
-                .replace("{{IP}}", ip)
-                .replace("{{UNLOCK_URL}}", unlockUrl)
-                .replace("{{RESET_URL}}", resetUrl)
-                .replace("{{APP_NAME}}", appName());
-
-        try {
-            whatsappService.sendText(new WahaDtos.TextSendRequest(recipientPhone, msg, null));
-            LOG.info("Super Admin emergency WhatsApp alert successfully sent to {}", recipientPhone);
-        } catch (Exception ex) {
-            LOG.error("Failed to deliver Super Admin emergency WhatsApp alert to {}: {}", recipientPhone, ex.getMessage(), ex);
-        }
+        sendWhatsappAlert("Super Admin emergency", recipientPhone, msg);
     }
 
     private void dispatchLockedAdminEmail(String recipient, String ticketId, String adminName, String username,
                                          String superAdminEmail, String superAdminPhone, String timestamp) {
-        String subject = "⚠️ Security Notice: Your Administrator Account is Locked [Ticket #" + ticketId + "]";
+        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+        String brand = templates.companyName();
         String statusUrl = serverBaseUrl + "/api/security/emergency/status?ticket=" + ticketId;
-        String html = """
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="utf-8">
-                    <style>
-                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
-                        .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-                        .header { background: linear-gradient(135deg, #d97706, #b45309); color: #ffffff; padding: 20px 24px; font-weight: 700; font-size: 18px; }
-                        .content { padding: 24px; font-size: 14px; line-height: 1.6; }
-                        .highlight-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px; border-radius: 4px; margin: 16px 0; }
-                        .btn-status { display: block; text-align: center; background-color: #2563eb; color: #ffffff !important; padding: 12px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; margin: 20px 0 10px 0; }
-                        .footer { background: #f8fafc; padding: 14px 24px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; }
-                    </style>
-                </head>
-                <body>
-                    <div class="card">
-                        <div class="header">
-                            ⚠️ Administrator Account Security Lockout
-                        </div>
-                        <div class="content">
-                            <p>Dear <strong>{{ADMIN_NAME}}</strong> ({{USERNAME}}),</p>
-                            <p>Your {{APP_NAME}} Administrator account has been temporarily locked following consecutive failed sign-in verification attempts on <strong>{{TIMESTAMP}}</strong>.</p>
-                            
-                            <div class="highlight-box">
-                                <strong>Incident Reference Ticket: #{{TICKET_ID}}</strong><br>
-                                An emergency alert has been dispatched directly to Super Admin ({{SUPER_ADMIN_EMAIL}} / {{SUPER_ADMIN_PHONE}}).
-                            </div>
+        java.util.Map<String, String> tokens = new java.util.LinkedHashMap<>();
+        tokens.put("AppName", brand + " ERP");
+        tokens.put("CompanyName", brand);
+        tokens.put("TicketId", ticketId);
+        tokens.put("AdminName", adminName);
+        tokens.put("Username", username);
+        tokens.put("SuperAdminEmail", superAdminEmail);
+        tokens.put("SuperAdminPhone", superAdminPhone);
+        tokens.put("Timestamp", timestamp);
+        tokens.put("StatusUrl", statusUrl);
 
-                            <a href="{{STATUS_URL}}" class="btn-status" target="_blank">🔍 Track Live Unlock Status Online</a>
-
-                            <p style="margin-top: 16px;"><strong>Next Steps:</strong></p>
-                            <ul>
-                                <li>Please allow up to <strong>30 minutes</strong> for Super Admin review and resolution.</li>
-                                <li>Your Desktop login screen will automatically live-detect when the account is unlocked.</li>
-                                <li>Once unlocked or reset, you will receive an immediate confirmation notice.</li>
-                            </ul>
-                        </div>
-                        <div class="footer">
-                            {{COMPANY_NAME}} Autonomous Security Sentinel • Ticket #{{TICKET_ID}}
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """
-                .replace("{{ADMIN_NAME}}", adminName)
-                .replace("{{USERNAME}}", username)
-                .replace("{{TIMESTAMP}}", timestamp)
-                .replace("{{TICKET_ID}}", ticketId)
-                .replace("{{SUPER_ADMIN_EMAIL}}", superAdminEmail)
-                .replace("{{SUPER_ADMIN_PHONE}}", superAdminPhone)
-                .replace("{{STATUS_URL}}", statusUrl)
-                .replace("{{APP_NAME}}", appName())
-                .replace("{{COMPANY_NAME}}", companyName());
+        var rendered = templates.renderEmail(
+                "security_lock_admin",
+                tokens,
+                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                        "#d97706", "#b45309",
+                        "Incident Reference Ticket #" + ticketId,
+                        "⚠️ Administrator Account Security Lockout",
+                        List.of(new org.example.shared.communication.TokenTemplateEngine.ActionButton(
+                                "🔍 Track Live Unlock Status Online", statusUrl, "#2563eb")),
+                        brand + " Autonomous Security Sentinel • Ticket #" + ticketId
+                )
+        );
 
         try {
-            mailService.sendBusiness(recipient, subject, html);
+            mailService.sendBusiness(recipient, rendered.subject(), rendered.body());
             LOG.info("Locked Admin advisory email successfully sent to {}", recipient);
         } catch (Exception ex) {
             LOG.error("Failed to deliver locked Admin advisory email to {}: {}", recipient, ex.getMessage(), ex);
@@ -392,36 +299,36 @@ public class SecurityIncidentNotifier {
 
     private void dispatchLockedAdminWhatsapp(String recipientPhone, String ticketId, String adminName, String username,
                                              String superAdminEmail, String superAdminPhone, String timestamp) {
+        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+        String brand = templates.companyName();
         String statusUrl = serverBaseUrl + "/api/security/emergency/status?ticket=" + ticketId;
-        String msg = """
-                ⚠️ *Security Notice: Administrator Account Locked*
-                *Ticket ID:* #{{TICKET_ID}}
+        java.util.Map<String, String> tokens = new java.util.LinkedHashMap<>();
+        tokens.put("AppName", brand + " ERP");
+        tokens.put("CompanyName", brand);
+        tokens.put("TicketId", ticketId);
+        tokens.put("AdminName", adminName);
+        tokens.put("Username", username);
+        tokens.put("SuperAdminEmail", superAdminEmail);
+        tokens.put("SuperAdminPhone", superAdminPhone);
+        tokens.put("Timestamp", timestamp);
+        tokens.put("StatusUrl", statusUrl);
+        String msg = templates.renderWhatsapp("security_lock_admin", tokens);
 
-                Dear {{ADMIN_NAME}} ({{USERNAME}}),
-                Your {{APP_NAME}} Administrator account has been temporarily locked following consecutive failed authentication attempts.
+        sendWhatsappAlert("Locked Admin advisory", recipientPhone, msg);
+    }
 
-                An urgent emergency incident report has been dispatched to Super Admin ({{SUPER_ADMIN_EMAIL}} / {{SUPER_ADMIN_PHONE}}).
-
-                🔍 *Track Live Status Online:*
-                {{STATUS_URL}}
-
-                *Advisory:* Please allow up to 30 minutes for resolution. Keep your Desktop login screen open for live resolution tracking.
-
-                _{{APP_NAME}} Autonomous Security Incident Engine_
-                """
-                .replace("{{TICKET_ID}}", ticketId)
-                .replace("{{ADMIN_NAME}}", adminName)
-                .replace("{{USERNAME}}", username)
-                .replace("{{SUPER_ADMIN_EMAIL}}", superAdminEmail)
-                .replace("{{SUPER_ADMIN_PHONE}}", superAdminPhone)
-                .replace("{{STATUS_URL}}", statusUrl)
-                .replace("{{APP_NAME}}", appName());
-
+    private void sendWhatsappAlert(String roleLabel, String recipientPhone, String msg) {
         try {
-            whatsappService.sendText(new WahaDtos.TextSendRequest(recipientPhone, msg, null));
-            LOG.info("Locked Admin advisory WhatsApp successfully sent to {}", recipientPhone);
+            WahaDtos.SendResponse response = whatsappService.sendText(new WahaDtos.TextSendRequest(recipientPhone, msg, null));
+            if (response != null && response.success()) {
+                LOG.info("{} WhatsApp alert successfully sent to {}", roleLabel, recipientPhone);
+            } else {
+                String reason = response == null || response.message() == null || response.message().isBlank()
+                        ? "WAHA did not confirm delivery" : response.message();
+                LOG.warn("{} WhatsApp alert NOT delivered to {}: {}", roleLabel, recipientPhone, reason);
+            }
         } catch (Exception ex) {
-            LOG.error("Failed to deliver locked Admin advisory WhatsApp to {}: {}", recipientPhone, ex.getMessage(), ex);
+            LOG.error("Failed to deliver {} WhatsApp alert to {}: {}", roleLabel, recipientPhone, ex.getMessage(), ex);
         }
     }
 

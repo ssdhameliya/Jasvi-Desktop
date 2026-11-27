@@ -19,7 +19,7 @@
             <VBox spacing="2" HBox.hgrow="ALWAYS">
                 <HBox spacing="8" alignment="CENTER_LEFT">
                     <Label text="Cloud Server Health &amp; Telemetry (Oracle Cloud OCI)" styleClass="settings-subsection-title"/>
-                    <Label fx:id="lblTelemetryTargetBadge" text="[ PROD - 130.210.35.1 ]" styleClass="telemetry-target-badge"/>
+                    <Label fx:id="lblTelemetryTargetBadge" text="[ Checking telemetry host... ]" styleClass="telemetry-target-badge"/>
                     <Label fx:id="lblTelemetryStatusBadge" text="🟢 NORMAL &amp; HEALTHY" styleClass="telemetry-badge-healthy"/>
                 </HBox>
                 <Label text="Live RAM memory, disk volume headroom, and automated storage guardian status from the cloud server." styleClass="settings-help-text"/>

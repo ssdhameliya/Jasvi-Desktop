@@ -18,4 +18,9 @@ public class Customer360Controller {
     @GetMapping("/{id}/notes") public List<Customer360Dtos.NoteRow> notes(@PathVariable int id){return service.notes(id);}
     @PostMapping("/{id}/notes") public Customer360Dtos.NoteRow saveNote(@PathVariable int id,@RequestBody Customer360Dtos.NoteSave d){return service.saveNote(id,d);}
     @DeleteMapping("/{id}/notes/{noteId}") public Customer360Dtos.Ok deleteNote(@PathVariable int id,@PathVariable long noteId,@RequestParam long rowVersion){service.deleteNote(id,noteId,rowVersion);return new Customer360Dtos.Ok(true,"Deleted");}
+    @GetMapping("/{id}/credit-health") public Customer360Dtos.CreditHealth creditHealth(@PathVariable int id){return service.creditHealth(id);}
+    @GetMapping("/{id}/item-pricing") public Customer360Dtos.ItemPricingInsight itemPricing(@PathVariable int id,@RequestParam String itemCode,@RequestParam(defaultValue="1") double qty){return service.itemPricing(id,itemCode,qty);}
+    @GetMapping("/{id}/price-rules") public List<Customer360Dtos.PriceRuleRow> priceRules(@PathVariable int id){return service.priceRules(id);}
+    @PostMapping("/{id}/price-rules") public Customer360Dtos.PriceRuleRow savePriceRule(@PathVariable int id,@RequestBody Customer360Dtos.PriceRuleSave d){return service.savePriceRule(id,d);}
+    @DeleteMapping("/{id}/price-rules/{ruleId}") public Customer360Dtos.Ok deletePriceRule(@PathVariable int id,@PathVariable long ruleId,@RequestParam long rowVersion){service.deletePriceRule(id,ruleId,rowVersion);return new Customer360Dtos.Ok(true,"Deleted");}
 }

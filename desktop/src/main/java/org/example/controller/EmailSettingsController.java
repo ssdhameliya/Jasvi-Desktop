@@ -55,7 +55,7 @@ public class EmailSettingsController implements ScreenLifecycle {
     private void applyBranding(){
         lblBrandName.setText(BrandingService.applicationName()); lblBrandTagline.setText(BrandingService.tagline()); lblBrandDescription.setText(BrandingService.loginDescription());
         Image logo=BrandingService.applicationBrandImage(); if(logo!=null&&!logo.isError()){imgBrandLogo.setImage(logo);imgBrandLogo.setManaged(true);imgBrandLogo.setVisible(true);}
-        Image mark=BrandingService.applicationMarkImage(); boolean available=mark!=null&&!mark.isError();
+        Image mark=BrandingService.effectiveMarkImage(); boolean available=mark!=null&&!mark.isError();
         imgBrandMark.setImage(available?mark:null); imgBrandMark.setManaged(available); imgBrandMark.setVisible(available);
         if(brandMarkBox!=null){brandMarkBox.setManaged(available);brandMarkBox.setVisible(available);}
         lblBrandMark.setManaged(false); lblBrandMark.setVisible(false);

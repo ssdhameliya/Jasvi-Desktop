@@ -50,6 +50,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
     private final javafx.collections.transformation.FilteredList<UniversalBankStatementParser.AuditRow> filteredAuditRows = new javafx.collections.transformation.FilteredList<>(auditRows, p -> true);
     private final ComboBox<String> cmbStatusFilter = new ComboBox<>();
     private final Label lblMismatchWarning = new Label();
+    private final Label lblContinuityBanner = new Label();
     private final Button btnStartShipping = new Button("Start Data Shipping");
     private final Label lblTotalRows = new Label("Total: 0");
     private final Label lblValidRows = new Label("Valid: 0");
@@ -57,6 +58,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
 
     private File chosenFile = null;
     private UniversalBankStatementParser.AuditParseResult lastAuditResult = null;
+    private BankStatementApiClient.ContinuityCheckResult lastContinuityResult = null;
 
     public record BankAccountChoice(String lookupCode, String bankName, String accountNumber, String holderName) {
         @Override
@@ -133,6 +135,11 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
 
         // Load Bank Accounts from Master Data
         loadBankAccounts();
+        cmbBankAccount.valueProperty().addListener((obs, oldAcc, newAcc) -> {
+            if (lastAuditResult != null && lastAuditResult.statement() != null) {
+                checkContinuityAsync(lastAuditResult.statement());
+            }
+        });
     }
 
     private static boolean detectLightMode(Window owner) {
@@ -275,7 +282,12 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
 
         row2.getChildren().addAll(dropStrip, spacer, lblSelectedFile);
 
-        box.getChildren().addAll(row1, row2);
+        lblContinuityBanner.setWrapText(true);
+        lblContinuityBanner.setMaxWidth(Double.MAX_VALUE);
+        lblContinuityBanner.setVisible(false);
+        lblContinuityBanner.setManaged(false);
+
+        box.getChildren().addAll(row1, row2, lblContinuityBanner);
         return box;
     }
 
@@ -537,6 +549,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                 AppDialogService.error(table, "All Rows Invalid", "Verification Failed", "No valid transactions could be found in the statement file.");
             }
             checkAndAlignBankAccount(lastAuditResult.statement());
+            checkContinuityAsync(lastAuditResult.statement());
         } catch (Exception ex) {
             boolean isPassword = isEncryptedException(ex);
             if (isPassword) {
@@ -624,6 +637,7 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                 AppDialogService.error(table, "All Rows Invalid", "Verification Failed", "No valid transactions could be found in the statement file.");
             }
             checkAndAlignBankAccount(lastAuditResult.statement());
+            checkContinuityAsync(lastAuditResult.statement());
         } catch (Exception ex) {
             boolean isStillPassword = isEncryptedException(ex) || (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("invalid password"));
             if (isStillPassword) {
@@ -699,6 +713,70 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
         lblMismatchWarning.setManaged(false);
     }
 
+    private void checkContinuityAsync(UniversalBankStatementParser.ParsedStatement statement) {
+        if (statement == null) {
+            lastContinuityResult = null;
+            lblContinuityBanner.setVisible(false);
+            lblContinuityBanner.setManaged(false);
+            return;
+        }
+        BankAccountChoice targetAccount = cmbBankAccount.getValue();
+        String account = targetAccount != null && targetAccount.accountNumber() != null && !targetAccount.accountNumber().isBlank()
+                ? targetAccount.accountNumber()
+                : (statement.accountNumber() != null ? statement.accountNumber() : "");
+        if (account.isBlank()) {
+            lastContinuityResult = null;
+            lblContinuityBanner.setVisible(false);
+            lblContinuityBanner.setManaged(false);
+            return;
+        }
+        var req = new BankStatementApiClient.ContinuityCheckRequest(
+                account,
+                statement.statementFrom(),
+                statement.statementTo(),
+                statement.openingBalance(),
+                statement.closingBalance()
+        );
+        UiTaskExecutor.submitLatest(
+                "bank-statement-continuity-check",
+                () -> api.checkContinuity(req),
+                result -> {
+                    lastContinuityResult = result;
+                    renderContinuityBanner(result);
+                },
+                err -> {
+                    lastContinuityResult = null;
+                    lblContinuityBanner.setVisible(false);
+                    lblContinuityBanner.setManaged(false);
+                }
+        );
+    }
+
+    private void renderContinuityBanner(BankStatementApiClient.ContinuityCheckResult res) {
+        if (res == null || !res.hasPriorBatch()) {
+            lblContinuityBanner.setVisible(false);
+            lblContinuityBanner.setManaged(false);
+            return;
+        }
+        if (res.warnings() == null || res.warnings().isEmpty()) {
+            lblContinuityBanner.getStyleClass().setAll("badge", "badge-pill", "status-positive");
+            lblContinuityBanner.setGraphic(IconFactory.compactIcon("check", 14));
+            String priorInfo = "Continuous from [" + res.priorBatchRef() + "] (ended " + BusinessClock.formatDate(res.priorTo()) + ")";
+            if (res.priorClosingBalance() != null) {
+                priorInfo += String.format(Locale.ENGLISH, " • Opening matches prior closing ₹%,.2f", res.priorClosingBalance());
+            }
+            lblContinuityBanner.setText(priorInfo);
+        } else {
+            boolean error = "ERROR".equalsIgnoreCase(res.severity()) || res.balanceMismatch();
+            lblContinuityBanner.getStyleClass().setAll("badge", "badge-pill", error ? "status-negative" : "status-warning");
+            lblContinuityBanner.setGraphic(IconFactory.compactIcon("alert-triangle", 14));
+            lblContinuityBanner.setText("Continuity Alert: " + String.join("  |  ", res.warnings()));
+        }
+        lblContinuityBanner.setTooltip(new Tooltip(lblContinuityBanner.getText()));
+        lblContinuityBanner.setVisible(true);
+        lblContinuityBanner.setManaged(true);
+    }
+
     private void onStartDataShipping() {
         if (chosenFile == null || lastAuditResult == null || lastAuditResult.statement() == null) {
             AppDialogService.error(table, "No Valid Statement", "Validation Error", "Please select a valid bank statement file first.");
@@ -730,6 +808,21 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                 if (!proceedMismatch) {
                     return;
                 }
+            }
+        }
+
+        if (lastContinuityResult != null && lastContinuityResult.hasPriorBatch()
+                && lastContinuityResult.warnings() != null && !lastContinuityResult.warnings().isEmpty()) {
+            boolean proceedContinuity = AppDialogService.warningConfirm(
+                    table,
+                    "Statement Continuity Warning",
+                    "Date Gap or Balance Discontinuity Detected",
+                    String.join("\n• ", concatBullet(lastContinuityResult.warnings()))
+                            + "\n\nImporting with a gap or balance mismatch can leave missing bank entries or unreconciled opening balances.\n\nDo you want to proceed anyway?",
+                    "Import Anyway", "Cancel Import"
+            );
+            if (!proceedContinuity) {
+                return;
             }
         }
 
@@ -845,5 +938,13 @@ public final class UniversalBankStatementImportDialog extends OwnedDialog<Boolea
                 AppDialogService.error(table, "Data Shipping Failed", "Server Import Rejected", "Server import rejected: " + ex.getMessage());
             }
         );
+    }
+
+    private static List<String> concatBullet(List<String> warnings) {
+        if (warnings == null || warnings.isEmpty()) return List.of();
+        List<String> out = new ArrayList<>();
+        out.add("Please review continuity findings before posting:");
+        out.addAll(warnings);
+        return out;
     }
 }

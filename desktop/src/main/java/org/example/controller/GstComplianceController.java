@@ -89,7 +89,7 @@ public class GstComplianceController implements ScreenLifecycle {
     @FXML private TableColumn<Gstr1B2csRow, String> colGstr1B2csType, colGstr1B2csPos, colGstr1B2csRate, colGstr1B2csTxval, colGstr1B2csIgst, colGstr1B2csCgst, colGstr1B2csSgst;
 
     @FXML private TableView<Gstr1CdnrRow> tblGstr1Cdnr;
-    @FXML private TableColumn<Gstr1CdnrRow, String> colGstr1CdnrGstin, colGstr1CdnrName, colGstr1CdnrNoteNo, colGstr1CdnrNoteDate, colGstr1CdnrType, colGstr1CdnrOrigInv, colGstr1CdnrVal, colGstr1CdnrTxval, colGstr1CdnrTax;
+    @FXML private TableColumn<Gstr1CdnrRow, String> colGstr1CdnrGstin, colGstr1CdnrName, colGstr1CdnrNoteNo, colGstr1CdnrNoteDate, colGstr1CdnrType, colGstr1CdnrOrigInv, colGstr1CdnrVal, colGstr1CdnrTxval, colGstr1CdnrTax, colGstr1CdnrActions;
 
     @FXML private TableView<Gstr1HsnRow> tblGstr1Hsn;
     @FXML private TableColumn<Gstr1HsnRow, String> colGstr1HsnCode, colGstr1HsnDesc, colGstr1HsnUqc, colGstr1HsnQty, colGstr1HsnVal, colGstr1HsnTxval, colGstr1HsnRate, colGstr1HsnIgst, colGstr1HsnCgst, colGstr1HsnSgst;
@@ -387,6 +387,59 @@ public class GstComplianceController implements ScreenLifecycle {
             colGstr1CdnrVal.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().noteValue()));
             colGstr1CdnrTxval.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().taxable()));
             colGstr1CdnrTax.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().tax()));
+            if (colGstr1CdnrActions != null) {
+                colGstr1CdnrActions.setCellFactory(col -> new TableCell<>() {
+                    final MenuButton menu = new MenuButton("Actions");
+                    {
+                        menu.getStyleClass().addAll("table-action-menu", "approved-row-action");
+                        menu.setGraphic(IconFactory.compactIcon("actions", 14));
+                        menu.setContentDisplay(ContentDisplay.LEFT);
+                        menu.setGraphicTextGap(6);
+
+                        MenuItem viewNote = new MenuItem("View Credit Note", IconFactory.compactIcon("view", 14));
+                        viewNote.setOnAction(e -> {
+                            Gstr1CdnrRow row = getRow();
+                            if (row != null) {
+                                LinkedRecordContext.open("CREDIT_NOTE", row.id() > 0 ? (int) row.id() : null, row.noteNo(), "VIEW", "GST Compliance");
+                                NavigationManager.getInstance().loadPage("/fxml/pages/CreditNoteRegister.fxml");
+                            }
+                        });
+
+                        MenuItem openInvoice = new MenuItem("Open Original Invoice", IconFactory.compactIcon("sale", 14));
+                        openInvoice.setOnAction(e -> {
+                            Gstr1CdnrRow row = getRow();
+                            if (row != null && row.origInvoiceNo() != null && !row.origInvoiceNo().isBlank()) {
+                                LinkedRecordContext.open("SALE", null, row.origInvoiceNo(), "VIEW", "GST Compliance");
+                                NavigationManager.getInstance().loadPage("/fxml/pages/SalesList.fxml");
+                            }
+                        });
+
+                        MenuItem copyGstin = new MenuItem("Copy GSTIN", IconFactory.compactIcon("copy", 14));
+                        copyGstin.setOnAction(e -> {
+                            Gstr1CdnrRow row = getRow();
+                            if (row != null && row.gstin() != null && !row.gstin().isBlank()) {
+                                javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
+                                content.putString(row.gstin());
+                                javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+                                AppDialogService.info(tblGstr1Cdnr, "Copied", "GSTIN " + row.gstin() + " copied to clipboard.");
+                            }
+                        });
+
+                        menu.getItems().addAll(viewNote, openInvoice, copyGstin);
+                        IconFactory.decorateActionMenu(menu);
+                    }
+                    private Gstr1CdnrRow getRow() {
+                        int idx = getIndex();
+                        return idx >= 0 && idx < getTableView().getItems().size() ? getTableView().getItems().get(idx) : null;
+                    }
+                    @Override
+                    protected void updateItem(String item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setGraphic(empty ? null : menu);
+                        setAlignment(Pos.CENTER);
+                    }
+                });
+            }
             tblGstr1Cdnr.setItems(gstr1CdnrRows);
         }
 
@@ -594,21 +647,32 @@ public class GstComplianceController implements ScreenLifecycle {
         box.setPrefWidth(650);
         box.setPadding(new Insets(12));
 
-        String companyName = ConfigManager.get("company.name", "DSE ERP");
-        String myGstin = ConfigManager.get("company.gstin", "24ABCDE1234F1Z5");
+        String companyName = org.example.service.BrandingService.companyName();
+        String rawGstin = ConfigManager.get("company.gstin", "").trim();
+        String myGstin = rawGstin.isBlank() ? "Not Configured" : rawGstin;
 
-        String noticeMessage = "Dear " + row.tradeName() + ",\n\n"
-                + "Sub: Discrepancy Notice under CGST Rule 36(4) / Section 16(2)(aa) for Invoice #" + row.invoiceNo() + "\n\n"
-                + "We have recorded Purchase Bill #" + row.invoiceNo() + " dated " + row.invoiceDate()
-                + " for Taxable Value " + row.taxable() + " and GST " + fmt(row.totalTaxAmount()) + " in our accounting system.\n\n"
-                + "However, our automated GSTR-2B statutory reconciliation indicates this invoice is NOT reflected in our GSTR-2B return on the GST Portal.\n\n"
-                + "Under statutory GST Rule 36(4), we are legally prohibited from claiming Input Tax Credit (ITC) for unreflected supplies. Kindly ensure this invoice is uploaded/amended in your GSTR-1 return immediately to prevent withholding of pending payment or interest levy under Section 50.\n\n"
-                + "Buyer Details:\n"
-                + "Name: " + companyName + "\n"
-                + "GSTIN: " + myGstin + "\n\n"
-                + "Thank you,\nFinance & Taxation Department\n" + companyName;
+        Map<String, String> tokens = new java.util.LinkedHashMap<>();
+        tokens.put("SupplierName", row.tradeName() == null ? "Supplier" : row.tradeName());
+        tokens.put("InvoiceNo", row.invoiceNo() == null ? "" : row.invoiceNo());
+        tokens.put("InvoiceDate", row.invoiceDate() == null ? "" : row.invoiceDate());
+        tokens.put("TaxableAmount", String.valueOf(row.taxable()));
+        tokens.put("TaxAmount", fmt(row.totalTaxAmount()));
+        tokens.put("CompanyName", companyName);
+        tokens.put("CompanyGstin", myGstin);
 
-        TextArea txtNotice = new TextArea(noticeMessage);
+        String emailSubject = org.example.service.MessageTemplateService.format(
+                org.example.service.MessageTemplateService.getEmailSubject("gst_rule36_notice"), tokens);
+        String previewMessage = org.example.service.MessageTemplateService.format(
+                org.example.service.MessageTemplateService.getEmailBody("gst_rule36_notice"), tokens);
+        String waMessage = org.example.service.MessageTemplateService.renderWhatsappByKey("gst_rule36_notice", tokens);
+        var renderedEmail = org.example.service.MessageTemplateService.renderUrgentEmailByKey(
+                "gst_rule36_notice",
+                tokens,
+                "GST Rule 36(4) Discrepancy Notice",
+                "Invoice #" + tokens.get("InvoiceNo")
+        );
+
+        TextArea txtNotice = new TextArea(previewMessage);
         txtNotice.setWrapText(true);
         txtNotice.setPrefRowCount(10);
         txtNotice.setMinHeight(220);
@@ -645,7 +709,7 @@ public class GstComplianceController implements ScreenLifecycle {
                 var wahaApi = new org.example.api.whatsapp.BusinessWhatsappApiClient();
                 var resp = wahaApi.sendText(new org.example.api.whatsapp.BusinessWhatsappApiClient.TextSendRequest(
                     phone,
-                    noticeMessage,
+                    waMessage,
                     null
                 ));
                 if (!resp.success()) {
@@ -657,17 +721,36 @@ public class GstComplianceController implements ScreenLifecycle {
             }
         });
 
-        Button btnEmail = new Button("Open Email");
+        Button btnEmail = new Button("Send / Open Email");
         btnEmail.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnEmail.setOnAction(e -> {
             try {
-                String subj = URLEncoder.encode("Urgent: GST Rule 36(4) Notice for Invoice " + row.invoiceNo(), StandardCharsets.UTF_8);
-                String body = URLEncoder.encode(noticeMessage, StandardCharsets.UTF_8);
-                String mailto = "mailto:?subject=" + subj + "&body=" + body;
-                if (Desktop.isDesktopSupported()) {
-                    Desktop.getDesktop().browse(URI.create(mailto));
+                String supEmail = "";
+                try {
+                    Purchase p = purchaseService.getByInvoice(row.invoiceNo());
+                    if (p != null && p.getSupplier() != null && p.getSupplier().getEmail() != null) {
+                        supEmail = p.getSupplier().getEmail().trim();
+                    }
+                } catch (Exception ignored) {}
+                boolean sentDirectly = false;
+                if (!supEmail.isBlank()) {
+                    try {
+                        org.example.service.EmailService.send(supEmail, renderedEmail.subject(), renderedEmail.body(), null);
+                        sentDirectly = true;
+                        AppDialogService.success(tblReconciliation, "Email Sent", "Statutory GST notice emailed to " + supEmail);
+                    } catch (IllegalStateException smtpUnconfigured) {
+                        // Fall back to default desktop mail client if SMTP is not configured
+                    }
                 }
-                AppDialogService.success(tblReconciliation, "Email Client Opened", "Composed notice email in default mail client.");
+                if (!sentDirectly) {
+                    String subj = URLEncoder.encode(emailSubject, StandardCharsets.UTF_8);
+                    String body = URLEncoder.encode(previewMessage, StandardCharsets.UTF_8);
+                    String mailto = "mailto:" + URLEncoder.encode(supEmail, StandardCharsets.UTF_8) + "?subject=" + subj + "&body=" + body;
+                    if (Desktop.isDesktopSupported()) {
+                        Desktop.getDesktop().browse(URI.create(mailto));
+                    }
+                    AppDialogService.success(tblReconciliation, "Email Client Opened", "Composed notice email in default mail client.");
+                }
             } catch (Exception ex) {
                 AppDialogService.error(tblReconciliation, "Email Error", ex.getMessage());
             }
@@ -677,7 +760,7 @@ public class GstComplianceController implements ScreenLifecycle {
         btnCopy.getStyleClass().addAll("approved-button", "approved-secondary-button");
         btnCopy.setOnAction(e -> {
             javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
-            cc.putString(noticeMessage);
+            cc.putString(previewMessage);
             javafx.scene.input.Clipboard.getSystemClipboard().setContent(cc);
             AppDialogService.info(tblReconciliation, "Notice Copied", "Statutory notice copied to clipboard.");
         });
@@ -714,14 +797,27 @@ public class GstComplianceController implements ScreenLifecycle {
                     double outwardIgst = 0.0;
 
                     List<Gstr1B2bRow> b2bList = new ArrayList<>();
+                    List<Gstr1CdnrRow> cdnrList = new ArrayList<>();
                     Map<String, double[]> b2csMap = new LinkedHashMap<>();
                     Map<String, double[]> hsnMap = new LinkedHashMap<>();
+                    Map<String, String> customerGstinByInvoice = new HashMap<>();
+                    Map<String, String> customerGstinByName = new HashMap<>();
                     String minInvoice = null;
                     String maxInvoice = null;
                     int validSalesCount = 0;
 
                     for (Sales s : sales) {
                         if (s.getDocumentStatus() != null && (s.getDocumentStatus().contains("CANCEL") || s.getDocumentStatus().contains("DELETE"))) continue;
+                        Party knownCust = s.getCustomer();
+                        String knownGstin = knownCust != null && knownCust.getGstin() != null ? knownCust.getGstin().trim().toUpperCase(Locale.ROOT) : "";
+                        if (knownGstin.length() == 15) {
+                            if (s.getInvoiceNo() != null && !s.getInvoiceNo().isBlank()) {
+                                customerGstinByInvoice.put(s.getInvoiceNo().trim().toUpperCase(Locale.ROOT), knownGstin);
+                            }
+                            if (knownCust.getName() != null && !knownCust.getName().isBlank()) {
+                                customerGstinByName.putIfAbsent(knownCust.getName().trim().toUpperCase(Locale.ROOT), knownGstin);
+                            }
+                        }
                         if (s.getInvoiceDate() != null) {
                             if (fromDate != null && s.getInvoiceDate().isBefore(fromDate)) continue;
                             if (toDate != null && s.getInvoiceDate().isAfter(toDate)) continue;
@@ -828,6 +924,56 @@ public class GstComplianceController implements ScreenLifecycle {
                         ));
                     }
 
+                    String minCn = null;
+                    String maxCn = null;
+                    int validCnCount = 0;
+                    for (CreditNoteEntry cn : fetchCreditNotes()) {
+                        String st = cn.status() != null ? cn.status().trim().toUpperCase(Locale.ROOT) : "";
+                        if ("CANCELLED".equals(st) || "VOID".equals(st) || "DELETED".equals(st)) continue;
+                        LocalDate cnDate = parseIsoDate(cn.noteDate());
+                        if (cnDate != null) {
+                            if (fromDate != null && cnDate.isBefore(fromDate)) continue;
+                            if (toDate != null && cnDate.isAfter(toDate)) continue;
+                        }
+                        validCnCount++;
+                        String cnNo = cn.creditNoteNo() != null ? cn.creditNoteNo().trim() : "";
+                        if (!cnNo.isBlank()) {
+                            if (minCn == null || cnNo.compareTo(minCn) < 0) minCn = cnNo;
+                            if (maxCn == null || cnNo.compareTo(maxCn) > 0) maxCn = cnNo;
+                        }
+
+                        outwardCgst = Math.max(0.0, outwardCgst - cn.cgstAmount());
+                        outwardSgst = Math.max(0.0, outwardSgst - cn.sgstAmount());
+                        outwardIgst = Math.max(0.0, outwardIgst - cn.igstAmount());
+
+                        String ctin = cn.partyGstin() != null ? cn.partyGstin().trim().toUpperCase(Locale.ROOT) : "";
+                        if (ctin.length() != 15 && cn.originalInvoiceNo() != null && !cn.originalInvoiceNo().isBlank()) {
+                            ctin = customerGstinByInvoice.getOrDefault(cn.originalInvoiceNo().trim().toUpperCase(Locale.ROOT), ctin);
+                        }
+                        if (ctin.length() != 15 && cn.partyName() != null && !cn.partyName().isBlank()) {
+                            ctin = customerGstinByName.getOrDefault(cn.partyName().trim().toUpperCase(Locale.ROOT), ctin);
+                        }
+                        if (ctin.length() == 15) {
+                            double totalTax = cn.cgstAmount() + cn.sgstAmount() + cn.igstAmount();
+                            double rate = cn.taxableAmount() > 0 ? Math.round((totalTax / cn.taxableAmount()) * 100.0) : 18.0;
+                            String pos = ctin.substring(0, 2);
+                            cdnrList.add(new Gstr1CdnrRow(
+                                    cn.id(),
+                                    ctin,
+                                    cn.partyName() != null ? cn.partyName() : "",
+                                    cnNo,
+                                    cnDate != null ? cnDate.toString() : (cn.noteDate() != null ? cn.noteDate() : ""),
+                                    "Credit Note (C)",
+                                    cn.originalInvoiceNo() != null ? cn.originalInvoiceNo() : "-",
+                                    fmt(cn.totalAmount()),
+                                    fmt(cn.taxableAmount()),
+                                    fmt(totalTax),
+                                    pos,
+                                    ((int) rate) + "%"
+                            ));
+                        }
+                    }
+
                     List<Gstr1DocsRow> docsList = new ArrayList<>();
                     docsList.add(new Gstr1DocsRow(
                             "Invoices for outward supply",
@@ -837,6 +983,16 @@ public class GstComplianceController implements ScreenLifecycle {
                             "0",
                             String.valueOf(validSalesCount)
                     ));
+                    if (validCnCount > 0) {
+                        docsList.add(new Gstr1DocsRow(
+                                "Credit Notes",
+                                minCn != null ? minCn : "CN-0001",
+                                maxCn != null ? maxCn : "CN-" + String.format(Locale.ROOT, "%04d", validCnCount),
+                                String.valueOf(validCnCount),
+                                "0",
+                                String.valueOf(validCnCount)
+                        ));
+                    }
 
                     List<Gstr2bRow> list = new ArrayList<>();
                     double inputCgst = 0.0;
@@ -979,7 +1135,7 @@ public class GstComplianceController implements ScreenLifecycle {
                             bRows,
                             b2bList,
                             b2csList,
-                            List.of(), // CDNR
+                            cdnrList,
                             hsnList,
                             docsList
                     );
@@ -1373,11 +1529,12 @@ public class GstComplianceController implements ScreenLifecycle {
                 ArrayNode ntArray = partyNode.putArray("nt");
                 for (Gstr1CdnrRow r : entry.getValue()) {
                     ObjectNode ntNode = ntArray.addObject();
+                    String gstDate = formatGstPortalDate(r.noteDate());
                     ntNode.put("nt_num", r.noteNo());
-                    ntNode.put("nt_dt", r.noteDate());
-                    ntNode.put("ntty", r.noteType());
+                    ntNode.put("nt_dt", gstDate);
+                    ntNode.put("ntty", r.noteType() != null && r.noteType().contains("(D)") ? "D" : "C");
                     ntNode.put("inum", r.origInvoiceNo());
-                    ntNode.put("idt", r.noteDate());
+                    ntNode.put("idt", gstDate);
                     double val = parseDouble(r.noteValue());
                     double txval = parseDouble(r.taxable());
                     double tax = parseDouble(r.tax());
@@ -1510,8 +1667,8 @@ public class GstComplianceController implements ScreenLifecycle {
                     row.createCell(0).setCellValue(r.gstin());
                     row.createCell(1).setCellValue(r.partyName());
                     row.createCell(2).setCellValue(r.noteNo());
-                    row.createCell(3).setCellValue(r.noteDate());
-                    row.createCell(4).setCellValue(r.noteType());
+                    row.createCell(3).setCellValue(formatGstPortalDate(r.noteDate()));
+                    row.createCell(4).setCellValue(r.noteType() != null && r.noteType().contains("(D)") ? "D" : "C");
                     row.createCell(5).setCellValue(r.pos());
                     row.createCell(6).setCellValue("N");
                     row.createCell(7).setCellValue("Regular");
@@ -1597,6 +1754,25 @@ public class GstComplianceController implements ScreenLifecycle {
         } catch (Exception e) {
             return 0L;
         }
+    }
+
+    private LocalDate parseIsoDate(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            String trimmed = raw.trim();
+            if (trimmed.length() >= 10 && trimmed.charAt(4) == '-' && trimmed.charAt(7) == '-') {
+                return LocalDate.parse(trimmed.substring(0, 10));
+            }
+            return BusinessClock.parseDate(trimmed);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String formatGstPortalDate(String raw) {
+        LocalDate d = parseIsoDate(raw);
+        if (d != null) return d.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+        return (raw == null || raw.isBlank()) ? "01-10-2026" : raw;
     }
 
     private String apiUrl(String path) {

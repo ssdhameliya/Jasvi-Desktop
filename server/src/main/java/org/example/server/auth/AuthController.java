@@ -41,8 +41,9 @@ public class AuthController {
 
     @PostMapping("/login/mfa/complete")
     public ResponseEntity<AuthDtos.LoginResponse> completeLoginMfa(
-            @RequestBody AuthDtos.LoginMfaCompleteRequest request) {
-        AuthDtos.LoginResponse result = auth.completeLoginMfa(request);
+            @RequestBody AuthDtos.LoginMfaCompleteRequest request, HttpServletRequest httpRequest) {
+        String clientIp = httpRequest == null ? "" : httpRequest.getRemoteAddr();
+        AuthDtos.LoginResponse result = auth.completeLoginMfa(request, clientIp);
         return result.success() ? ResponseEntity.ok(result) : ResponseEntity.status(401).body(result);
     }
 
@@ -130,8 +131,9 @@ public class AuthController {
 
     @PostMapping("/password-reset/complete")
     public ResponseEntity<AuthDtos.OperationResponse> completePasswordReset(
-            @RequestBody AuthDtos.PasswordResetCompleteRequest request) {
-        AuthDtos.OperationResponse result = auth.completePasswordReset(request);
+            @RequestBody AuthDtos.PasswordResetCompleteRequest request, HttpServletRequest httpRequest) {
+        String clientIp = httpRequest == null ? "" : httpRequest.getRemoteAddr();
+        AuthDtos.OperationResponse result = auth.completePasswordReset(request, clientIp);
         return result.success() ? ResponseEntity.ok(result) : ResponseEntity.badRequest().body(result);
     }
 
