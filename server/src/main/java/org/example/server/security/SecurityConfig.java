@@ -44,6 +44,8 @@ public class SecurityConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/public/showcase/**", publicShowcase);
+        source.registerCorsConfiguration("/api/public/enquiry-view", publicShowcase);
+        source.registerCorsConfiguration("/api/public/enquiry-view/**", publicShowcase);
         return source;
     }
 
@@ -65,7 +67,7 @@ public class SecurityConfig {
                                 "/api/auth/registration/captcha", "/api/auth/password-reset/captcha", "/api/auth/captcha", "/api/auth/registration/request",
                                 "/api/auth/registration/email/verify", "/api/auth/registration/mfa/complete",
                                 "/api/auth/password-reset/request", "/api/auth/password-reset/complete",
-                                "/payment-status", "/payment-status/**", "/api/public/showcase/**", "/public/payment-status", "/public/payment-status/**", "/public/**", "/api/public/payment-status", "/api/public/payment-status/**", "/api/license/status", "/api/license/upi-payload",
+                                "/payment-status", "/payment-status/**", "/api/public/showcase/**", "/api/public/enquiry-view", "/api/public/enquiry-view/**", "/public/enquiry-view", "/public/enquiry-view/**", "/public/payment-status", "/public/payment-status/**", "/public/**", "/api/public/payment-status", "/api/public/payment-status/**", "/api/license/status", "/api/license/upi-payload",
                                 "/api/license/upi-qr-image", "/api/license/activate", "/api/license/catalog",
                                 "/api/license/self-register", "/api/license/check-lead", "/api/license/super/kick-client",
                                 "/api/security/emergency/action", "/api/security/emergency/status", "/api/auth/account-status")

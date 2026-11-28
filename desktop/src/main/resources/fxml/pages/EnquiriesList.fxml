@@ -12,8 +12,8 @@
             <HBox alignment="CENTER_LEFT" spacing="12" styleClass="erp-page-identity-header">
                 <StackPane fx:id="pageIcon" styleClass="quotation-page-icon"/>
                 <VBox spacing="2">
-                    <Label text="Website Enquiries &amp; Leads" styleClass="screen-title"/>
-                    <Label text="Track Contact/RFQ &amp; Feedback submissions from DS Industries website and convert to Quotations" styleClass="screen-subtitle"/>
+                    <Label text="Website Enquiries &amp; Client Feedback" styleClass="screen-title"/>
+                    <Label text="Manage Contact/RFQ leads and Client Feedback submissions separately with 1-click Quotation conversion" styleClass="screen-subtitle"/>
                 </VBox>
                 <Region HBox.hgrow="ALWAYS"/>
                 <StackPane prefWidth="340" minWidth="240" maxWidth="360" styleClass="erp-item-search-shell,register-header-search-shell">
@@ -24,129 +24,145 @@
                 </StackPane>
                 <Button fx:id="btnRefresh" text="Refresh" onAction="#refresh" styleClass="register-action-button,register-refresh-button,approved-button,approved-teal-button,erp-button-teal"/>
             </HBox>
+
+            <HBox spacing="12" styleClass="standard-kpi-row,quotation-metric-row,erp-kpi-section">
+                <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-blue" HBox.hgrow="ALWAYS">
+                    <StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon"/>
+                    <VBox spacing="3" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT"><Label text="Total Submissions" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="All" styleClass="metric-trend-pill,trend-neutral"/></HBox>
+                        <Label fx:id="lblKpiTotal" text="0" styleClass="metric-value"/>
+                        <Label fx:id="lblKpiBreakdown" text="0 RFQ / 0 Feedback" wrapText="true" styleClass="metric-note"/>
+                    </VBox>
+                </HBox>
+                <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-orange" HBox.hgrow="ALWAYS">
+                    <StackPane fx:id="kpiNewIcon" styleClass="standard-kpi-icon"/>
+                    <VBox spacing="3" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT"><Label text="New Leads" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Action" styleClass="metric-trend-pill,trend-warning"/></HBox>
+                        <Label fx:id="lblKpiNew" text="0" styleClass="metric-value"/>
+                        <Label text="Awaiting response" wrapText="true" styleClass="metric-note"/>
+                    </VBox>
+                </HBox>
+                <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-purple" HBox.hgrow="ALWAYS">
+                    <StackPane fx:id="kpiReviewIcon" styleClass="standard-kpi-icon"/>
+                    <VBox spacing="3" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT"><Label text="In Review" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Active" styleClass="metric-trend-pill,trend-info"/></HBox>
+                        <Label fx:id="lblKpiReview" text="0" styleClass="metric-value"/>
+                        <Label text="Technical sizing" wrapText="true" styleClass="metric-note"/>
+                    </VBox>
+                </HBox>
+                <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-teal" HBox.hgrow="ALWAYS">
+                    <StackPane fx:id="kpiQuotedIcon" styleClass="standard-kpi-icon"/>
+                    <VBox spacing="3" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT"><Label text="Quoted" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="RFQ" styleClass="metric-trend-pill,trend-primary"/></HBox>
+                        <Label fx:id="lblKpiQuoted" text="0" styleClass="metric-value"/>
+                        <Label text="Quotation issued" wrapText="true" styleClass="metric-note"/>
+                    </VBox>
+                </HBox>
+                <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-emerald" HBox.hgrow="ALWAYS">
+                    <StackPane fx:id="kpiWonIcon" styleClass="standard-kpi-icon"/>
+                    <VBox spacing="3" HBox.hgrow="ALWAYS">
+                        <HBox alignment="CENTER_LEFT"><Label text="Won &amp; Rating" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Score" styleClass="metric-trend-pill,trend-success"/></HBox>
+                        <Label fx:id="lblKpiWon" text="0" styleClass="metric-value"/>
+                        <Label fx:id="lblKpiRating" text="Avg Rating: -" wrapText="true" styleClass="metric-note"/>
+                    </VBox>
+                </HBox>
+            </HBox>
         </VBox>
     </top>
 
     <center>
-        <SplitPane fx:id="mainSplit" dividerPositions="1" styleClass="quotation-register-split">
-            <BorderPane.margin><Insets top="14" right="14" bottom="14" left="14"/></BorderPane.margin>
-            <items>
-                <VBox spacing="12" styleClass="quotation-register-workspace">
-                    <HBox spacing="12" styleClass="standard-kpi-row,quotation-metric-row,erp-kpi-section">
-                        <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-blue" HBox.hgrow="ALWAYS">
-                            <StackPane fx:id="kpiTotalIcon" styleClass="standard-kpi-icon"/>
-                            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                                <HBox alignment="CENTER_LEFT"><Label text="Total Enquiries" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="All" styleClass="metric-trend-pill,trend-neutral"/></HBox>
-                                <Label fx:id="lblKpiTotal" text="0" styleClass="metric-value"/>
-                                <Label fx:id="lblKpiBreakdown" text="0 RFQ / 0 Feedback" wrapText="true" styleClass="metric-note"/>
-                            </VBox>
-                        </HBox>
-                        <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-orange" HBox.hgrow="ALWAYS">
-                            <StackPane fx:id="kpiNewIcon" styleClass="standard-kpi-icon"/>
-                            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                                <HBox alignment="CENTER_LEFT"><Label text="New Leads" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Action" styleClass="metric-trend-pill,trend-warning"/></HBox>
-                                <Label fx:id="lblKpiNew" text="0" styleClass="metric-value"/>
-                                <Label text="Awaiting response" wrapText="true" styleClass="metric-note"/>
-                            </VBox>
-                        </HBox>
-                        <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-purple" HBox.hgrow="ALWAYS">
-                            <StackPane fx:id="kpiReviewIcon" styleClass="standard-kpi-icon"/>
-                            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                                <HBox alignment="CENTER_LEFT"><Label text="In Review" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Active" styleClass="metric-trend-pill,trend-info"/></HBox>
-                                <Label fx:id="lblKpiReview" text="0" styleClass="metric-value"/>
-                                <Label text="Technical sizing" wrapText="true" styleClass="metric-note"/>
-                            </VBox>
-                        </HBox>
-                        <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-teal" HBox.hgrow="ALWAYS">
-                            <StackPane fx:id="kpiQuotedIcon" styleClass="standard-kpi-icon"/>
-                            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                                <HBox alignment="CENTER_LEFT"><Label text="Quoted" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="RFQ" styleClass="metric-trend-pill,trend-positive"/></HBox>
-                                <Label fx:id="lblKpiQuoted" text="0" styleClass="metric-value"/>
-                                <Label text="Quotation issued" wrapText="true" styleClass="metric-note"/>
-                            </VBox>
-                        </HBox>
-                        <HBox spacing="12" alignment="CENTER_LEFT" minWidth="0" styleClass="standard-kpi-card,kpi-green" HBox.hgrow="ALWAYS">
-                            <StackPane fx:id="kpiWonIcon" styleClass="standard-kpi-icon"/>
-                            <VBox spacing="3" HBox.hgrow="ALWAYS">
-                                <HBox alignment="CENTER_LEFT"><Label text="Won &amp; Rating" wrapText="true" styleClass="metric-label"/><Region HBox.hgrow="ALWAYS"/><Label text="Score" styleClass="metric-trend-pill,trend-positive"/></HBox>
-                                <Label fx:id="lblKpiWon" text="0" styleClass="metric-value"/>
-                                <Label fx:id="lblKpiRating" text="Avg Rating: -" wrapText="true" styleClass="metric-note"/>
-                            </VBox>
-                        </HBox>
-                    </HBox>
-
-                    <HBox spacing="12" alignment="BOTTOM_LEFT" styleClass="quotation-filter-card,approved-filter-bar,erp-filter-section">
-                        <VBox spacing="4" HBox.hgrow="ALWAYS">
-                            <Label text="Type" styleClass="filter-label"/>
-                            <ComboBox fx:id="cmbType" maxWidth="Infinity" styleClass="approved-input"/>
-                        </VBox>
-                        <VBox spacing="4" HBox.hgrow="ALWAYS">
-                            <Label text="Status" styleClass="filter-label"/>
-                            <ComboBox fx:id="cmbStatus" maxWidth="Infinity" styleClass="approved-input"/>
-                        </VBox>
-                        <Region HBox.hgrow="ALWAYS"/>
-                        <Button fx:id="btnReset" text="Reset" onAction="#resetFilters" styleClass="register-action-button,register-reset-button,approved-button,approved-amber-button,erp-button-amber"/>
-                    </HBox>
-
-                    <VBox spacing="0" styleClass="quotation-table-card" VBox.vgrow="ALWAYS">
-                        <TableView fx:id="table" minHeight="0" VBox.vgrow="ALWAYS" styleClass="professional-table,quotation-register-table,erp-table-profile-register,erp-purple-selection-table">
-                            <columns>
-                                <TableColumn fx:id="colNo" text="Reference No" styleClass="approved-table-column"/>
-                                <TableColumn fx:id="colDate" text="Date" styleClass="approved-table-column"/>
-                                <TableColumn fx:id="colType" text="Type" styleClass="approved-table-column"/>
-                                <TableColumn fx:id="colClient" text="Client / Company" styleClass="approved-table-column"/>
-                                <TableColumn fx:id="colPhone" text="Contact &amp; Phone" styleClass="approved-table-column"/>
-                                <TableColumn fx:id="colDetails" text="Details" styleClass="approved-table-column"/>
-                                <TableColumn fx:id="colSource" text="Source" styleClass="approved-table-column"/>
-                                <TableColumn fx:id="colStatus" text="Status" styleClass="approved-table-column"/>
-                                <TableColumn fx:id="colQuotationNo" text="Quotation No." styleClass="approved-table-column"/>
-                                <TableColumn fx:id="colActions" text="Actions" styleClass="approved-table-column" sortable="false" resizable="false"/>
-                            </columns>
-                        </TableView>
-
-                        <HBox spacing="10" alignment="CENTER_LEFT" styleClass="quotation-export-bar">
-                            <Label fx:id="lblFilteredSummary" styleClass="quotation-filtered-summary"/>
+        <TabPane fx:id="tabPaneEnquiries" tabClosingPolicy="UNAVAILABLE" styleClass="approved-tab-pane,register-tab-pane">
+            <BorderPane.margin><Insets top="12" right="14" bottom="14" left="14"/></BorderPane.margin>
+            <tabs>
+                <Tab fx:id="tabEnquiries" text="Enquiries &amp; RFQs">
+                    <VBox spacing="10" styleClass="quotation-register-workspace">
+                        <HBox spacing="12" alignment="CENTER_LEFT" styleClass="quotation-filter-card">
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <Label text="Enquiry Type" styleClass="filter-label"/>
+                                <ComboBox fx:id="cmbType" prefWidth="190" styleClass="approved-input"/>
+                            </HBox>
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <Label text="Status" styleClass="filter-label"/>
+                                <ComboBox fx:id="cmbStatus" prefWidth="180" styleClass="approved-input"/>
+                            </HBox>
                             <Region HBox.hgrow="ALWAYS"/>
-                            <Button fx:id="btnPrevPage" text="&lt; Previous" onAction="#previousPage" styleClass="approved-button,approved-secondary-button"/>
-                            <Button fx:id="btnNextPage" text="Next &gt;" onAction="#nextPage" styleClass="approved-button,approved-secondary-button"/>
+                            <Button fx:id="btnReset" text="Reset" onAction="#resetFilters" styleClass="approved-button,approved-warning-button"/>
                         </HBox>
-                    </VBox>
-                </VBox>
 
-                <VBox fx:id="detailDrawer" spacing="10" prefWidth="430" minWidth="400" maxWidth="470" styleClass="detail-drawer,erp-detail-drawer-card,quotation-detail-drawer" minHeight="0" visible="false" managed="false">
-                    <HBox alignment="CENTER_LEFT" spacing="8">
-                        <Label text="Enquiry Details" styleClass="drawer-title"/>
-                        <Region HBox.hgrow="ALWAYS"/>
-                        <Button text="Close" onAction="#closeDetails" styleClass="quotation-detail-close-button,approved-button,approved-danger-button"/>
-                    </HBox>
-                    <Label fx:id="lblDetailNo" styleClass="drawer-document"/>
-                    <HBox spacing="8" alignment="CENTER_LEFT">
-                        <Label fx:id="lblDetailDate" styleClass="quotation-detail-value"/>
-                        <Label fx:id="lblDetailType" styleClass="status-pill,approved-status"/>
-                    </HBox>
-                    <Separator/>
-                    <Label fx:id="lblDetailClient" wrapText="true" styleClass="drawer-customer"/>
-                    <Label fx:id="lblDetailContact" wrapText="true" styleClass="quotation-detail-contact"/>
-                    <Label fx:id="lblDetailSpecs" wrapText="true" styleClass="quotation-detail-value"/>
-                    <TextArea fx:id="txtDetailMessage" editable="false" wrapText="true" prefRowCount="4" styleClass="approved-input"/>
-                    <Separator/>
-                    <GridPane hgap="10" vgap="8">
-                        <Label text="Status" styleClass="filter-label"/>
-                        <ComboBox fx:id="cmbEditStatus" maxWidth="Infinity" GridPane.columnIndex="1" styleClass="approved-input"/>
-                        <Label text="Priority" GridPane.rowIndex="1" styleClass="filter-label"/>
-                        <ComboBox fx:id="cmbEditPriority" maxWidth="Infinity" GridPane.rowIndex="1" GridPane.columnIndex="1" styleClass="approved-input"/>
-                        <Label text="Linked Quote" GridPane.rowIndex="2" styleClass="filter-label"/>
-                        <Label fx:id="lblDetailQuotation" text="Not converted yet" GridPane.rowIndex="2" GridPane.columnIndex="1" styleClass="quotation-detail-value"/>
-                    </GridPane>
-                    <Label text="Internal Notes / Follow-up" styleClass="filter-label"/>
-                    <TextArea fx:id="txtInternalNotes" wrapText="true" prefRowCount="3" promptText="Add internal follow-up or sizing notes..." styleClass="approved-input"/>
-                    <HBox spacing="8">
-                        <Button fx:id="btnSaveStatus" text="Save Update" onAction="#saveStatusUpdate" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="approved-button,approved-teal-button"/>
-                        <Button fx:id="btnCreateQuotation" text="Create Quotation" onAction="#convertToQuotation" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="approved-button,approved-emerald-button"/>
-                    </HBox>
-                    <Region VBox.vgrow="ALWAYS"/>
-                </VBox>
-            </items>
-        </SplitPane>
+                        <VBox spacing="8" VBox.vgrow="ALWAYS" styleClass="quotation-table-card">
+                            <TableView fx:id="table" VBox.vgrow="ALWAYS" styleClass="approved-table,approved-table-modern,quotation-table">
+                                <columns>
+                                    <TableColumn fx:id="colNo" text="# Reference No" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colDate" text="Date" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colType" text="Type" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colClient" text="Client / Company" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colPhone" text="Contact &amp; Phone" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colDetails" text="Details" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colSource" text="Source" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colStatus" text="Status" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colQuotationNo" text="Quotation No." styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colActions" text="Actions" styleClass="approved-table-column" sortable="false" resizable="false"/>
+                                </columns>
+                                <placeholder>
+                                    <VBox alignment="CENTER" spacing="6">
+                                        <Label text="No Website Enquiries found" styleClass="empty-title"/>
+                                        <Label text="Contact, Product RFQ and Engineering Lab sizing inquiries appear here automatically." wrapText="true" styleClass="empty-note"/>
+                                    </VBox>
+                                </placeholder>
+                            </TableView>
+
+                            <HBox spacing="10" alignment="CENTER_LEFT" styleClass="quotation-export-bar">
+                                <Label fx:id="lblFilteredSummary" styleClass="quotation-filtered-summary"/>
+                                <Region HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="btnPrevPage" text="&lt; Previous" onAction="#previousPage" styleClass="approved-button,approved-secondary-button"/>
+                                <Button fx:id="btnNextPage" text="Next &gt;" onAction="#nextPage" styleClass="approved-button,approved-secondary-button"/>
+                            </HBox>
+                        </VBox>
+                    </VBox>
+                </Tab>
+
+                <Tab fx:id="tabFeedback" text="Client Feedback &amp; Ratings">
+                    <VBox spacing="10" styleClass="quotation-register-workspace">
+                        <HBox spacing="12" alignment="CENTER_LEFT" styleClass="quotation-filter-card">
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <Label text="Status" styleClass="filter-label"/>
+                                <ComboBox fx:id="cmbFeedbackStatus" prefWidth="180" styleClass="approved-input"/>
+                            </HBox>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="btnFeedbackReset" text="Reset" onAction="#resetFeedbackFilters" styleClass="approved-button,approved-warning-button"/>
+                        </HBox>
+
+                        <VBox spacing="8" VBox.vgrow="ALWAYS" styleClass="quotation-table-card">
+                            <TableView fx:id="feedbackTable" VBox.vgrow="ALWAYS" styleClass="approved-table,approved-table-modern,quotation-table">
+                                <columns>
+                                    <TableColumn fx:id="colFbNo" text="# Reference No" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colFbDate" text="Date" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colFbClient" text="Client / Company" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colFbEmail" text="Email" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colFbRating" text="Rating" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colFbRemarks" text="Remarks" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colFbSource" text="Source" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colFbStatus" text="Status" styleClass="approved-table-column"/>
+                                    <TableColumn fx:id="colFbActions" text="Actions" styleClass="approved-table-column" sortable="false" resizable="false"/>
+                                </columns>
+                                <placeholder>
+                                    <VBox alignment="CENTER" spacing="6">
+                                        <Label text="No Client Feedback found" styleClass="empty-title"/>
+                                        <Label text="Website client ratings and testimonials will appear here automatically." wrapText="true" styleClass="empty-note"/>
+                                    </VBox>
+                                </placeholder>
+                            </TableView>
+
+                            <HBox spacing="10" alignment="CENTER_LEFT" styleClass="quotation-export-bar">
+                                <Label fx:id="lblFeedbackSummary" styleClass="quotation-filtered-summary"/>
+                                <Region HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="btnFeedbackPrevPage" text="&lt; Previous" onAction="#previousFeedbackPage" styleClass="approved-button,approved-secondary-button"/>
+                                <Button fx:id="btnFeedbackNextPage" text="Next &gt;" onAction="#nextFeedbackPage" styleClass="approved-button,approved-secondary-button"/>
+                            </HBox>
+                        </VBox>
+                    </VBox>
+                </Tab>
+            </tabs>
+        </TabPane>
     </center>
 </BorderPane>

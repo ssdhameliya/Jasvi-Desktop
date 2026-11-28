@@ -715,12 +715,21 @@ public class TeamChatService {
         return map;
     }
 
+    public void broadcastUserProfileUpdated(int userId) {
+        UserEntity u = userRepo.findById(userId).orElse(null);
+        if (u == null || !u.isActive()) return;
+        ChatPresenceEntity p = presenceRepo.findById(userId).orElse(null);
+        TeamChatDtos.PresenceDto dto = toPresenceDto(u, p);
+        broker.broadcastAll(new TeamChatDtos.ChatStreamEvent("PRESENCE", null, null, dto, u.getId(), displayName(u), null, null));
+    }
+
     private TeamChatDtos.PresenceDto toPresenceDto(UserEntity u, ChatPresenceEntity p) {
         return new TeamChatDtos.PresenceDto(
                 u.getId(), u.getUsername(), displayName(u), u.getRoleName(),
                 safe(u.getDepartment()), safe(u.getBranch()),
                 computeEffectiveStatus(p), p != null ? p.getCustomNote() : null,
-                p != null ? p.getLastHeartbeatUtc() : null, p != null ? p.getUpdatedUtc() : null
+                p != null ? p.getLastHeartbeatUtc() : null, p != null ? p.getUpdatedUtc() : null,
+                safe(u.getAvatarData())
         );
     }
 

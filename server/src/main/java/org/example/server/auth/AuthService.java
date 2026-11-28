@@ -1245,6 +1245,7 @@ public class AuthService {
     private AuthDtos.UserPayload payload(UserEntity user) {
         return new AuthDtos.UserPayload(user.getId(), user.getUsername(), user.getFullName(), user.getRoleName(),
                 user.getRoleId(), user.getEmail(), user.getPhone(), user.isActive(), user.getDepartment(), user.getBranch(),
-                user.getAccessLevel(), user.isLocked(), requiresMfa(user, user.getRoleName()), user.isForcePasswordChange());
+                user.getAccessLevel(), user.isLocked(), requiresMfa(user, user.getRoleName()), user.isForcePasswordChange(),
+                user.getAvatarData() == null ? "" : user.getAvatarData());
     }
 }

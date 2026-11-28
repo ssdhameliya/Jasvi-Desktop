@@ -451,6 +451,7 @@ public final class AuthApiClient {
         result.setLocked(user.locked());
         result.setMfaEnabled(user.mfaEnabled());
         result.setForcePasswordChange(user.forcePasswordChange());
+        result.setAvatarData(user.avatarData());
         return result;
     }
 
@@ -541,11 +542,17 @@ public final class AuthApiClient {
     }
     public record UserPayload(int id, String username, String fullName, String role, Integer roleId,
                               String email, String phone, boolean active, String department, String branch,
-                              String accessLevel, boolean locked, boolean mfaEnabled, boolean forcePasswordChange) {
+                              String accessLevel, boolean locked, boolean mfaEnabled, boolean forcePasswordChange,
+                              String avatarData) {
+        public UserPayload(int id, String username, String fullName, String role, Integer roleId,
+                           String email, String phone, boolean active, String department, String branch,
+                           String accessLevel, boolean locked, boolean mfaEnabled, boolean forcePasswordChange) {
+            this(id, username, fullName, role, roleId, email, phone, active, department, branch, accessLevel, locked, mfaEnabled, forcePasswordChange, "");
+        }
         public UserPayload(int id, String username, String fullName, String role, Integer roleId,
                            String email, String phone, boolean active, String department, String branch,
                            String accessLevel, boolean locked, boolean mfaEnabled) {
-            this(id, username, fullName, role, roleId, email, phone, active, department, branch, accessLevel, locked, mfaEnabled, false);
+            this(id, username, fullName, role, roleId, email, phone, active, department, branch, accessLevel, locked, mfaEnabled, false, "");
         }
     }
 

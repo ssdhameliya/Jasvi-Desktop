@@ -16,8 +16,14 @@ public final class TeamChatDtos {
             String status,
             String customNote,
             String lastHeartbeatUtc,
-            String updatedUtc
-    ) {}
+            String updatedUtc,
+            String avatarData
+    ) {
+        public PresenceDto(int userId, String username, String fullName, String role, String department,
+                           String branch, String status, String customNote, String lastHeartbeatUtc, String updatedUtc) {
+            this(userId, username, fullName, role, department, branch, status, customNote, lastHeartbeatUtc, updatedUtc, "");
+        }
+    }
 
     public record DirectoryResponse(
             PresenceDto selfPresence,

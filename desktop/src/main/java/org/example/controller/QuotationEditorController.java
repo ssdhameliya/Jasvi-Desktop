@@ -71,6 +71,7 @@ public final class QuotationEditorController implements ScreenLifecycle {
     private Integer quotationId;
     private Long sourceEnquiryId;
     private QuotationEditorContext.EnquirySeed pendingEnquirySeed;
+    private String desiredSource = "";
     private long quotationRowVersion;
     private ItemChoice selectedItem;
     private LineRow editingLine;
@@ -103,6 +104,7 @@ public final class QuotationEditorController implements ScreenLifecycle {
         quotationId=QuotationEditorContext.consume();
         pendingEnquirySeed=quotationId==null?QuotationEditorContext.consumeEnquirySeed():null;
         sourceEnquiryId=pendingEnquirySeed!=null?pendingEnquirySeed.enquiryId():null;
+        if(pendingEnquirySeed!=null) desiredSource=safe(pendingEnquirySeed.source()).trim();
         // Load Customer/Source independently from the quote bootstrap so the create screen
         // never waits on a combined endpoint and cannot remain stuck in Loading state.
         loadQuotationMastersAsync();
@@ -211,11 +213,18 @@ public final class QuotationEditorController implements ScreenLifecycle {
 
         List<String> sources = (masters.sources() == null ? List.<String>of() : masters.sources()).stream()
             .filter(Objects::nonNull).map(String::trim).filter(v -> !v.isBlank()).distinct().toList();
+        String currentVal = safe(cmbSource.getValue()).trim();
         cmbSource.getItems().setAll(sources);
         cmbSource.setVisibleRowCount(10);
         cmbCustomer.setVisibleRowCount(10);
         cmbSource.setDisable(false);
         cmbSource.setPromptText(sources.isEmpty() ? "No active Source in Master Data" : "Select from Master Data...");
+        String target = !currentVal.isBlank() ? currentVal : desiredSource;
+        if (!target.isBlank()) {
+            String match = sources.stream().filter(v -> v.equalsIgnoreCase(target)).findFirst().orElse(null);
+            if (match != null) cmbSource.setValue(match);
+            else if (!sources.isEmpty()) cmbSource.setValue(sources.getFirst());
+        }
     }
 
     private void configureSourceRefresh(){
@@ -390,7 +399,23 @@ public final class QuotationEditorController implements ScreenLifecycle {
         cmbSource.setPromptText(sources.isEmpty()?"No active Source in Master Data":"Select from Master Data...");
         QuotationApiClient.QuoteDto quote=data==null?null:data.quote();
         if(quote!=null){selectQuotationCustomer(quote.customerId(),quote.customer());dpDate.setValue(parse(quote.date()));dpValid.setValue(parse(quote.valid()));dpFollowUp.setValue(parse(quote.followUp()));String savedSource=safe(quote.source()).trim();String activeSource=sources.stream().filter(v->v.equalsIgnoreCase(savedSource)).findFirst().orElse(null);cmbSource.setValue(activeSource!=null?activeSource:(savedSource.isBlank()?null:savedSource));txtRemarks.setText(safe(quote.remarks()));List<QuotationApiClient.LineDto> lines=data.lines()==null?List.of():data.lines();tableLines.getItems().setAll(lines.stream().map(LineRow::new).toList());existingAttachment=safe(quote.attachment());quotationRowVersion=quote.rowVersion();selectedAttachment=null;attachmentRemovalPending=false;lblPageTitle.setText("Edit Quotation");lblPageSubtitle.setText(quote.no()+"  |  "+quote.customer());dirty=false;}
-        else if(pendingEnquirySeed!=null){QuotationEditorContext.EnquirySeed seed=pendingEnquirySeed;pendingEnquirySeed=null;selectQuotationCustomer(seed.customerId(),seed.customerName());String wantedSrc=safe(seed.source()).trim();String matchedSrc=sources.stream().filter(v->v.equalsIgnoreCase(wantedSrc)).findFirst().orElse(null);if(matchedSrc!=null)cmbSource.setValue(matchedSrc);else if(!sources.isEmpty())cmbSource.setValue(sources.getFirst());txtRemarks.setText(safe(seed.remarks()));lblPageTitle.setText("New Quotation (From Enquiry)");lblPageSubtitle.setText(seed.customerName());dirty=true;}
+        else if(pendingEnquirySeed!=null){
+            QuotationEditorContext.EnquirySeed seed=pendingEnquirySeed;
+            pendingEnquirySeed=null;
+            selectQuotationCustomer(seed.customerId(),seed.customerName());
+            desiredSource=safe(seed.source()).trim();
+            String matchedSrc=sources.stream().filter(v->v.equalsIgnoreCase(desiredSource)).findFirst().orElse(null);
+            if(matchedSrc!=null)cmbSource.setValue(matchedSrc);
+            else if(!desiredSource.isBlank()){
+                if(!cmbSource.getItems().contains(desiredSource)) cmbSource.getItems().add(desiredSource);
+                cmbSource.setValue(desiredSource);
+            }
+            else if(!sources.isEmpty())cmbSource.setValue(sources.getFirst());
+            txtRemarks.setText(safe(seed.remarks()));
+            lblPageTitle.setText("New Quotation (From Enquiry)");
+            lblPageSubtitle.setText(seed.customerName());
+            dirty=true;
+        }
         updateAttachmentLabel();updateTotals();tableLines.refresh();org.example.navigation.UnsavedChangesManager.markClean(tableLines);
     }
 

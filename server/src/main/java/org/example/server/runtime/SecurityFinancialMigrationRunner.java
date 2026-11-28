@@ -279,7 +279,9 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_95__sync_superadmin_mfa_flag_to_user_row",
                     "db/migration/V11_0_95__sync_superadmin_mfa_flag_to_user_row.sql"),
             new Migration("V11_0_96__public_enquiries_register",
-                    "db/migration/V11_0_96__public_enquiries_register.sql")
+                    "db/migration/V11_0_96__public_enquiries_register.sql"),
+            new Migration("V11_0_97__user_avatar_support",
+                    "db/migration/V11_0_97__user_avatar_support.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

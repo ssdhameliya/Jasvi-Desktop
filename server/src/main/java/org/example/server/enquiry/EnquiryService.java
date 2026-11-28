@@ -242,7 +242,9 @@ public class EnquiryService {
             args.add("%" + query.toLowerCase(Locale.ROOT) + "%");
         }
         String t = trim(type).toUpperCase(Locale.ROOT);
-        if (!t.isBlank() && !t.startsWith("ALL")) {
+        if ("RFQ_ALL".equals(t) || "ENQUIRIES".equals(t) || "ENQUIRY".equals(t)) {
+            where.append(" AND UPPER(COALESCE(e.enquiry_type, '')) <> 'FEEDBACK'");
+        } else if (!t.isBlank() && !t.startsWith("ALL")) {
             where.append(" AND UPPER(e.enquiry_type) = ?");
             args.add(t);
         }

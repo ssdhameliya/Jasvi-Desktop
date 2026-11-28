@@ -25,10 +25,10 @@ public final class TeamChatPopoutWindow {
         Stage stage = new Stage();
         stage.initModality(Modality.NONE);
         stage.setTitle(("GROUP".equals(channel.channelType()) ? "#" + channel.name() : channel.name()) + " — Jasvi Team Chat");
-        stage.setMinWidth(380);
-        stage.setMinHeight(460);
-        stage.setWidth(440);
-        stage.setHeight(580);
+        stage.setMinWidth(440);
+        stage.setMinHeight(520);
+        stage.setWidth(520);
+        stage.setHeight(660);
         SceneManager.applyStageIcon(stage);
 
         final TeamChatWindowPane[] holder = new TeamChatWindowPane[1];
