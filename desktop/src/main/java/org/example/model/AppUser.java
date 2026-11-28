@@ -16,6 +16,7 @@ public class AppUser {
     private boolean locked;
     private boolean mfaEnabled;
     private boolean forcePasswordChange;
+    private String avatarData;
 
     public int getId() {
         return id;
@@ -95,4 +96,6 @@ public class AppUser {
     public void setMfaEnabled(boolean value) { mfaEnabled = value; }
     public boolean isForcePasswordChange() { return forcePasswordChange; }
     public void setForcePasswordChange(boolean value) { forcePasswordChange = value; }
+    public String getAvatarData() { return avatarData; }
+    public void setAvatarData(String value) { avatarData = value; }
 }

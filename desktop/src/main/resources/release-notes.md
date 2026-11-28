@@ -1,3 +1,13 @@
+# What's New in DSE ERP v11.0.85
+
+### 2-Tab Enquiries & Feedback Register, User Profile Avatars & Expanded Team Chat
+- **Separated Website Enquiries & Client Feedback Tabs (`EnquiriesList.fxml`, `EnquiriesController.java`, `EnquiryService.java`)**:
+  - Split `EnquiriesList` into two dedicated tabs — **Enquiries & RFQs** and **Client Feedback & Ratings** — with full-width proportional tables, star ratings, modal inspection dialogs, and standardized multi-option Actions menus (including Quotation conversion, WhatsApp, and Email reply).
+  - Fixed `/api/public/enquiry-view` public security whitelist, WhatsApp Company Phone fallback (`EnquiryNotificationDispatcher`), Quotation `Source` pre-selection (`QuotationEditorController`), and technical spec fields on `Jasvi-UserView` (`contact.html`).
+- **User Profile Picture Upload, Top Header Avatar & Team Chat Display (`V11_0_97`, `Profile.fxml`, `ProfileController.java`, `DashboardController.java`, `TeamChatRosterPopup.java`)**:
+  - Added PNG/JPG profile photo upload & removal in **My Profile** (`PUT /api/profile/avatar`, `DELETE /api/profile/avatar`) with automatic 256×256 square cropping, PostgreSQL persistence, circular top-bar user dropdown avatar, and live Team Chat directory/conversation avatar sync.
+  - Expanded `TeamChatRosterPopup` (`720×680`), docked chat panels, and detached pop-out windows for comfortable multi-channel visibility.
+
 # What's New in DSE ERP v11.0.84
 
 ### Dynamic Website Enquiry Pipeline, Lookup Numbering & Mobile Quick-View (`Jasvi-UserView` Integration)

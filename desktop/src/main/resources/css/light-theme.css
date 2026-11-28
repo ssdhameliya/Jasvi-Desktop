@@ -21924,12 +21924,12 @@
 }
 
 .chat-window-docked {
-    -fx-pref-width: 345px;
-    -fx-min-width: 320px;
-    -fx-max-width: 360px;
-    -fx-pref-height: 445px;
-    -fx-min-height: 360px;
-    -fx-max-height: 470px;
+    -fx-pref-width: 390px;
+    -fx-min-width: 350px;
+    -fx-max-width: 420px;
+    -fx-pref-height: 510px;
+    -fx-min-height: 400px;
+    -fx-max-height: 560px;
 }
 
 .chat-window-popout {

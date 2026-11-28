@@ -1,8 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?import javafx.geometry.Insets?><?import javafx.scene.control.*?><?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?><?import javafx.scene.control.*?><?import javafx.scene.image.ImageView?><?import javafx.scene.layout.*?>
 <ScrollPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml" fx:controller="org.example.controller.ProfileController" fitToWidth="true" styleClass="approved-ui,approved-screen,approved-screen-profile,erp-screen-root,profile-scroll"><content>
 <VBox spacing="16" styleClass="profile-page"><padding><Insets top="14" right="14" bottom="14" left="14"/></padding>
- <HBox alignment="CENTER_LEFT" spacing="14" styleClass="profile-hero"><StackPane minWidth="72" minHeight="72" styleClass="profile-avatar"><Label fx:id="lblInitials" text="U" styleClass="profile-avatar-text"/></StackPane><VBox spacing="3" HBox.hgrow="ALWAYS"><Label fx:id="lblName" text="My Profile" styleClass="screen-title"/><Label text="Manage your personal account details and security" styleClass="screen-subtitle"/><HBox spacing="8"><Label fx:id="lblRole" styleClass="profile-chip"/><Label fx:id="lblStatus" styleClass="profile-chip,profile-status"/></HBox></VBox><Button fx:id="btnSave" text="Save Profile" onAction="#saveProfile" styleClass="primary-button"/></HBox>
+ <HBox alignment="CENTER_LEFT" spacing="14" styleClass="profile-hero">
+  <StackPane minWidth="72" minHeight="72" prefWidth="72" prefHeight="72" maxWidth="72" maxHeight="72" styleClass="profile-avatar">
+   <Label fx:id="lblInitials" text="U" styleClass="profile-avatar-text"/>
+   <ImageView fx:id="imgAvatar" fitWidth="72" fitHeight="72" preserveRatio="false" visible="false" managed="false"/>
+  </StackPane>
+  <VBox spacing="4" HBox.hgrow="ALWAYS">
+   <Label fx:id="lblName" text="My Profile" styleClass="screen-title"/>
+   <Label text="Manage your personal account details, profile picture and security" styleClass="screen-subtitle"/>
+   <HBox spacing="8" alignment="CENTER_LEFT">
+    <Label fx:id="lblRole" styleClass="profile-chip"/>
+    <Label fx:id="lblStatus" styleClass="profile-chip,profile-status"/>
+    <Button fx:id="btnUploadPhoto" text="Upload Photo" onAction="#uploadPhoto" styleClass="approved-button,approved-secondary-button"/>
+    <Button fx:id="btnRemovePhoto" text="Remove Photo" onAction="#removePhoto" visible="false" managed="false" styleClass="approved-button,approved-danger-button"/>
+   </HBox>
+  </VBox>
+  <Button fx:id="btnSave" text="Save Profile" onAction="#saveProfile" styleClass="primary-button"/>
+ </HBox>
  <HBox spacing="16"><VBox spacing="12" HBox.hgrow="ALWAYS" styleClass="flow-card,profile-card"><Label text="Personal Details" styleClass="section-title"/><GridPane hgap="14" vgap="10"><columnConstraints><ColumnConstraints percentWidth="50"/><ColumnConstraints percentWidth="50"/></columnConstraints><VBox spacing="5"><Label text="Full Name *"/><TextField fx:id="txtFullName" promptText="Full name"/></VBox><VBox spacing="5" GridPane.columnIndex="1"><Label text="Email *"/><TextField fx:id="txtEmail" promptText="Email address"/></VBox><VBox spacing="5" GridPane.rowIndex="1"><Label text="Phone Number"/><TextField fx:id="txtPhone" promptText="Mobile / Phone number"/></VBox><VBox spacing="5" GridPane.columnIndex="1" GridPane.rowIndex="1"><Label text="Department"/><TextField fx:id="txtDepartment" promptText="Department"/></VBox><VBox spacing="5" GridPane.rowIndex="2"><Label text="Branch"/><TextField fx:id="txtBranch" promptText="Branch"/></VBox></GridPane></VBox>
  <VBox spacing="10" prefWidth="360" styleClass="flow-card,profile-card"><Label text="Account Overview" styleClass="section-title"/><Label text="Username" styleClass="field-caption"/><Label fx:id="lblUsername"/><Label text="Access Level" styleClass="field-caption"/><Label fx:id="lblAccessLevel"/><Label text="Last Login" styleClass="field-caption"/><Label fx:id="lblLastLogin"/><Label text="MFA" styleClass="field-caption"/><Label fx:id="lblMfa"/></VBox></HBox>
  <VBox spacing="12" styleClass="flow-card,profile-card"><Label text="Change Password" styleClass="section-title"/><Label text="Confirm your current password, then use at least 8 characters with a letter and a number." styleClass="screen-subtitle"/><HBox spacing="12"><PasswordField fx:id="txtCurrentPassword" promptText="Current password" HBox.hgrow="ALWAYS"/><PasswordField fx:id="txtNewPassword" promptText="New password" HBox.hgrow="ALWAYS"/><PasswordField fx:id="txtConfirmPassword" promptText="Confirm new password" HBox.hgrow="ALWAYS"/><Button fx:id="btnPassword" text="Update Password" onAction="#changePassword" styleClass="secondary-button"/></HBox></VBox>

@@ -42,9 +42,12 @@ public final class AuthDtos { private AuthDtos() {}
  }
  public record RoleOption(String code,String displayName){}
  public record EffectivePermission(String module,String action,String description){}
- public record UserPayload(int id,String username,String fullName,String role,Integer roleId,String email,String phone,boolean active,String department,String branch,String accessLevel,boolean locked,boolean mfaEnabled,boolean forcePasswordChange){
+ public record UserPayload(int id,String username,String fullName,String role,Integer roleId,String email,String phone,boolean active,String department,String branch,String accessLevel,boolean locked,boolean mfaEnabled,boolean forcePasswordChange,String avatarData){
+     public UserPayload(int id,String username,String fullName,String role,Integer roleId,String email,String phone,boolean active,String department,String branch,String accessLevel,boolean locked,boolean mfaEnabled,boolean forcePasswordChange) {
+         this(id,username,fullName,role,roleId,email,phone,active,department,branch,accessLevel,locked,mfaEnabled,forcePasswordChange,"");
+     }
      public UserPayload(int id,String username,String fullName,String role,Integer roleId,String email,String phone,boolean active,String department,String branch,String accessLevel,boolean locked,boolean mfaEnabled) {
-         this(id,username,fullName,role,roleId,email,phone,active,department,branch,accessLevel,locked,mfaEnabled,false);
+         this(id,username,fullName,role,roleId,email,phone,active,department,branch,accessLevel,locked,mfaEnabled,false,"");
      }
  }
  public record SessionExtendResponse(boolean success,String message,String accessToken,String expiresAt){}

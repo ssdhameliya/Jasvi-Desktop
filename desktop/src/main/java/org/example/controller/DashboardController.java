@@ -994,7 +994,31 @@ public class DashboardController implements ScreenLifecycle {
         UiActionIcons.apply(btnEmailCenter, "email", "Email centre");
         if (btnSystemDiagnostics != null) UiActionIcons.apply(btnSystemDiagnostics, "diagnostic", "System Logs & Application Diagnostics");
         UiActionIcons.apply(menuUser, "user", "User menu");
+        refreshUserMenuAvatar();
         updateThemeButton();
+    }
+
+    public static void refreshCurrentUserAvatar() {
+        DashboardController ctrl = CURRENT;
+        if (ctrl != null) {
+            Platform.runLater(ctrl::refreshUserMenuAvatar);
+        }
+    }
+
+    private void refreshUserMenuAvatar() {
+        if (menuUser == null) return;
+        var current = SessionService.current();
+        if (current != null && current.getFullName() != null && !current.getFullName().isBlank()) {
+            menuUser.setText(current.getFullName());
+        }
+        Node avatar = current == null ? null : org.example.util.AvatarViewSupport.createCircularAvatar(current.getAvatarData(), 24.0);
+        if (avatar != null) {
+            menuUser.setGraphic(avatar);
+            menuUser.setContentDisplay(javafx.scene.control.ContentDisplay.LEFT);
+            menuUser.setGraphicTextGap(8);
+        } else {
+            UiActionIcons.apply(menuUser, "user", "User menu");
+        }
     }
 
     @FXML

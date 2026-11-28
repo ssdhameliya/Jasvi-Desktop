@@ -51,9 +51,9 @@ public final class TeamChatRosterPopup {
         popup.setHideOnEscape(true);
 
         root.getStyleClass().add("chat-roster-popup");
-        root.setPrefWidth(560);
-        root.setPrefHeight(560);
-        root.setMaxHeight(620);
+        root.setPrefWidth(720);
+        root.setPrefHeight(680);
+        root.setMaxHeight(780);
         root.setPadding(new Insets(16));
 
         // Header
@@ -160,8 +160,8 @@ public final class TeamChatRosterPopup {
         renderDirectory();
 
         Rectangle2D screen = WindowUtilsFx.visualBoundsFor(ownerWin);
-        double popW = Math.max(460.0, Math.min(560.0, screen.getWidth() - 32.0));
-        double popH = Math.max(440.0, Math.min(560.0, screen.getHeight() * 0.68));
+        double popW = Math.max(580.0, Math.min(720.0, screen.getWidth() * 0.60));
+        double popH = Math.max(540.0, Math.min(720.0, screen.getHeight() * 0.78));
         root.setMinWidth(popW);
         root.setPrefWidth(popW);
         root.setMaxWidth(popW);
@@ -279,12 +279,18 @@ public final class TeamChatRosterPopup {
     }
 
     private HBox buildUserRow(PresenceDto user, ChannelSummaryDto existingDm) {
-        Label initials = new Label(initialsOf(user.fullName()));
-        initials.getStyleClass().add("chat-avatar-initials");
+        Node photoNode = org.example.util.AvatarViewSupport.createCircularAvatar(user.avatarData(), 38.0);
         Circle dot = new Circle(5.5);
         dot.getStyleClass().setAll("chat-presence-dot", TeamChatManager.presenceCssClass(user.status()));
         StackPane.setAlignment(dot, Pos.BOTTOM_RIGHT);
-        StackPane avatar = new StackPane(initials, dot);
+        StackPane avatar;
+        if (photoNode != null) {
+            avatar = new StackPane(photoNode, dot);
+        } else {
+            Label initials = new Label(initialsOf(user.fullName()));
+            initials.getStyleClass().add("chat-avatar-initials");
+            avatar = new StackPane(initials, dot);
+        }
         avatar.getStyleClass().add("chat-roster-avatar");
 
         Label name = new Label(user.fullName());

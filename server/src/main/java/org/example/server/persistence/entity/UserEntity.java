@@ -30,6 +30,7 @@ public class UserEntity {
     @Column(name = "approval_status", nullable = false) private String approvalStatus = "APPROVED";
     @Column(name = "last_password_reset_utc") private String lastPasswordResetUtc;
     @Column(name = "force_password_change", nullable = false) private Integer forcePasswordChange = 0;
+    @Column(name = "avatar_data") private String avatarData;
 
     public Integer getId() { return id; }
     public String getUsername() { return username; }
@@ -53,6 +54,8 @@ public class UserEntity {
     public void setLastPasswordResetUtc(String value) { this.lastPasswordResetUtc = value; }
     public boolean isForcePasswordChange() { return Integer.valueOf(1).equals(forcePasswordChange); }
     public void setForcePasswordChange(boolean force) { this.forcePasswordChange = force ? 1 : 0; }
+    public String getAvatarData() { return avatarData; }
+    public void setAvatarData(String avatarData) { this.avatarData = avatarData; }
 
     public String getFullName() { return fullName; }
     public String getRoleName() { return role; }

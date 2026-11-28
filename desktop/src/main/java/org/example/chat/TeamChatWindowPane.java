@@ -61,6 +61,7 @@ public final class TeamChatWindowPane extends VBox {
     private String pendingDocType;
     private String pendingDocNo;
 
+    private final StackPane avatarWrap = new StackPane();
     private final Circle statusDot = new Circle(5);
     private final Label lblTitle = new Label();
     private final Label lblSubtitle = new Label();
@@ -230,26 +231,45 @@ public final class TeamChatWindowPane extends VBox {
     }
 
     private StackPane buildChannelAvatar() {
-        StackPane wrap = new StackPane();
-        wrap.getStyleClass().add("chat-avatar-wrap");
+        avatarWrap.getStyleClass().setAll("chat-avatar-wrap");
+        refreshChannelAvatarNodes();
+        return avatarWrap;
+    }
 
+    private void refreshChannelAvatarNodes() {
         if ("DIRECT".equals(channel.channelType())) {
-            Label initials = new Label(initialsOf(channel.name()));
-            initials.getStyleClass().add("chat-avatar-initials");
+            String avatarData = resolvePeerAvatarData();
+            Node photo = org.example.util.AvatarViewSupport.createCircularAvatar(avatarData, 32.0);
             statusDot.getStyleClass().setAll("chat-presence-dot", TeamChatManager.presenceCssClass(channel.peerStatus()));
             StackPane.setAlignment(statusDot, Pos.BOTTOM_RIGHT);
-            wrap.getChildren().addAll(initials, statusDot);
+            if (photo != null) {
+                avatarWrap.getChildren().setAll(photo, statusDot);
+            } else {
+                Label initials = new Label(initialsOf(channel.name()));
+                initials.getStyleClass().add("chat-avatar-initials");
+                avatarWrap.getChildren().setAll(initials, statusDot);
+            }
         } else if ("ADMIN_SUPPORT".equals(channel.channelType())) {
             Node icon = IconFactory.compactIcon("shield", 15);
-            wrap.getStyleClass().add("chat-avatar-support");
-            wrap.getChildren().add(icon);
+            avatarWrap.getStyleClass().add("chat-avatar-support");
+            avatarWrap.getChildren().setAll(icon);
         } else {
             Label hash = new Label("#");
             hash.getStyleClass().add("chat-avatar-hash");
-            wrap.getStyleClass().add("chat-avatar-group");
-            wrap.getChildren().add(hash);
+            avatarWrap.getStyleClass().add("chat-avatar-group");
+            avatarWrap.getChildren().setAll(hash);
         }
-        return wrap;
+    }
+
+    private String resolvePeerAvatarData() {
+        DirectoryResponse dir = manager.latestDirectory();
+        if (dir == null || channel.peerUserId() == null) return "";
+        for (PresenceDto u : dir.users()) {
+            if (u.userId() == channel.peerUserId()) {
+                return u.avatarData() == null ? "" : u.avatarData();
+            }
+        }
+        return "";
     }
 
     private void updateHeaderText() {
@@ -261,6 +281,7 @@ public final class TeamChatWindowPane extends VBox {
         }
 
         if ("DIRECT".equals(channel.channelType())) {
+            refreshChannelAvatarNodes();
             statusDot.getStyleClass().setAll("chat-presence-dot", TeamChatManager.presenceCssClass(channel.peerStatus()));
             String stLabel = TeamChatManager.presenceLabel(channel.peerStatus());
             String note = channel.peerCustomNote();

@@ -74,17 +74,54 @@ public class EnquiryNotificationDispatcher {
         BusinessWhatsappService wa = whatsappProvider.getIfAvailable();
         if (wa == null) return;
 
+        Set<String> targetPhones = new LinkedHashSet<>();
+        for (AdminRecipient admin : admins) {
+            String p = safe(admin.phone()).trim();
+            if (!p.isBlank()) targetPhones.add(p);
+        }
+        if (targetPhones.isEmpty()) {
+            targetPhones.addAll(resolveFallbackAdminPhones());
+        }
+        if (targetPhones.isEmpty()) {
+            log.warn("WhatsApp alert for {} skipped: no admin phone or company phone configured.", e.enquiryNo());
+            return;
+        }
+
         Set<String> sentPhones = new LinkedHashSet<>();
         String body = buildWhatsappMessage(e, mobileUrl);
-        for (AdminRecipient admin : admins) {
-            String phone = safe(admin.phone());
-            if (phone.isBlank() || !sentPhones.add(normalizeDigits(phone))) continue;
+        for (String phone : targetPhones) {
+            if (!sentPhones.add(normalizeDigits(phone))) continue;
             try {
                 wa.sendText(new WahaDtos.TextSendRequest(phone, body, null));
             } catch (Exception ex) {
-                log.warn("WhatsApp alert skipped/failed for admin {} ({}): {}", admin.username(), e.enquiryNo(), ex.getMessage());
+                log.warn("WhatsApp alert failed for {} ({}): {}", phone, e.enquiryNo(), ex.getMessage());
+                try {
+                    jdbc.update("INSERT INTO communication_log (entity_type, entity_id, channel, recipient, subject, status, error_message, created_by, created_at) " +
+                            "VALUES ('ENQUIRY', ?, 'WHATSAPP', ?, ?, 'FAILED', ?, 'SYSTEM', ?)",
+                            e.enquiryId(), phone, "Enquiry Alert: " + e.enquiryNo(), ex.getMessage(), org.example.server.util.BusinessClock.nowUtcText());
+                } catch (Exception ignored) {}
             }
         }
+    }
+
+    private List<String> resolveFallbackAdminPhones() {
+        Set<String> phones = new LinkedHashSet<>();
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT setting_value FROM application_setting WHERE setting_key IN ('whatsapp.alert.recipient', 'notification.admin_phone', 'company.phone') AND TRIM(setting_value) <> ''");
+            for (Map<String, Object> r : rows) {
+                String val = Objects.toString(r.get("setting_value"), "").trim();
+                if (!val.isBlank()) phones.add(val);
+            }
+        } catch (Exception ignored) {}
+        try {
+            List<Map<String, Object>> comp = jdbc.queryForList("SELECT COALESCE(phone, '') AS phone FROM company_profile WHERE TRIM(COALESCE(phone, '')) <> '' LIMIT 1");
+            if (!comp.isEmpty()) {
+                String val = Objects.toString(comp.getFirst().get("phone"), "").trim();
+                if (!val.isBlank()) phones.add(val);
+            }
+        } catch (Exception ignored) {}
+        return List.copyOf(phones);
     }
 
     private void dispatchEmailAlerts(EnquiryDtos.EnquirySubmittedEvent e, List<AdminRecipient> admins, String mobileUrl) {
