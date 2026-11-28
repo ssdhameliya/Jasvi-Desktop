@@ -223,6 +223,8 @@ public class AdminService {
     @Transactional(readOnly = true)
     public List<AdminDtos.UserDto> users() {
         boolean superAdmin = isSuperAdminCaller();
+        boolean saMfaEnabled = isSuperAdminMfaEnabled();
+        String policy = mfaPolicy();
         return jdbc.query("SELECT u.id,u.username,u.full_name,u.email,u.phone,COALESCE(NULLIF(TRIM(u.role),''),'SALES')," +
                         "u.department,u.access_level,u.branch,u.active,u.locked,u.mfa_enabled,COALESCE(NULLIF(u.last_login_utc,''),CAST(u.last_login AS text)),COALESCE(u.row_version,0)," +
                         "CASE WHEN COALESCE(u.mfa_enabled,0) = 0 THEN 'DISABLED' " +
@@ -230,10 +232,20 @@ public class AdminService {
                         "OR EXISTS(SELECT 1 FROM auth_totp_enrollment_pending p WHERE p.user_id = u.id) THEN 'PENDING_SETUP' " +
                         "ELSE 'ACTIVE' END AS mfa_status " +
                         "FROM users u ORDER BY u.full_name,u.username",
-                (row, index) -> new AdminDtos.UserDto(row.getInt(1), row.getString(2), row.getString(3), row.getString(4),
-                        row.getString(5), row.getString(6), row.getString(7), row.getString(8), row.getString(9), flag(row.getObject(10)),
-                        flag(row.getObject(11)), flag(row.getObject(12)), BusinessClock.toUtcText(row.getObject(13)), row.getLong(14),
-                        row.getString(15)))
+                (row, index) -> {
+                    String username = row.getString(2);
+                    String role = row.getString(6);
+                    boolean rawMfa = flag(row.getObject(12));
+                    String rawStatus = row.getString(15);
+                    boolean effectiveEnabled = effectiveMfa(role, username, rawMfa, saMfaEnabled, policy);
+                    String effectiveStatus = !effectiveEnabled
+                            ? "DISABLED"
+                            : ("ACTIVE".equalsIgnoreCase(rawStatus) ? "ACTIVE" : "PENDING_SETUP");
+                    return new AdminDtos.UserDto(row.getInt(1), username, row.getString(3), row.getString(4),
+                            row.getString(5), role, row.getString(7), row.getString(8), row.getString(9), flag(row.getObject(10)),
+                            flag(row.getObject(11)), effectiveEnabled, BusinessClock.toUtcText(row.getObject(13)), row.getLong(14),
+                            effectiveStatus);
+                })
                 .stream()
                 .filter(u -> superAdmin || (!"SUPER_ADMIN".equalsIgnoreCase(u.role()) && !"superadmin".equalsIgnoreCase(u.username())))
                 .toList();
@@ -338,16 +350,21 @@ public class AdminService {
         if (request.id() == null && (phone == null || phone.isBlank()))
             throw new IllegalArgumentException("Phone number is required");
         validateUniqueIdentity(request);
-        boolean enforcedMfa = effectiveMfa(assignedRole, request.mfaEnabled());
+        boolean isTargetSuperAdmin = "SUPER_ADMIN".equalsIgnoreCase(assignedRole) || "superadmin".equalsIgnoreCase(request.username());
+        if (request.id() == null && !isSuperAdminCaller() && isTargetSuperAdmin) {
+            throw new SecurityException("Access denied: Only Super Admin can create superadmin accounts");
+        }
+        if (isTargetSuperAdmin && isSuperAdminCaller()) {
+            jdbc.update("INSERT INTO application_setting(setting_key,setting_value,updated_at) VALUES('security.superadmin.mfa.enabled',?,?) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=excluded.updated_at",
+                    request.mfaEnabled() ? "YES" : "NO", BusinessClock.nowUtcText());
+        }
+        boolean enforcedMfa = effectiveMfa(assignedRole, request.username(), request.mfaEnabled(), isSuperAdminMfaEnabled(), mfaPolicy());
         String encoded = null;
         if (request.id() == null || (request.password() != null && !request.password().isBlank())) {
             validatePassword(request.password());
             encoded = passwords.encode(request.password());
         }
         if (request.id() == null) {
-            if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(assignedRole) || "superadmin".equalsIgnoreCase(request.username()))) {
-                throw new SecurityException("Access denied: Only Super Admin can create superadmin accounts");
-            }
             jdbc.update("INSERT INTO users(username,password,full_name,role,role_id,email,phone,active,locked,lock_reason,mfa_enabled,department,branch,access_level) " +
                             "VALUES(?,?,?,?,NULL,?,?,?,?,?,?,?,?,?)",
                     request.username().trim(), encoded, clean(request.fullName()), assignedRole,
@@ -419,9 +436,10 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public AdminDtos.MfaState mfaState(int id) {
-        Map<String,Object> row=jdbc.queryForMap("SELECT COALESCE(role,'') role,COALESCE(mfa_enabled,0) mfa_enabled,COALESCE(totp_secret_enc,'') totp_secret_enc FROM users WHERE id=?",id);
+        Map<String,Object> row=jdbc.queryForMap("SELECT COALESCE(role,'') role,COALESCE(username,'') username,COALESCE(mfa_enabled,0) mfa_enabled,COALESCE(totp_secret_enc,'') totp_secret_enc FROM users WHERE id=?",id);
         String role=String.valueOf(row.get("role"));
-        boolean required=effectiveMfa(role,flag(row.get("mfa_enabled")));
+        String username=String.valueOf(row.getOrDefault("username", ""));
+        boolean required=effectiveMfa(role,username,flag(row.get("mfa_enabled")),isSuperAdminMfaEnabled(),mfaPolicy());
         if(!required)return new AdminDtos.MfaState(false,"DISABLED","Authenticator is not required under the current policy.");
         Long pending=jdbc.queryForObject("SELECT COUNT(*) FROM auth_totp_enrollment_pending WHERE user_id=?",Long.class,id);
         String secret=String.valueOf(row.get("totp_secret_enc"));
@@ -432,12 +450,13 @@ public class AdminService {
 
     @Transactional
     public AdminDtos.MfaState resetAuthenticator(int id) {
-        Map<String,Object> row=jdbc.queryForMap("SELECT COALESCE(role,'') role,COALESCE(mfa_enabled,0) mfa_enabled FROM users WHERE id=? FOR UPDATE",id);
+        Map<String,Object> row=jdbc.queryForMap("SELECT COALESCE(role,'') role,COALESCE(username,'') username,COALESCE(mfa_enabled,0) mfa_enabled FROM users WHERE id=? FOR UPDATE",id);
         String role=String.valueOf(row.get("role"));
-        if (!isSuperAdminCaller() && "SUPER_ADMIN".equalsIgnoreCase(role)) {
+        String username=String.valueOf(row.getOrDefault("username", ""));
+        if (!isSuperAdminCaller() && ("SUPER_ADMIN".equalsIgnoreCase(role) || "superadmin".equalsIgnoreCase(username))) {
             throw new SecurityException("Access denied: Only Super Admin can modify the superadmin account");
         }
-        boolean required=effectiveMfa(role,flag(row.get("mfa_enabled")));
+        boolean required=effectiveMfa(role,username,flag(row.get("mfa_enabled")),isSuperAdminMfaEnabled(),mfaPolicy());
         if(!required)throw new IllegalStateException("Authenticator is not required for this user under the current MFA policy.");
         jdbc.update("UPDATE users SET totp_secret_enc=NULL,mfa_failed_attempts=0,row_version=row_version+1 WHERE id=?",id);
         jdbc.update("DELETE FROM auth_totp_enrollment_pending WHERE user_id=?",id);
@@ -575,10 +594,27 @@ public class AdminService {
     }
 
     private boolean effectiveMfa(String role, boolean requested) {
-        String policy=mfaPolicy();
+        return effectiveMfa(role, null, requested, isSuperAdminMfaEnabled(), mfaPolicy());
+    }
+
+    private boolean effectiveMfa(String role, String username, boolean requested, boolean saMfaEnabled, String policy) {
+        String r = role == null ? "" : role.trim().toUpperCase(java.util.Locale.ROOT).replace(' ', '_');
+        if ("SUPER_ADMIN".equals(r) || "superadmin".equalsIgnoreCase(username)) return saMfaEnabled;
         if ("DISABLED".equals(policy)) return false;
-        if ("ADMIN_CONTROLLED".equals(policy)) return requested;
-        return !"ADMIN".equalsIgnoreCase(role==null?"":role.trim());
+        if ("REQUIRED".equals(policy)) return true;
+        if ("ADMIN".equals(r)) return false;
+        return requested;
+    }
+
+    private boolean isSuperAdminMfaEnabled() {
+        try {
+            String value = jdbc.queryForObject("SELECT setting_value FROM application_setting WHERE setting_key='security.superadmin.mfa.enabled'", String.class);
+            if (value == null) return false;
+            String normalized = value.trim().toUpperCase(java.util.Locale.ROOT);
+            return "YES".equals(normalized) || "TRUE".equals(normalized) || "1".equals(normalized);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private String mfaPolicy() {

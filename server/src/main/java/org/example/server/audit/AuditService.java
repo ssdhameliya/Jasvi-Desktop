@@ -143,6 +143,10 @@ public class AuditService {
             case "RECON_SUPPLIER"->jdbc.queryForObject("SELECT recon_supplier_ref FROM recon_supplier WHERE id=?",String.class,id);
             case "MASTER_LOOKUP"->jdbc.queryForObject("SELECT CONCAT(lookup_type,':',lookup_code) FROM lookup_master WHERE id=?",String.class,id);
             case "MASTER_CATEGORY"->jdbc.queryForObject("SELECT category_code FROM master_category WHERE id=?",String.class,id);
+            case "BANK_STATEMENT"->jdbc.queryForObject("SELECT transaction_reference FROM bank_statement_transaction WHERE id=?",String.class,id);
+            case "LICENSE"->jdbc.queryForObject("SELECT COALESCE(NULLIF(machine_id,''), company_name) FROM licensed_client_registry WHERE id=?",String.class,id);
+            case "EXPENSE"->jdbc.queryForObject("SELECT voucher_no FROM finance_register WHERE id=?",String.class,id);
+            case "COMMUNICATION"->jdbc.queryForObject("SELECT COALESCE(NULLIF(reference_no,''), recipient_to) FROM email_outbox WHERE id=?",String.class,id);
             default->null;
         };}catch(Exception ignored){return null;}
     }

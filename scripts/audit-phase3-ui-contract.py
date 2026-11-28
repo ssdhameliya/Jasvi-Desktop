@@ -24,7 +24,7 @@ check('table headers distinguish single and multi-word wrapping', 'erp-table-hea
 check('wrapped header label can shrink inside column', 'title.setMinWidth(0);' in icons and 'HBox.setHgrow(title, Priority.ALWAYS);' in icons)
 settings_files = [FXML / 'pages/settings/CompanySettingsPanel.fxml', FXML / 'pages/settings/InvoiceSettingsPanel.fxml', FXML / 'pages/settings/PaymentSettingsPanel.fxml']
 combined = '\n'.join((p.read_text(encoding='utf-8') for p in settings_files))
-check('settings asset controls use wrapping action rows', combined.count('styleClass="settings-asset-actions"') == 5, str(combined.count('styleClass="settings-asset-actions"')))
+check('settings asset controls use wrapping action rows', combined.count('styleClass="settings-asset-actions"') == 6, str(combined.count('styleClass="settings-asset-actions"')))
 check('legacy non-wrapping asset action rows removed', not re.search('<HBox spacing="8">\\s*<Button text="Add / Replace"', combined, re.S))
 theme_css_files = [CSS / 'dark-theme.css', CSS / 'light-theme.css']
 for theme in theme_css_files:

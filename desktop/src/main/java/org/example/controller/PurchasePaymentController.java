@@ -452,12 +452,27 @@ public final class PurchasePaymentController implements ScreenLifecycle {
             );
             String body = formatted.body();
 
+            String payDate = row.date() == null ? BusinessClock.formatDate(LocalDate.now()) : row.date();
+            String payRef = row.reference() == null || row.reference().isBlank() ? "-" : row.reference();
+            var richCtx = MessageTemplateService.RichEmailContext.forSettlement(
+                    partyName,
+                    payDate,
+                    purchase.getBillingGstin(),
+                    row.mode(),
+                    payRef,
+                    purchase.getInvoiceNo(),
+                    purchase.getSubtotal(),
+                    purchase.getGstAmount(),
+                    purchase.getGstType(),
+                    MessageTemplateService.RichEmailContext.forPurchase(purchase).lineItems()
+            );
+
             String html = MessageTemplateService.formatExecutiveHtmlEmail(
                     "Remittance Advice",
                     balance <= 0.009 ? "SETTLED" : "PARTIAL",
                     docNo,
-                    row.date() == null ? BusinessClock.formatDate(LocalDate.now()) : row.date(),
-                    recipient.isBlank() ? partyName : recipient,
+                    payDate,
+                    partyName,
                     total,
                     paid,
                     balance,
@@ -466,11 +481,12 @@ public final class PurchasePaymentController implements ScreenLifecycle {
                     ourBankName,
                     ourAccNo,
                     ourIfsc,
-                    "Live Electronic Settlement Verification",
-                    row.reference() == null || row.reference().isBlank() ? "-" : row.reference(),
+                    partyName,
+                    payRef,
                     statusUrl,
                     true,
-                    sigBase64
+                    sigBase64,
+                    richCtx
             );
 
             Path tempHtml = Files.createTempFile("dse-payment-email-preview-", ".html");

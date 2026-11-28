@@ -514,7 +514,11 @@ public final class AuthApiClient {
         public PasswordResetOtpRequest(String identity) { this(identity, null, null); }
     }
     public record PasswordResetCompleteRequest(String challengeId,String otp,String totp,String password) {}
-    public record ChallengeResponse(boolean success, String challengeId, String message) {}
+    public record ChallengeResponse(boolean success, String challengeId, String message, boolean totpRequired) {
+        public ChallengeResponse(boolean success, String challengeId, String message) {
+            this(success, challengeId, message, false);
+        }
+    }
     public record LoginMfaChallengeResponse(boolean success, String challengeId, String message,
                                             String maskedDestination) {}
     public record LoginResponse(boolean success, UserPayload user, String message, String accessToken, String expiresAt,

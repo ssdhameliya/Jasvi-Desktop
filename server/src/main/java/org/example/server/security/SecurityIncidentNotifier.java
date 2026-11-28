@@ -209,20 +209,45 @@ public class SecurityIncidentNotifier {
         tokens.put("UnlockUrl", unlockUrl);
         tokens.put("ResetUrl", resetUrl);
 
-        var rendered = templates.renderEmail(
+        var rendered = templates.renderRichEmail(
                 "security_lock_superadmin",
                 tokens,
-                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
                         "#b91c1c", "#991b1b",
-                        "Ticket #" + ticketId + " • CRITICAL PRIORITY",
+                        "SECURITY SENTINEL • CRITICAL PRIORITY",
+                        "ACCOUNT LOCKED",
+                        "#dc2626",
                         "🚨 Security Incident: Administrator Account Locked",
+                        "Ticket #" + ticketId + " • Immediate administrative review required",
+                        "URGENT Security Incident Ticket #" + ticketId + ": " + username + " account locked (" + reason + ")",
+                        List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("TICKET ID", ticketId),
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("TARGET USER", username),
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("CLIENT IP", ip, "#dc2626")
+                        ),
+                        List.of(
+                                org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                                        "Incident & Administrator Profile",
+                                        "#b91c1c",
+                                        List.of(
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Ticket Reference", ticketId, true),
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Administrator", adminName + " (" + username + ")", false),
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Contact", email + " | " + phone, false),
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Branch / Dept", branch + " / " + department, false),
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Lockout Reason", reason, false, "#b91c1c", "#fee2e2"),
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Source IP", ip, true),
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Detected At", timestamp, true)
+                                        )
+                                )
+                        ),
                         List.of(
                                 new org.example.shared.communication.TokenTemplateEngine.ActionButton(
                                         "🔓 Unlock Admin Account (Preserve Existing Password)", unlockUrl, "#2563eb"),
                                 new org.example.shared.communication.TokenTemplateEngine.ActionButton(
                                         "🔑 Unlock & Reset to Secure Temporary Password", resetUrl, "#d97706")
                         ),
-                        brand + " Autonomous Security Sentinel • Single-use cryptographic tokens (24h expiry)."
+                        brand + " Autonomous Security Sentinel • Single-use cryptographic tokens (24h expiry).",
+                        null
                 )
         );
 
@@ -276,16 +301,37 @@ public class SecurityIncidentNotifier {
         tokens.put("Timestamp", timestamp);
         tokens.put("StatusUrl", statusUrl);
 
-        var rendered = templates.renderEmail(
+        var rendered = templates.renderRichEmail(
                 "security_lock_admin",
                 tokens,
-                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
                         "#d97706", "#b45309",
-                        "Incident Reference Ticket #" + ticketId,
+                        "ACCOUNT SECURITY ADVISORY",
+                        "LOCKED",
+                        "#b45309",
                         "⚠️ Administrator Account Security Lockout",
+                        "Incident Reference Ticket #" + ticketId,
+                        "Your " + brand + " administrator account was locked (Ticket #" + ticketId + ")",
+                        List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("TICKET ID", ticketId),
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("USERNAME", username),
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("TIMESTAMP", timestamp)
+                        ),
+                        List.of(
+                                org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                                        "Escalation & Super Admin Contact",
+                                        "#d97706",
+                                        List.of(
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Ticket Reference", ticketId, true),
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Super Admin Email", superAdminEmail, false),
+                                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Super Admin Phone", superAdminPhone, false)
+                                        )
+                                )
+                        ),
                         List.of(new org.example.shared.communication.TokenTemplateEngine.ActionButton(
                                 "🔍 Track Live Unlock Status Online", statusUrl, "#2563eb")),
-                        brand + " Autonomous Security Sentinel • Ticket #" + ticketId
+                        brand + " Autonomous Security Sentinel • Ticket #" + ticketId,
+                        null
                 )
         );
 

@@ -400,6 +400,20 @@ public final class PaymentConfirmationPromptHelper {
 
             Integer primaryPaymentId = (paymentIds != null && !paymentIds.isEmpty()) ? paymentIds.getFirst() : null;
 
+            var saleItems = MessageTemplateService.RichEmailContext.forSale(sale).lineItems();
+            var richCtx = MessageTemplateService.RichEmailContext.forSettlement(
+                    sale.getCustomer() != null ? sale.getCustomer().getName() : "Customer",
+                    dateText,
+                    sale.getBillingGstin(),
+                    paymentMode,
+                    referenceNo,
+                    sale.getInvoiceNo(),
+                    sale.getSubtotal(),
+                    sale.getGstAmount(),
+                    sale.getGstType(),
+                    saleItems
+            );
+
             var draft = new PaymentTransmissionDialog.PaymentDraft(
                     "Transmit Payment Confirmation Advice",
                     "Direct delivery of payment receipt & confirmation to customer",
@@ -422,7 +436,8 @@ public final class PaymentConfirmationPromptHelper {
                     sale.getId(),
                     primaryPaymentId,
                     null,
-                    preferredChannel != null ? preferredChannel : PaymentTransmissionDialog.ChannelPreference.BOTH
+                    preferredChannel != null ? preferredChannel : PaymentTransmissionDialog.ChannelPreference.BOTH,
+                    richCtx
             );
 
             showAndTransmit(ownerNode, draft, "Payment Confirmation", primaryPaymentId, paymentIds, null, onSentCallback);
@@ -537,6 +552,20 @@ public final class PaymentConfirmationPromptHelper {
 
             Integer primaryPaymentId = (paymentIds != null && !paymentIds.isEmpty()) ? paymentIds.getFirst() : null;
 
+            var purchaseItems = MessageTemplateService.RichEmailContext.forPurchase(purchase).lineItems();
+            var richCtx = MessageTemplateService.RichEmailContext.forSettlement(
+                    purchase.getSupplier() != null ? purchase.getSupplier().getName() : "Supplier",
+                    dateText,
+                    purchase.getBillingGstin(),
+                    paymentMode,
+                    referenceNo,
+                    purchase.getInvoiceNo(),
+                    purchase.getSubtotal(),
+                    purchase.getGstAmount(),
+                    purchase.getGstType(),
+                    purchaseItems
+            );
+
             var draft = new PaymentTransmissionDialog.PaymentDraft(
                     "Transmit Supplier Remittance Advice",
                     "Direct delivery of payment remittance advice to supplier",
@@ -559,7 +588,8 @@ public final class PaymentConfirmationPromptHelper {
                     purchase.getId(),
                     primaryPaymentId,
                     null,
-                    preferredChannel != null ? preferredChannel : PaymentTransmissionDialog.ChannelPreference.BOTH
+                    preferredChannel != null ? preferredChannel : PaymentTransmissionDialog.ChannelPreference.BOTH,
+                    richCtx
             );
 
             showAndTransmit(ownerNode, draft, "Supplier Remittance Advice", primaryPaymentId, paymentIds, null, onSentCallback);
@@ -645,6 +675,19 @@ public final class PaymentConfirmationPromptHelper {
 
             String statusBadge = remainingBalance <= 0.009 ? "SETTLED" : "PARTIAL";
 
+            var richCtx = MessageTemplateService.RichEmailContext.forSettlement(
+                    partyName,
+                    dateText,
+                    null,
+                    paymentMode,
+                    referenceNo,
+                    originalDocNo,
+                    null,
+                    null,
+                    null,
+                    List.of()
+            );
+
             var draft = new PaymentTransmissionDialog.PaymentDraft(
                     "Transmit Refund Settlement Confirmation",
                     "Direct delivery of refund settlement advice to commercial party",
@@ -667,7 +710,8 @@ public final class PaymentConfirmationPromptHelper {
                     returnId,
                     null,
                     refundId,
-                    preferredChannel != null ? preferredChannel : PaymentTransmissionDialog.ChannelPreference.BOTH
+                    preferredChannel != null ? preferredChannel : PaymentTransmissionDialog.ChannelPreference.BOTH,
+                    richCtx
             );
 
             showAndTransmit(ownerNode, draft, "Refund Settlement Confirmation", null, refundId, onSentCallback);

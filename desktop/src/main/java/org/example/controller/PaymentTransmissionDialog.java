@@ -54,7 +54,8 @@ public class PaymentTransmissionDialog {
             Integer entityId,
             Integer paymentId,
             Integer refundId,
-            ChannelPreference preferredChannel
+            ChannelPreference preferredChannel,
+            MessageTemplateService.RichEmailContext richContext
     ) {
         public PaymentDraft(
                 String title,
@@ -82,7 +83,39 @@ public class PaymentTransmissionDialog {
             this(title, subtitle, documentLabel, documentNo, recipientEmail, recipientPhone,
                  emailSubject, emailBody, whatsappMessage, attachmentPdf, signatureImage,
                  activityKey, publicStatusUrl, totalAmount, paidAmount, balanceAmount,
-                 statusBadge, entityType, entityId, paymentId, refundId, ChannelPreference.BOTH);
+                 statusBadge, entityType, entityId, paymentId, refundId, ChannelPreference.BOTH,
+                 MessageTemplateService.RichEmailContext.empty());
+        }
+
+        public PaymentDraft(
+                String title,
+                String subtitle,
+                String documentLabel,
+                String documentNo,
+                String recipientEmail,
+                String recipientPhone,
+                String emailSubject,
+                String emailBody,
+                String whatsappMessage,
+                Path attachmentPdf,
+                Path signatureImage,
+                String activityKey,
+                String publicStatusUrl,
+                Double totalAmount,
+                Double paidAmount,
+                Double balanceAmount,
+                String statusBadge,
+                String entityType,
+                Integer entityId,
+                Integer paymentId,
+                Integer refundId,
+                ChannelPreference preferredChannel
+        ) {
+            this(title, subtitle, documentLabel, documentNo, recipientEmail, recipientPhone,
+                 emailSubject, emailBody, whatsappMessage, attachmentPdf, signatureImage,
+                 activityKey, publicStatusUrl, totalAmount, paidAmount, balanceAmount,
+                 statusBadge, entityType, entityId, paymentId, refundId, preferredChannel,
+                 MessageTemplateService.RichEmailContext.empty());
         }
     }
 
@@ -574,45 +607,16 @@ public class PaymentTransmissionDialog {
     @FXML
     public void previewHtmlInBrowser() {
         try {
-            String recipient = txtRecipientEmail == null ? "" : txtRecipientEmail.getText().trim();
-            String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
-            String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "PAYMENT RECEIPT";
-            String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "CONFIRMED";
-            double total = (draft != null && draft.totalAmount() != null) ? draft.totalAmount() : 0.0;
-            double paid = (draft != null && draft.paidAmount() != null) ? draft.paidAmount() : 0.0;
-            double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
-            String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
             String bodyContent = txtEmailBody == null ? "" : txtEmailBody.getText();
-
-            String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
-            String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
-            String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
-            boolean hasBankDetails = !ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank();
-
             Path sigPath = draft != null ? draft.signatureImage() : null;
             if (sigPath == null && MessageTemplateService.isAttachSignatureToEmail()) {
                 sigPath = MessageTemplateService.getOrCreateSignatureImagePath();
             }
-
-            String html = MessageTemplateService.formatExecutiveHtmlEmail(
-                    docLabel,
-                    statusBadge,
-                    docNo,
-                    BusinessClock.formatDate(BusinessClock.today()),
-                    recipient.isBlank() ? "Valued Client" : recipient,
-                    total,
-                    paid,
-                    balance,
+            String sigBase64 = sigPath != null ? MessageTemplateService.getSignatureImageBase64() : null;
+            String html = renderExecutivePaymentHtml(
                     bodyContent,
-                    hasBankDetails,
-                    ourBankName,
-                    ourAccNo,
-                    ourIfsc,
-                    "Live Electronic Settlement Verification",
-                    "-",
-                    statusUrl,
                     sigPath != null,
-                    (sigPath != null) ? sigPath.toUri().toString() : "cid:signatureImage"
+                    sigBase64 != null && !sigBase64.isBlank() ? sigBase64 : "cid:signatureImage"
             );
 
             Path tempHtml = Files.createTempFile("dse-payment-preview-", ".html");
@@ -788,39 +792,7 @@ public class PaymentTransmissionDialog {
         // Format executive HTML email body if HTML mode is active
         String finalEmailBody = emailBody;
         if (sendEmail && useHtmlFormat && !emailBody.contains("<!DOCTYPE html>")) {
-            String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
-            String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "PAYMENT RECEIPT";
-            String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "CONFIRMED";
-            double total = (draft != null && draft.totalAmount() != null) ? draft.totalAmount() : 0.0;
-            double paid = (draft != null && draft.paidAmount() != null) ? draft.paidAmount() : 0.0;
-            double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
-            String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
-
-            String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
-            String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
-            String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
-            boolean hasBankDetails = !ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank();
-
-            finalEmailBody = MessageTemplateService.formatExecutiveHtmlEmail(
-                    docLabel,
-                    statusBadge,
-                    docNo,
-                    BusinessClock.formatDate(BusinessClock.today()),
-                    recipientEmail.isBlank() ? "Valued Client" : recipientEmail,
-                    total,
-                    paid,
-                    balance,
-                    emailBody,
-                    hasBankDetails,
-                    ourBankName,
-                    ourAccNo,
-                    ourIfsc,
-                    "Live Electronic Settlement Verification",
-                    "-",
-                    statusUrl,
-                    sigPath != null,
-                    "cid:signatureImage"
-            );
+            finalEmailBody = renderExecutivePaymentHtml(emailBody, sigPath != null, "cid:signatureImage");
         }
 
         this.result = new TransmissionResult(
@@ -840,6 +812,63 @@ public class PaymentTransmissionDialog {
             hostDialog.setResult(this.result);
             hostDialog.close();
         }
+    }
+
+    private String renderExecutivePaymentHtml(String emailBody, boolean includeSignature, String signatureSrc) {
+        MessageTemplateService.RichEmailContext ctx = (draft != null && draft.richContext() != null)
+                ? draft.richContext()
+                : MessageTemplateService.RichEmailContext.empty();
+        String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
+        String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "PAYMENT RECEIPT";
+        String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "CONFIRMED";
+        double total = (draft != null && draft.totalAmount() != null) ? draft.totalAmount() : 0.0;
+        double paid = (draft != null && draft.paidAmount() != null) ? draft.paidAmount() : 0.0;
+        double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
+        String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
+
+        String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
+        String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
+        String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
+        boolean hasBankDetails = !ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank();
+
+        String partyName = firstNonBlank(ctx.partyName(), "Valued Client");
+        String docDate = firstNonBlank(ctx.documentDate(), BusinessClock.formatDate(BusinessClock.today()));
+        String payRef = firstNonBlank(ctx.paymentReference(), "-");
+        String profileKey = (cmbSenderProfile != null && cmbSenderProfile.getValue() != null && cmbSenderProfile.getValue().profile() != null)
+                ? cmbSenderProfile.getValue().profile().key()
+                : null;
+        String resolvedSig = MessageTemplateService.resolveSignatureForProfile(profileKey, docLabel);
+
+        return MessageTemplateService.formatExecutiveHtmlEmail(
+                docLabel,
+                statusBadge,
+                docNo,
+                docDate,
+                partyName,
+                total,
+                paid,
+                balance,
+                emailBody,
+                hasBankDetails,
+                ourBankName,
+                ourAccNo,
+                ourIfsc,
+                partyName,
+                payRef,
+                statusUrl,
+                includeSignature,
+                signatureSrc,
+                ctx,
+                resolvedSig
+        );
+    }
+
+    private static String firstNonBlank(String... candidates) {
+        if (candidates == null) return "";
+        for (String c : candidates) {
+            if (c != null && !c.isBlank()) return c.trim();
+        }
+        return "";
     }
 
     @FXML

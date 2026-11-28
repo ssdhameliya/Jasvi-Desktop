@@ -107,7 +107,7 @@ public final class NotificationTemplateCatalog {
             // 1. Commercial Documents (preserving existing 8 keys & placeholder contracts)
             new TemplateSpec(
                     "sale", "Sales Invoice", Category.BUSINESS_DOCUMENTS, true, true, false, false,
-                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{TotalAmount}", "{PaidAmount}", "{BalanceAmount}", "{CompanyName}", "{Signature}"),
+                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{DueDate}", "{SubtotalAmount}", "{TaxAmount}", "{TotalAmount}", "{PaidAmount}", "{BalanceAmount}", "{PartyGstin}", "{CompanyName}", "{Signature}"),
                     "Sales Invoice {DocumentNo} from {CompanyName}",
                     """
                             Dear {CustomerName},
@@ -117,7 +117,10 @@ public final class NotificationTemplateCatalog {
                             Invoice Summary:
                             • Invoice Number: {DocumentNo}
                             • Invoice Date: {DocumentDate}
+                            • Due Date: {DueDate}
+                            • Subtotal & GST: {SubtotalAmount} + {TaxAmount}
                             • Total Amount: {TotalAmount}
+                            • Amount Paid: {PaidAmount}
                             • Balance Due: {BalanceAmount}
 
                             Thank you for your business.
@@ -127,12 +130,19 @@ public final class NotificationTemplateCatalog {
             ),
             new TemplateSpec(
                     "quote", "Quotation", Category.BUSINESS_DOCUMENTS, true, true, false, false,
-                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{TotalAmount}", "{CompanyName}", "{Signature}"),
+                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{ValidUntil}", "{SubtotalAmount}", "{TaxAmount}", "{TotalAmount}", "{PartyGstin}", "{CompanyName}", "{Signature}"),
                     "Quotation {DocumentNo} from {CompanyName}",
                     """
                             Dear {CustomerName},
 
                             Thank you for your enquiry. Please find attached our quotation {DocumentNo} dated {DocumentDate} for total amount {TotalAmount}.
+
+                            Quotation Summary:
+                            • Quotation Number: {DocumentNo}
+                            • Quotation Date: {DocumentDate}
+                            • Valid Until: {ValidUntil}
+                            • Subtotal & GST: {SubtotalAmount} + {TaxAmount}
+                            • Quoted Total: {TotalAmount}
 
                             We look forward to serving you. Please let us know if you need any adjustments or further information.
 
@@ -141,12 +151,21 @@ public final class NotificationTemplateCatalog {
             ),
             new TemplateSpec(
                     "purchase", "Purchase Order / Bill", Category.BUSINESS_DOCUMENTS, true, true, false, false,
-                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{TotalAmount}", "{BalanceAmount}", "{CompanyName}", "{Signature}"),
+                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{DueDate}", "{SubtotalAmount}", "{TaxAmount}", "{TotalAmount}", "{PaidAmount}", "{BalanceAmount}", "{PartyGstin}", "{CompanyName}", "{Signature}"),
                     "Purchase Order {DocumentNo} from {CompanyName}",
                     """
                             Dear {CustomerName},
 
                             Please find attached our purchase order {DocumentNo} dated {DocumentDate}.
+
+                            Order Summary:
+                            • Order Number: {DocumentNo}
+                            • Order Date: {DocumentDate}
+                            • Expected / Due Date: {DueDate}
+                            • Subtotal & GST: {SubtotalAmount} + {TaxAmount}
+                            • Order Total: {TotalAmount}
+                            • Advance / Paid: {PaidAmount}
+                            • Balance Payable: {BalanceAmount}
 
                             Kindly confirm receipt and proceed with fulfillment per agreed terms.
 
@@ -155,7 +174,7 @@ public final class NotificationTemplateCatalog {
             ),
             new TemplateSpec(
                     "payment", "Payment Receipt", Category.BUSINESS_DOCUMENTS, true, true, false, false,
-                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{PaidAmount}", "{BalanceAmount}", "{PaymentMode}", "{PaymentReference}", "{CompanyName}", "{Signature}"),
+                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{TotalAmount}", "{PaidAmount}", "{BalanceAmount}", "{PaymentMode}", "{PaymentReference}", "{PaymentDate}", "{Narration}", "{CompanyName}", "{Signature}"),
                     "Payment Receipt for {DocumentNo} from {CompanyName}",
                     """
                             Dear {CustomerName},
@@ -165,6 +184,9 @@ public final class NotificationTemplateCatalog {
                             Receipt Summary:
                             • Document Number: {DocumentNo}
                             • Receipt Date: {DocumentDate}
+                            • Payment Mode: {PaymentMode}
+                            • Reference / UTR: {PaymentReference}
+                            • Invoice Total: {TotalAmount}
                             • Amount Paid: {PaidAmount}
                             • Remaining Balance: {BalanceAmount}
 
@@ -196,7 +218,7 @@ public final class NotificationTemplateCatalog {
             ),
             new TemplateSpec(
                     "refund_confirmation", "Refund Settlement Confirmation", Category.BUSINESS_DOCUMENTS, true, true, false, false,
-                    List.of("{CustomerName}", "{DocumentNo}", "{PaidAmount}", "{BalanceAmount}", "{PaymentMode}", "{PaymentReference}", "{PaymentDate}", "{Narration}", "{CompanyName}", "{Signature}"),
+                    List.of("{CustomerName}", "{DocumentNo}", "{OriginalDocument}", "{TotalAmount}", "{PaidAmount}", "{BalanceAmount}", "{PaymentMode}", "{PaymentReference}", "{PaymentDate}", "{Narration}", "{CompanyName}", "{Signature}"),
                     "Refund Settlement: {DocumentNo} - {CompanyName}",
                     """
                             Dear {CustomerName},
@@ -204,6 +226,8 @@ public final class NotificationTemplateCatalog {
                             This is an official confirmation that a refund settlement has been issued for document #{DocumentNo}.
 
                             Settlement Breakdown:
+                            • Original Document: {OriginalDocument}
+                            • Total Return Value: {TotalAmount}
                             • Refund Amount: {PaidAmount}
                             • Remaining Balance: {BalanceAmount}
                             • Refund Mode: {PaymentMode}
@@ -216,13 +240,18 @@ public final class NotificationTemplateCatalog {
             ),
             new TemplateSpec(
                     "sales_return", "Sales Return / Credit Note", Category.BUSINESS_DOCUMENTS, true, true, false, false,
-                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{TotalAmount}", "{CompanyName}", "{Signature}"),
+                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{OriginalDocument}", "{ReturnReason}", "{TotalAmount}", "{PaidAmount}", "{BalanceAmount}", "{CompanyName}", "{Signature}"),
                     "Sales Return Note {DocumentNo} from {CompanyName}",
                     """
                             Dear {CustomerName},
 
                             Please find attached sales return / credit note {DocumentNo} dated {DocumentDate}.
 
+                            Credit Note Summary:
+                            • Credit Note Number: {DocumentNo}
+                            • Return Date: {DocumentDate}
+                            • Original Invoice: {OriginalDocument}
+                            • Return Reason: {ReturnReason}
                             • Total Credit: {TotalAmount}
 
                             {Signature}""",
@@ -230,13 +259,18 @@ public final class NotificationTemplateCatalog {
             ),
             new TemplateSpec(
                     "purchase_return", "Purchase Return / Debit Note", Category.BUSINESS_DOCUMENTS, true, true, false, false,
-                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{TotalAmount}", "{CompanyName}", "{Signature}"),
+                    List.of("{CustomerName}", "{DocumentNo}", "{DocumentDate}", "{OriginalDocument}", "{ReturnReason}", "{TotalAmount}", "{PaidAmount}", "{BalanceAmount}", "{CompanyName}", "{Signature}"),
                     "Purchase Return Note {DocumentNo} from {CompanyName}",
                     """
                             Dear {CustomerName},
 
                             Please find attached purchase return / debit note {DocumentNo} dated {DocumentDate}.
 
+                            Debit Note Summary:
+                            • Debit Note Number: {DocumentNo}
+                            • Return Date: {DocumentDate}
+                            • Original Bill: {OriginalDocument}
+                            • Return Reason: {ReturnReason}
                             • Total Amount: {TotalAmount}
 
                             {Signature}""",
@@ -246,7 +280,7 @@ public final class NotificationTemplateCatalog {
             // 2. Collections & Statutory GST
             new TemplateSpec(
                     "aging_collection", "Overdue Collection Reminder", Category.COLLECTIONS_COMPLIANCE, true, true, false, false,
-                    List.of("{PartyName}", "{CompanyName}", "{AsOfDate}", "{TotalOutstanding}", "{OverdueAmount}", "{OpenInvoiceCount}", "{UrgencySubjectPrefix}", "{UrgencyIntro}", "{PaymentDetails}", "{BankName}", "{BankAccount}", "{Ifsc}", "{UpiId}"),
+                    List.of("{PartyName}", "{CompanyName}", "{AsOfDate}", "{TotalOutstanding}", "{OverdueAmount}", "{OpenInvoiceCount}", "{OverdueBucketSummary}", "{UrgencySubjectPrefix}", "{UrgencyIntro}", "{PaymentDetails}", "{BankName}", "{BankAccount}", "{Ifsc}", "{UpiId}"),
                     "{UrgencySubjectPrefix} ({TotalOutstanding}) | {CompanyName}",
                     """
                             Dear {PartyName},
@@ -257,6 +291,7 @@ public final class NotificationTemplateCatalog {
                             • Total Outstanding: {TotalOutstanding}
                             • Overdue (>30 Days): {OverdueAmount}
                             • Open Invoices: {OpenInvoiceCount}
+                            • Aging Buckets: {OverdueBucketSummary}
 
                             {PaymentDetails}
 
@@ -283,21 +318,22 @@ public final class NotificationTemplateCatalog {
             ),
             new TemplateSpec(
                     "gst_rule36_notice", "GST Rule 36(4) Discrepancy Notice", Category.COLLECTIONS_COMPLIANCE, true, true, false, false,
-                    List.of("{SupplierName}", "{InvoiceNo}", "{InvoiceDate}", "{TaxableAmount}", "{TaxAmount}", "{CompanyName}", "{CompanyGstin}"),
+                    List.of("{SupplierName}", "{SupplierGstin}", "{InvoiceNo}", "{InvoiceDate}", "{TaxableAmount}", "{TaxAmount}", "{GstBreakup}", "{RegisterStatus}", "{CompanyName}", "{CompanyGstin}"),
                     "Urgent: GST Rule 36(4) Notice for Invoice {InvoiceNo}",
                     """
                             Dear {SupplierName},
 
                             Sub: Discrepancy Notice under CGST Rule 36(4) / Section 16(2)(aa) for Invoice #{InvoiceNo}
 
-                            We have recorded Purchase Bill #{InvoiceNo} dated {InvoiceDate} for Taxable Value {TaxableAmount} and GST {TaxAmount} in our accounting system.
-                            However, our automated GSTR-2B statutory reconciliation indicates this invoice is NOT reflected in our GSTR-2B return on the GST Portal.
+                            We have recorded Purchase Bill #{InvoiceNo} dated {InvoiceDate} for Taxable Value {TaxableAmount} and GST {TaxAmount} ({GstBreakup}) in our accounting system.
+                            However, our automated GSTR-2B statutory reconciliation indicates this invoice is NOT reflected in our GSTR-2B return on the GST Portal ({RegisterStatus}).
 
                             Under statutory GST Rule 36(4), we are prohibited from claiming Input Tax Credit (ITC) for unreflected supplies. Kindly ensure this invoice is uploaded/amended in your GSTR-1 return immediately to prevent payment withholding or interest under Section 50.
 
                             Buyer Details:
                             • Name: {CompanyName}
                             • GSTIN: {CompanyGstin}
+                            • Supplier GSTIN: {SupplierGstin}
 
                             Thank you,
                             Finance & Taxation Department
@@ -501,7 +537,7 @@ public final class NotificationTemplateCatalog {
             ),
             new TemplateSpec(
                     "scheduled_report", "Scheduled Saved Report Email", Category.SYSTEM_AUTOMATION, true, false, true, false,
-                    List.of("{CompanyName}", "{ScheduleName}", "{ReportTitle}", "{PeriodFrom}", "{PeriodTo}", "{GeneratedAt}", "{RowCount}"),
+                    List.of("{CompanyName}", "{ScheduleName}", "{ReportTitle}", "{PeriodFrom}", "{PeriodTo}", "{GeneratedAt}", "{RowCount}", "{OutputFormats}", "{AppliedFilters}"),
                     "{CompanyName} Scheduled Report - {ReportTitle}",
                     """
                             Scheduled Report Delivery ({CompanyName})
@@ -510,15 +546,49 @@ public final class NotificationTemplateCatalog {
                             • Report: {ReportTitle}
                             • Period: {PeriodFrom} to {PeriodTo}
                             • Generated: {GeneratedAt}
-                            • Rows: {RowCount}""",
+                            • Total Rows: {RowCount}
+                            • Output Format: {OutputFormats}""",
                     null
             ),
             new TemplateSpec(
                     "smtp_test", "SMTP Test Connection Email", Category.SYSTEM_AUTOMATION, true, false, true, false,
-                    List.of("{CompanyName}"),
+                    List.of("{CompanyName}", "{SmtpHost}", "{SmtpPort}", "{SenderEmail}", "{Recipient}", "{Timestamp}"),
                     "{CompanyName} email test",
-                    "Your {CompanyName} company-server email configuration is working correctly.",
+                    """
+                            Your {CompanyName} company-server email configuration is working correctly.
+
+                            • SMTP Host: {SmtpHost}
+                            • Port & TLS: {SmtpPort} (STARTTLS)
+                            • Sender Address: {SenderEmail}
+                            • Recipient: {Recipient}
+                            • Tested At: {Timestamp}""",
                     null
+            ),
+            new TemplateSpec(
+                    "bank_unreconciled_digest", "Unreconciled Bank Statement Digest", Category.SYSTEM_AUTOMATION, true, true, true, false,
+                    List.of("{CompanyName}", "{Environment}", "{OpenCount}", "{UnreconciledCredits}", "{UnreconciledDebits}", "{OldestDate}", "{BankAccountCount}", "{SummaryLines}"),
+                    "Bank Reconciliation Digest ({Environment}) - {OpenCount} Open Transaction(s) | {CompanyName}",
+                    """
+                            Automated Bank Reconciliation Digest for {CompanyName} ({Environment}):
+
+                            • Open Unmatched / Review Lines: {OpenCount}
+                            • Unreconciled Credits (Deposits): {UnreconciledCredits}
+                            • Unreconciled Debits (Payouts): {UnreconciledDebits}
+                            • Oldest Open Transaction Date: {OldestDate}
+                            • Active Bank Accounts Affected: {BankAccountCount}
+
+                            Account Summary:
+                            {SummaryLines}
+
+                            Open Bank Statement in {CompanyName} ERP to review and settle pending entries.""",
+                    """
+                            🏦 *BANK RECONCILIATION DIGEST ({Environment})*
+                            🏢 Company: {CompanyName}
+                            📊 Open Items: {OpenCount} (Since {OldestDate})
+                            💰 Unreconciled Credits: {UnreconciledCredits}
+                            💸 Unreconciled Debits: {UnreconciledDebits}
+
+                            {SummaryLines}"""
             ),
 
             // 5. Platform Licensing (Super Admin only)
@@ -586,6 +656,65 @@ public final class NotificationTemplateCatalog {
                             To activate: Open Desktop > Settings > License > Import License File.
 
                             Thank you for choosing {IssuerBrand}!"""
+            ),
+            new TemplateSpec(
+                    "subscription_expiry_warning", "Company Subscription Expiry Reminder", Category.PLATFORM_LICENSING, true, true, true, true,
+                    List.of("{CompanyName}", "{Tier}", "{MachineId}", "{ValidUntil}", "{DaysRemaining}", "{ReminderStage}", "{RenewalFee}", "{SupportEmail}", "{SupportPhone}", "{IssuerBrand}"),
+                    "Subscription Notice ({ReminderStage}): {IssuerBrand} {Tier} Plan for {CompanyName}",
+                    """
+                            Dear {CompanyName},
+
+                            This is an automated subscription notice regarding your {IssuerBrand} license ({ReminderStage}).
+
+                            • Organization: {CompanyName}
+                            • Plan Tier: {Tier}
+                            • Hardware Terminal ID: {MachineId}
+                            • Valid Until: {ValidUntil}
+                            • Days Remaining: {DaysRemaining}
+                            • Standard Annual Fee: {RenewalFee}
+
+                            Please renew prior to expiration to avoid write restrictions on invoicing and inventory.
+                            Support Email: {SupportEmail} | Phone / WhatsApp: {SupportPhone}""",
+                    """
+                            ⏰ *SUBSCRIPTION NOTICE ({ReminderStage})*
+
+                            🏢 *Company:* {CompanyName}
+                            💎 *Tier:* {Tier}
+                            💻 *Terminal ID:* {MachineId}
+                            📅 *Valid Until:* {ValidUntil} ({DaysRemaining} days remaining)
+                            💳 *Annual Fee:* {RenewalFee}
+
+                            Please renew via Help/Settings > Subscription Renewal to keep your {IssuerBrand} workspace uninterrupted.
+                            Support: {SupportPhone}"""
+            ),
+            new TemplateSpec(
+                    "subscription_renewal_receipt", "Subscription Renewal Confirmation", Category.PLATFORM_LICENSING, true, true, true, true,
+                    List.of("{CompanyName}", "{Tier}", "{MachineId}", "{ValidUntil}", "{RenewalDays}", "{AmountPaid}", "{UtrReference}", "{IssuerBrand}", "{SupportEmail}"),
+                    "Subscription Renewed: {CompanyName} Extended Until {ValidUntil} | {IssuerBrand}",
+                    """
+                            Dear {CompanyName},
+
+                            Thank you! Your {IssuerBrand} enterprise subscription has been renewed successfully.
+
+                            • Registered Client: {CompanyName}
+                            • Plan Tier: {Tier}
+                            • Terminal ID: {MachineId}
+                            • Extension Applied: +{RenewalDays} Day(s)
+                            • New Valid Until: {ValidUntil}
+                            • Payment / Fee Reference: {AmountPaid} (Ref: {UtrReference})
+
+                            Your updated license status is active in your ERP workspace.
+                            Support: {SupportEmail}""",
+                    """
+                            ✅ *SUBSCRIPTION RENEWED*
+
+                            🏢 *Company:* {CompanyName}
+                            💎 *Tier:* {Tier}
+                            ➕ *Extended:* +{RenewalDays} Day(s)
+                            📅 *New Valid Until:* {ValidUntil}
+                            💳 *Amount / Ref:* {AmountPaid} • {UtrReference}
+
+                            Thank you for continuing with {IssuerBrand}!"""
             )
     );
 
@@ -653,8 +782,15 @@ public final class NotificationTemplateCatalog {
         tokens.put("DocumentNo", "INV/26-11-2026/0042");
         tokens.put("DocumentDate", safeDate);
         tokens.put("TotalAmount", "₹ 1,25,000.00");
+        tokens.put("SubtotalAmount", "₹ 1,05,932.20");
+        tokens.put("TaxAmount", "₹ 19,067.80");
         tokens.put("PaidAmount", "₹ 75,000.00");
         tokens.put("BalanceAmount", "₹ 50,000.00");
+        tokens.put("DueDate", safeDate);
+        tokens.put("ValidUntil", safeDate);
+        tokens.put("PartyGstin", "24AADCS0472N1Z1");
+        tokens.put("OriginalDocument", "INV/26-11-2026/0042");
+        tokens.put("ReturnReason", "Quality specification mismatch on 2 units");
         tokens.put("PaymentMode", "NEFT / RTGS");
         tokens.put("PaymentReference", "UTR20261126009182");
         tokens.put("PaymentDate", safeDate);
@@ -669,6 +805,7 @@ public final class NotificationTemplateCatalog {
         tokens.put("TotalOutstanding", "₹ 1,85,400.00");
         tokens.put("OverdueAmount", "₹ 64,200.00");
         tokens.put("OpenInvoiceCount", "4");
+        tokens.put("OverdueBucketSummary", "0-30d: ₹ 1,21,200 | 31-60d: ₹ 42,000 | 61-90d: ₹ 22,200 | 90+d: ₹ 0");
         tokens.put("UrgencySubjectPrefix", "Payment Reminder & Outstanding Statement");
         tokens.put("UrgencyIntro", "This is a polite reminder regarding your overdue balance with " + safeCompany + ".");
         tokens.put("BankName", "State Bank of India");
@@ -676,10 +813,12 @@ public final class NotificationTemplateCatalog {
         tokens.put("Ifsc", "SBIN0001234");
         tokens.put("UpiId", "accounts@example.upi");
         tokens.put("PaymentDetails", "Payment Details:\n• Bank: State Bank of India | A/C: XXXX4819 | IFSC: SBIN0001234\n• UPI: accounts@example.upi");
+        tokens.put("SupplierGstin", "24AAACW1234K1Z2");
         tokens.put("InvoiceNo", "PUR-2026-881");
         tokens.put("InvoiceDate", safeDate);
         tokens.put("TaxableAmount", "₹ 50,000.00");
-        tokens.put("TaxAmount", "₹ 9,000.00");
+        tokens.put("GstBreakup", "CGST 9% + SGST 9%");
+        tokens.put("RegisterStatus", "Present in Purchase Register • Missing in GSTR-2B");
 
         // Auth & Security
         tokens.put("Purpose", "password reset");
@@ -724,6 +863,12 @@ public final class NotificationTemplateCatalog {
         tokens.put("PeriodTo", safeDate);
         tokens.put("GeneratedAt", safeDate + " 08:00 PM IST");
         tokens.put("RowCount", "48");
+        tokens.put("OutputFormats", "PDF + XLSX");
+        tokens.put("AppliedFilters", "Period: Current Month | Status: Approved");
+        tokens.put("SmtpHost", "smtp.gmail.com");
+        tokens.put("SmtpPort", "587");
+        tokens.put("SenderEmail", "billing@example.com");
+        tokens.put("Recipient", "admin@example.com");
 
         // Licensing
         tokens.put("MachineId", "WIN-77A1-99C4");
@@ -737,6 +882,21 @@ public final class NotificationTemplateCatalog {
         tokens.put("JsonFilename", "Sample_Enterprise-license.json");
         tokens.put("IssuerBrand", safeCompany + " ERP");
         tokens.put("SupportEmail", "support@example.com");
+        tokens.put("SupportPhone", "+91 9000011111");
+        tokens.put("DaysRemaining", "15");
+        tokens.put("ReminderStage", "15 Days Left");
+        tokens.put("RenewalFee", "₹ 3,500.00 + GST");
+        tokens.put("RenewalDays", "365");
+        tokens.put("AmountPaid", "₹ 4,130.00");
+        tokens.put("UtrReference", "UTR2026112700192");
+
+        // Bank Unreconciled Digest
+        tokens.put("OpenCount", "12");
+        tokens.put("UnreconciledCredits", "₹ 1,45,000.00");
+        tokens.put("UnreconciledDebits", "₹ 42,800.00");
+        tokens.put("OldestDate", safeDate);
+        tokens.put("BankAccountCount", "2");
+        tokens.put("SummaryLines", "• HDFC Bank (XXXX1234): 8 open lines\n• Kotak Mahindra Bank (XXXX5678): 4 open lines");
         return tokens;
     }
 }

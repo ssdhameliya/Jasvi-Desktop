@@ -18,7 +18,7 @@ class NotificationTemplateCatalogTest {
     @Test
     void allCatalogKeysAreUniqueAndShareableWithoutForbiddenTerms() {
         List<NotificationTemplateCatalog.TemplateSpec> specs = NotificationTemplateCatalog.all();
-        assertEquals(22, specs.size());
+        assertEquals(25, specs.size());
 
         Set<String> seen = new HashSet<>();
         for (var spec : specs) {
@@ -106,5 +106,32 @@ class NotificationTemplateCatalogTest {
                 NotificationTemplateCatalog.EmailFormatMode.parse("HTML Card View", NotificationTemplateCatalog.EmailFormatMode.STANDARD));
         assertEquals(NotificationTemplateCatalog.EmailFormatMode.INHERIT,
                 NotificationTemplateCatalog.EmailFormatMode.parse("INHERIT", NotificationTemplateCatalog.EmailFormatMode.HTML));
+    }
+
+    @Test
+    void signatureBlockHtmlMatchesManualExecutiveOrderAndEscapesUnsafeMarkup() {
+        String sig = "Regards\nBipin Patel\n+91 72280 99500\nE - Mail   :   jasviindustries1989@gmail.com | marketing@jasviindustries.in";
+        String addr = "52, Darshanvilla Park, Ahmedabad - 382345";
+        String html = TokenTemplateEngine.signatureBlockHtml(sig, "cid:signatureImage", addr);
+
+        assertTrue(html.contains("href=\"tel:+917228099500\""));
+        assertTrue(html.contains("href=\"mailto:jasviindustries1989@gmail.com\""));
+        assertTrue(html.contains("href=\"mailto:marketing@jasviindustries.in\""));
+        assertFalse(html.contains("href=\"tel:382345\""), "6-digit PIN code must not be linkified as tel:");
+        assertTrue(html.contains("max-width:100%"));
+        assertFalse(html.contains("max-width:240px"));
+        assertTrue(html.contains("<strong style=\"color:#0f2942;\">Office Address:</strong> - 52, Darshanvilla Park, Ahmedabad - 382345"));
+
+        int textPos = html.indexOf("Bipin Patel");
+        int imgPos = html.indexOf("cid:signatureImage");
+        int addrPos = html.indexOf("Office Address:");
+        assertTrue(textPos >= 0 && imgPos > textPos && addrPos > imgPos,
+                "Signature order must be: signature text -> banner image -> Office Address");
+
+        String duplicateAddrHtml = TokenTemplateEngine.signatureBlockHtml(
+                "Regards\n" + addr + "\n<script>x</script>", "javascript:alert(1)", addr);
+        assertFalse(duplicateAddrHtml.contains("<script>"));
+        assertFalse(duplicateAddrHtml.contains("javascript:alert(1)"));
+        assertEquals(duplicateAddrHtml.indexOf(addr), duplicateAddrHtml.lastIndexOf(addr));
     }
 }

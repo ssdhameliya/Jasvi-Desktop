@@ -1,3 +1,44 @@
+# What's New in DSE ERP v11.0.84
+
+### Dynamic Website Enquiry Pipeline, Lookup Numbering & Mobile Quick-View (`Jasvi-UserView` Integration)
+- **PostgreSQL Enquiry Register & Master Data Lookup Reference (`V11_0_96`, `EnquiryService`, `MasterDataService`, `PublicShowcaseController`)**:
+  - Persisted live `Jasvi-UserView` Contact/RFQ, Engineering Lab, Product Detail, and Feedback submissions into `public_enquiries` and `enquiry_activity` using Admin-editable `REF_ENQUIRY` Master Data lookup numbering, honeypot/rate-limit protection, scoped CORS, and `LicenseSecurityInterceptor` public bypass.
+- **Multi-Channel `ADMIN`/`SUPER_ADMIN` Alerts, Zero-App Mobile Card & Desktop Enquiries (`EnquiryNotificationDispatcher`, `PublicEnquiryViewController`, `EnquiriesList.fxml`)**:
+  - Dispatched post-commit async WhatsApp (`BusinessWhatsappService`), Email (`EmailOutboxService`), and in-app Desktop notifications with an HMAC-SHA256 signed mobile browser card (`/api/public/enquiry-view`) and a new **Website Enquiries** Desktop register with `NotificationCenter` deep-linking and 1-click Quotation conversion.
+
+### Email Outbox, Auto-Retry, CC/BCC & Expanded Template Studio (Rules 4, 5, 10, 17 & 23)
+- **Durable Email Outbox & Exponential-Backoff Retry (`EmailOutboxService.java`, `EmailOutboxDialog.java`, `BusinessEmailController.java`)**:
+  - Persisted every outbound email into `email_outbox` (`V11_0_93`) with automated retry backoff (`2m -> 10m -> 30m`), automatic audit logging (`EMAIL_SENT` / `EMAIL_FAILED`), Admin failure notifications, and an interactive Settings → Email Outbox Queue viewer with instant manual retry.
+  - Added `CC` and `BCC` support across `EmailTransmissionDialog`, company default `email.default.cc`/`email.default.bcc` settings, and `multipart/alternative` HTML+plain text bodies in `SmtpMailService`.
+  - Expanded `NotificationTemplateCatalog` to **25** business & system events (`bank_unreconciled_digest`, `subscription_expiry_warning`, `subscription_renewal_receipt`) with both HTML Card and Standard Plain Text customization.
+
+### Per-Bank GL Sub-Accounts, 3-Way BRS & GST Bank Charges (Rules 4, 5, 10 & 17)
+- **Automated Bank GL Sub-Accounts & 3-Way Reconciliation (`GeneralLedgerService.java`, `BankReconciliationService.java`, `BankStatementExportHelper.java`)**:
+  - Automatically resolves and provisions distinct `1021+` GL Bank Asset sub-accounts per bank statement account (aggregated cleanly with `1010`/`102x` in Trial Balance control checks) and surfaces GL ledger balance + GL-vs-Statement variance directly in CA BRS PDF & Excel reports.
+  - Added GST ITC split accounting (`CGST 9% + SGST 9%` vs `IGST 18%` on `1081`/`1082`/`1083`) in Quick Expense creation (`BankStatementQuickEntryDialog.java`), a weekly unreconciled digest scheduler (`BankStatementDigestScheduler`), and removed hardcoded company defaults from `UniversalBankStatementParser`.
+
+### Subscription Watchdog, Dynamic Plan Renewal & Enterprise Audit Tracking (Rules 4, 5, 10, 16 & 17)
+- **Automated Expiry Watchdog, Cloud Pull & Monthly Telemetry Rollup (`SubscriptionLifecycleScheduler.java`, `LicenseRenewalDialogController.java`, `ClientRegistryController.java`, `GlobalAuditController.java`)**:
+  - Added daily subscription lifecycle monitoring (`30/15/7/1` days expiry notices, grace/expired alerts, `>=90%` seat utilization, and `48h` offline terminal warnings) plus automated renewal confirmation receipts.
+  - Upgraded `LicenseRenewalDialog` with dynamic plan tier selection, UTR payment proof submission, one-click Cloud License Sync (`POST /api/license/cloud-refresh`), and zero hardcoded commercial fallbacks.
+  - Added `client_telemetry_monthly_summary` archival before 30-day purge (`Monthly Archive` viewer in Client Registry) and extended Global Audit module filters/references for `BANK_STATEMENT`, `EXPENSE`, `LICENSE`, and `COMMUNICATION`.
+
+### Bank Statement Auto-Match Precision & Match-Rate Intelligence (Rule 4, Rule 5, Rule 10 & Rule 17)
+- **Precision Ambiguity Guards & Optimal Contested Assignment (`BankReconciliationService.java`, `BankStatementController.java`)**:
+  - Added close-tie / ambiguity detection (`delta < 12` points or unverified amount-only matches), keeping ambiguous rows unchecked by default and preventing low-confidence guesses from locking invoices in `claimedDocs`.
+  - Upgraded `previewAutoMatch` from greedy single-pass to uniqueness-first multi-candidate assignment with same-account `REV`/`BOUNCE` pair isolation (`BOUNCE`).
+- **Pre-Recorded Payments (`payment_record`), Supplier Bill Refs, PAN & FIFO Multi-Split (`BankReconciliationService.java`)**:
+  - Added `RECORDED_PAYMENT` reconciliation linking existing staff-recorded Receipts and Vendor Payments directly to imported bank rows without duplicating `paidAmount` or GL vouchers.
+  - Added `purchase.referenceNo` document matching, 10-character PAN (`gstin[2..12]`), prefix-token party matching, oldest-first FIFO ordering for up to 6-invoice `MULTI_SPLIT` sets, and universal `party_bank_alias` learning.
+
+### Separated MFA Policies, Reset-Only Incident Tickets & Dynamic Password Reset UI (Rule 4, Rule 5, Rule 10 & Rule 17)
+- **Independent Super Admin MFA Flag & Role Alignment (`AuthService.java`, `AdminService.java`, `SupportService.java`, `SettingsController.java`, `UserDialogController.java`, `V11_0_94__superadmin_independent_mfa_flag.sql`)**:
+  - Separated Super Admin MFA (`security.superadmin.mfa.enabled` = `Yes`/`No`, editable strictly by Super Admin) from the Company MFA Policy (`REQUIRED` = Admin & all underlying users forced, `ADMIN_CONTROLLED` = Admin exempt / per-user staff control, `DISABLED` = no MFA across Admin & staff).
+  - Resolved policy-vs-enforcement mismatches so Admin UI, Admin API, and Login/Reset Auth evaluate identically.
+- **Reset-Only Support Tickets & Dynamic Forgot Password Controls (`AuthService.java`, `AuthDtos.java`, `AuthApiClient.java`, `LoginController.java`)**:
+  - Scoped `SEC-XXXXXX` security incident ticket escalation exclusively to Admin Forgot Password / reset failures (wrong Email OTP or wrong Authenticator TOTP), preventing premature tickets on login attempts.
+  - Dynamically enabled/disabled Forgot Password verification fields (`txtResetOtp`, `txtResetTotp`, `txtNewPassword`, `txtConfirmPassword`, `btnResetPassword`) based on challenge readiness and server `totpRequired` status.
+
 # What's New in DSE ERP v11.0.83
 
 ### Unified Installer Emblem, Menu Bar Branding & Legacy Logo Cleanup (Rule 4, Rule 5, Rule 10, Rule 12 & Rule 16)

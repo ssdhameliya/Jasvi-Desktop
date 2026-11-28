@@ -190,11 +190,26 @@ public class ReturnRefundController implements ScreenLifecycle {
             );
             String body = formatted.body();
 
+            String payDate = row.date() == null ? BusinessClock.formatDate(LocalDate.now()) : BusinessClock.formatDate(row.date());
+            String payRef = row.reference() == null || row.reference().isBlank() ? "-" : row.reference();
+            var richCtx = MessageTemplateService.RichEmailContext.forSettlement(
+                    partyName,
+                    payDate,
+                    null,
+                    row.mode(),
+                    payRef,
+                    details.invoice() == null ? docNo : details.invoice(),
+                    null,
+                    null,
+                    null,
+                    List.of()
+            );
+
             String html = MessageTemplateService.formatExecutiveHtmlEmail(
                     "Refund Settlement Confirmation",
                     balance <= 0.009 ? "REFUNDED" : "PARTIAL",
                     docNo,
-                    row.date() == null ? BusinessClock.formatDate(LocalDate.now()) : BusinessClock.formatDate(row.date()),
+                    payDate,
                     partyName,
                     total,
                     paid,
@@ -204,11 +219,12 @@ public class ReturnRefundController implements ScreenLifecycle {
                     ourBankName,
                     ourAccNo,
                     ourIfsc,
-                    "Live Electronic Settlement Verification",
-                    row.reference() == null || row.reference().isBlank() ? "-" : row.reference(),
+                    partyName,
+                    payRef,
                     statusUrl,
                     true,
-                    sigBase64
+                    sigBase64,
+                    richCtx
             );
 
             Path tempHtml = Files.createTempFile("dse-refund-email-html-", ".html");

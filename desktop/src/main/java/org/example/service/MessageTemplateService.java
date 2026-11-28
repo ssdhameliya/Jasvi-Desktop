@@ -7,6 +7,12 @@ import org.example.shared.communication.NotificationTemplateCatalog;
 import org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode;
 import org.example.shared.communication.NotificationTemplateCatalog.TemplateSpec;
 import org.example.shared.communication.TokenTemplateEngine;
+import org.example.shared.communication.TokenTemplateEngine.ActionButton;
+import org.example.shared.communication.TokenTemplateEngine.KeyValueRow;
+import org.example.shared.communication.TokenTemplateEngine.KpiTile;
+import org.example.shared.communication.TokenTemplateEngine.MetaColumn;
+import org.example.shared.communication.TokenTemplateEngine.RichCardSpec;
+import org.example.shared.communication.TokenTemplateEngine.TableColumn;
 import org.example.util.BusinessClock;
 
 import java.time.LocalDate;
@@ -57,6 +63,167 @@ public final class MessageTemplateService {
     }
 
     public record FormattedMessage(String subject, String body) {}
+
+    public record LineItemPreview(
+            String description,
+            String hsnSac,
+            String quantityWithUnit,
+            String rateFormatted,
+            String gstFormatted,
+            String totalFormatted
+    ) {}
+
+    public record RichEmailContext(
+            String partyName,
+            String documentDate,
+            String dueDate,
+            String partyGstin,
+            String paymentMode,
+            String paymentReference,
+            String originalDocumentNo,
+            Double subtotalAmount,
+            Double taxAmount,
+            String taxBreakup,
+            List<LineItemPreview> lineItems
+    ) {
+        public static RichEmailContext empty() {
+            return new RichEmailContext(null, null, null, null, null, null, null, null, null, null, List.of());
+        }
+
+        private static String fmtQty(double q, String unit) {
+            String qtyStr = (Math.abs(q - Math.rint(q)) < 0.0001)
+                    ? String.valueOf(Math.round(q))
+                    : String.format(Locale.ROOT, "%.2f", q);
+            return (unit == null || unit.isBlank()) ? qtyStr : qtyStr + " " + unit.trim();
+        }
+
+        public static RichEmailContext forSale(Sales sale) {
+            if (sale == null) return empty();
+            List<LineItemPreview> items = new java.util.ArrayList<>();
+            if (sale.getLines() != null) {
+                for (var l : sale.getLines()) {
+                    if (l == null) continue;
+                    String desc = (l.getItemDescription() != null && !l.getItemDescription().isBlank())
+                            ? l.getItemDescription().trim()
+                            : (l.getItemCode() == null ? "-" : l.getItemCode().trim());
+                    items.add(new LineItemPreview(
+                            desc,
+                            l.getItemHsn() == null || l.getItemHsn().isBlank() ? "-" : l.getItemHsn().trim(),
+                            fmtQty(l.getQuantity(), l.getItemUnit()),
+                            money(l.getRate()),
+                            String.format(Locale.ROOT, "%.1f%% (%s)", l.getGstPercent(), money(l.getGstAmount())),
+                            money(l.getTotalAmount())
+                    ));
+                }
+            }
+            return new RichEmailContext(
+                    sale.getCustomer() != null ? sale.getCustomer().getName() : null,
+                    sale.getInvoiceDate() != null ? BusinessClock.formatDate(sale.getInvoiceDate()) : null,
+                    sale.getDueDate() != null ? BusinessClock.formatDate(sale.getDueDate()) : null,
+                    firstNonBlank(sale.getBillingGstin(), sale.getGstin(), sale.getCustomer() != null ? sale.getCustomer().getGstin() : ""),
+                    null,
+                    null,
+                    sale.getOrderNo(),
+                    sale.getSubtotal(),
+                    sale.getGstAmount(),
+                    sale.getGstType(),
+                    items
+            );
+        }
+
+        public static RichEmailContext forPurchase(Purchase purchase) {
+            if (purchase == null) return empty();
+            List<LineItemPreview> items = new java.util.ArrayList<>();
+            if (purchase.getLines() != null) {
+                for (var l : purchase.getLines()) {
+                    if (l == null) continue;
+                    String desc = (l.getItemDescription() != null && !l.getItemDescription().isBlank())
+                            ? l.getItemDescription().trim()
+                            : (l.getItemCode() == null ? "-" : l.getItemCode().trim());
+                    items.add(new LineItemPreview(
+                            desc,
+                            l.getItemHsn() == null || l.getItemHsn().isBlank() ? "-" : l.getItemHsn().trim(),
+                            fmtQty(l.getQuantity(), l.getItemUnit()),
+                            money(l.getRate()),
+                            String.format(Locale.ROOT, "%.1f%% (%s)", l.getGstPercent(), money(l.getGstAmount())),
+                            money(l.getTotalAmount())
+                    ));
+                }
+            }
+            return new RichEmailContext(
+                    purchase.getSupplier() != null ? purchase.getSupplier().getName() : null,
+                    purchase.getInvoiceDate() != null ? BusinessClock.formatDate(purchase.getInvoiceDate()) : null,
+                    purchase.getDueDate() != null ? BusinessClock.formatDate(purchase.getDueDate()) : null,
+                    firstNonBlank(purchase.getBillingGstin(), purchase.getSupplier() != null ? purchase.getSupplier().getGstin() : ""),
+                    null,
+                    null,
+                    purchase.getOrderNo(),
+                    purchase.getSubtotal(),
+                    purchase.getGstAmount(),
+                    purchase.getGstType(),
+                    items
+            );
+        }
+
+        public static RichEmailContext forQuotation(
+                org.example.api.quotation.QuotationApiClient.QuoteDto quote,
+                List<org.example.api.quotation.QuotationApiClient.LineDto> lines) {
+            if (quote == null) return empty();
+            List<LineItemPreview> items = new java.util.ArrayList<>();
+            double subtotalSum = 0.0;
+            double taxSum = 0.0;
+            if (lines != null) {
+                for (var l : lines) {
+                    if (l == null) continue;
+                    var calc = org.example.shared.DocumentCalculationEngine.line(l.quantity(), l.rate(), l.discount(), l.gst());
+                    subtotalSum += calc.taxableAmount();
+                    taxSum += calc.taxAmount();
+                    String desc = (l.description() != null && !l.description().isBlank())
+                            ? l.description().trim()
+                            : (l.code() == null ? "-" : l.code().trim());
+                    items.add(new LineItemPreview(
+                            desc,
+                            l.hsn() == null || l.hsn().isBlank() ? "-" : l.hsn().trim(),
+                            fmtQty(l.quantity(), l.unit()),
+                            money(l.rate()),
+                            String.format(Locale.ROOT, "%.1f%% (%s)", l.gst(), money(calc.taxAmount())),
+                            money(l.total() > 0 ? l.total() : calc.totalAmount())
+                    ));
+                }
+            }
+            return new RichEmailContext(
+                    quote.customer(),
+                    quote.date(),
+                    quote.valid(),
+                    quote.gstin(),
+                    null,
+                    null,
+                    null,
+                    items.isEmpty() ? null : subtotalSum,
+                    items.isEmpty() ? null : taxSum,
+                    items.isEmpty() ? null : "GST Included",
+                    items
+            );
+        }
+
+        public static RichEmailContext forSettlement(
+                String partyName,
+                String docDate,
+                String partyGstin,
+                String paymentMode,
+                String paymentReference,
+                String originalDocumentNo,
+                Double subtotalAmount,
+                Double taxAmount,
+                String taxBreakup,
+                List<LineItemPreview> lineItems) {
+            return new RichEmailContext(
+                    partyName, docDate, null, partyGstin,
+                    paymentMode, paymentReference, originalDocumentNo,
+                    subtotalAmount, taxAmount, taxBreakup, lineItems
+            );
+        }
+    }
 
     private MessageTemplateService() {}
 
@@ -388,16 +555,185 @@ public final class MessageTemplateService {
     }
 
     public static String wrapPlainBodyInCardHtml(String cardBadge, String cardTitle, String plainBody) {
+        boolean attachSig = isAttachSignatureToEmail();
+        return wrapPlainBodyInCardHtml(cardBadge, cardTitle, plainBody, attachSig, attachSig ? "cid:signatureImage" : null);
+    }
+
+    public static String wrapPlainBodyInCardHtml(
+            String cardBadge,
+            String cardTitle,
+            String plainBody,
+            boolean includeInlineSignatureImage,
+            String signatureImageSrc
+    ) {
         String company = BrandingService.companyName();
-        return TokenTemplateEngine.wrapInCardHtml(
+        ExtractedSignature extracted = extractBodyAndSignature(plainBody, null);
+        String cleanPlain = TokenTemplateEngine.stripWhatsappMarkdown(extracted.bodyWithoutSignature());
+        String rawImg = includeInlineSignatureImage
+                ? ((signatureImageSrc != null && !signatureImageSrc.isBlank()) ? signatureImageSrc.trim() : "cid:signatureImage")
+                : null;
+        String address = ConfigManager.get("company.address", "").trim();
+        String sigHtml = TokenTemplateEngine.signatureBlockHtml(extracted.signatureText(), rawImg, address);
+        List<String> sections = sigHtml.isBlank() ? List.of() : List.of(sigHtml);
+        return TokenTemplateEngine.wrapInRichCardHtml(new RichCardSpec(
                 "#0284c7",
                 "#0369a1",
+                company,
                 cardBadge == null ? company : cardBadge,
+                "#0369a1",
                 cardTitle == null || cardTitle.isBlank() ? company : cardTitle,
-                TokenTemplateEngine.stripWhatsappMarkdown(plainBody == null ? "" : plainBody),
+                "",
+                "",
                 List.of(),
-                company + " ERP"
+                cleanPlain,
+                sections,
+                List.of(),
+                company + " ERP",
+                sigHtml.isBlank() ? buildCompanyFooterMeta() : buildCompanyFooterMetaWithoutAddress()
+        ));
+    }
+
+    public static String formatOtpEmailHtml(String recipient, String purpose, String otp) {
+        String company = BrandingService.companyName();
+        String safeRecipient = recipient == null || recipient.isBlank() ? "Authorized User" : recipient.trim();
+        String safePurpose = purpose == null || purpose.isBlank() ? "Security Verification" : purpose.trim();
+        String safeOtp = otp == null ? "" : otp.trim();
+
+        Map<String, String> tokens = new LinkedHashMap<>();
+        tokens.put("UserName", safeRecipient);
+        tokens.put("OtpCode", safeOtp);
+        tokens.put("ValidityMinutes", "10");
+        tokens.put("CompanyName", company);
+        tokens.put("AppName", company + " ERP");
+        tokens.put("Signature", getSignature());
+
+        String bodyTpl = getEmailBody("auth_otp");
+        if (TokenTemplateEngine.isHtmlContent(bodyTpl)) {
+            return TokenTemplateEngine.formatHtmlEscaped(bodyTpl, tokens, Set.of());
+        }
+
+        String intro = TokenTemplateEngine.stripWhatsappMarkdown(format(bodyTpl, tokens))
+                .replace(safeOtp, "").trim();
+        if (intro.isBlank()) {
+            intro = "Use the verification code below to complete your " + safePurpose + " in " + company + " ERP.";
+        }
+        String otpCallout = TokenTemplateEngine.calloutBoxHtml(
+                "YOUR ONE-TIME VERIFICATION CODE",
+                safeOtp.isBlank() ? "------" : safeOtp,
+                "Never share this code with anyone, including support staff. Valid for 10 minutes.",
+                "#0284c7",
+                "#f0f9ff",
+                "#0369a1"
         );
+        String detailsTable = TokenTemplateEngine.keyValueSectionHtml(
+                "Security Request Details",
+                "#0284c7",
+                List.of(
+                        new KeyValueRow("Recipient Account", safeRecipient, false),
+                        new KeyValueRow("Verification Purpose", safePurpose, false),
+                        new KeyValueRow("Validity Window", "10 Minutes (Single Use)", false, "#1d4ed8", "#dbeafe")
+                )
+        );
+        return TokenTemplateEngine.wrapInRichCardHtml(new RichCardSpec(
+                "#0284c7",
+                "#0369a1",
+                company + " SECURITY",
+                "ONE-TIME PASSWORD",
+                "#1d4ed8",
+                "Security Verification Code",
+                "Time-sensitive sign-in & identity confirmation",
+                "Your " + company + " verification code expires in 10 minutes.",
+                List.of(
+                        new MetaColumn("ACCOUNT", safeRecipient),
+                        new MetaColumn("PURPOSE", safePurpose),
+                        new MetaColumn("EXPIRY", "10 Minutes", "#1d4ed8")
+                ),
+                intro,
+                List.of(otpCallout, detailsTable),
+                List.of(),
+                company + " ERP Security",
+                buildCompanyFooterMeta()
+        ));
+    }
+
+    public static FormattedMessage renderRichEmailByKey(
+            String templateKey,
+            Map<String, String> tokens,
+            RichCardSpec richStyleTemplate
+    ) {
+        Map<String, String> merged = new LinkedHashMap<>();
+        String company = BrandingService.companyName();
+        merged.put("CompanyName", company);
+        merged.put("AppName", company + " ERP");
+        merged.put("Signature", getSignature());
+        if (tokens != null) {
+            merged.putAll(tokens);
+        }
+        String subjTpl = getEmailSubject(templateKey);
+        String bodyTpl = getEmailBody(templateKey);
+        String subject = format(subjTpl, merged);
+        boolean htmlMode = shouldUseHtml(templateKey);
+        if (TokenTemplateEngine.isHtmlContent(bodyTpl)) {
+            String resolved = htmlMode
+                    ? TokenTemplateEngine.formatHtmlEscaped(bodyTpl, merged, Set.of())
+                    : format(bodyTpl, merged).replaceAll("<[^>]+>", " ").replaceAll("\\s{2,}", " ").trim();
+            return new FormattedMessage(subject, resolved);
+        }
+        String plain = TokenTemplateEngine.stripWhatsappMarkdown(format(bodyTpl, merged));
+        if (!htmlMode) {
+            return new FormattedMessage(subject, plain);
+        }
+        RichCardSpec spec = richStyleTemplate != null ? richStyleTemplate : new RichCardSpec(
+                "#0284c7", "#0369a1", company, null, null, subject, null, subject,
+                List.of(), plain, List.of(), List.of(), company + " ERP", buildCompanyFooterMeta()
+        );
+        String html = TokenTemplateEngine.wrapInRichCardHtml(new RichCardSpec(
+                spec.headerStartHex() == null ? "#0284c7" : spec.headerStartHex(),
+                spec.headerEndHex() == null ? "#0369a1" : spec.headerEndHex(),
+                spec.kickerText() == null || spec.kickerText().isBlank() ? company : spec.kickerText(),
+                spec.badgeText(),
+                spec.badgeColorHex(),
+                spec.title() == null || spec.title().isBlank() ? subject : spec.title(),
+                spec.subtitle(),
+                spec.preheader() == null || spec.preheader().isBlank() ? subject : spec.preheader(),
+                spec.metaColumns() == null ? List.of() : spec.metaColumns(),
+                spec.resolvedPlainBody() != null ? spec.resolvedPlainBody() : plain,
+                spec.sectionHtmlBlocks() == null ? List.of() : spec.sectionHtmlBlocks(),
+                spec.buttons() == null ? List.of() : spec.buttons(),
+                spec.footerTitle() == null || spec.footerTitle().isBlank() ? "Generated automatically by " + company + " ERP" : spec.footerTitle(),
+                spec.footerMeta() == null || spec.footerMeta().isBlank() ? buildCompanyFooterMeta() : spec.footerMeta()
+        ));
+        return new FormattedMessage(subject, html);
+    }
+
+    public static String buildCompanyFooterMeta() {
+        return buildCompanyFooterMeta(true);
+    }
+
+    public static String buildCompanyFooterMetaWithoutAddress() {
+        return buildCompanyFooterMeta(false);
+    }
+
+    private static String buildCompanyFooterMeta(boolean includeAddress) {
+        String address = includeAddress ? ConfigManager.get("company.address", "").trim() : "";
+        String phone = ConfigManager.get("company.phone", "").trim();
+        String email = ConfigManager.get("company.email", "").trim();
+        String website = ConfigManager.get("company.website", "").trim();
+        StringBuilder sb = new StringBuilder();
+        if (!address.isBlank()) sb.append(address);
+        if (!phone.isBlank()) {
+            if (sb.length() > 0) sb.append(" • ");
+            sb.append("Phone: ").append(phone);
+        }
+        if (!email.isBlank()) {
+            if (sb.length() > 0) sb.append(" • ");
+            sb.append("Email: ").append(email);
+        }
+        if (!website.isBlank()) {
+            if (sb.length() > 0) sb.append(" • ");
+            sb.append(website);
+        }
+        return sb.toString();
     }
 
     public static String formatStandardPreviewHtml(String subject, String plainBody) {
@@ -426,14 +762,25 @@ public final class MessageTemplateService {
     }
 
     public static FormattedMessage formatSalesEmail(Sales sale) {
+        String partyName = sale.getCustomer() == null ? "Customer" : sale.getCustomer().getName();
         Map<String, String> tokens = buildTokens(
-            sale.getCustomer() == null ? "Customer" : sale.getCustomer().getName(),
+            partyName,
             sale.getInvoiceNo(),
             sale.getInvoiceDate(),
             sale.getTotalAmount(),
             sale.getPaidAmount(),
-            sale.getBalanceAmount()
+            sale.getBalanceAmount(),
+            DocumentType.SALES_INVOICE
         );
+        tokens.put("SubtotalAmount", money(sale.getSubtotal()));
+        tokens.put("TaxAmount", money(sale.getGstAmount()));
+        tokens.put("DueDate", sale.getDueDate() != null ? BusinessClock.formatDate(sale.getDueDate()) : "On Receipt");
+        tokens.put("PartyGstin", firstNonBlank(
+                sale.getBillingGstin(),
+                sale.getGstin(),
+                sale.getCustomer() != null ? sale.getCustomer().getGstin() : "",
+                "Unregistered / N/A"
+        ));
         String subject = format(getEmailSubject(DocumentType.SALES_INVOICE), tokens);
         String rawBody = getEmailBody(DocumentType.SALES_INVOICE);
         String body = format(rawBody, tokens);
@@ -445,14 +792,24 @@ public final class MessageTemplateService {
     }
 
     public static FormattedMessage formatPurchaseEmail(Purchase purchase) {
+        String partyName = purchase.getSupplier() == null ? "Supplier" : purchase.getSupplier().getName();
         Map<String, String> tokens = buildTokens(
-            purchase.getSupplier() == null ? "Supplier" : purchase.getSupplier().getName(),
+            partyName,
             purchase.getInvoiceNo(),
             purchase.getInvoiceDate(),
             purchase.getTotalAmount(),
             purchase.getPaidAmount(),
-            purchase.getBalanceAmount()
+            purchase.getBalanceAmount(),
+            DocumentType.PURCHASE_BILL
         );
+        tokens.put("SubtotalAmount", money(purchase.getSubtotal()));
+        tokens.put("TaxAmount", money(purchase.getGstAmount()));
+        tokens.put("DueDate", purchase.getDueDate() != null ? BusinessClock.formatDate(purchase.getDueDate()) : "As per terms");
+        tokens.put("PartyGstin", firstNonBlank(
+                purchase.getBillingGstin(),
+                purchase.getSupplier() != null ? purchase.getSupplier().getGstin() : "",
+                "Unregistered / N/A"
+        ));
         String subject = format(getEmailSubject(DocumentType.PURCHASE_BILL), tokens);
         String rawBody = getEmailBody(DocumentType.PURCHASE_BILL);
         String body = format(rawBody, tokens);
@@ -470,8 +827,10 @@ public final class MessageTemplateService {
             date,
             amount,
             0.0,
-            amount
+            amount,
+            DocumentType.QUOTATION
         );
+        tokens.put("ValidUntil", date != null ? BusinessClock.formatDate(date.plusDays(30)) : "30 Days from Quote Date");
         String subject = format(getEmailSubject(DocumentType.QUOTATION), tokens);
         String rawBody = getEmailBody(DocumentType.QUOTATION);
         String body = format(rawBody, tokens);
@@ -489,7 +848,8 @@ public final class MessageTemplateService {
             date,
             amount,
             0.0,
-            amount
+            amount,
+            DocumentType.SALES_RETURN
         );
         String subject = format(getEmailSubject(DocumentType.SALES_RETURN), tokens);
         String rawBody = getEmailBody(DocumentType.SALES_RETURN);
@@ -516,7 +876,8 @@ public final class MessageTemplateService {
             date,
             amount,
             0.0,
-            amount
+            amount,
+            DocumentType.PURCHASE_RETURN
         );
         String subject = format(getEmailSubject(DocumentType.PURCHASE_RETURN), tokens);
         String rawBody = getEmailBody(DocumentType.PURCHASE_RETURN);
@@ -620,6 +981,14 @@ public final class MessageTemplateService {
         tokens.put("TotalAmount", money(totalAmount));
         tokens.put("PaidAmount", money(paidAmount));
         tokens.put("BalanceAmount", money(balanceAmount));
+        tokens.put("SubtotalAmount", money(totalAmount));
+        tokens.put("TaxAmount", money(0.0));
+        tokens.put("DueDate", date == null ? "-" : BusinessClock.formatDate(date));
+        tokens.put("ValidUntil", date == null ? "30 Days from Quote Date" : BusinessClock.formatDate(date.plusDays(30)));
+        tokens.put("PartyGstin", "Unregistered / N/A");
+        tokens.put("OriginalDocument", "-");
+        tokens.put("ReturnReason", "Standard Return / Adjustment");
+        tokens.put("PaymentMode", "Bank Transfer");
         tokens.put("CompanyName", company);
         tokens.put("CompanyPhone", phone);
         tokens.put("CompanyEmail", email);
@@ -769,7 +1138,36 @@ public final class MessageTemplateService {
                 totalAmount, paidAmount, balanceAmount, plainBody,
                 hasDualBank, ourBankName, ourAccNo, ourIfsc,
                 remitterDesc, remitterUtr, publicStatusUrl,
-                includeInlineSignatureImage, null
+                includeInlineSignatureImage, null, RichEmailContext.empty()
+        );
+    }
+
+    public static String formatExecutiveHtmlEmail(
+            String docTitle,
+            String statusBadge,
+            String documentNo,
+            String date,
+            String partyName,
+            double totalAmount,
+            double paidAmount,
+            double balanceAmount,
+            String plainBody,
+            boolean hasDualBank,
+            String ourBankName,
+            String ourAccNo,
+            String ourIfsc,
+            String remitterDesc,
+            String remitterUtr,
+            String publicStatusUrl,
+            boolean includeInlineSignatureImage,
+            String signatureImageSrc
+    ) {
+        return formatExecutiveHtmlEmail(
+                docTitle, statusBadge, documentNo, date, partyName,
+                totalAmount, paidAmount, balanceAmount, plainBody,
+                hasDualBank, ourBankName, ourAccNo, ourIfsc,
+                remitterDesc, remitterUtr, publicStatusUrl,
+                includeInlineSignatureImage, signatureImageSrc, RichEmailContext.empty()
         );
     }
 
@@ -800,10 +1198,14 @@ public final class MessageTemplateService {
     }
 
     public static String formatExecutiveBreakdownHtml(String rawBody) {
+        return formatExecutiveBreakdownHtml(rawBody, false);
+    }
+
+    public static String formatExecutiveBreakdownHtml(String rawBody, boolean omitKpiCards) {
         if (rawBody == null || rawBody.isBlank()) return "";
         String[] lines = rawBody.split("\\r?\\n");
         StringBuilder topText = new StringBuilder();
-        StringBuilder detailRows = new StringBuilder();
+        List<KeyValueRow> detailRows = new java.util.ArrayList<>();
         StringBuilder bottomText = new StringBuilder();
         boolean inBreakdown = false;
 
@@ -824,97 +1226,66 @@ public final class MessageTemplateService {
 
                     if (keyLower.contains("total")) {
                         totalBillVal = val;
-                    } else if (keyLower.contains("disbursed") || keyLower.contains("paid") || keyLower.contains("disburse")) {
+                    } else if (keyLower.contains("disbursed") || keyLower.contains("paid") || keyLower.contains("disburse") || keyLower.contains("received")) {
                         disbursedVal = val;
                     } else if (keyLower.contains("balance")) {
                         balanceVal = val;
+                    } else if (keyLower.contains("reference") || keyLower.contains("utr")) {
+                        detailRows.add(new KeyValueRow("🏷 " + key, val, true));
+                    } else if (keyLower.contains("date") || keyLower.contains("valid")) {
+                        detailRows.add(new KeyValueRow("📅 " + key, cleanExecutiveDate(val), false));
+                    } else if (keyLower.contains("mode")) {
+                        detailRows.add(new KeyValueRow("💳 " + key, val, false));
+                    } else if (keyLower.contains("remarks") || keyLower.contains("narration") || keyLower.contains("notes")) {
+                        detailRows.add(new KeyValueRow("📝 " + key, val, false));
                     } else {
-                        String icon = "📋";
-                        String valStyle = "color:#0f172a; font-weight:600;";
-                        String renderedVal = escape(val);
-
-                        if (keyLower.contains("mode")) {
-                            icon = "💳";
-                            valStyle = "color:#334155; font-weight:600;";
-                        } else if (keyLower.contains("reference") || keyLower.contains("utr")) {
-                            icon = "🏷";
-                            renderedVal = "<span style=\"font-family:monospace; font-weight:700; background:#f1f5f9; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:12px; color:#334155;\">" + escape(val) + "</span>";
-                        } else if (keyLower.contains("date")) {
-                            icon = "📅";
-                            renderedVal = escape(cleanExecutiveDate(val));
-                            valStyle = "color:#334155; font-weight:600;";
-                        } else if (keyLower.contains("remarks") || keyLower.contains("narration") || keyLower.contains("notes")) {
-                            icon = "📝";
-                            valStyle = "color:#475569; font-style:italic;";
-                        }
-
-                        detailRows.append("<tr>")
-                                .append("<td style=\"padding:10px 16px; border-bottom:1px solid #f1f5f9; color:#475569; width:38%;\">")
-                                .append(icon).append(" <strong>").append(escape(key)).append("</strong></td>")
-                                .append("<td style=\"padding:10px 16px; border-bottom:1px solid #f1f5f9; ").append(valStyle).append("\">")
-                                .append(renderedVal)
-                                .append("</td></tr>\n");
+                        detailRows.add(new KeyValueRow("📋 " + key, val, false));
                     }
                 } else {
-                    detailRows.append("<tr><td colspan=\"2\" style=\"padding:8px 16px; border-bottom:1px solid #f1f5f9; color:#475569;\">")
-                            .append(escape(content))
-                            .append("</td></tr>\n");
+                    detailRows.add(new KeyValueRow("• Note", content, false));
                 }
             } else if (inBreakdown && !trimmed.isBlank()) {
                 if (!trimmed.equalsIgnoreCase("{Signature}")) {
-                    bottomText.append("<p style=\"margin:8px 0;\">").append(escape(trimmed)).append("</p>\n");
+                    bottomText.append("<p style=\"margin:8px 0; color:#334155;\">").append(escape(trimmed)).append("</p>\n");
                 }
             } else if (!inBreakdown) {
-                if (trimmed.toLowerCase(Locale.ROOT).contains("breakdown:") || trimmed.toLowerCase(Locale.ROOT).contains("summary:")) {
-                    // Skip header line as table owns the header
+                String lowerTrimmed = trimmed.toLowerCase(Locale.ROOT);
+                if (lowerTrimmed.contains("breakdown:") || lowerTrimmed.contains("summary:")) {
+                    // Section header owned by structured card below
                 } else if (!trimmed.isBlank() && !trimmed.equalsIgnoreCase("{Signature}")) {
-                    topText.append("<p style=\"margin:8px 0;\">").append(escape(trimmed)).append("</p>\n");
+                    topText.append("<p style=\"margin:8px 0; color:#334155;\">").append(escape(trimmed)).append("</p>\n");
                 }
             }
         }
 
-        if (totalBillVal == null && disbursedVal == null && balanceVal == null && detailRows.length() == 0) {
+        if (totalBillVal == null && disbursedVal == null && balanceVal == null && detailRows.isEmpty()) {
             return escape(rawBody).replace("\r\n", "\n").replace("\n", "<br/>\n");
         }
 
         StringBuilder out = new StringBuilder();
         if (topText.length() > 0) out.append(topText);
 
-        out.append("<div style=\"margin:18px 0; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;\">\n");
-        out.append("<div style=\"background:#f1f5f9; padding:10px 16px; border-bottom:1px solid #e2e8f0; font-size:12px; font-weight:700; color:#1e3a8a; text-transform:uppercase; letter-spacing:0.5px;\">📊 Remittance &amp; Settlement Breakdown</div>\n");
-
-        if (totalBillVal != null || disbursedVal != null || balanceVal != null) {
+        if (!omitKpiCards && (totalBillVal != null || disbursedVal != null || balanceVal != null)) {
             String bVal = balanceVal == null ? "₹ 0.00" : balanceVal;
             boolean zeroBal = bVal.contains("0.00") || bVal.equals("₹ 0") || bVal.equals("0");
-            String balanceColor = zeroBal ? "#16a34a" : "#dc2626";
-
-            out.append("<table style=\"width:100%; border-collapse:collapse; background:#ffffff; border-bottom:1px solid #e2e8f0;\">\n");
-            out.append("<tr>\n");
-            out.append("<td style=\"width:33.33%; padding:14px 16px; border-right:1px solid #e2e8f0; vertical-align:top;\">\n");
-            out.append("<div style=\"font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;\">📄 Total Bill Amount</div>\n");
-            out.append("<div style=\"font-size:15px; font-weight:700; color:#1e3a8a; margin-top:4px;\">").append(escape(totalBillVal == null ? "-" : totalBillVal)).append("</div>\n");
-            out.append("</td>\n");
-
-            out.append("<td style=\"width:33.33%; padding:14px 16px; border-right:1px solid #e2e8f0; vertical-align:top;\">\n");
-            out.append("<div style=\"font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;\">💸 Amount Disbursed</div>\n");
-            out.append("<div style=\"font-size:15px; font-weight:700; color:#16a34a; margin-top:4px;\">").append(escape(disbursedVal == null ? "-" : disbursedVal))
-                    .append(" <span style=\"background:#f0fdf4; color:#16a34a; font-size:10px; font-weight:700; padding:2px 8px; border-radius:9999px; text-transform:uppercase; border:1px solid #bbf7d0;\">SETTLED</span></div>\n");
-            out.append("</td>\n");
-
-            out.append("<td style=\"width:33.33%; padding:14px 16px; vertical-align:top;\">\n");
-            out.append("<div style=\"font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;\">⚖️ Balance Due</div>\n");
-            out.append("<div style=\"font-size:15px; font-weight:700; color:").append(balanceColor).append("; margin-top:4px;\">").append(escape(bVal)).append("</div>\n");
-            out.append("</td>\n");
-            out.append("</tr>\n</table>\n");
+            out.append(TokenTemplateEngine.kpiGridHtml(
+                    "📊 Remittance & Settlement Breakdown",
+                    List.of(
+                            new KpiTile("Total Bill Amount", totalBillVal == null ? "-" : totalBillVal, "Document Total", "#1e3a8a"),
+                            new KpiTile("Amount Disbursed", disbursedVal == null ? "-" : disbursedVal, "SETTLED", "#16a34a"),
+                            new KpiTile("Balance Due", bVal, zeroBal ? "Settled" : "Open Balance", zeroBal ? "#16a34a" : "#dc2626")
+                    ),
+                    3
+            ));
         }
 
-        if (detailRows.length() > 0) {
-            out.append("<table style=\"width:100%; border-collapse:collapse; font-size:13px; line-height:1.5;\">\n");
-            out.append(detailRows);
-            out.append("</table>\n");
+        if (!detailRows.isEmpty()) {
+            out.append(TokenTemplateEngine.keyValueSectionHtml(
+                    "📊 Remittance & Settlement Details",
+                    "#1e3a8a",
+                    detailRows
+            ));
         }
-
-        out.append("</div>\n");
         if (bottomText.length() > 0) out.append(bottomText);
         return out.toString();
     }
@@ -937,8 +1308,126 @@ public final class MessageTemplateService {
             String remitterUtr,
             String publicStatusUrl,
             boolean includeInlineSignatureImage,
-            String signatureImageSrc
+            String signatureImageSrc,
+            RichEmailContext context
     ) {
+        return formatExecutiveHtmlEmail(
+                docTitle, statusBadge, documentNo, date, partyName,
+                totalAmount, paidAmount, balanceAmount, plainBody,
+                hasDualBank, ourBankName, ourAccNo, ourIfsc,
+                remitterDesc, remitterUtr, publicStatusUrl,
+                includeInlineSignatureImage, signatureImageSrc, context, null
+        );
+    }
+
+    public static String resolveSignatureForProfile(String profileKey, String documentTypeOrLabel) {
+        if (profileKey != null && !profileKey.isBlank()) {
+            String profileCustom = ConfigManager.get("email.signature." + profileKey.trim(), "").trim();
+            if (!profileCustom.isBlank()) {
+                return expandSignatureTokens(profileCustom);
+            }
+        }
+        String key = resolveTemplateKeyForEntity(documentTypeOrLabel);
+        for (DocumentType dt : DocumentType.values()) {
+            if (dt.key().equals(key)) {
+                return expandSignatureTokens(getSignature(dt));
+            }
+        }
+        return expandSignatureTokens(getSignature());
+    }
+
+    private static String expandSignatureTokens(String signature) {
+        if (signature == null || signature.isBlank()) return "";
+        String company = BrandingService.companyName();
+        String phone = ConfigManager.get("company.phone", "").trim();
+        String email = ConfigManager.get("company.email", "").trim();
+        return signature.replace("{CompanyName}", company)
+                .replace("{CompanyPhone}", phone)
+                .replace("{CompanyEmail}", email)
+                .trim();
+    }
+
+    private record ExtractedSignature(String bodyWithoutSignature, String signatureText) {}
+
+    private static ExtractedSignature extractBodyAndSignature(String rawBody, String preferredSignature) {
+        String body = rawBody == null ? "" : rawBody.replace("\r\n", "\n");
+        String fallbackSig = (preferredSignature != null && !preferredSignature.isBlank())
+                ? expandSignatureTokens(preferredSignature)
+                : expandSignatureTokens(getSignature());
+
+        if (body.contains("{Signature}")) {
+            return new ExtractedSignature(body.replace("{Signature}", "").stripTrailing(), fallbackSig);
+        }
+
+        List<String> candidates = new java.util.ArrayList<>();
+        if (preferredSignature != null && !preferredSignature.isBlank()) {
+            candidates.add(expandSignatureTokens(preferredSignature));
+        }
+        String globalSig = expandSignatureTokens(getSignature());
+        if (!globalSig.isBlank()) candidates.add(globalSig);
+        String defaultSig = expandSignatureTokens(defaultSignature());
+        if (!defaultSig.isBlank()) candidates.add(defaultSig);
+        for (DocumentType dt : DocumentType.values()) {
+            String custom = ConfigManager.get("email.signature." + dt.key(), "").trim();
+            if (!custom.isBlank()) candidates.add(expandSignatureTokens(custom));
+        }
+
+        String normalizedBody = body.stripTrailing();
+        for (String candidate : candidates) {
+            String cleanCand = candidate == null ? "" : candidate.replace("\r\n", "\n").trim();
+            if (cleanCand.isBlank()) continue;
+            int idx = normalizedBody.lastIndexOf(cleanCand);
+            if (idx >= 0 && idx + cleanCand.length() >= normalizedBody.length() - 2) {
+                String stripped = normalizedBody.substring(0, idx).stripTrailing();
+                String effectiveSig = (preferredSignature != null && !preferredSignature.isBlank()) ? fallbackSig : cleanCand;
+                return new ExtractedSignature(stripped, effectiveSig);
+            }
+        }
+
+        // Preserve any user-edited trailing "Regards ..." sign-off block from composer body without duplicating it at top
+        String[] blocks = normalizedBody.split("\\n\\s*\\n");
+        if (blocks.length >= 2) {
+            String tail = blocks[blocks.length - 1].trim();
+            String firstLineLower = tail.lines().findFirst().orElse("").trim().toLowerCase(Locale.ROOT);
+            if (firstLineLower.startsWith("regards")
+                    || firstLineLower.startsWith("warm regards")
+                    || firstLineLower.startsWith("best regards")
+                    || firstLineLower.startsWith("thanks & regards")
+                    || firstLineLower.startsWith("thanks and regards")
+                    || firstLineLower.startsWith("sincerely")) {
+                int tailIdx = normalizedBody.lastIndexOf(blocks[blocks.length - 1]);
+                if (tailIdx > 0) {
+                    return new ExtractedSignature(normalizedBody.substring(0, tailIdx).stripTrailing(), tail);
+                }
+            }
+        }
+
+        return new ExtractedSignature(normalizedBody, fallbackSig);
+    }
+
+    public static String formatExecutiveHtmlEmail(
+            String docTitle,
+            String statusBadge,
+            String documentNo,
+            String date,
+            String partyName,
+            double totalAmount,
+            double paidAmount,
+            double balanceAmount,
+            String plainBody,
+            boolean hasDualBank,
+            String ourBankName,
+            String ourAccNo,
+            String ourIfsc,
+            String remitterDesc,
+            String remitterUtr,
+            String publicStatusUrl,
+            boolean includeInlineSignatureImage,
+            String signatureImageSrc,
+            RichEmailContext context,
+            String signatureTextOverride
+    ) {
+        RichEmailContext ctx = context != null ? context : RichEmailContext.empty();
         String company = BrandingService.companyName();
         String phone = ConfigManager.get("company.phone", "").trim();
         String email = ConfigManager.get("company.email", "").trim();
@@ -952,119 +1441,441 @@ public final class MessageTemplateService {
         if (!primaryColor.matches("^#[0-9a-fA-F]{6}$")) {
             primaryColor = "#1e3a8a";
         }
-        date = cleanExecutiveDate(date);
 
-        String badgeBg = "#1e3a8a";
-        String badgeColor = "#ffffff";
-        if ("PAID".equalsIgnoreCase(statusBadge) || "FULLY PAID".equalsIgnoreCase(statusBadge)) {
+        String resolvedParty = firstNonBlank(ctx.partyName(), partyName, "Valued Client");
+        String resolvedDate = cleanExecutiveDate(firstNonBlank(ctx.documentDate(), date, ""));
+        String resolvedDocTitle = docTitle == null || docTitle.isBlank() ? "COMMERCIAL DOCUMENT" : docTitle.trim();
+        String docUpper = resolvedDocTitle.toUpperCase(Locale.ROOT);
+
+        boolean isQuotation = docUpper.contains("QUOT");
+        boolean isPurchase = docUpper.contains("PURCHASE") || docUpper.contains("REMITTANCE");
+        boolean isReturn = docUpper.contains("RETURN") || docUpper.contains("CREDIT NOTE")
+                || docUpper.contains("DEBIT NOTE") || docUpper.contains("REFUND");
+        boolean isSalesInvoice = !isQuotation && !isPurchase && !isReturn
+                && (docUpper.contains("INVOICE") || docUpper.contains("SALE"));
+
+        String resolvedBadge = statusBadge == null || statusBadge.isBlank() ? "OFFICIAL" : statusBadge.trim();
+        String badgeUpper = resolvedBadge.toUpperCase(Locale.ROOT);
+        String badgeBg = primaryColor;
+        if (badgeUpper.contains("PAID") && !badgeUpper.contains("PARTIAL") && !badgeUpper.contains("UNPAID")) {
             badgeBg = "#16a34a";
-        } else if ("PARTIAL".equalsIgnoreCase(statusBadge) || "PARTIALLY PAID".equalsIgnoreCase(statusBadge)) {
+        } else if (badgeUpper.contains("SETTLED") || badgeUpper.contains("APPROVED") || badgeUpper.contains("ACCEPTED")) {
+            badgeBg = "#16a34a";
+        } else if (badgeUpper.contains("PARTIAL") || badgeUpper.contains("PENDING") || badgeUpper.contains("SENT")) {
             badgeBg = "#d97706";
+        } else if (badgeUpper.contains("OVERDUE") || badgeUpper.contains("CANCEL") || badgeUpper.contains("REJECT")) {
+            badgeBg = "#dc2626";
         }
 
-        String cleanedBody = plainBody == null ? "" : plainBody;
-        if (includeInlineSignatureImage) {
-            cleanedBody = cleanedBody.replace("{Signature}", "").stripTrailing();
+        String preferredSig = (signatureTextOverride != null && !signatureTextOverride.isBlank())
+                ? signatureTextOverride
+                : resolveSignatureForProfile(null, resolvedDocTitle);
+        ExtractedSignature extracted = extractBodyAndSignature(plainBody, preferredSig);
+        String safeBodyHtml = formatExecutiveBreakdownHtml(extracted.bodyWithoutSignature(), true);
+
+        // Meta Bar Columns
+        String partyMetaLabel = isPurchase ? "SUPPLIER"
+                : (isQuotation ? "QUOTED FOR"
+                : (docUpper.contains("RECEIPT") || docUpper.contains("REFUND") ? "PARTY" : "BILLED TO"));
+        List<MetaColumn> metaColumns = new java.util.ArrayList<>();
+        metaColumns.add(new MetaColumn("DOCUMENT", documentNo == null || documentNo.isBlank() ? "-" : documentNo));
+        metaColumns.add(new MetaColumn("DATE", resolvedDate));
+        metaColumns.add(new MetaColumn(partyMetaLabel, resolvedParty));
+        if (ctx.dueDate() != null && !ctx.dueDate().isBlank()) {
+            metaColumns.add(new MetaColumn(isQuotation ? "VALID UNTIL" : "DUE DATE", cleanExecutiveDate(ctx.dueDate())));
+        } else if (ctx.originalDocumentNo() != null && !ctx.originalDocumentNo().isBlank()) {
+            metaColumns.add(new MetaColumn("ORIGINAL DOC", ctx.originalDocumentNo().trim()));
+        } else if (ctx.partyGstin() != null && !ctx.partyGstin().isBlank()) {
+            metaColumns.add(new MetaColumn("GSTIN", ctx.partyGstin().trim()));
         }
 
-        String safeBody = formatExecutiveBreakdownHtml(cleanedBody);
+        // Section Blocks
+        List<String> sections = new java.util.ArrayList<>();
+        if (safeBodyHtml != null && !safeBodyHtml.isBlank()) {
+            sections.add("<div style=\"margin:0 0 14px 0; font-size:14px; line-height:1.6; color:#334155;\">" + safeBodyHtml + "</div>");
+        }
 
-        StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body style=\"margin:0; padding:16px; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color:#f1f5f9; color:#1e293b;\">");
-        html.append("<div style=\"max-width:660px; margin:0 auto; background:#ffffff; border-radius:10px; border:1px solid #e2e8f0; overflow:hidden; box-shadow:0 4px 14px rgba(15,23,42,0.06);\">");
+        // Document-Type-Aware 3-Tile KPI Summary
+        boolean zeroBal = balanceAmount <= 0.009;
+        String balanceColor = zeroBal ? "#16a34a" : "#dc2626";
+        List<KpiTile> kpiTiles;
+        String kpiSectionTitle;
+        if (isQuotation) {
+            kpiSectionTitle = "📋 Quotation Summary & Estimate";
+            String subText = ctx.subtotalAmount() != null ? money(ctx.subtotalAmount()) : money(totalAmount);
+            String taxText = ctx.taxAmount() != null ? money(ctx.taxAmount()) : "As Applicable";
+            kpiTiles = List.of(
+                    new KpiTile("Taxable Estimate", subText, "Pre-tax value", primaryColor),
+                    new KpiTile("Estimated Tax (GST)", taxText, firstNonBlank(ctx.taxBreakup(), "Standard GST"), "#0369a1"),
+                    new KpiTile("Grand Quote Total", money(totalAmount), "Commercial Offer", "#16a34a")
+            );
+        } else if (isPurchase) {
+            kpiSectionTitle = "📊 Purchase Bill & Disbursement Summary";
+            kpiTiles = List.of(
+                    new KpiTile("Total Bill Amount", money(totalAmount), "Verified Bill", primaryColor),
+                    new KpiTile("Amount Disbursed", money(paidAmount), zeroBal && totalAmount > 0 ? "SETTLED" : (paidAmount > 0 ? "Part Settled" : "Unpaid"), "#16a34a"),
+                    new KpiTile("Balance Payable", money(balanceAmount), zeroBal ? "Settled" : "Payable", balanceColor)
+            );
+        } else if (isReturn) {
+            kpiSectionTitle = "🔄 Return & Credit Adjustment Summary";
+            kpiTiles = List.of(
+                    new KpiTile("Return / Credit Value", money(totalAmount), firstNonBlank(ctx.originalDocumentNo(), "Credit Note"), primaryColor),
+                    new KpiTile("Adjusted / Refunded", money(paidAmount), zeroBal && totalAmount > 0 ? "SETTLED" : "Processed", "#16a34a"),
+                    new KpiTile("Pending Settlement", money(balanceAmount), zeroBal ? "Closed" : "Open Balance", balanceColor)
+            );
+        } else {
+            kpiSectionTitle = docUpper.contains("RECEIPT")
+                    ? "📊 Remittance & Settlement Breakdown"
+                    : "📊 Invoice & Payment Summary";
+            kpiTiles = List.of(
+                    new KpiTile("Total Invoice Amount", money(totalAmount), "Billed Total", primaryColor),
+                    new KpiTile("Amount Received", money(paidAmount), zeroBal && totalAmount > 0 ? "SETTLED" : (paidAmount > 0 ? "Partial Receipt" : "Pending"), "#16a34a"),
+                    new KpiTile("Balance Due", money(balanceAmount), zeroBal ? "Paid in Full" : "Balance Payable", balanceColor)
+            );
+        }
+        sections.add(TokenTemplateEngine.kpiGridHtml(kpiSectionTitle, kpiTiles, 3));
 
-        // Header Banner
-        html.append("<div style=\"background:").append(primaryColor).append("; padding:22px 24px; color:#ffffff;\">");
-        html.append("<div style=\"display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;\">");
-        html.append("<div>");
-        html.append("<div style=\"font-size:20px; font-weight:700; letter-spacing:0.5px;\">").append(escape(company)).append("</div>");
-        html.append("<div style=\"font-size:11px; opacity:0.85; margin-top:3px;\">").append(escape(tagline.toUpperCase(Locale.ROOT))).append("</div>");
-        html.append("</div>");
-        html.append("<div>");
-        html.append("<span style=\"background:").append(badgeBg).append("; color:").append(badgeColor).append("; font-size:11px; font-weight:700; padding:5px 12px; border-radius:9999px; text-transform:uppercase; letter-spacing:0.5px;\">")
-                .append(escape(statusBadge == null ? "OFFICIAL" : statusBadge)).append("</span>");
-        html.append("</div>");
-        html.append("</div>");
-        html.append("</div>");
+        // Itemized Line Items Preview Table + GST Tax Split
+        if (ctx.lineItems() != null && !ctx.lineItems().isEmpty()) {
+            List<TableColumn> cols = List.of(
+                    new TableColumn("Item / Description", false, "38%"),
+                    new TableColumn("HSN/SAC", false, "14%"),
+                    new TableColumn("Qty", true, "14%"),
+                    new TableColumn("GST", true, "16%"),
+                    new TableColumn("Amount", true, "18%")
+            );
+            List<List<String>> tableRows = new java.util.ArrayList<>();
+            int limit = Math.min(8, ctx.lineItems().size());
+            for (int i = 0; i < limit; i++) {
+                LineItemPreview item = ctx.lineItems().get(i);
+                tableRows.add(List.of(
+                        firstNonBlank(item.description(), "-"),
+                        firstNonBlank(item.hsnSac(), "-"),
+                        firstNonBlank(item.quantityWithUnit(), "-"),
+                        firstNonBlank(item.gstFormatted(), "-"),
+                        firstNonBlank(item.totalFormatted(), "-")
+                ));
+            }
+            StringBuilder note = new StringBuilder();
+            if (ctx.subtotalAmount() != null || ctx.taxAmount() != null) {
+                if (ctx.subtotalAmount() != null) note.append("Taxable Subtotal: ").append(money(ctx.subtotalAmount()));
+                if (ctx.taxAmount() != null) {
+                    if (note.length() > 0) note.append("  |  ");
+                    note.append("Total GST: ").append(money(ctx.taxAmount()));
+                }
+                if (ctx.taxBreakup() != null && !ctx.taxBreakup().isBlank()) {
+                    note.append(" (").append(ctx.taxBreakup().trim()).append(")");
+                }
+            }
+            if (ctx.lineItems().size() > 8) {
+                if (note.length() > 0) note.append("  •  ");
+                note.append("Showing first 8 of ").append(ctx.lineItems().size()).append(" items — full schedule attached in PDF.");
+            }
+            sections.add(TokenTemplateEngine.dataTableHtml(
+                    "📦 Itemized Line Schedule (" + ctx.lineItems().size() + ")",
+                    isQuotation ? "Quoted Items" : "GST Included",
+                    cols,
+                    tableRows,
+                    note.length() > 0 ? note.toString() : null
+            ));
+        } else if (ctx.subtotalAmount() != null || ctx.taxAmount() != null
+                || (ctx.partyGstin() != null && !ctx.partyGstin().isBlank())
+                || (ctx.paymentMode() != null && !ctx.paymentMode().isBlank())
+                || (ctx.paymentReference() != null && !ctx.paymentReference().isBlank())) {
+            List<KeyValueRow> metaRows = new java.util.ArrayList<>();
+            if (ctx.partyGstin() != null && !ctx.partyGstin().isBlank()) {
+                metaRows.add(new KeyValueRow("Party GSTIN", ctx.partyGstin().trim(), true));
+            }
+            if (ctx.subtotalAmount() != null) {
+                metaRows.add(new KeyValueRow("Taxable Value", money(ctx.subtotalAmount()), false));
+            }
+            if (ctx.taxAmount() != null) {
+                metaRows.add(new KeyValueRow("Tax / GST Total", money(ctx.taxAmount()) + (ctx.taxBreakup() != null && !ctx.taxBreakup().isBlank() ? " (" + ctx.taxBreakup().trim() + ")" : ""), false));
+            }
+            if (ctx.paymentMode() != null && !ctx.paymentMode().isBlank()) {
+                metaRows.add(new KeyValueRow("Settlement Mode", ctx.paymentMode().trim(), false));
+            }
+            if (ctx.paymentReference() != null && !ctx.paymentReference().isBlank()) {
+                metaRows.add(new KeyValueRow("Bank Reference / UTR", ctx.paymentReference().trim(), true));
+            }
+            if (ctx.originalDocumentNo() != null && !ctx.originalDocumentNo().isBlank()) {
+                metaRows.add(new KeyValueRow("Original Reference Doc", ctx.originalDocumentNo().trim(), true));
+            }
+            if (!metaRows.isEmpty()) {
+                sections.add(TokenTemplateEngine.keyValueSectionHtml("📑 Tax & Settlement Particulars", primaryColor, metaRows));
+            }
+        }
 
-        // Document Meta Bar
-        html.append("<div style=\"background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:13px;\">");
-        html.append("<div><span style=\"color:#64748b; font-size:11px; font-weight:600; text-transform:uppercase;\">DOCUMENT</span><br/><strong>").append(escape(documentNo)).append("</strong></div>");
-        html.append("<div><span style=\"color:#64748b; font-size:11px; font-weight:600; text-transform:uppercase;\">DATE</span><br/><strong>").append(escape(date)).append("</strong></div>");
-        html.append("<div><span style=\"color:#64748b; font-size:11px; font-weight:600; text-transform:uppercase;\">BILLED TO</span><br/><strong>").append(escape(partyName)).append("</strong></div>");
-        html.append("</div>");
-
-        // Body Content
-        html.append("<div style=\"padding:24px; line-height:1.6; font-size:14px; color:#334155;\">");
-        html.append("<div>").append(safeBody).append("</div>");
-
-        // Dual Bank Details Card (if payment receipt)
+        // Dual Bank Card (Settlement Receipts) OR Company Payment Instructions (Unpaid Sales Invoices & Quotations)
         if (hasDualBank) {
-            html.append("<div style=\"margin-top:20px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:16px;\">");
-            html.append("<div style=\"font-size:13px; font-weight:700; color:#0f172a; margin-bottom:10px;\">Bank Settlement &amp; Reconciliation Record</div>");
-            html.append("<table style=\"width:100%; border-collapse:collapse; font-size:12px; line-height:1.6;\">");
-            html.append("<tr>");
-            html.append("<td style=\"width:50%; vertical-align:top; padding-right:12px;\">");
-            html.append("<div style=\"font-weight:700; color:").append(primaryColor).append("; margin-bottom:4px;\">Beneficiary Bank (").append(escape(company)).append(")</div>");
-            html.append("<div>Bank: <strong>").append(escape(ourBankName)).append("</strong></div>");
-            html.append("<div>A/C No: <strong>").append(escape(ourAccNo)).append("</strong></div>");
-            html.append("<div>IFSC: <strong>").append(escape(ourIfsc)).append("</strong></div>");
-            html.append("</td>");
-            html.append("<td style=\"width:50%; vertical-align:top; padding-left:12px; border-left:1px solid #e2e8f0;\">");
-            html.append("<div style=\"font-weight:700; color:#16a34a; margin-bottom:4px;\">Remitter / Bank Statement Match</div>");
-            html.append("<div>Payer: <strong>").append(escape(remitterDesc)).append("</strong></div>");
-            html.append("<div>Reference / UTR: <strong>").append(escape(remitterUtr)).append("</strong></div>");
-            html.append("<div>Channel: <strong>Bank Statement Reconciliation</strong></div>");
-            html.append("</td>");
-            html.append("</tr>");
-            html.append("</table>");
-            html.append("</div>");
+            sections.add(TokenTemplateEngine.infoSplitPanelHtml(
+                    "Bank Settlement & Reconciliation Record",
+                    "Beneficiary Bank (" + company + ")",
+                    primaryColor,
+                    List.of(
+                            new KeyValueRow("Bank", firstNonBlank(ourBankName, "Company Bank Account"), false),
+                            new KeyValueRow("A/C No", firstNonBlank(ourAccNo, "-"), true),
+                            new KeyValueRow("IFSC", firstNonBlank(ourIfsc, "-"), true)
+                    ),
+                    "Remitter / Bank Statement Match",
+                    "#16a34a",
+                    List.of(
+                            new KeyValueRow("Payer", firstNonBlank(remitterDesc, resolvedParty), false),
+                            new KeyValueRow("Reference / UTR", firstNonBlank(remitterUtr, ctx.paymentReference(), "-"), true),
+                            new KeyValueRow("Channel", firstNonBlank(ctx.paymentMode(), "Bank Statement Reconciliation"), false)
+                    )
+            ));
+        } else if ((isSalesInvoice && balanceAmount > 0.009) || isQuotation) {
+            String payBank = firstNonBlank(ourBankName, ConfigManager.get("payment.bankName", ConfigManager.get("company.bank.name", "")));
+            String payAcc = firstNonBlank(ourAccNo, ConfigManager.get("payment.accountNumber", ConfigManager.get("company.bank.account", "")));
+            String payIfsc = firstNonBlank(ourIfsc, ConfigManager.get("payment.ifsc", ConfigManager.get("company.bank.ifsc", "")));
+            String payHolder = ConfigManager.get("payment.accountHolder", company).trim();
+            String payUpi = firstNonBlank(ConfigManager.get("payment.upiId", ""), ConfigManager.get("company.upiId", ""));
+            if (!payBank.isBlank() || !payAcc.isBlank() || !payUpi.isBlank()) {
+                List<KeyValueRow> bankRows = new java.util.ArrayList<>();
+                bankRows.add(new KeyValueRow("Beneficiary Name", firstNonBlank(payHolder, company), false));
+                if (!payBank.isBlank()) bankRows.add(new KeyValueRow("Bank Name", payBank, false));
+                if (!payAcc.isBlank()) bankRows.add(new KeyValueRow("Account Number", payAcc, true));
+                if (!payIfsc.isBlank()) bankRows.add(new KeyValueRow("IFSC Code", payIfsc, true));
+                if (!payUpi.isBlank()) bankRows.add(new KeyValueRow("UPI Payment ID", payUpi, true, "#0369a1", "#e0f2fe"));
+                bankRows.add(new KeyValueRow("Payment Reference", firstNonBlank(documentNo, "-"), true));
+                sections.add(TokenTemplateEngine.keyValueSectionHtml(
+                        isQuotation ? "🏦 Bank & Remittance Details (For Order Confirmation)" : "💳 Payment & Remittance Instructions",
+                        primaryColor,
+                        bankRows
+                ));
+            }
         }
 
-        // Live Status CTA Button
-        if (publicStatusUrl != null && !publicStatusUrl.isBlank()) {
-            String safeStatusUrl = publicStatusUrl.replace("&", "&amp;");
-            html.append("<div style=\"margin:24px 0 16px 0; text-align:center;\">");
-            html.append("<a href=\"").append(safeStatusUrl).append("\" target=\"_blank\" style=\"display:inline-block; background:").append(primaryColor).append("; color:#ffffff; font-weight:700; font-size:13px; text-decoration:none; padding:12px 24px; border-radius:6px; letter-spacing:0.3px; box-shadow:0 2px 6px rgba(30,58,138,0.25);\">🔍 VIEW LIVE PAYMENT &amp; INVOICE STATUS</a>");
-            html.append("<div style=\"font-size:11px; color:#64748b; margin-top:6px;\">Click anytime to view real-time settlement and payment reconciliation in our portal</div>");
-            html.append("</div>");
+        // Live Status Portal CTA
+        if (TokenTemplateEngine.isSafeHttpUrl(publicStatusUrl)) {
+            String safeUrl = TokenTemplateEngine.escapeHtml(publicStatusUrl.trim());
+            sections.add("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:18px 0 8px 0;\">"
+                    + "<tr><td align=\"center\">"
+                    + "<a href=\"" + safeUrl + "\" target=\"_blank\" style=\"display:inline-block; background:" + primaryColor
+                    + "; color:#ffffff; font-weight:700; font-size:13px; text-decoration:none; padding:12px 24px; border-radius:8px; letter-spacing:0.3px;\">&#128269; VIEW LIVE PAYMENT &amp; INVOICE STATUS</a>"
+                    + "<div style=\"font-size:11px; color:#64748b; margin-top:6px;\">Click anytime to view real-time settlement and payment reconciliation in our portal</div>"
+                    + "</td></tr></table>");
         }
 
-        // Inline Signature Image
-        if (includeInlineSignatureImage) {
-            String src = (signatureImageSrc != null && !signatureImageSrc.isBlank()) ? signatureImageSrc : "cid:signatureImage";
-            html.append("<div style=\"margin-top:20px; padding-top:14px; border-top:1px solid #f1f5f9;\">");
-            html.append("<img src=\"").append(src).append("\" alt=\"Signature / Stamp\" style=\"max-height:85px; max-width:240px; object-fit:contain; display:block; border:none;\" />");
-            html.append("</div>");
+        // Unified Executive Signature Block (Settings text with clickable contacts -> Banner/Stamp Image -> Office Address)
+        String rawImgSrc = includeInlineSignatureImage
+                ? ((signatureImageSrc != null && !signatureImageSrc.isBlank()) ? signatureImageSrc.trim() : "cid:signatureImage")
+                : null;
+        String signatureBlock = TokenTemplateEngine.signatureBlockHtml(
+                extracted.signatureText(),
+                rawImgSrc,
+                address
+        );
+        if (!signatureBlock.isBlank()) {
+            sections.add(signatureBlock);
         }
 
-        html.append("</div>"); // Content end
-
-        // Footer
-        html.append("<div style=\"background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; font-size:11px; color:#64748b; text-align:center;\">");
-        html.append("Generated automatically by <strong>").append(escape(company)).append("</strong> ERP");
-        if (!address.isBlank()) {
-            html.append(" &bull; ").append(escape(address));
+        // Rich Footer Meta preserving dynamic phone, email, website without repeating Office Address already shown under logo
+        StringBuilder footerMeta = new StringBuilder();
+        if (signatureBlock.isBlank() && !address.isBlank()) {
+            footerMeta.append(address);
         }
         if (!phone.isBlank()) {
-            html.append(" &bull; Phone: ").append(escape(phone));
+            if (footerMeta.length() > 0) footerMeta.append(" • ");
+            footerMeta.append("Phone: ").append(phone);
         }
         if (!email.isBlank()) {
-            html.append(" &bull; Email: ").append(escape(email));
+            if (footerMeta.length() > 0) footerMeta.append(" • ");
+            footerMeta.append("Email: ").append(email);
         }
         if (!website.isBlank()) {
-            String webUrl = website.startsWith("http://") || website.startsWith("https://") ? website : "https://" + website;
-            html.append(" &bull; <a href=\"").append(escape(webUrl)).append("\" target=\"_blank\" style=\"color:#2563eb; text-decoration:none;\">").append(escape(website)).append("</a>");
+            String webUrl = (website.startsWith("http://") || website.startsWith("https://")) ? website : "https://" + website;
+            if (footerMeta.length() > 0) footerMeta.append(" • ");
+            footerMeta.append(webUrl);
         }
-        html.append("</div>");
 
-        html.append("</div></body></html>");
-        return html.toString();
+        String preheader = resolvedDocTitle + " " + (documentNo == null ? "" : documentNo)
+                + " — " + resolvedParty + " • Total " + money(totalAmount)
+                + (!zeroBal ? " • Balance " + money(balanceAmount) : " • Settled");
+
+        return TokenTemplateEngine.wrapInRichCardHtml(new RichCardSpec(
+                primaryColor,
+                primaryColor,
+                resolvedDocTitle.toUpperCase(Locale.ROOT),
+                resolvedBadge.toUpperCase(Locale.ROOT),
+                badgeBg,
+                company,
+                tagline.toUpperCase(Locale.ROOT),
+                preheader,
+                metaColumns,
+                null,
+                sections,
+                List.of(),
+                "Generated automatically by " + company + " ERP",
+                footerMeta.toString()
+        ));
+    }
+
+    private static String firstNonBlank(String... candidates) {
+        if (candidates == null) return "";
+        for (String c : candidates) {
+            if (c != null && !c.isBlank()) {
+                return c.trim();
+            }
+        }
+        return "";
     }
 
     private static String escape(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    public static FormattedMessage buildSmtpDiagnosticMessage(
+            String smtpHost,
+            String smtpPort,
+            String senderEmail,
+            String verifiedAt) {
+        String appName = BrandingService.applicationName();
+        String safeHost = smtpHost == null || smtpHost.isBlank() ? "-" : smtpHost.trim();
+        String safePort = smtpPort == null || smtpPort.isBlank() ? "-" : smtpPort.trim();
+        String safeSender = senderEmail == null ? "" : senderEmail.trim();
+        String safeTime = verifiedAt == null ? "" : verifiedAt.trim();
+        var diagnosticRows = List.of(
+                new KeyValueRow("SMTP Host", safeHost, true),
+                new KeyValueRow("SMTP Port", safePort, true),
+                new KeyValueRow("Sender Address", safeSender, false),
+                new KeyValueRow("Verified At", safeTime, false),
+                new KeyValueRow("Connection Status", "AUTHENTICATED & HEALTHY", false, "#15803d", "#dcfce7")
+        );
+        return renderRichEmailByKey(
+                "smtp_test",
+                Map.of(
+                        "SmtpHost", safeHost,
+                        "SmtpPort", safePort,
+                        "SenderEmail", safeSender,
+                        "Recipient", safeSender,
+                        "Timestamp", safeTime
+                ),
+                new RichCardSpec(
+                        "#0f766e", "#115e59",
+                        "SMTP DIAGNOSTICS",
+                        "VERIFIED",
+                        "#15803d",
+                        appName + " SMTP Diagnostics",
+                        "Outbound mail transport health check",
+                        "SMTP relay verification passed for " + safeSender,
+                        List.of(
+                                new MetaColumn("HOST", safeHost),
+                                new MetaColumn("PORT", safePort),
+                                new MetaColumn("SENDER", safeSender)
+                        ),
+                        null,
+                        List.of(TokenTemplateEngine.keyValueSectionHtml("SMTP Connection Diagnostics", "#0f766e", diagnosticRows)),
+                        List.of(),
+                        appName + " ERP",
+                        buildCompanyFooterMeta()
+                )
+        );
+    }
+
+    public static String buildTemplatePreviewCardHtml(
+            String categoryDisplayName,
+            String specKey,
+            String specDisplayName,
+            String resolvedPlain,
+            String partyName) {
+        String company = BrandingService.companyName();
+        String catLabel = categoryDisplayName == null ? "NOTIFICATION" : categoryDisplayName;
+        return TokenTemplateEngine.wrapInRichCardHtml(new RichCardSpec(
+                "#0284c7", "#0369a1",
+                catLabel.toUpperCase(Locale.ROOT),
+                "SAMPLE PREVIEW",
+                "#0369a1",
+                specDisplayName == null ? "Template Preview" : specDisplayName,
+                company + " \u2022 Notification Template Preview",
+                resolvedPlain,
+                List.of(
+                        new MetaColumn("TEMPLATE", specKey == null ? "" : specKey),
+                        new MetaColumn("DATE", BusinessClock.formatDate(LocalDate.now())),
+                        new MetaColumn("PARTY", partyName == null || partyName.isBlank() ? company : partyName)
+                ),
+                resolvedPlain,
+                List.of(TokenTemplateEngine.keyValueSectionHtml(
+                        "Active Template Tokens Sampled", "#0284c7",
+                        List.of(
+                                new KeyValueRow("Company", company, false),
+                                new KeyValueRow("Category", catLabel, false),
+                                new KeyValueRow("Format Mode", "HTML Card (Table Layout)", false, "#15803d", "#dcfce7")
+                        )
+                )),
+                List.of(),
+                company + " ERP",
+                buildCompanyFooterMeta()
+        ));
+    }
+
+    public static FormattedMessage buildGstRule36NoticeMessage(
+            Map<String, String> tokens,
+            String companyName,
+            String supplierGstin,
+            String recipientGstin,
+            String taxableDisplay,
+            String taxAmountDisplay,
+            String gstBreakup,
+            String registerStatus) {
+        String safeCompany = companyName == null || companyName.isBlank() ? BrandingService.companyName() : companyName.trim();
+        String safeStatus = registerStatus == null || registerStatus.isBlank() ? "MISMATCH" : registerStatus.trim();
+        String invNo = tokens != null ? tokens.getOrDefault("InvoiceNo", "") : "";
+        String invDate = tokens != null ? tokens.getOrDefault("InvoiceDate", "") : "";
+        String supplierName = tokens != null ? tokens.getOrDefault("SupplierName", "Supplier") : "Supplier";
+        var splitComparisonHtml = TokenTemplateEngine.infoSplitPanelHtml(
+                "Books vs GSTR-2B Reconciliation Comparison",
+                "Our Purchase Register",
+                "#0369a1",
+                List.of(
+                        new KeyValueRow("Invoice No", invNo, true),
+                        new KeyValueRow("Invoice Date", invDate, false),
+                        new KeyValueRow("Taxable Value", taxableDisplay, false),
+                        new KeyValueRow("Tax Breakup", gstBreakup, false)
+                ),
+                "GSTR-2B Portal Compliance",
+                "#dc2626",
+                List.of(
+                        new KeyValueRow("Supplier GSTIN", supplierGstin, true),
+                        new KeyValueRow("Recipient GSTIN", recipientGstin, true),
+                        new KeyValueRow("ITC at Risk", taxAmountDisplay, false, "#b91c1c", "#fee2e2"),
+                        new KeyValueRow("Status", safeStatus, false, "#b45309", "#fef3c7")
+                )
+        );
+        var remediationCallout = TokenTemplateEngine.calloutBoxHtml(
+                "STATUTORY ACTION REQUIRED — RULE 36(4) CGST RULES",
+                "Upload B2B Invoice #" + invNo + " in GSTR-1 / IFF",
+                "Please report this invoice in your GSTR-1 / IFF return immediately and share confirmation / ARN so eligible ITC of " + taxAmountDisplay + " is not deferred or reversed.",
+                "#dc2626",
+                "#fef2f2",
+                "#991b1b"
+        );
+        return renderRichEmailByKey(
+                "gst_rule36_notice",
+                tokens,
+                new RichCardSpec(
+                        "#b91c1c",
+                        "#7f1d1d",
+                        "GST COMPLIANCE & ITC VERIFICATION",
+                        safeStatus.toUpperCase(Locale.ROOT),
+                        "#dc2626",
+                        "GST Rule 36(4) Discrepancy Notice",
+                        safeCompany + " \u2022 Statutory ITC Verification Demand",
+                        "Rule 36(4) ITC notice for Invoice #" + invNo + " (ITC at risk: " + taxAmountDisplay + ")",
+                        List.of(
+                                new MetaColumn("SUPPLIER", supplierName),
+                                new MetaColumn("INVOICE #", invNo),
+                                new MetaColumn("ITC AT RISK", taxAmountDisplay, "#dc2626")
+                        ),
+                        null,
+                        List.of(splitComparisonHtml, remediationCallout),
+                        List.of(),
+                        safeCompany + " Tax & Compliance",
+                        buildCompanyFooterMeta()
+                )
+        );
     }
 
     public static Map<String, String> sampleTokens() {

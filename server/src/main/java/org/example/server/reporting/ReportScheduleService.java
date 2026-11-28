@@ -263,22 +263,105 @@ public class ReportScheduleService {
                         var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(db);
                         String company = mail.companyName();
                         String defaultSubject = mail.companyName() + " Scheduled Report - " + result.title();
-                        var rendered = templates.renderEmail(
+                        String filterSummary = (result.appliedFilters() == null || result.appliedFilters().isEmpty())
+                                ? "Default Schedule Parameters"
+                                : result.appliedFilters().entrySet().stream()
+                                        .filter(e -> e.getValue() != null && !e.getValue().isBlank())
+                                        .map(e -> e.getKey() + ": " + e.getValue())
+                                        .reduce((a, b) -> a + " | " + b)
+                                        .orElse("Default Schedule Parameters");
+
+                        List<String> sections = new ArrayList<>();
+                        if (result.metrics() != null && !result.metrics().isEmpty()) {
+                            List<org.example.shared.communication.TokenTemplateEngine.KpiTile> tiles = new ArrayList<>();
+                            int limit = Math.min(6, result.metrics().size());
+                            for (int i = 0; i < limit; i++) {
+                                var m = result.metrics().get(i);
+                                tiles.add(new org.example.shared.communication.TokenTemplateEngine.KpiTile(
+                                        m.label(), formatReportMetricValue(m), m.note() == null ? "" : m.note(), "#0f172a"));
+                            }
+                            sections.add(org.example.shared.communication.TokenTemplateEngine.kpiGridHtml(
+                                    "📊 Executive Report Metrics", tiles, Math.min(3, Math.max(1, tiles.size()))));
+                        }
+                        sections.add(org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                                "📋 Schedule Execution Summary",
+                                "#1d4ed8",
+                                List.of(
+                                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Schedule Name", schedule.name(), false),
+                                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Period Covered", result.periodFrom() + " to " + result.periodTo(), false),
+                                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Rows Processed", String.valueOf(result.totalRows()), true, "#0369a1", "#e0f2fe"),
+                                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Applied Filters", filterSummary, false),
+                                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Output Formats", schedule.format(), false),
+                                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Generated At", String.valueOf(result.generatedAt()), true)
+                                )
+                        ));
+                        if (result.totals() != null && !result.totals().isEmpty()) {
+                            List<org.example.shared.communication.TokenTemplateEngine.KeyValueRow> totalRows = new ArrayList<>();
+                            result.totals().forEach((k, v) -> {
+                                if (k != null && v != null && !v.isBlank()) {
+                                    totalRows.add(new org.example.shared.communication.TokenTemplateEngine.KeyValueRow(k, v, true));
+                                }
+                            });
+                            if (!totalRows.isEmpty()) {
+                                sections.add(org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                                        "Σ Aggregated Report Totals", "#0f766e", totalRows));
+                            }
+                        }
+                        if (!files.isEmpty()) {
+                            List<List<String>> fileRows = new ArrayList<>();
+                            for (Path file : files) {
+                                String sizeKb = "-";
+                                try {
+                                    long b = Files.size(file);
+                                    sizeKb = b >= 1024 ? String.format(Locale.ROOT, "%.1f KB", b / 1024.0) : (b + " B");
+                                } catch (Exception ignored) {}
+                                fileRows.add(List.of(file.getFileName().toString(), contentType(file), sizeKb));
+                            }
+                            sections.add(org.example.shared.communication.TokenTemplateEngine.dataTableHtml(
+                                    "📎 Attached Report Files (" + files.size() + ")",
+                                    schedule.format(),
+                                    List.of(
+                                            new org.example.shared.communication.TokenTemplateEngine.TableColumn("File Name", false, "55%"),
+                                            new org.example.shared.communication.TokenTemplateEngine.TableColumn("Format", false, "27%"),
+                                            new org.example.shared.communication.TokenTemplateEngine.TableColumn("Size", true, "18%")
+                                    ),
+                                    fileRows,
+                                    "Download the attached export(s) to inspect full row-level schedules."
+                            ));
+                        }
+
+                        Map<String, String> tokens = new LinkedHashMap<>();
+                        tokens.put("CompanyName", company);
+                        tokens.put("AppName", company + " ERP");
+                        tokens.put("ScheduleName", schedule.name());
+                        tokens.put("ReportTitle", result.title());
+                        tokens.put("PeriodFrom", String.valueOf(result.periodFrom()));
+                        tokens.put("PeriodTo", String.valueOf(result.periodTo()));
+                        tokens.put("GeneratedAt", String.valueOf(result.generatedAt()));
+                        tokens.put("RowCount", String.valueOf(result.totalRows()));
+                        tokens.put("OutputFormats", schedule.format());
+                        tokens.put("AppliedFilters", filterSummary);
+
+                        var rendered = templates.renderRichEmail(
                                 "scheduled_report",
-                                Map.of(
-                                        "CompanyName", company,
-                                        "AppName", company + " ERP",
-                                        "ScheduleName", schedule.name(),
-                                        "ReportTitle", result.title(),
-                                        "PeriodFrom", String.valueOf(result.periodFrom()),
-                                        "PeriodTo", String.valueOf(result.periodTo()),
-                                        "GeneratedAt", String.valueOf(result.generatedAt()),
-                                        "RowCount", String.valueOf(result.totalRows())
-                                ),
-                                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
-                                        "#0f172a", "#1d4ed8", "Scheduled Report",
-                                        result.title(), List.of(),
-                                        company + " Scheduled Reporting Engine"
+                                tokens,
+                                new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
+                                        "#0f172a", "#1d4ed8",
+                                        "SCHEDULED REPORTING ENGINE",
+                                        schedule.format(),
+                                        "#1d4ed8",
+                                        result.title(),
+                                        "Schedule: " + schedule.name() + " (" + result.periodFrom() + " → " + result.periodTo() + ")",
+                                        result.title() + " ready (" + result.totalRows() + " rows, " + schedule.format() + ")",
+                                        List.of(
+                                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("SCHEDULE", schedule.name()),
+                                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("PERIOD", result.periodFrom() + " to " + result.periodTo()),
+                                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("ROWS", String.valueOf(result.totalRows()), "#1d4ed8")
+                                        ),
+                                        sections,
+                                        List.of(),
+                                        company + " Scheduled Reporting Engine",
+                                        null
                                 )
                         );
                         String finalSubject = rendered.subject() != null && !rendered.subject().isBlank() ? rendered.subject() : defaultSubject;
@@ -638,5 +721,19 @@ public class ReportScheduleService {
     }
     private record ScheduleDefinition(long id,int userId,String name,String savedReport,String frequency,Integer dayOfWeek,Integer dayOfMonth,Integer monthOfYear,String time,String format,String delivery,String recipients,String status,String nextRunRaw,String lastRunRaw,String lastStatus,String lastError,long rowVersion) {
         Validated validated() { return new Validated(name,savedReport,frequency,dayOfWeek,dayOfMonth,monthOfYear,LocalTime.parse(time),format,delivery,recipients); }
+    }
+
+    private static String formatReportMetricValue(ReportingDtos.ReportMetric metric) {
+        if (metric == null) return "-";
+        String fmt = metric.format() == null ? "" : metric.format().trim().toUpperCase(Locale.ROOT);
+        double v = metric.value();
+        return switch (fmt) {
+            case "CURRENCY", "INR", "MONEY", "AMOUNT" -> "\u20B9" + String.format(Locale.of("en", "IN"), "%,.2f", v);
+            case "PERCENT", "PERCENTAGE", "PCT" -> String.format(Locale.ROOT, "%.1f%%", v);
+            case "INT", "INTEGER", "COUNT" -> String.format(Locale.of("en", "IN"), "%,d", Math.round(v));
+            default -> Math.abs(v - Math.rint(v)) < 0.0001
+                    ? String.format(Locale.of("en", "IN"), "%,d", Math.round(v))
+                    : String.format(Locale.of("en", "IN"), "%,.2f", v);
+        };
     }
 }

@@ -14,6 +14,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Workspace-aware branding with safe built-in fallbacks for first launch. */
 public final class BrandingService {
     private static final String TECHNICAL_PRODUCT_NAME = "DSE ERP";
+    public static final String PANEL_BACKGROUND_PATH_KEY = "application.backgroundImagePath";
+    public static final String PANEL_BACKGROUND_ENABLED_KEY = "application.backgroundEnabled";
+    public static final String PANEL_BACKGROUND_SCOPE_KEY = "application.backgroundScope";
+    public static final String PANEL_BACKGROUND_OPACITY_KEY = "application.backgroundOpacity";
     private static volatile String sharedCompanyName;
     private static volatile String sharedCompanyTagline;
     private static final AtomicBoolean sharedIdentityRefreshPending = new AtomicBoolean();
@@ -116,6 +120,31 @@ public final class BrandingService {
         return configuredImage("application.markImagePath");
     }
 
+    /** Optional widescreen wallpaper rendered subtly across whitespace areas of auth/workspace screens. */
+    public static Image panelBackgroundImage() {
+        return configuredImage(PANEL_BACKGROUND_PATH_KEY);
+    }
+
+    public static boolean isPanelBackgroundEnabled() {
+        String raw = value(PANEL_BACKGROUND_ENABLED_KEY, "true");
+        return !"false".equalsIgnoreCase(raw) && !"no".equalsIgnoreCase(raw);
+    }
+
+    public static boolean isPanelBackgroundAppliedToWorkspace() {
+        String raw = value(PANEL_BACKGROUND_SCOPE_KEY, "ALL_PANELS");
+        return !"AUTH_ONLY".equalsIgnoreCase(raw);
+    }
+
+    public static double panelBackgroundImageOpacity() {
+        String raw = value(PANEL_BACKGROUND_OPACITY_KEY, "0.25");
+        try {
+            double parsed = Double.parseDouble(raw);
+            return Math.max(0.10, Math.min(0.65, parsed));
+        } catch (NumberFormatException ignored) {
+            return 0.25;
+        }
+    }
+
     public static Image companyLogo() { return configuredImage("company.logoPath"); }
     public static Image authorizedSignature() { return configuredImage("company.signaturePath"); }
     public static Image paymentQrImage() { return configuredImage("payment.qrImagePath"); }
@@ -194,6 +223,10 @@ public final class BrandingService {
 
     private static String value(String key, String fallback) {
         try {
+            if (mustAvoidSharedServerReadOnFxThread()) {
+                String local = ConfigManager.getLocalProperty(key, fallback);
+                return local == null || local.isBlank() ? fallback : local.trim();
+            }
             String configured = ConfigManager.get(key, fallback);
             return configured == null || configured.isBlank() ? fallback : configured.trim();
         } catch (Exception ignored) {

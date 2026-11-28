@@ -35,6 +35,22 @@ public class ServerNotificationTemplateService {
         }
     }
 
+    public record RichCardStyle(
+            String headerStartHex,
+            String headerEndHex,
+            String kickerText,
+            String badgeText,
+            String badgeColorHex,
+            String title,
+            String subtitle,
+            String preheader,
+            List<TokenTemplateEngine.MetaColumn> metaColumns,
+            List<String> sectionHtmlBlocks,
+            List<ActionButton> buttons,
+            String footerTitle,
+            String footerMeta
+    ) {}
+
     public record RenderedEmail(String subject, String body, boolean html) {}
 
     private final JpaNativeRepository jdbc;
@@ -59,14 +75,6 @@ public class ServerNotificationTemplateService {
             );
             if (!rows.isEmpty() && rows.getFirst() != null && !rows.getFirst().isBlank()) {
                 return rows.getFirst().trim();
-            }
-            List<String> legacy = jdbc.query(
-                    "SELECT config_value FROM app_config WHERE config_key = ?",
-                    (rs, i) -> rs.getString(1),
-                    key.trim()
-            );
-            if (!legacy.isEmpty() && legacy.getFirst() != null && !legacy.getFirst().isBlank()) {
-                return legacy.getFirst().trim();
             }
         } catch (Exception ignored) {}
         return fallback;
@@ -128,6 +136,36 @@ public class ServerNotificationTemplateService {
             CardStyle cardStyle,
             Set<String> rawHtmlTokenKeys
     ) {
+        CardStyle style = cardStyle != null
+                ? cardStyle
+                : CardStyle.standardBlue("", "", "");
+        return renderRichEmail(templateKey, tokens, new RichCardStyle(
+                style.headerStartHex(),
+                style.headerEndHex(),
+                "",
+                style.badgeText(),
+                "#0f172a",
+                style.title(),
+                "",
+                "",
+                List.of(),
+                List.of(),
+                style.buttons(),
+                style.footerText(),
+                ""
+        ), rawHtmlTokenKeys);
+    }
+
+    public RenderedEmail renderRichEmail(String templateKey, Map<String, String> tokens, RichCardStyle richStyle) {
+        return renderRichEmail(templateKey, tokens, richStyle, Set.of());
+    }
+
+    public RenderedEmail renderRichEmail(
+            String templateKey,
+            Map<String, String> tokens,
+            RichCardStyle richStyle,
+            Set<String> rawHtmlTokenKeys
+    ) {
         TemplateSpec spec = NotificationTemplateCatalog.byKey(templateKey)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown notification template key: " + templateKey));
         Map<String, String> merged = mergeDefaultTokens(tokens);
@@ -167,24 +205,62 @@ public class ServerNotificationTemplateService {
             return new RenderedEmail(subject, plainBody, false);
         }
 
-        CardStyle style = cardStyle != null
-                ? cardStyle
-                : CardStyle.standardBlue(merged.get("CompanyName"), subject, "Automated notification from " + merged.get("AppName"));
-        String title = style.title() == null || style.title().isBlank() ? subject : style.title();
-        String badge = style.badgeText() == null ? merged.get("CompanyName") : style.badgeText();
-        String footer = style.footerText() == null || style.footerText().isBlank()
-                ? "Automated notification from " + merged.get("AppName")
-                : style.footerText();
-        String html = TokenTemplateEngine.wrapInCardHtml(
-                style.headerStartHex(),
-                style.headerEndHex(),
+        String title = richStyle != null && richStyle.title() != null && !richStyle.title().isBlank()
+                ? richStyle.title()
+                : subject;
+        String badge = richStyle != null && richStyle.badgeText() != null
+                ? richStyle.badgeText()
+                : merged.get("CompanyName");
+        String footerTitle = richStyle != null && richStyle.footerTitle() != null && !richStyle.footerTitle().isBlank()
+                ? richStyle.footerTitle()
+                : "Automated notification from " + merged.get("AppName");
+        String footerMeta = richStyle != null && richStyle.footerMeta() != null && !richStyle.footerMeta().isBlank()
+                ? richStyle.footerMeta()
+                : (!merged.getOrDefault("SupportEmail", "").isBlank() ? "Support: " + merged.get("SupportEmail") : "");
+        String preheader = richStyle != null && richStyle.preheader() != null && !richStyle.preheader().isBlank()
+                ? richStyle.preheader()
+                : subject;
+
+        String html = TokenTemplateEngine.wrapInRichCardHtml(new TokenTemplateEngine.RichCardSpec(
+                richStyle != null ? richStyle.headerStartHex() : "#0f172a",
+                richStyle != null ? richStyle.headerEndHex() : "#1e3a8a",
+                richStyle != null ? richStyle.kickerText() : "",
                 badge,
+                richStyle != null ? richStyle.badgeColorHex() : "#1e3a8a",
                 title,
+                richStyle != null ? richStyle.subtitle() : "",
+                preheader,
+                richStyle != null ? richStyle.metaColumns() : List.of(),
                 plainBody,
-                style.buttons(),
-                footer
-        );
+                richStyle != null ? richStyle.sectionHtmlBlocks() : List.of(),
+                richStyle != null ? richStyle.buttons() : List.of(),
+                footerTitle,
+                footerMeta
+        ));
         return new RenderedEmail(subject, html, true);
+    }
+
+    /** Generates clean high-contrast QR PNG bytes using bundled iText BarcodeQRCode. */
+    public static byte[] generateQrPngBytes(String content, int pixels) {
+        if (content == null || content.isBlank()) return null;
+        int size = Math.max(180, Math.min(360, pixels));
+        int pad = 12;
+        try {
+            var qrcode = new com.itextpdf.barcodes.BarcodeQRCode(content.trim());
+            java.awt.Image awtImg = qrcode.createAwtImage(java.awt.Color.BLACK, java.awt.Color.WHITE);
+            var buffered = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_RGB);
+            java.awt.Graphics2D g2d = buffered.createGraphics();
+            g2d.setColor(java.awt.Color.WHITE);
+            g2d.fillRect(0, 0, size, size);
+            g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g2d.drawImage(awtImg, pad, pad, size - (pad * 2), size - (pad * 2), null);
+            g2d.dispose();
+            var baos = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(buffered, "PNG", baos);
+            return baos.toByteArray();
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     public RenderedEmail renderEmail(String templateKey, Map<String, String> tokens, CardStyle cardStyle) {

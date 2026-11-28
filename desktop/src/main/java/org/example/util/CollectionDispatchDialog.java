@@ -267,13 +267,19 @@ public final class CollectionDispatchDialog {
                     "communication",
                     "Preparing party outstanding statement & channels...",
                     reporter -> {
-                        int totalSteps = 1 + (attachPdf && sendEm ? 1 : 0) + (sendEm ? 1 : 0) + (sendWa ? 1 : 0);
+                        int totalSteps = 1 + (sendEm ? 1 : 0) + (attachPdf && sendEm ? 1 : 0) + (sendWa ? 1 : 0);
                         int step = 0;
                         Path statementPdf = null;
-                        if (attachPdf && sendEm) {
-                            reporter.stage(++step, totalSteps, "Generating Branded Party Aging Statement PDF...");
-                            AgingStatementPdfService.StatementPayload payload = statementLoader.apply(party.partyId());
-                            statementPdf = AgingStatementPdfService.generateTempStatement(payload);
+                        AgingStatementPdfService.StatementPayload payload = null;
+                        if (sendEm && (attachPdf || org.example.service.MessageTemplateService.shouldUseHtml("aging_collection"))) {
+                            reporter.stage(++step, totalSteps, "Loading party overdue invoice statement...");
+                            try {
+                                payload = statementLoader.apply(party.partyId());
+                            } catch (Exception ignored) {}
+                            if (attachPdf && payload != null) {
+                                reporter.stage(++step, totalSteps, "Generating Branded Party Aging Statement PDF...");
+                                statementPdf = AgingStatementPdfService.generateTempStatement(payload);
+                            }
                         }
                         String user = currentUser();
                         int partyIntId = party.partyId() == null ? 0 : party.partyId().intValue();
@@ -282,18 +288,7 @@ public final class CollectionDispatchDialog {
                         if (sendEm) {
                             reporter.stage(++step, totalSteps, "Sending Email to " + email + "...");
                             try {
-                                String emailPayload = message;
-                                if (org.example.service.MessageTemplateService.shouldUseHtml("aging_collection")
-                                        && !org.example.shared.communication.TokenTemplateEngine.isHtmlContent(message)) {
-                                    emailPayload = org.example.shared.communication.TokenTemplateEngine.wrapInCardHtml(
-                                            "#0284c7", "#0369a1",
-                                            severityBadgeLabel(party),
-                                            "Outstanding Account Statement",
-                                            message,
-                                            List.of(),
-                                            org.example.service.BrandingService.companyName() + " Accounts Receivable"
-                                    );
-                                }
+                                String emailPayload = buildRichCollectionEmailPayload(party, payload, message);
                                 EmailService.send(email, subject, emailPayload, statementPdf);
                                 logCommunication(supportApi, partyIntId, "EMAIL", email, subject, "SENT", null, user);
                             } catch (Exception ex) {
@@ -501,6 +496,12 @@ public final class CollectionDispatchDialog {
                             idx++;
                             reporter.stage(idx, selected.size(), "Sending reminder to " + p.partyName() + " (" + idx + "/" + selected.size() + ")...");
                             Map<String, String> tokens = buildCollectionTokens(p);
+                            AgingStatementPdfService.StatementPayload payload = null;
+                            if (sendEm && !clean(p.email()).isBlank() && (attachPdf || org.example.service.MessageTemplateService.shouldUseHtml("aging_collection"))) {
+                                try {
+                                    payload = statementLoader.apply(p.partyId());
+                                } catch (Exception ignored) {}
+                            }
                             var renderedEmail = org.example.service.MessageTemplateService.renderEmailByKey(
                                     "aging_collection",
                                     tokens,
@@ -516,8 +517,11 @@ public final class CollectionDispatchDialog {
 
                             if (sendEm && !clean(p.email()).isBlank()) {
                                 try {
-                                    Path pdf = attachPdf ? AgingStatementPdfService.generateTempStatement(statementLoader.apply(p.partyId())) : null;
-                                    EmailService.send(p.email().trim(), subject, renderedEmail.body(), pdf);
+                                    Path pdf = (attachPdf && payload != null) ? AgingStatementPdfService.generateTempStatement(payload) : null;
+                                    String htmlOrPlain = org.example.service.MessageTemplateService.shouldUseHtml("aging_collection")
+                                            ? buildRichCollectionEmailPayload(p, payload, defaultMessage(p))
+                                            : renderedEmail.body();
+                                    EmailService.send(p.email().trim(), subject, htmlOrPlain, pdf);
                                     logCommunication(supportApi, pid, "EMAIL", p.email().trim(), subject, "SENT", null, user);
                                     anySent = true;
                                 } catch (Exception ex) {
@@ -658,8 +662,115 @@ public final class CollectionDispatchDialog {
         tokens.put("Ifsc", ifsc);
         tokens.put("UpiId", upi);
         tokens.put("PaymentDetails", payBlock.toString());
+        tokens.put("OverdueBucketSummary", "0-30d: " + money(p.bucket0To30())
+                + " | 31-60d: " + money(p.bucket31To60())
+                + " | 61-90d: " + money(p.bucket61To90())
+                + " | 90+d: " + money(p.bucket90Plus()));
         tokens.put("CompanyName", company);
         return tokens;
+    }
+
+    private static String buildRichCollectionEmailPayload(
+            TargetParty p,
+            AgingStatementPdfService.StatementPayload statement,
+            String plainMessage) {
+        if (!org.example.service.MessageTemplateService.shouldUseHtml("aging_collection")
+                || org.example.shared.communication.TokenTemplateEngine.isHtmlContent(plainMessage)) {
+            return plainMessage;
+        }
+        String company = BrandingService.companyName();
+        boolean critical = p.bucket90Plus() != null && p.bucket90Plus().compareTo(BigDecimal.ZERO) > 0;
+        boolean warning = !critical && p.overdueAmount().compareTo(BigDecimal.ZERO) > 0;
+        String startHex = critical ? "#b91c1c" : (warning ? "#d97706" : "#0284c7");
+        String endHex = critical ? "#7f1d1d" : (warning ? "#b45309" : "#0369a1");
+        String badgeColor = critical ? "#dc2626" : (warning ? "#d97706" : "#0369a1");
+
+        List<String> sections = new ArrayList<>();
+        // 1. Aging Buckets 4-Tile KPI Grid
+        sections.add(org.example.shared.communication.TokenTemplateEngine.kpiGridHtml(
+                "📊 Receivables Aging Summary (" + p.unpaidInvoiceCount() + " Open Invoices)",
+                List.of(
+                        new org.example.shared.communication.TokenTemplateEngine.KpiTile("0-30 Days (Current)", money(p.bucket0To30()), "Current Window", "#15803d"),
+                        new org.example.shared.communication.TokenTemplateEngine.KpiTile("31-60 Days", money(p.bucket31To60()), "Follow-up", "#d97706"),
+                        new org.example.shared.communication.TokenTemplateEngine.KpiTile("61-90 Days", money(p.bucket61To90()), "Formal Notice", "#ea580c"),
+                        new org.example.shared.communication.TokenTemplateEngine.KpiTile("90+ Days (Critical)", money(p.bucket90Plus()), "Urgent Priority", "#dc2626")
+                ),
+                2
+        ));
+
+        // 2. Top Open / Overdue Invoices Table from StatementPayload
+        if (statement != null && statement.invoices() != null && !statement.invoices().isEmpty()) {
+            List<List<String>> rows = new ArrayList<>();
+            int limit = Math.min(10, statement.invoices().size());
+            for (int i = 0; i < limit; i++) {
+                var inv = statement.invoices().get(i);
+                String dt = inv.invoiceDate() != null && !inv.invoiceDate().isBlank() ? BusinessClock.formatDate(inv.invoiceDate()) : "-";
+                rows.add(List.of(
+                        clean(inv.invoiceNo()),
+                        dt,
+                        inv.daysOverdue() + "d (" + clean(inv.bucketLabel()) + ")",
+                        money(inv.totalAmount()),
+                        money(inv.balanceDue())
+                ));
+            }
+            String footerNote = statement.invoices().size() > 10
+                    ? "Showing top 10 of " + statement.invoices().size() + " open invoices. See attached Statement PDF for full history."
+                    : "Total Outstanding: " + money(p.totalOutstanding()) + " across " + statement.invoices().size() + " open invoice(s).";
+            sections.add(org.example.shared.communication.TokenTemplateEngine.dataTableHtml(
+                    "📑 Itemized Unpaid & Overdue Invoices",
+                    "As of " + BusinessClock.formatDate(BusinessClock.today()),
+                    List.of(
+                            new org.example.shared.communication.TokenTemplateEngine.TableColumn("Invoice #", false, "22%"),
+                            new org.example.shared.communication.TokenTemplateEngine.TableColumn("Date", false, "18%"),
+                            new org.example.shared.communication.TokenTemplateEngine.TableColumn("Age / Bucket", false, "22%"),
+                            new org.example.shared.communication.TokenTemplateEngine.TableColumn("Invoice Amt", true, "19%"),
+                            new org.example.shared.communication.TokenTemplateEngine.TableColumn("Balance Due", true, "19%")
+                    ),
+                    rows,
+                    footerNote
+            ));
+        }
+
+        // 3. Payment & Remittance Bank/UPI Instructions
+        String upi = ConfigManager.get("payment.upiId", "").trim();
+        String bank = ConfigManager.get("payment.bankName", ConfigManager.get("company.bank.name", "")).trim();
+        String ac = ConfigManager.get("payment.accountNumber", ConfigManager.get("company.bank.account", "")).trim();
+        String ifsc = ConfigManager.get("payment.ifsc", ConfigManager.get("company.bank.ifsc", "")).trim();
+        String holder = ConfigManager.get("payment.accountHolder", company).trim();
+        if (!bank.isBlank() || !ac.isBlank() || !upi.isBlank()) {
+            List<org.example.shared.communication.TokenTemplateEngine.KeyValueRow> bankRows = new ArrayList<>();
+            bankRows.add(new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Beneficiary Name", holder, false));
+            if (!bank.isBlank()) bankRows.add(new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Bank Name", bank, false));
+            if (!ac.isBlank()) bankRows.add(new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Account Number", ac, true));
+            if (!ifsc.isBlank()) bankRows.add(new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("IFSC Code", ifsc, true));
+            if (!upi.isBlank()) bankRows.add(new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Instant UPI ID", upi, true, "#0369a1", "#e0f2fe"));
+            sections.add(org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                    "💳 Payment & Settlement Instructions", startHex, bankRows
+            ));
+        }
+
+        return org.example.shared.communication.TokenTemplateEngine.wrapInRichCardHtml(
+                new org.example.shared.communication.TokenTemplateEngine.RichCardSpec(
+                        startHex,
+                        endHex,
+                        company.toUpperCase(Locale.ROOT) + " RECEIVABLES",
+                        severityBadgeLabel(p),
+                        badgeColor,
+                        "Outstanding Account Statement & Payment Reminder",
+                        p.partyName() + " • Total Due: " + money(p.totalOutstanding()),
+                        "Statement & Reminder: Total Due " + money(p.totalOutstanding()) + " across " + p.unpaidInvoiceCount() + " invoice(s).",
+                        List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("ACCOUNT", p.partyName()),
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("AS OF DATE", BusinessClock.formatDate(BusinessClock.today())),
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("TOTAL DUE", money(p.totalOutstanding()), "#dc2626")
+                        ),
+                        org.example.shared.communication.TokenTemplateEngine.stripWhatsappMarkdown(plainMessage),
+                        sections,
+                        List.of(),
+                        company + " Accounts Receivable",
+                        org.example.service.MessageTemplateService.buildCompanyFooterMeta()
+                )
+        );
     }
 
     private static String defaultSubject(TargetParty p) {

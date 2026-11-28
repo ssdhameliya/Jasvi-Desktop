@@ -14,7 +14,8 @@ class CompanyBrandingContractTest {
         String scheduled = Files.readString(Path.of("src/main/java/org/example/server/reporting/ReportScheduleService.java"));
         String export = Files.readString(Path.of("src/main/java/org/example/server/reporting/ScheduledReportExportService.java"));
         assertTrue(smtp.contains("public String companyName()"));
-        assertTrue(smtp.contains("companyName() + \" \" + purpose + \" code\""));
+        assertTrue(smtp.contains("String brand = companyName();")
+                && smtp.contains("brand + \" \" + safePurpose + \" code\""));
         assertTrue(email.contains("mail.companyName() + \" email test\""));
         assertTrue(scheduled.contains("mail.companyName() + \" Scheduled Report - \""));
         assertTrue(export.contains("setting(\"company.name\", \"Company\") + \" | \" + result.title()"));

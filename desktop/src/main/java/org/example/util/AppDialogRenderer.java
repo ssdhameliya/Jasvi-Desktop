@@ -353,7 +353,7 @@ public final class AppDialogRenderer {
             if (negative && (label.equalsIgnoreCase("No") || label.equalsIgnoreCase("Cancel"))) label = safeActionLabel(semantic, combined);
             if (label.isBlank()) label = affirmative ? "Continue" : "Close";
             button.setText(label);
-            button.setMinWidth(112);
+            button.setMinWidth(Region.USE_PREF_SIZE);
             ButtonBar.setButtonUniformSize(button, false);
             button.getStyleClass().removeIf(style -> style.startsWith("dse-dialog-action-")
                     || style.equals("approved-button") || style.startsWith("approved-primary-button")

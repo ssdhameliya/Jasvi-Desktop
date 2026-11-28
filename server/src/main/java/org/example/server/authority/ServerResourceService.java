@@ -37,9 +37,11 @@ public class ServerResourceService {
         String k = key.trim();
         return "application.markImagePath".equalsIgnoreCase(k)
                 || "application.brandImagePath".equalsIgnoreCase(k)
+                || "application.backgroundImagePath".equalsIgnoreCase(k)
                 || "company.logoPath".equalsIgnoreCase(k)
                 || "application.mark".equalsIgnoreCase(k)
                 || "application.banner".equalsIgnoreCase(k)
+                || "application.background".equalsIgnoreCase(k)
                 || "invoice.header.logo".equalsIgnoreCase(k);
     }
 
@@ -79,7 +81,8 @@ public class ServerResourceService {
             "email.signature.image",
             "payment.qrImagePath",
             "application.brandImagePath",
-            "application.markImagePath"
+            "application.markImagePath",
+            "application.backgroundImagePath"
         };
         for (String key : keys) {
             try {

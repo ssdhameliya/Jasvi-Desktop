@@ -17,6 +17,8 @@
                    styleClass="approved-page-subtitle"/>
         </VBox>
         <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="btnRunWatchdog" text="Run Expiry Watchdog" onAction="#handleRunWatchdog"
+                styleClass="approved-button,approved-secondary-button"/>
         <Button fx:id="btnTestAlert" text="Test Rogue Alert" onAction="#handleTestRogueAlert"
                 styleClass="approved-button,approved-secondary-button"/>
         <Button fx:id="btnRegisterClient" text="+ Register New Client" onAction="#handleRegisterClient"

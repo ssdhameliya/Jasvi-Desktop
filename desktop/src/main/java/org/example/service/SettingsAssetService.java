@@ -156,6 +156,7 @@ public final class SettingsAssetService {
         double requestedWidth = switch (role) {
             case APPLICATION_BANNER -> 1200.0;
             case APPLICATION_MARK -> 420.0;
+            case PANEL_BACKGROUND -> 1920.0;
             case COMPANY_LOGO -> 720.0;
             case SIGNATURE -> 720.0;
             case PAYMENT_QR -> 420.0;
@@ -163,6 +164,7 @@ public final class SettingsAssetService {
         double requestedHeight = switch (role) {
             case APPLICATION_BANNER -> 320.0;
             case APPLICATION_MARK -> 420.0;
+            case PANEL_BACKGROUND -> 1080.0;
             case COMPANY_LOGO -> 260.0;
             case SIGNATURE -> 260.0;
             case PAYMENT_QR -> 420.0;

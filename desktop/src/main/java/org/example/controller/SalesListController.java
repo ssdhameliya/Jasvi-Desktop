@@ -843,7 +843,10 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
                     full.getTotalAmount(),
                     full.getPaidAmount(),
                     full.getBalanceAmount(),
-                    full.getPaymentStatus()
+                    full.getPaymentStatus(),
+                    "SALE",
+                    full.getId(),
+                    MessageTemplateService.RichEmailContext.forSale(full)
             );
         }, draft -> {
             Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(tableSales, draft);
@@ -851,7 +854,7 @@ private TableCell<Sales,Double> moneyCell(){return new TableCell<>(){protected v
             EmailTransmissionDialog.TransmissionResult result = opt.get();
             LiveOperationDialog.run(tableSales, "Sending Sales Invoice Email", "email", "Connecting to SMTP server...", reporter -> {
                 reporter.stage(1, 3, "Connecting to SMTP and transmitting email to " + result.recipientEmail() + "...");
-                EmailService.send(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage(), result.senderProfile());
+                EmailService.send(draft, result);
                 reporter.stage(2, 3, "Recording communication status in audit register...");
                 service.markEmailSent(sale.getId());
                 communication("SALE", sale.getId(), "EMAIL", result.recipientEmail(), result.subject(), "SENT", null);

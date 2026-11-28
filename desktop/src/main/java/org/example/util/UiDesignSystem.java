@@ -205,6 +205,9 @@ public final class UiDesignSystem {
 
     private static void role(ButtonBase button, String role) {
         button.getStyleClass().removeIf(s -> s != null && s.startsWith("erp-button-role-"));
+        if (!"secondary".equals(role)) {
+            button.getStyleClass().removeAll("approved-secondary-button", "erp-button-secondary");
+        }
         add(button, "erp-button-role-" + role);
     }
 

@@ -651,12 +651,23 @@ public class GstComplianceController implements ScreenLifecycle {
         String rawGstin = ConfigManager.get("company.gstin", "").trim();
         String myGstin = rawGstin.isBlank() ? "Not Configured" : rawGstin;
 
+        String supplierGstin = (row.gstin() == null || row.gstin().isBlank()) ? "Not Provided / Unregistered" : row.gstin().trim();
+        String taxableDisplay = (row.taxable() == null || row.taxable().isBlank()) ? fmt(0.0) : row.taxable().trim();
+        String igstDisplay = (row.igst() == null || row.igst().isBlank()) ? fmt(0.0) : row.igst().trim();
+        String cgstDisplay = (row.cgst() == null || row.cgst().isBlank()) ? fmt(0.0) : row.cgst().trim();
+        String sgstDisplay = (row.sgst() == null || row.sgst().isBlank()) ? fmt(0.0) : row.sgst().trim();
+        String gstBreakup = "IGST " + igstDisplay + " | CGST " + cgstDisplay + " | SGST " + sgstDisplay;
+        String registerStatus = (row.status() == null || row.status().isBlank()) ? "MISMATCH / MISSING IN GSTR-2B" : row.status().trim();
+
         Map<String, String> tokens = new java.util.LinkedHashMap<>();
         tokens.put("SupplierName", row.tradeName() == null ? "Supplier" : row.tradeName());
+        tokens.put("SupplierGstin", supplierGstin);
         tokens.put("InvoiceNo", row.invoiceNo() == null ? "" : row.invoiceNo());
         tokens.put("InvoiceDate", row.invoiceDate() == null ? "" : row.invoiceDate());
-        tokens.put("TaxableAmount", String.valueOf(row.taxable()));
+        tokens.put("TaxableAmount", taxableDisplay);
         tokens.put("TaxAmount", fmt(row.totalTaxAmount()));
+        tokens.put("GstBreakup", gstBreakup);
+        tokens.put("RegisterStatus", registerStatus);
         tokens.put("CompanyName", companyName);
         tokens.put("CompanyGstin", myGstin);
 
@@ -665,11 +676,16 @@ public class GstComplianceController implements ScreenLifecycle {
         String previewMessage = org.example.service.MessageTemplateService.format(
                 org.example.service.MessageTemplateService.getEmailBody("gst_rule36_notice"), tokens);
         String waMessage = org.example.service.MessageTemplateService.renderWhatsappByKey("gst_rule36_notice", tokens);
-        var renderedEmail = org.example.service.MessageTemplateService.renderUrgentEmailByKey(
-                "gst_rule36_notice",
+
+        var renderedEmail = org.example.service.MessageTemplateService.buildGstRule36NoticeMessage(
                 tokens,
-                "GST Rule 36(4) Discrepancy Notice",
-                "Invoice #" + tokens.get("InvoiceNo")
+                companyName,
+                supplierGstin,
+                myGstin,
+                taxableDisplay,
+                fmt(row.totalTaxAmount()),
+                gstBreakup,
+                registerStatus
         );
 
         TextArea txtNotice = new TextArea(previewMessage);

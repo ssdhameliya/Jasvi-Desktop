@@ -84,10 +84,16 @@
     </GridPane>
     <Separator/>
 
-    <!-- Authentication / MFA Policy -->
+    <!-- Authentication / MFA Policy (Admins & Underlying Users) -->
     <VBox spacing="7" styleClass="security-settings-subsection">
-        <Label text="Authentication / MFA Policy" styleClass="settings-form-label"/>
+        <Label text="Company Authentication / MFA Policy" styleClass="settings-form-label"/>
         <ComboBox fx:id="cmbMfaPolicy" maxWidth="420" styleClass="approved-input"/>
+        <Label text="Required: Admin and all underlying users must use MFA • Admin Controlled: Admins are exempt and control underlying users per account • Disabled: No MFA for Admin or users." wrapText="true" styleClass="muted-text"/>
+    </VBox>
+    <VBox fx:id="superAdminMfaBox" spacing="7" visible="false" managed="false" styleClass="security-settings-subsection">
+        <Label text="Super Admin MFA Required" styleClass="settings-form-label"/>
+        <CheckBox fx:id="chkSuperAdminMfa" text="NO — Super Admin MFA OFF" styleClass="approved-checkbox,ios-toggle-switch"/>
+        <Label text="Independent Super Admin phone-style switch (YES = Authenticator MFA enforced, NO = No MFA). Never affected by the Company MFA Policy above." wrapText="true" styleClass="muted-text"/>
     </VBox>
     <Separator/>
 

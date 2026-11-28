@@ -26,6 +26,6 @@ for authority in ('quotation_header', 'sales_header', 'payment_record', 'party_c
 for removed in ('workflow_document', 'PROJECT_EXECUTION', 'sales_order_no', 'project_no'):
     need(removed not in server, 'Project Execution dependency remains in Customer 360 service: ' + removed)
 need('CUSTOMERS.EDIT' in server and 'row_version' in server, 'multi-user contact/note protection')
-need(len(list((R / 'desktop/src/main/resources/fxml').rglob('*.fxml'))) in {80, 81}, 'expected 80 or 81 FXML after WhatsappSettingsPanel / PaymentTransmission addition')
+need(len(list((R / 'desktop/src/main/resources/fxml').rglob('*.fxml'))) in {80, 81, 82}, 'expected 80-82 FXML after EnquiriesList addition')
 need(sorted((p.name for p in (R / 'desktop/src/main/resources/css').glob('*.css'))) == ['app-dialog.css', 'dark-theme.css', 'light-theme.css'], 'exactly two themes')
 print('CUSTOMER_360_CONTRACT_OK fxml=60 tabs=7 project_execution=removed')

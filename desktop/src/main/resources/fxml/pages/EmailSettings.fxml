@@ -17,7 +17,7 @@
         </VBox>
     </left>
 
-    <center><StackPane styleClass="auth-content,auth-unified-content"><VBox maxWidth="720" spacing="14" alignment="CENTER" styleClass="auth-card,auth-unified-card">
+    <center><StackPane fx:id="emailCenterHost" styleClass="auth-content,auth-unified-content"><VBox maxWidth="720" spacing="14" alignment="CENTER" styleClass="auth-card,auth-unified-card">
         <StackPane styleClass="auth-section-icon"><Label text="✉"/></StackPane>
         <Label text="Email Configuration" styleClass="auth-title"/>
         <Label text="Configure the same SMTP account used by login verification and business emails." styleClass="auth-description"/>

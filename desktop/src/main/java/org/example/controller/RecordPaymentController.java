@@ -426,12 +426,27 @@ public class RecordPaymentController implements ScreenLifecycle {
             );
             String body = formatted.body();
 
+            String payDate = row.date() == null ? BusinessClock.formatDate(LocalDate.now()) : row.date();
+            String payRef = row.reference() == null || row.reference().isBlank() ? "-" : row.reference();
+            var richCtx = MessageTemplateService.RichEmailContext.forSettlement(
+                    partyName,
+                    payDate,
+                    sale.getBillingGstin(),
+                    row.mode(),
+                    payRef,
+                    sale.getInvoiceNo(),
+                    sale.getSubtotal(),
+                    sale.getGstAmount(),
+                    sale.getGstType(),
+                    MessageTemplateService.RichEmailContext.forSale(sale).lineItems()
+            );
+
             String html = MessageTemplateService.formatExecutiveHtmlEmail(
                     "Payment Receipt",
                     balance <= 0.009 ? "FULLY PAID" : "PARTIAL",
                     docNo,
-                    row.date() == null ? BusinessClock.formatDate(LocalDate.now()) : row.date(),
-                    recipient.isBlank() ? partyName : recipient,
+                    payDate,
+                    partyName,
                     total,
                     paid,
                     balance,
@@ -440,11 +455,12 @@ public class RecordPaymentController implements ScreenLifecycle {
                     ourBankName,
                     ourAccNo,
                     ourIfsc,
-                    "Live Electronic Settlement Verification",
-                    row.reference() == null || row.reference().isBlank() ? "-" : row.reference(),
+                    partyName,
+                    payRef,
                     statusUrl,
                     true,
-                    sigBase64
+                    sigBase64,
+                    richCtx
             );
 
             Path tempHtml = Files.createTempFile("dse-payment-receipt-html-", ".html");

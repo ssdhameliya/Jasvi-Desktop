@@ -28,6 +28,7 @@
                     <Button fx:id="btnCreateSale" text="Create Sale" onAction="#createSale" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnCreditNote" text="Returns &amp; Credit Notes" onAction="#openCreditNotes" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                     <Button fx:id="btnQuotation" text="Quotations" onAction="#openQuotations" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
+                    <Button fx:id="btnEnquiries" text="Website Enquiries" onAction="#openEnquiries" maxWidth="Infinity" styleClass="approved-button,approved-secondary-button"/>
                 </VBox>
             </VBox>
             <VBox styleClass="nav-group">
@@ -214,7 +215,7 @@
                     <Button fx:id="btnWorkspaceShortcutHint" id="btnWorkspaceShortcutHint" onAction="#showWorkspaceShortcuts" styleClass="workspace-tab-shortcut-icon-btn" focusTraversable="false" accessibleText="Workspace tab shortcuts"/>
                 </HBox>
             </HBox>
-            <StackPane VBox.vgrow="ALWAYS">
+            <StackPane fx:id="workspaceContentHost" VBox.vgrow="ALWAYS">
                 <StackPane fx:id="contentPane" id="contentPane" styleClass="erp-content"/>
                 <StackPane fx:id="chatOverlayLayer" pickOnBounds="false"/>
             </StackPane>

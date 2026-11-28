@@ -46,10 +46,13 @@ public class LicenseRenewalDialogController {
 
     @FXML private StackPane headerIconHolder;
     @FXML private Label lblHeaderBadge;
+    @FXML private ComboBox<PlanOption> cmbPlanChoice;
     @FXML private ImageView imgUpiQr;
     @FXML private Label lblAmountDisplay;
     @FXML private Label lblVpaDisplay;
     @FXML private Button btnCopyUpiUri;
+    @FXML private TextField txtUtrReference;
+    @FXML private Button btnSubmitPaymentProof;
 
     @FXML private TextField txtMachineId;
     @FXML private Button btnCopyMachineId;
@@ -60,6 +63,7 @@ public class LicenseRenewalDialogController {
     @FXML private Label lblDaysRemaining;
 
     @FXML private Button btnSelfActivateNow;
+    @FXML private Button btnCloudRefresh;
     @FXML private Button btnSendEmailLead;
     @FXML private Button btnSendWhatsAppLead;
     @FXML private Button btnRegisterOnlineLead;
@@ -74,12 +78,19 @@ public class LicenseRenewalDialogController {
     private volatile LicenseApiClient.LicenseStatusDto currentStatusDto;
     private Dialog<?> hostDialog;
     private String currentUpiUri = "";
-    private String supportPhone = "9537544008";
-    private String supportEmail = "shailesh.sdhameliya@gmail.com";
-    private String upiVpa = "jasviindustries@icici";
-    private String payeeName = "Jasvi Industries";
+    private String supportPhone = "";
+    private String supportEmail = "";
+    private String upiVpa = "";
+    private String payeeName = "";
     private String gstRate = "18.00";
-    private String leadTemplate = "Hello Jasvi Team, I am {CompanyName} ({ContactPerson}, {Phone}). Terminal ID: {MachineId}. Please activate our Jasvi ERP license.";
+    private String leadTemplate = "Hello Support Team, I am {CompanyName} ({ContactPerson}, {Phone}). Terminal ID: {MachineId}. Please activate our ERP license.";
+
+    public record PlanOption(String planCode, String displayName, String tier, double priceInr, int validityDays) {
+        @Override
+        public String toString() {
+            return String.format(java.util.Locale.ROOT, "%s — ₹%.0f / %dd", displayName, priceInr, validityDays);
+        }
+    }
 
     @FXML
     private void initialize() {
@@ -94,10 +105,19 @@ public class LicenseRenewalDialogController {
         if (btnSendEmailLead != null) UiActionIcons.apply(btnSendEmailLead, "email", "Send Machine ID via Email");
         if (btnSendWhatsAppLead != null) UiActionIcons.apply(btnSendWhatsAppLead, "communication", "Send via WhatsApp");
         if (btnRegisterOnlineLead != null) UiActionIcons.apply(btnRegisterOnlineLead, "link", "Register Online");
+        if (btnCloudRefresh != null) UiActionIcons.apply(btnCloudRefresh, "refresh", "Sync Cloud License");
         if (btnSelfActivateNow != null) UiActionIcons.apply(btnSelfActivateNow, "security", "Activate Locally");
-        if (btnBrowseLicenseFile != null) UiActionIcons.apply(btnBrowseLicenseFile, "document", "Browse License File");
+        if (btnBrowseLicenseFile != null) UiActionIcons.apply(btnBrowseLicenseFile, "folder", "Browse License File");
         if (btnCopyUpiUri != null) UiActionIcons.apply(btnCopyUpiUri, "copy", "Copy UPI Payment String");
+        if (btnSubmitPaymentProof != null) UiActionIcons.apply(btnSubmitPaymentProof, "complete", "Submit UTR Payment Reference");
         if (btnCopyMachineId != null) UiActionIcons.apply(btnCopyMachineId, "copy", "Copy ID");
+        if (cmbPlanChoice != null) {
+            cmbPlanChoice.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null) {
+                    renderUpiQrCode(newVal);
+                }
+            });
+        }
         loadCatalogAsync();
         refreshStatus();
     }
@@ -117,28 +137,121 @@ public class LicenseRenewalDialogController {
                             leadTemplate = String.valueOf(cat.get("whatsappTemplateLead")).trim();
                         }
                     }
-                    renderUpiQrCode("3500.00");
+                    java.util.List<PlanOption> parsedPlans = parseCatalogPlans(cat != null ? cat.get("plans") : null);
+                    if (cmbPlanChoice != null) {
+                        cmbPlanChoice.setItems(javafx.collections.FXCollections.observableArrayList(parsedPlans));
+                        if (!parsedPlans.isEmpty()) {
+                            PlanOption matching = selectPreferredPlan(parsedPlans, currentStatusDto);
+                            PlanOption previous = cmbPlanChoice.getValue();
+                            cmbPlanChoice.setValue(matching);
+                            if (java.util.Objects.equals(previous, matching)) {
+                                renderUpiQrCode(matching);
+                            }
+                            return;
+                        }
+                    }
+                    renderUpiQrCode(null);
                 },
-                err -> renderUpiQrCode("3500.00")
+                err -> renderUpiQrCode(null)
         );
     }
 
-    private void renderUpiQrCode(String amount) {
-        double basePrice = 3500.00;
-        try { basePrice = Double.parseDouble(amount); } catch (Exception ignored) {}
+    static java.util.List<PlanOption> parseCatalogPlans(Object plansObj) {
+        java.util.List<PlanOption> parsedPlans = new java.util.ArrayList<>();
+        if (!(plansObj instanceof java.util.List<?> rawPlans)) {
+            return parsedPlans;
+        }
+        for (Object rowObj : rawPlans) {
+            if (!(rowObj instanceof Map<?, ?> m)) {
+                continue;
+            }
+            Object activeObj = m.get("is_active");
+            if (activeObj instanceof Boolean b && !b) continue;
+            if (activeObj instanceof Number n && n.intValue() == 0) continue;
+
+            String tier = firstNonBlank(m.get("tier"), m.get("tier_code"), "GOLD");
+            String code = firstNonBlank(m.get("plan_code"), tier, "PLAN");
+            String name = firstNonBlank(m.get("display_name"), m.get("plan_name"), code);
+            double price = parsePositiveNumber(m.get("price_inr"), parsePositiveNumber(m.get("annual_fee"), 0d));
+            int days = (int) Math.round(parsePositiveNumber(m.get("validity_days"), 365d));
+            if (days <= 0) days = 365;
+            if (price > 0) {
+                parsedPlans.add(new PlanOption(code, name, tier, price, days));
+            }
+        }
+        return parsedPlans;
+    }
+
+    private static PlanOption selectPreferredPlan(java.util.List<PlanOption> plans, LicenseApiClient.LicenseStatusDto statusDto) {
+        String activeTier = statusDto != null && statusDto.tier() != null ? statusDto.tier().trim() : "";
+        return plans.stream()
+                .filter(p -> p.tier().equalsIgnoreCase(activeTier))
+                .findFirst()
+                .orElse(plans.getFirst());
+    }
+
+    private static String firstNonBlank(Object first, Object second, String fallback) {
+        for (Object candidate : new Object[]{first, second}) {
+            if (candidate != null) {
+                String s = String.valueOf(candidate).trim();
+                if (!s.isBlank() && !"null".equalsIgnoreCase(s)) return s;
+            }
+        }
+        return fallback;
+    }
+
+    private static double parsePositiveNumber(Object raw, double fallback) {
+        if (raw instanceof Number n) {
+            double v = n.doubleValue();
+            return Double.isFinite(v) && v > 0 ? v : fallback;
+        }
+        if (raw != null) {
+            try {
+                double v = Double.parseDouble(String.valueOf(raw).trim());
+                return Double.isFinite(v) && v > 0 ? v : fallback;
+            } catch (NumberFormatException ignored) {}
+        }
+        return fallback;
+    }
+
+    private void renderUpiQrCode(PlanOption plan) {
+        if (upiVpa == null || upiVpa.isBlank()) {
+            currentUpiUri = "";
+            if (imgUpiQr != null) imgUpiQr.setImage(null);
+            if (lblAmountDisplay != null) {
+                lblAmountDisplay.setText(plan != null
+                        ? String.format(java.util.Locale.ROOT, "₹%.0f + %s%% GST (%s)", plan.priceInr(), gstRate, plan.displayName())
+                        : "Select a commercial plan or contact administrator");
+            }
+            if (lblVpaDisplay != null) lblVpaDisplay.setText("UPI VPA not configured on server");
+            if (btnCopyUpiUri != null) btnCopyUpiUri.setDisable(true);
+            return;
+        }
+        double basePrice = plan != null ? plan.priceInr() : 0d;
+        if (basePrice <= 0d) {
+            currentUpiUri = "";
+            if (imgUpiQr != null) imgUpiQr.setImage(null);
+            if (lblAmountDisplay != null) lblAmountDisplay.setText("No billable plan selected");
+            if (lblVpaDisplay != null) lblVpaDisplay.setText("VPA: " + upiVpa);
+            if (btnCopyUpiUri != null) btnCopyUpiUri.setDisable(true);
+            return;
+        }
+        if (btnCopyUpiUri != null) btnCopyUpiUri.setDisable(false);
         double gstPercent = 18.00;
         try { gstPercent = Double.parseDouble(gstRate); } catch (Exception ignored) {}
         double totalWithGst = basePrice * (1.0 + (gstPercent / 100.0));
 
         String machineId = HardwareFingerprintUtil.getDisplayMachineId();
-        String encPayee = payeeName.replace(" ", "+");
+        String safePayee = (payeeName == null || payeeName.isBlank()) ? "ERP Subscription" : payeeName;
+        String encPayee = safePayee.replace(" ", "+");
         currentUpiUri = String.format(java.util.Locale.ROOT, "upi://pay?pa=%s&pn=%s&am=%.2f&cu=INR&tn=Renewal+%s",
                 upiVpa, encPayee, totalWithGst, machineId);
 
         final double finalBase = basePrice;
         final double finalTotal = totalWithGst;
+        final String periodSuffix = plan != null && plan.validityDays() != 365 ? (" / " + plan.validityDays() + "d") : " / Year";
 
-        UiTaskExecutor.submitAction(
+        UiTaskExecutor.submitLatest(
                 "render-upi-qr",
                 () -> {
                     BarcodeQRCode qrcode = new BarcodeQRCode(currentUpiUri);
@@ -160,7 +273,7 @@ public class LicenseRenewalDialogController {
                         imgUpiQr.setImage(new Image(new ByteArrayInputStream(pngBytes)));
                     }
                     if (lblAmountDisplay != null) {
-                        lblAmountDisplay.setText(String.format(java.util.Locale.ROOT, "₹%.0f + %s%% GST = ₹%.0f / Year", finalBase, gstRate, finalTotal));
+                        lblAmountDisplay.setText(String.format(java.util.Locale.ROOT, "₹%.0f + %s%% GST = ₹%.0f%s", finalBase, gstRate, finalTotal, periodSuffix));
                     }
                     if (lblVpaDisplay != null) {
                         lblVpaDisplay.setText("VPA: " + upiVpa);
@@ -187,6 +300,15 @@ public class LicenseRenewalDialogController {
     private void applyStatus(LicenseApiClient.LicenseStatusDto dto) {
         if (dto == null) return;
         this.currentStatusDto = dto;
+
+        if (cmbPlanChoice != null && cmbPlanChoice.getItems() != null && !cmbPlanChoice.getItems().isEmpty()
+                && dto.tier() != null && !dto.tier().isBlank()) {
+            PlanOption current = cmbPlanChoice.getValue();
+            if (current == null || !current.tier().equalsIgnoreCase(dto.tier().trim())) {
+                PlanOption preferred = selectPreferredPlan(cmbPlanChoice.getItems(), dto);
+                cmbPlanChoice.setValue(preferred);
+            }
+        }
 
         if (lblCompany != null) lblCompany.setText(dto.companyName() != null ? dto.companyName() : "-");
         if (lblTier != null) lblTier.setText(dto.tier() != null ? dto.tier() : "GOLD");
@@ -287,9 +409,13 @@ public class LicenseRenewalDialogController {
                 + "Thank you,\n"
                 + company + " Team";
 
-        String targetEmail = (supportEmail != null && !supportEmail.isBlank())
-                ? supportEmail.trim()
-                : "shailesh.sdhameliya@gmail.com";
+        String targetEmail = supportEmail != null ? supportEmail.trim() : "";
+        if (targetEmail.isBlank()) {
+            AppDialogService.warning(btnSendEmailLead != null ? btnSendEmailLead : txtMachineId,
+                    "Support Email Unavailable",
+                    "Support email is not configured on the cloud catalog yet. Please use Register Online or contact your administrator.");
+            return;
+        }
 
         try {
             String mailto = String.format("mailto:%s?subject=%s&body=%s",
@@ -412,6 +538,75 @@ public class LicenseRenewalDialogController {
         }
     }
 
+    @FXML
+    private void handleSubmitPaymentProof() {
+        String utr = txtUtrReference == null || txtUtrReference.getText() == null ? "" : txtUtrReference.getText().trim();
+        if (utr.length() < 6) {
+            AppDialogService.warning(btnSubmitPaymentProof != null ? btnSubmitPaymentProof : btnClose,
+                    "Invalid UTR Reference",
+                    "Please enter a valid 6+ character UPI UTR / transaction reference number.");
+            return;
+        }
+        PlanOption selectedPlan = cmbPlanChoice != null ? cmbPlanChoice.getValue() : null;
+        String company = (lblCompany != null && !lblCompany.getText().isBlank() && !"-".equals(lblCompany.getText()))
+                ? lblCompany.getText().trim()
+                : (currentStatusDto != null && currentStatusDto.companyName() != null && !currentStatusDto.companyName().isBlank()
+                        ? currentStatusDto.companyName().trim() : "Registered Client");
+        String tier = selectedPlan != null ? selectedPlan.tier()
+                : (lblTier != null && !lblTier.getText().isBlank() && !"-".equals(lblTier.getText()) ? lblTier.getText().trim() : "GOLD");
+        int days = selectedPlan != null ? selectedPlan.validityDays() : 365;
+        double gstPct = 18.0;
+        try { gstPct = Double.parseDouble(gstRate); } catch (Exception ignored) {}
+        double paidAmount = selectedPlan != null ? selectedPlan.priceInr() * (1.0 + gstPct / 100.0) : 0.0;
+
+        Map<String, Object> req = new java.util.LinkedHashMap<>();
+        req.put("companyName", company);
+        req.put("contactPerson", "Self-Service UTR Renewal");
+        req.put("phone", "N/A");
+        req.put("email", "");
+        req.put("machineId", HardwareFingerprintUtil.getDisplayMachineId());
+        req.put("requestedTier", tier);
+        req.put("utrReference", utr);
+        req.put("paymentAmount", paidAmount);
+        req.put("requestedDays", days);
+        req.put("notes", "In-app UPI payment submission | Plan: " + (selectedPlan != null ? selectedPlan.planCode() : tier) + " | UTR: " + utr);
+
+        UiTaskExecutor.submitActionWithOverlay(
+                btnSubmitPaymentProof != null ? btnSubmitPaymentProof : btnClose,
+                "Submitting UTR Payment Proof...",
+                "submit-utr-proof",
+                () -> api.selfRegister(req),
+                res -> {
+                    if (txtUtrReference != null) txtUtrReference.clear();
+                    AppDialogService.success(btnClose, "UTR Submitted",
+                            "Payment reference " + utr + " recorded! Your renewal request has been logged for cloud verification.");
+                },
+                err -> AppDialogService.error(btnClose, "UTR Submission Failed", "Could not submit payment reference", err.getMessage())
+        );
+    }
+
+    @FXML
+    private void handleCloudRefresh() {
+        UiTaskExecutor.submitActionWithOverlay(
+                btnCloudRefresh != null ? btnCloudRefresh : btnClose,
+                "Syncing Latest License from Cloud...",
+                "cloud-refresh-license",
+                api::cloudRefresh,
+                res -> {
+                    boolean refreshed = res != null && Boolean.TRUE.equals(res.get("refreshed"));
+                    refreshStatus();
+                    if (refreshed) {
+                        AppDialogService.success(btnClose, "Cloud License Synced",
+                                String.valueOf(res.getOrDefault("message", "Latest cloud license pulled and activated on this workstation.")));
+                    } else {
+                        AppDialogService.info(btnClose, "Cloud Sync Checked",
+                                res != null ? String.valueOf(res.getOrDefault("message", "No newer license found on cloud registry.")) : "No updates available.");
+                    }
+                },
+                err -> AppDialogService.error(btnClose, "Cloud Sync Failed", "Could not pull latest license from cloud", err.getMessage())
+        );
+    }
+
     private void applyCopiedFeedback(Button btn, String msg) {
         if (btn == null) return;
         String orig = btn.getText();
@@ -443,15 +638,18 @@ public class LicenseRenewalDialogController {
 
         String company = (lblCompany != null && !lblCompany.getText().isBlank() && !"-".equals(lblCompany.getText()))
                 ? lblCompany.getText().trim()
-                : (cur != null && cur.companyName() != null && !cur.companyName().isBlank() ? cur.companyName() : "JASVI INDUSTRIES");
+                : (cur != null && cur.companyName() != null && !cur.companyName().isBlank() ? cur.companyName() : "Registered Company");
 
-        String tier = (lblTier != null && !lblTier.getText().isBlank() && !"-".equals(lblTier.getText()))
-                ? lblTier.getText().trim().toUpperCase(java.util.Locale.ROOT)
-                : (cur != null && cur.tier() != null && !cur.tier().isBlank() ? cur.tier().toUpperCase(java.util.Locale.ROOT) : "PLATINUM");
+        PlanOption selectedPlan = cmbPlanChoice != null ? cmbPlanChoice.getValue() : null;
+        String tier = selectedPlan != null ? selectedPlan.tier()
+                : ((lblTier != null && !lblTier.getText().isBlank() && !"-".equals(lblTier.getText()))
+                        ? lblTier.getText().trim().toUpperCase(java.util.Locale.ROOT)
+                        : (cur != null && cur.tier() != null && !cur.tier().isBlank() ? cur.tier().toUpperCase(java.util.Locale.ROOT) : "GOLD"));
 
-        int days = (cur != null && cur.daysRemaining() > 365)
-                ? (int) cur.daysRemaining()
-                : 365;
+        int days = selectedPlan != null ? selectedPlan.validityDays()
+                : ((cur != null && cur.daysRemaining() > 365)
+                        ? (int) cur.daysRemaining()
+                        : 365);
 
         int maxUsers = "PLATINUM".equalsIgnoreCase(tier) ? 20 : ("GOLD".equalsIgnoreCase(tier) ? 5 : 1);
 
@@ -608,6 +806,7 @@ public class LicenseRenewalDialogController {
             var shell = DocumentInspectionScaffold.createShell(ownerNode,
                     "Subscription & Machine Activation",
                     "license-renewal-dialog");
+            shell.pane().getStyleClass().addAll("dse-dialog-no-button-bar", "dse-dialog-auto-height");
 
             javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(LicenseRenewalDialogController.class.getResource("/fxml/pages/LicenseRenewalDialog.fxml"));
             javafx.scene.Parent root = loader.load();
@@ -622,14 +821,14 @@ public class LicenseRenewalDialogController {
             javafx.geometry.Rectangle2D screen = WindowUtilsFx.visualBoundsFor(owner);
             double maxW = Math.max(760, screen.getWidth() - 48);
             double maxH = Math.max(540, screen.getHeight() - 48);
-            double targetW = Math.min(maxW, Math.max(880, Math.min(1040, screen.getWidth() * 0.82)));
-            double targetH = Math.min(maxH, Math.max(620, Math.min(780, screen.getHeight() * 0.85)));
+            double targetW = Math.min(maxW, Math.max(920, Math.min(1080, screen.getWidth() * 0.86)));
+            double targetH = Math.min(maxH, Math.max(660, Math.min(820, screen.getHeight() * 0.88)));
 
             shell.pane().setPrefSize(targetW, targetH);
             shell.pane().setMaxWidth(maxW);
             shell.pane().setMaxHeight(maxH);
-            shell.pane().setMinWidth(Math.min(840, targetW));
-            shell.pane().setMinHeight(Math.min(560, targetH));
+            shell.pane().setMinWidth(Math.min(860, targetW));
+            shell.pane().setMinHeight(Math.min(580, targetH));
 
             shell.dialog().setOnShown(ev -> {
                 if (shell.pane().getScene() != null && shell.pane().getScene().getWindow() instanceof javafx.stage.Stage stage) {

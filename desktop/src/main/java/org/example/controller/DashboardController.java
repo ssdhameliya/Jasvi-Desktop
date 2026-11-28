@@ -136,6 +136,7 @@ public class DashboardController implements ScreenLifecycle {
     @FXML private Button btnSalesReturn;
     @FXML private Button btnCreditNote;
     @FXML private Button btnQuotation;
+    @FXML private Button btnEnquiries;
     @FXML private Button btnPurchaseRegister;
     @FXML private Button btnCreatePurchase;
     @FXML private Button btnPurchaseReturn;
@@ -290,6 +291,7 @@ public class DashboardController implements ScreenLifecycle {
         // layout pulses, especially on macOS Retina displays.
         refreshCompanyFooter();
         refreshMenuBarBrandIdentity();
+        org.example.service.BrandImagePresenter.applyPanelBackground(workspaceContentHost, true, contentPane);
 
 
         navigationManager = new NavigationManager(contentPane);
@@ -418,6 +420,7 @@ public class DashboardController implements ScreenLifecycle {
         UiActionIcons.apply(btnCreateSale,"add","Create Sale");
         UiActionIcons.apply(btnSalesReturn,"return","Sales Return");
         UiActionIcons.apply(btnQuotation,"quotation","Quotations");
+        if (btnEnquiries != null) UiActionIcons.apply(btnEnquiries, "communication", "Website Enquiries");
         UiActionIcons.apply(btnPurchase,"purchase","Purchase");
         UiActionIcons.apply(btnPurchaseRegister,"purchase","Purchase Register");
         UiActionIcons.apply(btnCreatePurchase,"add","Create Purchase");
@@ -880,6 +883,7 @@ public class DashboardController implements ScreenLifecycle {
         if (btnCreateSale != null) btnCreateSale.setDisable(!salesCreateAllowed);
         if (btnSalesReturn != null) btnSalesReturn.setDisable(!creditAllowed);
         if (btnQuotation != null) btnQuotation.setDisable(!quotationAllowed);
+        if (btnEnquiries != null) btnEnquiries.setDisable(!(salesAllowed || quotationAllowed));
         if (btnCreditNote != null) btnCreditNote.setDisable(!creditAllowed);
 
         // Purchase accordion
@@ -1224,6 +1228,9 @@ public class DashboardController implements ScreenLifecycle {
             : null;
         if (icon != null) button.setGraphic(IconFactory.icon(icon));
     }
+
+    @FXML
+    private StackPane workspaceContentHost;
 
     @FXML
     private StackPane contentPane;
@@ -1617,7 +1624,7 @@ public class DashboardController implements ScreenLifecycle {
     }
 
     private NavGroup groupFor(Button button, String fxmlPath) {
-        if (button == btnSales || button == btnSalesRegister || button == btnCreateSale || button == btnSalesReturn || button == btnCreditNote || button == btnQuotation)
+        if (button == btnSales || button == btnSalesRegister || button == btnCreateSale || button == btnSalesReturn || button == btnCreditNote || button == btnQuotation || button == btnEnquiries)
             return NavGroup.SALES;
         if (button == btnPurchase || button == btnPurchaseRegister || button == btnCreatePurchase || button == btnPurchaseReturn || button == btnDebitNote)
             return NavGroup.PURCHASE;
@@ -1634,7 +1641,7 @@ public class DashboardController implements ScreenLifecycle {
         if (button == btnSettings)
             return NavGroup.NONE;
         String path = fxmlPath == null ? "" : fxmlPath.toLowerCase(Locale.ROOT);
-        if (path.contains("quotation") || path.contains("saleslist") || path.contains("salesreturns") || path.contains("creditnoteregister") || path.endsWith("/sale.fxml")) return NavGroup.SALES;
+        if (path.contains("enquirieslist") || path.contains("quotation") || path.contains("saleslist") || path.contains("salesreturns") || path.contains("creditnoteregister") || path.endsWith("/sale.fxml")) return NavGroup.SALES;
         if (path.contains("purchaselist") || path.contains("purchasereturns") || path.contains("debitnoteregister") || path.endsWith("/purchase.fxml")) return NavGroup.PURCHASE;
         if (path.contains("bankexpense") || path.contains("bankstatement") || path.contains("purchaserecon") || path.contains("reconsupplier")) return NavGroup.BANK_EXPENSE;
         if (path.contains("billtotally") || path.contains("clientsdirectory") || path.contains("clienttemplate")) return NavGroup.BILL_TO_TALLY;
@@ -1651,6 +1658,7 @@ public class DashboardController implements ScreenLifecycle {
         if (path.endsWith("/sale.fxml")) return btnCreateSale;
         if (path.contains("salesreturns")) return btnSalesReturn;
         if (path.contains("creditnoteregister")) return btnCreditNote;
+        if (path.contains("enquirieslist")) return btnEnquiries;
         if (path.contains("quotation")) return btnQuotation;
         if (path.contains("purchaselist")) return btnPurchaseRegister;
         if (path.endsWith("/purchase.fxml")) return btnCreatePurchase;
@@ -1689,7 +1697,7 @@ public class DashboardController implements ScreenLifecycle {
     private List<Button> navigationButtons() {
         return java.util.stream.Stream.of(
                 btnDashboard,
-                btnSales, btnSalesRegister, btnCreateSale, btnSalesReturn, btnCreditNote, btnQuotation,
+                btnSales, btnSalesRegister, btnCreateSale, btnSalesReturn, btnCreditNote, btnQuotation, btnEnquiries,
                 btnPurchase, btnPurchaseRegister, btnCreatePurchase, btnPurchaseReturn, btnDebitNote,
                 btnItem, btnMasters, btnBankExpense, btnBankEntry, btnExpenseEntry, btnBankStatement, btnPurchaseRecon, btnReconSupplier, btnBillToTallyNav, btnBillToTally, btnClientsDirectory, btnClientTemplate,
                 btnFinance, btnGeneralLedger, btnFinancialStatements, btnAgingAnalysis,
@@ -1781,6 +1789,7 @@ public class DashboardController implements ScreenLifecycle {
         String path = fxmlPath == null ? "" : fxmlPath.toLowerCase(Locale.ROOT);
         if (path.contains("profile.fxml") || path.contains("notificationcenter") || path.contains("globalsearch")) return null;
         if (path.contains("dashboardhome")) return "DASHBOARD.VIEW";
+        if (path.contains("enquirieslist")) return "QUOTATION.VIEW";
         if (path.contains("quotation")) return "QUOTATION.VIEW";
         if (path.contains("saleslist")) return "SALES.VIEW";
         if (path.endsWith("/sale.fxml")) return "SALES.CREATE";
@@ -1898,6 +1907,11 @@ public class DashboardController implements ScreenLifecycle {
         openPage(btnQuotation, "Quotation Register", "/fxml/pages/Quotations.fxml");
     }
 
+    @FXML
+    private void openEnquiries() {
+        openPage(btnEnquiries, "Website Enquiries", "/fxml/pages/EnquiriesList.fxml");
+    }
+
     @FXML private void openBankEntry() {
         BankExpenseController.requestMode(BankExpenseController.Mode.BANK);
         openPage(btnBankEntry, "Bank Entry", "/fxml/pages/BankExpense.fxml");
@@ -1939,6 +1953,7 @@ public class DashboardController implements ScreenLifecycle {
         javafx.application.Platform.runLater(() -> {
             c.refreshCompanyFooter();
             c.refreshMenuBarBrandIdentity();
+            org.example.service.BrandImagePresenter.applyPanelBackground(c.workspaceContentHost, true, c.contentPane);
             c.applyScreenIdentity(c.lblPageTitle == null ? "Dashboard" : c.lblPageTitle.getText());
             org.example.util.SceneManager.applyStageIcon(org.example.util.SceneManager.primaryStage);
         });

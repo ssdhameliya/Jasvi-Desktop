@@ -20,6 +20,7 @@
         </VBox>
     </left>
     <center>
+        <StackPane fx:id="setupCenterHost">
         <VBox spacing="16" styleClass="setup-content">
             <padding><Insets top="34" right="44" bottom="28" left="44"/></padding>
             <Label fx:id="lblStep" text="Step 1 of 5" styleClass="setup-step"/>
@@ -97,5 +98,6 @@
             <Label fx:id="lblError" wrapText="true"/>
             <HBox spacing="10" alignment="CENTER_RIGHT"><Button fx:id="btnBack" text="Back" onAction="#previous" styleClass="setup-secondary-button"/><Button fx:id="btnNext" text="Continue" onAction="#next" defaultButton="true" styleClass="setup-primary-button"/></HBox>
         </VBox>
+        </StackPane>
     </center>
 </BorderPane>

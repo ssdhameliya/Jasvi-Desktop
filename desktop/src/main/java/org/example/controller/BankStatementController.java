@@ -57,7 +57,7 @@ public class BankStatementController implements ScreenLifecycle {
     @FXML private VBox cardKpiTotal,cardKpiUnmatched,cardKpiSuggested,cardKpiMatched,cardKpiExpense;
     @FXML private Button btnImport,btnScreenGuide,btnReset,btnRefresh,btnPrevPage,btnNextPage,btnBrowseStatements,btnDeleteStatement,btnCloseHistory,btnHistoryPrev,btnHistoryNext,btnOpenStatement,btnHistoryDelete,btnAutoMatch,btnManageRules,btnApplyRules;
     @FXML private MenuButton btnExport;
-    @FXML private MenuItem miExportExcel,miExportPdf,miExportBrsPdf,miExportBrsExcel;
+    @FXML private MenuItem miExportExcel,miExportPdf,miExportBrsPdf,miExportBrsExcel,miBankGlMappings;
     private CheckBox colHeaderSelectAll;
     @FXML private Button btnBulkReview,btnBulkIgnore,btnMoveExpense,btnMoveBankEntry;
     @FXML private ComboBox<BankStatementApiClient.BatchDto> cmbBatch;
@@ -273,6 +273,7 @@ public class BankStatementController implements ScreenLifecycle {
         if(miExportPdf!=null) miExportPdf.setGraphic(IconFactory.compactIcon("pdf",14));
         if(miExportBrsPdf!=null) miExportBrsPdf.setGraphic(IconFactory.compactIcon("reconcile",14));
         if(miExportBrsExcel!=null) miExportBrsExcel.setGraphic(IconFactory.compactIcon("excel",14));
+        if(miBankGlMappings!=null) miBankGlMappings.setGraphic(IconFactory.compactIcon("settings",14));
         if(btnDeleteStatement!=null) {
             btnDeleteStatement.setGraphic(IconFactory.compactIcon("delete",15));
             boolean canDel = PermissionService.allowed("BANK_EXPENSE.DELETE");
@@ -2733,18 +2734,21 @@ public class BankStatementController implements ScreenLifecycle {
         public String targetLabel() {
             if ("RULE".equals(kind())) return safe(suggestion.ruleName()) + " (" + safe(suggestion.ruleActionType()) + ")";
             if ("CONTRA".equals(kind())) return "Contra → " + safe(suggestion.contraAccountName());
+            if ("BOUNCE".equals(kind())) return "Bounce / Reversal Pair";
             return candidate == null ? "" : candidate.documentNo() + " (" + candidate.type() + ")";
         }
 
         public String partyOrAccount() {
             if ("RULE".equals(kind())) return !safe(suggestion.ruleTargetCategory()).isBlank() ? suggestion.ruleTargetCategory() : safe(suggestion.ruleTargetAccountName());
-            if ("CONTRA".equals(kind())) return safe(suggestion.contraAccountName());
+            if ("CONTRA".equals(kind()) || "BOUNCE".equals(kind())) return safe(suggestion.contraAccountName());
             return candidate == null ? "" : safe(candidate.partyName());
         }
 
         public String adjustmentLabel() {
             if ("RULE".equals(kind())) return "Smart Rule";
             if ("CONTRA".equals(kind())) return "Contra Pair";
+            if ("BOUNCE".equals(kind())) return "Reversal / Ignore";
+            if ("RECORDED_PAYMENT".equals(kind())) return "Pre-Recorded";
             if ("MULTI_SPLIT".equals(kind()) && candidate != null && candidate.splitAllocations() != null) {
                 return candidate.splitAllocations().size() + " Invoices";
             }
@@ -2836,11 +2840,11 @@ public class BankStatementController implements ScreenLifecycle {
         HBox.setHgrow(txtFilter, Priority.ALWAYS);
 
         ComboBox<String> cmbKindFilter = new ComboBox<>(FXCollections.observableArrayList(
-                "All Types", "Documents & Splits", "Smart Rules", "Contra Pairs"));
+                "All Types", "Documents & Splits", "Pre-Recorded Payments", "Smart Rules", "Contra & Bounce Pairs"));
         cmbKindFilter.setValue("All Types");
 
         ComboBox<String> cmbMinConf = new ComboBox<>(FXCollections.observableArrayList(
-                "All Eligible", "High Confidence (≥ 85%)", "Exact / Rules (≥ 95%)"));
+                "All Eligible", "High Confidence (≥ 85%)", "Needs Review / Ambiguous", "Exact / Rules (≥ 95%)"));
         cmbMinConf.setValue("All Eligible");
 
         CheckBox chkSelectAllModal = new CheckBox("Select All");
@@ -2978,13 +2982,14 @@ public class BankStatementController implements ScreenLifecycle {
             @Override
             protected void updateItem(String reason, boolean empty) {
                 super.updateItem(reason, empty);
-                getStyleClass().removeAll("erp-table-value-colour-blue", "erp-table-value-colour-green", "erp-table-value-colour-cyan", "erp-table-value-colour-purple");
+                getStyleClass().removeAll("erp-table-value-colour-blue", "erp-table-value-colour-green", "erp-table-value-colour-cyan", "erp-table-value-colour-purple", "erp-table-value-colour-orange");
                 if (empty || reason == null || reason.isBlank()) { setText(null); setGraphic(null); setTooltip(null); return; }
                 setText(reason);
                 setTooltip(new Tooltip(reason));
-                if (reason.contains("Exact")) getStyleClass().add("erp-table-value-colour-green");
-                else if (reason.contains("TDS") || reason.contains("Contra")) getStyleClass().add("erp-table-value-colour-cyan");
-                else if (reason.contains("Invoice") || reason.contains("Split")) getStyleClass().add("erp-table-value-colour-blue");
+                if (reason.contains("Ambiguous") || reason.contains("Verify Party") || reason.contains("Bounce")) getStyleClass().add("erp-table-value-colour-orange");
+                else if (reason.contains("Exact")) getStyleClass().add("erp-table-value-colour-green");
+                else if (reason.contains("TDS") || reason.contains("Contra") || reason.contains("Pre-Recorded")) getStyleClass().add("erp-table-value-colour-cyan");
+                else if (reason.contains("Invoice") || reason.contains("Split") || reason.contains("Ref #")) getStyleClass().add("erp-table-value-colour-blue");
                 else getStyleClass().add("erp-table-value-colour-purple");
                 setAlignment(Pos.CENTER_LEFT);
             }
@@ -3016,12 +3021,15 @@ public class BankStatementController implements ScreenLifecycle {
             String q = txtFilter.getText() == null ? "" : txtFilter.getText().trim().toLowerCase(Locale.ROOT);
             String kindSel = cmbKindFilter.getValue();
             String confSel = cmbMinConf.getValue();
+            boolean reviewOnly = "Needs Review / Ambiguous".equals(confSel);
             double minConf = "Exact / Rules (≥ 95%)".equals(confSel) ? 95.0 : "High Confidence (≥ 85%)".equals(confSel) ? 85.0 : 0.0;
             autoTable.setItems(allItems.filtered(it -> {
-                if (it.confidence() < minConf) return false;
+                if (reviewOnly && it.suggestion.autoSelectable()) return false;
+                if (!reviewOnly && it.confidence() < minConf) return false;
                 if ("Documents & Splits".equals(kindSel) && !Set.of("DOCUMENT", "MULTI_SPLIT").contains(it.kind())) return false;
+                if ("Pre-Recorded Payments".equals(kindSel) && !"RECORDED_PAYMENT".equals(it.kind())) return false;
                 if ("Smart Rules".equals(kindSel) && !"RULE".equals(it.kind())) return false;
-                if ("Contra Pairs".equals(kindSel) && !"CONTRA".equals(it.kind())) return false;
+                if ("Contra & Bounce Pairs".equals(kindSel) && !Set.of("CONTRA", "BOUNCE").contains(it.kind())) return false;
                 if (q.isBlank()) return true;
                 return it.partyOrAccount().toLowerCase(Locale.ROOT).contains(q)
                         || it.targetLabel().toLowerCase(Locale.ROOT).contains(q)
@@ -3112,6 +3120,8 @@ public class BankStatementController implements ScreenLifecycle {
                             BankStatementApiClient.OperationResult res;
                             if ("RULE".equals(it.kind()) && it.suggestion.ruleId() != null) {
                                 res = api.applyRuleToTransaction(it.tx.id().longValue(), it.suggestion.ruleId().longValue(), performedBy);
+                            } else if ("BOUNCE".equals(it.kind())) {
+                                res = api.ignore(it.tx.id().longValue(), new BankStatementApiClient.IgnoreRequest("Reversal / Bounce pair confirmed", performedBy));
                             } else if ("CONTRA".equals(it.kind())) {
                                 String acct = safe(it.suggestion.ruleTargetAccountName());
                                 if (acct.isBlank()) acct = batchAccountName();
@@ -3228,6 +3238,85 @@ public class BankStatementController implements ScreenLifecycle {
                 },
                 this::error
         );
+    }
+
+    @FXML
+    private void openBankGlMappingDialog() {
+        Dialog<Void> dialog = new OwnedDialog<>(table);
+        dialog.setTitle("Bank Statement GL Sub-Account Mapping (102x)");
+        dialog.setHeaderText("Each bank account resolves to an isolated 102x Bank Asset GL ledger for 3-way BRS");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.setResizable(true);
+
+        TableView<BankStatementApiClient.BankGlMappingDto> tbl = new TableView<>();
+        tbl.getStyleClass().addAll("approved-table", "bank-recon-table");
+        tbl.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        tbl.setPrefHeight(360);
+        VBox.setVgrow(tbl, Priority.ALWAYS);
+
+        TableColumn<BankStatementApiClient.BankGlMappingDto, String> cKey = new TableColumn<>("Account Key");
+        cKey.setCellValueFactory(c -> new SimpleStringProperty(safe(c.getValue().bankAccountKey())));
+        TableColumn<BankStatementApiClient.BankGlMappingDto, String> cBank = new TableColumn<>("Bank Name");
+        cBank.setCellValueFactory(c -> new SimpleStringProperty(safe(c.getValue().bankName())));
+        TableColumn<BankStatementApiClient.BankGlMappingDto, String> cAcc = new TableColumn<>("Account No.");
+        cAcc.setCellValueFactory(c -> new SimpleStringProperty(safe(c.getValue().accountNumber())));
+        TableColumn<BankStatementApiClient.BankGlMappingDto, String> cCode = new TableColumn<>("GL Code");
+        cCode.setCellValueFactory(c -> new SimpleStringProperty(safe(c.getValue().glAccountCode())));
+        TableColumn<BankStatementApiClient.BankGlMappingDto, String> cName = new TableColumn<>("GL Ledger Name");
+        cName.setCellValueFactory(c -> new SimpleStringProperty(safe(c.getValue().glAccountName())));
+        TableColumn<BankStatementApiClient.BankGlMappingDto, String> cBal = new TableColumn<>("GL Balance");
+        cBal.setCellValueFactory(c -> new SimpleStringProperty(String.format(Locale.ENGLISH, "%,.2f", c.getValue().currentBalance())));
+        tbl.getColumns().addAll(cKey, cBank, cAcc, cCode, cName, cBal);
+        DynamicTableLayoutManager.install(tbl);
+
+        Button btnRemap = new Button("Edit GL Code...");
+        btnRemap.setGraphic(IconFactory.compactIcon("edit", 14));
+        btnRemap.getStyleClass().addAll("approved-button", "approved-primary-button");
+        Button btnReload = new Button("Refresh Mappings");
+        btnReload.setGraphic(IconFactory.compactIcon("refresh", 14));
+        btnReload.getStyleClass().addAll("approved-button", "approved-secondary-button");
+
+        Runnable loadRows = () -> UiTaskExecutor.submitAction(
+                "bank-gl-mappings-load",
+                api::glMappings,
+                rows -> tbl.setItems(FXCollections.observableArrayList(rows != null ? rows : List.of())),
+                this::error
+        );
+        btnReload.setOnAction(e -> loadRows.run());
+        btnRemap.setOnAction(e -> {
+            var selected = tbl.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                info("Select Bank Account", "Select a mapped bank account row first.");
+                return;
+            }
+            TextInputDialog input = new OwnedTextInputDialog(safe(selected.glAccountCode()));
+            input.setTitle("Assign Bank GL Sub-Account");
+            input.setHeaderText("Map " + safe(selected.bankName()) + " (" + safe(selected.bankAccountKey()) + ") to Chart of Accounts GL Code");
+            input.setContentText("GL Asset Account Code (e.g. 1020, 1021, 1022):");
+            input.showAndWait().ifPresent(newCode -> {
+                String clean = newCode.trim();
+                if (clean.isBlank()) return;
+                UiTaskExecutor.submitAction(
+                        "bank-gl-mapping-update",
+                        () -> api.updateGlMapping(selected.bankAccountKey(), clean),
+                        res -> {
+                            AppDialogService.success(table, "GL Mapping Updated", "Bank account " + selected.bankAccountKey() + " mapped to GL " + clean + ".");
+                            loadRows.run();
+                        },
+                        this::error
+                );
+            });
+        });
+
+        HBox bar = new HBox(10, btnRemap, btnReload);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        VBox box = new VBox(10, bar, tbl);
+        box.setPadding(new Insets(10, 14, 10, 14));
+        box.setPrefWidth(880);
+        dialog.getDialogPane().setContent(box);
+        PopupTableWorkspace.prepareDialog(dialog, 920);
+        loadRows.run();
+        dialog.showAndWait();
     }
 
     @Override public void onScreenHidden(){UiTaskExecutor.cancelPrefix("bank-statement-");}

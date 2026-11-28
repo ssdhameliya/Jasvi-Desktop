@@ -36,7 +36,11 @@ public final class BankReconciliationDtos {
  }
  public record AllocationRequest(String targetType,Integer targetId,double amount){}
  public record MatchRequest(String user,List<AllocationRequest> allocations){}
- public record ExpenseRequest(String category,String accountName,String paymentMode,String notes,String billPath,String user){}
+ public record ExpenseRequest(String category,String accountName,String paymentMode,String notes,String billPath,String user,Double gstRate,Boolean interState,String vendorGstin){
+  public ExpenseRequest(String category,String accountName,String paymentMode,String notes,String billPath,String user){
+   this(category,accountName,paymentMode,notes,billPath,user,0d,false,null);
+  }
+ }
  public record BankEntryRequest(String accountName,String paymentMode,String notes,String user,String category,Integer partyId,String contraAccountName){
   public BankEntryRequest(String accountName,String paymentMode,String notes,String user){
    this(accountName,paymentMode,notes,user,null,null,null);
@@ -56,7 +60,13 @@ public final class BankReconciliationDtos {
   }
  }
  public record BrsLineItemDto(Long id,String statementReference,String transactionDate,String reference,String description,String status,double debit,double credit){}
- public record BrsSummaryDto(String scopeLabel,String bankName,String bankAccount,String periodFrom,String periodTo,String asOfDate,double openingBalance,double statementClosingBalance,double totalCredits,double totalDebits,double calculatedClosingBalance,double balanceVariance,double matchedCredits,double matchedDebits,double expenseDebits,double ignoredCredits,double ignoredDebits,double pendingCredits,double pendingDebits,double impliedBooksBalance,double netReconciliationDiff,int totalCount,int reconciledCount,int pendingCount,List<BrsLineItemDto> unclearedCredits,List<BrsLineItemDto> unclearedDebits){}
+ public record BrsSummaryDto(String scopeLabel,String bankName,String bankAccount,String periodFrom,String periodTo,String asOfDate,double openingBalance,double statementClosingBalance,double totalCredits,double totalDebits,double calculatedClosingBalance,double balanceVariance,double matchedCredits,double matchedDebits,double expenseDebits,double ignoredCredits,double ignoredDebits,double pendingCredits,double pendingDebits,double impliedBooksBalance,double netReconciliationDiff,int totalCount,int reconciledCount,int pendingCount,List<BrsLineItemDto> unclearedCredits,List<BrsLineItemDto> unclearedDebits,String glAccountCode,double glLedgerBalance,double glVsStatementDiff){
+  public BrsSummaryDto(String scopeLabel,String bankName,String bankAccount,String periodFrom,String periodTo,String asOfDate,double openingBalance,double statementClosingBalance,double totalCredits,double totalDebits,double calculatedClosingBalance,double balanceVariance,double matchedCredits,double matchedDebits,double expenseDebits,double ignoredCredits,double ignoredDebits,double pendingCredits,double pendingDebits,double impliedBooksBalance,double netReconciliationDiff,int totalCount,int reconciledCount,int pendingCount,List<BrsLineItemDto> unclearedCredits,List<BrsLineItemDto> unclearedDebits){
+   this(scopeLabel,bankName,bankAccount,periodFrom,periodTo,asOfDate,openingBalance,statementClosingBalance,totalCredits,totalDebits,calculatedClosingBalance,balanceVariance,matchedCredits,matchedDebits,expenseDebits,ignoredCredits,ignoredDebits,pendingCredits,pendingDebits,impliedBooksBalance,netReconciliationDiff,totalCount,reconciledCount,pendingCount,unclearedCredits,unclearedDebits,"1020",impliedBooksBalance,0d);
+  }
+ }
+ public record BankGlMappingDto(Long id,String bankAccountKey,String bankName,String accountNumber,String glAccountCode,String glAccountName,double currentBalance){}
+ public record BankGlMappingUpdateRequest(String bankAccountKey,String glAccountCode){}
  public record LinkageItemDto(Long statementTransactionId,String statementReference,String bankName,String bankAccount,String transactionDate,String originalReference,double debitAmount,double creditAmount,Integer financeEntryId,String financeVoucherNo,String financeVoucherType,String targetType,Integer targetId,String documentNo,Integer paymentRecordId,String paymentReference,String settledBy,double allocatedAmount,String status){
   public LinkageItemDto(Long statementTransactionId,String statementReference,String bankName,String bankAccount,String transactionDate,String originalReference,double debitAmount,double creditAmount,Integer financeEntryId,String financeVoucherNo,String financeVoucherType,String targetType,Integer targetId,String documentNo,double allocatedAmount,String status){
    this(statementTransactionId,statementReference,bankName,bankAccount,transactionDate,originalReference,debitAmount,creditAmount,financeEntryId,financeVoucherNo,financeVoucherType,targetType,targetId,documentNo,null,null,null,allocatedAmount,status);

@@ -6,7 +6,9 @@ import org.example.api.ApiSession;
 import org.example.config.ConfigManager;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Duration;
 import java.util.Base64;
@@ -25,12 +27,19 @@ public final class BusinessEmailClient {
     }
 
     public void send(String recipient, String subject, String body, Path attachment, Path signatureImage, String senderEmail, String senderDisplayName) {
+        send(recipient, null, null, subject, body, attachment, signatureImage, senderEmail, senderDisplayName, null, null, null, null);
+    }
+
+    public void send(String recipient, String recipientCc, String recipientBcc, String subject, String body,
+                     Path attachment, Path signatureImage, String senderEmail, String senderDisplayName,
+                     String entityType, Long entityId, String referenceNo, String templateKey) {
         try {
             String name = attachment == null ? null : attachment.getFileName().toString();
             String data = attachment == null ? null : Base64.getEncoder().encodeToString(Files.readAllBytes(attachment));
             String sigName = signatureImage == null ? null : signatureImage.getFileName().toString();
             String sigData = signatureImage == null ? null : Base64.getEncoder().encodeToString(Files.readAllBytes(signatureImage));
-            request("POST", base(), new Request(recipient, subject, body, name, data, sigName, sigData, senderEmail, senderDisplayName), Result.class);
+            request("POST", base(), new Request(recipient, subject, body, name, data, sigName, sigData,
+                    senderEmail, senderDisplayName, recipientCc, recipientBcc, entityType, entityId, referenceNo, templateKey), Result.class);
         } catch (Exception e) {
             throw e instanceof RuntimeException x ? x : new IllegalStateException(e);
         }
@@ -45,15 +54,32 @@ public final class BusinessEmailClient {
     }
 
     public void resend(String recipient, String subject, String body, Path attachment, Path signatureImage, String senderEmail, String senderDisplayName) {
+        resend(recipient, null, null, subject, body, attachment, signatureImage, senderEmail, senderDisplayName, null, null, null, null);
+    }
+
+    public void resend(String recipient, String recipientCc, String recipientBcc, String subject, String body,
+                       Path attachment, Path signatureImage, String senderEmail, String senderDisplayName,
+                       String entityType, Long entityId, String referenceNo, String templateKey) {
         try {
             String name = attachment == null ? null : attachment.getFileName().toString();
             String data = attachment == null ? null : Base64.getEncoder().encodeToString(Files.readAllBytes(attachment));
             String sigName = signatureImage == null ? null : signatureImage.getFileName().toString();
             String sigData = signatureImage == null ? null : Base64.getEncoder().encodeToString(Files.readAllBytes(signatureImage));
-            request("POST", base() + "/resend", new Request(recipient, subject, body, name, data, sigName, sigData, senderEmail, senderDisplayName), Result.class);
+            request("POST", base() + "/resend", new Request(recipient, subject, body, name, data, sigName, sigData,
+                    senderEmail, senderDisplayName, recipientCc, recipientBcc, entityType, entityId, referenceNo, templateKey), Result.class);
         } catch (Exception e) {
             throw e instanceof RuntimeException x ? x : new IllegalStateException(e);
         }
+    }
+
+    public OutboxPage outbox(String status, String q, int page, int size) {
+        String st = URLEncoder.encode(status == null ? "ALL" : status, StandardCharsets.UTF_8);
+        String query = URLEncoder.encode(q == null ? "" : q, StandardCharsets.UTF_8);
+        return request("GET", base() + "/outbox?status=" + st + "&q=" + query + "&page=" + Math.max(0, page) + "&size=" + Math.max(10, size), null, OutboxPage.class);
+    }
+
+    public RetryResult retryOutbox(long id) {
+        return request("POST", base() + "/outbox/" + id + "/retry", null, RetryResult.class);
     }
 
     public Settings settings() { return request("GET", base() + "/settings", null, Settings.class); }
@@ -89,12 +115,21 @@ public final class BusinessEmailClient {
         return "Company-server email request failed (HTTP " + status + ").";
     }
 
-    private record Request(String recipient, String subject, String body, String attachmentName, String attachmentBase64, String signatureImageName, String signatureImageBase64, String senderEmail, String senderDisplayName) {
+    private record Request(String recipient, String subject, String body, String attachmentName, String attachmentBase64,
+                           String signatureImageName, String signatureImageBase64, String senderEmail, String senderDisplayName,
+                           String recipientCc, String recipientBcc, String entityType, Long entityId, String referenceNo, String templateKey) {
         public Request(String recipient, String subject, String body, String attachmentName, String attachmentBase64, String signatureImageName, String signatureImageBase64) {
-            this(recipient, subject, body, attachmentName, attachmentBase64, signatureImageName, signatureImageBase64, null, null);
+            this(recipient, subject, body, attachmentName, attachmentBase64, signatureImageName, signatureImageBase64, null, null, null, null, null, null, null, null);
         }
     }
     private record TestRequest(String recipient) {}
     public record Settings(String email, String appPassword, String host, Integer port, boolean passwordConfigured) {}
     public record Result(boolean success, String message) {}
+    public record OutboxItemDto(long id, String channel, String recipientTo, String recipientCc, String recipientBcc,
+                                String subject, String status, int attemptCount, int maxAttempts, String nextRetryAt,
+                                String lastError, String entityType, Long entityId, String referenceNo, String templateKey,
+                                String createdBy, String createdAt, String sentAt) {}
+    public record OutboxSummary(long total, long sent, long retrying, long pending, long failed) {}
+    public record OutboxPage(java.util.List<OutboxItemDto> rows, OutboxSummary summary, int page, int size, long totalRows, int totalPages) {}
+    public record RetryResult(boolean success, String status, String message) {}
 }

@@ -641,6 +641,38 @@ public final class ReturnDocumentInspectionDialog {
                         MessageTemplateService.formatPurchaseReturnEmail(details.no(), details.party(), details.date(), details.total());
                 String sigImg = MessageTemplateService.getSignatureImagePath();
                 Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
+                List<MessageTemplateService.LineItemPreview> returnItems = new ArrayList<>();
+                if (details.lines() != null) {
+                    for (var l : details.lines()) {
+                        if (l == null) continue;
+                        String qStr = (Math.abs(l.quantity() - Math.rint(l.quantity())) < 0.0001
+                                ? String.valueOf(Math.round(l.quantity()))
+                                : String.format(Locale.ROOT, "%.2f", l.quantity()))
+                                + (l.unit() == null || l.unit().isBlank() ? "" : " " + l.unit().trim());
+                        returnItems.add(new MessageTemplateService.LineItemPreview(
+                                safe(l.name()).isBlank() ? safe(l.code()) : l.name(),
+                                "-",
+                                qStr,
+                                money(l.rate()),
+                                money(l.tax()),
+                                money(l.amount())
+                        ));
+                    }
+                }
+                double balance = Math.max(0.0, details.total() - details.refund());
+                String badge = !safe(details.status()).isBlank() ? details.status() : (isSales ? "SALES RETURN" : "PURCHASE RETURN");
+                var richCtx = MessageTemplateService.RichEmailContext.forSettlement(
+                        details.party(),
+                        details.date(),
+                        null,
+                        null,
+                        null,
+                        details.invoice(),
+                        null,
+                        null,
+                        null,
+                        returnItems
+                );
                 return new EmailTransmissionDialog.EmailDraft(
                         isSales ? "Transmit Sales Return via Email" : "Transmit Purchase Return via Email",
                         isSales ? "Direct SMTP delivery to customer billing contact" : "Direct SMTP delivery to supplier billing contact",
@@ -650,7 +682,16 @@ public final class ReturnDocumentInspectionDialog {
                         msg.subject(),
                         msg.body(),
                         pdf,
-                        sigPath
+                        sigPath,
+                        isSales ? "sales_return" : "purchase_return",
+                        MessageTemplateService.buildPublicPaymentStatusUrl(details.no(), details.total()),
+                        details.total(),
+                        details.refund(),
+                        balance,
+                        badge,
+                        isSales ? "SALES_RETURN" : "PURCHASE_RETURN",
+                        null,
+                        richCtx
                 );
             }, draft -> {
                 Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(dialog.getDialogPane(), draft);
@@ -658,7 +699,7 @@ public final class ReturnDocumentInspectionDialog {
                 EmailTransmissionDialog.TransmissionResult result = opt.get();
                 LiveOperationDialog.run(dialog.getDialogPane(), "Sending " + (isSales ? "Sales" : "Purchase") + " Return Email", "email", "Connecting to SMTP server...", reporter -> {
                     reporter.stage(1, 2, "Connecting to SMTP and transmitting email to " + result.recipientEmail() + "...");
-                    EmailService.send(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage());
+                    EmailService.send(draft, result);
                     reporter.stage(2, 2, "Email delivery complete.");
                     reporter.log("Delivered return note #" + details.no() + " to " + result.recipientEmail());
                 }, () -> {

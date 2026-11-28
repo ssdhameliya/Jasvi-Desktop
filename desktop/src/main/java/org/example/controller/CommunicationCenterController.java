@@ -835,10 +835,24 @@ public class CommunicationCenterController implements ScreenLifecycle {
                     String docType = row.entityType == null ? "" : row.entityType.toUpperCase(Locale.ROOT);
                     String category = dispatchCategory(row.entityType, origSubject);
                     String draftLabel = row.entityType != null ? row.entityType : "DOCUMENT";
+                    String activityKey = MessageTemplateService.resolveTemplateKeyForEntity(draftLabel);
+                    String statusUrl = null;
+                    Double totalAmt = null;
+                    Double paidAmt = null;
+                    Double balAmt = null;
+                    String statusBadge = "OFFICIAL";
+                    MessageTemplateService.RichEmailContext richCtx = MessageTemplateService.RichEmailContext.empty();
                     try {
                         if ("SALE".equals(docType)) {
                             var sale = new SalesService().getByInvoice(row.entity.get());
                             if (sale != null) {
+                                activityKey = "PAYMENT_RECEIPT".equals(category) ? "payment" : "sale";
+                                statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(sale.getInvoiceNo(), sale.getTotalAmount());
+                                totalAmt = sale.getTotalAmount();
+                                paidAmt = sale.getPaidAmount();
+                                balAmt = sale.getBalanceAmount();
+                                statusBadge = sale.getPaymentStatus();
+                                richCtx = MessageTemplateService.RichEmailContext.forSale(sale);
                                 if ("PAYMENT_RECEIPT".equals(category)) {
                                     draftLabel = "Payment Receipt";
                                     body = MessageTemplateService.formatPaymentReceiptEmail(
@@ -853,12 +867,19 @@ public class CommunicationCenterController implements ScreenLifecycle {
                                             "Payment confirmation for " + sale.getInvoiceNo()
                                     ).body();
                                 } else {
+                                    draftLabel = "Tax Invoice";
                                     body = MessageTemplateService.formatSalesEmail(sale).body();
                                 }
                             }
                         } else if ("PURCHASE".equals(docType)) {
                             var purchase = new PurchaseService().getByInvoice(row.entity.get());
                             if (purchase != null) {
+                                activityKey = "REMITTANCE_ADVICE".equals(category) ? "purchase_remittance" : "purchase";
+                                totalAmt = purchase.getTotalAmount();
+                                paidAmt = purchase.getPaidAmount();
+                                balAmt = purchase.getBalanceAmount();
+                                statusBadge = purchase.getPaymentStatus();
+                                richCtx = MessageTemplateService.RichEmailContext.forPurchase(purchase);
                                 if ("REMITTANCE_ADVICE".equals(category)) {
                                     draftLabel = "Remittance Advice";
                                     body = MessageTemplateService.formatPurchaseRemittanceAdviceEmail(
@@ -874,6 +895,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
                                             "Payment remittance for " + purchase.getInvoiceNo()
                                     ).body();
                                 } else {
+                                    draftLabel = "Purchase Order";
                                     body = MessageTemplateService.formatPurchaseEmail(purchase).body();
                                 }
                             }
@@ -891,7 +913,16 @@ public class CommunicationCenterController implements ScreenLifecycle {
                             subject,
                             body,
                             pdf,
-                            sigPath
+                            sigPath,
+                            activityKey,
+                            statusUrl,
+                            totalAmt,
+                            paidAmt,
+                            balAmt,
+                            statusBadge,
+                            row.entityType,
+                            row.entityId,
+                            richCtx
                     );
                 },
                 draft -> {
@@ -904,7 +935,7 @@ public class CommunicationCenterController implements ScreenLifecycle {
                         reporter.stage(1, 3, "Validating mail recipients...");
                         reporter.stage(2, 3, "Dispatching email to " + loggedRecipients + "...");
 
-                        EmailService.resend(loggedRecipients, result.subject(), result.body(), result.attachmentPdf(), result.signatureImage(), result.senderProfile());
+                        EmailService.resend(draft, result);
                         reporter.stage(3, 3, "Mail sent successfully.");
 
                         supportApi.communication(new SupportApiClient.CommunicationRequest(

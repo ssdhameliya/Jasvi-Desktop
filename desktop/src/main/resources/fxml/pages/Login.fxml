@@ -22,49 +22,54 @@
     </left>
 
     <center>
-        <StackPane styleClass="auth-content,auth-unified-content">
-            <VBox maxWidth="720" spacing="14" alignment="CENTER" styleClass="auth-card,auth-unified-card">
-                <StackPane fx:id="loginSectionIconBox" styleClass="auth-section-icon,auth-login-section-icon">
-                    <ImageView fx:id="imgLoginSectionMark" preserveRatio="true" fitWidth="44" fitHeight="44" smooth="true" managed="false" visible="false"/>
-                    <Label fx:id="lblLoginSectionFallback" text="⌾" styleClass="auth-logo-mark"/>
-                </StackPane>
-                <Label text="Welcome Back" styleClass="auth-eyebrow"/>
-                <Label text="Sign in to your account" styleClass="auth-title"/>
-                <Label fx:id="lblBrandDescription" text="Role-aware secure access" styleClass="auth-description"/>
+        <StackPane fx:id="rootPane">
+            <ScrollPane fx:id="authScrollPane" fitToWidth="true" fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" styleClass="auth-scroll-pane">
+                <content>
+                    <StackPane styleClass="auth-content,auth-unified-content">
+                        <VBox maxWidth="720" spacing="14" alignment="CENTER" styleClass="auth-card,auth-unified-card">
+                            <StackPane fx:id="loginSectionIconBox" styleClass="auth-section-icon,auth-login-section-icon">
+                                <ImageView fx:id="imgLoginSectionMark" preserveRatio="true" fitWidth="44" fitHeight="44" smooth="true" managed="false" visible="false"/>
+                                <Label fx:id="lblLoginSectionFallback" text="⌾" styleClass="auth-logo-mark"/>
+                            </StackPane>
+                            <Label text="Welcome Back" styleClass="auth-eyebrow"/>
+                            <Label text="Sign in to your account" styleClass="auth-title"/>
+                            <Label fx:id="lblBrandDescription" text="Role-aware secure access" wrapText="true" minHeight="-Infinity" maxWidth="620" textAlignment="CENTER" styleClass="auth-description"/>
 
-                <VBox fx:id="loginPanel" spacing="11" maxWidth="620" alignment="CENTER">
-                    <VBox fx:id="incidentBanner" managed="false" visible="false" spacing="10" maxWidth="620" styleClass="auth-incident-banner">
-                        <HBox alignment="CENTER_LEFT" spacing="10">
-                            <Label fx:id="lblIncidentIcon" text="🚨" styleClass="auth-incident-icon"/>
-                            <VBox spacing="2" HBox.hgrow="ALWAYS">
-                                <Label fx:id="lblIncidentTitle" text="Administrator Account Temporarily Locked" styleClass="auth-incident-title"/>
-                                <Label fx:id="lblIncidentSubtitle" text="Super Admin alerted via Email &amp; WhatsApp." styleClass="auth-incident-subtitle"/>
-                            </VBox>
-                            <Label fx:id="lblIncidentTicketBadge" text="Ticket #SEC-000000" styleClass="auth-ticket-badge"/>
-                            <Button fx:id="btnCopyTicket" text="Copy" onAction="#copyIncidentTicket" styleClass="approved-button,approved-secondary-button,auth-ticket-copy-btn"/>
-                        </HBox>
-                        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="auth-poller-bar">
-                            <Label fx:id="lblPollerStatus" text="⏳ Live Sentinel: Checking unlock status every 10s..." HBox.hgrow="ALWAYS" styleClass="auth-poller-text"/>
-                            <Button fx:id="btnCheckUnlockStatus" text="Check Status Now" onAction="#checkUnlockStatusNow" styleClass="approved-button,approved-secondary-button,auth-refresh-status-btn"/>
-                        </HBox>
-                    </VBox>
+                            <VBox fx:id="loginPanel" spacing="11" maxWidth="620" alignment="CENTER">
+                                <VBox fx:id="incidentBanner" managed="false" visible="false" spacing="10" maxWidth="620" styleClass="auth-incident-banner">
+                                    <HBox alignment="TOP_LEFT" spacing="10">
+                                        <Label fx:id="lblIncidentIcon" text="🚨" minWidth="-Infinity" styleClass="auth-incident-icon"/>
+                                        <VBox spacing="4" minWidth="0" HBox.hgrow="ALWAYS">
+                                            <Label fx:id="lblIncidentTitle" text="Administrator Account Temporarily Locked" wrapText="true" minHeight="-Infinity" styleClass="auth-incident-title"/>
+                                            <Label fx:id="lblIncidentSubtitle" text="Super Admin alerted via Email &amp; WhatsApp." wrapText="true" minHeight="-Infinity" styleClass="auth-incident-subtitle"/>
+                                            <HBox alignment="CENTER_LEFT" spacing="8">
+                                                <Label fx:id="lblIncidentTicketBadge" text="Ticket #SEC-000000" minWidth="-Infinity" styleClass="auth-ticket-badge"/>
+                                                <Button fx:id="btnCopyTicket" text="Copy" minWidth="-Infinity" onAction="#copyIncidentTicket" styleClass="approved-button,approved-secondary-button,auth-ticket-copy-btn"/>
+                                            </HBox>
+                                        </VBox>
+                                    </HBox>
+                                    <HBox alignment="CENTER_LEFT" spacing="10" styleClass="auth-poller-bar">
+                                        <Label fx:id="lblPollerStatus" text="⏳ Live Sentinel: Checking unlock status every 10s..." wrapText="true" minHeight="-Infinity" HBox.hgrow="ALWAYS" styleClass="auth-poller-text"/>
+                                        <Button fx:id="btnCheckUnlockStatus" text="Check Status Now" minWidth="-Infinity" onAction="#checkUnlockStatusNow" styleClass="approved-button,approved-secondary-button,auth-refresh-status-btn"/>
+                                    </HBox>
+                                </VBox>
 
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Email or username *" styleClass="auth-field-label"/>
                         <TextField fx:id="txtUsername" promptText="Email, username or mobile" prefHeight="44" styleClass="auth-input"/>
-                        <Label fx:id="lblUsernameError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblUsernameError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Password *" styleClass="auth-field-label"/>
                         <PasswordField fx:id="txtPassword" promptText="Password" prefHeight="44" styleClass="auth-input"/>
-                        <Label fx:id="lblPasswordError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblPasswordError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Role *" styleClass="auth-field-label"/>
                         <ComboBox fx:id="cmbRole" promptText="Select your role" prefHeight="44" maxWidth="Infinity" styleClass="auth-input"/>
-                        <Label fx:id="lblRoleError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblRoleError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <VBox fx:id="otpPanel" spacing="5" maxWidth="620" managed="false" visible="false">
@@ -73,7 +78,7 @@
                             <TextField fx:id="txtOtp" promptText="Enter current 6-digit authenticator code" prefHeight="44" HBox.hgrow="ALWAYS" styleClass="auth-input"/>
                             <Button fx:id="btnResendOtp" text="Get Help" onAction="#resendLoginOtp" styleClass="auth-secondary-button"/>
                         </HBox>
-                        <Label fx:id="lblOtpError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblOtpError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <HBox maxWidth="620" alignment="CENTER_LEFT">
@@ -96,12 +101,12 @@
 
                 <VBox fx:id="resetPanel" managed="false" visible="false" spacing="11" maxWidth="620" alignment="CENTER">
                     <Label text="Reset your password" styleClass="auth-eyebrow"/>
-                    <Label text="Password reset is permitted once per day. If this account is currently locked, any incorrect verification attempt will permanently lock your ID. Only an Administrator (or Super Admin for Admin accounts) can unlock a permanently locked account." wrapText="true" styleClass="auth-description"/>
+                    <Label text="Password reset is permitted once per day. If this account is currently locked, any incorrect verification attempt will permanently lock your ID. Only an Administrator (or Super Admin for Admin accounts) can unlock a permanently locked account." wrapText="true" minHeight="-Infinity" maxWidth="620" textAlignment="CENTER" styleClass="auth-description"/>
 
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Email, username or mobile *" styleClass="auth-field-label"/>
                         <TextField fx:id="txtResetIdentity" promptText="Email, username or mobile" prefHeight="44" styleClass="auth-input"/>
-                        <Label fx:id="lblResetIdentityError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblResetIdentityError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <VBox spacing="5" maxWidth="620">
@@ -116,7 +121,7 @@
                             </StackPane>
                             <TextField fx:id="txtResetCaptcha" promptText="Enter security code above" prefHeight="44" HBox.hgrow="ALWAYS" styleClass="auth-input,auth-captcha-input"/>
                         </HBox>
-                        <Label fx:id="lblResetCaptchaError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblResetCaptchaError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <Button fx:id="btnSendResetOtp" text="SEND RESET CODE" onAction="#sendResetOtp" maxWidth="360" styleClass="auth-secondary-button,btn-email-sky"/>
@@ -124,25 +129,25 @@
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Reset verification code *" styleClass="auth-field-label"/>
                         <TextField fx:id="txtResetOtp" promptText="6-digit verification code" prefHeight="44" styleClass="auth-input"/>
-                        <Label fx:id="lblResetOtpError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblResetOtpError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Authenticator code (only while the current authenticator is active)" styleClass="auth-field-label"/>
                         <TextField fx:id="txtResetTotp" promptText="Leave blank after an admin authenticator reset" prefHeight="44" styleClass="auth-input"/>
-                        <Label fx:id="lblResetTotpError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblResetTotpError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <VBox spacing="5" maxWidth="620">
                         <Label text="New password *" styleClass="auth-field-label"/>
                         <PasswordField fx:id="txtNewPassword" promptText="8+ characters, letter and number" prefHeight="44" styleClass="auth-input"/>
-                        <Label fx:id="lblNewPasswordError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblNewPasswordError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <VBox spacing="5" maxWidth="620">
                         <Label text="Confirm new password *" styleClass="auth-field-label"/>
                         <PasswordField fx:id="txtConfirmPassword" promptText="Repeat new password" prefHeight="44" styleClass="auth-input"/>
-                        <Label fx:id="lblConfirmPasswordError" managed="false" visible="false" styleClass="field-error"/>
+                        <Label fx:id="lblConfirmPasswordError" managed="false" visible="false" wrapText="true" minHeight="-Infinity" styleClass="field-error"/>
                     </VBox>
 
                     <HBox spacing="12" alignment="CENTER">
@@ -151,8 +156,11 @@
                     </HBox>
                 </VBox>
 
-                <Label fx:id="lblMessage" wrapText="true" maxWidth="620" styleClass="auth-message"/>
-            </VBox>
+                        <Label fx:id="lblMessage" wrapText="true" minHeight="-Infinity" maxWidth="620" textAlignment="CENTER" styleClass="auth-message"/>
+                    </VBox>
+                </StackPane>
+            </content>
+        </ScrollPane>
         </StackPane>
     </center>
     <bottom><SharedApplicationFooter/></bottom>

@@ -148,7 +148,7 @@ public class JpaNativeRepository {
                 if (e.getAlias()!=null) aliases.put(e.getAlias().toLowerCase(Locale.ROOT), v);
             }
         }
-        NativeRow(Object row) {
+        public NativeRow(Object row) {
             if (row instanceof Object[] array) {
                 values.addAll(Arrays.asList(array));
             } else if (row instanceof Tuple tuple) {

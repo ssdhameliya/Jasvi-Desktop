@@ -17,6 +17,9 @@ public class ClientRegistryController {
 
     private final ClientRegistryService registryService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SubscriptionLifecycleScheduler watchdogScheduler;
+
     public ClientRegistryController(ClientRegistryService registryService) {
         this.registryService = registryService;
     }
@@ -61,7 +64,9 @@ public class ClientRegistryController {
         if (body != null && body.get("days") instanceof Number n) {
             days = n.intValue();
         }
-        return registryService.renewClient(id, days);
+        String utr = body != null && body.get("utrReference") != null ? String.valueOf(body.get("utrReference")) : null;
+        Double amountPaid = body != null && body.get("amountPaid") instanceof Number n ? n.doubleValue() : null;
+        return registryService.renewClient(id, days, utr, amountPaid);
     }
 
     @PostMapping("/revoke/{id}")
@@ -198,6 +203,27 @@ public class ClientRegistryController {
     ) {
         requireSuperAdmin();
         return registryService.getClientUserDailyBreakdown(machineId, username, from, to);
+    }
+
+    @GetMapping("/clients/{machineId}/monthly-summary")
+    public List<Map<String, Object>> getClientMonthlySummary(@PathVariable String machineId) {
+        requireSuperAdmin();
+        return registryService.getClientMonthlyTelemetrySummary(machineId);
+    }
+
+    @PostMapping("/watchdog/run")
+    public Map<String, Object> runWatchdog() {
+        requireSuperAdmin();
+        if (watchdogScheduler == null) {
+            return Map.of("success", false, "message", "Watchdog scheduler inactive");
+        }
+        var res = watchdogScheduler.runWatchdog(true);
+        return Map.of(
+                "success", true,
+                "expiryAlertsSent", res.expiryAlertsSent(),
+                "seatWarningsRaised", res.seatWarningsRaised(),
+                "offlineAlertsRaised", res.offlineAlertsRaised()
+        );
     }
 
     @PostMapping("/clients/{machineId}/release")

@@ -7,9 +7,14 @@ import org.example.server.persistence.repository.UserRepository;
 import org.example.server.security.AuthenticatedUser;
 import org.example.server.security.TokenService;
 import org.example.server.util.BusinessClock;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.ResourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.Locale;
@@ -33,13 +38,14 @@ public class AuthService {
     private final TotpService totp;
     private final RegistrationCaptchaService captcha;
     private final org.example.server.security.SecurityIncidentNotifier securityIncidentNotifier;
+    private TransactionTemplate isolatedReadWriteTx;
 
     public AuthService(UserRepository users, RoleMasterService roleMaster, PasswordEncoder passwords, TokenService tokens,
                        AuthOtpService otp, SmtpMailService mail, JpaNativeRepository db, TotpService totp, RegistrationCaptchaService captcha) {
         this(users, roleMaster, passwords, tokens, otp, mail, db, totp, captcha, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public AuthService(UserRepository users, RoleMasterService roleMaster, PasswordEncoder passwords, TokenService tokens,
                        AuthOtpService otp, SmtpMailService mail, JpaNativeRepository db, TotpService totp, RegistrationCaptchaService captcha,
                        org.example.server.security.SecurityIncidentNotifier securityIncidentNotifier) {
@@ -55,6 +61,28 @@ public class AuthService {
         this.securityIncidentNotifier = securityIncidentNotifier;
     }
 
+    @Autowired(required = false)
+    void setTransactionManager(PlatformTransactionManager txManager) {
+        if (txManager instanceof ResourceTransactionManager) {
+            TransactionTemplate tpl = new TransactionTemplate(txManager);
+            tpl.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            this.isolatedReadWriteTx = tpl;
+        } else {
+            this.isolatedReadWriteTx = null;
+        }
+    }
+
+    private <T> T runOptionalIsolated(java.util.function.Supplier<T> work, T fallback) {
+        try {
+            if (isolatedReadWriteTx != null) {
+                return isolatedReadWriteTx.execute(status -> work.get());
+            }
+            return work.get();
+        } catch (RuntimeException ignored) {
+            return fallback;
+        }
+    }
+
     @Transactional
     public AuthDtos.LoginResponse login(AuthDtos.LoginRequest request, String sourceAddress) {
         return login(request, sourceAddress, null);
@@ -65,7 +93,7 @@ public class AuthService {
         if (machineId != null && !machineId.isBlank()) {
             String rawMachine = machineId.trim();
             String normMachine = rawMachine.replace("-", "").toUpperCase(java.util.Locale.ROOT);
-            try {
+            String machineQuotaError = runOptionalIsolated(() -> {
                 var blockedRows = db.queryForList(
                         "SELECT status, kick_reason FROM licensed_client_registry " +
                                 "WHERE (machine_id = ? OR UPPER(REPLACE(machine_id, '-', '')) = ? OR machine_id = ?) " +
@@ -74,7 +102,7 @@ public class AuthService {
                 );
                 if (!blockedRows.isEmpty()) {
                     String reason = String.valueOf(blockedRows.getFirst().getOrDefault("kick_reason", "Blacklisted by Super Admin"));
-                    return failedLogin("Access Blocked: This workstation (ID: " + machineId + ") has been suspended/blacklisted by Jasvi Platform Authority. Reason: " + reason);
+                    return "Access Blocked: This workstation (ID: " + machineId + ") has been suspended/blacklisted by Jasvi Platform Authority. Reason: " + reason;
                 }
 
                 // Pillar 1: Hardware Machine Seat Quota Enforcement
@@ -94,11 +122,15 @@ public class AuthService {
                                 Integer.class
                         );
                         if (activeMachines != null && activeMachines >= maxMachines) {
-                            return failedLogin("Workstation Quota Reached: Your license permits " + maxMachines + " registered workstations (" + activeMachines + " currently registered). Please upgrade your tier or release an inactive workstation in Client Registry.");
+                            return "Workstation Quota Reached: Your license permits " + maxMachines + " registered workstations (" + activeMachines + " currently registered). Please upgrade your tier or release an inactive workstation in Client Registry.";
                         }
                     }
                 }
-            } catch (Exception ignored) {}
+                return null;
+            }, null);
+            if (machineQuotaError != null) {
+                return failedLogin(machineQuotaError);
+            }
         }
         String identity = request == null || request.identity() == null ? "" : request.identity().trim();
         String raw = request == null || request.password() == null ? "" : request.password();
@@ -474,30 +506,27 @@ public class AuthService {
         if (currentHashedPassword != null && passwordMatches(newRawPassword, currentHashedPassword)) {
             return "New password cannot be identical to your current password.";
         }
-        try {
-            List<String> history = db.query(
-                    "SELECT password_hash FROM user_password_history WHERE user_id=? ORDER BY id DESC LIMIT 3",
-                    (rs, i) -> rs.getString(1),
-                    userId
-            );
+        List<String> history = runOptionalIsolated(() -> db.query(
+                "SELECT password_hash FROM user_password_history WHERE user_id=? ORDER BY id DESC LIMIT 3",
+                (rs, i) -> rs.getString(1),
+                userId
+        ), List.of());
+        if (history != null) {
             for (String oldHash : history) {
                 if (oldHash != null && passwordMatches(newRawPassword, oldHash)) {
                     return "Password security policy: You cannot reuse any of your last 3 previous passwords. Please choose a new, unique password.";
                 }
             }
-        } catch (Exception ex) {
-            java.lang.System.getLogger("org.example.server.auth").log(java.lang.System.Logger.Level.WARNING, "Password history check error: " + ex.getMessage());
         }
         return null;
     }
 
     private void recordPasswordHistory(int userId, String passwordHash) {
-        try {
+        runOptionalIsolated(() -> {
             db.update("INSERT INTO user_password_history(user_id, password_hash, created_at) VALUES(?, ?, CURRENT_TIMESTAMP)", userId, passwordHash);
             db.update("DELETE FROM user_password_history WHERE user_id=? AND id NOT IN (SELECT id FROM user_password_history WHERE user_id=? ORDER BY id DESC LIMIT 5)", userId, userId);
-        } catch (Exception ex) {
-            java.lang.System.getLogger("org.example.server.auth").log(java.lang.System.Logger.Level.WARNING, "Failed to record password history: " + ex.getMessage());
-        }
+            return null;
+        }, null);
     }
 
     @Transactional
@@ -535,8 +564,13 @@ public class AuthService {
         }
         String key = "user:" + user.getId();
         var issued = otp.issue(AuthOtpService.Purpose.PASSWORD_RESET, key, "", user.getId(), recipient, mail);
+        String resetRole = normalizeRole(user.getRoleName());
+        boolean mfaRequired = requiresMfa(user, resetRole);
+        boolean pendingEnrollment = mfaRequired && enrollmentPending(user.getId());
+        boolean totpRequired = mfaRequired && !pendingEnrollment && hasText(user.getTotpSecretEnc());
         return new AuthDtos.ChallengeResponse(true, issued.challengeId(),
-                "A 6-digit reset code has been sent to your registered email (" + maskEmail(recipient) + ").");
+                "A 6-digit reset code has been sent to your registered email (" + maskEmail(recipient) + ").",
+                totpRequired);
     }
 
     @Transactional
@@ -561,15 +595,32 @@ public class AuthService {
             } catch (Exception ignored) {}
             if (targetUserId != null) {
                 UserEntity targetUser = users.findById(targetUserId).orElse(null);
-                if (targetUser != null && targetUser.isLocked() && !isSuperAdminUser(targetUser)) {
-                    String ticketId = escalateOrReusePermanentTicket(targetUser,
-                            "Incorrect OTP during password recovery on locked account", clientIp);
-                    otp.invalidate(AuthOtpService.Purpose.PASSWORD_RESET, "user:" + targetUserId);
-                    boolean isAdmin = isAdminUser(targetUser);
-                    String contact = isAdmin ? "Super Admin" : "an Administrator";
-                    return permanentLockResetResponse(
-                            "Verification failed. Because this account was already locked, your ID is now permanently locked.",
-                            contact, ticketId);
+                if (targetUser != null && isAdminUser(targetUser) && !isSuperAdminUser(targetUser)) {
+                    String contact = "Super Admin";
+                    if (targetUser.isLocked()) {
+                        String ticketId = escalateOrReusePermanentTicket(targetUser,
+                                "Incorrect OTP during password recovery on locked account", clientIp);
+                        otp.invalidate(AuthOtpService.Purpose.PASSWORD_RESET, "user:" + targetUserId);
+                        return permanentLockResetResponse(
+                                "Verification failed. Because this account was already locked, your ID is now permanently locked.",
+                                contact, ticketId);
+                    }
+                    int attempt = targetUser.recordFailedMfaAttempt();
+                    audit(targetUser.getId(), "PASSWORD_RESET_OTP_FAILED",
+                            "Incorrect OTP during password reset (attempt " + attempt + " of " + MAX_MFA_ATTEMPTS + ")",
+                            targetUser.getUsername());
+                    if (attempt >= MAX_MFA_ATTEMPTS) {
+                        String ticketId = escalatePermanentLock(targetUser,
+                                "Three incorrect OTP attempts during password reset", clientIp);
+                        otp.invalidate(AuthOtpService.Purpose.PASSWORD_RESET, "user:" + targetUserId);
+                        return permanentLockResetResponse(
+                                "Incorrect verification code. Failed attempt 3 of 3. Your Administrator account has been permanently locked.",
+                                contact, ticketId);
+                    }
+                    String suffix = attempt == MAX_MFA_ATTEMPTS - 1
+                            ? " Warning: One attempt remains before your account is permanently locked and Super Admin is notified." : "";
+                    return new AuthDtos.OperationResponse(false,
+                            "The verification code is incorrect. Failed attempt " + attempt + " of " + MAX_MFA_ATTEMPTS + "." + suffix);
                 }
             }
             return new AuthDtos.OperationResponse(false, "The verification code is invalid or expired.");
@@ -600,7 +651,7 @@ public class AuthService {
         if (mfaRequired && !pendingEnrollment && user.getTotpSecretEnc() != null && !user.getTotpSecretEnc().isBlank()) {
             if (!totp.verifyEncrypted(user.getTotpSecretEnc(), request.totp())) {
                 boolean wasLocked = user.isLocked();
-                if (wasLocked && !isSuperAdmin) {
+                if (wasLocked && isAdmin && !isSuperAdmin) {
                     String ticketId = escalateOrReusePermanentTicket(user,
                             "Incorrect authenticator code during password recovery on locked account", clientIp);
                     otp.invalidate(AuthOtpService.Purpose.PASSWORD_RESET, "user:" + user.getId());
@@ -611,13 +662,19 @@ public class AuthService {
                 int attempt = user.recordFailedMfaAttempt();
                 audit(user.getId(), "PASSWORD_RESET_MFA_FAILED", "Incorrect authenticator code during reset (attempt " + attempt + " of " + MAX_MFA_ATTEMPTS + ")", user.getUsername());
                 if (attempt >= MAX_MFA_ATTEMPTS) {
-                    if (!isSuperAdmin) {
+                    if (isAdmin && !isSuperAdmin) {
                         String ticketId = escalatePermanentLock(user,
                                 "Three incorrect MFA verification-code attempts during password reset", clientIp);
                         otp.invalidate(AuthOtpService.Purpose.PASSWORD_RESET, "user:" + user.getId());
                         return permanentLockResetResponse(
                                 "Incorrect authenticator code. Failed attempt 3 of 3. Your account has been permanently locked.",
                                 contact, ticketId);
+                    }
+                    if (!isSuperAdmin) {
+                        lockAccount(user, LOCK_FAILED_MFA, "Three incorrect MFA verification-code attempts during password reset");
+                        otp.invalidate(AuthOtpService.Purpose.PASSWORD_RESET, "user:" + user.getId());
+                        return new AuthDtos.OperationResponse(false,
+                                "Incorrect authenticator code. Failed attempt 3 of 3. Your account has been locked. Contact " + contact + ".");
                     }
                 }
                 String suffix = attempt == MAX_MFA_ATTEMPTS - 1
@@ -756,16 +813,12 @@ public class AuthService {
     private AuthDtos.LoginResponse thresholdLockLoginResponse(
             String prefix, UserEntity user, boolean isAdmin, String contact, String ticketId) {
         String accountLabel = isAdmin ? "Administrator account" : "account";
-        if (LOCK_PERMANENT.equals(user.getLockReason())) {
+        if (isAdmin && !isSuperAdminUser(user) && !canSelfResetPassword(user)) {
             String reason = isResetToday(user.getLastPasswordResetUtc())
                     ? "Daily password reset limit reached."
                     : "No registered email address is available for self-service recovery.";
-            String ticketNote = hasText(ticketId)
-                    ? " " + contact + " has been notified (Ticket #" + ticketId + ") to unlock your account."
-                    : " " + contact + " has been notified to unlock your account.";
-            return new AuthDtos.LoginResponse(false, null,
-                    prefix + "Your " + accountLabel + " has been permanently locked. " + reason + ticketNote,
-                    null, null, false, null, null, ticketId);
+            return failedLogin(prefix + "Your " + accountLabel + " has been locked. Self-service reset is unavailable ("
+                    + reason + ") — please contact " + contact + " to unlock your account.");
         }
         String recoveryNote = isAdmin && !isSuperAdminUser(user)
                 ? "Use Forgot Password to reset it once today (1 attempt — failing once will permanently lock your ID and notify Super Admin), or contact Super Admin."
@@ -786,9 +839,7 @@ public class AuthService {
     }
 
     private String applyRecoverableOrPermanentThresholdLock(UserEntity user, String lockReason, String detail, String clientIp) {
-        if (isAdminUser(user) && !isSuperAdminUser(user) && !canSelfResetPassword(user)) {
-            return escalatePermanentLock(user, detail + " (self-service password reset unavailable)", clientIp);
-        }
+        // Support/incident tickets (SEC-XXXXXX) are raised strictly on Forgot Password / Reset failures (wrong OTP or TOTP), never at login.
         lockAccount(user, lockReason, detail);
         return null;
     }
@@ -826,7 +877,7 @@ public class AuthService {
     }
 
     private String findActiveIncidentTicketId(int userId) {
-        try {
+        return runOptionalIsolated(() -> {
             var rows = db.queryForList(
                     "SELECT ticket_id FROM emergency_security_action " +
                     "WHERE user_id = ? AND used = FALSE AND expires_at > CURRENT_TIMESTAMP " +
@@ -837,8 +888,8 @@ public class AuthService {
                 String ticket = String.valueOf(rows.get(0).get("ticket_id")).trim();
                 return ticket.isEmpty() ? null : ticket;
             }
-        } catch (Exception ignored) {}
-        return null;
+            return null;
+        }, null);
     }
 
     private static String cleanClientIp(String sourceAddress) {
@@ -942,13 +993,12 @@ public class AuthService {
 
     private void audit(Integer userId, String action, String detail, String actor) {
         if (userId == null) return;
-        try {
+        runOptionalIsolated(() -> {
             db.update("INSERT INTO activity_log(entity_type,entity_id,action,detail,created_by,created_at) "
                             + "VALUES('USER',?,?,?,?,?)", userId, action, detail,
                     actor == null || actor.isBlank() ? "SYSTEM" : actor, BusinessClock.nowUtcText());
-        } catch (RuntimeException ignored) {
-            // Authentication must not fail solely because non-critical audit persistence is unavailable.
-        }
+            return null;
+        }, null);
     }
 
     private java.util.Map<String,Object> pendingRegistration(String identity){
@@ -989,23 +1039,76 @@ public class AuthService {
 
     private void sendAuthenticatorEnrollment(String email, String username, TotpService.Setup setup) {
         String company = mail.companyName();
+        String safeUser = (username == null || username.isBlank()) ? (email == null ? "" : email) : username;
         var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(db);
-        var rendered = templates.renderEmail(
+        byte[] qrBytes = org.example.server.communication.ServerNotificationTemplateService.generateQrPngBytes(setup.provisioningUri(), 220);
+
+        java.util.List<String> sections = new java.util.ArrayList<>();
+        if (qrBytes != null && qrBytes.length > 0) {
+            sections.add(org.example.shared.communication.TokenTemplateEngine.inlineImageCardHtml(
+                    "Step 1: Scan QR Code in Authenticator App",
+                    "Open Google Authenticator, Microsoft Authenticator, or 1Password and scan this QR code.",
+                    "cid:mfaQr",
+                    200,
+                    200
+            ));
+        }
+        sections.add(org.example.shared.communication.TokenTemplateEngine.calloutBoxHtml(
+                qrBytes != null && qrBytes.length > 0 ? "STEP 2: OR ENTER MANUAL SETUP KEY" : "MANUAL AUTHENTICATOR SETUP KEY",
+                setup.manualSecret(),
+                "Account: " + safeUser + "  •  Time-based TOTP (6 digits / 30s)",
+                "#0f172a",
+                "#f8fafc",
+                "#0f172a"
+        ));
+        sections.add(org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                "Authenticator Setup Parameters",
+                "#0369a1",
+                java.util.List.of(
+                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Account Username", safeUser, false),
+                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Registered Email", email == null ? "-" : email, false),
+                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Protocol", "Time-Based OTP (TOTP / 30s)", false, "#0369a1", "#e0f2fe")
+                )
+        ));
+
+        var rendered = templates.renderRichEmail(
                 "mfa_enrollment",
                 java.util.Map.of(
                         "CompanyName", company,
                         "AppName", company + " ERP",
-                        "Username", username == null ? "" : username,
+                        "Username", safeUser,
                         "ManualSecret", setup.manualSecret(),
                         "ProvisioningUri", setup.provisioningUri()
                 ),
-                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
-                        "#0f172a", "#0369a1", "Authenticator Setup",
-                        company + " Authenticator Enrollment", java.util.List.of(),
-                        "MFA Enrollment Advisory • " + company
+                new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
+                        "#0f172a", "#0369a1",
+                        company + " MFA SECURITY",
+                        "ENROLLMENT REQUIRED",
+                        "#0369a1",
+                        company + " Authenticator Enrollment",
+                        "Two-Factor Authentication Setup Guide",
+                        "Complete your " + company + " Authenticator enrollment (QR Code + Manual Key inside).",
+                        java.util.List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("ACCOUNT", safeUser),
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("METHOD", "TOTP (6-Digit)")
+                        ),
+                        sections,
+                        java.util.List.of(),
+                        "MFA Enrollment Advisory • " + company,
+                        templates.companySupportEmail().isBlank() ? null : "Support: " + templates.companySupportEmail()
                 )
         );
-        mail.sendBusiness(email, rendered.subject(), rendered.body(), java.util.List.of());
+        if (qrBytes != null && qrBytes.length > 0) {
+            mail.sendBusinessWithInlineImages(
+                    email,
+                    rendered.subject(),
+                    rendered.body(),
+                    java.util.List.of(),
+                    java.util.List.of(new SmtpMailService.InlineAttachment("mfaQr", "mfa-qr.png", "image/png", qrBytes))
+            );
+        } else {
+            mail.sendBusiness(email, rendered.subject(), rendered.body(), java.util.List.of());
+        }
     }
 
     private boolean loginBlocked(String source, String identity) {
@@ -1092,20 +1195,37 @@ public class AuthService {
 
     private boolean requiresMfa(UserEntity user, String role) {
         String r = normalizeRole(role);
+        if ("SUPER_ADMIN".equals(r) || (user != null && "superadmin".equalsIgnoreCase(user.getUsername()))) {
+            return isSuperAdminMfaEnabled();
+        }
         String policy = mfaPolicy();
         if ("DISABLED".equals(policy)) return false;
-        if ("ADMIN_CONTROLLED".equals(policy)) return user != null && user.isMfaEnabled();
-        if ("SUPER_ADMIN".equals(r) || (user != null && "superadmin".equalsIgnoreCase(user.getUsername()))) return false;
-        return true;
+        if ("REQUIRED".equals(policy)) return true;
+        if ("ADMIN".equals(r)) return false;
+        return user != null && user.isMfaEnabled();
     }
 
     private boolean mfaForRequestedUser(String role, boolean requested) {
         String r = normalizeRole(role);
+        if ("SUPER_ADMIN".equals(r)) {
+            return isSuperAdminMfaEnabled();
+        }
         String policy = mfaPolicy();
         if ("DISABLED".equals(policy)) return false;
-        if ("ADMIN_CONTROLLED".equals(policy)) return requested;
-        if ("SUPER_ADMIN".equals(r)) return false;
-        return true;
+        if ("REQUIRED".equals(policy)) return true;
+        if ("ADMIN".equals(r)) return false;
+        return requested;
+    }
+
+    private boolean isSuperAdminMfaEnabled() {
+        try {
+            String value = db.queryForObject("SELECT setting_value FROM application_setting WHERE setting_key='security.superadmin.mfa.enabled'", String.class);
+            if (value == null) return false;
+            String normalized = value.trim().toUpperCase(Locale.ROOT);
+            return "YES".equals(normalized) || "TRUE".equals(normalized) || "1".equals(normalized);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private String mfaPolicy() {
@@ -1125,6 +1245,6 @@ public class AuthService {
     private AuthDtos.UserPayload payload(UserEntity user) {
         return new AuthDtos.UserPayload(user.getId(), user.getUsername(), user.getFullName(), user.getRoleName(),
                 user.getRoleId(), user.getEmail(), user.getPhone(), user.isActive(), user.getDepartment(), user.getBranch(),
-                user.getAccessLevel(), user.isLocked(), user.isMfaEnabled(), user.isForcePasswordChange());
+                user.getAccessLevel(), user.isLocked(), requiresMfa(user, user.getRoleName()), user.isForcePasswordChange());
     }
 }

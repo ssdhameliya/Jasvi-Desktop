@@ -151,7 +151,8 @@ public final class ProfessionalUiEnhancer {
 
         if (isRefresh) {
             button.addEventFilter(ActionEvent.ACTION, event -> {
-                if (Boolean.TRUE.equals(button.getProperties().get("erp.refresh.running"))) {
+                if (Boolean.TRUE.equals(button.getProperties().get("erp.refresh.managed"))
+                        || Boolean.TRUE.equals(button.getProperties().get("erp.refresh.running"))) {
                     return;
                 }
                 button.getProperties().put("erp.refresh.running", Boolean.TRUE);

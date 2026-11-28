@@ -1087,6 +1087,101 @@ public class GeneralLedgerService {
         }
     }
 
+    /** Resolves or creates a dedicated 102x Bank Asset sub-account for a specific bank account. */
+    public BankGlAccount resolveBankGlAccount(String bankNameOrAccount) {
+        Long defaultBankId = getAccountIdOrDefault("1020", "Bank Current Account", "ASSET");
+        String raw = bankNameOrAccount == null ? "" : bankNameOrAccount.trim();
+        if (raw.isBlank() || "BANK".equalsIgnoreCase(raw) || "BANK STATEMENT".equalsIgnoreCase(raw)
+                || "PRIMARY BANK".equalsIgnoreCase(raw) || "CASH".equalsIgnoreCase(raw) || "CASH ON HAND".equalsIgnoreCase(raw)) {
+            return loadGlAccountByIdOrCode(defaultBankId, "1020", "Bank Current Account");
+        }
+        String key = raw.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_").replaceAll("^_+|_+$", "");
+        if (key.length() > 110) key = key.substring(0, 110);
+        String digits = raw.replaceAll("[^0-9]", "");
+        String tail4 = digits.length() >= 4 ? digits.substring(digits.length() - 4) : "";
+        try {
+            List<Map<String, Object>> mapped = jdbc.queryForList("""
+                    SELECT m.gl_account_code, c.id, c.account_name, COALESCE(c.current_balance, 0) AS bal
+                    FROM bank_gl_account_map m
+                    JOIN chart_of_accounts c ON c.account_code = m.gl_account_code
+                    WHERE m.bank_account_key = ?
+                       OR (? <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(m.account_number, ''), '[^0-9]', '', 'g'), 4) = ?)
+                    ORDER BY CASE WHEN m.bank_account_key = ? THEN 0 ELSE 1 END, m.id ASC
+                    LIMIT 1
+                    """, key, tail4, tail4, key);
+            if (!mapped.isEmpty()) {
+                var r = mapped.getFirst();
+                return new BankGlAccount(((Number) r.get("id")).longValue(), Objects.toString(r.get("gl_account_code"), "1020"),
+                        Objects.toString(r.get("account_name"), raw), toBigDecimal(r.get("bal")));
+            }
+            List<String> existingCodes = jdbc.query(
+                    "SELECT account_code FROM chart_of_accounts WHERE account_code LIKE '102%' ORDER BY account_code ASC",
+                    (rs, i) -> rs.getString(1));
+            int nextSeq = 1021;
+            while (existingCodes.contains(Integer.toString(nextSeq))) nextSeq++;
+            String nextCode = Integer.toString(nextSeq);
+            String label = raw.length() > 120 ? raw.substring(0, 120) : raw;
+            Long subId = jdbc.queryForObject("""
+                    INSERT INTO chart_of_accounts(account_code, account_name, account_type, account_subtype, parent_id, is_active, is_system)
+                    VALUES (?, ?, 'ASSET', 'BANK', ?, TRUE, FALSE)
+                    ON CONFLICT (account_code) DO UPDATE SET account_name = EXCLUDED.account_name
+                    RETURNING id
+                    """, Long.class, nextCode, "Bank - " + label, defaultBankId);
+            jdbc.update("""
+                    INSERT INTO bank_gl_account_map(bank_account_key, bank_name, account_number, gl_account_code, gl_account_id, updated_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT (bank_account_key) DO UPDATE SET gl_account_code = EXCLUDED.gl_account_code, gl_account_id = EXCLUDED.gl_account_id, updated_at = CURRENT_TIMESTAMP
+                    """, key, label, digits, nextCode, subId);
+            return loadGlAccountByIdOrCode(subId, nextCode, "Bank - " + label);
+        } catch (Exception ignored) {
+            return loadGlAccountByIdOrCode(defaultBankId, "1020", "Bank Current Account");
+        }
+    }
+
+    private BankGlAccount loadGlAccountByIdOrCode(Long id, String code, String fallbackName) {
+        try {
+            return coaRepository.findByAccountCode(code)
+                    .map(c -> new BankGlAccount(c.getId(), c.getAccountCode(), c.getAccountName(),
+                            c.getCurrentBalance() != null ? c.getCurrentBalance() : BigDecimal.ZERO))
+                    .orElse(new BankGlAccount(id, code, fallbackName, BigDecimal.ZERO));
+        } catch (Exception ignored) {
+            return new BankGlAccount(id, code, fallbackName, BigDecimal.ZERO);
+        }
+    }
+
+    public List<Map<String, Object>> listBankGlMappings() {
+        try {
+            return jdbc.queryForList("""
+                    SELECT m.id, m.bank_account_key, m.bank_name, m.account_number, m.gl_account_code,
+                           c.account_name AS gl_account_name, COALESCE(c.current_balance, 0) AS current_balance
+                    FROM bank_gl_account_map m
+                    LEFT JOIN chart_of_accounts c ON c.account_code = m.gl_account_code
+                    ORDER BY m.gl_account_code ASC, m.id ASC
+                    """);
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
+    public void updateBankGlMapping(String bankAccountKey, String glAccountCode, String actor) {
+        if (bankAccountKey == null || bankAccountKey.isBlank() || glAccountCode == null || glAccountCode.isBlank()) {
+            throw new IllegalArgumentException("Bank account key and target GL account code are required.");
+        }
+        var target = coaRepository.findByAccountCode(glAccountCode.trim())
+                .orElseThrow(() -> new IllegalArgumentException("GL account not found: " + glAccountCode));
+        jdbc.update("""
+                INSERT INTO bank_gl_account_map(bank_account_key, bank_name, account_number, gl_account_code, gl_account_id, updated_by, updated_at)
+                VALUES (?, ?, '', ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT (bank_account_key) DO UPDATE SET
+                    gl_account_code = EXCLUDED.gl_account_code,
+                    gl_account_id = EXCLUDED.gl_account_id,
+                    updated_by = EXCLUDED.updated_by,
+                    updated_at = CURRENT_TIMESTAMP
+                """, bankAccountKey.trim(), bankAccountKey.trim(), target.getAccountCode(), target.getId(), actor);
+    }
+
+    public record BankGlAccount(Long accountId, String accountCode, String accountName, BigDecimal currentBalance) {}
+
     public Long getAccountIdOrDefault(String code, String name, String type) {
         try {
             Long id = jdbc.queryForObject("SELECT id FROM chart_of_accounts WHERE account_code = ? LIMIT 1", Long.class, code);
@@ -2269,6 +2364,15 @@ public class GeneralLedgerService {
     public Long postFinanceVoucher(Integer financeId, String voucherNo, LocalDate date, String voucherType,
                                    String category, String accountName, String mode, BigDecimal amount,
                                    Integer partyId, String notes, String actor) {
+        return postFinanceVoucherWithGst(financeId, voucherNo, date, voucherType, category, accountName, mode, amount,
+                partyId, notes, actor, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
+    /** Posts or replaces the GL Journal Voucher with optional GST Input Credit (CGST/SGST/IGST) split. */
+    public Long postFinanceVoucherWithGst(Integer financeId, String voucherNo, LocalDate date, String voucherType,
+                                          String category, String accountName, String mode, BigDecimal amount,
+                                          Integer partyId, String notes, String actor,
+                                          BigDecimal gstRate, BigDecimal gstAmount, BigDecimal cgstAmount, BigDecimal sgstAmount, BigDecimal igstAmount) {
         if (financeId == null || amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return null;
         LocalDate effectiveDate = date != null ? date : LocalDate.now();
         ensurePeriodOpen(effectiveDate);
@@ -2277,17 +2381,49 @@ public class GeneralLedgerService {
         BigDecimal amt = amount.setScale(2, RoundingMode.HALF_UP);
         String vt = voucherType == null ? "EXPENSE" : voucherType.trim().toUpperCase(Locale.ROOT);
         boolean isCashMode = mode != null && mode.toUpperCase(Locale.ROOT).contains("CASH");
-        Long fundAcc = getAccountIdOrDefault(isCashMode ? "1010" : "1020",
-                isCashMode ? "Cash on Hand" : "Bank Current Account", "ASSET");
-        String fundCode = isCashMode ? "1010" : "1020";
+        Long fundAcc;
+        String fundCode;
+        if (isCashMode) {
+            fundCode = "1010";
+            fundAcc = getAccountIdOrDefault("1010", "Cash on Hand", "ASSET");
+        } else {
+            BankGlAccount resolved = resolveBankGlAccount(accountName);
+            fundAcc = resolved.accountId();
+            fundCode = resolved.accountCode();
+        }
 
         List<GeneralLedgerDtos.CreateLineRequest> lines = new ArrayList<>();
         String entryType;
         if ("EXPENSE".equals(vt)) {
             entryType = "EXPENSE";
             Long expAcc = resolveExpenseAccountId(category, accountName);
-            lines.add(new GeneralLedgerDtos.CreateLineRequest(expAcc, null, amt, BigDecimal.ZERO, partyId,
-                    (category != null ? category : "Expense") + ": " + (notes != null ? notes : voucherNo), null));
+            BigDecimal cAmt = cgstAmount != null ? cgstAmount.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+            BigDecimal sAmt = sgstAmount != null ? sgstAmount.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+            BigDecimal iAmt = igstAmount != null ? igstAmount.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+            BigDecimal taxTotal = cAmt.add(sAmt).add(iAmt);
+            if (taxTotal.compareTo(BigDecimal.ZERO) > 0 && taxTotal.compareTo(amt) < 0) {
+                BigDecimal baseExpense = amt.subtract(taxTotal);
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(expAcc, null, baseExpense, BigDecimal.ZERO, partyId,
+                        (category != null ? category : "Expense") + " (Taxable): " + (notes != null ? notes : voucherNo), null));
+                if (cAmt.compareTo(BigDecimal.ZERO) > 0) {
+                    Long cgstAcc = getAccountIdOrDefault("1081", "Input CGST Pool", "ASSET");
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(cgstAcc, "1081", cAmt, BigDecimal.ZERO, partyId,
+                            "Input CGST (" + (gstRate != null ? gstRate : BigDecimal.ZERO) + "%): " + voucherNo, null));
+                }
+                if (sAmt.compareTo(BigDecimal.ZERO) > 0) {
+                    Long sgstAcc = getAccountIdOrDefault("1082", "Input SGST Pool", "ASSET");
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(sgstAcc, "1082", sAmt, BigDecimal.ZERO, partyId,
+                            "Input SGST (" + (gstRate != null ? gstRate : BigDecimal.ZERO) + "%): " + voucherNo, null));
+                }
+                if (iAmt.compareTo(BigDecimal.ZERO) > 0) {
+                    Long igstAcc = getAccountIdOrDefault("1083", "Input IGST Pool", "ASSET");
+                    lines.add(new GeneralLedgerDtos.CreateLineRequest(igstAcc, "1083", iAmt, BigDecimal.ZERO, partyId,
+                            "Input IGST (" + (gstRate != null ? gstRate : BigDecimal.ZERO) + "%): " + voucherNo, null));
+                }
+            } else {
+                lines.add(new GeneralLedgerDtos.CreateLineRequest(expAcc, null, amt, BigDecimal.ZERO, partyId,
+                        (category != null ? category : "Expense") + ": " + (notes != null ? notes : voucherNo), null));
+            }
             lines.add(new GeneralLedgerDtos.CreateLineRequest(fundAcc, fundCode, BigDecimal.ZERO, amt, null,
                     "Paid via " + (mode != null ? mode : "Bank") + " (" + voucherNo + ")", null));
         } else if (vt.contains("DEPOSIT")) {
@@ -2568,10 +2704,14 @@ public class GeneralLedgerService {
                 BigDecimal.class));
         controls.add(buildControlRow("Accounts Payable", "2010", "Sundry Creditors vs Purchase Unpaid", glAp, subAp));
 
-        BigDecimal glCashBank = sumAccountCurrentBalance(List.of("1010", "1020"));
+        BigDecimal glCashBank = coaRepository.findAllByOrderByAccountCodeAsc().stream()
+                .filter(c -> c.getAccountCode() != null && (c.getAccountCode().equals("1010") || c.getAccountCode().startsWith("102")))
+                .map(c -> c.getCurrentBalance() != null ? c.getCurrentBalance() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
         CashPositionService cashSvc = cashPositionProvider != null ? cashPositionProvider.getIfAvailable() : null;
         BigDecimal subCashBank = cashSvc != null ? BigDecimal.valueOf(cashSvc.cashPosition()).setScale(2, RoundingMode.HALF_UP) : glCashBank;
-        controls.add(buildControlRow("Cash & Bank Position", "1010/1020", "GL Cash+Bank vs Operational Cash Position", glCashBank, subCashBank));
+        controls.add(buildControlRow("Cash & Bank Position", "1010/102x", "GL Cash+Bank vs Operational Cash Position", glCashBank, subCashBank));
 
         BigDecimal glStock = sumAccountCurrentBalance(List.of("1060"));
         BigDecimal subStock = toBigDecimal(jdbc.queryForObject(

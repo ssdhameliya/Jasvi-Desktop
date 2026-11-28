@@ -72,7 +72,8 @@ public class LoginController implements ScreenLifecycle {
     @FXML private Label lblFooterCompany, lblFooterPhone, lblFooterEmail, lblFooterWebsite;
     @FXML private ImageView imgBrandLogo, imgBrandMark, imgLoginLogo, imgLoginSectionMark;
     @FXML private VBox brandPanel;
-    @FXML private StackPane brandLogoBox, brandMarkBox, loginLogoBox, loginSectionIconBox;
+    @FXML private StackPane rootPane, brandLogoBox, brandMarkBox, loginLogoBox, loginSectionIconBox;
+    @FXML private ScrollPane authScrollPane;
     @FXML private Button btnLogin, btnRegister, btnLicenseActivation, btnEmailSettings, btnForgotPassword, btnResendOtp;
     @FXML private Button btnRefreshResetCaptcha, btnSendResetOtp, btnResetPassword, btnBackToLogin;
     @FXML private VBox loginPanel, resetPanel, otpPanel;
@@ -90,6 +91,7 @@ public class LoginController implements ScreenLifecycle {
     /** Retained while enrollment is incomplete so Get Help can reopen the QR/manual-key dialog. */
     private org.example.api.auth.AuthApiClient.LoginMfaEnrollmentResponse pendingEnrollmentSetup;
     private String resetChallengeId;
+    private boolean resetTotpRequired;
     private boolean passwordFirstKeyLogged;
     private boolean passwordFirstTextLogged;
     private long passwordFocusNanos;
@@ -169,6 +171,13 @@ public class LoginController implements ScreenLifecycle {
         if (btnRefreshResetCaptcha != null) UiActionIcons.apply(btnRefreshResetCaptcha, "refresh", "Refresh security code");
         UiActionIcons.apply(btnResetPassword, "save", "Save new password");
         UiActionIcons.apply(btnBackToLogin, ButtonAction.CANCEL);
+        if (btnCopyTicket != null) {
+            UiActionIcons.apply(btnCopyTicket, "copy", "Copy support ticket ID");
+        }
+        if (btnCheckUnlockStatus != null) {
+            UiActionIcons.apply(btnCheckUnlockStatus, ButtonAction.REFRESH);
+            btnCheckUnlockStatus.getProperties().put("erp.refresh.managed", Boolean.TRUE);
+        }
         // Keyboard-first login: Enter from the password field submits credentials,
         // and Enter from the OTP field verifies an active MFA challenge.
         btnLogin.setDefaultButton(true);
@@ -213,7 +222,10 @@ public class LoginController implements ScreenLifecycle {
             }
             resetPendingLogin();
         });
-        txtResetIdentity.textProperty().addListener((obs, oldValue, newValue) -> resetChallengeId = null);
+        txtResetIdentity.textProperty().addListener((obs, oldValue, newValue) -> {
+            resetChallengeId = null;
+            setResetFieldsEnabled(false, false);
+        });
         cmbRole.valueProperty().addListener((obs, oldValue, newValue) -> {
             clearFieldError(cmbRole, lblRoleError);
             resetPendingLogin();
@@ -250,6 +262,7 @@ public class LoginController implements ScreenLifecycle {
             showLogo(imgLoginLogo, logo);
         }
         showApplicationMark(mark);
+        BrandImagePresenter.applyPanelBackground(rootPane, false);
     }
 
     private void showApplicationMark(Image mark) {
@@ -826,9 +839,34 @@ public class LoginController implements ScreenLifecycle {
     @FXML private void forgotPassword() {
         resetPendingLogin();
         resetChallengeId = null;
+        setResetFieldsEnabled(false, false);
         showResetPanel();
         refreshResetCaptcha();
         message("Enter your email or username to receive a reset code.", false);
+    }
+
+    private void setResetFieldsEnabled(boolean challengeReady, boolean totpRequired) {
+        this.resetTotpRequired = challengeReady && totpRequired;
+        if (!challengeReady) {
+            if (txtResetOtp != null) txtResetOtp.clear();
+            if (txtResetTotp != null) txtResetTotp.clear();
+            if (txtNewPassword != null) txtNewPassword.clear();
+            if (txtConfirmPassword != null) txtConfirmPassword.clear();
+        } else if (!totpRequired && txtResetTotp != null) {
+            txtResetTotp.clear();
+        }
+        if (txtResetOtp != null) txtResetOtp.setDisable(!challengeReady);
+        if (txtResetTotp != null) {
+            txtResetTotp.setDisable(!(challengeReady && totpRequired));
+            txtResetTotp.setPromptText(!challengeReady
+                    ? "Enabled automatically if MFA is active for your account"
+                    : (totpRequired
+                        ? "Enter 6-digit authenticator code *"
+                        : "Not required — reset via Email OTP"));
+        }
+        if (txtNewPassword != null) txtNewPassword.setDisable(!challengeReady);
+        if (txtConfirmPassword != null) txtConfirmPassword.setDisable(!challengeReady);
+        if (btnResetPassword != null) btnResetPassword.setDisable(!challengeReady);
     }
 
     @FXML private void refreshResetCaptcha() {
@@ -865,13 +903,19 @@ public class LoginController implements ScreenLifecycle {
                 challenge -> {
                     if (btnSendResetOtp != null) btnSendResetOtp.setDisable(false);
                     resetChallengeId = challenge.challengeId();
+                    boolean totpRequired = challenge.totpRequired();
+                    setResetFieldsEnabled(true, totpRequired);
                     String msg = challenge.message() == null ? "Reset code sent." : challenge.message().trim();
                     if (!msg.endsWith(".")) msg += ".";
+                    msg += totpRequired
+                            ? " Authenticator MFA is active — enter both the email OTP and your 6-digit authenticator code."
+                            : " Authenticator code is not required for this account/policy — complete reset using your email OTP.";
                     message(msg, false);
                     txtResetOtp.requestFocus();
                 }, failure -> {
                     if (btnSendResetOtp != null) btnSendResetOtp.setDisable(false);
                     resetChallengeId = null;
+                    setResetFieldsEnabled(false, false);
                     refreshResetCaptcha();
                     String errorMsg = failure.getMessage() == null ? "Unable to send reset code. Please try again." : failure.getMessage().trim();
                     message(errorMsg, true);
@@ -889,12 +933,16 @@ public class LoginController implements ScreenLifecycle {
 
         boolean valid = true;
         String otp = txtResetOtp.getText() == null ? "" : txtResetOtp.getText().trim();
-        String totp = txtResetTotp.getText() == null ? "" : txtResetTotp.getText().trim();
+        String totp = resetTotpRequired && txtResetTotp.getText() != null ? txtResetTotp.getText().trim() : "";
         String password = txtNewPassword.getText() == null ? "" : txtNewPassword.getText();
         String confirm = txtConfirmPassword.getText() == null ? "" : txtConfirmPassword.getText();
 
         if (otp.isBlank()) {
             showFieldError(txtResetOtp, lblResetOtpError, "Reset code is required.");
+            valid = false;
+        }
+        if (resetTotpRequired && totp.isBlank()) {
+            showFieldError(txtResetTotp, lblResetTotpError, "Authenticator code is required.");
             valid = false;
         }
         if (password.length() < 8 || !password.matches(".*[A-Za-z].*") || !password.matches(".*[0-9].*")) {
@@ -921,6 +969,7 @@ public class LoginController implements ScreenLifecycle {
                     PREFS.remove(PREF_PASSWORD);
                     String identity = txtResetIdentity.getText().trim();
                     resetChallengeId = null;
+                    setResetFieldsEnabled(false, false);
                     showLoginPanel();
                     txtUsername.setText(identity);
                     txtPassword.clear();
@@ -933,6 +982,7 @@ public class LoginController implements ScreenLifecycle {
                     if (failure instanceof org.example.api.auth.AuthApiClient.AccountLockoutException ale) {
                         String identity = txtResetIdentity.getText() == null ? "" : txtResetIdentity.getText().trim();
                         resetChallengeId = null;
+                        setResetFieldsEnabled(false, false);
                         showLoginPanel();
                         if (!identity.isBlank()) txtUsername.setText(identity);
                         txtPassword.clear();
@@ -947,6 +997,7 @@ public class LoginController implements ScreenLifecycle {
 
     @FXML private void backToLogin() {
         resetChallengeId = null;
+        setResetFieldsEnabled(false, false);
         showLoginPanel();
         lblMessage.setText("");
     }
@@ -1313,11 +1364,34 @@ public class LoginController implements ScreenLifecycle {
     @FXML private void checkUnlockStatusNow() {
         String identity = txtUsername.getText() == null ? "" : txtUsername.getText().trim();
         if (identity.isBlank()) return;
-        UiTaskExecutor.submitAction("manual-status-check", () -> users.getAccountStatus(identity), status -> {
-            if (status != null && status.exists()) {
-                handleAccountStatusUpdate(status);
-            }
-        }, ignored -> {});
+        if (btnCheckUnlockStatus != null) {
+            btnCheckUnlockStatus.setDisable(true);
+            btnCheckUnlockStatus.setText("Checking...");
+        }
+        UiTaskExecutor.submitActionWithOverlay(rootPane, "Checking ticket & unlock status…", "manual-status-check",
+                () -> users.getAccountStatus(identity), status -> {
+                    if (btnCheckUnlockStatus != null) {
+                        btnCheckUnlockStatus.setText("Check Status Now");
+                        btnCheckUnlockStatus.setDisable(false);
+                    }
+                    if (status != null && status.exists()) {
+                        handleAccountStatusUpdate(status);
+                        if (status.locked() && lblPollerStatus != null) {
+                            String ticketRef = status.ticketId() != null && !status.ticketId().isBlank()
+                                    ? "Ticket #" + status.ticketId().trim()
+                                    : activeIncidentTicketId != null ? "Ticket #" + activeIncidentTicketId : "Pending unlock";
+                            lblPollerStatus.setText("⏳ Live Sentinel: Checked just now — account remains locked (" + ticketRef + "). Auto-checking every 10s...");
+                        }
+                    }
+                }, err -> {
+                    if (btnCheckUnlockStatus != null) {
+                        btnCheckUnlockStatus.setText("Check Status Now");
+                        btnCheckUnlockStatus.setDisable(false);
+                    }
+                    if (lblPollerStatus != null) {
+                        lblPollerStatus.setText("⏳ Live Sentinel: Could not reach server right now. Auto-checking every 10s...");
+                    }
+                });
     }
 
     private void showIncidentBanner(String ticketId, String message) {

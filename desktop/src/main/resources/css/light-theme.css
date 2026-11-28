@@ -3471,6 +3471,14 @@
     -fx-min-width: 360px;
     -fx-padding: 30px 42px 24px 42px;
 }
+.auth-standard-shell .auth-scroll-pane,
+.auth-standard-shell .auth-scroll-pane > .viewport {
+    -fx-background-color: #f4f7fc;
+    -fx-background: #f4f7fc;
+    -fx-border-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
 .auth-standard-shell .auth-unified-content {
     -fx-padding: 28px 34px 28px 34px;
 }
@@ -3497,7 +3505,7 @@
     -fx-min-height: 44px;
 }
 .auth-standard-shell .auth-message {
-    -fx-min-height: 18px;
+    -fx-wrap-text: true;
 }
 .bank-select-all {
     -fx-font-weight: 800;
@@ -15561,8 +15569,10 @@
     -fx-border-color: rgba(255,255,255,.34);
 }
 .erp-ui-standard.auth-standard-shell .auth-brand-line { -fx-background-color: #67d2ff; }
+.erp-ui-standard.auth-standard-shell .auth-scroll-pane,
+.erp-ui-standard.auth-standard-shell .auth-scroll-pane > .viewport,
 .erp-ui-standard.auth-standard-shell .auth-unified-content,
-.erp-ui-standard.auth-standard-shell .auth-content { -fx-background-color: #f4f7fc; }
+.erp-ui-standard.auth-standard-shell .auth-content { -fx-background-color: #f4f7fc; -fx-background: #f4f7fc; -fx-border-color: transparent; }
 .erp-ui-standard.auth-standard-shell .auth-unified-card,
 .erp-ui-standard.auth-standard-shell .auth-card {
     -fx-background-color: #ffffff;
@@ -19060,7 +19070,6 @@
 .erp-button-coral .erp-action-glyph,
 .erp-button-pink .erp-action-glyph, .erp-button-rose .erp-action-glyph,
 .erp-button-violet .erp-action-glyph,
-.erp-button-slate .erp-action-glyph,
 .erp-button-success .erp-action-glyph,
 .erp-button-warning .erp-action-glyph,
 .erp-button-next .erp-action-glyph,
@@ -19077,11 +19086,33 @@
 .approved-coral-button .erp-action-glyph,
 .approved-pink-button .erp-action-glyph, .approved-rose-button .erp-action-glyph,
 .approved-violet-button .erp-action-glyph,
-.approved-slate-button .erp-action-glyph,
 .approved-next-button .erp-action-glyph,
+.auth-primary-button .erp-action-glyph,
+.erp-button-role-primary .erp-action-glyph,
+.erp-button-role-emerald .erp-action-glyph,
+.erp-button-role-forest .erp-action-glyph,
+.erp-button-role-teal .erp-action-glyph,
+.erp-button-role-sky .erp-action-glyph,
+.erp-button-role-amber .erp-action-glyph,
+.erp-button-role-orange .erp-action-glyph,
+.erp-button-role-danger .erp-action-glyph,
+.erp-button-role-purple .erp-action-glyph,
+.erp-button-role-indigo .erp-action-glyph,
+.erp-button-role-coral .erp-action-glyph,
+.erp-button-role-pink .erp-action-glyph,
+.erp-button-role-rose .erp-action-glyph,
+.erp-button-role-violet .erp-action-glyph,
+.erp-button-role-success .erp-action-glyph,
+.erp-button-role-warning .erp-action-glyph,
 .primary-button .erp-action-glyph,
 .danger-button .erp-action-glyph {
     -fx-icon-color: #ffffff;
+}
+
+.erp-button-slate .erp-action-glyph,
+.approved-slate-button .erp-action-glyph,
+.erp-button-role-slate .erp-action-glyph {
+    -fx-icon-color: #1e293b;
 }
 
 /* Secondary & Ghost Buttons Vibrant Theme Glyphs */
@@ -22434,6 +22465,31 @@
     -fx-border-color: #cbd5e1;
     -fx-border-width: 1.5;
     -fx-padding: 8;
+}
+
+/* Settings-Managed Screen Panel Background Layer & Scrim */
+.erp-panel-bg-scrim {
+    -fx-background-color: #f4f7fc;
+}
+
+.erp-ui-standard .has-panel-background.auth-content,
+.erp-ui-standard .has-panel-background.auth-unified-content,
+.erp-ui-standard .has-panel-background.registration-center-host,
+.erp-ui-standard .has-panel-background.erp-content,
+.erp-ui-standard .has-panel-background .auth-scroll-pane,
+.erp-ui-standard .has-panel-background .auth-scroll-pane > .viewport,
+.erp-ui-standard .has-panel-background .auth-content,
+.erp-ui-standard .has-panel-background .auth-unified-content,
+.erp-ui-standard .has-panel-background .setup-content,
+.erp-ui-standard .has-panel-background .erp-screen-root,
+.erp-ui-standard .has-panel-background .mock-page,
+.erp-ui-standard .has-panel-background .clean-scroll,
+.erp-ui-standard .has-panel-background .clean-scroll > .viewport,
+.erp-ui-standard .has-panel-background .approved-page-scroll,
+.erp-ui-standard .has-panel-background .approved-page-scroll > .viewport,
+.erp-ui-standard .has-panel-background .settings-page {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
 }
 
 

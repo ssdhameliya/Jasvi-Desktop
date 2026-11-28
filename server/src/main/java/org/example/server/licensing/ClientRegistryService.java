@@ -49,6 +49,12 @@ public class ClientRegistryService {
     private final BusinessWhatsappService whatsappService;
     private final SmtpMailService mailService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.example.server.communication.EmailOutboxService emailOutboxService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.example.server.audit.AuditService auditService;
+
     public ClientRegistryService(JpaNativeRepository jdbc,
                                  @org.springframework.beans.factory.annotation.Autowired(required = false) BusinessWhatsappService whatsappService,
                                  @org.springframework.beans.factory.annotation.Autowired(required = false) SmtpMailService mailService) {
@@ -355,6 +361,11 @@ public class ClientRegistryService {
 
     @Transactional
     public Map<String, Object> renewClient(Long id, int additionalDays) {
+        return renewClient(id, additionalDays, null, null);
+    }
+
+    @Transactional
+    public Map<String, Object> renewClient(Long id, int additionalDays, String utrReference, Double amountPaid) {
         Map<String, Object> client = getClientById(id);
         int days = additionalDays <= 0 ? 365 : additionalDays;
 
@@ -411,6 +422,8 @@ public class ClientRegistryService {
                         "status = 'ACTIVE', " +
                         "license_payload_enc = ?, " +
                         "features = ?, " +
+                        "last_expiry_alert_stage = NULL, " +
+                        "last_expiry_alert_at = NULL, " +
                         "row_version = row_version + 1 " +
                         "WHERE id = ?",
                 java.util.Date.from(newExpiry),
@@ -433,7 +446,112 @@ public class ClientRegistryService {
             log.warn("Could not sync app_license on renewal for host: {}", ignored.getMessage());
         }
 
-        return getClientById(id);
+        try {
+            if (auditService != null) {
+                auditService.log("LICENSE", id, "APPROVED",
+                        "Subscription renewed +" + days + " days for " + companyName + " (" + machineId + ")"
+                                + (utrReference != null && !utrReference.isBlank() ? " • Ref: " + utrReference.trim() : ""));
+            }
+        } catch (Exception ignored) {}
+
+        Map<String, Object> updated = getClientById(id);
+        final String utrSafe = (utrReference != null && !utrReference.isBlank()) ? utrReference.trim() : "Manual Renewal";
+        final double paidVal = amountPaid != null && amountPaid > 0 ? amountPaid
+                : (updated.get("annual_fee") instanceof Number fn ? fn.doubleValue() : 0.0);
+        final int finalDays = days;
+        Thread.ofVirtual().name("license-renewal-dispatch").start(() -> dispatchRenewalReceipt(updated, finalDays, utrSafe, paidVal));
+        return updated;
+    }
+
+    private void dispatchRenewalReceipt(Map<String, Object> client, int days, String utrRef, double amountPaid) {
+        if (client == null) return;
+        String email = client.get("email") != null ? String.valueOf(client.get("email")).trim() : "";
+        String phone = client.get("phone") != null ? String.valueOf(client.get("phone")).replaceAll("[^0-9]", "") : "";
+        if (email.isBlank() && phone.isBlank()) return;
+        String company = String.valueOf(client.getOrDefault("company_name", "Valued Client"));
+        String tier = String.valueOf(client.getOrDefault("tier", "GOLD"));
+        String machineId = String.valueOf(client.getOrDefault("machine_id", ""));
+        String validUntil = String.valueOf(client.getOrDefault("valid_until", ""));
+        var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
+        String issuerBrand = getSetting("licensing.issuer_brand", templates.companyName() + " ERP");
+        String supportEmail = templates.companySupportEmail();
+        String amountText = java.text.NumberFormat.getCurrencyInstance(Locale.of("en", "IN")).format(amountPaid);
+        Map<String, String> tokens = Map.of(
+                "CompanyName", company,
+                "Tier", tier,
+                "MachineId", machineId,
+                "ValidUntil", validUntil,
+                "RenewalDays", Integer.toString(days),
+                "AmountPaid", amountText,
+                "UtrReference", utrRef,
+                "IssuerBrand", issuerBrand,
+                "SupportEmail", supportEmail
+        );
+        if (!email.isBlank()) {
+            try {
+                String kpiHtml = org.example.shared.communication.TokenTemplateEngine.kpiGridHtml(
+                        "Subscription Renewal Receipt",
+                        List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.KpiTile("Amount Paid", amountText, "Verified Receipt", "#15803d"),
+                                new org.example.shared.communication.TokenTemplateEngine.KpiTile("Extended By", days + " Days", tier + " Tier", "#0369a1"),
+                                new org.example.shared.communication.TokenTemplateEngine.KpiTile("New Valid Until", validUntil, "Active License", "#0f172a")
+                        ),
+                        3
+                );
+                String metaRows = org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                        "License & Payment Particulars",
+                        "#15803d",
+                        List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Company Name", company, false),
+                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Authorized Machine ID", machineId, true),
+                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("UTR / Settlement Ref", utrRef, true, "#15803d", "#dcfce7"),
+                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Subscription Tier", tier, false)
+                        )
+                );
+                var rendered = templates.renderRichEmail(
+                        "subscription_renewal_receipt",
+                        tokens,
+                        new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
+                                "#15803d", "#166534",
+                                "BILLING & LICENSING",
+                                "RENEWED",
+                                "#15803d",
+                                issuerBrand + " Renewal Confirmation",
+                                company + " • License extended through " + validUntil,
+                                "Subscription renewed for " + company + ": " + amountText + " (" + days + " days, valid until " + validUntil + ").",
+                                List.of(
+                                        new org.example.shared.communication.TokenTemplateEngine.MetaColumn("COMPANY", company),
+                                        new org.example.shared.communication.TokenTemplateEngine.MetaColumn("TIER", tier),
+                                        new org.example.shared.communication.TokenTemplateEngine.MetaColumn("VALID UNTIL", validUntil, "#15803d")
+                                ),
+                                List.of(kpiHtml, metaRows),
+                                List.of(),
+                                issuerBrand + (supportEmail.isBlank() ? "" : " • Support: " + supportEmail),
+                                null
+                        )
+                );
+                Long clientId = client.get("id") instanceof Number n ? n.longValue() : null;
+                if (emailOutboxService != null) {
+                    emailOutboxService.sendWithOutbox(new org.example.server.communication.EmailOutboxService.OutboxSendRequest(
+                            email, null, null, rendered.subject(), rendered.body(),
+                            List.of(), null, null, null, "LICENSE", clientId, machineId, "subscription_renewal_receipt"
+                    ));
+                } else if (mailService != null && mailService.isConfigured()) {
+                    mailService.sendBusiness(email, rendered.subject(), rendered.body());
+                }
+            } catch (Exception ex) {
+                log.debug("Renewal confirmation email failed for {}: {}", company, ex.getMessage());
+            }
+        }
+        if (!phone.isBlank() && whatsappService != null) {
+            try {
+                String target = phone.length() == 10 ? "91" + phone : phone;
+                String msg = templates.renderWhatsapp("subscription_renewal_receipt", tokens);
+                whatsappService.sendText(new WahaDtos.TextSendRequest(target, msg, null));
+            } catch (Exception ex) {
+                log.debug("Renewal confirmation WhatsApp failed for {}: {}", company, ex.getMessage());
+            }
+        }
     }
 
     private List<String> extractFeatures(Map<String, Object> req, String tier) {
@@ -758,6 +876,11 @@ public class ClientRegistryService {
         String notes = req.get("notes") != null ? String.valueOf(req.get("notes")).trim() : "Pre-login desktop auto-registration";
         String remoteUrl = req.get("remoteUrl") != null ? String.valueOf(req.get("remoteUrl")).trim() : null;
         if (remoteUrl != null && remoteUrl.isBlank()) remoteUrl = null;
+        String utrRef = req.get("utrReference") != null ? String.valueOf(req.get("utrReference")).trim() : null;
+        if (utrRef != null && utrRef.isBlank()) utrRef = null;
+        BigDecimal paymentAmount = req.get("paymentAmount") instanceof Number n ? BigDecimal.valueOf(n.doubleValue()) : null;
+        String paymentNotes = req.get("paymentNotes") != null ? String.valueOf(req.get("paymentNotes")).trim() : null;
+        int requestedDays = req.get("requestedDays") instanceof Number n && n.intValue() > 0 ? n.intValue() : 365;
 
         List<Map<String, Object>> existingPending = jdbc.queryForList(
                 "SELECT id FROM licensing_registration_lead WHERE machine_id = ? AND UPPER(status) = 'PENDING' ORDER BY id DESC LIMIT 1",
@@ -773,17 +896,21 @@ public class ClientRegistryService {
                         requested_tier = ?,
                         notes = ?,
                         updated_at = CURRENT_TIMESTAMP,
-                        remote_url = COALESCE(?, remote_url)
+                        remote_url = COALESCE(?, remote_url),
+                        utr_reference = COALESCE(?, utr_reference),
+                        payment_amount = COALESCE(?, payment_amount),
+                        payment_notes = COALESCE(?, payment_notes),
+                        requested_days = COALESCE(?, requested_days)
                     WHERE id = ?
-                    """, company, contact, phone, email, tier, notes, remoteUrl, existingId);
+                    """, company, contact, phone, email, tier, notes, remoteUrl, utrRef, paymentAmount, paymentNotes, requestedDays, existingId);
             List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM licensing_registration_lead WHERE id = ?", existingId);
             return rows.isEmpty() ? Map.of() : rows.getFirst();
         }
 
         jdbc.update("""
-                INSERT INTO licensing_registration_lead (company_name, machine_id, contact_person, phone, email, requested_tier, status, notes, updated_at, remote_url)
-                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, CURRENT_TIMESTAMP, ?)
-                """, company, machineId, contact, phone, email, tier, notes, remoteUrl);
+                INSERT INTO licensing_registration_lead (company_name, machine_id, contact_person, phone, email, requested_tier, status, notes, updated_at, remote_url, utr_reference, payment_amount, payment_notes, requested_days)
+                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
+                """, company, machineId, contact, phone, email, tier, notes, remoteUrl, utrRef, paymentAmount, paymentNotes, requestedDays);
 
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM licensing_registration_lead WHERE machine_id = ? ORDER BY id DESC LIMIT 1", machineId);
         return rows.isEmpty() ? Map.of() : rows.getFirst();
@@ -803,7 +930,9 @@ public class ClientRegistryService {
         String tier = (tierOverride != null && !tierOverride.isBlank())
                 ? tierOverride.trim().toUpperCase(Locale.ROOT)
                 : String.valueOf(lead.getOrDefault("requested_tier", "GOLD")).trim().toUpperCase(Locale.ROOT);
-        int days = (daysOverride != null && daysOverride > 0) ? daysOverride : 365;
+        int days = (daysOverride != null && daysOverride > 0)
+                ? daysOverride
+                : (lead.get("requested_days") instanceof Number rd && rd.intValue() > 0 ? rd.intValue() : 365);
 
         // Fetch plan properties if available
         List<Map<String, Object>> planRows = jdbc.queryForList("SELECT * FROM licensing_plan WHERE tier_code = ?", tier);
@@ -1207,9 +1336,73 @@ public class ClientRegistryService {
 
     private void purgeExpiredTelemetry() {
         try {
+            jdbc.update("""
+                    INSERT INTO client_telemetry_monthly_summary(
+                        machine_id, company_name, year_month, total_work_seconds, active_days,
+                        distinct_users, peak_concurrent_users, session_count, archived_at
+                    )
+                    SELECT machine_id,
+                           MAX(company_name),
+                           TO_CHAR(work_date, 'YYYY-MM'),
+                           COALESCE(SUM(total_seconds_today), 0),
+                           COUNT(DISTINCT work_date),
+                           COUNT(DISTINCT LOWER(username)),
+                           GREATEST(1, COUNT(DISTINCT LOWER(username))),
+                           COUNT(*),
+                           CURRENT_TIMESTAMP
+                    FROM client_user_telemetry
+                    WHERE work_date < CURRENT_DATE - INTERVAL '30 days'
+                    GROUP BY machine_id, TO_CHAR(work_date, 'YYYY-MM')
+                    ON CONFLICT (machine_id, year_month) DO UPDATE SET
+                        company_name = COALESCE(EXCLUDED.company_name, client_telemetry_monthly_summary.company_name),
+                        total_work_seconds = GREATEST(client_telemetry_monthly_summary.total_work_seconds, EXCLUDED.total_work_seconds),
+                        active_days = GREATEST(client_telemetry_monthly_summary.active_days, EXCLUDED.active_days),
+                        distinct_users = GREATEST(client_telemetry_monthly_summary.distinct_users, EXCLUDED.distinct_users),
+                        peak_concurrent_users = GREATEST(client_telemetry_monthly_summary.peak_concurrent_users, EXCLUDED.peak_concurrent_users),
+                        session_count = GREATEST(client_telemetry_monthly_summary.session_count, EXCLUDED.session_count),
+                        archived_at = CURRENT_TIMESTAMP
+                    """);
             jdbc.update("DELETE FROM client_user_telemetry WHERE work_date < CURRENT_DATE - INTERVAL '30 days'");
         } catch (Exception e) {
-            log.warn("Could not purge expired telemetry: {}", e.getMessage());
+            log.warn("Could not archive/purge expired telemetry: {}", e.getMessage());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getClientMonthlyTelemetrySummary(String rawMachine) {
+        if (rawMachine == null || rawMachine.isBlank()) return List.of();
+        String machineId = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+        try {
+            return jdbc.queryForList("""
+                    SELECT machine_id, company_name, year_month, total_work_seconds,
+                           active_days, distinct_users, peak_concurrent_users, session_count, archived_at
+                    FROM client_telemetry_monthly_summary
+                    WHERE machine_id = ? OR UPPER(REPLACE(machine_id, '-', '')) = ?
+                    ORDER BY year_month DESC
+                    """, machineId, machineId);
+        } catch (Exception e) {
+            log.debug("Monthly telemetry archive unavailable: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public String fetchActivePayloadForMachine(String rawMachine) {
+        if (rawMachine == null || rawMachine.isBlank()) return null;
+        String clean = rawMachine.replace("-", "").toUpperCase(Locale.ROOT);
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList("""
+                    SELECT license_payload_enc, status
+                    FROM licensed_client_registry
+                    WHERE (machine_id = ? OR UPPER(REPLACE(machine_id, '-', '')) = ?)
+                      AND UPPER(COALESCE(status, '')) = 'ACTIVE'
+                    ORDER BY valid_until DESC, id DESC LIMIT 1
+                    """, clean, clean);
+            if (rows.isEmpty()) return null;
+            Object enc = rows.getFirst().get("license_payload_enc");
+            return enc == null ? null : String.valueOf(enc);
+        } catch (Exception ignored) {
+            return null;
         }
     }
 
@@ -1719,7 +1912,18 @@ public class ClientRegistryService {
 
         var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(jdbc);
         String supportBrand = getSetting("licensing.issuer_brand", templates.companyName());
-        var rendered = templates.renderEmail(
+        var forensicSection = org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                "Unauthorized Workstation Forensics",
+                "#dc2626",
+                List.of(
+                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Reported Company", company, false),
+                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Machine Fingerprint", machineId, true, "#b91c1c", "#fee2e2"),
+                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Source IP Address", ip, true),
+                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Client Build", version, false),
+                        new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Observed Local Users", users, false)
+                )
+        );
+        var rendered = templates.renderRichEmail(
                 "rogue_alert",
                 Map.of(
                         "CompanyName", company,
@@ -1730,13 +1934,24 @@ public class ClientRegistryService {
                         "KickUrl", kickUrl,
                         "SupportBrand", supportBrand
                 ),
-                new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
                         "#dc2626", "#991b1b",
                         "CRITICAL SECURITY ALERT • UNLICENSED INSTANCE",
+                        "ROGUE INSTANCE",
+                        "#dc2626",
                         "🚨 Unlicensed Workstation Detected",
+                        company + " (" + machineId + ")",
+                        "CRITICAL: Unlicensed instance detected for " + company + " from IP " + ip,
+                        List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("COMPANY", company),
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("MACHINE ID", machineId),
+                                new org.example.shared.communication.TokenTemplateEngine.MetaColumn("IP ADDRESS", ip, "#dc2626")
+                        ),
+                        List.of(forensicSection),
                         List.of(new org.example.shared.communication.TokenTemplateEngine.ActionButton(
                                 "🛑 INSTANT KICK & BLOCK THIS INSTANCE", kickUrl, "#dc2626")),
-                        supportBrand + " Platform Security"
+                        supportBrand + " Platform Security",
+                        null
                 )
         );
 
@@ -1868,7 +2083,26 @@ public class ClientRegistryService {
                 String filenameJson = baseName + "-license.json";
                 byte[] jlicBytes = payload.getBytes(StandardCharsets.UTF_8);
 
-                var rendered = templates.renderEmail(
+                String kpiHtml = org.example.shared.communication.TokenTemplateEngine.kpiGridHtml(
+                        "Digital License Credentials",
+                        List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.KpiTile("Subscription Tier", tier, "Active Edition", "#0369a1"),
+                                new org.example.shared.communication.TokenTemplateEngine.KpiTile("Valid Until", validUntil, "Expiration Date", "#15803d"),
+                                new org.example.shared.communication.TokenTemplateEngine.KpiTile("Attachments", "2 Files", ".jlic & .json", "#0f172a")
+                        ),
+                        3
+                );
+                String detailHtml = org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                        "Workstation Activation Binding",
+                        "#0284c7",
+                        List.of(
+                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Company Name", company, false),
+                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Bound Machine ID", machineId, true, "#0369a1", "#e0f2fe"),
+                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("License Package", filenameJlic, true),
+                                new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Config Payload", filenameJson, true)
+                        )
+                );
+                var rendered = templates.renderRichEmail(
                         "license_activation",
                         Map.of(
                                 "CompanyName", company,
@@ -1880,12 +2114,23 @@ public class ClientRegistryService {
                                 "IssuerBrand", issuerBrand,
                                 "SupportEmail", supportEmail
                         ),
-                        new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                        new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
                                 "#0284c7", "#0369a1",
-                                "Official Digital License Delivery",
+                                "OFFICIAL DIGITAL LICENSE DELIVERY",
+                                tier.toUpperCase(Locale.ROOT),
+                                "#0369a1",
                                 issuerBrand + " Enterprise License Activation",
+                                company + " • Machine ID " + machineId,
+                                issuerBrand + " license activation files attached for " + company + " (valid until " + validUntil + ")",
+                                List.of(
+                                        new org.example.shared.communication.TokenTemplateEngine.MetaColumn("COMPANY", company),
+                                        new org.example.shared.communication.TokenTemplateEngine.MetaColumn("TIER", tier),
+                                        new org.example.shared.communication.TokenTemplateEngine.MetaColumn("VALID UNTIL", validUntil, "#15803d")
+                                ),
+                                List.of(kpiHtml, detailHtml),
                                 List.of(),
-                                issuerBrand + (supportEmail.isBlank() ? "" : " • Support: " + supportEmail)
+                                issuerBrand + (supportEmail.isBlank() ? "" : " • Support: " + supportEmail),
+                                null
                         )
                 );
 

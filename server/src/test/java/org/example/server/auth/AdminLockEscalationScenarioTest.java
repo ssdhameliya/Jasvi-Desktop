@@ -50,43 +50,34 @@ class AdminLockEscalationScenarioTest {
     }
 
     @Test
-    void adminThirdWrongPasswordWhenDailyResetAlreadyUsedEscalatesImmediately() throws Exception {
+    void adminThirdWrongPasswordNeverRaisesSupportTicketAtLoginEvenWhenNoEmailOrDailyResetUsed() throws Exception {
         Fixture f = new Fixture();
-        UserEntity admin = adminUser(12, "officeadmin", "admin@example.com");
-        admin.setLastPasswordResetUtc(BusinessClock.nowUtcText());
-        when(f.users.findForAuthentication("officeadmin")).thenReturn(Optional.of(admin));
-        when(f.passwords.matches("bad-pass", admin.getPassword())).thenReturn(false);
-        when(f.notifier.notifyAccountLockedAsync(eq(admin), eq("PERMANENT_LOCK"), anyString(), eq("10.0.0.5")))
-                .thenReturn("SEC-900001");
+        UserEntity adminResetToday = adminUser(12, "officeadmin", "admin@example.com");
+        adminResetToday.setLastPasswordResetUtc(BusinessClock.nowUtcText());
+        when(f.users.findForAuthentication("officeadmin")).thenReturn(Optional.of(adminResetToday));
+        when(f.passwords.matches("bad-pass", adminResetToday.getPassword())).thenReturn(false);
 
         f.service.login(new AuthDtos.LoginRequest("officeadmin", "bad-pass"), "10.0.0.5");
         f.service.login(new AuthDtos.LoginRequest("officeadmin", "bad-pass"), "10.0.0.5");
-        AuthDtos.LoginResponse r3 = f.service.login(new AuthDtos.LoginRequest("officeadmin", "bad-pass"), "10.0.0.5");
+        AuthDtos.LoginResponse rReset = f.service.login(new AuthDtos.LoginRequest("officeadmin", "bad-pass"), "10.0.0.5");
 
-        assertFalse(r3.success());
-        assertTrue(admin.isLocked());
-        assertEquals("PERMANENT_LOCK", admin.getLockReason());
-        assertEquals("SEC-900001", r3.incidentTicketId());
-        verify(f.notifier, times(1)).notifyAccountLockedAsync(eq(admin), eq("PERMANENT_LOCK"), anyString(), eq("10.0.0.5"));
-    }
+        assertFalse(rReset.success());
+        assertTrue(adminResetToday.isLocked());
+        assertEquals("FAILED_PASSWORD", adminResetToday.getLockReason());
+        assertNull(rReset.incidentTicketId(), "Login failure must never raise a support ticket");
 
-    @Test
-    void adminThirdWrongPasswordWhenNoRegisteredEmailEscalatesImmediately() throws Exception {
-        Fixture f = new Fixture();
-        UserEntity admin = adminUser(13, "officeadmin", "");
-        when(f.users.findForAuthentication("officeadmin")).thenReturn(Optional.of(admin));
-        when(f.passwords.matches("bad-pass", admin.getPassword())).thenReturn(false);
-        when(f.notifier.notifyAccountLockedAsync(eq(admin), eq("PERMANENT_LOCK"), anyString(), eq("10.0.0.6")))
-                .thenReturn("SEC-900002");
+        UserEntity adminNoEmail = adminUser(13, "officeadmin2", "");
+        when(f.users.findForAuthentication("officeadmin2")).thenReturn(Optional.of(adminNoEmail));
+        when(f.passwords.matches("bad-pass", adminNoEmail.getPassword())).thenReturn(false);
 
-        f.service.login(new AuthDtos.LoginRequest("officeadmin", "bad-pass"), "10.0.0.6");
-        f.service.login(new AuthDtos.LoginRequest("officeadmin", "bad-pass"), "10.0.0.6");
-        AuthDtos.LoginResponse r3 = f.service.login(new AuthDtos.LoginRequest("officeadmin", "bad-pass"), "10.0.0.6");
+        f.service.login(new AuthDtos.LoginRequest("officeadmin2", "bad-pass"), "10.0.0.6");
+        f.service.login(new AuthDtos.LoginRequest("officeadmin2", "bad-pass"), "10.0.0.6");
+        AuthDtos.LoginResponse rNoEmail = f.service.login(new AuthDtos.LoginRequest("officeadmin2", "bad-pass"), "10.0.0.6");
 
-        assertFalse(r3.success());
-        assertEquals("PERMANENT_LOCK", admin.getLockReason());
-        assertEquals("SEC-900002", r3.incidentTicketId());
-        verify(f.notifier, times(1)).notifyAccountLockedAsync(eq(admin), eq("PERMANENT_LOCK"), anyString(), eq("10.0.0.6"));
+        assertFalse(rNoEmail.success());
+        assertTrue(adminNoEmail.isLocked());
+        assertNull(rNoEmail.incidentTicketId(), "Missing email login failure must never raise a support ticket");
+        verifyNoInteractions(f.notifier);
     }
 
     @Test
@@ -128,6 +119,7 @@ class AdminLockEscalationScenarioTest {
     @Test
     void lockedAdminFirstFailedForgotPasswordTotpEscalatesOnceToSuperAdmin() throws Exception {
         Fixture f = new Fixture();
+        f.db.policy = "REQUIRED";
         UserEntity admin = adminUser(15, "officeadmin", "admin@example.com");
         admin.setLocked(true);
         admin.setLockReason("FAILED_PASSWORD");
@@ -156,6 +148,7 @@ class AdminLockEscalationScenarioTest {
     @Test
     void lockedAdminValidForgotPasswordClearsLockWithoutNotifyingSuperAdmin() throws Exception {
         Fixture f = new Fixture();
+        f.db.policy = "REQUIRED";
         UserEntity admin = adminUser(16, "officeadmin", "admin@example.com");
         admin.setLocked(true);
         admin.setLockReason("FAILED_PASSWORD");
@@ -186,6 +179,7 @@ class AdminLockEscalationScenarioTest {
     @Test
     void adminThirdWrongLoginMfaLocksRecoverablyWithoutNotifyingSuperAdmin() throws Exception {
         Fixture f = new Fixture();
+        f.db.policy = "REQUIRED";
         UserEntity admin = adminUser(17, "officeadmin", "admin@example.com");
         admin.setMfaEnabled(true);
         admin.setTotpSecretEnc("ENC-TOTP");
@@ -288,6 +282,7 @@ class AdminLockEscalationScenarioTest {
     void springTransactionalProxiesCommitLoginMfaFailureWithoutUnexpectedRollback() throws Exception {
         RecordingTxManager txManager = new RecordingTxManager();
         ScenarioDb db = new ScenarioDb();
+        db.policy = "REQUIRED";
         db.challengeRow = Map.of(
                 "challenge_id", "mfa-real-tx",
                 "purpose", "LOGIN_MFA",
@@ -330,6 +325,45 @@ class AdminLockEscalationScenarioTest {
             assertTrue(txManager.committedCount >= 1);
             assertEquals(0, txManager.rolledBackCount);
         }
+    }
+
+    @Test
+    void requestPasswordResetReportsTotpRequiredDynamicallyAndUnlockedAdminResetFailureRaisesTicket() throws Exception {
+        Fixture f = new Fixture();
+        UserEntity admin = adminUser(31, "admin31", "a31@example.com");
+        admin.setTotpSecretEnc("ENC-A31");
+        when(f.users.findActiveByIdentityIncludingLocked("admin31")).thenReturn(Optional.of(admin));
+        when(f.otp.issue(eq(AuthOtpService.Purpose.PASSWORD_RESET), eq("user:31"), eq(""), eq(31), eq("a31@example.com"), eq(f.mail)))
+                .thenReturn(new AuthOtpService.Issued("chal-31", true));
+
+        // 1. ADMIN_CONTROLLED -> Admin exempted -> totpRequired=false
+        f.db.policy = "ADMIN_CONTROLLED";
+        AuthDtos.ChallengeResponse controlledResp = f.service.requestPasswordReset(new AuthDtos.PasswordResetOtpRequest("admin31"));
+        assertTrue(controlledResp.success());
+        assertFalse(controlledResp.totpRequired(), "Exempted ADMIN under ADMIN_CONTROLLED must disable TOTP on Forgot Password screen");
+
+        // 2. REQUIRED -> Admin has MFA on + active secret -> totpRequired=true
+        f.db.policy = "REQUIRED";
+        AuthDtos.ChallengeResponse requiredResp = f.service.requestPasswordReset(new AuthDtos.PasswordResetOtpRequest("admin31"));
+        assertTrue(requiredResp.success());
+        assertTrue(requiredResp.totpRequired(), "ADMIN with active MFA under REQUIRED must enable TOTP field");
+
+        // 3. Unlocked ADMIN failing reset OTP 3 times raises SEC ticket on 3rd failure
+        when(f.otp.verifyWithoutConsume(AuthOtpService.Purpose.PASSWORD_RESET, "chal-31", "000000", ""))
+                .thenThrow(new IllegalArgumentException("Invalid verification code"));
+        when(f.otp.challengeUser(AuthOtpService.Purpose.PASSWORD_RESET, "chal-31")).thenReturn(31);
+        when(f.users.findById(31)).thenReturn(Optional.of(admin));
+        when(f.notifier.notifyAccountLockedAsync(eq(admin), eq("PERMANENT_LOCK"), anyString(), eq("10.0.0.21")))
+                .thenReturn("SEC-UNLOCKED-3");
+
+        var r1 = f.service.completePasswordReset(new AuthDtos.PasswordResetCompleteRequest("chal-31", "000000", "", "ValidPass1"), "10.0.0.21");
+        var r2 = f.service.completePasswordReset(new AuthDtos.PasswordResetCompleteRequest("chal-31", "000000", "", "ValidPass1"), "10.0.0.21");
+        assertNull(r1.incidentTicketId());
+        assertNull(r2.incidentTicketId());
+        var r3 = f.service.completePasswordReset(new AuthDtos.PasswordResetCompleteRequest("chal-31", "000000", "", "ValidPass1"), "10.0.0.21");
+        assertEquals("SEC-UNLOCKED-3", r3.incidentTicketId());
+        assertEquals("PERMANENT_LOCK", admin.getLockReason());
+        verify(f.notifier, times(1)).notifyAccountLockedAsync(eq(admin), eq("PERMANENT_LOCK"), anyString(), eq("10.0.0.21"));
     }
 
     @EnableTransactionManagement
@@ -418,6 +452,8 @@ class AdminLockEscalationScenarioTest {
         String activeTicket;
         boolean checkedActiveOnly;
         Map<String, Object> challengeRow;
+        String policy = "ADMIN_CONTROLLED";
+        String superAdminMfa = "NO";
 
         @Override
         public int update(String sql, Object... args) {
@@ -451,7 +487,8 @@ class AdminLockEscalationScenarioTest {
 
         @Override
         public <T> T queryForObject(String sql, Class<T> type, Object... args) {
-            if (sql.contains("security.auth.mfa.policy")) return type.cast("ADMIN_CONTROLLED");
+            if (sql.contains("security.auth.mfa.policy")) return type.cast(policy);
+            if (sql.contains("security.superadmin.mfa.enabled")) return type.cast(superAdminMfa);
             if (sql.contains("auth_totp_enrollment_pending")) return type.cast(0L);
             if (sql.contains("login_throttle")) return type.cast(0L);
             if (sql.contains("registration_request")) return type.cast(0L);
