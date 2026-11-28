@@ -835,7 +835,9 @@ public final class IconFactory {
         }
         if (button.getStyleClass().contains("square-action")
                 || button.getStyleClass().contains("approved-quick-action")
-                || button.getStyleClass().contains("shortcut-group-button")) return;
+                || button.getStyleClass().contains("shortcut-group-button")
+                || button.getStyleClass().contains("ios-toggle-switch")
+                || button.getStyleClass().contains("apple-toggle-switch")) return;
         if (button.getStyleClass().contains("top-user")) {
             button.getStyleClass().removeAll(BUTTON_VARIANTS);
             button.getStyleClass().remove("erp-action-button");
@@ -1364,7 +1366,7 @@ public final class IconFactory {
         if (value.contains("remote access") || value.contains("remote sharing") || value.contains("tunnel")) return "server";
         if (value.contains("use my company") || value.contains("my company")) return "business";
         if (value.contains("current machine") || value.contains("machine id")) return "application";
-        if (value.contains("license") || value.contains("licensing") || value.contains("subscription") || value.contains("activate") || value.contains("rogue") || value.contains("alert")) return "security";
+        if (value.contains("license") || value.contains("licensing") || value.contains("subscription") || value.contains("activate") || value.contains("rogue") || value.contains("alert") || value.contains("two-factor") || value.contains("mfa")) return "security";
         if (value.contains("3d showcase") || value.contains("showcase")) return "showcase";
         if (value.contains("studio")) return "view";
         if (value.contains("system diagnostics") || value.contains("diagnostics") || value.contains("diagnostic")) return "diagnostic";
@@ -1450,6 +1452,7 @@ public final class IconFactory {
         if (value.contains("registration approvals")) return "approve";
         if (value.contains("company & billing")) return "business";
         if (value.contains("security & session")) return "security-session";
+        if (value.contains("two-factor") || value.contains("mfa")) return "security";
         if (value.contains("keyboard shortcuts") || value.contains("shortcut")) return "shortcut";
         if (value.equals("administrator")) return "administrator";
         if (value.equals("communication")) return "communication";
@@ -1466,14 +1469,14 @@ public final class IconFactory {
         if (value.contains("open github release")) return "github";
         if (value.equals("later")) return "later";
         if (value.equals("schedule")) return "schedule";
-        if (value.contains("run now") || value.contains("run rules")) return "run";
+        if (value.contains("run now") || value.contains("run rules") || value.contains("watchdog")) return "run";
         if (value.equals("rules") || value.contains("manage rules") || value.contains("auto rules")) return "settings";
         if (value.contains("post draft") || value.contains("post voucher")) return "complete";
         if (value.equals("reverse") || value.contains("reverse voucher")) return "rollback";
         if (value.equals("pause")) return "pause";
         if (value.equals("archive")) return "archive";
         if (value.contains("set as default")) return "set-default";
-        if (value.contains("re-send") || value.contains("resend")) return "resend";
+        if (value.contains("re-send") || value.contains("resend") || value.contains("retry")) return "resend";
 
         // Import/export precedence is intentionally before port/reference matching.
         if (value.contains("export pdf")) return "pdf";
@@ -1584,7 +1587,7 @@ public final class IconFactory {
         if (value.matches(".*\\b(role|roles|user-role|admin-role)\\b.*")) return "role";
         if (value.contains("history")) return "history";
         if (value.contains("adjust")) return "adjust";
-        if (value.equals("ok") || value.equals("yes") || value.equals("confirm")) return "complete";
+        if (value.equals("ok") || value.equals("yes") || value.equals("confirm") || value.contains("submit")) return "complete";
         if (value.contains("reopen")) return "reopen";
         if (value.contains("snooze")) return "snooze";
         if (value.contains("reminder")) return "reminder";

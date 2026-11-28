@@ -186,6 +186,15 @@ public final class UniversalBankStatementParser {
         return raw.replaceAll("[^0-9A-Za-z]", "").toUpperCase(Locale.ROOT);
     }
 
+    private static String resolveDefaultHolderName() {
+        try {
+            String name = org.example.service.BrandingService.companyName();
+            return (name != null && !name.isBlank()) ? name : "Primary Account Holder";
+        } catch (Throwable ignored) {
+            return "Primary Account Holder";
+        }
+    }
+
     /**
      * Compares two bank accounts with tolerance for masking (e.g. "XXXX1234") or suffix matching.
      */
@@ -239,7 +248,7 @@ public final class UniversalBankStatementParser {
 
         String detectedBank = "Primary Bank";
         String account = "";
-        String accountHolder = "Jasvi Industries Pvt Ltd";
+        String accountHolder = resolveDefaultHolderName();
         String currency = "INR";
         String branch = "Main Branch";
         String periodFrom = "";

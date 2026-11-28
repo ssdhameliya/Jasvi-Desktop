@@ -262,15 +262,35 @@ public class EmergencyActionService {
                         "Username", user.getUsername() == null ? "" : user.getUsername()
                 );
                 if (email != null && !email.isBlank()) {
-                    var rendered = templates.renderEmail(
+                    var rendered = templates.renderRichEmail(
                             "security_unlock",
                             tokens,
-                            new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                            new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
                                     "#16a34a", "#15803d",
-                                    "Ticket #" + ticketId + " • RESOLVED",
+                                    "SECURITY INCIDENT RESOLVED",
+                                    "UNLOCKED",
+                                    "#15803d",
                                     "🎉 Account Successfully Unlocked",
+                                    "Ticket #" + ticketId + " • Access restored",
+                                    "Your " + brand + " account (" + user.getUsername() + ") has been unlocked.",
+                                    List.of(
+                                            new org.example.shared.communication.TokenTemplateEngine.MetaColumn("TICKET ID", ticketId == null ? "-" : ticketId),
+                                            new org.example.shared.communication.TokenTemplateEngine.MetaColumn("USERNAME", user.getUsername() == null ? "-" : user.getUsername()),
+                                            new org.example.shared.communication.TokenTemplateEngine.MetaColumn("STATUS", "ACTIVE", "#15803d")
+                                    ),
+                                    List.of(
+                                            org.example.shared.communication.TokenTemplateEngine.calloutBoxHtml(
+                                                    "ACCESS RESTORED",
+                                                    user.getUsername() == null ? adminDisplayName : user.getUsername(),
+                                                    "Your existing password and MFA credentials remain active. You may sign in immediately.",
+                                                    "#16a34a",
+                                                    "#f0fdf4",
+                                                    "#15803d"
+                                            )
+                                    ),
                                     List.of(),
-                                    brand + " Autonomous Security Sentinel • Incident Ticket #" + ticketId
+                                    brand + " Autonomous Security Sentinel • Incident Ticket #" + ticketId,
+                                    null
                             )
                     );
                     mailService.sendBusiness(email, rendered.subject(), rendered.body());
@@ -304,15 +324,35 @@ public class EmergencyActionService {
                         "UserEmail", email == null ? "" : email
                 );
                 if (email != null && !email.isBlank()) {
-                    var rendered = templates.renderEmail(
+                    var rendered = templates.renderRichEmail(
                             "security_recovery_reset",
                             tokens,
-                            new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
+                            new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
                                     "#d97706", "#b45309",
-                                    "Ticket #" + ticketId + " • ACTION REQUIRED",
+                                    "SECURITY RECOVERY",
+                                    "ACTION REQUIRED",
+                                    "#b45309",
                                     "🔑 Temporary Password Dispatched",
+                                    "Ticket #" + ticketId + " • Mandatory password change on sign-in",
+                                    "Temporary recovery password generated for " + user.getUsername() + " (Ticket #" + ticketId + ")",
+                                    List.of(
+                                            new org.example.shared.communication.TokenTemplateEngine.MetaColumn("TICKET ID", ticketId == null ? "-" : ticketId),
+                                            new org.example.shared.communication.TokenTemplateEngine.MetaColumn("USERNAME", user.getUsername() == null ? "-" : user.getUsername()),
+                                            new org.example.shared.communication.TokenTemplateEngine.MetaColumn("ROTATION", "REQUIRED", "#b45309")
+                                    ),
+                                    List.of(
+                                            org.example.shared.communication.TokenTemplateEngine.calloutBoxHtml(
+                                                    "ONE-TIME TEMPORARY PASSWORD",
+                                                    tempPassword == null ? "-" : tempPassword,
+                                                    "Sign in and immediately rotate this temporary password. Do not forward this email.",
+                                                    "#d97706",
+                                                    "#fffbeb",
+                                                    "#92400e"
+                                            )
+                                    ),
                                     List.of(),
-                                    brand + " Autonomous Security Sentinel • Incident Ticket #" + ticketId
+                                    brand + " Autonomous Security Sentinel • Incident Ticket #" + ticketId,
+                                    null
                             )
                     );
                     mailService.sendBusiness(email, rendered.subject(), rendered.body());

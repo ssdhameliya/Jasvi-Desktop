@@ -1,5 +1,8 @@
 package org.example.server.auth;
 
+import jakarta.persistence.PersistenceException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -7,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -16,6 +20,7 @@ import java.time.DateTimeException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(basePackageClasses = AuthController.class)
 public class AuthApiExceptionHandler {
+    private static final Logger LOG = LoggerFactory.getLogger(AuthApiExceptionHandler.class);
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<AuthDtos.OperationResponse> badRequest(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(new AuthDtos.OperationResponse(false, directMessage(ex)));
@@ -72,8 +77,29 @@ public class AuthApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<AuthDtos.OperationResponse> serverError(Exception ex) {
-        ex.printStackTrace();
+        LOG.error("Unhandled authentication request failure", ex);
+        if (ex instanceof DataAccessException || ex instanceof PersistenceException || hasPersistenceOrSqlCause(ex)) {
+            return ResponseEntity.internalServerError().body(new AuthDtos.OperationResponse(
+                    false,
+                    "Authentication service encountered a database error while processing your request. Please try again or contact your administrator."
+            ));
+        }
         return ResponseEntity.internalServerError().body(new AuthDtos.OperationResponse(false, directMessage(ex)));
+    }
+
+    private static boolean hasPersistenceOrSqlCause(Throwable ex) {
+        Throwable cursor = ex;
+        while (cursor != null) {
+            if (cursor instanceof PersistenceException || cursor instanceof org.hibernate.JDBCException) {
+                return true;
+            }
+            String className = cursor.getClass().getName();
+            if (className.endsWith("SQLException") || className.startsWith("org.postgresql.")) {
+                return true;
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
     }
 
     private String directMessage(Throwable failure) {

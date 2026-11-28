@@ -53,6 +53,7 @@ public final class DeepLinkRouter {
         if(text.contains("purchasereturn") || text.contains("purchase return")) return "PURCHASE_RETURN";
         if(text.contains("saleslist")||text.contains("sale")) return "SALE";
         if(text.contains("purchaselist")||text.contains("purchase")) return "PURCHASE";
+        if(text.contains("enquirieslist")||text.contains("enquiry")) return "ENQUIRY";
         if(text.contains("quotation")) return "QUOTATION";
         if(text.contains("itemmaster")||text.contains("inventory")) return "ITEM";
         if(text.contains("customer")) return "CUSTOMER";

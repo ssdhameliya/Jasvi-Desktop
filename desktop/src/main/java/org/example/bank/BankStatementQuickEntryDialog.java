@@ -191,6 +191,37 @@ public final class BankStatementQuickEntryDialog {
         txtNotes.setWrapText(true);
         txtNotes.getStyleClass().add("input-field");
 
+        CheckBox chkClaimGst = new CheckBox("Claim GST Input Credit on Bank Fee / Expense");
+        chkClaimGst.getStyleClass().addAll("approved-checkbox", "ios-toggle-switch");
+        ComboBox<Double> cmbGstRate = new ComboBox<>(FXCollections.observableArrayList(5.0, 12.0, 18.0, 28.0));
+        cmbGstRate.setValue(18.0);
+        cmbGstRate.disableProperty().bind(chkClaimGst.selectedProperty().not());
+        ComboBox<String> cmbSupplyType = new ComboBox<>(FXCollections.observableArrayList("Intra-State (CGST+SGST)", "Inter-State (IGST)"));
+        cmbSupplyType.setValue("Intra-State (CGST+SGST)");
+        cmbSupplyType.disableProperty().bind(chkClaimGst.selectedProperty().not());
+        TextField txtVendorGstin = new TextField();
+        txtVendorGstin.setPromptText("Optional Bank / Vendor GSTIN");
+        txtVendorGstin.getStyleClass().add("approved-input");
+        txtVendorGstin.disableProperty().bind(chkClaimGst.selectedProperty().not());
+        Label lblGstPreview = new Label("No GST ITC split (full amount booked to expense)");
+        lblGstPreview.getStyleClass().add("bank-dialog-help");
+
+        Runnable updateGstPreview = () -> {
+            if (!chkClaimGst.isSelected()) {
+                lblGstPreview.setText("No GST ITC split (full ₹ " + money(tx.debit()) + " booked to expense)");
+                return;
+            }
+            double r = cmbGstRate.getValue() == null ? 18.0 : cmbGstRate.getValue();
+            double base = Math.round((tx.debit() / (1.0 + r / 100.0)) * 100.0) / 100.0;
+            double tax = Math.round((tx.debit() - base) * 100.0) / 100.0;
+            boolean inter = cmbSupplyType.getValue() != null && cmbSupplyType.getValue().contains("IGST");
+            lblGstPreview.setText("Base Expense: ₹ " + money(base) + " + " + (inter ? "IGST " : "CGST+SGST ") + r + "%: ₹ " + money(tax) + " = Total ₹ " + money(tx.debit()));
+        };
+        chkClaimGst.selectedProperty().addListener((o, a, b) -> updateGstPreview.run());
+        cmbGstRate.valueProperty().addListener((o, a, b) -> updateGstPreview.run());
+        cmbSupplyType.valueProperty().addListener((o, a, b) -> updateGstPreview.run());
+        updateGstPreview.run();
+
         CheckBox chkRule = new CheckBox("Remember rule for future statements");
         chkRule.getStyleClass().addAll("approved-checkbox", "ios-toggle-switch");
         String suggestedPattern = BankReconciliationRulesDialog.suggestNarrationPattern(tx.description());
@@ -208,6 +239,10 @@ public final class BankStatementQuickEntryDialog {
         addField(grid, row++, "Bank Account", "bank", txtAccount);
         addField(grid, row++, "Payment Mode", "payment", cmbMode);
         addField(grid, row++, "Description / Notes", "notes", txtNotes);
+        addField(grid, row++, "GST Input Credit", "tax", chkClaimGst);
+        HBox gstConfigRow = new HBox(8, cmbGstRate, cmbSupplyType, txtVendorGstin);
+        HBox.setHgrow(txtVendorGstin, Priority.ALWAYS);
+        addField(grid, row++, "GST Split / GSTIN", "tax", new VBox(4, gstConfigRow, lblGstPreview));
         if (allowRememberRule) {
             addField(grid, row++, "Smart Auto-Rule", "reconcile", chkRule);
             HBox ruleRow = new HBox(8, txtPattern, cmbExecMode);
@@ -228,7 +263,7 @@ public final class BankStatementQuickEntryDialog {
         content.setMinWidth(600);
         dialog.getDialogPane().setContent(content);
         SearchableComboBoxHelper.makeAllSearchable(content);
-        PopupTableWorkspace.prepareDialog(dialog, 720);
+        PopupTableWorkspace.prepareDialog(dialog, 760);
 
         ButtonType saveBtnType = new ButtonType("Save Expense & Reconcile", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().setAll(ButtonType.CANCEL, saveBtnType);
@@ -247,13 +282,17 @@ public final class BankStatementQuickEntryDialog {
             if (mode.isBlank()) mode = "Bank Transfer";
             String account = safe(txtAccount.getText());
             String notes = safe(txtNotes.getText());
+            double gstRate = chkClaimGst.isSelected() && cmbGstRate.getValue() != null ? cmbGstRate.getValue() : 0.0;
+            boolean interState = chkClaimGst.isSelected() && cmbSupplyType.getValue() != null && cmbSupplyType.getValue().contains("IGST");
+            String vendorGstin = chkClaimGst.isSelected() ? safe(txtVendorGstin.getText()) : null;
             boolean saveRule = allowRememberRule && chkRule.isSelected() && !safe(txtPattern.getText()).isBlank();
             String pattern = safe(txtPattern.getText());
             String execMode = cmbExecMode.getValue();
             final String finalMode = mode;
 
             UiTaskExecutor.submitSerial("bank-statement-quick-expense-" + tx.id(), () -> {
-                var res = api.expense(tx.id(), new BankStatementApiClient.ExpenseRequest(cat, account, finalMode, notes, null, performedBy));
+                var res = api.expense(tx.id(), new BankStatementApiClient.ExpenseRequest(
+                        cat, account, finalMode, notes, null, performedBy, gstRate, interState, vendorGstin));
                 if (saveRule) {
                     try {
                         api.createRule(new BankStatementApiClient.RuleSaveRequest(

@@ -142,7 +142,7 @@
                     <HBox spacing="20" alignment="CENTER_LEFT" styleClass="account-flags-row">
                         <CheckBox fx:id="chkActive" text="Active Account" selected="true" styleClass="approved-checkbox"/>
                         <CheckBox fx:id="chkLocked" text="Account Locked" styleClass="approved-checkbox"/>
-                        <CheckBox fx:id="chkMfa" text="Require Two-Factor (MFA)" styleClass="approved-checkbox"/>
+                        <ToggleButton fx:id="chkMfa" text="Two-Factor MFA: OFF" styleClass="apple-toggle-switch,ios-toggle-switch"/>
                     </HBox>
 
                     <GridPane hgap="16" vgap="8">

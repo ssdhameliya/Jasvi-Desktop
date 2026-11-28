@@ -503,12 +503,17 @@ public final class QuotationDocumentInspectionDialog {
                     if (quote.date() != null && !quote.date().isBlank()) qDate = LocalDate.parse(quote.date().trim());
                 } catch (Exception ignored) {}
                 MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatQuotationEmail(quote.no(), quote.customer(), qDate, quote.amount());
+                List<org.example.api.quotation.QuotationApiClient.LineDto> quoteLines = List.of();
+                try {
+                    quoteLines = api.lines(quote.id());
+                } catch (Exception ignored) {}
                 String sigImg = MessageTemplateService.getSignatureImagePath();
                 Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
                 String fallbackEmail = quote.email() == null ? "" : quote.email().trim();
                 String fallbackPhone = quote.phone() == null ? "" : quote.phone().trim();
                 var resolvedRecipients = PartyRecipientResolver.resolveCustomer(quote.customerId(), fallbackEmail, fallbackPhone);
                 String targetEmail = resolvedRecipients.emailString().isBlank() ? fallbackEmail : resolvedRecipients.emailString();
+                String badge = quote.status() != null && !quote.status().isBlank() ? quote.status() : "QUOTATION";
                 return new EmailTransmissionDialog.EmailDraft(
                         "Transmit Quotation via Email",
                         "Direct SMTP delivery to customer contact",
@@ -518,7 +523,16 @@ public final class QuotationDocumentInspectionDialog {
                         msg.subject(),
                         msg.body(),
                         pdf,
-                        sigPath
+                        sigPath,
+                        "quote",
+                        null,
+                        quote.amount(),
+                        0.0,
+                        quote.amount(),
+                        badge,
+                        "QUOTATION",
+                        quote.id(),
+                        MessageTemplateService.RichEmailContext.forQuotation(quote, quoteLines)
                 );
             }, draft -> {
                 Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(dialog.getDialogPane(), draft);
@@ -526,7 +540,7 @@ public final class QuotationDocumentInspectionDialog {
                 EmailTransmissionDialog.TransmissionResult result = opt.get();
                 LiveOperationDialog.run(dialog.getDialogPane(), "Sending Quotation Email", "email", "Connecting to SMTP server...", reporter -> {
                     reporter.stage(1, 3, "Connecting to SMTP and transmitting email to " + result.recipientEmail() + "...");
-                    EmailService.send(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage());
+                    EmailService.send(draft, result);
                     reporter.stage(2, 3, "Recording communication history in audit register...");
                     api.markSent(quote.id(), "EMAIL", quote.rowVersion());
                     try {

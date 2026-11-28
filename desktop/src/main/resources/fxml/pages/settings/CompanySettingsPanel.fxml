@@ -156,6 +156,47 @@
                                         </FlowPane>
                                     </VBox>
                                 </GridPane>
+                                <VBox spacing="8" maxWidth="Infinity" styleClass="settings-asset-card,settings-brand-asset-card">
+                                    <HBox alignment="CENTER_LEFT" spacing="12">
+                                        <VBox spacing="2" HBox.hgrow="ALWAYS">
+                                            <Label text="Screen Panel Background Image" styleClass="settings-form-label"/>
+                                            <Label text="Subtle widescreen background shown behind whitespace areas on Startup, Login, Registration, Email Config, and Main Workspace panels • Recommended 1920 × 1080" wrapText="true" styleClass="settings-asset-purpose"/>
+                                        </VBox>
+                                        <CheckBox fx:id="chkBackgroundEnabled" text="Enable Screen Background" selected="true"/>
+                                    </HBox>
+                                    <GridPane hgap="14" vgap="8" maxWidth="Infinity">
+                                        <columnConstraints>
+                                            <ColumnConstraints percentWidth="58" hgrow="ALWAYS"/>
+                                            <ColumnConstraints percentWidth="42" hgrow="ALWAYS"/>
+                                        </columnConstraints>
+                                        <VBox spacing="7" minWidth="0" maxWidth="Infinity" GridPane.columnIndex="0">
+                                            <StackPane fx:id="applicationBackgroundPreview" minWidth="0" minHeight="92" prefHeight="102" maxHeight="112" maxWidth="Infinity" styleClass="settings-image-preview">
+                                                <ImageView fx:id="imgApplicationBackground" preserveRatio="false" smooth="true"/>
+                                                <VBox fx:id="placeholderApplicationBackground" alignment="CENTER" spacing="6">
+                                                    <Label text="▤" styleClass="settings-placeholder-icon"/>
+                                                    <Label text="No background image selected" styleClass="settings-help-text"/>
+                                                </VBox>
+                                            </StackPane>
+                                            <Label fx:id="lblApplicationBackgroundFile" text="No image selected" maxWidth="Infinity" textOverrun="CENTER_ELLIPSIS" styleClass="settings-asset-filename"/>
+                                            <FlowPane hgap="8" vgap="8" prefWrapLength="420" styleClass="settings-asset-actions">
+                                                <Button text="Add / Replace" onAction="#uploadApplicationBackground" styleClass="settings-secondary-button,approved-button,approved-primary-button"/>
+                                                <Button text="Preview" onAction="#previewApplicationBackground" styleClass="settings-secondary-button,approved-button,approved-secondary-button"/>
+                                                <Button text="Remove" onAction="#removeApplicationBackground" styleClass="settings-remove-button,approved-button,approved-danger-button"/>
+                                            </FlowPane>
+                                        </VBox>
+                                        <VBox spacing="10" minWidth="0" maxWidth="Infinity" GridPane.columnIndex="1">
+                                            <VBox spacing="4">
+                                                <Label text="Apply Background To" styleClass="settings-form-label"/>
+                                                <ComboBox fx:id="cmbBackgroundScope" maxWidth="Infinity" styleClass="approved-input"/>
+                                            </VBox>
+                                            <VBox spacing="4">
+                                                <Label text="Background Visibility" styleClass="settings-form-label"/>
+                                                <ComboBox fx:id="cmbBackgroundIntensity" maxWidth="Infinity" styleClass="approved-input"/>
+                                            </VBox>
+                                            <Label text="A Light/Dark readability tint automatically preserves card contrast and text legibility." wrapText="true" styleClass="settings-field-hint"/>
+                                        </VBox>
+                                    </GridPane>
+                                </VBox>
                             </VBox>
 
                             <Separator/>

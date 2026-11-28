@@ -46,7 +46,19 @@ public class ClientRegistryApiClient {
     }
 
     public Map<String, Object> renewClient(Long id, int days) {
-        return post("/api/license/registry/renew/" + id, Map.of("days", days), new TypeReference<>() {});
+        return renewClient(id, days, null, null);
+    }
+
+    public Map<String, Object> renewClient(Long id, int days, String utrReference, Double amountPaid) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("days", days);
+        if (utrReference != null && !utrReference.isBlank()) {
+            body.put("utrReference", utrReference.trim());
+        }
+        if (amountPaid != null && amountPaid > 0) {
+            body.put("amountPaid", amountPaid);
+        }
+        return post("/api/license/registry/renew/" + id, body, new TypeReference<>() {});
     }
 
     public Map<String, Object> revokeClient(Long id) {
@@ -202,6 +214,14 @@ public class ClientRegistryApiClient {
 
     public Map<String, Object> triggerTestRogueAlert() {
         return post("/api/license/super/test-rogue-alert", Map.of(), new TypeReference<>() {});
+    }
+
+    public List<Map<String, Object>> getClientMonthlySummary(String machineId) {
+        return get("/api/license/registry/clients/" + enc(machineId) + "/monthly-summary", new TypeReference<>() {});
+    }
+
+    public Map<String, Object> runWatchdog() {
+        return post("/api/license/registry/watchdog/run", Map.of(), new TypeReference<>() {});
     }
 
     private <T> T get(String path, TypeReference<T> typeRef) {

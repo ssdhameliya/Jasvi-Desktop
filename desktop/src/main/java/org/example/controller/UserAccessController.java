@@ -415,7 +415,7 @@ String mfaState = r.mfaStatus() != null ? r.mfaStatus() : (r.mfaEnabled() ? "ACT
 String mfaLabel = switch (mfaState.toUpperCase(Locale.ROOT)) {
     case "ACTIVE" -> "Active";
     case "PENDING_SETUP" -> "Pending Setup";
-    default -> "—";
+    default -> "Off";
 };
 mfa=new SimpleStringProperty(mfaLabel);}}
     public static final class RoleRow{final int id;final String code;final SimpleStringProperty name,description,status;final SimpleIntegerProperty users;final boolean active;RoleRow(AdminApiClient.RoleDto r){id=r.id();code=blank(r.code(),"").toUpperCase(Locale.ROOT);name=new SimpleStringProperty(blank(r.displayName(),code));description=new SimpleStringProperty(blank(r.description(),"No description"));users=new SimpleIntegerProperty((int)r.userCount());active=r.active();status=new SimpleStringProperty(active?"Active":"Inactive");}}

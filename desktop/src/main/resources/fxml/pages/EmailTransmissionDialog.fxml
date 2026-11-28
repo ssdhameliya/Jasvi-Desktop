@@ -57,6 +57,22 @@
                     <Label fx:id="errRecipient" text="Valid recipient email address is required" visible="false" managed="false" styleClass="validation-message,email-transmission-error"/>
                 </VBox>
 
+                <!-- Optional CC & BCC Copies -->
+                <GridPane hgap="12" vgap="6">
+                    <columnConstraints>
+                        <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                        <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                    </columnConstraints>
+                    <VBox spacing="4" GridPane.columnIndex="0" GridPane.rowIndex="0">
+                        <Label text="CC (Optional)" styleClass="field-label,settings-form-label"/>
+                        <TextField fx:id="txtCc" promptText="partner@example.com; accounts@example.com" styleClass="approved-input"/>
+                    </VBox>
+                    <VBox spacing="4" GridPane.columnIndex="1" GridPane.rowIndex="0">
+                        <Label text="BCC / Archive (Optional)" styleClass="field-label,settings-form-label"/>
+                        <TextField fx:id="txtBcc" promptText="audit@company.com" styleClass="approved-input"/>
+                    </VBox>
+                </GridPane>
+
                 <!-- Subject -->
                 <VBox spacing="6">
                     <Label text="Subject *" styleClass="field-label,settings-form-label,email-transmission-field-bold"/>

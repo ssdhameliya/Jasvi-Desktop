@@ -1038,7 +1038,16 @@ public final class PurchaseDocumentInspectionDialog {
                         msg.subject(),
                         msg.body(),
                         pdf,
-                        sigPath
+                        sigPath,
+                        "purchase",
+                        null,
+                        full.getTotalAmount(),
+                        full.getPaidAmount(),
+                        full.getBalanceAmount(),
+                        full.getPaymentStatus(),
+                        "PURCHASE",
+                        full.getId(),
+                        MessageTemplateService.RichEmailContext.forPurchase(full)
                 );
             }, draft -> {
                 Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(dialog.getDialogPane(), draft);
@@ -1046,7 +1055,7 @@ public final class PurchaseDocumentInspectionDialog {
                 EmailTransmissionDialog.TransmissionResult result = opt.get();
                 LiveOperationDialog.run(dialog.getDialogPane(), "Sending Purchase Order Email", "email", "Connecting to SMTP server...", reporter -> {
                     reporter.stage(1, 3, "Connecting to SMTP and transmitting email to " + result.recipientEmail() + "...");
-                    EmailService.send(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage());
+                    EmailService.send(draft, result);
                     reporter.stage(2, 3, "Recording communication status in audit register...");
                     service.markEmailSent(purchase.getId());
                     try {

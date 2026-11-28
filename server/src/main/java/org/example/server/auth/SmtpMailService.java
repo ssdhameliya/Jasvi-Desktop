@@ -174,26 +174,54 @@ public class SmtpMailService {
             message.setRecipient(Message.RecipientType.TO, destination);
             var templates = org.example.server.communication.ServerNotificationTemplateService.forJdbc(db);
             String brand = companyName();
-            String defaultSubject = companyName() + " " + purpose + " code";
-            var rendered = templates.renderEmail(
+            String safePurpose = purpose == null || purpose.isBlank() ? "verification" : purpose;
+            String safeCode = code == null ? "" : code;
+            String defaultSubject = brand + " " + safePurpose + " code";
+            var otpCallout = org.example.shared.communication.TokenTemplateEngine.calloutBoxHtml(
+                    "One-Time Verification Code",
+                    safeCode,
+                    "Expires in 10 minutes • Keep this code confidential",
+                    "#2563eb",
+                    "#eff6ff",
+                    "#1e3a8a"
+            );
+            var otpDetails = org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                    "Verification Request Details",
+                    "#1e3a8a",
+                    List.of(
+                            new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Verification Purpose", safePurpose),
+                            new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Recipient Email", recipient == null ? "" : recipient),
+                            new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Validity Window", "10 Minutes", false, "#b45309", "#fef3c7")
+                    )
+            );
+            var rendered = templates.renderRichEmail(
                     "auth_otp",
                     java.util.Map.of(
                             "CompanyName", brand,
                             "AppName", brand + " ERP",
-                            "Purpose", purpose == null ? "verification" : purpose,
-                            "OtpCode", code == null ? "" : code,
+                            "Purpose", safePurpose,
+                            "OtpCode", safeCode,
                             "ExpiryMinutes", "10"
                     ),
-                    new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
-                            "#0f172a", "#1e3a8a", "Security Verification",
-                            brand + " Verification Code", java.util.List.of(),
-                            "Automated Security Verification • " + brand
+                    new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
+                            "#0f172a", "#1e3a8a",
+                            "IDENTITY & ACCOUNT SECURITY",
+                            "OTP CODE",
+                            "#1d4ed8",
+                            brand + " Verification Code",
+                            "Single-use security challenge",
+                            "Your " + brand + " verification code is " + safeCode + " (valid for 10 minutes).",
+                            List.of(),
+                            List.of(otpCallout, otpDetails),
+                            List.of(),
+                            "Automated Security Verification • " + brand,
+                            "If you did not initiate this request, you can safely ignore this message."
                     )
             );
             String finalSubject = rendered.subject() != null && !rendered.subject().isBlank() ? rendered.subject() : defaultSubject;
             message.setSubject(finalSubject);
             if (rendered.html()) {
-                message.setContent(rendered.body(), "text/html; charset=UTF-8");
+                message.setContent(buildAlternativeBody(rendered.body()));
             } else {
                 message.setText(rendered.body());
             }
@@ -238,6 +266,27 @@ public class SmtpMailService {
     }
 
     public void sendBusiness(String recipient, String subject, String body, List<Attachment> attachments, Attachment signatureImage, String customFromEmail, String customFromName) {
+        sendBusinessWithCopies(recipient, null, null, subject, body, attachments, signatureImage, customFromEmail, customFromName);
+    }
+
+    public void sendBusinessWithInlineImages(String recipient, String subject, String body, List<Attachment> attachments, List<InlineAttachment> inlineImages) {
+        sendBusinessWithCopies(recipient, null, null, subject, body, attachments, inlineImages, null, null);
+    }
+
+    public void sendBusinessWithCopies(String recipient, String recipientCc, String recipientBcc, String subject, String body,
+                                       List<Attachment> attachments, Attachment signatureImage, String customFromEmail, String customFromName) {
+        List<InlineAttachment> inlineImages = (signatureImage != null && signatureImage.data() != null && signatureImage.data().length > 0)
+                ? List.of(new InlineAttachment(
+                        "signatureImage",
+                        signatureImage.name() == null || signatureImage.name().isBlank() ? "signature.png" : signatureImage.name(),
+                        signatureImage.contentType() == null || signatureImage.contentType().isBlank() ? "image/png" : signatureImage.contentType(),
+                        signatureImage.data()))
+                : List.of();
+        sendBusinessWithCopies(recipient, recipientCc, recipientBcc, subject, body, attachments, inlineImages, customFromEmail, customFromName);
+    }
+
+    public void sendBusinessWithCopies(String recipient, String recipientCc, String recipientBcc, String subject, String body,
+                                       List<Attachment> attachments, List<InlineAttachment> inlineImages, String customFromEmail, String customFromName) {
         Settings settings = settings();
         if (settings.host().isBlank() || settings.email().isBlank() || settings.password().isBlank())
             throw new IllegalStateException("Server business email is not configured");
@@ -257,48 +306,61 @@ public class SmtpMailService {
                 } catch (Exception ignored) {}
             }
             message.setRecipients(Message.RecipientType.TO, parseRecipientAddresses(recipient));
+            if (recipientCc != null && !recipientCc.isBlank()) {
+                message.setRecipients(Message.RecipientType.CC, parseRecipientAddresses(recipientCc));
+            }
+            if (recipientBcc != null && !recipientBcc.isBlank()) {
+                message.setRecipients(Message.RecipientType.BCC, parseRecipientAddresses(recipientBcc));
+            }
             message.setSubject(subject == null ? companyName() + " document" : subject);
             List<Attachment> files = attachments == null ? List.of() : attachments.stream()
                     .filter(a -> a != null && a.data() != null && a.data().length > 0).toList();
-            boolean hasSig = signatureImage != null && signatureImage.data() != null && signatureImage.data().length > 0;
+            List<InlineAttachment> cids = inlineImages == null ? List.of() : inlineImages.stream()
+                    .filter(i -> i != null && i.data() != null && i.data().length > 0 && i.contentId() != null && !i.contentId().isBlank())
+                    .toList();
+            boolean hasSignatureCid = cids.stream().anyMatch(c -> "signatureImage".equals(c.contentId()));
             boolean isHtml = isHtmlContent(body);
-            if (files.isEmpty() && !hasSig) {
+            if (files.isEmpty() && cids.isEmpty()) {
                 if (isHtml) {
-                    message.setContent(body == null ? "" : body, "text/html; charset=UTF-8");
+                    message.setContent(buildAlternativeBody(body));
                 } else {
                     message.setText(body == null ? "" : body);
                 }
             } else {
                 var rootMultipart = new jakarta.mail.internet.MimeMultipart("mixed");
 
-                if (hasSig) {
+                if (!cids.isEmpty()) {
                     var relatedMultipart = new jakarta.mail.internet.MimeMultipart("related");
 
-                    var htmlPart = new jakarta.mail.internet.MimeBodyPart();
-                    String htmlContent = formatHtmlEmailBody(body, true);
-                    htmlPart.setContent(htmlContent, "text/html; charset=UTF-8");
-                    relatedMultipart.addBodyPart(htmlPart);
+                    var htmlWrapper = new jakarta.mail.internet.MimeBodyPart();
+                    String htmlContent = formatHtmlEmailBody(body, hasSignatureCid);
+                    htmlWrapper.setContent(buildAlternativeBody(htmlContent));
+                    relatedMultipart.addBodyPart(htmlWrapper);
 
-                    var imgPart = new jakarta.mail.internet.MimeBodyPart();
-                    String sigMime = signatureImage.contentType() == null || signatureImage.contentType().isBlank() ? "image/png" : signatureImage.contentType();
-                    imgPart.setDataHandler(new jakarta.activation.DataHandler(new jakarta.mail.util.ByteArrayDataSource(signatureImage.data(), sigMime)));
-                    imgPart.setContentID("<signatureImage>");
-                    imgPart.setHeader("Content-ID", "<signatureImage>");
-                    imgPart.setDisposition(jakarta.mail.Part.INLINE);
-                    imgPart.setHeader("Content-Type", sigMime + "; name=\"" + signatureImage.name() + "\"");
-                    relatedMultipart.addBodyPart(imgPart);
+                    for (InlineAttachment inline : cids) {
+                        var imgPart = new jakarta.mail.internet.MimeBodyPart();
+                        String mime = inline.contentType() == null || inline.contentType().isBlank() ? "image/png" : inline.contentType();
+                        String cid = inline.contentId().trim();
+                        String name = inline.name() == null || inline.name().isBlank() ? cid + ".png" : inline.name();
+                        imgPart.setDataHandler(new jakarta.activation.DataHandler(new jakarta.mail.util.ByteArrayDataSource(inline.data(), mime)));
+                        imgPart.setContentID("<" + cid + ">");
+                        imgPart.setHeader("Content-ID", "<" + cid + ">");
+                        imgPart.setDisposition(jakarta.mail.Part.INLINE);
+                        imgPart.setHeader("Content-Type", mime + "; name=\"" + name + "\"");
+                        relatedMultipart.addBodyPart(imgPart);
+                    }
 
                     var bodyWrapper = new jakarta.mail.internet.MimeBodyPart();
                     bodyWrapper.setContent(relatedMultipart);
                     rootMultipart.addBodyPart(bodyWrapper);
                 } else {
-                    var text = new jakarta.mail.internet.MimeBodyPart();
+                    var textWrapper = new jakarta.mail.internet.MimeBodyPart();
                     if (isHtml) {
-                        text.setContent(body == null ? "" : body, "text/html; charset=UTF-8");
+                        textWrapper.setContent(buildAlternativeBody(body));
                     } else {
-                        text.setText(body == null ? "" : body);
+                        textWrapper.setText(body == null ? "" : body);
                     }
-                    rootMultipart.addBodyPart(text);
+                    rootMultipart.addBodyPart(textWrapper);
                 }
 
                 for (Attachment attachment : files) {
@@ -319,10 +381,38 @@ public class SmtpMailService {
         }
     }
 
-    private static boolean isHtmlContent(String content) {
+    public static boolean isHtmlContent(String content) {
         if (content == null || content.isBlank()) return false;
         String trimmed = content.trim().toLowerCase(java.util.Locale.ROOT);
         return trimmed.startsWith("<") || trimmed.contains("<html") || trimmed.contains("<div") || trimmed.contains("<table") || trimmed.contains("<p>");
+    }
+
+    private static jakarta.mail.internet.MimeMultipart buildAlternativeBody(String htmlBody) throws jakarta.mail.MessagingException {
+        var alternative = new jakarta.mail.internet.MimeMultipart("alternative");
+        var plainPart = new jakarta.mail.internet.MimeBodyPart();
+        plainPart.setText(stripHtmlToPlainText(htmlBody), "UTF-8");
+        alternative.addBodyPart(plainPart);
+        var htmlPart = new jakarta.mail.internet.MimeBodyPart();
+        htmlPart.setContent(htmlBody == null ? "" : htmlBody, "text/html; charset=UTF-8");
+        alternative.addBodyPart(htmlPart);
+        return alternative;
+    }
+
+    private static String stripHtmlToPlainText(String html) {
+        if (html == null || html.isBlank()) return "";
+        String text = html
+                .replaceAll("(?is)<style[^>]*>.*?</style>", " ")
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</(p|div|tr|li|h[1-6])>", "\n")
+                .replaceAll("<[^>]+>", " ")
+                .replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replaceAll("[ \\t\\x0B\\f\\r]+", " ")
+                .replaceAll("\\n{3,}", "\n\n")
+                .trim();
+        return text.isBlank() ? "Please view this message in an HTML-compatible email client." : text;
     }
 
     private static String formatHtmlEmailBody(String body, boolean includeInlineSignatureImage) {
@@ -347,13 +437,13 @@ public class SmtpMailService {
             sb.append(contentHtml);
             if (includeInlineSignatureImage) {
                 sb.append("<div style=\"margin-top: 16px; margin-bottom: 8px;\">");
-                sb.append("<img src=\"cid:signatureImage\" alt=\"Signature / Stamp\" style=\"max-height: 90px; max-width: 260px; object-fit: contain; border: none; display: block;\" />");
+                sb.append("<img src=\"cid:signatureImage\" alt=\"Signature / Stamp\" style=\"width: auto; max-width: 100%; max-height: 115px; height: auto; border: none; display: block;\" />");
                 sb.append("</div>");
             }
             sb.append("</body></html>");
         } else {
-            if (includeInlineSignatureImage) {
-                String sigTag = "<div style=\"margin-top: 16px; margin-bottom: 8px;\"><img src=\"cid:signatureImage\" alt=\"Signature / Stamp\" style=\"max-height: 90px; max-width: 260px; object-fit: contain; border: none; display: block;\" /></div>";
+            if (includeInlineSignatureImage && !contentHtml.contains("cid:signatureImage")) {
+                String sigTag = "<div style=\"margin-top: 16px; margin-bottom: 8px;\"><img src=\"cid:signatureImage\" alt=\"Signature / Stamp\" style=\"width: auto; max-width: 100%; max-height: 115px; height: auto; border: none; display: block;\" /></div>";
                 if (contentHtml.contains("</body>")) {
                     contentHtml = contentHtml.replace("</body>", sigTag + "</body>");
                 } else {
@@ -474,7 +564,7 @@ public class SmtpMailService {
     private String setting(String key, String fallback) {
         try {
             String value = db.queryForObject("SELECT setting_value FROM application_setting WHERE setting_key=?", String.class, key);
-            return value == null ? fallback : value;
+            return value == null ? (fallback == null ? "" : fallback) : value;
         } catch (Exception ignored) {
             return fallback == null ? "" : fallback;
         }
@@ -518,6 +608,7 @@ public class SmtpMailService {
         return address.substring(0, 1) + "***" + address.substring(at);
     }
 
+    public record InlineAttachment(String contentId, String name, String contentType, byte[] data) {}
     public record Attachment(String name, String contentType, byte[] data) {}
     public record PathAttachment(String name, String contentType, Path path) {}
     public record Settings(String host, int port, String email, String password) {}

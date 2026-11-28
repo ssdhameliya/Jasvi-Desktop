@@ -14,6 +14,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
@@ -24,10 +29,30 @@ public class SecurityConfig {
     }
 
     @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration publicShowcase = new CorsConfiguration();
+        publicShowcase.setAllowedOriginPatterns(List.of(
+                "https://web-uat.jasviindustries.in",
+                "https://jasviindustries.in",
+                "https://www.jasviindustries.in",
+                "http://localhost:*",
+                "http://127.0.0.1:*"
+        ));
+        publicShowcase.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        publicShowcase.setAllowedHeaders(List.of("Content-Type", "Accept", "Origin"));
+        publicShowcase.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/public/showcase/**", publicShowcase);
+        return source;
+    }
+
+    @Bean
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     SecurityFilterChain securityFilterChain(HttpSecurity http, BearerTokenAuthenticationFilter bearerFilter)
             throws Exception {
-        http.csrf(csrf -> csrf.disable())
+        http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
@@ -48,9 +73,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/authority/resources/BUSINESS_ASSET/application.markImagePath",
                                 "/api/authority/resources/BUSINESS_ASSET/application.brandImagePath",
+                                "/api/authority/resources/BUSINESS_ASSET/application.backgroundImagePath",
                                 "/api/authority/resources/BUSINESS_ASSET/company.logoPath",
                                 "/api/authority/resources/BUSINESS_ASSET/application.mark",
                                 "/api/authority/resources/BUSINESS_ASSET/application.banner",
+                                "/api/authority/resources/BUSINESS_ASSET/application.background",
                                 "/api/authority/resources/BUSINESS_ASSET/invoice.header.logo")
                         .permitAll()
                         .requestMatchers("/api/auth/effective-permissions", "/api/auth/session",
@@ -241,6 +268,12 @@ public class SecurityConfig {
                         .hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/authority/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/authority/**").hasAuthority("ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/enquiries/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "QUOTATION.VIEW", "SALES.VIEW", "COMMUNICATION.VIEW")
+                        .requestMatchers(HttpMethod.POST, "/api/enquiries/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "QUOTATION.CREATE", "QUOTATION.EDIT", "SALES.EDIT")
+                        .requestMatchers(HttpMethod.PUT, "/api/enquiries/**")
+                        .hasAnyAuthority("ROLE_ADMIN", "ROLE_SUPER_ADMIN", "QUOTATION.EDIT", "QUOTATION.CREATE", "SALES.EDIT")
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, error) -> {

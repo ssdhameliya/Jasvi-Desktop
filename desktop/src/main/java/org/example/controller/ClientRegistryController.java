@@ -46,6 +46,7 @@ public class ClientRegistryController implements ScreenLifecycle {
     @FXML private Button btnRegisterClient;
     @FXML private Button btnRefresh;
     @FXML private Button btnTestAlert;
+    @FXML private Button btnRunWatchdog;
 
     @FXML private StackPane kpiTotalIcon;
     @FXML private StackPane kpiActiveIcon;
@@ -135,6 +136,7 @@ public class ClientRegistryController implements ScreenLifecycle {
         if (kpiArrIcon != null) kpiArrIcon.getChildren().setAll(IconFactory.icon("dollar", 18));
 
         if (btnRegisterClient != null) btnRegisterClient.setGraphic(IconFactory.compactIcon("add", 14));
+        if (btnRunWatchdog != null) btnRunWatchdog.setGraphic(IconFactory.compactIcon("clock", 14));
         if (btnTestAlert != null) btnTestAlert.setGraphic(IconFactory.compactIcon("alert", 14));
         if (btnRefresh != null) btnRefresh.setGraphic(IconFactory.compactIcon("refresh", 14));
         if (btnResetFilter != null) btnResetFilter.setGraphic(IconFactory.compactIcon("reset", 14));
@@ -883,6 +885,13 @@ public class ClientRegistryController implements ScreenLifecycle {
         }
         String tier = String.valueOf(lead.getOrDefault("requested_tier", "GOLD"));
         String status = String.valueOf(lead.getOrDefault("status", "PENDING"));
+        String utrRef = lead.get("utr_reference") != null && !String.valueOf(lead.get("utr_reference")).isBlank()
+                && !"null".equalsIgnoreCase(String.valueOf(lead.get("utr_reference")))
+                ? String.valueOf(lead.get("utr_reference")) : "-";
+        String payAmount = lead.get("payment_amount") instanceof Number n && n.doubleValue() > 0
+                ? String.format(java.util.Locale.ENGLISH, "₹ %.2f", n.doubleValue()) : "-";
+        String reqDays = lead.get("requested_days") instanceof Number n && n.intValue() > 0
+                ? (n.intValue() + " Days") : "Standard (365 Days)";
         String notes = String.valueOf(lead.getOrDefault("notes", "-"));
         String remoteUrl = String.valueOf(lead.getOrDefault("remote_url", "-"));
         String createdAt = String.valueOf(lead.getOrDefault("created_at", "-"));
@@ -923,6 +932,12 @@ public class ClientRegistryController implements ScreenLifecycle {
         grid.add(new Label(machine), 1, r++);
         grid.add(new Label("Requested Tier:"), 0, r);
         grid.add(new Label(tier), 1, r++);
+        grid.add(new Label("Requested Validity:"), 0, r);
+        grid.add(new Label(reqDays), 1, r++);
+        grid.add(new Label("Payment UTR Ref:"), 0, r);
+        grid.add(new Label(utrRef), 1, r++);
+        grid.add(new Label("Reported Amount Paid:"), 0, r);
+        grid.add(new Label(payAmount), 1, r++);
         grid.add(new Label("Remote Cloud URL:"), 0, r);
         grid.add(new Label(remoteUrl), 1, r++);
         grid.add(new Label("Submission Date:"), 0, r);
@@ -2075,6 +2090,10 @@ public class ClientRegistryController implements ScreenLifecycle {
     }
 
     private void handleRenewClient(Map<String, Object> item, int days) {
+        handleRenewClient(item, days, null, null);
+    }
+
+    private void handleRenewClient(Map<String, Object> item, int days, String utrReference, Double amountPaid) {
         Long id = ((Number) item.get("id")).longValue();
         String company = String.valueOf(item.get("company_name"));
 
@@ -2082,9 +2101,9 @@ public class ClientRegistryController implements ScreenLifecycle {
                 tableClients,
                 "Renewing Client License & Generating Signature...",
                 "renew-client-" + id,
-                () -> api.renewClient(id, days),
+                () -> api.renewClient(id, days, utrReference, amountPaid),
                 res -> {
-                    AppDialogService.success(tableClients, "License Renewed", "Added " + days + " days to " + company + ".");
+                    AppDialogService.success(tableClients, "License Renewed", "Added " + days + " days to " + company + " (receipt dispatched if email configured).");
                     loadDataAsync();
                 },
                 err -> AppDialogService.error(tableClients, "Renewal Error", "Could not renew license", err.getMessage())
@@ -2092,20 +2111,45 @@ public class ClientRegistryController implements ScreenLifecycle {
     }
 
     private void promptCustomRenewal(Map<String, Object> item) {
-        Long id = ((Number) item.get("id")).longValue();
         String company = String.valueOf(item.get("company_name"));
 
-        TextInputDialog d = new OwnedTextInputDialog("365");
+        OwnedDialog<ButtonType> d = new OwnedDialog<>(tableClients);
         d.setTitle("Custom Renewal Period");
-        d.setHeaderText("Extend License for " + company);
-        d.setContentText("Enter number of extension days (e.g. 30, 90, 180, 730):");
-        d.showAndWait().ifPresent(val -> {
+        d.setHeaderText("Extend License & Record Payment for " + company);
+        ButtonType applyType = new ButtonType("Renew License", ButtonBar.ButtonData.OK_DONE);
+        d.getDialogPane().getButtonTypes().setAll(applyType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(16, 20, 16, 20));
+        TextField txtDays = new TextField("365");
+        TextField txtUtr = new TextField();
+        txtUtr.setPromptText("Optional UTR / Bank Reference");
+        TextField txtAmount = new TextField();
+        txtAmount.setPromptText("Optional INR Amount Paid");
+        grid.add(new Label("Extension Days *:"), 0, 0);
+        grid.add(txtDays, 1, 0);
+        grid.add(new Label("Payment / UTR Ref:"), 0, 1);
+        grid.add(txtUtr, 1, 1);
+        grid.add(new Label("Amount Paid (INR):"), 0, 2);
+        grid.add(txtAmount, 1, 2);
+        d.getDialogPane().setContent(grid);
+
+        d.showAndWait().ifPresent(btn -> {
+            if (btn != applyType) return;
             try {
-                int days = Integer.parseInt(val.trim());
+                int days = Integer.parseInt(txtDays.getText().trim());
                 if (days <= 0) throw new IllegalArgumentException("Days must be > 0");
-                handleRenewClient(item, days);
+                String utr = txtUtr.getText() == null ? "" : txtUtr.getText().trim();
+                Double amt = null;
+                if (txtAmount.getText() != null && !txtAmount.getText().isBlank()) {
+                    amt = Double.parseDouble(txtAmount.getText().trim());
+                    if (amt < 0) throw new IllegalArgumentException("Amount must be >= 0");
+                }
+                handleRenewClient(item, days, utr, amt);
             } catch (Exception ex) {
-                AppDialogService.error(tableClients, "Invalid Input", "Invalid number of days", ex.getMessage());
+                AppDialogService.error(tableClients, "Invalid Input", "Invalid renewal parameters", ex.getMessage());
             }
         });
     }
@@ -2401,6 +2445,29 @@ public class ClientRegistryController implements ScreenLifecycle {
         });
     }
 
+    @FXML
+    private void handleRunWatchdog() {
+        boolean confirm = AppDialogService.confirm(
+                tableClients,
+                "Run Subscription Lifecycle Watchdog",
+                "Scan all registered clients for expiry warnings, seat utilization, and offline alerts?",
+                "Dispatches due Email & WhatsApp notices (30/15/7/1 days & expired/grace) with idempotency protection."
+        );
+        if (!confirm) return;
+        UiTaskExecutor.submitActionWithOverlay(
+                tableClients,
+                "Running Subscription Expiry Watchdog...",
+                "run-subscription-watchdog",
+                api::runWatchdog,
+                res -> {
+                    AppDialogService.success(tableClients, "Watchdog Completed",
+                            "Subscription watchdog scan finished. Alerts dispatched: " + res.getOrDefault("alertsDispatched", 0));
+                    loadDataAsync();
+                },
+                err -> AppDialogService.error(tableClients, "Watchdog Failed", "Could not run subscription watchdog", err.getMessage())
+        );
+    }
+
     private void showUserTelemetryDialog(Map<String, Object> client) {
         if (client == null) return;
         String rawMachine = String.valueOf(client.getOrDefault("machine_id", ""));
@@ -2620,6 +2687,12 @@ public class ClientRegistryController implements ScreenLifecycle {
         Region filterSpacer = new Region();
         HBox.setHgrow(filterSpacer, Priority.ALWAYS);
 
+        Button btnMonthlyArchive = new Button("Monthly Archive");
+        btnMonthlyArchive.setGraphic(IconFactory.compactIcon("calendar", 12));
+        btnMonthlyArchive.setMinWidth(Region.USE_PREF_SIZE);
+        btnMonthlyArchive.getStyleClass().addAll("approved-button", "approved-secondary-button");
+        btnMonthlyArchive.setOnAction(e -> showMonthlyArchiveDialog(company, rawMachine));
+
         Button btnRefreshUsers = new Button("Refresh Telemetry");
         btnRefreshUsers.setGraphic(IconFactory.compactIcon("refresh", 12));
         btnRefreshUsers.setMinWidth(Region.USE_PREF_SIZE);
@@ -2631,7 +2704,7 @@ public class ClientRegistryController implements ScreenLifecycle {
                 btnToday, btnYesterday, btnThisWeek, btnThisMonth,
                 new Separator(javafx.geometry.Orientation.VERTICAL),
                 lblViewModePrompt, viewToggleGroup,
-                filterSpacer, btnRefreshUsers
+                filterSpacer, btnMonthlyArchive, btnRefreshUsers
         );
 
         TableColumn<Map<String, Object>, String> colWorkDate = new TableColumn<>("Work Date");
@@ -2946,6 +3019,52 @@ public class ClientRegistryController implements ScreenLifecycle {
         PopupTableWorkspace.prepareDialog(dialog, 1440);
         Platform.runLater(syncPresetFromDates);
         dialog.showAndWait();
+    }
+
+    private void showMonthlyArchiveDialog(String company, String rawMachine) {
+        Dialog<Void> archiveDialog = new OwnedDialog<>(tableClients);
+        archiveDialog.setTitle("Monthly Telemetry Archive — " + company);
+        archiveDialog.setHeaderText("Consolidated monthly work-hour rollups preserved beyond 30-day session purge");
+        archiveDialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        archiveDialog.setResizable(true);
+
+        TableView<Map<String, Object>> tblArchive = new TableView<>();
+        tblArchive.getStyleClass().addAll("approved-table", "clients-directory-table");
+        tblArchive.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        tblArchive.setPrefHeight(380);
+        VBox.setVgrow(tblArchive, Priority.ALWAYS);
+
+        TableColumn<Map<String, Object>, String> cMonth = new TableColumn<>("Month");
+        cMonth.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().getOrDefault("year_month", "-"))));
+        TableColumn<Map<String, Object>, String> cUsers = new TableColumn<>("Distinct Users");
+        cUsers.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(parseIntVal(c.getValue().get("distinct_users"), 0))));
+        TableColumn<Map<String, Object>, String> cDays = new TableColumn<>("Active Days");
+        cDays.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(parseIntVal(c.getValue().get("active_days"), 0))));
+        TableColumn<Map<String, Object>, String> cSess = new TableColumn<>("Sessions");
+        cSess.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(parseIntVal(c.getValue().get("session_count"), 0))));
+        TableColumn<Map<String, Object>, String> cHours = new TableColumn<>("Total Work Hours");
+        cHours.setCellValueFactory(c -> new SimpleStringProperty(formatCompactWorkDuration(parseLongVal(c.getValue().get("total_work_seconds"), 0L))));
+        TableColumn<Map<String, Object>, String> cUpdated = new TableColumn<>("Last Archived");
+        cUpdated.setCellValueFactory(c -> {
+            Object u = c.getValue().get("updated_at");
+            return new SimpleStringProperty(u != null ? BusinessClock.formatTimestamp(u.toString()) : "-");
+        });
+        tblArchive.getColumns().addAll(cMonth, cUsers, cDays, cSess, cHours, cUpdated);
+        DynamicTableLayoutManager.install(tblArchive);
+
+        VBox box = new VBox(10, tblArchive);
+        box.setPadding(new Insets(10, 14, 10, 14));
+        box.setPrefWidth(880);
+        archiveDialog.getDialogPane().setContent(box);
+        PopupTableWorkspace.prepareDialog(archiveDialog, 920);
+
+        UiTaskExecutor.submitAction(
+                "client-monthly-archive-" + rawMachine,
+                () -> api.getClientMonthlySummary(rawMachine),
+                rows -> tblArchive.setItems(FXCollections.observableArrayList(rows != null ? rows : List.of())),
+                err -> Platform.runLater(() -> AppDialogService.error(tableClients, "Archive Load Failed", err.getMessage()))
+        );
+        archiveDialog.showAndWait();
     }
 
     private int parseIntVal(Object val, int fallback) {
@@ -3565,6 +3684,13 @@ public class ClientRegistryController implements ScreenLifecycle {
         String machine = String.valueOf(lead.getOrDefault("machine_id", "-"));
         String tier = String.valueOf(lead.getOrDefault("requested_tier", "GOLD"));
         String status = String.valueOf(lead.getOrDefault("status", "PENDING"));
+        String utrRef = lead.get("utr_reference") != null && !String.valueOf(lead.get("utr_reference")).isBlank()
+                && !"null".equalsIgnoreCase(String.valueOf(lead.get("utr_reference")))
+                ? String.valueOf(lead.get("utr_reference")) : "-";
+        String payAmount = lead.get("payment_amount") instanceof Number n && n.doubleValue() > 0
+                ? String.format(java.util.Locale.ENGLISH, "₹ %.2f", n.doubleValue()) : "-";
+        String reqDays = lead.get("requested_days") instanceof Number n && n.intValue() > 0
+                ? (n.intValue() + " Days") : "Standard (365 Days)";
         String notes = String.valueOf(lead.getOrDefault("notes", "-"));
         boolean pending = "PENDING".equalsIgnoreCase(status);
 

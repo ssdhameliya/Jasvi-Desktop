@@ -45,11 +45,13 @@ public class EmailTransmissionDialog {
             Double balanceAmount,
             String statusBadge,
             String entityType,
-            Integer entityId
+            Integer entityId,
+            MessageTemplateService.RichEmailContext richContext
     ) {
         public EmailDraft(String title, String subtitle, String documentLabel, String documentNo,
                           String recipientEmail, String subject, String body, Path attachmentPdf, Path signatureImage) {
-            this(title, subtitle, documentLabel, documentNo, recipientEmail, subject, body, attachmentPdf, signatureImage, null, null, null, null, null, null, null, null);
+            this(title, subtitle, documentLabel, documentNo, recipientEmail, subject, body, attachmentPdf, signatureImage,
+                    null, null, null, null, null, null, null, null, MessageTemplateService.RichEmailContext.empty());
         }
 
         public EmailDraft(String title, String subtitle, String documentLabel, String documentNo,
@@ -57,7 +59,17 @@ public class EmailTransmissionDialog {
                           String activityKey, String publicStatusUrl, Double totalAmount, Double paidAmount, Double balanceAmount,
                           String statusBadge) {
             this(title, subtitle, documentLabel, documentNo, recipientEmail, subject, body, attachmentPdf, signatureImage,
-                    activityKey, publicStatusUrl, totalAmount, paidAmount, balanceAmount, statusBadge, null, null);
+                    activityKey, publicStatusUrl, totalAmount, paidAmount, balanceAmount, statusBadge, null, null,
+                    MessageTemplateService.RichEmailContext.empty());
+        }
+
+        public EmailDraft(String title, String subtitle, String documentLabel, String documentNo,
+                          String recipientEmail, String subject, String body, Path attachmentPdf, Path signatureImage,
+                          String activityKey, String publicStatusUrl, Double totalAmount, Double paidAmount, Double balanceAmount,
+                          String statusBadge, String entityType, Integer entityId) {
+            this(title, subtitle, documentLabel, documentNo, recipientEmail, subject, body, attachmentPdf, signatureImage,
+                    activityKey, publicStatusUrl, totalAmount, paidAmount, balanceAmount, statusBadge, entityType, entityId,
+                    MessageTemplateService.RichEmailContext.empty());
         }
     }
 
@@ -67,10 +79,17 @@ public class EmailTransmissionDialog {
             String body,
             Path attachmentPdf,
             Path signatureImage,
-            org.example.service.EmailService.SenderProfile senderProfile
+            org.example.service.EmailService.SenderProfile senderProfile,
+            String recipientCc,
+            String recipientBcc
     ) {
         public TransmissionResult(String recipientEmail, String subject, String body, Path attachmentPdf, Path signatureImage) {
-            this(recipientEmail, subject, body, attachmentPdf, signatureImage, null);
+            this(recipientEmail, subject, body, attachmentPdf, signatureImage, null, "", "");
+        }
+
+        public TransmissionResult(String recipientEmail, String subject, String body, Path attachmentPdf, Path signatureImage,
+                                  org.example.service.EmailService.SenderProfile senderProfile) {
+            this(recipientEmail, subject, body, attachmentPdf, signatureImage, senderProfile, "", "");
         }
     }
 
@@ -90,6 +109,8 @@ public class EmailTransmissionDialog {
 
     @FXML private TextField txtRecipient;
     @FXML private Label errRecipient;
+    @FXML private TextField txtCc;
+    @FXML private TextField txtBcc;
 
     @FXML private TextField txtSubject;
     @FXML private Label errSubject;
@@ -261,47 +282,10 @@ public class EmailTransmissionDialog {
     @FXML
     public void previewHtmlInBrowser() {
         try {
-            String recipient = (txtRecipient != null && txtRecipient.getText() != null) ? txtRecipient.getText().trim() : "";
             String body = (txtBody != null && txtBody.getText() != null) ? txtBody.getText() : "";
-            String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
-            String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "DOCUMENT";
-            String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "OFFICIAL";
-            double total = (draft != null && draft.totalAmount() != null) ? draft.totalAmount() : 0.0;
-            double paid = (draft != null && draft.paidAmount() != null) ? draft.paidAmount() : 0.0;
-            double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
-            String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
-
-            String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
-            String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
-            String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
-            boolean hasDualBank = (draft != null && ("Payment Receipt".equalsIgnoreCase(draft.documentLabel())
-                    || "Remittance Advice".equalsIgnoreCase(draft.documentLabel())
-                    || "Refund Advice".equalsIgnoreCase(draft.documentLabel())))
-                    && (!ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank());
-
             boolean hasSig = (draft != null && draft.signatureImage() != null) || MessageTemplateService.isAttachSignatureToEmail();
             String sigBase64 = hasSig ? MessageTemplateService.getSignatureImageBase64() : null;
-
-            String html = MessageTemplateService.formatExecutiveHtmlEmail(
-                    docLabel,
-                    statusBadge,
-                    docNo,
-                    org.example.util.BusinessClock.formatDate(org.example.util.BusinessClock.today()),
-                    recipient.isBlank() ? "Valued Client" : recipient,
-                    total,
-                    paid,
-                    balance,
-                    body,
-                    hasDualBank,
-                    ourBankName,
-                    ourAccNo,
-                    ourIfsc,
-                    "Live Electronic Settlement Verification",
-                    "-",
-                    statusUrl,
-                    hasSig,
-                    sigBase64
-            );
+            String html = renderExecutiveHtml(body, hasSig, sigBase64);
 
             Path tempHtml = Files.createTempFile("dse-email-preview-", ".html");
             tempHtml.toFile().deleteOnExit();
@@ -366,6 +350,12 @@ public class EmailTransmissionDialog {
 
         if (txtRecipient != null) {
             txtRecipient.setText(draft.recipientEmail() == null ? "" : draft.recipientEmail().trim());
+        }
+        if (txtCc != null) {
+            txtCc.setText(org.example.config.ConfigManager.get("email.default.cc", "").trim());
+        }
+        if (txtBcc != null) {
+            txtBcc.setText(org.example.config.ConfigManager.get("email.default.bcc", "").trim());
         }
         if (txtSubject != null) {
             txtSubject.setText(draft.subject() == null ? "" : draft.subject().trim());
@@ -617,6 +607,26 @@ public class EmailTransmissionDialog {
         }
         recipient = String.join("; ", validRecipients);
 
+        String ccRaw = txtCc == null ? "" : txtCc.getText().trim();
+        String bccRaw = txtBcc == null ? "" : txtBcc.getText().trim();
+        String ccNormalized = "";
+        String bccNormalized = "";
+        try {
+            if (!ccRaw.isBlank()) {
+                ccNormalized = String.join("; ", org.example.service.EmailService.parseOptionalRecipientList(ccRaw));
+            }
+            if (!bccRaw.isBlank()) {
+                bccNormalized = String.join("; ", org.example.service.EmailService.parseOptionalRecipientList(bccRaw));
+            }
+        } catch (IllegalArgumentException invalidCopy) {
+            if (errRecipient != null) {
+                errRecipient.setText(invalidCopy.getMessage());
+                errRecipient.setVisible(true);
+                errRecipient.setManaged(true);
+            }
+            return;
+        }
+
         if (subject.isBlank()) {
             if (errSubject != null) {
                 errSubject.setText("Subject cannot be blank.");
@@ -648,55 +658,92 @@ public class EmailTransmissionDialog {
         String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
         String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
         String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
-        boolean hasDualBank = (draft != null && ("Payment Receipt".equalsIgnoreCase(draft.documentLabel())
-                || "Remittance Advice".equalsIgnoreCase(draft.documentLabel())
-                || "Refund Advice".equalsIgnoreCase(draft.documentLabel())))
+        boolean hasDualBank = (draft != null && isSettlementDocument(draft.documentLabel()))
                 && (!ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank());
         boolean isExecutive = draft != null && (draft.totalAmount() != null || draft.publicStatusUrl() != null || hasDualBank);
 
         String transmissionBody = body;
         if (useHtmlFormat && isExecutive && !body.contains("<!DOCTYPE html>")) {
-            String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
-            String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "DOCUMENT";
-            String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "OFFICIAL";
-            double total = (draft != null && draft.totalAmount() != null) ? draft.totalAmount() : 0.0;
-            double paid = (draft != null && draft.paidAmount() != null) ? draft.paidAmount() : 0.0;
-            double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
-            String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
-
-            transmissionBody = MessageTemplateService.formatExecutiveHtmlEmail(
-                    docLabel,
-                    statusBadge,
-                    docNo,
-                    org.example.util.BusinessClock.formatDate(org.example.util.BusinessClock.today()),
-                    recipient.isBlank() ? "Valued Client" : recipient,
-                    total,
-                    paid,
-                    balance,
-                    body,
-                    hasDualBank,
-                    ourBankName,
-                    ourAccNo,
-                    ourIfsc,
-                    "Live Electronic Settlement Verification",
-                    "-",
-                    statusUrl,
-                    sigPath != null,
-                    "cid:signatureImage"
-            );
+            transmissionBody = renderExecutiveHtml(body, sigPath != null, "cid:signatureImage");
         } else if (useHtmlFormat && !body.contains("<!DOCTYPE html>")) {
             transmissionBody = MessageTemplateService.wrapPlainBodyInCardHtml(
                     draft != null && draft.statusBadge() != null ? draft.statusBadge() : "OFFICIAL",
                     draft != null && draft.documentLabel() != null ? draft.documentLabel() : subject,
-                    body
+                    body,
+                    sigPath != null,
+                    "cid:signatureImage"
             );
         }
 
-        this.result = new TransmissionResult(recipient, subject, transmissionBody, draft != null ? draft.attachmentPdf() : null, sigPath, profile);
+        this.result = new TransmissionResult(recipient, subject, transmissionBody, draft != null ? draft.attachmentPdf() : null, sigPath, profile, ccNormalized, bccNormalized);
         if (hostDialog != null) {
             hostDialog.setResult(this.result);
             hostDialog.close();
         }
+    }
+
+    private String renderExecutiveHtml(String bodyText, boolean includeSignature, String signatureSrc) {
+        MessageTemplateService.RichEmailContext ctx = (draft != null && draft.richContext() != null)
+                ? draft.richContext()
+                : MessageTemplateService.RichEmailContext.empty();
+        String docNo = (draft != null && draft.documentNo() != null) ? draft.documentNo() : "-";
+        String docLabel = (draft != null && draft.documentLabel() != null) ? draft.documentLabel() : "DOCUMENT";
+        String statusBadge = (draft != null && draft.statusBadge() != null) ? draft.statusBadge() : "OFFICIAL";
+        double total = (draft != null && draft.totalAmount() != null) ? draft.totalAmount() : 0.0;
+        double paid = (draft != null && draft.paidAmount() != null) ? draft.paidAmount() : 0.0;
+        double balance = (draft != null && draft.balanceAmount() != null) ? draft.balanceAmount() : 0.0;
+        String statusUrl = (draft != null) ? draft.publicStatusUrl() : null;
+
+        String ourBankName = org.example.config.ConfigManager.get("payment.bankName", org.example.config.ConfigManager.get("company.bank.name", "")).trim();
+        String ourAccNo = org.example.config.ConfigManager.get("payment.accountNumber", org.example.config.ConfigManager.get("company.bank.account", "")).trim();
+        String ourIfsc = org.example.config.ConfigManager.get("payment.ifsc", org.example.config.ConfigManager.get("company.bank.ifsc", "")).trim();
+        boolean hasDualBank = isSettlementDocument(docLabel) && (!ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank());
+
+        String partyName = firstNonBlank(ctx.partyName(), "Valued Client");
+        String docDate = firstNonBlank(ctx.documentDate(), org.example.util.BusinessClock.formatDate(org.example.util.BusinessClock.today()));
+        String payRef = firstNonBlank(ctx.paymentReference(), "-");
+        String profileKey = (cmbSenderProfile != null && cmbSenderProfile.getValue() != null && cmbSenderProfile.getValue().profile() != null)
+                ? cmbSenderProfile.getValue().profile().key()
+                : null;
+        String resolvedSig = MessageTemplateService.resolveSignatureForProfile(profileKey, docLabel);
+
+        return MessageTemplateService.formatExecutiveHtmlEmail(
+                docLabel,
+                statusBadge,
+                docNo,
+                docDate,
+                partyName,
+                total,
+                paid,
+                balance,
+                bodyText,
+                hasDualBank,
+                ourBankName,
+                ourAccNo,
+                ourIfsc,
+                partyName,
+                payRef,
+                statusUrl,
+                includeSignature,
+                signatureSrc,
+                ctx,
+                resolvedSig
+        );
+    }
+
+    private static boolean isSettlementDocument(String docLabel) {
+        if (docLabel == null) return false;
+        return "Payment Receipt".equalsIgnoreCase(docLabel)
+                || "Remittance Advice".equalsIgnoreCase(docLabel)
+                || "Refund Advice".equalsIgnoreCase(docLabel);
+    }
+
+    private static String firstNonBlank(String... candidates) {
+        if (candidates == null) return "";
+        for (String c : candidates) {
+            if (c != null && !c.isBlank()) return c.trim();
+        }
+        return "";
     }
 
     @FXML

@@ -104,4 +104,19 @@ class UserMfaEnrollmentUiContractTest {
         assertTrue(access.contains("UiTaskExecutor.submitAction(\"user-access-mfa-reset\""));
         assertFalse(access.contains("try{var state=adminApi.resetMfa(row.id)"));
     }
+
+    @Test
+    void userDialogRendersMfaAsIphoneToggleSwitchAndBindsSuperAdminFlag() throws Exception {
+        String fxml = Files.readString(Path.of("src/main/resources/fxml/pages/UserDialog.fxml"));
+        String dialog = Files.readString(Path.of("src/main/java/org/example/controller/UserDialogController.java"));
+        String access = Files.readString(Path.of("src/main/java/org/example/controller/UserAccessController.java"));
+        assertTrue(fxml.contains("<ToggleButton fx:id=\"chkMfa\""));
+        assertTrue(fxml.contains("styleClass=\"apple-toggle-switch,ios-toggle-switch\""));
+        assertFalse(fxml.contains("<CheckBox fx:id=\"chkMfa\""), "User Profile / User Dialog MFA control must be an iPhone-style ToggleButton, not a CheckBox");
+        assertTrue(dialog.contains("private ToggleButton chkMfa;"));
+        assertTrue(dialog.contains("\"Two-Factor MFA: ON\""));
+        assertTrue(dialog.contains("\"Two-Factor MFA: OFF\""));
+        assertTrue(dialog.contains("chkMfa.setSelected(superAdminMfaEnabled);"));
+        assertTrue(access.contains("default -> \"Off\";"));
+    }
 }

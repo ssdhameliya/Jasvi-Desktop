@@ -24,7 +24,7 @@ public class SplashController implements ScreenLifecycle {
     @FXML private Label lblBrandMark, lblBrandName, lblBrandTagline, lblBrandQuote, lblStarting;
     @FXML private Label lblWelcomePrefix, lblCompanyName, lblSplashMarkFallback;
     @FXML private ImageView imgBrandLogo, imgBrandMark, imgSplashMark;
-    @FXML private StackPane brandLogoBox, brandMarkBox, splashMarkBox;
+    @FXML private StackPane brandLogoBox, brandMarkBox, splashMarkBox, splashCenterHost;
     @FXML private VBox brandPanel;
 
     private long startedNanos;
@@ -62,6 +62,7 @@ public class SplashController implements ScreenLifecycle {
         if (lblStarting != null) lblStarting.setText(BrandingService.startingText());
         if (lblWelcomePrefix != null) lblWelcomePrefix.setText("Welcome to");
         if (lblCompanyName != null) lblCompanyName.setText(appName);
+        BrandImagePresenter.applyPanelBackground(splashCenterHost, false);
         Image logo = BrandingService.applicationBrandImage();
         if (imgBrandLogo != null) {
             boolean bannerAvailable = logo != null && !logo.isError();

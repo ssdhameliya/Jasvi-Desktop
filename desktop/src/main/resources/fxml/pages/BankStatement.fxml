@@ -24,6 +24,8 @@
             <SeparatorMenuItem/>
             <MenuItem fx:id="miExportBrsPdf" text="Export CA BRS Report (PDF)" onAction="#exportBrsPdf"/>
             <MenuItem fx:id="miExportBrsExcel" text="Export CA BRS Workbook (Excel)" onAction="#exportBrsExcel"/>
+            <SeparatorMenuItem/>
+            <MenuItem fx:id="miBankGlMappings" text="Bank GL Sub-Accounts (102x)" onAction="#openBankGlMappingDialog"/>
           </items>
         </MenuButton>
         <Button fx:id="btnDeleteStatement" text="Delete Statement" minWidth="-Infinity" onAction="#deleteCurrentStatement" disable="true" styleClass="approved-button,approved-danger-button"/>

@@ -43,4 +43,6 @@ public class BankReconciliationController {
  @GetMapping("/rules/parties") public List<BankReconciliationDtos.PartyOptionDto> listRuleParties(){return ruleService.listActiveParties();}
  @GetMapping("/imports/{id}/auto-match/preview") public BankReconciliationDtos.AutoMatchPreviewDto previewAutoMatchBatch(@PathVariable Long id){return service.previewAutoMatch(id, "", "", "");}
  @GetMapping("/accounts/auto-match/preview") public BankReconciliationDtos.AutoMatchPreviewDto previewAutoMatchAccount(@RequestParam(defaultValue="") String account,@RequestParam(defaultValue="") String fromDate,@RequestParam(defaultValue="") String toDate){return service.previewAutoMatch(0L, account, fromDate, toDate);}
+ @GetMapping("/gl-mappings") public List<BankReconciliationDtos.BankGlMappingDto> listGlMappings(){return service.listBankGlMappings();}
+ @PutMapping("/gl-mappings") public Map<String, Object> updateGlMapping(@RequestBody BankReconciliationDtos.BankGlMappingUpdateRequest r){service.updateBankGlMapping(r);return Map.of("success",true);}
 }

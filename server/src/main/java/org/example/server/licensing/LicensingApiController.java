@@ -46,18 +46,42 @@ public class LicensingApiController {
     public Map<String, Object> getCatalog() {
         Map<String, Object> settings = registryService.getCommercialSettings();
         List<Map<String, Object>> plans = registryService.getPlans();
-        String supportEmail = String.valueOf(settings.getOrDefault("superAdminEmail", "shailesh.sdhameliya@gmail.com"));
-        if (supportEmail.isBlank()) supportEmail = "shailesh.sdhameliya@gmail.com";
+        String supportEmail = String.valueOf(settings.getOrDefault("supportEmail", settings.getOrDefault("superAdminEmail", ""))).trim();
+        String supportPhone = String.valueOf(settings.getOrDefault("supportPhone", settings.getOrDefault("superAdminWhatsapp", ""))).trim();
+        String upiVpa = String.valueOf(settings.getOrDefault("upiVpa", "")).trim();
+        String payeeName = String.valueOf(settings.getOrDefault("payeeName", settings.getOrDefault("issuerBrand", ""))).trim();
         return Map.of(
-                "supportPhone", settings.getOrDefault("supportPhone", "9537544008"),
+                "supportPhone", supportPhone,
                 "supportEmail", supportEmail,
-                "upiVpa", settings.getOrDefault("upiVpa", "jasviindustries@icici"),
-                "payeeName", settings.getOrDefault("payeeName", "Jasvi Industries"),
+                "upiVpa", upiVpa,
+                "payeeName", payeeName,
                 "gstRate", settings.getOrDefault("gstRate", "18.00"),
                 "whatsappTemplateLead", settings.getOrDefault("whatsappTemplateLead", ""),
                 "whatsappTemplateIssued", settings.getOrDefault("whatsappTemplateIssued", ""),
                 "plans", plans
         );
+    }
+
+    @PostMapping("/cloud-refresh")
+    public ResponseEntity<?> cloudRefresh() {
+        String machineId = HardwareFingerprintUtil.getDisplayMachineId();
+        String payloadEnc = registryService.fetchActivePayloadForMachine(machineId);
+        if (payloadEnc == null || payloadEnc.isBlank()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "error", "No active cloud license record was found for Terminal ID " + machineId
+            ));
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = objectMapper.readValue(payloadEnc, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            return activate(body);
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "success", false,
+                    "error", "Cloud license could not be synchronized: " + ex.getMessage()
+            ));
+        }
     }
 
     @PostMapping("/self-register")
@@ -241,10 +265,11 @@ public class LicensingApiController {
     @GetMapping("/upi-payload")
     public Map<String, Object> getUpiPayload(@RequestParam(defaultValue = "3500.00") String amount) {
         String machineId = HardwareFingerprintUtil.getDisplayMachineId();
-        String vpa = "jasviindustries@icici";
-        String name = "Jasvi Industries";
+        Map<String, Object> settings = registryService.getCommercialSettings();
+        String vpa = String.valueOf(settings.getOrDefault("upiVpa", "")).trim();
+        String name = String.valueOf(settings.getOrDefault("payeeName", settings.getOrDefault("issuerBrand", "Enterprise ERP"))).trim();
         String note = "License Renewal " + machineId;
-        String upiUri = String.format("upi://pay?pa=%s&pn=%s&am=%s&cu=INR&tn=%s",
+        String upiUri = vpa.isBlank() ? "" : String.format("upi://pay?pa=%s&pn=%s&am=%s&cu=INR&tn=%s",
                 vpa,
                 name.replace(" ", "+"),
                 amount,
@@ -264,11 +289,11 @@ public class LicensingApiController {
     @GetMapping(value = "/upi-qr-image", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> getUpiQrImage(@RequestParam(defaultValue = "3500.00") String amount) {
         try {
-            String machineId = HardwareFingerprintUtil.getDisplayMachineId();
-            String upiUri = String.format("upi://pay?pa=jasviindustries@icici&pn=Jasvi+Industries&am=%s&cu=INR&tn=Renewal+%s",
-                    amount,
-                    machineId
-            );
+            Map<String, Object> payload = getUpiPayload(amount);
+            String upiUri = String.valueOf(payload.getOrDefault("upiUri", ""));
+            if (upiUri.isBlank()) {
+                return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).build();
+            }
 
             BarcodeQRCode qrcode = new BarcodeQRCode(upiUri);
             java.awt.Image awtImg = qrcode.createAwtImage(Color.BLACK, Color.WHITE);

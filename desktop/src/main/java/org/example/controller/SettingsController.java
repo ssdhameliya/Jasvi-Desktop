@@ -159,10 +159,10 @@ public class SettingsController implements ScreenLifecycle {
     private boolean isUpdatingActivityUi = false;
     @FXML private Button btnTabCompany, btnTabPayment, btnTabInvoice, btnTabEmail, btnTabWhatsapp, btnTabNotifications,
             btnTabSecurity, btnTabWorkspace, btnTabShortcuts, btnTabUpdates, btnTabModules, btnTabShowcase;
-    @FXML private VBox panelSecurity;
+    @FXML private VBox panelSecurity, superAdminMfaBox;
     @FXML private TextField txtSessionTimeoutMinutes, txtSessionWarningMinutes;
     @FXML private ComboBox<String> cmbMfaPolicy;
-    @FXML private CheckBox chkUiDiagnostics;
+    @FXML private CheckBox chkUiDiagnostics, chkSuperAdminMfa;
     @FXML private StackPane securityHeaderIcon;
 
     /* =========================================================
@@ -196,6 +196,9 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private TextField txtApplicationName;
     @FXML private TextField txtApplicationTagline;
     @FXML private TextField txtApplicationStartingText;
+    @FXML private CheckBox chkBackgroundEnabled;
+    @FXML private ComboBox<String> cmbBackgroundScope;
+    @FXML private ComboBox<String> cmbBackgroundIntensity;
 
     /* =========================================================
        PAYMENT FIELDS
@@ -320,6 +323,10 @@ public class SettingsController implements ScreenLifecycle {
     @FXML private ToggleButton tglAttachSignatureWhatsapp;
     @FXML private Button btnEmailSecurityInfo;
     @FXML private ComboBox<org.example.shared.communication.NotificationTemplateCatalog.EmailFormatMode> cmbEmailFormatMode;
+    @FXML private TextField txtDefaultEmailCc;
+    @FXML private TextField txtDefaultEmailBcc;
+    @FXML private ToggleButton tglEmailOutboxRetry;
+    @FXML private Button btnOpenEmailOutbox;
     @FXML private Button btnLivePreview;
     @FXML private ComboBox<String> cmbMessageTemplateDoc;
     @FXML private Button btnOpenTemplateStudio;
@@ -378,8 +385,10 @@ public class SettingsController implements ScreenLifecycle {
 
     @FXML private ImageView imgApplicationBrand;
     @FXML private ImageView imgApplicationMark;
+    @FXML private ImageView imgApplicationBackground;
     @FXML private StackPane applicationBrandPreview;
     @FXML private StackPane applicationMarkPreview;
+    @FXML private StackPane applicationBackgroundPreview;
     @FXML private StackPane companyLogoPreview;
     @FXML private StackPane signaturePreview;
     @FXML private StackPane paymentQrPreview;
@@ -395,6 +404,7 @@ public class SettingsController implements ScreenLifecycle {
 
     @FXML private VBox placeholderApplicationBrand;
     @FXML private VBox placeholderApplicationMark;
+    @FXML private VBox placeholderApplicationBackground;
 
     @FXML
     private VBox placeholderSignature;
@@ -407,6 +417,7 @@ public class SettingsController implements ScreenLifecycle {
 
     @FXML private Label lblApplicationBrandFile;
     @FXML private Label lblApplicationMarkFile;
+    @FXML private Label lblApplicationBackgroundFile;
 
     @FXML
     private Label lblSignatureFile;
@@ -616,6 +627,9 @@ public class SettingsController implements ScreenLifecycle {
     private static final String APPLICATION_MARK_PATH_KEY =
         "application.markImagePath";
 
+    private static final String APPLICATION_BACKGROUND_PATH_KEY =
+        BrandingService.PANEL_BACKGROUND_PATH_KEY;
+
     private static final String SIGNATURE_PATH_KEY =
         "company.signaturePath";
 
@@ -684,6 +698,19 @@ public class SettingsController implements ScreenLifecycle {
                 populateLookupDropdown(cmbIndustry, "INDUSTRY", List.of("Manufacturing","Trading","Retail","Wholesale","Construction","Engineering","Textile","Automotive","Information Technology","Professional Services","Logistics","Healthcare","Food & Beverage","Other"));
                 BrandImagePresenter.applicationBannerPreview(imgApplicationBrand, applicationBrandPreview);
                 BrandImagePresenter.contain(imgApplicationMark, applicationMarkPreview);
+                BrandImagePresenter.panelBackgroundPreview(imgApplicationBackground, applicationBackgroundPreview);
+                if (cmbBackgroundScope != null) {
+                    cmbBackgroundScope.setItems(FXCollections.observableArrayList(
+                            "All Screens (Startup, Auth & Workspace)",
+                            "Pre-Login Screens Only (Splash, Login, Registration, Email)"));
+                }
+                if (cmbBackgroundIntensity != null) {
+                    cmbBackgroundIntensity.setItems(FXCollections.observableArrayList(
+                            "Subtle (15%)",
+                            "Soft (25%)",
+                            "Balanced (40%)",
+                            "Vivid (55%)"));
+                }
                 if (txtCompanyName != null && txtApplicationName != null) {
                     txtCompanyName.textProperty().addListener((obs, oldVal, newVal) -> {
                         String appName = newVal == null || newVal.isBlank()
@@ -746,6 +773,15 @@ public class SettingsController implements ScreenLifecycle {
             }
             case SECURITY -> {
                 if (cmbMfaPolicy != null) cmbMfaPolicy.getItems().setAll("Required", "Admin Controlled", "Disabled");
+                boolean isSuperAdmin = SessionService.isSuperAdmin();
+                if (superAdminMfaBox != null) {
+                    superAdminMfaBox.setVisible(isSuperAdmin);
+                    superAdminMfaBox.setManaged(isSuperAdmin);
+                }
+                if (chkSuperAdminMfa != null && !Boolean.TRUE.equals(chkSuperAdminMfa.getProperties().get("erp.toggle.initialized"))) {
+                    chkSuperAdminMfa.getProperties().put("erp.toggle.initialized", true);
+                    chkSuperAdminMfa.selectedProperty().addListener((obs, oldV, newV) -> updateSuperAdminMfaSwitchLabel(Boolean.TRUE.equals(newV)));
+                }
                 if (chkUiDiagnostics != null) chkUiDiagnostics.setSelected(UiDiagnostics.isEnabled());
                 if (securityHeaderIcon != null) securityHeaderIcon.getChildren().setAll(IconFactory.icon("security", 22));
                 refreshCloudTelemetry();
@@ -846,7 +882,10 @@ public class SettingsController implements ScreenLifecycle {
                     ConfigManager.get("company.pan", ""), ConfigManager.get("application.displayName", ""),
                     ConfigManager.get("application.tagline", "Business Management Suite"),
                     ConfigManager.get("application.startingText", ""), ConfigManager.get("company.businessType", "Proprietorship"),
-                    ConfigManager.get("company.industry", "Manufacturing"), ConfigManager.get("company.financialYearStart", ""));
+                    ConfigManager.get("company.industry", "Manufacturing"), ConfigManager.get("company.financialYearStart", ""),
+                    ConfigManager.get(BrandingService.PANEL_BACKGROUND_ENABLED_KEY, "true"),
+                    ConfigManager.get(BrandingService.PANEL_BACKGROUND_SCOPE_KEY, "ALL_PANELS"),
+                    ConfigManager.get(BrandingService.PANEL_BACKGROUND_OPACITY_KEY, "0.25"));
             case PAYMENT -> {
                 String configuredType = ConfigManager.get("payment.accountType", "").trim();
                 LinkedHashSet<String> accountTypes = new LinkedHashSet<>();
@@ -887,6 +926,7 @@ public class SettingsController implements ScreenLifecycle {
                         support.setting("security.session.timeout.minutes", "10"),
                         support.setting("security.session.warning.minutes", "2"),
                         support.setting("security.auth.mfa.policy", "REQUIRED"),
+                        SessionService.isSuperAdmin() ? support.setting("security.superadmin.mfa.enabled", "NO") : "NO",
                         ep, en, sender);
             }
             case WORKSPACE -> {
@@ -950,6 +990,19 @@ public class SettingsController implements ScreenLifecycle {
                 selectComboValue(cmbBusinessType, value.businessType()); selectComboValue(cmbIndustry, value.industry());
                 DatePickerFormatter.attach(dpFinancialYearStart);
                 dpFinancialYearStart.setValue(parseDate(value.financialYearStart()));
+                if (chkBackgroundEnabled != null) {
+                    boolean enabled = !"false".equalsIgnoreCase(value.backgroundEnabled()) && !"no".equalsIgnoreCase(value.backgroundEnabled());
+                    chkBackgroundEnabled.setSelected(enabled);
+                }
+                if (cmbBackgroundScope != null) {
+                    String scopeLabel = "AUTH_ONLY".equalsIgnoreCase(value.backgroundScope())
+                            ? "Pre-Login Screens Only (Splash, Login, Registration, Email)"
+                            : "All Screens (Startup, Auth & Workspace)";
+                    selectComboValue(cmbBackgroundScope, scopeLabel);
+                }
+                if (cmbBackgroundIntensity != null) {
+                    selectComboValue(cmbBackgroundIntensity, backgroundIntensityLabel(value.backgroundOpacity()));
+                }
             }
             case PAYMENT -> {
                 PaymentSettingsSnapshot value = (PaymentSettingsSnapshot) snapshot;
@@ -1003,7 +1056,19 @@ public class SettingsController implements ScreenLifecycle {
                     cmbMfaPolicy.setValue("ADMIN_CONTROLLED".equals(policy) ? "Admin Controlled" : "DISABLED".equals(policy) ? "Disabled" : "Required");
                 }
                 boolean editable = SessionService.isAdmin();
+                boolean isSuperAdmin = SessionService.isSuperAdmin();
                 txtSessionTimeoutMinutes.setDisable(!editable); txtSessionWarningMinutes.setDisable(!editable); if (cmbMfaPolicy != null) cmbMfaPolicy.setDisable(!editable);
+                if (superAdminMfaBox != null) {
+                    superAdminMfaBox.setVisible(isSuperAdmin);
+                    superAdminMfaBox.setManaged(isSuperAdmin);
+                }
+                if (chkSuperAdminMfa != null) {
+                    String saVal = value.superAdminMfa() == null ? "NO" : value.superAdminMfa().trim().toUpperCase(Locale.ROOT);
+                    boolean saEnabled = "YES".equals(saVal) || "TRUE".equals(saVal) || "1".equals(saVal);
+                    chkSuperAdminMfa.setSelected(saEnabled);
+                    updateSuperAdminMfaSwitchLabel(saEnabled);
+                    chkSuperAdminMfa.setDisable(!isSuperAdmin);
+                }
                 if (txtWahaEndpoint != null) txtWahaEndpoint.setText(value.wahaEndpoint());
                 if (chkWahaEnabled != null) chkWahaEnabled.setSelected(value.wahaEnabled());
                 populateWhatsappSendersDropdown();
@@ -1049,7 +1114,8 @@ public class SettingsController implements ScreenLifecycle {
 
     private record CompanySettingsSnapshot(String companyName, String phone, String email, String gstin, String pan,
                                            String legacyApplicationName, String applicationTagline, String applicationStartingText,
-                                           String businessType, String industry, String financialYearStart) { }
+                                           String businessType, String industry, String financialYearStart,
+                                           String backgroundEnabled, String backgroundScope, String backgroundOpacity) { }
     private record PaymentSettingsSnapshot(String upiId, String accountHolder, String bankName, String accountNumber, String ifsc,
                                            String branch, String accountType, List<String> accountTypes, String roundingTolerance) { }
     private record InvoiceSettingsSnapshot(String address, String state, String website, String publicPortalUrl, String tagline, String shipAddress,
@@ -1058,7 +1124,7 @@ public class SettingsController implements ScreenLifecycle {
     private record WhatsappSettingsSnapshot(String wahaEndpoint, boolean wahaEnabled, String activeSender,
                                             String salesChannel, String purchaseChannel, String quotationChannel,
                                             String disconnectedMessage) { }
-    private record SecuritySettingsSnapshot(String timeout, String warning, String mfaPolicy, String wahaEndpoint, boolean wahaEnabled, String activeSender) { }
+    private record SecuritySettingsSnapshot(String timeout, String warning, String mfaPolicy, String superAdminMfa, String wahaEndpoint, boolean wahaEnabled, String activeSender) { }
     private record StorageRetentionSnapshot(String logs, String reports, String exports, String diagnostics, String importResults,
                                             String temp, boolean compressOldLogs) { }
 
@@ -1226,6 +1292,19 @@ public class SettingsController implements ScreenLifecycle {
     @FXML
     private void removeApplicationMark() {
         removeConfiguredAsset(APPLICATION_MARK_PATH_KEY, imgApplicationMark, placeholderApplicationMark, lblApplicationMarkFile);
+    }
+
+    @FXML
+    private void uploadApplicationBackground() {
+        selectAndStoreImage(APPLICATION_BACKGROUND_PATH_KEY, "application-background", imgApplicationBackground, placeholderApplicationBackground, lblApplicationBackgroundFile, BrandAssetPolicy.Role.PANEL_BACKGROUND);
+    }
+
+    @FXML
+    private void previewApplicationBackground() { previewConfiguredAsset(APPLICATION_BACKGROUND_PATH_KEY, "screen panel background image"); }
+
+    @FXML
+    private void removeApplicationBackground() {
+        removeConfiguredAsset(APPLICATION_BACKGROUND_PATH_KEY, imgApplicationBackground, placeholderApplicationBackground, lblApplicationBackgroundFile);
     }
 
     @FXML
@@ -1597,6 +1676,8 @@ public class SettingsController implements ScreenLifecycle {
             requests.add(new AssetPreviewRequest(APPLICATION_BRAND_PATH_KEY, imgApplicationBrand, placeholderApplicationBrand, lblApplicationBrandFile, BrandAssetPolicy.Role.APPLICATION_BANNER));
         if (imgApplicationMark != null && placeholderApplicationMark != null && lblApplicationMarkFile != null)
             requests.add(new AssetPreviewRequest(APPLICATION_MARK_PATH_KEY, imgApplicationMark, placeholderApplicationMark, lblApplicationMarkFile, BrandAssetPolicy.Role.APPLICATION_MARK));
+        if (imgApplicationBackground != null && placeholderApplicationBackground != null && lblApplicationBackgroundFile != null)
+            requests.add(new AssetPreviewRequest(APPLICATION_BACKGROUND_PATH_KEY, imgApplicationBackground, placeholderApplicationBackground, lblApplicationBackgroundFile, BrandAssetPolicy.Role.PANEL_BACKGROUND));
         if (imgCompanyLogo != null && placeholderCompanyLogo != null && lblLogoFile != null)
             requests.add(new AssetPreviewRequest(LOGO_PATH_KEY, imgCompanyLogo, placeholderCompanyLogo, lblLogoFile, BrandAssetPolicy.Role.COMPANY_LOGO));
         if (imgSignature != null && placeholderSignature != null && lblSignatureFile != null)
@@ -3138,7 +3219,7 @@ private record AssetPreviewRequest(
 
     private List<String> assetKeys(Section section) {
         return switch (section) {
-            case COMPANY -> List.of(APPLICATION_BRAND_PATH_KEY, APPLICATION_MARK_PATH_KEY);
+            case COMPANY -> List.of(APPLICATION_BRAND_PATH_KEY, APPLICATION_MARK_PATH_KEY, APPLICATION_BACKGROUND_PATH_KEY);
             case PAYMENT -> List.of(QR_PATH_KEY);
             case INVOICE -> List.of(LOGO_PATH_KEY, SIGNATURE_PATH_KEY);
             default -> List.of();
@@ -3161,7 +3242,16 @@ private record AssetPreviewRequest(
             String policy="Admin Controlled".equals(selected)?"ADMIN_CONTROLLED":"Disabled".equals(selected)?"DISABLED":"REQUIRED";
             support.setSetting("security.auth.mfa.policy", policy);
         }
+        if (SessionService.isSuperAdmin() && chkSuperAdminMfa != null) {
+            support.setSetting("security.superadmin.mfa.enabled", chkSuperAdminMfa.isSelected() ? "YES" : "NO");
+        }
         org.example.service.SessionActivityManager.reloadPolicy();
+    }
+
+    private void updateSuperAdminMfaSwitchLabel(boolean enabled) {
+        if (chkSuperAdminMfa != null) {
+            chkSuperAdminMfa.setText(enabled ? "YES — Super Admin Authenticator MFA ON" : "NO — Super Admin MFA OFF");
+        }
     }
 
     private void saveDeploymentSettings() {
@@ -3292,6 +3382,42 @@ private record AssetPreviewRequest(
         putSetting("application.displayName", text(txtCompanyName));
         putSetting("application.tagline", text(txtApplicationTagline));
         putSetting("application.startingText", text(txtApplicationStartingText));
+        if (chkBackgroundEnabled != null) {
+            String enabled = chkBackgroundEnabled.isSelected() ? "true" : "false";
+            putSetting(BrandingService.PANEL_BACKGROUND_ENABLED_KEY, enabled);
+            ConfigManager.setLocalProperty(BrandingService.PANEL_BACKGROUND_ENABLED_KEY, enabled);
+        }
+        if (cmbBackgroundScope != null) {
+            String selected = cmbBackgroundScope.getValue();
+            String scope = selected != null && selected.startsWith("Pre-Login") ? "AUTH_ONLY" : "ALL_PANELS";
+            putSetting(BrandingService.PANEL_BACKGROUND_SCOPE_KEY, scope);
+            ConfigManager.setLocalProperty(BrandingService.PANEL_BACKGROUND_SCOPE_KEY, scope);
+        }
+        if (cmbBackgroundIntensity != null) {
+            String opacity = backgroundOpacityValue(cmbBackgroundIntensity.getValue());
+            putSetting(BrandingService.PANEL_BACKGROUND_OPACITY_KEY, opacity);
+            ConfigManager.setLocalProperty(BrandingService.PANEL_BACKGROUND_OPACITY_KEY, opacity);
+        }
+    }
+
+    private static String backgroundIntensityLabel(String rawOpacity) {
+        try {
+            double val = Double.parseDouble(rawOpacity == null ? "" : rawOpacity.trim());
+            if (val <= 0.18) return "Subtle (15%)";
+            if (val <= 0.32) return "Soft (25%)";
+            if (val <= 0.48) return "Balanced (40%)";
+            return "Vivid (55%)";
+        } catch (NumberFormatException ignored) {
+            return "Soft (25%)";
+        }
+    }
+
+    private static String backgroundOpacityValue(String label) {
+        if (label == null) return "0.25";
+        if (label.contains("15%")) return "0.15";
+        if (label.contains("40%")) return "0.40";
+        if (label.contains("55%")) return "0.55";
+        return "0.25";
     }
     private void savePaymentDetails() {
         putSetting("payment.upiId", text(txtUpiId));
@@ -3388,6 +3514,21 @@ private record AssetPreviewRequest(
             String modeVal = cmbEmailFormatMode.getValue().name();
             putSetting(org.example.shared.communication.NotificationTemplateCatalog.EMAIL_FORMAT_MODE_KEY, modeVal);
             ConfigManager.setWithoutSaving(org.example.shared.communication.NotificationTemplateCatalog.EMAIL_FORMAT_MODE_KEY, modeVal);
+        }
+        if (txtDefaultEmailCc != null) {
+            String defCc = txtDefaultEmailCc.getText() == null ? "" : txtDefaultEmailCc.getText().trim();
+            putSetting("email.default.cc", defCc);
+            ConfigManager.setWithoutSaving("email.default.cc", defCc);
+        }
+        if (txtDefaultEmailBcc != null) {
+            String defBcc = txtDefaultEmailBcc.getText() == null ? "" : txtDefaultEmailBcc.getText().trim();
+            putSetting("email.default.bcc", defBcc);
+            ConfigManager.setWithoutSaving("email.default.bcc", defBcc);
+        }
+        if (tglEmailOutboxRetry != null) {
+            boolean retryOn = tglEmailOutboxRetry.isSelected();
+            putSetting("email.outbox.enabled", String.valueOf(retryOn));
+            ConfigManager.setWithoutSaving("email.outbox.enabled", String.valueOf(retryOn));
         }
         if (ConfigManager.isSharedClient()) {
             if (!SessionService.isAdmin()) return;
@@ -3809,6 +3950,27 @@ private record AssetPreviewRequest(
                 ConfigManager.setWithoutSaving(org.example.shared.communication.NotificationTemplateCatalog.EMAIL_FORMAT_MODE_KEY, newVal.name());
                 ConfigManager.save();
             });
+        }
+        if (txtDefaultEmailCc != null) {
+            txtDefaultEmailCc.setText(ConfigManager.get("email.default.cc", "").trim());
+        }
+        if (txtDefaultEmailBcc != null) {
+            txtDefaultEmailBcc.setText(ConfigManager.get("email.default.bcc", "").trim());
+        }
+        if (tglEmailOutboxRetry != null && !Boolean.TRUE.equals(tglEmailOutboxRetry.getProperties().get("erp.toggle.initialized"))) {
+            tglEmailOutboxRetry.getProperties().put("erp.toggle.initialized", true);
+            boolean outboxActive = ConfigManager.getBoolean("email.outbox.enabled", true);
+            tglEmailOutboxRetry.setSelected(outboxActive);
+            tglEmailOutboxRetry.setText(outboxActive ? "Auto-Retry Outbox: ON" : "Auto-Retry Outbox: OFF");
+            tglEmailOutboxRetry.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                tglEmailOutboxRetry.setText(newVal ? "Auto-Retry Outbox: ON" : "Auto-Retry Outbox: OFF");
+                putSetting("email.outbox.enabled", String.valueOf(newVal));
+                ConfigManager.setBoolean("email.outbox.enabled", newVal);
+                ConfigManager.save();
+            });
+        }
+        if (btnOpenEmailOutbox != null) {
+            org.example.util.UiActionIcons.apply(btnOpenEmailOutbox, "email", "Open Email Outbox & Auto-Retry Queue");
         }
 
         if (cmbMessageTemplateDoc != null) {
@@ -4714,9 +4876,25 @@ private record AssetPreviewRequest(
                     String ourIfsc = ConfigManager.get("payment.ifsc", ConfigManager.get("company.bank.ifsc", "")).trim();
                     boolean hasBank = !ourBankName.isBlank() || !ourAccNo.isBlank() || !ourIfsc.isBlank();
                     String statusUrl = MessageTemplateService.buildPublicPaymentStatusUrl(tokens.get("DocumentNo"), 125000.00);
+                    var sampleCtx = new MessageTemplateService.RichEmailContext(
+                            tokens.get("CustomerName"),
+                            BusinessClock.formatDate(LocalDate.now()),
+                            BusinessClock.formatDate(LocalDate.now().plusDays(15)),
+                            tokens.getOrDefault("PartyGstin", "24ABCDE1234F1Z5"),
+                            "NEFT / Bank Transfer",
+                            tokens.get("PaymentReference"),
+                            "INV-2026-0042",
+                            105932.20,
+                            19067.80,
+                            "CGST 9% + SGST 9%",
+                            List.of(
+                                    new MessageTemplateService.LineItemPreview("Heavy Duty Lathe Assembly", "8458", "2 Nos", "₹ 45,000.00", "18% (₹ 16,200.00)", "₹ 1,06,200.00"),
+                                    new MessageTemplateService.LineItemPreview("Precision Chuck Calibration", "9031", "1 Set", "₹ 15,932.20", "18% (₹ 2,867.80)", "₹ 18,800.00")
+                            )
+                    );
                     html = MessageTemplateService.formatExecutiveHtmlEmail(
                             spec.displayName(),
-                            "OFFICIAL",
+                            "PARTIAL",
                             tokens.get("DocumentNo"),
                             BusinessClock.formatDate(LocalDate.now()),
                             tokens.get("CustomerName"),
@@ -4724,22 +4902,27 @@ private record AssetPreviewRequest(
                             75000.00,
                             50000.00,
                             body,
-                            hasBank,
+                            "payment".equals(spec.key()) || "purchase_remittance".equals(spec.key()) || "refund_confirmation".equals(spec.key()) ? hasBank : false,
                             ourBankName,
                             ourAccNo,
                             ourIfsc,
-                            "Live Electronic Settlement Verification",
+                            tokens.get("CustomerName"),
                             tokens.get("PaymentReference"),
                             statusUrl,
                             sigBase64 != null && !sigBase64.isBlank(),
-                            sigBase64
+                            sigBase64,
+                            sampleCtx
                     );
+                } else if ("auth_otp".equals(spec.key())) {
+                    html = MessageTemplateService.formatOtpEmailHtml(tokens.getOrDefault("UserName", "admin"), "Sign-In Verification", tokens.getOrDefault("OtpCode", "482910"));
                 } else {
                     String resolvedPlain = MessageTemplateService.format(rawBody, tokens);
-                    html = MessageTemplateService.wrapPlainBodyInCardHtml(
+                    html = MessageTemplateService.buildTemplatePreviewCardHtml(
                             spec.category().displayName(),
+                            spec.key(),
                             spec.displayName(),
-                            resolvedPlain
+                            resolvedPlain,
+                            tokens.getOrDefault("CustomerName", BrandingService.companyName())
                     );
                 }
                 Path tempHtml = Files.createTempFile("dse-email-preview-", ".html");
@@ -5019,6 +5202,11 @@ private record AssetPreviewRequest(
     @FXML
     private void openRemoteAccessDialog() {
         RemoteAccessDialogController.show(panelHost != null && panelHost.getScene() != null ? panelHost.getScene().getWindow() : null);
+    }
+
+    @FXML
+    private void openEmailOutbox() {
+        org.example.util.EmailOutboxDialog.show(panelEmail != null ? panelEmail : settingsPageHeader);
     }
 
     /* =========================================================

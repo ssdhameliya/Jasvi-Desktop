@@ -196,4 +196,30 @@
             <ComboBox fx:id="cmbEmailFormatMode" prefWidth="220" styleClass="approved-combo"/>
         </HBox>
     </VBox>
+
+    <!-- Feature Flag 5: Default Copies (CC / Auto-BCC) & Auto-Retry Outbox -->
+    <VBox spacing="10" styleClass="settings-subcard">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                <Label text="Default CC / Auto-BCC &amp; Failed-Email Auto-Retry Outbox" styleClass="section-title"/>
+                <Label text="Automatically include finance/archive copies on outgoing business emails and retry transient SMTP failures with exponential backoff." wrapText="true" styleClass="page-subtitle"/>
+            </VBox>
+            <ToggleButton fx:id="tglEmailOutboxRetry" text="Auto-Retry Outbox: ON" styleClass="apple-toggle-switch,ios-toggle-switch"/>
+            <Button fx:id="btnOpenEmailOutbox" text="View Outbox &amp; Failed Queue" onAction="#openEmailOutbox" styleClass="approved-button,approved-secondary-button"/>
+        </HBox>
+        <GridPane hgap="18" vgap="10">
+            <columnConstraints>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+                <ColumnConstraints percentWidth="50" hgrow="ALWAYS"/>
+            </columnConstraints>
+            <VBox spacing="6" GridPane.columnIndex="0" GridPane.rowIndex="0">
+                <Label text="Default CC Addresses (Optional)" styleClass="settings-form-label"/>
+                <TextField fx:id="txtDefaultEmailCc" promptText="accounts@company.com; manager@company.com" styleClass="approved-input"/>
+            </VBox>
+            <VBox spacing="6" GridPane.columnIndex="1" GridPane.rowIndex="0">
+                <Label text="Default Auto-BCC Archive (Optional)" styleClass="settings-form-label"/>
+                <TextField fx:id="txtDefaultEmailBcc" promptText="compliance-archive@company.com" styleClass="approved-input"/>
+            </VBox>
+        </GridPane>
+    </VBox>
 </VBox>

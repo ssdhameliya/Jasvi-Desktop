@@ -42,7 +42,7 @@ public class SetupWizardController implements ScreenLifecycle {
     @FXML private TextField txtServerUrl;
     @FXML private Label lblServerStatus;
     @FXML private javafx.scene.layout.VBox sharedServerBox, localWorkspaceBox, localWorkspacePreview;
-    @FXML private StackPane setupLogoBox;
+    @FXML private StackPane setupLogoBox, setupCenterHost;
     @FXML private ImageView imgSetupMark;
     @FXML private Label lblSetupMarkFallback;
 
@@ -54,6 +54,7 @@ public class SetupWizardController implements ScreenLifecycle {
 
     @FXML public void initialize() {
         applySetupBrandMark();
+        org.example.service.BrandImagePresenter.applyPanelBackground(setupCenterHost, false);
         steps.addAll(List.of(stepWorkspace, stepCompany, stepEmail, stepAdmin, stepFinish));
         txtWorkspace.setText((WorkspaceManager.isConfigured()
                 ? WorkspaceManager.getWorkspaceRoot() : WorkspaceManager.getSuggestedWorkspace()).toString());

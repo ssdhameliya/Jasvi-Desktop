@@ -250,6 +250,16 @@ private void setupActions(){
        if (q.date != null && !q.date.get().isBlank()) qDate = LocalDate.parse(q.date.get());
    } catch (Exception ignored) { }
    MessageTemplateService.FormattedMessage msg = MessageTemplateService.formatQuotationEmail(q.no.get(), q.customer.get(), qDate, q.amount.get());
+   QuotationApiClient.QuoteDto fullQuote = null;
+   List<QuotationApiClient.LineDto> quoteLines = List.of();
+   try {
+       fullQuote = quotationApi.quote(q.id);
+       quoteLines = quotationApi.lines(q.id);
+   } catch (Exception ignored) { }
+   var richCtx = fullQuote != null
+           ? MessageTemplateService.RichEmailContext.forQuotation(fullQuote, quoteLines)
+           : new MessageTemplateService.RichEmailContext(
+                   q.customer.get(), q.date != null ? q.date.get() : null, null, null, null, null, null, null, null, null, List.of());
    String sigImg = MessageTemplateService.isAttachSignatureToEmail() ? MessageTemplateService.getSignatureImagePath() : null;
    Path sigPath = (sigImg != null && !sigImg.isBlank()) ? Path.of(sigImg) : null;
    String fallbackEmail = q.email == null ? "" : q.email.trim();
@@ -271,7 +281,10 @@ private void setupActions(){
            q.amount.get(),
            0.0,
            q.amount.get(),
-           "QUOTATION"
+           "QUOTATION",
+           "QUOTATION",
+           q.id,
+           richCtx
    );
   }, draft -> {
    Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(table, draft);
@@ -279,7 +292,7 @@ private void setupActions(){
    EmailTransmissionDialog.TransmissionResult result = opt.get();
    LiveOperationDialog.run(table,"Sending Quotation Email","email","Connecting to SMTP server...",reporter->{
     reporter.stage(1,3,"Connecting to SMTP and transmitting email to "+result.recipientEmail()+"...");
-    EmailService.send(result.recipientEmail(),result.subject(),result.body(),result.attachmentPdf(),result.signatureImage(),result.senderProfile());
+    EmailService.send(draft, result);
     reporter.stage(2,3,"Recording communication history in audit register...");
     quotationApi.markSent(q.id,"EMAIL",q.rowVersion);
     comm(q,"EMAIL",result.recipientEmail(),"SENT",null);

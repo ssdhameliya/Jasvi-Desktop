@@ -270,7 +270,27 @@ public class PurchaseReturnsController implements ScreenLifecycle {
                     msg.subject(),
                     msg.body(),
                     pdf,
-                    sigPath
+                    sigPath,
+                    "purchase_return",
+                    MessageTemplateService.buildPublicPaymentStatusUrl(row.no(), row.total()),
+                    row.total(),
+                    row.refund(),
+                    Math.max(0.0, row.total() - row.refund()),
+                    row.status() != null && !row.status().isBlank() ? row.status() : "PURCHASE RETURN",
+                    "PURCHASE_RETURN",
+                    null,
+                    MessageTemplateService.RichEmailContext.forSettlement(
+                            row.supplier(),
+                            row.date(),
+                            null,
+                            row.reason(),
+                            null,
+                            row.invoice(),
+                            null,
+                            null,
+                            null,
+                            List.of()
+                    )
             );
         }, draft -> {
             Optional<EmailTransmissionDialog.TransmissionResult> opt = EmailTransmissionDialog.show(table, draft);
@@ -278,7 +298,7 @@ public class PurchaseReturnsController implements ScreenLifecycle {
             EmailTransmissionDialog.TransmissionResult result = opt.get();
             LiveOperationDialog.run(table, "Sending Purchase Return Email", "email", "Connecting to SMTP server...", reporter -> {
                 reporter.stage(1, 2, "Connecting to SMTP and transmitting email to " + result.recipientEmail() + "...");
-                EmailService.send(result.recipientEmail(), result.subject(), result.body(), result.attachmentPdf(), result.signatureImage());
+                EmailService.send(draft, result);
                 reporter.stage(2, 2, "Email delivery complete.");
                 reporter.log("Delivered purchase return note #" + row.no() + " to " + result.recipientEmail());
             }, () -> {

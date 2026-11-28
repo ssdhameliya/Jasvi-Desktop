@@ -74,6 +74,8 @@ public class MasterDataService {
         ensureReferenceFormat("REF_SALES","IN/DD-MM-YYYY/XXXX","Sales invoice reference",10);
         ensureReferenceFormat("REF_PURCHASE","PUR/DD-MM-YYYY/XXXX","Purchase invoice reference",20);
         ensureReferenceFormat("REF_QUOTATION","QT/DD-MM-YYYY/XXXX","Quotation reference",30);
+        ensureReferenceFormat("REF_ENQUIRY","ENQ/DD-MM-YYYY/XXXX","Website & Customer Enquiry reference",25);
+        ensureLookupValueByCategoryCode("QUOTATION_SOURCE","QTS_WEB","Website RFQ","Inbound inquiry or RFQ captured from public website",90);
         ensureReferenceFormat("REF_SALES_RETURN","SRT/DD-MM-YYYY/XXXX","Sales Return reference",40);
         ensureReferenceFormat("REF_PURCHASE_RETURN","PRT/DD-MM-YYYY/XXXX","Purchase Return reference",50);
         ensureReferenceFormat("REF_ITEM","ITM/DD-MM-YYYY/XXXX","Item code reference",60);
@@ -570,6 +572,7 @@ public class MasterDataService {
         prefixMap.put("REF_SALES", "IN");
         prefixMap.put("REF_PURCHASE", "PUR");
         prefixMap.put("REF_QUOTATION", "QT");
+        prefixMap.put("REF_ENQUIRY", "ENQ");
         prefixMap.put("REF_SALES_RETURN", "SRT");
         prefixMap.put("REF_PURCHASE_RETURN", "PRT");
         prefixMap.put("REF_FINANCE_VOUCHER", "VCH");

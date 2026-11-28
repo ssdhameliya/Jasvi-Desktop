@@ -16,6 +16,7 @@ import org.example.navigation.NavigationManager;
 import org.example.util.ClockService;
 import org.example.util.IconFactory;
 import org.example.util.SceneManager;
+import org.example.util.UiActionIcons;
 import org.example.util.LiveOperationDialog;
 import org.example.update.BuildInfo;
 
@@ -24,7 +25,7 @@ import java.util.regex.Pattern;
 public class EmailSettingsController implements ScreenLifecycle {
     private static final Pattern EMAIL=Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     @FXML private ImageView imgBrandLogo, imgBrandMark;
-    @FXML private StackPane brandLogoBox, brandMarkBox;
+    @FXML private StackPane brandLogoBox, brandMarkBox, emailCenterHost;
     @FXML private VBox brandPanel;
     @FXML private Label lblBrandMark,lblBrandName,lblBrandTagline,lblBrandDescription,lblVersion;
     @FXML private Label lblClock,lblMessage,lblEmailError,lblPasswordError,lblHostError,lblPortError;
@@ -40,7 +41,9 @@ public class EmailSettingsController implements ScreenLifecycle {
         BrandImagePresenter.applicationBanner(imgBrandLogo, brandLogoBox); BrandImagePresenter.contain(imgBrandMark, brandMarkBox);
         applyBranding();
         if (lblVersion != null) lblVersion.setText("Version " + BuildInfo.version());
-        btnSave.setGraphic(IconFactory.icon("save")); btnBack.setGraphic(IconFactory.icon("return")); if(btnTestEmail!=null)btnTestEmail.setGraphic(IconFactory.icon("email"));
+        UiActionIcons.apply(btnSave, "save", "Save Email Settings");
+        UiActionIcons.apply(btnBack, "return", "Back to login");
+        if (btnTestEmail != null) UiActionIcons.apply(btnTestEmail, "email", "Test Email");
         txtSmtpEmail.textProperty().addListener((o,a,b)->{if(b!=null&&!b.isBlank())clear(txtSmtpEmail,lblEmailError);});
         txtSmtpPassword.textProperty().addListener((o,a,b)->{if(b!=null&&!b.isBlank())clear(txtSmtpPassword,lblPasswordError);});
         txtSmtpHost.textProperty().addListener((o,a,b)->clear(txtSmtpHost,lblHostError));
@@ -59,6 +62,7 @@ public class EmailSettingsController implements ScreenLifecycle {
         imgBrandMark.setImage(available?mark:null); imgBrandMark.setManaged(available); imgBrandMark.setVisible(available);
         if(brandMarkBox!=null){brandMarkBox.setManaged(available);brandMarkBox.setVisible(available);}
         lblBrandMark.setManaged(false); lblBrandMark.setVisible(false);
+        BrandImagePresenter.applyPanelBackground(emailCenterHost, false);
     }
 
 
@@ -78,7 +82,13 @@ public class EmailSettingsController implements ScreenLifecycle {
             "Connecting to SMTP server and validating configuration...",
             reporter -> {
                 reporter.stage(1, 2, "Connecting to SMTP host and transmitting...");
-                EmailService.send(recipient, BrandingService.applicationName() + " email test", "Your " + BrandingService.applicationName() + " email configuration is working correctly.");
+                var rendered = org.example.service.MessageTemplateService.buildSmtpDiagnosticMessage(
+                        ConfigManager.get("smtp.host", ""),
+                        ConfigManager.get("smtp.port", ""),
+                        recipient,
+                        org.example.util.BusinessClock.formatTimestamp(java.time.Instant.now().toString())
+                );
+                EmailService.send(recipient, rendered.subject(), rendered.body());
                 reporter.stage(2, 2, "Test email delivered successfully.");
             },
             () -> message("Test email sent successfully to " + recipient + ".", false),

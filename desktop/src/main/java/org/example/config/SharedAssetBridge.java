@@ -13,12 +13,14 @@ public final class SharedAssetBridge {
             "email.signature.image",
             "payment.qrImagePath",
             "application.brandImagePath",
-            "application.markImagePath"
+            "application.markImagePath",
+            "application.backgroundImagePath"
     );
 
     public static final List<String> PUBLIC_BRANDING_KEYS = List.of(
             "application.markImagePath",
             "application.brandImagePath",
+            "application.backgroundImagePath",
             "company.logoPath"
     );
 
@@ -35,6 +37,7 @@ public final class SharedAssetBridge {
             case "payment.qrImagePath" -> "payment.upi.qr";
             case "application.brandImagePath" -> "application.banner";
             case "application.markImagePath" -> "application.mark";
+            case "application.backgroundImagePath" -> "application.background";
             default -> null;
         };
     }
@@ -135,6 +138,17 @@ public final class SharedAssetBridge {
             } catch (Exception ex) {
                 java.lang.System.getLogger("org.example.config").log(java.lang.System.Logger.Level.DEBUG, "Sync asset error for " + key + ": " + ex.getMessage());
             }
+        }
+        for (String extraKey : List.of(
+                "application.backgroundEnabled",
+                "application.backgroundScope",
+                "application.backgroundOpacity")) {
+            try {
+                String remoteVal = support.setting(extraKey, "");
+                if (remoteVal != null && !remoteVal.isBlank()) {
+                    ConfigManager.setLocalProperty(extraKey, remoteVal.trim());
+                }
+            } catch (Exception ignored) {}
         }
         ConfigManager.save();
     }

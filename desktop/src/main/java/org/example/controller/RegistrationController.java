@@ -22,7 +22,7 @@ public class RegistrationController implements ScreenLifecycle {
     private static final Pattern EMAIL=Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 
     @FXML private ImageView imgBrandLogo,imgBrandMark;
-    @FXML private StackPane brandLogoBox,brandMarkBox;
+    @FXML private StackPane brandLogoBox,brandMarkBox,registrationCenterHost;
     @FXML private VBox brandPanel;
     @FXML private Label lblBrandMark,lblBrandName,lblBrandTagline,lblBrandDescription,lblVersion,lblMessage,
             lblNameError,lblUsernameError,lblEmailError,lblRoleError,lblPasswordError,lblConfirmError,
@@ -67,6 +67,7 @@ public class RegistrationController implements ScreenLifecycle {
         Image mark=BrandingService.effectiveMarkImage();boolean a=mark!=null&&!mark.isError();
         imgBrandMark.setImage(a?mark:null);imgBrandMark.setManaged(a);imgBrandMark.setVisible(a);brandMarkBox.setManaged(a);brandMarkBox.setVisible(a);
         lblBrandMark.setManaged(false);lblBrandMark.setVisible(false);
+        BrandImagePresenter.applyPanelBackground(registrationCenterHost, false);
     }
 
     @FXML private void refreshCaptcha(){

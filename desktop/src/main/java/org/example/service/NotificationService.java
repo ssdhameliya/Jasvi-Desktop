@@ -148,6 +148,7 @@ public final class NotificationService {
         if(target.contains("purchasepayment")) return "PURCHASE";
         if(target.contains("saleslist")) return "SALES";
         if(target.contains("purchaselist")) return "PURCHASES";
+        if(target.contains("enquirieslist")) return "ENQUIRY";
         if(target.contains("quotation")) return "QUOTATIONS";
         if(target.contains("salesreturn")) return "SALES_RETURNS";
         if(target.contains("purchasereturn")) return "PURCHASE_RETURNS";

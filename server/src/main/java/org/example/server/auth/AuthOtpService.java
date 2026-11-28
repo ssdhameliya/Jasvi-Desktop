@@ -1,8 +1,14 @@
 package org.example.server.auth;
 
 import org.example.server.persistence.JpaNativeRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.ResourceTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -23,26 +29,51 @@ class AuthOtpService {
 
     private final SecureRandom random = new SecureRandom();
     private final JpaNativeRepository db;
+    private TransactionTemplate txTemplate;
+    private TransactionTemplate noTxTemplate;
 
     AuthOtpService(JpaNativeRepository db) {
         this.db = db;
     }
 
-    @Transactional
+    @Autowired(required = false)
+    void setTransactionManager(PlatformTransactionManager txManager) {
+        if (txManager == null) {
+            this.txTemplate = null;
+            this.noTxTemplate = null;
+            return;
+        }
+        this.txTemplate = new TransactionTemplate(txManager);
+        if (txManager instanceof ResourceTransactionManager) {
+            TransactionTemplate suspended = new TransactionTemplate(txManager);
+            suspended.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
+            this.noTxTemplate = suspended;
+        } else {
+            this.noTxTemplate = null;
+        }
+    }
+
+    /**
+     * Issues a new OTP challenge while ensuring outbound SMTP dispatch and any dynamic mail/template
+     * lookups run outside any active PostgreSQL transaction (prevents 25P02 transaction abort propagation).
+     */
     synchronized Issued issue(Purpose purpose, String key, String binding, Integer userId,
                               String recipient, SmtpMailService mail) {
-        cleanup();
         String safeKey = normalizeKey(key);
-        List<Map<String,Object>> recent = db.queryForList("""
-                SELECT challenge_id
-                FROM auth_challenge
-                WHERE purpose=? AND challenge_key=? AND expires_at>CURRENT_TIMESTAMP
-                  AND issued_at > CURRENT_TIMESTAMP - (? * INTERVAL '1 second')
-                ORDER BY issued_at DESC
-                LIMIT 1
-                """, purpose.name(), safeKey, RESEND_COOLDOWN_SECONDS);
-        if (!recent.isEmpty()) {
-            return new Issued(String.valueOf(recent.getFirst().get("challenge_id")), false);
+        String existingRecent = runInTx(() -> {
+            cleanup();
+            List<Map<String,Object>> recent = db.queryForList("""
+                    SELECT challenge_id
+                    FROM auth_challenge
+                    WHERE purpose=? AND challenge_key=? AND expires_at>CURRENT_TIMESTAMP
+                      AND issued_at > CURRENT_TIMESTAMP - (? * INTERVAL '1 second')
+                    ORDER BY issued_at DESC
+                    LIMIT 1
+                    """, purpose.name(), safeKey, RESEND_COOLDOWN_SECONDS);
+            return recent.isEmpty() ? null : String.valueOf(recent.getFirst().get("challenge_id"));
+        });
+        if (existingRecent != null) {
+            return new Issued(existingRecent, false);
         }
 
         String code = String.format("%06d", random.nextInt(1_000_000));
@@ -51,19 +82,39 @@ class AuthOtpService {
         String challengeId = randomToken(24);
         String bindingHash = bindingHash(binding);
         if (recipient != null && !recipient.isBlank()) {
-            mail.sendOtp(recipient, purposeLabel(purpose), code);
+            runWithoutTx(() -> {
+                mail.sendOtp(recipient, purposeLabel(purpose), code);
+                return null;
+            });
         }
 
-        // A new challenge supersedes all older challenges for the same purpose/key.
-        db.update("DELETE FROM auth_challenge WHERE purpose=? AND challenge_key=?", purpose.name(), safeKey);
-        db.update("""
-                INSERT INTO auth_challenge(challenge_id,purpose,challenge_key,binding_hash,user_id,recipient,
-                                           salt_base64,code_hash,issued_at,expires_at,attempts)
-                VALUES(?,?,?,?,?,?,?, ?,CURRENT_TIMESTAMP,
-                       CURRENT_TIMESTAMP + (? * INTERVAL '1 second'),0)
-                """, challengeId, purpose.name(), safeKey, bindingHash, userId, clean(recipient),
-                Base64.getEncoder().encodeToString(salt), hash(salt, code), LIFETIME.toSeconds());
+        runInTx(() -> {
+            // A new challenge supersedes all older challenges for the same purpose/key.
+            db.update("DELETE FROM auth_challenge WHERE purpose=? AND challenge_key=?", purpose.name(), safeKey);
+            db.update("""
+                    INSERT INTO auth_challenge(challenge_id,purpose,challenge_key,binding_hash,user_id,recipient,
+                                               salt_base64,code_hash,issued_at,expires_at,attempts)
+                    VALUES(?,?,?,?,?,?,?, ?,CURRENT_TIMESTAMP,
+                           CURRENT_TIMESTAMP + (? * INTERVAL '1 second'),0)
+                    """, challengeId, purpose.name(), safeKey, bindingHash, userId, clean(recipient),
+                    Base64.getEncoder().encodeToString(salt), hash(salt, code), LIFETIME.toSeconds());
+            return null;
+        });
         return new Issued(challengeId, true);
+    }
+
+    private <T> T runInTx(java.util.function.Supplier<T> work) {
+        if (txTemplate != null && !TransactionSynchronizationManager.isActualTransactionActive()) {
+            return txTemplate.execute(status -> work.get());
+        }
+        return work.get();
+    }
+
+    private <T> T runWithoutTx(java.util.function.Supplier<T> work) {
+        if (noTxTemplate != null && TransactionSynchronizationManager.isActualTransactionActive()) {
+            return noTxTemplate.execute(status -> work.get());
+        }
+        return work.get();
     }
 
     @Transactional(noRollbackFor = IllegalArgumentException.class)
@@ -95,6 +146,16 @@ class AuthOtpService {
         Map<String,Object> row = challengeRow(purpose, challengeId, false);
         Object value = row.get("user_id");
         return value instanceof Number number ? number.intValue() : null;
+    }
+
+    @Transactional(readOnly = true, noRollbackFor = IllegalArgumentException.class)
+    synchronized int challengeAttempts(Purpose purpose, String challengeId) {
+        try {
+            Map<String,Object> row = challengeRow(purpose, challengeId, false);
+            return number(row.get("attempts"));
+        } catch (RuntimeException ignored) {
+            return -1;
+        }
     }
 
     @Transactional

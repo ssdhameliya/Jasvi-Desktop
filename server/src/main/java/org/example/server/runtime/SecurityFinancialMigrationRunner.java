@@ -271,7 +271,15 @@ public final class SecurityFinancialMigrationRunner implements ApplicationRunner
             new Migration("V11_0_91__bank_rules_v2_and_party_aliases",
                     "db/migration/V11_0_91__bank_rules_v2_and_party_aliases.sql"),
             new Migration("V11_0_92__sales_customer_health_and_pricing",
-                    "db/migration/V11_0_92__sales_customer_health_and_pricing.sql")
+                    "db/migration/V11_0_92__sales_customer_health_and_pricing.sql"),
+            new Migration("V11_0_93__email_outbox_bank_gl_subscription_tracking",
+                    "db/migration/V11_0_93__email_outbox_bank_gl_subscription_tracking.sql"),
+            new Migration("V11_0_94__superadmin_independent_mfa_flag",
+                    "db/migration/V11_0_94__superadmin_independent_mfa_flag.sql"),
+            new Migration("V11_0_95__sync_superadmin_mfa_flag_to_user_row",
+                    "db/migration/V11_0_95__sync_superadmin_mfa_flag_to_user_row.sql"),
+            new Migration("V11_0_96__public_enquiries_register",
+                    "db/migration/V11_0_96__public_enquiries_register.sql")
     );
     private static final long MIGRATION_LOCK = 51018001L;
     private final JpaNativeRepository database;

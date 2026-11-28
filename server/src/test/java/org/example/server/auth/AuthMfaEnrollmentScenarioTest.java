@@ -31,30 +31,30 @@ class AuthMfaEnrollmentScenarioTest {
         ScenarioDb db = new ScenarioDb();
         AuthService service = new AuthService(users, roles, passwords, tokens, otp, mail, db, totp, captcha);
 
-        UserEntity admin = user(7, "admin", "ADMIN", true);
-        admin.setMfaEnabled(true); // the Admin has just ticked Require MFA in User Access
-        when(users.findForAuthentication("admin")).thenReturn(Optional.of(admin));
-        when(users.findByIdForAuthentication(7)).thenReturn(Optional.of(admin));
-        when(passwords.matches("Password1", admin.getPassword())).thenReturn(true);
-        when(roles.isActive("ADMIN")).thenReturn(true);
-        TotpService.Setup setup = new TotpService.Setup("BASE32SECRET", "ENC-SECRET", "otpauth://totp/DSE%20ERP%3Aadmin?secret=BASE32SECRET");
-        when(totp.createSetup("admin", "")).thenReturn(setup);
+        UserEntity sales = user(7, "sales1", "SALES", true);
+        sales.setMfaEnabled(true); // the Admin has just ticked Require MFA in User Access
+        when(users.findForAuthentication("sales1")).thenReturn(Optional.of(sales));
+        when(users.findByIdForAuthentication(7)).thenReturn(Optional.of(sales));
+        when(passwords.matches("Password1", sales.getPassword())).thenReturn(true);
+        when(roles.isActive("SALES")).thenReturn(true);
+        TotpService.Setup setup = new TotpService.Setup("BASE32SECRET", "ENC-SECRET", "otpauth://totp/DSE%20ERP%3Asales1?secret=BASE32SECRET");
+        when(totp.createSetup("sales1", "")).thenReturn(setup);
         when(totp.issueLogin(7)).thenReturn("challenge-1");
         when(totp.peekLogin("challenge-1")).thenReturn(7);
-        when(totp.existingSetup("admin", "", "ENC-SECRET")).thenReturn(setup);
+        when(totp.existingSetup("sales1", "", "ENC-SECRET")).thenReturn(setup);
         when(totp.verifyEncrypted("ENC-SECRET", "111111")).thenReturn(false);
         when(totp.verifyEncrypted("ENC-SECRET", "654321")).thenReturn(true);
         when(totp.consumeLogin("challenge-1")).thenReturn(7);
         when(tokens.issue(any(AuthenticatedUser.class))).thenReturn(new TokenService.IssuedToken("access-token", Instant.now().plusSeconds(3600)));
 
-        AuthDtos.LoginResponse first = service.login(new AuthDtos.LoginRequest("admin", "Password1"), "127.0.0.1");
+        AuthDtos.LoginResponse first = service.login(new AuthDtos.LoginRequest("sales1", "Password1"), "127.0.0.1");
         assertTrue(first.success());
         assertTrue(first.mfaRequired());
         assertEquals("Authenticator enrollment", first.maskedDestination());
         assertEquals("challenge-1", first.challengeId());
         assertNull(first.accessToken(), "Password verification alone must not create an authenticated session");
         assertTrue(db.pending);
-        assertEquals("ENC-SECRET", admin.getTotpSecretEnc());
+        assertEquals("ENC-SECRET", sales.getTotpSecretEnc());
 
         AuthDtos.LoginMfaEnrollmentResponse enrollment = service.loginMfaEnrollment(new AuthDtos.LoginMfaEnrollmentRequest("challenge-1"));
         assertEquals("BASE32SECRET", enrollment.manualSecret());
@@ -69,7 +69,7 @@ class AuthMfaEnrollmentScenarioTest {
         assertFalse(correct.mfaRequired());
         assertEquals("access-token", correct.accessToken());
         assertFalse(db.pending, "Successful authenticator verification must mark enrollment active");
-        verify(tokens).issue(argThat(u -> u.id() == 7 && "ADMIN".equals(u.role())));
+        verify(tokens).issue(argThat(u -> u.id() == 7 && "SALES".equals(u.role())));
     }
 
     @Test
@@ -84,19 +84,63 @@ class AuthMfaEnrollmentScenarioTest {
         RegistrationCaptchaService captcha = mock(RegistrationCaptchaService.class);
         ScenarioDb db = new ScenarioDb();
         AuthService service = new AuthService(users, roles, passwords, tokens, otp, mail, db, totp, captcha);
-        UserEntity admin = user(8, "admin2", "ADMIN", true);
-        admin.setMfaEnabled(true);
-        when(users.findForAuthentication("admin2")).thenReturn(Optional.of(admin));
-        when(passwords.matches("Password1", admin.getPassword())).thenReturn(true);
-        when(roles.isActive("ADMIN")).thenReturn(true);
-        when(totp.createSetup("admin2", "")).thenReturn(new TotpService.Setup("S", "E", "otpauth://test"));
+        UserEntity staff = user(8, "staff2", "SALES", true);
+        staff.setMfaEnabled(true);
+        when(users.findForAuthentication("staff2")).thenReturn(Optional.of(staff));
+        when(passwords.matches("Password1", staff.getPassword())).thenReturn(true);
+        when(roles.isActive("SALES")).thenReturn(true);
+        when(totp.createSetup("staff2", "")).thenReturn(new TotpService.Setup("S", "E", "otpauth://test"));
         when(totp.issueLogin(8)).thenReturn("challenge-2");
 
-        AuthDtos.LoginResponse first = service.login(new AuthDtos.LoginRequest("admin2", "Password1"), "127.0.0.1");
+        AuthDtos.LoginResponse first = service.login(new AuthDtos.LoginRequest("staff2", "Password1"), "127.0.0.1");
         assertTrue(first.success());
         assertTrue(first.mfaRequired());
         assertEquals("Authenticator enrollment", first.maskedDestination());
         verifyNoInteractions(mail);
+    }
+
+    @Test
+    void superAdminMfaFlagIsStrictlyIndependentOfCompanyPolicyWhileAdminFollowsRequiredAndControlled() throws Exception {
+        UserRepository users = mock(UserRepository.class);
+        RoleMasterService roles = mock(RoleMasterService.class);
+        PasswordEncoder passwords = mock(PasswordEncoder.class);
+        TokenService tokens = mock(TokenService.class);
+        AuthOtpService otp = mock(AuthOtpService.class);
+        SmtpMailService mail = mock(SmtpMailService.class);
+        TotpService totp = mock(TotpService.class);
+        RegistrationCaptchaService captcha = mock(RegistrationCaptchaService.class);
+        ScenarioDb db = new ScenarioDb();
+        AuthService service = new AuthService(users, roles, passwords, tokens, otp, mail, db, totp, captcha);
+
+        UserEntity admin = user(21, "officeadmin", "ADMIN", true);
+        UserEntity sa = user(22, "superadmin", "SUPER_ADMIN", true);
+        when(users.findForAuthentication("officeadmin")).thenReturn(Optional.of(admin));
+        when(users.findForAuthentication("superadmin")).thenReturn(Optional.of(sa));
+        when(passwords.matches(eq("Password1"), anyString())).thenReturn(true);
+        when(roles.isActive(anyString())).thenReturn(true);
+        when(totp.createSetup(anyString(), anyString())).thenReturn(new TotpService.Setup("S", "E", "otpauth://test"));
+        when(totp.issueLogin(anyInt())).thenReturn("ch-x");
+        when(tokens.issue(any(AuthenticatedUser.class))).thenReturn(new TokenService.IssuedToken("tok", Instant.now().plusSeconds(3600)));
+
+        // 1. ADMIN_CONTROLLED -> Admin is exempted even if flag=true; SuperAdmin obeys superAdminMfa="NO"
+        db.policy = "ADMIN_CONTROLLED";
+        db.superAdminMfa = "NO";
+        admin.setMfaEnabled(true);
+        assertFalse(service.login(new AuthDtos.LoginRequest("officeadmin", "Password1"), "127.0.0.1").mfaRequired());
+        assertFalse(service.login(new AuthDtos.LoginRequest("superadmin", "Password1"), "127.0.0.1").mfaRequired());
+
+        // 2. DISABLED company policy + SuperAdmin YES -> Admin has No MFA, SuperAdmin STILL requires MFA
+        db.policy = "DISABLED";
+        db.superAdminMfa = "YES";
+        assertFalse(service.login(new AuthDtos.LoginRequest("officeadmin", "Password1"), "127.0.0.1").mfaRequired());
+        assertTrue(service.login(new AuthDtos.LoginRequest("superadmin", "Password1"), "127.0.0.1").mfaRequired());
+
+        // 3. REQUIRED company policy + SuperAdmin NO -> Admin is forced into MFA, SuperAdmin stays No MFA
+        db.policy = "REQUIRED";
+        db.superAdminMfa = "NO";
+        admin.setMfaEnabled(false);
+        assertTrue(service.login(new AuthDtos.LoginRequest("officeadmin", "Password1"), "127.0.0.1").mfaRequired());
+        assertFalse(service.login(new AuthDtos.LoginRequest("superadmin", "Password1"), "127.0.0.1").mfaRequired());
     }
 
 
@@ -112,7 +156,7 @@ class AuthMfaEnrollmentScenarioTest {
         RegistrationCaptchaService captcha = mock(RegistrationCaptchaService.class);
         ScenarioDb db = new ScenarioDb(); db.pending = true;
         AuthService service = new AuthService(users, roles, passwords, tokens, otp, mail, db, totp, captcha);
-        UserEntity user = user(9, "recovery", "ADMIN", true);
+        UserEntity user = user(9, "recovery", "SALES", true);
         user.setMfaEnabled(true);
         user.setTotpSecretEnc(null);
         when(users.findById(9)).thenReturn(Optional.of(user));
@@ -142,12 +186,12 @@ class AuthMfaEnrollmentScenarioTest {
         ScenarioDb db = new ScenarioDb();
         AuthService service = new AuthService(users, roles, passwords, tokens, otp, mail, db, totp, captcha);
 
-        UserEntity user = user(10, "lostphone", "ADMIN", true);
+        UserEntity user = user(10, "lostphone", "SALES", true);
         user.setEmail("lost@example.com");
         user.setMfaEnabled(true);
         user.setTotpSecretEnc("ENC-OLD");
         when(users.findByIdForAuthentication(10)).thenReturn(Optional.of(user));
-        when(roles.isActive("ADMIN")).thenReturn(true);
+        when(roles.isActive("SALES")).thenReturn(true);
         when(totp.peekLogin("login-old")).thenReturn(10);
         when(otp.issue(eq(AuthOtpService.Purpose.MFA_RECOVERY), eq("user:10"), anyString(), eq(10),
                 eq("lost@example.com"), eq(mail))).thenReturn(new AuthOtpService.Issued("recovery-1", true));
@@ -187,11 +231,11 @@ class AuthMfaEnrollmentScenarioTest {
         RegistrationCaptchaService captcha = mock(RegistrationCaptchaService.class);
         ScenarioDb db = new ScenarioDb();
         AuthService service = new AuthService(users, roles, passwords, tokens, otp, mail, db, totp, captcha);
-        UserEntity user = user(11, "noemail", "ADMIN", true);
+        UserEntity user = user(11, "noemail", "SALES", true);
         user.setMfaEnabled(true);
         user.setTotpSecretEnc("ENC-OLD");
         when(users.findByIdForAuthentication(11)).thenReturn(Optional.of(user));
-        when(roles.isActive("ADMIN")).thenReturn(true);
+        when(roles.isActive("SALES")).thenReturn(true);
         when(totp.peekLogin("login-no-email")).thenReturn(11);
 
         IllegalStateException failure = assertThrows(IllegalStateException.class,
@@ -249,6 +293,8 @@ class AuthMfaEnrollmentScenarioTest {
 
     private static final class ScenarioDb extends JpaNativeRepository {
         boolean pending;
+        String policy = "ADMIN_CONTROLLED";
+        String superAdminMfa = "NO";
         @Override public int update(String sql, Object... args) {
             String normalized = sql.replaceAll("\\s+", " ");
             if (normalized.contains("INSERT INTO auth_totp_enrollment_pending")) pending = true;
@@ -256,7 +302,8 @@ class AuthMfaEnrollmentScenarioTest {
             return 1;
         }
         @Override public <T> T queryForObject(String sql, Class<T> type, Object... args) {
-            if (sql.contains("security.auth.mfa.policy")) return type.cast("ADMIN_CONTROLLED");
+            if (sql.contains("security.auth.mfa.policy")) return type.cast(policy);
+            if (sql.contains("security.superadmin.mfa.enabled")) return type.cast(superAdminMfa);
             if (sql.contains("auth_totp_enrollment_pending")) return type.cast(Long.valueOf(pending ? 1 : 0));
             if (sql.contains("login_throttle")) return type.cast(Long.valueOf(0));
             if (sql.contains("registration_request")) return type.cast(Long.valueOf(0));

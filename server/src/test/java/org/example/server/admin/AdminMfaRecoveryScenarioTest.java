@@ -24,7 +24,7 @@ class AdminMfaRecoveryScenarioTest {
     @Test
     void lostPhoneResetInvalidatesOldSecretRevokesSessionsAndKeepsMfaRequired() {
         actor(1, "owner");
-        RecoveryDb db = new RecoveryDb("ADMIN", true, "ADMIN_CONTROLLED");
+        RecoveryDb db = new RecoveryDb("SALES", true, "ADMIN_CONTROLLED");
         TokenService tokens = mock(TokenService.class);
         AdminService service = new AdminService(db, mock(PasswordEncoder.class), tokens, mock(RoleMasterService.class));
 
@@ -63,10 +63,11 @@ class AdminMfaRecoveryScenarioTest {
         final String role; final boolean enabled; final String policy; final List<String> sql = new ArrayList<>();
         RecoveryDb(String role, boolean enabled, String policy) { this.role = role; this.enabled = enabled; this.policy = policy; }
         @Override public Map<String,Object> queryForMap(String query, Object... args) {
-            Map<String,Object> row = new HashMap<>(); row.put("role", role); row.put("mfa_enabled", enabled); return row;
+            Map<String,Object> row = new HashMap<>(); row.put("role", role); row.put("username", "testuser"); row.put("mfa_enabled", enabled); return row;
         }
         @Override public <T> T queryForObject(String query, Class<T> type, Object... args) {
             if (query.contains("security.auth.mfa.policy")) return type.cast(policy);
+            if (query.contains("security.superadmin.mfa.enabled")) return type.cast("NO");
             if (query.contains("auth_totp_enrollment_pending")) return type.cast(Long.valueOf(0));
             throw new AssertionError("Unexpected query: " + query);
         }

@@ -82,6 +82,10 @@ public class LicenseApiClient {
         return get("/api/license/check-lead?machineId=" + enc, new TypeReference<>() {});
     }
 
+    public Map<String, Object> cloudRefresh() {
+        return post("/api/license/cloud-refresh", Map.of(), new TypeReference<>() {});
+    }
+
     private <T> T get(String path, Class<T> clazz) {
         return req("GET", path, null, clazz, null);
     }

@@ -32,7 +32,8 @@ public class UserDialogController implements ScreenLifecycle {
     @FXML private PasswordField txtPassword, txtConfirm;
     @FXML private TextField txtPasswordVisible, txtConfirmVisible;
     @FXML private ComboBox<String> cmbRole, cmbAccess;
-    @FXML private CheckBox chkActive, chkLocked, chkMfa;
+    @FXML private CheckBox chkActive, chkLocked;
+    @FXML private ToggleButton chkMfa;
     @FXML private Button btnSave, btnCancel, btnPasswordEye, btnConfirmEye, btnResetMfa;
     @FXML private StackPane headerIconHolder;
     @FXML private javafx.scene.layout.HBox heroHeader;
@@ -58,6 +59,7 @@ public class UserDialogController implements ScreenLifecycle {
             org.example.util.DocumentInspectionScaffold.installDragPhysics(heroHeader, dialog);
         }
     }
+    private boolean superAdminMfaEnabled = false;
     private String mfaPolicy = "REQUIRED";
     private final AdminApiClient api = new AdminApiClient();
     private final Map<String,String> roleDisplay = new LinkedHashMap<>();
@@ -117,7 +119,11 @@ public class UserDialogController implements ScreenLifecycle {
             clearInvalid(cmbRole);
             applyRoleSecurityPolicy();
         });
-        chkMfa.selectedProperty().addListener((o,a,b)->updateMfaStatus());
+        chkMfa.selectedProperty().addListener((o, a, b) -> {
+            updateMfaToggleLabel(Boolean.TRUE.equals(b));
+            updateMfaStatus();
+        });
+        updateMfaToggleLabel(chkMfa.isSelected());
         installLiveValidation();
         applyRoleSecurityPolicy();
         loadFormAsync(null);
@@ -195,16 +201,25 @@ public class UserDialogController implements ScreenLifecycle {
         UiTaskExecutor.submitLatest("user-dialog-bootstrap",
                 () -> {
                     var roles = api.roles().stream().filter(AdminApiClient.RoleDto::active).toList();
+                    var supportClient = new org.example.api.support.SupportApiClient();
                     String policy;
-                    try { policy = new org.example.api.support.SupportApiClient().setting("security.auth.mfa.policy", "REQUIRED").trim().toUpperCase(Locale.ROOT); }
+                    try { policy = supportClient.setting("security.auth.mfa.policy", "REQUIRED").trim().toUpperCase(Locale.ROOT); }
                     catch (Exception ignored) { policy = "REQUIRED"; }
+                    boolean saMfa = false;
+                    if (org.example.service.SessionService.isSuperAdmin()) {
+                        try {
+                            String saRaw = supportClient.setting("security.superadmin.mfa.enabled", "NO").trim().toUpperCase(Locale.ROOT);
+                            saMfa = "YES".equals(saRaw) || "TRUE".equals(saRaw) || "1".equals(saRaw);
+                        } catch (Exception ignored) {}
+                    }
                     AdminApiClient.UserDto user = userId == null ? null : api.user(userId);
                     AdminApiClient.MfaState mfaState = userId == null ? null : api.mfaState(userId);
-                    return new UserDialogBootstrap(roles, policy, user, mfaState);
+                    return new UserDialogBootstrap(roles, policy, saMfa, user, mfaState);
                 },
                 snapshot -> {
                     applyRoles(snapshot.roles());
                     mfaPolicy = snapshot.mfaPolicy();
+                    superAdminMfaEnabled = snapshot.superAdminMfaEnabled();
                     if (snapshot.user() != null) applyUser(snapshot.user());
                     currentMfaState = snapshot.mfaState();
                     setFormLoading(false);
@@ -261,6 +276,7 @@ public class UserDialogController implements ScreenLifecycle {
         chkActive.setSelected(u.active());
         chkLocked.setSelected(u.locked());
         chkMfa.setSelected(u.mfaEnabled());
+        updateMfaToggleLabel(chkMfa.isSelected());
         originalMfaEnabled = u.mfaEnabled();
 
         boolean isSuperAdmin = "superadmin".equalsIgnoreCase(u.username()) || "SUPER_ADMIN".equalsIgnoreCase(canonicalRole(u.role()));
@@ -321,7 +337,7 @@ public class UserDialogController implements ScreenLifecycle {
         if (btnSave != null) btnSave.setDisable(loading);
     }
 
-    private record UserDialogBootstrap(java.util.List<AdminApiClient.RoleDto> roles, String mfaPolicy, AdminApiClient.UserDto user, AdminApiClient.MfaState mfaState) { }
+    private record UserDialogBootstrap(java.util.List<AdminApiClient.RoleDto> roles, String mfaPolicy, boolean superAdminMfaEnabled, AdminApiClient.UserDto user, AdminApiClient.MfaState mfaState) { }
     private record MfaResetResult(AdminApiClient.MfaState state, AdminApiClient.UserDto user) { }
 
     private static String safeMessage(Throwable error) {
@@ -336,28 +352,44 @@ public class UserDialogController implements ScreenLifecycle {
 
     private void applyRoleSecurityPolicy() {
         String role = canonicalRole(cmbRole.getValue());
-        boolean admin = "ADMIN".equals(role) || "SUPER_ADMIN".equals(role);
+        boolean isSuperAdminRole = "SUPER_ADMIN".equals(role) || "superadmin".equalsIgnoreCase(originalUsername);
+        boolean isAdminRole = "ADMIN".equals(role);
         String normalizedPolicy = mfaPolicy == null ? "REQUIRED" : mfaPolicy.trim().toUpperCase(Locale.ROOT).replace(' ', '_');
+        if (isSuperAdminRole) {
+            if (lblMfaPolicy != null) lblMfaPolicy.setText("Super Admin Independent Flag (Yes / No)");
+            chkMfa.setDisable(viewOnly || !org.example.service.SessionService.isSuperAdmin());
+            chkMfa.setSelected(superAdminMfaEnabled);
+            updateMfaToggleLabel(chkMfa.isSelected());
+            chkMfa.setTooltip(new Tooltip("Independent Super Admin MFA toggle (Yes = MFA On, No = MFA Off). Never affected by company policy."));
+            updateMfaStatus();
+            return;
+        }
         if (lblMfaPolicy != null) lblMfaPolicy.setText(switch (normalizedPolicy) {
-            case "ADMIN_CONTROLLED" -> "Admin Controlled";
-            case "DISABLED" -> "Disabled";
-            default -> "Required for non-Admin roles";
+            case "ADMIN_CONTROLLED" -> "Admin Controlled (Admin Exempt)";
+            case "DISABLED" -> "Disabled (All Exempt)";
+            default -> "Required (Admin & All Users)";
         });
-        if ("ADMIN_CONTROLLED".equals(normalizedPolicy)) {
-            chkMfa.setDisable(false);
-            chkMfa.setTooltip(new Tooltip("Require Google/Microsoft Authenticator for this user."));
-        } else {
-            boolean required = !"DISABLED".equals(normalizedPolicy) && !admin;
-            chkMfa.setSelected(required);
+        if ("DISABLED".equals(normalizedPolicy)) {
+            chkMfa.setSelected(false);
             chkMfa.setDisable(true);
-            chkMfa.setTooltip(new Tooltip("DISABLED".equals(normalizedPolicy)
-                    ? "MFA is disabled by the server authentication policy."
-                    : required ? "MFA is required for this role by server policy." : "Admin is exempt while MFA policy is Required."));
+            chkMfa.setTooltip(new Tooltip("MFA is disabled for Administrators and underlying users by Company MFA Policy."));
+        } else if ("REQUIRED".equals(normalizedPolicy)) {
+            chkMfa.setSelected(true);
+            chkMfa.setDisable(true);
+            chkMfa.setTooltip(new Tooltip("MFA is required for Administrators and all underlying users under Required policy."));
+        } else if (isAdminRole) {
+            chkMfa.setSelected(false);
+            chkMfa.setDisable(true);
+            chkMfa.setTooltip(new Tooltip("Administrators are exempted from MFA while policy is Admin Controlled."));
+        } else {
+            chkMfa.setDisable(viewOnly);
+            chkMfa.setTooltip(new Tooltip("Require Google/Microsoft Authenticator for this underlying user."));
         }
         updateMfaStatus();
     }
 
     private void updateMfaStatus() {
+        updateMfaToggleLabel(chkMfa != null && chkMfa.isSelected());
         if (lblMfaStatus == null) return;
         if (!chkMfa.isSelected()) {
             lblMfaStatus.setText("Not required");
@@ -370,6 +402,12 @@ public class UserDialogController implements ScreenLifecycle {
         if (btnResetMfa != null) {
             boolean show = editingUserId != null && (currentMfaState == null || currentMfaState.required());
             btnResetMfa.setVisible(show); btnResetMfa.setManaged(show); btnResetMfa.setDisable(false);
+        }
+    }
+
+    private void updateMfaToggleLabel(boolean enabled) {
+        if (chkMfa != null) {
+            chkMfa.setText(enabled ? "Two-Factor MFA: ON" : "Two-Factor MFA: OFF");
         }
     }
 

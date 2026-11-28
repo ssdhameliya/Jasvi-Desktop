@@ -168,6 +168,10 @@ public final class BankStatementExportHelper {
             addBrsRow(summary, "Less: Uncleared / Pending Statement Credits (" + brs.unclearedCredits().size() + " items)", "₹ " + money(brs.pendingCredits()), false);
             addBrsRow(summary, "Add: Uncleared / Pending Statement Debits (" + brs.unclearedDebits().size() + " items)", "₹ " + money(brs.pendingDebits()), false);
             addBrsRow(summary, "Net Reconciled Balance Represented in ERP Books", "₹ " + money(brs.impliedBooksBalance()), true);
+            if (brs.glAccountCode() != null && !brs.glAccountCode().isBlank()) {
+                addBrsRow(summary, "Mapped Chart of Accounts GL Ledger (" + brs.glAccountCode() + ")", "₹ " + money(brs.glLedgerBalance()), false);
+                addBrsRow(summary, "3-Way Variance (Bank Closing - GL Ledger)", "₹ " + money(brs.glVsStatementDiff()), false);
+            }
             doc.add(summary);
 
             Paragraph statusPara = new Paragraph(brs.pendingCount() == 0
@@ -215,7 +219,9 @@ public final class BankStatementExportHelper {
                     { "Expense Entries", String.format(Locale.ROOT, "%.2f", brs.expenseDebits()) },
                     { "Uncleared Credits (" + brs.unclearedCredits().size() + ")", String.format(Locale.ROOT, "%.2f", brs.pendingCredits()) },
                     { "Uncleared Debits (" + brs.unclearedDebits().size() + ")", String.format(Locale.ROOT, "%.2f", brs.pendingDebits()) },
-                    { "Implied ERP Books Balance", String.format(Locale.ROOT, "%.2f", brs.impliedBooksBalance()) }
+                    { "Implied ERP Books Balance", String.format(Locale.ROOT, "%.2f", brs.impliedBooksBalance()) },
+                    { "Mapped GL Account (" + safe(brs.glAccountCode()) + ") Balance", String.format(Locale.ROOT, "%.2f", brs.glLedgerBalance()) },
+                    { "3-Way Variance (Statement - GL)", String.format(Locale.ROOT, "%.2f", brs.glVsStatementDiff()) }
             };
             Row sh = sSummary.createRow(3);
             sh.createCell(0).setCellValue("Particulars");

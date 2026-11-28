@@ -122,13 +122,51 @@ public class CloudStorageHealthGuardian {
             );
             String startHex = "CRITICAL".equals(currentLevel) ? "#dc2626" : "#d97706";
             String endHex = "CRITICAL".equals(currentLevel) ? "#991b1b" : "#b45309";
-            var renderedEmail = templates.renderEmail(
+            String progressBar = org.example.shared.communication.TokenTemplateEngine.progressBarHtml(
+                    "Disk Volume Utilization (" + serverIp + ")",
+                    diskUsagePercent,
+                    usageFormatted + "% (" + usedGb + " GB / " + totalGb + " GB)",
+                    startHex
+            );
+            String kpis = org.example.shared.communication.TokenTemplateEngine.kpiGridHtml(
+                    "Storage Capacity Telemetry",
+                    List.of(
+                            new org.example.shared.communication.TokenTemplateEngine.KpiTile("Used Space", usedGb + " GB", usageFormatted + "% utilized", startHex),
+                            new org.example.shared.communication.TokenTemplateEngine.KpiTile("Free Space", freeGb + " GB", "Remaining free", "#15803d"),
+                            new org.example.shared.communication.TokenTemplateEngine.KpiTile("Total Volume", totalGb + " GB", env + " Host", "#0f172a")
+                    ),
+                    3
+            );
+            String hostDetails = org.example.shared.communication.TokenTemplateEngine.keyValueSectionHtml(
+                    "Host & Alert Metadata",
+                    startHex,
+                    List.of(
+                            new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Environment", env, false),
+                            new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Server Host", serverIp, true),
+                            new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Severity Level", currentLevel, false, "#ffffff", startHex),
+                            new org.example.shared.communication.TokenTemplateEngine.KeyValueRow("Checked At", now.toString(), true)
+                    )
+            );
+            var renderedEmail = templates.renderRichEmail(
                     "storage_alert",
                     tokens,
-                    new org.example.server.communication.ServerNotificationTemplateService.CardStyle(
-                            startHex, endHex, currentLevel + " • " + env,
-                            "Cloud Storage Alert (" + serverIp + ")", List.of(),
-                            templates.companyName() + " Storage Health Guardian"
+                    new org.example.server.communication.ServerNotificationTemplateService.RichCardStyle(
+                            startHex, endHex,
+                            "STORAGE INFRASTRUCTURE WATCHDOG",
+                            currentLevel,
+                            startHex,
+                            "Cloud Storage Alert (" + serverIp + ")",
+                            env + " environment disk threshold exceeded",
+                            currentLevel + " Storage Alert on " + serverIp + ": " + usageFormatted + "% used (" + freeGb + " GB free)",
+                            List.of(
+                                    new org.example.shared.communication.TokenTemplateEngine.MetaColumn("ENVIRONMENT", env),
+                                    new org.example.shared.communication.TokenTemplateEngine.MetaColumn("HOST", serverIp),
+                                    new org.example.shared.communication.TokenTemplateEngine.MetaColumn("DISK USED", usageFormatted + "%", startHex)
+                            ),
+                            List.of(progressBar, kpis, hostDetails),
+                            List.of(),
+                            templates.companyName() + " Storage Health Guardian",
+                            null
                     )
             );
             String waMessage = templates.renderWhatsapp("storage_alert", tokens);
